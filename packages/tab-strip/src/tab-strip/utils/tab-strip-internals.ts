@@ -33,6 +33,21 @@ export function joinClassNames(...classNames: ReadonlyArray<string | undefined>)
 	return classNames.filter((className) => className !== undefined).join(' ');
 }
 
+/** Computes shared tooltip placement for tab and group controls in the strip. */
+export function getTabStripTooltipPlacement(
+	orientation: TabStripOrientation,
+	collapsed: boolean,
+	alignStart = true,
+): { side: 'bottom' | 'right'; align: 'center' | 'start' } {
+	if (orientation === TabStripOrientation.Vertical && collapsed) {
+		return { side: 'right', align: 'center' };
+	}
+	if (orientation === TabStripOrientation.Vertical && alignStart) {
+		return { side: 'bottom', align: 'start' };
+	}
+	return { side: 'bottom', align: 'center' };
+}
+
 export function requestManagedAnimationFrame(callback: FrameRequestCallback): number {
 	if (typeof window.requestAnimationFrame === 'function') {
 		return window.requestAnimationFrame(callback);

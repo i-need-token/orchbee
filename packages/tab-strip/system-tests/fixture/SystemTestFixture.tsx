@@ -152,6 +152,23 @@ export function SystemTestFixture(): ReactNode {
 	);
 	const activeTab = snapshot.tabs.find((tab) => tab.id === snapshot.activeTabId);
 	const tabTooltips = new URLSearchParams(window.location.search).has('tabTooltips');
+	const statusAdornments = useMemo(
+		() =>
+			tabTooltips
+				? new Map([
+						[
+							'calendar',
+							{
+								kind: 'idle' as const,
+								icon: null,
+								accessibleLabel: 'Unread',
+								unreadLabel: 'Unread output',
+							},
+						],
+					])
+				: undefined,
+		[tabTooltips],
+	);
 
 	return (
 		<div className='fixture-shell'>
@@ -183,6 +200,8 @@ export function SystemTestFixture(): ReactNode {
 					// A product host asks for the name; the fixture leaves every group it names unnamed.
 					onNameGroup={(request) => request.commit('')}
 					getHoverCardThumbnailSource={(tab) => thumbnailSources.get(tab.id) ?? null}
+					statusAdornments={statusAdornments}
+					showGroupHoverCards={!tabTooltips}
 					showTabHoverCards={!tabTooltips}
 				/>
 				<section className='fixture-page'>

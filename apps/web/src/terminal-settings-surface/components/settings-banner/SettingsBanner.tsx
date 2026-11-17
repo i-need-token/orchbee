@@ -1,5 +1,5 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { ProductIcon } from '@orchbee/ui/components';
+import { ProductIcon, Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import styles from './SettingsBanner.module.css';
@@ -30,15 +30,23 @@ export function SettingsBanner({
 			</div>
 			{action === undefined ? null : <div className={styles['action']}>{action}</div>}
 			{onDismiss === undefined ? null : (
-				<button
-					aria-label={intl.formatMessage(terminalSettingsMessages.pageDismiss)}
-					className={styles['dismiss']}
-					title={intl.formatMessage(terminalSettingsMessages.pageDismiss)}
-					type='button'
-					onClick={onDismiss}
-				>
-					<ProductIcon name='close' />
-				</button>
+				<Tooltip>
+					<TooltipTrigger
+						render={
+							<button
+								aria-label={intl.formatMessage(terminalSettingsMessages.pageDismiss)}
+								className={styles['dismiss']}
+								type='button'
+								onClick={onDismiss}
+							>
+								<ProductIcon name='close' />
+							</button>
+						}
+					/>
+					<TooltipContent side='bottom'>
+						{intl.formatMessage(terminalSettingsMessages.pageDismiss)}
+					</TooltipContent>
+				</Tooltip>
 			)}
 		</div>
 	);

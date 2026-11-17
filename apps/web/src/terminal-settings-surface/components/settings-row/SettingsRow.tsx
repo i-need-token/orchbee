@@ -1,5 +1,5 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { ProductIcon } from '@orchbee/ui/components';
+import { ProductIcon, Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import { matchesSettingsQuery } from '../../utils/matchesSettingsQuery';
@@ -64,15 +64,21 @@ export function SettingsRow({
 	let restore: React.ReactNode = null;
 	if (onRestore !== undefined) {
 		restore = modified ? (
-			<button
-				aria-label={`${restoreLabel}: ${label}`}
-				className={styles['restore']}
-				title={restoreLabel}
-				type='button'
-				onClick={onRestore}
-			>
-				<ProductIcon name='restore' />
-			</button>
+			<Tooltip>
+				<TooltipTrigger
+					render={
+						<button
+							aria-label={`${restoreLabel}: ${label}`}
+							className={styles['restore']}
+							type='button'
+							onClick={onRestore}
+						>
+							<ProductIcon name='restore' />
+						</button>
+					}
+				/>
+				<TooltipContent side='top'>{restoreLabel}</TooltipContent>
+			</Tooltip>
 		) : (
 			<span aria-hidden='true' className={styles['restoreSlot']} />
 		);
@@ -104,11 +110,12 @@ export function SettingsRow({
 						</span>
 					)}
 					{modified ? (
-						<span
-							aria-hidden='true'
-							className={styles['modified']}
-							title={intl.formatMessage(terminalSettingsMessages.pageChangedFromDefault)}
-						/>
+						<Tooltip>
+							<TooltipTrigger render={<span aria-hidden='true' className={styles['modified']} />} />
+							<TooltipContent side='top'>
+								{intl.formatMessage(terminalSettingsMessages.pageChangedFromDefault)}
+							</TooltipContent>
+						</Tooltip>
 					) : null}
 				</div>
 				{description === null || description === undefined ? null : (

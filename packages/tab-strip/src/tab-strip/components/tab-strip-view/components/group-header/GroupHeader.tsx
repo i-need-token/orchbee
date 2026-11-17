@@ -1,4 +1,5 @@
 import styles from './GroupHeader.module.css';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import {
 	type CSSProperties,
 	type MouseEvent as ReactMouseEvent,
@@ -15,6 +16,7 @@ import { TabStripIcon } from '../tab-strip-icon/TabStripIcon';
 import {
 	GROUP_COLORS,
 	getMaxContrastForeground,
+	getTabStripTooltipPlacement,
 	measuredGroupTitleWidth,
 } from '../../../../utils/tab-strip-internals';
 import { useGroupHeader } from './hooks/useGroupHeader';
@@ -36,6 +38,7 @@ export function GroupHeader({
 	tabIndex,
 	showHoverCard,
 	frameCondensed = false,
+	dragging = false,
 }: {
 	group: Readonly<TabGroupData>;
 	tabs: readonly Readonly<TabData>[];
@@ -52,6 +55,7 @@ export function GroupHeader({
 	tabIndex: -1 | 0;
 	showHoverCard: boolean;
 	frameCondensed?: boolean;
+	dragging?: boolean;
 }): ReactNode {
 	const messages = useTabStripMessages();
 	const { editorOpenedOnPress, headerRef, lastPointerType } = useGroupHeader();
@@ -73,7 +77,7 @@ export function GroupHeader({
 		group.collapsed && activeTabId !== null && tabs.some((tab) => tab.id === activeTabId)
 			? activeTabId
 			: null;
-	return (
+	const headerView = (
 		<div
 			ref={headerRef}
 			role='tablist'
@@ -91,7 +95,6 @@ export function GroupHeader({
 			data-strip-collapsed={collapsedStrip || undefined}
 			aria-expanded={!group.collapsed}
 			aria-label={messages.formatGroupAccessibleName(group, tabs)}
-			title={showHoverCard ? '' : messages.formatGroupTooltip(group, tabs)}
 			style={
 				{
 					'--ob-comp-tab-strip-group-color': groupColor,
@@ -189,5 +192,15 @@ export function GroupHeader({
 				</>
 			)}
 		</div>
+	);
+	if (showHoverCard) return headerView;
+	const { side, align } = getTabStripTooltipPlacement(orientation, collapsedStrip);
+	return (
+		<Tooltip disabled={dragging}>
+			<TooltipTrigger render={headerView} />
+			<TooltipContent side={side} align={align}>
+				{messages.formatGroupTooltip(group, tabs)}
+			</TooltipContent>
+		</Tooltip>
 	);
 }

@@ -381,6 +381,7 @@ export function HorizontalContents({
 									tabIndex={rovingFocusKey === `group:${item.group.id}` ? 0 : -1}
 									showHoverCard={showGroupHoverCards}
 									frameCondensed={horizontalFrameCondensed}
+									dragging={Boolean(drag?.started || draggedView)}
 								/>
 							</div>
 						);

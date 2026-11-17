@@ -29,6 +29,7 @@ import { TabIcon } from './components/tab-icon/TabIcon';
 import { getVisibleTabTitle } from './utils/getVisibleTabTitle';
 import {
 	TAB_SIZE,
+	getTabStripTooltipPlacement,
 	joinClassNames,
 	tabIsApparentlyActive,
 } from '../../../../utils/tab-strip-internals';
@@ -182,6 +183,12 @@ export function TabButton({
 	const previousTabHovered = hoveredTabId === snapshot.tabs[tabPositionIndex - 1]?.id;
 	const nextTabHovered = hoveredTabId === snapshot.tabs[tabPositionIndex + 1]?.id;
 	const visibleTitle = getVisibleTabTitle(tab, messages);
+	const { side: tooltipSide, align: tooltipAlign } = getTabStripTooltipPlacement(
+		orientation,
+		collapsed,
+		!tab.pinned,
+	);
+	const tooltipDisabled = dragging || slotState?.dragging === true;
 	const content = (
 		<span className={styles['ct-tab__content']} data-tab-content=''>
 			{childVisibility.showFavicon || hasStatusSymbol ? (
@@ -198,16 +205,26 @@ export function TabButton({
 				</span>
 			) : null}
 			{statusAdornment?.unreadLabel === undefined ? null : (
-				<span
-					aria-hidden='true'
-					className={styles['unread']}
-					data-tab-unread=''
-					title={statusAdornment.unreadLabel}
-				>
-					●
-				</span>
+				<Tooltip disabled={tooltipDisabled}>
+					<TooltipTrigger
+						render={
+							<span aria-hidden='true' className={styles['unread']} data-tab-unread=''>
+								●
+							</span>
+						}
+					/>
+					<TooltipContent side={tooltipSide} align='center'>
+						{statusAdornment.unreadLabel}
+					</TooltipContent>
+				</Tooltip>
 			)}
-			{childVisibility.showAlert ? <AlertIndicatorButton alertState={alertState} /> : null}
+			{childVisibility.showAlert ? (
+				<AlertIndicatorButton
+					alertState={alertState}
+					dragging={tooltipDisabled}
+					tooltipSide={tooltipSide}
+				/>
+			) : null}
 			{childVisibility.showClose ? (
 				<TabCloseButton
 					tabTitle={tab.title}
@@ -232,7 +249,6 @@ export function TabButton({
 					? messages.formatTabAccessibleLabel(tab, group)
 					: `${messages.formatTabAccessibleLabel(tab, group)}, ${statusAdornment.accessibleLabel}`
 			}
-			title=''
 			className={styles['ct-tab']}
 			data-tab-id={tab.id}
 			data-tab-strip-roving-key={`tab:${tab.id}`}
@@ -365,13 +381,9 @@ export function TabButton({
 		</div>
 	);
 	if (!titleTooltip) return tabView;
-	let tooltipSide: 'bottom' | 'right' = 'bottom';
-	let tooltipAlign: 'center' | 'start' = 'center';
-	if (orientation === TabStripOrientation.Vertical && collapsed) tooltipSide = 'right';
-	else if (orientation === TabStripOrientation.Vertical && !tab.pinned) tooltipAlign = 'start';
 	return (
 		<Tooltip
-			disabled={dragging || slotState?.dragging === true}
+			disabled={tooltipDisabled}
 			open={tooltipOpen}
 			onOpenChange={(next) => setTooltipOpen(next && tabTitleCutShort(tabViewRef.current))}
 		>

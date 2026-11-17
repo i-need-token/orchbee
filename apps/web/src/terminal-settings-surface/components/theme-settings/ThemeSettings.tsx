@@ -1,5 +1,5 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { ProductIcon } from '@orchbee/ui/components';
+import { ProductIcon, Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import {
@@ -236,14 +236,22 @@ function ColorThemeList({ list, query }: ColorThemeListProps): React.ReactNode {
 								<span className={styles['name']}>
 									{searching ? `${label}: ${option.name}` : option.name}
 								</span>
-								<span
-									className={styles['check']}
-									title={
-										selected ? intl.formatMessage(terminalSettingsMessages.pageSelected) : undefined
-									}
-								>
-									{selected ? <ProductIcon name='check' /> : null}
-								</span>
+								{selected ? (
+									<Tooltip>
+										<TooltipTrigger
+											render={
+												<span className={styles['check']}>
+													<ProductIcon name='check' />
+												</span>
+											}
+										/>
+										<TooltipContent side='top'>
+											{intl.formatMessage(terminalSettingsMessages.pageSelected)}
+										</TooltipContent>
+									</Tooltip>
+								) : (
+									<span className={styles['check']} />
+								)}
 							</div>
 						);
 					})}

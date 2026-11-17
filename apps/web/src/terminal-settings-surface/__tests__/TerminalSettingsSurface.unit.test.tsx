@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { OrchbeeI18nProvider, type OrchbeeLocale } from '@orchbee/i18n';
+import { TooltipProvider } from '@orchbee/ui/components';
 import type {
 	TerminalInputConfiguration,
 	TerminalInteractionConfiguration,
@@ -132,16 +133,20 @@ describe('TerminalSettingsSurface', () => {
 		await act(async () => {
 			root.render(
 				createElement(
-					OrchbeeI18nProvider,
-					{ locale: options.locale ?? 'en-US' },
-					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
-						controller,
-						keyboardShortcutController,
-						keyboardShortcutPlatform: platform,
-						onRequestClose: close,
-						...options.props,
-					}),
+					TooltipProvider,
+					null,
+					createElement(
+						OrchbeeI18nProvider,
+						{ locale: options.locale ?? 'en-US' },
+						createElement(TerminalSettingsSurface, {
+							applicationLocaleController: trackDisposable(createApplicationLocaleController()),
+							controller,
+							keyboardShortcutController,
+							keyboardShortcutPlatform: platform,
+							onRequestClose: close,
+							...options.props,
+						}),
+					),
 				),
 			);
 		});
@@ -562,6 +567,53 @@ describe('TerminalSettingsSurface', () => {
 			code: 'KeyK',
 			modifiers: ['mod', 'shift'],
 		});
+	});
+
+	it('uses shared tooltips without native titles on Settings banners, indicators, and controls', async () => {
+		const baseSettings = memoryUserSettings({
+			values: { 'appearance.mode': 'light', 'terminal.font_size': 16 },
+		});
+		const unavailableSnapshot = { ...baseSettings.getSnapshot(), available: false };
+		const userSettings: MemoryUserSettings = {
+			...baseSettings,
+			getSnapshot: () => unavailableSnapshot,
+		};
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				colorThemes: colorThemesWithFixtures,
+				themeTarget: document.createElement('div'),
+				userSettings,
+			}),
+		);
+		const { container, openCategory } = await renderSurface({ controller });
+
+		expect(container.querySelectorAll('[title]')).toHaveLength(0);
+
+		const dismissButton = requiredElement<HTMLButtonElement>(
+			container.querySelector("button[aria-label='Dismiss']"),
+		);
+		await act(async () => dismissButton.focus());
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-slot="tooltip-content"]')?.textContent).toBe('Dismiss');
+		});
+		await act(async () => dismissButton.blur());
+
+		await openCategory('appearance');
+		expect(container.querySelectorAll('[title]')).toHaveLength(0);
+
+		const restoreButton = requiredElement<HTMLButtonElement>(
+			container.querySelector("button[aria-label^='Restore default:']"),
+		);
+		await act(async () => restoreButton.focus());
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-slot="tooltip-content"]')?.textContent).toBe(
+				'Restore default',
+			);
+		});
+		await act(async () => restoreButton.blur());
+
+		await openCategory('themes');
+		expect(container.querySelectorAll('[title]')).toHaveLength(0);
 	});
 });
 

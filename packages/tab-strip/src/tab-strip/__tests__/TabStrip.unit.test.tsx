@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { ActionRuntime } from '@orchbee/actions';
+import { TooltipProvider } from '@orchbee/ui/components';
 import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -1401,19 +1402,46 @@ describe('TabStrip', () => {
 		expect(card.querySelector('img')).toBeNull();
 	});
 
-	it('falls back to the native group tooltip when group hover cards are disabled', () => {
+	it('shows the shared group tooltip without native titles when group hover cards are disabled', () => {
 		vi.useFakeTimers();
 		const model = createModel();
-		render(<TabStrip model={model} showGroupHoverCards={false} />);
+		const firstTab = requireDefined(model.getSnapshot().tabs[0]);
+		render(
+			<TooltipProvider>
+				<TabStrip
+					model={model}
+					showGroupHoverCards={false}
+					statusAdornments={
+						new Map([
+							[
+								firstTab.id,
+								{
+									kind: 'idle',
+									icon: null,
+									accessibleLabel: 'Unread',
+									unreadLabel: 'Unread activity',
+								},
+							],
+						])
+					}
+				/>
+			</TooltipProvider>,
+		);
 		const group = screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ });
 		setRect(group, 60, 64);
 
-		expect(group.getAttribute('title')).toBe('Research - Research A and 1 other tab');
+		expect(group.getAttribute('title')).toBeNull();
+		const unread = requireDefined(document.querySelector('[data-tab-unread]'));
+		expect(unread.getAttribute('title')).toBeNull();
+
 		fireEvent.mouseEnter(group);
 		act(() => vi.advanceTimersByTime(500));
 		expect(document.querySelector('[data-tab-strip-hover-card]')).toBeNull();
 		fireEvent.focus(group);
 		expect(document.querySelector('[data-tab-strip-hover-card]')).toBeNull();
+		expect(document.querySelector('[data-slot="tooltip-content"]')?.textContent).toBe(
+			'Research - Research A and 1 other tab',
+		);
 	});
 
 	it('uses singular overflow text for a six-tab group hover card', () => {

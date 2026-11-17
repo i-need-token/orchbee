@@ -1,5 +1,5 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { ProductIcon } from '@orchbee/ui/components';
+import { ProductIcon, Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import styles from './SettingsGroup.module.css';
@@ -53,24 +53,31 @@ export function SettingsGroup({
 							: ` · ${intl.formatMessage(terminalSettingsMessages.pageEffectNewTerminals)}`}
 					</h2>
 					{modified ? (
-						<span
-							aria-hidden='true'
-							className={styles['modified']}
-							title={intl.formatMessage(terminalSettingsMessages.pageChangedFromDefault)}
-						/>
+						<Tooltip>
+							<TooltipTrigger render={<span aria-hidden='true' className={styles['modified']} />} />
+							<TooltipContent side='top'>
+								{intl.formatMessage(terminalSettingsMessages.pageChangedFromDefault)}
+							</TooltipContent>
+						</Tooltip>
 					) : null}
 					{tag === null || tag === undefined ? null : <span className={styles['tag']}>{tag}</span>}
 					<span className={styles['actions']}>
 						{modified && onRestore !== undefined ? (
-							<button
-								aria-label={`${restoreLabel}: ${label}`}
-								className={styles['restore']}
-								title={restoreLabel}
-								type='button'
-								onClick={onRestore}
-							>
-								<ProductIcon name='restore' />
-							</button>
+							<Tooltip>
+								<TooltipTrigger
+									render={
+										<button
+											aria-label={`${restoreLabel}: ${label}`}
+											className={styles['restore']}
+											type='button'
+											onClick={onRestore}
+										>
+											<ProductIcon name='restore' />
+										</button>
+									}
+								/>
+								<TooltipContent side='top'>{restoreLabel}</TooltipContent>
+							</Tooltip>
 						) : null}
 						{action}
 					</span>

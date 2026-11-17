@@ -537,6 +537,7 @@ export function VerticalContents({
 											onMouseLeave={clearHover}
 											tabIndex={rovingFocusKey === `group:${group.id}` ? 0 : -1}
 											showHoverCard={showGroupHoverCards}
+											dragging={Boolean(drag?.started || draggedWholeGroupIds.has(group.id))}
 										/>
 										<div
 											className={styles['ct-vertical-group__tabs']}
