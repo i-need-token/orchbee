@@ -4,7 +4,17 @@
  * The Server runs one connection's requests serially in arrival order, so a stream is not a unit
  * of concurrency: requests sent in order complete in order. A lane only names a resource scope.
  * Closing one releases the viewers, controllers, and subscriptions opened on it and nothing else.
+ *
+ * A handler or listener that throws fails only its own scope: a subscription handler ends that
+ * subscription, which the Server and its owner are told of, and a listener loses only its call.
+ * The connection and every other stream keep serving, and the fault is reported with its site.
  */
+import {
+	ContainedClientFault,
+	type ContainedClientFaultReporter,
+	type ContainedClientFaultSite,
+	reportContainedClientFault,
+} from '../contained-client-fault';
 import {
 	MAXIMUM_MULTIPLEX_LANES,
 	MAXIMUM_MULTIPLEX_STREAMS,
@@ -115,6 +125,7 @@ export class ServerConnection {
 	readonly #decoder = new MultiplexDecoder();
 	readonly #endListeners = new Set<(end: ServerConnectionEnd) => void>();
 	readonly #lanes = new Set<bigint>([MULTIPLEX_ROOT_LANE]);
+	readonly #reportFault: ContainedClientFaultReporter;
 	readonly #streams = new Map<bigint, ActiveStream>();
 	readonly #viewerReadyListeners = new Map<bigint, () => void>();
 	readonly #waiting: WaitingOpen[] = [];
@@ -124,8 +135,12 @@ export class ServerConnection {
 	#unsubscribe: (() => void) | null = null;
 	#viewerHintsSeen = false;
 
-	constructor(carrier: ServerCarrier) {
+	constructor(
+		carrier: ServerCarrier,
+		reportFault: ContainedClientFaultReporter = reportContainedClientFault,
+	) {
 		this.#carrier = carrier;
+		this.#reportFault = reportFault;
 		const unsubscribe = carrier.subscribe(
 			(chunk) => this.#receive(chunk),
 			() => this.#finish({ kind: 'carrier-closed' }),
@@ -306,7 +321,40 @@ export class ServerConnection {
 		}
 		for (const message of messages) {
 			if (this.#end !== null) return;
-			this.#dispatch(message);
+			try {
+				this.#dispatch(message);
+			} catch (error) {
+				// A handler the cases below do not contain themselves, such as a closed stream's owner,
+				// fails alone; the stream it held is already gone, so only its waiting opens remain.
+				this.#contain('message-dispatch', error);
+				this.#admitWaiting();
+			}
+		}
+	}
+
+	#contain(site: ContainedClientFaultSite, error: unknown): void {
+		this.#reportFault(new ContainedClientFault(site, error));
+	}
+
+	/** Runs one subscription handler; a throw ends that subscription alone and tells its owner. */
+	#deliver(
+		streamId: bigint,
+		stream: SubscriptionStream,
+		site: ContainedClientFaultSite,
+		handle: () => void,
+	): void {
+		try {
+			handle();
+		} catch (error) {
+			this.#contain(site, error);
+			// The owner may have closed the stream before it threw.
+			if (this.#streams.get(streamId) !== stream) return;
+			this.#abandon(streamId);
+			try {
+				stream.handlers.onClosed('cancelled');
+			} catch (closeError) {
+				this.#contain('subscription-closed', closeError);
+			}
 		}
 	}
 
@@ -336,7 +384,9 @@ export class ServerConnection {
 					this.#violate('A subscription stream received a request result.');
 					return;
 				}
-				stream.handlers.onFrame(message.frameKind, message.record);
+				this.#deliver(message.streamId, stream, 'subscription-frame', () =>
+					stream.handlers.onFrame(message.frameKind, message.record),
+				);
 				return;
 			}
 			case 'stream-close': {
@@ -354,7 +404,11 @@ export class ServerConnection {
 			}
 			case 'gap': {
 				const stream = this.#streams.get(message.streamId);
-				if (stream?.kind === 'subscription') stream.handlers.onGap(message.through);
+				if (stream?.kind === 'subscription') {
+					this.#deliver(message.streamId, stream, 'subscription-gap', () =>
+						stream.handlers.onGap(message.through),
+					);
+				}
 				return;
 			}
 			case 'disconnect':
@@ -362,7 +416,11 @@ export class ServerConnection {
 				return;
 			case 'viewer-record-ready':
 				this.#viewerHintsSeen = true;
-				this.#viewerReadyListeners.get(message.viewerId)?.();
+				try {
+					this.#viewerReadyListeners.get(message.viewerId)?.();
+				} catch (error) {
+					this.#contain('viewer-ready-listener', error);
+				}
 				return;
 			case 'stream-open':
 			case 'resnapshot':
@@ -413,6 +471,12 @@ export class ServerConnection {
 		}
 		const listeners = [...this.#endListeners];
 		this.#endListeners.clear();
-		for (const listener of listeners) listener(end);
+		for (const listener of listeners) {
+			try {
+				listener(end);
+			} catch (listenerError) {
+				this.#contain('connection-end-listener', listenerError);
+			}
+		}
 	}
 }

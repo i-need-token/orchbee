@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { ContainedClientFault } from '../../contained-client-fault';
 import { MultiplexDecoder, encodeMultiplexMessage } from '../workbench-multiplex-codec';
 import type { MultiplexMessage } from '../workbench-multiplex-codec';
 import {
@@ -174,5 +175,56 @@ describe('ServerConnection', () => {
 
 		expect(frames).toEqual(['snapshot', 'update']);
 		expect(connection.ended).toEqual({ kind: 'carrier-closed' });
+	});
+
+	it('ends only the subscription whose handler throws and keeps serving everything else', async () => {
+		const carrier = new FakeCarrier();
+		const faults: ContainedClientFault[] = [];
+		const connection = new ServerConnection(carrier, (fault) => faults.push(fault));
+		const closed: string[] = [];
+		const healthy: string[] = [];
+		connection.subscribe('state', REQUEST, {
+			onClosed: (reason) => closed.push(reason),
+			onFrame: () => {
+				throw new Error('handler defect');
+			},
+			onGap: () => undefined,
+		});
+		connection.subscribe('state', REQUEST, {
+			onClosed: () => undefined,
+			onFrame: (kind) => healthy.push(kind),
+			onGap: () => undefined,
+		});
+		connection.watchViewerReady(9n, () => {
+			throw new Error('listener defect');
+		});
+		const exchange = connection.exchange(REQUEST);
+		const frame = (streamId: bigint, sequence: bigint): MultiplexMessage => ({
+			frameKind: 'snapshot',
+			kind: 'stream-frame',
+			record: new Uint8Array([1]),
+			sequence,
+			streamId,
+		});
+
+		carrier.deliver(frame(1n, 1n));
+		carrier.deliver({ kind: 'viewer-record-ready', viewerId: 9n });
+		carrier.deliver(frame(2n, 1n));
+		carrier.deliver(frame(1n, 2n));
+		carrier.deliver(result(3n));
+
+		await expect(exchange).resolves.toBeInstanceOf(Uint8Array);
+		expect(connection.ended).toBeNull();
+		expect(healthy).toEqual(['snapshot']);
+		expect(closed).toEqual(['cancelled']);
+		expect(carrier.sent).toContainEqual({
+			kind: 'stream-close',
+			reason: 'cancelled',
+			streamId: 1n,
+		});
+		expect(faults.map((fault) => fault.site)).toEqual([
+			'subscription-frame',
+			'viewer-ready-listener',
+		]);
 	});
 });
