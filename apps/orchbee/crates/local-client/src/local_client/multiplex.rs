@@ -1397,7 +1397,7 @@ impl std::fmt::Display for OutcomeUnknown {
 impl std::error::Error for OutcomeUnknown {}
 
 /// Whether the Server closed this request as run with an unknown outcome.
-fn outcome_unknown(error: &io::Error) -> bool {
+pub(crate) fn outcome_unknown(error: &io::Error) -> bool {
     error
         .get_ref()
         .is_some_and(|source| source.is::<OutcomeUnknown>())

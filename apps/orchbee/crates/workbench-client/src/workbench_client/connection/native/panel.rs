@@ -1,6 +1,7 @@
 //! Submits one captured Panel split, placement, or close operation and reads the matching
-//! canonical projection while retaining known commit evidence. It does not install UI
-//! membership or replay an uncertain structural effect.
+//! canonical projection while retaining known commit evidence. An outcome the Server cannot report
+//! goes to the UI, which reads the layout again. It does not install UI membership or replay an
+//! uncertain structural effect.
 
 use super::{ClientExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
 use crate::local_client::workbench::panel_close::{
@@ -108,10 +109,10 @@ impl ClientExecutor {
                             outcome: self.read_panel_snapshot(cutoff)?,
                         }
                     }
+                    // No new identity can replay it; the UI reads the layout again.
                     WorkbenchPanelSplitSubmission::OutcomeUnknown { .. } => {
-                        // The adapter retires every ambiguous handoff; no new identity can
-                        // replay it.
-                        return Err(CarrierFailure::OutcomeUnknown);
+                        self.ensure_unknown_is_request_scoped()?;
+                        PanelResult::OutcomeUnknown
                     }
                 }
             }
@@ -155,7 +156,8 @@ impl ClientExecutor {
                         PanelResult::CloseAccepted(accepted)
                     }
                     WorkbenchPanelCloseSubmission::OutcomeUnknown { .. } => {
-                        return Err(CarrierFailure::OutcomeUnknown);
+                        self.ensure_unknown_is_request_scoped()?;
+                        PanelResult::OutcomeUnknown
                     }
                 }
             }
@@ -217,7 +219,8 @@ impl ClientExecutor {
                         }
                     }
                     WorkbenchPanelPlacementSubmission::OutcomeUnknown { .. } => {
-                        return Err(CarrierFailure::OutcomeUnknown);
+                        self.ensure_unknown_is_request_scoped()?;
+                        PanelResult::OutcomeUnknown
                     }
                 }
             }

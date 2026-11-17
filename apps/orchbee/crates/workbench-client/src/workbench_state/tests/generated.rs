@@ -397,6 +397,7 @@ enum SettleWire {
     TabUnavailable {
         revision: u64,
     },
+    OutcomeUnknown,
 }
 
 /// One recorded settle input: which intent it targeted, which tier produced it,
@@ -2717,6 +2718,7 @@ fn settle_wire(result: &PanelResult) -> SettleWire {
         PanelResult::TabUnavailable { revision, .. } => SettleWire::TabUnavailable {
             revision: revision.value(),
         },
+        PanelResult::OutcomeUnknown => SettleWire::OutcomeUnknown,
     }
 }
 

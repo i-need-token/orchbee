@@ -402,3 +402,61 @@ fn move_retires_close_reasons_acceptance_and_control_envelopes() -> TestResult {
     }
     Ok(())
 }
+
+/// A Server that closes one move as run with an unknown outcome leaves the doubt with that move:
+/// the lane keeps serving. An answer that breaks the contract still forgets the lane.
+#[test]
+fn a_lane_keeps_serving_after_an_unknown_move_and_forgets_a_mismatched_answer() -> TestResult {
+    use crate::local_client::tests::multiplex_peer;
+    use orchbee_workbench_protocol::{
+        MultiplexMessage, StreamCloseReason, write_multiplex_message,
+    };
+    let server = FakeServer::start(|mut peer| {
+        multiplex_peer::admit(&mut peer, 1)?;
+        let unknown = multiplex_peer::read_open(&mut peer)?;
+        write_multiplex_message(
+            &mut peer,
+            &MultiplexMessage::StreamClose {
+                stream_id: unknown.id,
+                reason: StreamCloseReason::OutcomeUnknown,
+            },
+        )?;
+        let mismatched = multiplex_peer::read_open(&mut peer)?;
+        multiplex_peer::respond(
+            &mut peer,
+            &mismatched,
+            &command_response(SECOND_REQUEST_ID, WorkbenchCommandOutcome::Denied {}),
+            1,
+        )
+    })?;
+    let client = LocalClient::connect(server.endpoint())?.into_multiplexed()?;
+    let clock = client.operation_clock();
+    let mut lane = client
+        .origin()
+        .lane_before(clock.now() + SERVER_GUARD_TIMEOUT, clock.clone())?;
+    let submit = |lane: &mut LocalClient| {
+        lane.submit_workbench_tab_move(
+            WorkbenchTabMoveRequest::try_from(move_command(7)).unwrap(),
+            clock.now() + SERVER_GUARD_TIMEOUT,
+        )
+    };
+    assert!(matches!(
+        submit(&mut lane),
+        WorkbenchTabMoveSubmission::OutcomeUnknown {
+            reason: WorkbenchTabMoveOutcomeUnknownReason::Write(_),
+            ..
+        }
+    ));
+    assert!(lane.generation().is_some(), "the lane keeps serving");
+    assert!(matches!(
+        submit(&mut lane),
+        WorkbenchTabMoveSubmission::OutcomeUnknown {
+            reason: WorkbenchTabMoveOutcomeUnknownReason::CorrelationMismatch { .. },
+            ..
+        }
+    ));
+    assert_eq!(lane.generation(), None);
+    drop((lane, client));
+    server.finish()?;
+    Ok(())
+}

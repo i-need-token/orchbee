@@ -819,6 +819,7 @@ impl<'a> WorkbenchClientView<'a> {
             ClientNotice::DuplicatePending => WorkbenchClientNotice::DuplicatePending,
             ClientNotice::DuplicateNotStarted => WorkbenchClientNotice::DuplicateNotStarted,
             ClientNotice::DuplicateOutcomeUnknown => WorkbenchClientNotice::DuplicateOutcomeUnknown,
+            ClientNotice::ChangeOutcomeUnknown => WorkbenchClientNotice::ChangeOutcomeUnknown,
             ClientNotice::MoveNotMoved => WorkbenchClientNotice::MoveNotMoved,
             ClientNotice::MoveOrderConflict => WorkbenchClientNotice::MoveOrderConflict,
             ClientNotice::PanelNotApplied => WorkbenchClientNotice::PanelNotApplied,
@@ -4313,6 +4314,9 @@ impl WorkbenchClientUi {
                         return Err(CarrierFailure::Protocol);
                     }
                     state.set_notice(notice);
+                    if matches!(outcome, CreatePrecommitOutcome::OutcomeUnknown) {
+                        state.owe_publication_read();
+                    }
 
                     if matches!(
                         state.controller_mode(),
@@ -5190,6 +5194,7 @@ const fn create_precommit_notice(outcome: &CreatePrecommitOutcome) -> ClientNoti
             reason: orchbee_workbench_protocol::WorkbenchRejectionReason::TabMoveOrderConflict,
             ..
         }) => ClientNotice::CreateOrderConflict,
+        CreatePrecommitOutcome::OutcomeUnknown => ClientNotice::ChangeOutcomeUnknown,
         CreatePrecommitOutcome::NotSubmitted
         | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Rejected { .. })
         | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Denied)

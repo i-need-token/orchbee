@@ -55,6 +55,8 @@ pub(crate) enum WorkbenchClientNotice {
     DuplicatePending,
     DuplicateNotStarted,
     DuplicateOutcomeUnknown,
+    /// A structural change ran on the Server and its outcome is unknown.
+    ChangeOutcomeUnknown,
     MoveNotMoved,
     MoveOrderConflict,
     PanelNotApplied,

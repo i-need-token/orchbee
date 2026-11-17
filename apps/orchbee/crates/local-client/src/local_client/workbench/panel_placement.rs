@@ -150,7 +150,11 @@ impl LocalClient {
         request_id: WorkbenchRequestId,
         reason: WorkbenchPanelPlacementOutcomeUnknownReason,
     ) -> WorkbenchPanelPlacementSubmission {
-        self.connection.take();
+        let write_error = match &reason {
+            WorkbenchPanelPlacementOutcomeUnknownReason::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         WorkbenchPanelPlacementSubmission::OutcomeUnknown { request_id, reason }
     }
 }

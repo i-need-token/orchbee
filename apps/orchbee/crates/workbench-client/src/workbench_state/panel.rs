@@ -434,6 +434,9 @@ pub(crate) enum PanelResult {
         commit: Box<PanelCommit>,
         outcome: WorkbenchSnapshotOutcome,
     },
+    /// The Server ran the request and cannot say how it ended, while the connection keeps
+    /// serving. The layout is read again rather than guessed.
+    OutcomeUnknown,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -465,6 +468,7 @@ enum PreparedPanelResult {
     /// The Server asks before this conditional close: the armed confirmation presents.
     ConfirmationRequired,
     Unchanged,
+    OutcomeUnknown,
     CloseAccepted(WorkbenchPanelCloseAccepted),
     Committed {
         pending: PendingPanelCommit,
@@ -646,6 +650,7 @@ impl WorkbenchClientState {
             PanelResult::NotSubmitted | PanelResult::Precommit(_) => {
                 PreparedPanelResult::NotApplied
             }
+            PanelResult::OutcomeUnknown => PreparedPanelResult::OutcomeUnknown,
             PanelResult::TabUnavailable { revision, outcome } => {
                 if revision.value() < operation.baseline.revision().value() {
                     PreparedPanelResult::Divergent { pending: None }
@@ -788,6 +793,12 @@ impl WorkbenchClientState {
             }
             PreparedPanelResult::Unchanged | PreparedPanelResult::ConfirmationRequired => {
                 self.notice = None;
+            }
+            // The layout this Client holds may be stale: the publication drain reads the Session's
+            // layout again and installs whatever the request left, as it would a peer's change.
+            PreparedPanelResult::OutcomeUnknown => {
+                self.notice = Some(ClientNotice::ChangeOutcomeUnknown);
+                self.owe_publication_read();
             }
             PreparedPanelResult::CloseAccepted(_) => {
                 self.notice = None;

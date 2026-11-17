@@ -150,6 +150,9 @@ pub(crate) enum MoveResult {
         commit: WorkbenchTabMoveCommit,
         outcome: WorkbenchSnapshotOutcome,
     },
+    /// The Server ran the request and cannot say how it ended, while the connection keeps
+    /// serving. The Tab order is read again rather than guessed.
+    OutcomeUnknown,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -179,6 +182,7 @@ enum PreparedMoveResult {
     NotMoved,
     OrderConflict,
     Unchanged,
+    OutcomeUnknown,
     Committed {
         pending: PendingMoveCommit,
         candidate: Option<ClientContextTabs>,
@@ -268,6 +272,7 @@ impl WorkbenchClientState {
                 ..
             }) => PreparedMoveResult::OrderConflict,
             MoveResult::NotSubmitted | MoveResult::Precommit(_) => PreparedMoveResult::NotMoved,
+            MoveResult::OutcomeUnknown => PreparedMoveResult::OutcomeUnknown,
             MoveResult::TabUnavailable { revision, outcome } => {
                 if revision.value() < operation.baseline.revision().value() {
                     PreparedMoveResult::Divergent { pending: None }
@@ -385,6 +390,12 @@ impl WorkbenchClientState {
                 self.notice = Some(ClientNotice::MoveOrderConflict)
             }
             PreparedMoveResult::Unchanged => self.notice = None,
+            // The publication drain reads the Session's Tab order again and installs whatever the
+            // request left, as it would a peer's change.
+            PreparedMoveResult::OutcomeUnknown => {
+                self.notice = Some(ClientNotice::ChangeOutcomeUnknown);
+                self.owe_publication_read();
+            }
             PreparedMoveResult::RefusedProjection(candidate) => {
                 if !self.merge_projection(candidate) {
                     self.retire(CarrierFailure::AuthorityDivergence);

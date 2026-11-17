@@ -33,6 +33,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
         N::DuplicatePending,
         N::DuplicateNotStarted,
         N::DuplicateOutcomeUnknown,
+        N::ChangeOutcomeUnknown,
         N::MoveNotMoved,
         N::MoveOrderConflict,
         N::PanelNotApplied,
@@ -209,6 +210,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             | N::DuplicatePending
             | N::DuplicateNotStarted
             | N::DuplicateOutcomeUnknown
+            | N::ChangeOutcomeUnknown
             | N::MoveNotMoved
             | N::MoveOrderConflict
             | N::PanelNotApplied

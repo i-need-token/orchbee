@@ -1072,6 +1072,31 @@ fn definite_precommit_refusals_release_admission_for_every_reason_class() {
     }
 }
 
+/// An outcome the Server cannot report stays with its request: the Client keeps its session and
+/// viewer, says it is not sure, and owes the publication drain one read of the layout.
+#[test]
+fn unknown_panel_outcome_keeps_the_session_and_owes_a_layout_read() {
+    for kind in [split_kind(), PanelRequestKind::Close] {
+        let mut state = ready(1);
+        let operation = plan(&state, 70_062, kind);
+        let cache = state.cache().clone();
+        let viewer = state.ready().cloned();
+        assert!(state.begin_panel(operation.clone()));
+        let prepared = state.prepare_panel(&operation, PanelResult::OutcomeUnknown);
+        assert_eq!(
+            state.apply_prepared_panel(prepared),
+            PanelDecision::Continue
+        );
+        assert_eq!(state.cache(), &cache);
+        assert_eq!(state.ready(), viewer.as_ref());
+        assert!(state.pending_panel().is_none());
+        assert!(state.retained_panel_for_test().is_none());
+        assert_eq!(state.notice, Some(ClientNotice::ChangeOutcomeUnknown));
+        assert!(state.publication_debt_pending());
+        assert!(state.invariant_holds());
+    }
+}
+
 #[test]
 fn unchanged_result_at_the_baseline_revision_releases_without_recovery() {
     let mut state = ready(1);

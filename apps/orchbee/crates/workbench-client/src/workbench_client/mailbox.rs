@@ -922,6 +922,9 @@ pub(super) enum ViewportOutcome {
 pub(super) enum CreatePrecommitOutcome {
     Returned(WorkbenchTabCreatePrecommit),
     NotSubmitted,
+    /// The Server ran the create and cannot say how it ended, while the connection keeps serving.
+    /// The Client returns to where it stood and reads the Session's Tabs again.
+    OutcomeUnknown,
 }
 
 impl WorkerEvent {

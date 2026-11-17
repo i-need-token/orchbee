@@ -695,8 +695,22 @@ impl LocalClient {
         request_id: RequestId,
         reason: OutcomeUnknownReason,
     ) -> Result<Value, SubmissionError> {
-        self.connection.take();
+        let write_error = match &reason {
+            OutcomeUnknownReason::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         Err(SubmissionError::OutcomeUnknown { request_id, reason })
+    }
+
+    /// Forgets the connection after a request whose outcome is unknown, unless the Server closed
+    /// only that request as run with an unknown outcome: then the lane keeps serving and the doubt
+    /// stays with the request. Every other failure after handoff, and every answer that breaks the
+    /// contract, forgets the connection.
+    pub(crate) fn forget_connection_after_unknown(&mut self, write_error: Option<&io::Error>) {
+        if !write_error.is_some_and(multiplex::outcome_unknown) {
+            self.connection.take();
+        }
     }
 }
 

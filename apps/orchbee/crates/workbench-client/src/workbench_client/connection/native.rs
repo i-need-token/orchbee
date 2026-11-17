@@ -5,8 +5,7 @@
 use super::{ClientConnectionExit, attach_binding};
 use crate::local_client::workbench::{
     PublicationReadError, PublicationReadFailure, SnapshotReadError, SnapshotReadFailure,
-    WorkbenchTabCreateNotSubmitted, WorkbenchTabCreateOutcomeUnknownReason,
-    WorkbenchTabCreateRequest, WorkbenchTabCreateSubmission,
+    WorkbenchTabCreateNotSubmitted, WorkbenchTabCreateRequest, WorkbenchTabCreateSubmission,
 };
 use crate::local_client::{LocalClient, LocalOperationClock, SubmissionError};
 use crate::startup_directory::ClientStartupTarget;
@@ -1759,8 +1758,15 @@ impl ClientExecutor {
                     &operation,
                     CreatePrecommitOutcome::Returned(outcome),
                 ),
-            WorkbenchTabCreateSubmission::OutcomeUnknown { reason, .. } => {
-                Err(tab_create_unknown(reason))
+            // No new identity can replay it; the UI returns to where it stood and reads the Tabs
+            // again.
+            WorkbenchTabCreateSubmission::OutcomeUnknown { .. } => {
+                self.ensure_unknown_is_request_scoped()?;
+                self.restore_create_precommit(
+                    lease,
+                    &operation,
+                    CreatePrecommitOutcome::OutcomeUnknown,
+                )
             }
             WorkbenchTabCreateSubmission::Committed(commit) => {
                 if self.pending_create.is_some() {
@@ -1770,6 +1776,17 @@ impl ClientExecutor {
                     Some(PendingCreateCommit::new(operation.clone(), commit.clone()));
                 self.continue_committed_create(lease, operation, commit)
             }
+        }
+    }
+
+    /// A request whose outcome is unknown stays with that request only while the connection keeps
+    /// serving, which means the Server closed that request alone as run with an unknown outcome.
+    /// Without a connection the doubt covers the whole Client, and it retires.
+    fn ensure_unknown_is_request_scoped(&self) -> Result<()> {
+        if self.client.generation().is_some() {
+            Ok(())
+        } else {
+            Err(CarrierFailure::OutcomeUnknown)
         }
     }
 
@@ -2662,9 +2679,11 @@ impl ClientExecutor {
             return Err(CarrierFailure::Protocol.into());
         }
         let request_id = self.mailbox.allocate_obcs_request_id().map_err(closed)?;
-        self.client
-            .submit_terminal_control_before(TerminalControlRequest::new(request_id, action), cutoff)
-            .map(orchbee_client_server_protocol::TerminalControlResult::into_outcome)
+        let result = self.client.submit_terminal_control_before(
+            TerminalControlRequest::new(request_id, action),
+            cutoff,
+        );
+        self.request_scoped_control(result)
             .map_err(|error| self.ready_submission_error(lease, key, deadline, error))
     }
 
@@ -2774,10 +2793,30 @@ impl ClientExecutor {
     ) -> Result<TerminalControlOutcome> {
         self.ensure_attachment_id(action.attachment_id())?;
         let request_id = self.mailbox.allocate_obcs_request_id().map_err(closed)?;
-        self.client
-            .submit_terminal_control_before(TerminalControlRequest::new(request_id, action), cutoff)
-            .map(orchbee_client_server_protocol::TerminalControlResult::into_outcome)
-            .map_err(submission)
+        let result = self.client.submit_terminal_control_before(
+            TerminalControlRequest::new(request_id, action),
+            cutoff,
+        );
+        self.request_scoped_control(result).map_err(submission)
+    }
+
+    /// A control request the Server closed alone as run with an unknown outcome reads as the
+    /// Server's own unknown answer: the lane keeps serving, so the doubt is that action's and its
+    /// caller settles it as one. Any other submission failure stays a failure.
+    fn request_scoped_control(
+        &self,
+        result: std::result::Result<
+            orchbee_client_server_protocol::TerminalControlResult,
+            SubmissionError,
+        >,
+    ) -> std::result::Result<TerminalControlOutcome, SubmissionError> {
+        match result {
+            Ok(result) => Ok(result.into_outcome()),
+            Err(SubmissionError::OutcomeUnknown { .. }) if self.client.generation().is_some() => {
+                Ok(TerminalControlOutcome::OutcomeUnknown {})
+            }
+            Err(error) => Err(error),
+        }
     }
 
     /// Whether the mailbox still admits setup work for this exact pane
@@ -3687,10 +3726,6 @@ fn publication_fold_failure(reason: DeltaRejectionReason) -> CarrierFailure {
             CarrierFailure::Protocol
         }
     }
-}
-
-fn tab_create_unknown(_error: WorkbenchTabCreateOutcomeUnknownReason) -> CarrierFailure {
-    CarrierFailure::OutcomeUnknown
 }
 
 fn io_failure(error: &std::io::Error) -> CarrierFailure {

@@ -140,7 +140,11 @@ impl LocalClient {
         request_id: WorkbenchRequestId,
         reason: WorkbenchPanelSplitOutcomeUnknownReason,
     ) -> WorkbenchPanelSplitSubmission {
-        self.connection.take();
+        let write_error = match &reason {
+            WorkbenchPanelSplitOutcomeUnknownReason::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         WorkbenchPanelSplitSubmission::OutcomeUnknown { request_id, reason }
     }
 }

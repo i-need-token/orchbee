@@ -498,7 +498,11 @@ impl LocalClient {
         request_id: WorkbenchRequestId,
         reason: WorkbenchTabCreateOutcomeUnknownReason,
     ) -> WorkbenchTabCreateSubmission {
-        self.connection.take();
+        let write_error = match &reason {
+            WorkbenchTabCreateOutcomeUnknownReason::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         WorkbenchTabCreateSubmission::OutcomeUnknown { request_id, reason }
     }
 }

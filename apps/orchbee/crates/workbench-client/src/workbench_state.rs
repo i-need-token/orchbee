@@ -729,6 +729,9 @@ pub(crate) enum ClientNotice {
     DuplicatePending,
     DuplicateNotStarted,
     DuplicateOutcomeUnknown,
+    /// A Tab create or move, or a Panel split, move or close, ran on the Server and its outcome is
+    /// unknown. The layout is read again; the notice stays until the next Client action.
+    ChangeOutcomeUnknown,
     MoveNotMoved,
     MoveOrderConflict,
     RenameNotRenamed,
@@ -790,6 +793,7 @@ impl ClientNotice {
             self,
             Self::DuplicatePending
                 | Self::DuplicateOutcomeUnknown
+                | Self::ChangeOutcomeUnknown
                 | Self::CopyUnknown
                 | Self::BellUnknown
                 | Self::RecordUnusable(..)

@@ -1,11 +1,12 @@
 //! Submits a captured Tab move once and reads canonical membership after its exact commit,
-//! retaining evidence when later observation fails. It does not install the UI selection or
-//! retarget an unknown move.
+//! retaining evidence when later observation fails. An outcome the Server cannot report goes to
+//! the UI, which reads the Tab order again. It does not install the UI selection or retarget an
+//! unknown move.
 
 use super::{ClientExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
 use crate::local_client::workbench::{
-    WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason, WorkbenchTabMovePrecommit,
-    WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
+    WorkbenchTabMoveNotSubmitted, WorkbenchTabMovePrecommit, WorkbenchTabMoveRequest,
+    WorkbenchTabMoveSubmission,
 };
 use crate::workbench_client::mailbox::{CommandLease, MutationResult, UiReply};
 use crate::workbench_projection::TabMovePlacement;
@@ -81,9 +82,10 @@ impl ClientExecutor {
                 MoveResult::Precommit(outcome)
             }
             WorkbenchTabMoveSubmission::Unchanged { revision } => MoveResult::Unchanged(revision),
-            WorkbenchTabMoveSubmission::OutcomeUnknown { request_id, reason } => {
-                // The adapter retires every ambiguous handoff; no new identity can replay it.
-                return Err(move_unknown(request_id, reason));
+            // No new identity can replay it; the UI reads the Tab order again.
+            WorkbenchTabMoveSubmission::OutcomeUnknown { .. } => {
+                self.ensure_unknown_is_request_scoped()?;
+                MoveResult::OutcomeUnknown
             }
             WorkbenchTabMoveSubmission::Committed(commit) => {
                 if self.pending_move.is_some() || self.pending_create.is_some() {
@@ -169,11 +171,4 @@ impl ClientExecutor {
             .map_err(closed)?;
         self.read_workbench_before(request_id, cutoff)
     }
-}
-
-fn move_unknown(
-    _request_id: orchbee_workbench_protocol::WorkbenchRequestId,
-    _reason: WorkbenchTabMoveOutcomeUnknownReason,
-) -> CarrierFailure {
-    CarrierFailure::OutcomeUnknown
 }

@@ -250,6 +250,7 @@ impl Locale {
             | N::TerminalActionUnknown
             | N::DuplicatePending
             | N::DuplicateOutcomeUnknown
+            | N::ChangeOutcomeUnknown
             | N::CommandUnknown
             | N::CommandRefused(
                 orchbee_workbench_protocol::ConfiguredCommandFailure::PhysicalUnknown,
