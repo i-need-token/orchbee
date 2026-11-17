@@ -18,6 +18,8 @@ struct Port {
     /// Edits the page sent to the Server.
     edits: usize,
     calls: Rc<RefCell<Vec<Call>>>,
+    /// What About's Updates row reached the port with.
+    updates: Vec<crate::release_update::UpdateRequest>,
 }
 
 fn snapshot(values: &UserSettingsValues) -> SettingsSnapshot {
@@ -85,6 +87,7 @@ fn prefix_comma_opens_settings_without_reaching_the_pane() {
         editor: Editor::default(),
         edits: 0,
         calls: Rc::new(RefCell::new(Vec::new())),
+        updates: Vec::new(),
     };
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
@@ -160,6 +163,7 @@ fn every_key_of_a_settings_packet_applies_in_order() {
             editor,
             edits: 0,
             calls: Rc::new(RefCell::new(Vec::new())),
+            updates: Vec::new(),
         };
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(120);
@@ -188,6 +192,7 @@ impl Port {
             editor,
             edits: 0,
             calls: Rc::new(RefCell::new(Vec::new())),
+            updates: Vec::new(),
         }
     }
 
@@ -307,6 +312,21 @@ impl TerminalInputPort for Port {
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
         Ok(())
+    }
+
+    fn take_settings_update(&mut self) -> Option<crate::release_update::UpdateRequest> {
+        self.editor.take_update_request()
+    }
+
+    fn check_for_updates(&mut self) {
+        self.updates
+            .push(crate::release_update::UpdateRequest::Check);
+    }
+
+    fn switch_to_update(&mut self) -> crate::release_update::UpdateSwitch {
+        self.updates
+            .push(crate::release_update::UpdateRequest::Switch);
+        crate::release_update::UpdateSwitch::Leave
     }
 
     fn scroll_list(
@@ -626,4 +646,67 @@ fn a_press_outside_the_settings_dialog_closes_it() {
     assert!(!port.editor.visible());
     assert_eq!(port.edits, 0);
     assert!(forwarded_bytes(&port.calls).is_empty());
+}
+
+/// Enter on About's Updates row reaches the port through the dispatcher: it asks for a check while
+/// no version is offered, runs the Update control's switch once one is, and asks for nothing while
+/// a check runs or none can; nothing reaches a pane.
+#[test]
+fn enter_on_about_updates_asks_for_a_check_or_the_switch() {
+    use crate::release_update::{CheckUnavailable, UpdateCheck, UpdateRequest};
+    for (offered, check, expected, outcome) in [
+        (
+            None,
+            UpdateCheck::Idle,
+            Some(UpdateRequest::Check),
+            DispatchOutcome::Continue,
+        ),
+        (
+            None,
+            UpdateCheck::Failed,
+            Some(UpdateRequest::Check),
+            DispatchOutcome::Continue,
+        ),
+        (
+            Some("9.0.0"),
+            UpdateCheck::Idle,
+            Some(UpdateRequest::Switch),
+            DispatchOutcome::Exit,
+        ),
+        (None, UpdateCheck::Checking, None, DispatchOutcome::Continue),
+        (
+            None,
+            UpdateCheck::Unavailable(CheckUnavailable::Session),
+            None,
+            DispatchOutcome::Continue,
+        ),
+    ] {
+        let mut port = Port::ready();
+        port.editor.observe_update(offered, check);
+        port.editor.edit(Edit::Select(Row::Updates));
+        port.editor.draw(port.editor.view().unwrap().token());
+        assert_eq!(page(&port).selected(), Row::Updates);
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(120);
+        let map = render_settings_map(&dispatcher, &mut port, 120, 40);
+        dispatcher.publish_hit_map(map);
+        let result = dispatcher
+            .dispatch(
+                &mut view,
+                b"\r",
+                &mut port,
+                Instant::now(),
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        assert_eq!(result, outcome, "{offered:?} {check:?}");
+        assert_eq!(
+            port.updates.as_slice(),
+            expected.as_slice(),
+            "{offered:?} {check:?}"
+        );
+        assert_eq!(port.edits, 0);
+        assert!(forwarded_bytes(&port.calls).is_empty());
+    }
 }

@@ -14,8 +14,8 @@ settings registry owns keys, defaults and validation, and Workbench Protocol the
 their bounds.
 
 The page follows the Desktop page's structure, wording and order in both locales. The left column
-holds Back, search and the categories General, Appearance, Themes, Terminal, Notifications, Keyboard
-and Agents. The right column holds the category title, a line naming the settings file when it is
+holds Back, search and the categories General, Appearance, Themes, Terminal, Notifications, Keyboard,
+Agents and About. The right column holds the category title, a line naming the settings file when it is
 unusable, and framed groups under their headings. Every row shows its name, a one-line description
 that is always visible, and its control at the row's end. Themes shows the light list and the dark
 list; the list the current appearance paints is tagged in use, and System follows the canvas. A row
@@ -118,6 +118,28 @@ begins after 200 ms. The ordered settings lane has a two-second exchange deadlin
 subscription on the shared carrier; an edit is a one-shot request whose reply and the subscription's
 observations are ordered by revision. Closing cancels its requests and subscription. A replacement
 Session or editor episode cannot inherit an old completion.
+
+## About
+
+About closes the category list and holds no setting: it shows no settings-file line, search skips
+it, and its rows never reach the Server's settings. Its unnamed group holds Version, which names
+this Client's version and its build kind (release, test or development), and Updates. Version has
+nothing to activate, so the status line names no primary key on it.
+
+Updates shows Check for updates, or the Update control's `[Update]` while the release store names a
+newer version, with the control's own sentence as its description. A press on Check for updates
+sends `workbench.update-check` `start` to the Session's Server, which runs its scheduled
+automatic-update job now through the same helper and state
+([automatic updates proposal](../../../proposals/platform/automatic-updates.md#manual-check)). The
+row then shows Checking… and reads the run with `read` about once a second while About shows. A
+run that ends up to date or failed says so on the description line; a run that installed a version
+stays Checking until the store watcher, asked to read at once, makes the Update control Ready, and
+the row then offers `[Update]`. Only a run this TUI asked for reports its end: a scheduled run About
+saw under way returns the row to its idle description, and returning to About clears an earlier
+result. A lost or unmatched answer ends an asked check as failed and never closes the TUI or the
+connection. The row is unavailable, with the reason on its description line, in a development
+build, where no update writes this platform's release store, on a saved-machine origin, when the
+Session's handshake lacks `update-check`, or after the Server answers `unavailable`.
 
 ## Agent integrations
 

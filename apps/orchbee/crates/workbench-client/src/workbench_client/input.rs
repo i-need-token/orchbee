@@ -412,6 +412,14 @@ pub trait TerminalInputPort {
     fn switch_to_update(&mut self) -> crate::release_update::UpdateSwitch {
         crate::release_update::UpdateSwitch::Unavailable
     }
+
+    /// What the last press on Settings' About Updates row asked for, once.
+    fn take_settings_update(&mut self) -> Option<crate::release_update::UpdateRequest> {
+        None
+    }
+
+    /// Asks the Session Server to run its update job now; About follows the run.
+    fn check_for_updates(&mut self) {}
 }
 
 #[derive(Clone, Copy, Debug, Default)]

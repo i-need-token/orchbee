@@ -3,10 +3,12 @@
 //! how the TUI leaves for it. The store is read on a background thread; the switch itself is the
 //! TUI's exit: a launcher that announced the relaunch protocol starts the active version; without
 //! one a macOS TUI replaces itself with that version, and elsewhere the TUI names the command that
-//! opens it.
+//! opens it. About's Check for updates asks the Session Server to run its update job now; see
+//! [`check`].
 
 use crate::background_thread::BackgroundThread;
 use crate::localization::Locale;
+pub(crate) use check::{CheckContext, CheckUnavailable, UpdateCheck};
 use orchbee_connection_handshake::{COMPATIBILITY_WINDOW, Generation, GenerationRange};
 use orchbee_local_runtime::{ActiveRelease, EnvironmentKind};
 use std::{
@@ -99,6 +101,15 @@ pub(crate) fn joins(
 /// since it owns the manifest format.
 pub type ClientGenerations = Box<dyn Fn(&ActiveRelease) -> Option<GenerationRange> + Send>;
 
+/// What a press on About's Updates row asks for.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UpdateRequest {
+    /// Ask the Session Server to run its update job now.
+    Check,
+    /// Run the Update control's switch, as a click on it does.
+    Switch,
+}
+
 /// What a click on Update came to.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UpdateSwitch {
@@ -118,6 +129,9 @@ pub struct Updater {
     control: UpdateControl,
     generations: ClientGenerations,
     leaving: UpdateDeparture,
+    check: check::Check,
+    /// A store reading arrived since the check last looked.
+    store_read: bool,
 }
 
 /// The version a click chose to leave for, readable after the TUI that owns the [`Updater`] ended.
@@ -159,6 +173,8 @@ impl Updater {
             control: UpdateControl::Absent,
             generations,
             leaving: UpdateDeparture::default(),
+            check: check::Check::default(),
+            store_read: false,
         }
     }
 
@@ -176,6 +192,8 @@ impl Updater {
             control: UpdateControl::Absent,
             generations,
             leaving: UpdateDeparture::default(),
+            check: check::Check::default(),
+            store_read: false,
         };
         updater.observe(Some(ActiveRelease {
             version: version.to_owned(),
@@ -192,7 +210,32 @@ impl Updater {
         let Some(active) = watcher.latest() else {
             return false;
         };
+        self.store_read = true;
         self.observe(active)
+    }
+
+    /// What About's Updates row reports.
+    pub(crate) const fn check(&self) -> UpdateCheck {
+        self.check.shown()
+    }
+
+    /// A press on Check for updates.
+    pub(crate) fn start_check(&mut self, context: &CheckContext<'_>) {
+        self.check.start(self.build, context);
+    }
+
+    /// Follows the check on every tick; after a run installed a version, the store is read at
+    /// once rather than at its next poll.
+    pub(crate) fn drive_check(&mut self, context: &CheckContext<'_>) {
+        let store = check::Store {
+            read: std::mem::take(&mut self.store_read),
+            ready: matches!(self.control, UpdateControl::Ready { .. }),
+        };
+        if self.check.drive(self.build, context, store)
+            && let Some(watcher) = &self.watcher
+        {
+            watcher.read_now();
+        }
     }
 
     fn observe(&mut self, active: Option<ActiveRelease>) -> bool {
@@ -280,37 +323,45 @@ pub fn depart(version: &str, launcher: Launcher, locale: Locale) -> Departure {
 /// Reads the store's pointer every [`STORE_POLL`] on its own thread and keeps the newest reading.
 struct StoreWatcher {
     readings: Receiver<Option<ActiveRelease>>,
-    // Dropping the sender ends the thread at its next wait.
-    _stop: Sender<()>,
+    // Each message asks for a reading now; dropping the sender ends the thread at its next wait.
+    wake: Sender<()>,
     _thread: BackgroundThread,
 }
 
 impl StoreWatcher {
     fn start() -> std::io::Result<Self> {
-        let (stop, stopped) = mpsc::channel::<()>();
+        let (wake, woken) = mpsc::channel::<()>();
         let (send, readings) = mpsc::channel();
         let thread = BackgroundThread::spawn("orchbee-update-store", move || {
             let mut last = None;
+            let mut asked = false;
             loop {
+                // A reading asked for is sent even when unchanged, so the asker learns it arrived.
                 if let Some(reading) = read_store()
-                    && last.as_ref() != Some(&reading)
+                    && (asked || last.as_ref() != Some(&reading))
                 {
                     if send.send(reading.clone()).is_err() {
                         return;
                     }
                     last = Some(reading);
                 }
-                match stopped.recv_timeout(STORE_POLL) {
-                    Err(RecvTimeoutError::Timeout) => {}
-                    Ok(()) | Err(RecvTimeoutError::Disconnected) => return,
-                }
+                asked = match woken.recv_timeout(STORE_POLL) {
+                    Err(RecvTimeoutError::Timeout) => false,
+                    Ok(()) => true,
+                    Err(RecvTimeoutError::Disconnected) => return,
+                };
             }
         })?;
         Ok(Self {
             readings,
-            _stop: stop,
+            wake,
             _thread: thread,
         })
+    }
+
+    /// Asks for a reading now instead of at the next poll.
+    fn read_now(&self) {
+        let _sent = self.wake.send(());
     }
 
     /// The newest reading since the last call, if any arrived.
@@ -328,5 +379,6 @@ fn read_store() -> Option<Option<ActiveRelease>> {
     orchbee_local_runtime::active_release(&root).ok()
 }
 
+mod check;
 #[cfg(test)]
 mod tests;

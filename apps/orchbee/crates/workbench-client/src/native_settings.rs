@@ -6,6 +6,8 @@ use orchbee_agent_integration::IntegrationId;
 use orchbee_workbench_protocol::{
     SettingScalar, SettingsFile, SettingsOperation, SettingsSnapshot, UserSettingsValues,
 };
+mod about;
+use about::About;
 mod appearance;
 pub(crate) use appearance::AppearancePreview;
 mod catalog;
@@ -240,6 +242,8 @@ pub(crate) struct Editor {
     unlisted: bool,
     /// Survives closing Settings: an accepted job keeps running and settles here.
     integrations: Integrations,
+    /// About's mirror of the update state, followed while Settings is closed.
+    about: About,
     /// Followed while Settings is closed, so a page that opens names the file at once.
     file: FileState,
     next: u64,
@@ -482,7 +486,11 @@ impl Editor {
                 token,
                 visible: true,
             } => Some(View::Loading { token: *token }),
-            State::Open(page) => Some(View::Page(PageView::new(page, &self.integrations))),
+            State::Open(page) => Some(View::Page(PageView::new(
+                page,
+                &self.integrations,
+                &self.about,
+            ))),
             _ => None,
         }
     }
@@ -623,6 +631,34 @@ impl Editor {
         }
         self.redraw();
         self.visible()
+    }
+
+    /// Follows the update state About shows; answers whether a visible page changed.
+    pub(crate) fn observe_update(
+        &mut self,
+        update: Option<&str>,
+        check: crate::release_update::UpdateCheck,
+    ) -> bool {
+        if !self.about.observe(update, check) {
+            return false;
+        }
+        self.redraw();
+        self.visible()
+    }
+
+    /// What the last press on About's Updates row asked for, once.
+    pub(crate) fn take_update_request(&mut self) -> Option<crate::release_update::UpdateRequest> {
+        self.about.take_request()
+    }
+
+    /// Whether About shows: its category is open and no search replaces it.
+    pub(crate) fn about_visible(&self) -> bool {
+        matches!(
+            &self.state,
+            State::Open(page) if page.page == Page::General
+                && page.category == Category::About
+                && page.filter.text().is_empty()
+        )
     }
 
     /// A new Session starts uninspected; a job of the old one is no longer followed.

@@ -227,7 +227,7 @@ impl Editor {
             Edit::Adjust(forward) => {
                 if !page.activation_ready
                     || !matches!(page.row, Row::Profile | Row::Argument)
-                    || !page.enabled(&self.integrations, page.row)
+                    || !page.enabled(&self.integrations, &self.about, page.row)
                 {
                     return None;
                 }
@@ -309,8 +309,19 @@ impl Editor {
             return None;
         };
         let row = page.row;
-        if !page.activation_ready || !page.enabled(&self.integrations, row) {
+        if !page.activation_ready || !page.enabled(&self.integrations, &self.about, row) {
             return None;
+        }
+        // About's rows hold no setting: only Updates acts, and the TUI takes what it asked for.
+        match row {
+            Row::Version => return None,
+            Row::Updates => {
+                if self.about.press() {
+                    self.redraw();
+                }
+                return None;
+            }
+            _ => {}
         }
         let job = match row {
             Row::Agent(id) => self.integrations.change(id),
@@ -678,7 +689,7 @@ impl Editor {
                 if idle
                     && page.picker.is_none()
                     && page.rows().contains(&row)
-                    && page.enabled(&self.integrations, row)
+                    && page.enabled(&self.integrations, &self.about, row)
                     && page.adjustment(row).is_some_and(|adjustment| {
                         if forward {
                             adjustment.forward

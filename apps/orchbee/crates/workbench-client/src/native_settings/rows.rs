@@ -50,6 +50,10 @@ pub enum Row {
     /// The manual-only explanation for remote hosts.
     RemoteHosts,
     RefreshIntegrations,
+    /// About: this Client's version.
+    Version,
+    /// About: Check for updates, or the Update control while a newer version is offered.
+    Updates,
 }
 
 /// The categories, or a child page that opens from one of their rows and returns to it.

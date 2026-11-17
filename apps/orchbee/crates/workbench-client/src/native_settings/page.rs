@@ -1,8 +1,8 @@
 //! What the page shows and what is in flight: the confirmed values, the changes the person asked
 //! for in order, and where focus is. Drawing and key decoding stay outside.
 use super::{
-    Adjustment, Category, Choice, ChoicePicker, Confirmed, Entry, FileState, Group, Integrations,
-    Page, Row, SettingAvailability, SettingControl, SettingsDraw, Token,
+    About, Adjustment, Category, Choice, ChoicePicker, Confirmed, Entry, FileState, Group,
+    Integrations, Page, Row, SettingAvailability, SettingControl, SettingsDraw, Token,
     catalog::{self, Filter},
     changes::Changes,
     setting, setting_for_row,
@@ -380,9 +380,12 @@ impl PageState {
             .unwrap_or_else(|_| self.values.clone())
     }
 
-    pub(super) fn enabled(&self, integrations: &Integrations, row: Row) -> bool {
-        // Integration rows act through the Worker, independently of the settings file.
+    pub(super) fn enabled(&self, integrations: &Integrations, about: &About, row: Row) -> bool {
+        // Integration rows act through the Worker, About's through the update state, both
+        // independently of the settings file.
         match row {
+            Row::Version => return true,
+            Row::Updates => return about.enabled(),
             Row::Agent(id) => return integrations.block(id).is_none(),
             Row::RefreshIntegrations => return !integrations.pending(),
             Row::RemoteHosts => return false,
@@ -504,14 +507,24 @@ pub(super) const fn text_key(row: Row) -> Option<&'static str> {
 pub(crate) struct PageView<'a> {
     state: &'a PageState,
     integrations: &'a Integrations,
+    about: &'a About,
 }
 
 impl<'a> PageView<'a> {
-    pub(super) const fn new(state: &'a PageState, integrations: &'a Integrations) -> Self {
+    pub(super) const fn new(
+        state: &'a PageState,
+        integrations: &'a Integrations,
+        about: &'a About,
+    ) -> Self {
         Self {
             state,
             integrations,
+            about,
         }
+    }
+    /// The update state About's rows show.
+    pub(crate) const fn about(self) -> &'a About {
+        self.about
     }
     pub(crate) const fn token(self) -> Token {
         self.state.token
@@ -605,7 +618,7 @@ impl<'a> PageView<'a> {
         self.state.described(group)
     }
     pub(crate) fn enabled(self, row: Row) -> bool {
-        self.state.enabled(self.integrations, row)
+        self.state.enabled(self.integrations, self.about, row)
     }
     pub(crate) fn checked(self, row: Row) -> Option<bool> {
         self.state.checked(self.integrations, row)

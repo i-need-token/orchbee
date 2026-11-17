@@ -100,6 +100,8 @@ impl Locale {
             Row::Agent(id) => return self.agent_integration_name(id),
             Row::RemoteHosts => return self.integrations_remote_title(),
             Row::RefreshIntegrations => return self.integrations_refresh(),
+            Row::Version => ("Version", "版本"),
+            Row::Updates => ("Updates", "更新"),
         };
         self.setting(en, zh)
     }
@@ -115,6 +117,7 @@ impl Locale {
             SettingsCategory::Notifications => self.setting("Notifications", "通知"),
             SettingsCategory::Keyboard => self.setting("Keyboard", "快捷键"),
             SettingsCategory::Agents => self.setting("Agents", "智能体"),
+            SettingsCategory::About => self.setting("About", "关于"),
         }
     }
     /// A group's heading; `None` for a group framed without one.
@@ -123,7 +126,7 @@ impl Locale {
         group: impl Into<SettingsGroup>,
     ) -> Option<&'static str> {
         Some(match group.into() {
-            Group::Language | Group::Updates | Group::Prefix => return None,
+            Group::Language | Group::Updates | Group::Prefix | Group::About => return None,
             Group::AfterRestart => self.setting("After a restart", "重启之后"),
             Group::AppAppearance => self.setting("App appearance", "应用外观"),
             Group::TerminalColors => self.setting("Terminal colors", "终端颜色"),
@@ -322,6 +325,12 @@ impl Locale {
             ),
             Row::RemoteHosts => self.integrations_remote_description(),
             Row::RefreshIntegrations => self.integrations_refresh_description(),
+            // About's rows describe live state; the page draws theirs from it.
+            Row::Version => self.about_build(orchbee_local_runtime::environment_kind()),
+            Row::Updates => self.setting(
+                "Orchbee also checks every hour while automatic updates are on.",
+                "自动更新开启时，Orchbee 也会每小时检查一次。",
+            ),
             _ => "",
         }
     }
@@ -426,6 +435,8 @@ impl Locale {
             SettingsHintLabel::GoTo => self.setting("go to", "前往"),
             SettingsHintLabel::Restore => self.setting("restore", "恢复默认"),
             SettingsHintLabel::Explain => self.setting("explain", "诊断"),
+            SettingsHintLabel::Check => self.setting("check", "检查"),
+            SettingsHintLabel::Update => self.setting("update", "更新"),
         }
     }
     pub(crate) fn settings_pending(self) -> &'static str {

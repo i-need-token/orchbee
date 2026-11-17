@@ -1,4 +1,6 @@
 use super::Locale;
+use crate::release_update::{CheckUnavailable, UpdateCheck};
+use orchbee_local_runtime::EnvironmentKind;
 
 impl Locale {
     /// The Update control's label on the Settings row.
@@ -14,6 +16,67 @@ impl Locale {
         match self {
             Self::EnUs => format!("Switch to Orchbee {version}. Terminals keep running."),
             Self::ZhCn => format!("切换到 Orchbee {version}，终端继续运行。"),
+        }
+    }
+
+    /// What kind of build About's Version row names.
+    pub(crate) const fn about_build(self, kind: EnvironmentKind) -> &'static str {
+        match (self, kind) {
+            (Self::EnUs, EnvironmentKind::Release) => "Release build",
+            (Self::EnUs, EnvironmentKind::Test) => "Test build",
+            (Self::EnUs, EnvironmentKind::Development) => "Development build",
+            (Self::ZhCn, EnvironmentKind::Release) => "正式版",
+            (Self::ZhCn, EnvironmentKind::Test) => "测试版",
+            (Self::ZhCn, EnvironmentKind::Development) => "开发版",
+        }
+    }
+
+    /// About's action that asks the Session to check now.
+    pub(crate) const fn about_check(self) -> &'static str {
+        match self {
+            Self::EnUs => "Check for updates",
+            Self::ZhCn => "检查更新",
+        }
+    }
+
+    /// What About's Updates row shows in place of its action while a check runs.
+    pub(crate) const fn about_checking(self) -> &'static str {
+        match self {
+            Self::EnUs => "Checking…",
+            Self::ZhCn => "正在检查…",
+        }
+    }
+
+    /// The Updates row's description: the offered version's switch while the Update control
+    /// shows, else what the check came to.
+    pub(crate) fn about_updates(self, update: Option<&str>, check: UpdateCheck) -> String {
+        if let Some(version) = update {
+            return self.update_tooltip(version);
+        }
+        let (en, zh) = match check {
+            UpdateCheck::Idle | UpdateCheck::Checking => (
+                "Orchbee also checks every hour while automatic updates are on.",
+                "自动更新开启时，Orchbee 也会每小时检查一次。",
+            ),
+            UpdateCheck::UpToDate => ("Orchbee is up to date.", "Orchbee 已是最新版本。"),
+            UpdateCheck::Failed => (
+                "Couldn’t check for updates. Try again later.",
+                "无法检查更新，请稍后再试。",
+            ),
+            UpdateCheck::Unavailable(CheckUnavailable::Development) => {
+                ("Development builds don’t update.", "开发版不会更新。")
+            }
+            UpdateCheck::Unavailable(CheckUnavailable::Session) => {
+                ("Available once the Session updates.", "会话更新后可用。")
+            }
+            UpdateCheck::Unavailable(CheckUnavailable::Installation) => (
+                "Not available for this installation.",
+                "此安装不支持检查更新。",
+            ),
+        };
+        match self {
+            Self::EnUs => en.to_owned(),
+            Self::ZhCn => zh.to_owned(),
         }
     }
 

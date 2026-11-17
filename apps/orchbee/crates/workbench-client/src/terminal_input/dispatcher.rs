@@ -1074,6 +1074,19 @@ impl InputDispatcher {
                     },
                     _ => {}
                 }
+                // About's Updates row asks for a check, or for the Update control's switch.
+                match port.take_settings_update() {
+                    Some(crate::release_update::UpdateRequest::Check) => port.check_for_updates(),
+                    Some(crate::release_update::UpdateRequest::Switch) => {
+                        let switch = port.switch_to_update();
+                        if switch == crate::release_update::UpdateSwitch::Leave {
+                            self.cancel_pointer(port);
+                            return Ok(DispatchOutcome::Exit);
+                        }
+                        view.update_refused(switch);
+                    }
+                    None => {}
+                }
                 if Self::projected_capture(view, port)
                     != Some(CaptureOwner::Native(WorkbenchCaptureOwner::Settings))
                 {

@@ -45,6 +45,8 @@ pub(crate) enum SettingsRow {
     Agent(IntegrationId),
     RemoteHosts,
     RefreshIntegrations,
+    Version,
+    Updates,
 }
 
 /// One entry of the page's left column.
@@ -57,6 +59,7 @@ pub(crate) enum SettingsCategory {
     Notifications,
     Keyboard,
     Agents,
+    About,
 }
 
 /// One group heading; some groups have none.
@@ -78,6 +81,7 @@ pub(crate) enum SettingsGroup {
     AgentIntegrations,
     LocalAgents,
     RemoteHosts,
+    About,
 }
 
 /// One already-selected canonical finite value, without its open list.
@@ -212,4 +216,8 @@ pub(crate) enum SettingsHintLabel {
     GoTo,
     Restore,
     Explain,
+    /// About's Check for updates.
+    Check,
+    /// About's Update control.
+    Update,
 }

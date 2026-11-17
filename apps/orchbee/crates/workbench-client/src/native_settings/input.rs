@@ -137,6 +137,8 @@ fn primary_label(page: PageView<'_>, row: Row) -> SettingsHintLabel {
         Row::Back => SettingsHintLabel::Back,
         Row::ThemeOption(_) => SettingsHintLabel::Select,
         Row::Agent(_) => SettingsHintLabel::Toggle,
+        Row::Updates if page.about().update().is_some() => SettingsHintLabel::Update,
+        Row::Updates => SettingsHintLabel::Check,
         row if page.checked(row).is_some() => SettingsHintLabel::Toggle,
         row if setting_for_row(row)
             .is_some_and(|metadata| !matches!(metadata.control, SettingControl::Boolean))
@@ -228,18 +230,23 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
     } else {
         SettingsHintLabel::Close
     };
-    let primary = hint(PRIMARY, primary_label(page, selected));
+    // Version has nothing to activate, and Updates nothing while a check runs or none can, so
+    // they name no primary key then.
+    let acts = match selected {
+        Row::Version => false,
+        Row::Updates => page.about().actionable(),
+        _ => true,
+    };
+    let primary = acts.then(|| hint(PRIMARY, primary_label(page, selected)));
     let restore = page
         .changed(selected)
         .then(|| hint(RESTORE, SettingsHintLabel::Restore));
     if page.narrow() {
         // Width drops trailing records first. A narrow page shows no search field beside the
         // rows, so search and restore outrank the arrows, which the focus marker already implies.
-        let mut hints = vec![
-            hint(EXIT, exit),
-            primary,
-            hint(SEARCH, SettingsHintLabel::Search),
-        ];
+        let mut hints = vec![hint(EXIT, exit)];
+        hints.extend(primary);
+        hints.push(hint(SEARCH, SettingsHintLabel::Search));
         hints.extend(restore);
         hints.push(hint(MOVE, SettingsHintLabel::Move));
         return hints;
@@ -248,9 +255,9 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
         hint(EXIT, exit),
         hint(MOVE, SettingsHintLabel::Move),
         hint(SWITCH, SettingsHintLabel::Switch),
-        primary,
-        hint(SEARCH, SettingsHintLabel::Search),
     ];
+    hints.extend(primary);
+    hints.push(hint(SEARCH, SettingsHintLabel::Search));
     hints.extend(restore);
     hints
 }

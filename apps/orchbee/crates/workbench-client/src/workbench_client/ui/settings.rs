@@ -151,6 +151,38 @@ impl<'a> WorkbenchClientView<'a> {
     }
 }
 impl WorkbenchClientUi {
+    /// What About's check needs from the native Client: the Session it would ask, the operation
+    /// clock, and whether About shows.
+    pub(in crate::workbench_client) fn about_context(
+        &self,
+    ) -> (
+        Option<orchbee_workbench_protocol::SessionId>,
+        crate::local_client::LocalOperationClock,
+        bool,
+    ) {
+        let session = self
+            .state
+            .as_ref()
+            .map(|state| state.cache().session_id().clone());
+        (
+            session,
+            self.clock.clone(),
+            self.settings.editor.about_visible(),
+        )
+    }
+    /// Mirrors the update state into About; answers whether a visible page changed.
+    pub(in crate::workbench_client) fn observe_about(
+        &mut self,
+        update: Option<&str>,
+        check: crate::release_update::UpdateCheck,
+    ) -> bool {
+        self.settings.editor.observe_update(update, check)
+    }
+    pub(in crate::workbench_client) fn take_settings_update(
+        &mut self,
+    ) -> Option<crate::release_update::UpdateRequest> {
+        self.settings.editor.take_update_request()
+    }
     pub(in crate::workbench_client) fn scroll_settings(
         &mut self,
         token: Token,

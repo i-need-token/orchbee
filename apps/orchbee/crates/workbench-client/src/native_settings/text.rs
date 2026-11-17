@@ -50,6 +50,8 @@ impl From<Row> for SettingsRow {
             Row::Agent(id) => Self::Agent(id),
             Row::RemoteHosts => Self::RemoteHosts,
             Row::RefreshIntegrations => Self::RefreshIntegrations,
+            Row::Version => Self::Version,
+            Row::Updates => Self::Updates,
         }
     }
 }
@@ -64,6 +66,7 @@ impl From<Category> for SettingsCategory {
             Category::Notifications => Self::Notifications,
             Category::Keyboard => Self::Keyboard,
             Category::Agents => Self::Agents,
+            Category::About => Self::About,
         }
     }
 }
@@ -87,6 +90,7 @@ impl From<Group> for SettingsGroup {
             Group::AgentIntegrations => Self::AgentIntegrations,
             Group::LocalAgents => Self::LocalAgents,
             Group::RemoteHosts => Self::RemoteHosts,
+            Group::About => Self::About,
         }
     }
 }
@@ -285,6 +289,7 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
             Row::RemoteHosts => {
                 Self::Integration(crate::localization::IntegrationStatus::ManualOnly)
             }
+            Row::Version => Self::Text(crate::local_client::CLIENT_VERSION),
             _ => Self::Empty,
         }
     }

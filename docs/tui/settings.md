@@ -104,6 +104,9 @@ the dialog at a size below its minimum instead of hiding its close control.
 - Search is navigation only. It changes no value, uses deterministic all-term matching and
   ordering, skips orphan category headers, and exposes an explicit empty result. Activating a result
   reveals and focuses its row without changing the value.
+- An information category, such as one that names the product version and offers its update
+  action, may close the category list. It holds no setting, so it shows no settings-file line,
+  search skips it, and its action rows follow the action rules rather than the commit rules.
 - Keep the page title, the current return route, and the status line visible through scrolling and
   size-tier degradation.
 

@@ -8,6 +8,7 @@ use crate::{
         Category, Choice, Control, Diagnosis, Entry, Group, Page, PageView, Pane, Row,
         SettingsDraw, View, footer_bindings,
     },
+    release_update::UpdateCheck,
     terminal_text::{
         display_width, project_terminal_text, sanitize_terminal_text, truncate_display,
         truncate_display_start,
@@ -914,12 +915,12 @@ fn render_row(
         let control_width = control
             .as_ref()
             .map_or(0, |control| display_width(&control.text).min(available / 2));
-        let control_role = if pending {
-            Role::StatusPending
-        } else if enabled {
-            Role::TextSecondary
-        } else {
-            Role::TextDisabled
+        let control_role = match about_control(row, page) {
+            _ if pending => Role::StatusPending,
+            Some(AboutControl::Checking) => Role::StatusPending,
+            Some(AboutControl::Action) if enabled => Role::AccentAction,
+            _ if enabled => Role::TextSecondary,
+            _ => Role::TextDisabled,
         };
         let mut name = locale.settings_row(row).to_owned();
         if let Some(effect) = locale.settings_effect(row) {
@@ -1041,6 +1042,15 @@ fn render_row(
                     Row::Theme | Row::TerminalTheme | Row::Foreground | Row::Background
                 ) {
                 locale.settings_no_color().to_owned()
+            } else if row == Row::Version {
+                locale
+                    .about_build(orchbee_local_runtime::environment_kind())
+                    .to_owned()
+            } else if row == Row::Updates {
+                // The offered version comes from the release store, so it is sanitized as the
+                // Update control's tooltip is.
+                let update = page.about().update().map(sanitize_terminal_text);
+                locale.about_updates(update.as_deref(), page.about().check())
             } else if is_focused && !enabled {
                 locale.settings_detail(page)
             } else {
@@ -1124,6 +1134,28 @@ struct ControlText {
     adjust: bool,
 }
 
+/// What About's Updates row shows at its right edge.
+enum AboutControl {
+    /// Check for updates, or the Update control's switch.
+    Action,
+    /// A check is under way, so the action gives way to its status.
+    Checking,
+}
+
+fn about_control(row: Row, page: PageView<'_>) -> Option<AboutControl> {
+    if row != Row::Updates {
+        return None;
+    }
+    let about = page.about();
+    Some(
+        if about.update().is_none() && about.check() == UpdateCheck::Checking {
+            AboutControl::Checking
+        } else {
+            AboutControl::Action
+        },
+    )
+}
+
 /// The control a row shows at its right edge.
 fn control_text(
     row: Row,
@@ -1144,6 +1176,11 @@ fn control_text(
                 .trim_start()
                 .to_owned(),
         ),
+        Row::Updates => plain(match about_control(row, page) {
+            Some(AboutControl::Checking) => locale.about_checking().to_owned(),
+            _ if page.about().update().is_some() => format!("[{}]", locale.update_control()),
+            _ => format!("[{}]", locale.about_check()),
+        }),
         _ if page.checked(row).is_some() => plain(
             if page.checked(row) == Some(true) {
                 "[x]"

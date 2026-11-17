@@ -129,7 +129,8 @@ Nothing waits on the owner; each Chosen row stays open to a veto.
   after it is ready, then one every hour while it runs. A test build schedules only when
   `ORCHBEE_UPDATE_FEED` names a feed, so verification can drive it; a development build never
   does.
-- Each run reads `update.automatic` and does nothing when it is off. Otherwise it starts the active
+- Each scheduled run reads `update.automatic` and does nothing when it is off; a run a Client asks
+  for ([manual check](#manual-check)) does not read it. Otherwise it starts the active
   version's `orchbee --automatic-update-v1`, named by `active.json`, in a Job the Server holds, at
   below-normal priority, with standard output bounded to 64 KiB. The Server never waits on it and
   records the outcome in its diagnostic log: version, phase, and error code, never user content.
@@ -138,7 +139,7 @@ Nothing waits on the owner; each Chosen row stays open to a veto.
   although it refreshes `bin\orchbee.exe` when that file exists; it installs the window part only
   when `desktop\` exists, from the window self-update release on; and it prints only the
   `orchbee.update` document. Like every helper mode, its grammar never changes.
-- Clients learn that a version is ready from the files, so no protocol changes: each Client reads
+- Clients learn that a version is ready from the files, so the schedule needs no protocol: each Client reads
   the store's `active.json`, and the window also its window pointer, when it starts and whenever
   their last-write time changes, checked once a minute.
 - Several Clients share their Session's one schedule. Several Sessions of one environment each
@@ -1121,6 +1122,45 @@ English because a Settings description fits 69 cells at 100 columns. The TUI too
 to [pointer tooltips](../../docs/tui/overlays-and-status.md#pointer-tooltips), whose action
 content is a label and its key: an effect line for a control whose label cannot say what keeps
 running. The action menu entry carries the same sentence, so it stays reachable without a pointer.
+
+## Manual check
+
+Settings' About category shows the Client's version, a Check for updates action, and the Update
+control while it is Ready. The action adds no second update state, and a Client never starts
+`orchbee update`:
+
+- A press sends one Client-to-Server request, `workbench.update-check` with `start`, under the
+  `update-check` capability. The Server wakes its scheduled job, which runs the same
+  `--automatic-update-v1` helper with the same locks and records; a press while a run is queued or
+  running joins that run. A requested run ignores `update.automatic`, since the person asked for
+  it, and leaves the hourly grid unchanged.
+- The Server answers at once; About reads the run with `read` while it shows. The answer is
+  `checking`, `finished` with `up-to-date`, `installed` or `failed`, `idle`, `unavailable` where
+  the Server runs no job (Linux, development), or a refusal. An installed version still reaches the
+  Client through the store's files, so the Update control appears as it does after a scheduled run.
+- Only the Client that asked reports the run's end. A failed scheduled run still changes nothing on
+  screen.
+- A Client whose Session lacks the capability shows the action unavailable, with the reason. Each
+  Client also shows it unavailable in a development build, where no update writes its store, and
+  on a saved machine's Session, whose store is not this computer's.
+- The update model is unchanged: like a scheduled run, a requested one is the `Offer` path of the
+  [release-store model](../../crates/local-runtime/README.md#fallback-after-a-failed-move); only
+  `orchbee update` is the explicit install.
+
+| Text                         | `en-US`                                                        | `zh-CN`                                      |
+| ---------------------------- | -------------------------------------------------------------- | -------------------------------------------- |
+| Category                     | About                                                          | 关于                                         |
+| Version row                  | Version                                                        | 版本                                         |
+| Build kind                   | Release build / Test build / Development build                 | 正式版 / 测试版 / 开发版                     |
+| Updates row                  | Updates                                                        | 更新                                         |
+| Action                       | Check for updates                                              | 检查更新                                     |
+| Checking                     | Checking…                                                      | 正在检查…                                    |
+| Idle                         | Orchbee also checks every hour while automatic updates are on. | 自动更新开启时，Orchbee 也会每小时检查一次。 |
+| Up to date                   | Orchbee is up to date.                                         | Orchbee 已是最新版本。                       |
+| Failed                       | Couldn’t check for updates. Try again later.                   | 无法检查更新，请稍后再试。                   |
+| Unavailable, development     | Development builds don’t update.                               | 开发版不会更新。                             |
+| Unavailable, older Session   | Available once the Session updates.                            | 会话更新后可用。                             |
+| Unavailable, no release store | Not available for this installation.                          | 此安装不支持检查更新。                       |
 
 ## Settings and the command
 

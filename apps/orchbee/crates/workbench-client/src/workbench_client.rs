@@ -454,22 +454,35 @@ impl WorkbenchClient {
         std::mem::take(&mut self.retirement_redraw_pending) || changed
     }
 
-    /// Mirrors a changed Update control into the action menu's offer.
+    /// Mirrors a changed Update control into the action menu's offer, and follows About's check.
     fn update_tick(&mut self) -> bool {
-        let Some(updater) = self.updater.as_mut() else {
+        let Some(native) = self.backend.native_mut() else {
             return false;
         };
-        if !updater.tick() {
-            return false;
-        }
+        let Some(updater) = self.updater.as_mut() else {
+            // Nothing here can update, as in a TUI attached to a saved machine.
+            let check = crate::release_update::UpdateCheck::Unavailable(
+                crate::release_update::CheckUnavailable::without_updater(),
+            );
+            return native.observe_about(None, check);
+        };
+        let ticked = updater.tick();
+        let (session, clock, visible) = native.about_context();
+        updater.drive_check(&crate::release_update::CheckContext {
+            origin: self.origin.as_ref(),
+            session,
+            clock: &clock,
+            visible,
+        });
         let version = match updater.control() {
             crate::release_update::UpdateControl::Ready { version } => Some(version.clone()),
             crate::release_update::UpdateControl::Absent => None,
         };
-        if let Some(native) = self.backend.native_mut() {
+        let about = native.observe_about(version.as_deref(), updater.check());
+        if ticked {
             native.observe_update(version);
         }
-        true
+        ticked || about
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -899,6 +912,29 @@ impl TerminalInputPort for WorkbenchClient {
         };
         let (marker, negotiated) = crate::release_update::session_facts(self.origin.as_ref());
         updater.switch(marker, negotiated)
+    }
+
+    fn take_settings_update(&mut self) -> Option<crate::release_update::UpdateRequest> {
+        self.backend.native_mut()?.take_settings_update()
+    }
+
+    fn check_for_updates(&mut self) {
+        let (Some(native), Some(updater)) = (self.backend.native_mut(), self.updater.as_mut())
+        else {
+            return;
+        };
+        let (session, clock, visible) = native.about_context();
+        updater.start_check(&crate::release_update::CheckContext {
+            origin: self.origin.as_ref(),
+            session,
+            clock: &clock,
+            visible,
+        });
+        let version = match updater.control() {
+            crate::release_update::UpdateControl::Ready { version } => Some(version.as_str()),
+            crate::release_update::UpdateControl::Absent => None,
+        };
+        native.observe_about(version, updater.check());
     }
 
     fn open_notification_target(

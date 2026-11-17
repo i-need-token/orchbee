@@ -15,10 +15,12 @@ pub enum Category {
     Notifications,
     Keyboard,
     Agents,
+    /// This Client's version and the update control; it holds no setting.
+    About,
 }
 
 impl Category {
-    pub(crate) const ALL: [Self; 7] = [
+    pub(crate) const ALL: [Self; 8] = [
         Self::General,
         Self::Appearance,
         Self::Themes,
@@ -26,6 +28,7 @@ impl Category {
         Self::Notifications,
         Self::Keyboard,
         Self::Agents,
+        Self::About,
     ];
 
     pub(crate) const fn groups(self) -> &'static [Group] {
@@ -37,12 +40,19 @@ impl Category {
             Self::Notifications => &[Group::WhenToNotify, Group::SoundDelivery],
             Self::Keyboard => &[Group::Prefix],
             Self::Agents => &[Group::AgentRestore, Group::AgentIntegrations],
+            Self::About => &[Group::About],
         }
     }
 
-    /// Every category but Themes ends with the line that points to the settings file.
+    /// Every category of settings but Themes ends with the line that points to the settings
+    /// file; About holds none.
     pub(crate) const fn config_file(self) -> bool {
-        !matches!(self, Self::Themes)
+        !matches!(self, Self::Themes | Self::About)
+    }
+
+    /// Search finds settings, so it skips About.
+    const fn searched(self) -> bool {
+        !matches!(self, Self::About)
     }
 }
 
@@ -68,6 +78,8 @@ pub enum Group {
     /// Sections of the Agent integrations page.
     LocalAgents,
     RemoteHosts,
+    /// About's version and update rows; unnamed, since the category names it.
+    About,
 }
 
 impl Group {
@@ -95,6 +107,7 @@ impl Group {
             Self::AgentIntegrations => vec![Row::AgentIntegrations],
             Self::LocalAgents => IntegrationId::ALL.map(Row::Agent).to_vec(),
             Self::RemoteHosts => vec![Row::RemoteHosts],
+            Self::About => vec![Row::Version, Row::Updates],
         }
     }
 
@@ -217,7 +230,10 @@ pub(super) fn entries(
     } else {
         &Category::ALL
     };
-    for category in categories {
+    for category in categories
+        .iter()
+        .filter(|category| terms.is_empty() || category.searched())
+    {
         for group in category.groups() {
             let rows: Vec<Row> = group
                 .rows()
