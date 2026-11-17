@@ -1,8 +1,8 @@
 //! The release confirmation rule cannot run in a development or test build, so its decisions are
 //! judged here rather than through a staged release binary.
 use super::{
-    Console, Decision, Host, Output, OutputFormat, Refusal, RemoteTarget, Typed, decide,
-    remote_stop_with,
+    Console, Decision, DestructiveCommand, Host, Output, OutputFormat, Refusal, RemoteTarget,
+    Typed, Wording, admit_with, decide, remote_stop_with,
 };
 use crate::localization::Locale;
 
@@ -101,6 +101,7 @@ struct Script {
     release: bool,
     console: Console,
     typed: &'static str,
+    terminals: Option<u32>,
     prompts: Vec<String>,
     records: Vec<(String, Option<String>, String)>,
 }
@@ -111,6 +112,7 @@ impl Script {
             release,
             console,
             typed,
+            terminals: None,
             prompts: Vec::new(),
             records: Vec::new(),
         }
@@ -127,6 +129,9 @@ impl Host for Script {
     fn prompt(&mut self, text: &str) -> Typed {
         self.prompts.push(text.to_owned());
         Ok(self.typed.to_owned())
+    }
+    fn terminals(&mut self) -> Option<u32> {
+        self.terminals
     }
     fn record(&mut self, command: &str, target: Option<&str>, _console: Console, outcome: &str) {
         self.records.push((
@@ -235,4 +240,50 @@ fn a_remote_stop_follows_the_local_release_rule_on_the_remote_session_and_is_log
             .stderr
             .contains("orchbee --machine 11111111111111111111111111111111 server stop")
     );
+}
+
+/// A local stop's prompt says what ends ahead of asking for the name: the Session's terminals when
+/// it can count them, every terminal when it cannot, and nothing more for a Session holding none.
+/// A delete never counts.
+#[test]
+fn a_local_stop_prompt_states_its_terminals_before_the_name_request() {
+    let prompt = |command, terminals| {
+        let mut script = Script::new(true, INTERACTIVE, "work");
+        script.terminals = terminals;
+        let wording = Wording::Session(command);
+        assert!(
+            admit_with(
+                &mut script,
+                &wording,
+                false,
+                Some("work"),
+                OutputFormat::Json,
+                Locale::EnUs
+            )
+            .is_ok()
+        );
+        let [prompt] = script.prompts.as_slice() else {
+            panic!("one prompt: {:?}", script.prompts);
+        };
+        prompt.clone()
+    };
+    let today = prompt(DestructiveCommand::SessionStop, Some(0));
+    for command in [
+        DestructiveCommand::ServerStop,
+        DestructiveCommand::SessionStop,
+    ] {
+        assert_eq!(prompt(command, Some(0)), today);
+        for terminals in [Some(1), Some(3), None] {
+            let counted = prompt(command, terminals);
+            let lead = counted
+                .strip_suffix(today.as_str())
+                .expect("the name request closes it");
+            assert!(!lead.is_empty() && lead.contains("work"), "{counted}");
+            if let Some(count) = terminals {
+                assert!(lead.contains(&count.to_string()), "{counted}");
+            }
+        }
+    }
+    let delete = prompt(DestructiveCommand::SessionDelete, Some(3));
+    assert!(!delete.contains('3'), "{delete}");
 }

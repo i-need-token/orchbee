@@ -69,10 +69,18 @@ impl Wording<'_> {
         }
     }
 
-    fn prompt(&self, text: CliText, target: &str) -> String {
+    /// The prompt; only a local stop asks `host` for the terminals it ends.
+    fn prompt(&self, text: CliText, target: &str, host: &mut impl Host) -> String {
         match self {
-            Self::Session(command) => {
-                text.cli_destructive_prompt(target, *command == DestructiveCommand::SessionDelete)
+            Self::Session(DestructiveCommand::SessionDelete) => {
+                text.cli_destructive_prompt(target, true)
+            }
+            Self::Session(DestructiveCommand::ServerStop | DestructiveCommand::SessionStop) => {
+                format!(
+                    "{}{}",
+                    text.cli_stop_terminals(target, host.terminals()),
+                    text.cli_destructive_prompt(target, false)
+                )
             }
             Self::Uninstall { listing } => format!("{listing}{}", text.cli_uninstall_prompt()),
             Self::Remote { label, .. } => text.cli_machine_stop_prompt(label, target),
@@ -98,6 +106,8 @@ trait Host {
     fn console(&self) -> Console;
     fn prompt(&mut self, text: &str) -> Typed;
     fn record(&mut self, command: &str, target: Option<&str>, console: Console, outcome: &str);
+    /// How many terminals the selected Session holds, or `None` when it cannot say.
+    fn terminals(&mut self) -> Option<u32>;
 }
 
 /// The platform this build runs on.
@@ -116,6 +126,26 @@ impl Host for Platform {
     fn record(&mut self, command: &str, target: Option<&str>, console: Console, outcome: &str) {
         platform::record(command, target, console, outcome);
     }
+    fn terminals(&mut self) -> Option<u32> {
+        session_terminals()
+    }
+}
+
+/// The selected Session's terminal count as its Server answers the handshake `query` within two
+/// seconds; a Session that does not answer in time, or cannot be reached, has an unknown count.
+fn session_terminals() -> Option<u32> {
+    use orchbee_connection_handshake::ProcessRole;
+    use orchbee_local_runtime::{ModeCheckedLocalSessionRendezvous, SessionScope};
+    let (base, scope) = crate::local_activation::runtime_location().ok()?;
+    let scope = SessionScope::parse(&scope).ok()?;
+    let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(&base, scope).ok()?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    let result = super::server_query::read(session.client_socket_path(), deadline, None).ok()?;
+    result
+        .processes()
+        .iter()
+        .find(|process| process.role == ProcessRole::Server)
+        .map(|server| server.terminals)
 }
 
 /// Whether standard input and standard output are interactive consoles.
@@ -367,7 +397,7 @@ fn admit_with(
         Decision::Run => Verdict::Run,
         Decision::Refuse(refusal) => Verdict::Refuse(refusal),
         Decision::Prompt => {
-            let prompt = wording.prompt(CliText::new(locale), target.unwrap_or_default());
+            let prompt = wording.prompt(CliText::new(locale), target.unwrap_or_default(), host);
             match host.prompt(&prompt) {
                 Ok(line) => match decide(release, console, confirm, target, Some(&line)) {
                     Decision::Run => Verdict::Run,

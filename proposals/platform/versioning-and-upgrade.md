@@ -648,7 +648,9 @@ replacement.
 Built: the read is
 [Session terminal-runtime reads](../../schemas/workbench/README.md#session-terminal-runtime-reads);
 the TUI follows it as [Worker replacement](../../apps/orchbee/docs/native-panel-lifecycle.md#worker-replacement)
-says, and the window as the [web guide](../../apps/web/README.md#composition-boundary) says.
+says, and the window as the [web guide](../../apps/web/README.md#composition-boundary) says. The
+stop prompt is in the
+[release destructive confirmation](../../apps/orchbee/README.md#release-destructive-confirmation).
 
 | Text                           | `en-US`                                                                                                                                                 | `zh-CN`                                                                                                           |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |

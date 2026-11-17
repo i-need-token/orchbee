@@ -32,7 +32,7 @@ pub mod workbench {
     pub use crate::local_client::workbench::{
         CurrentDirectoryError, GroupCloseExchangeError, LaunchProfileCatalogReadError,
         LaunchProfileCatalogReadFailure, PublicationReadError, PublicationReadFailure,
-        SnapshotReadError, SnapshotReadFailure, TabSetCloseExchangeError,
+        SnapshotReadError, SnapshotReadFailure, TabSetCloseExchangeError, TerminalRuntimeReadError,
         WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
         WorkbenchTabClosePrecommit, WorkbenchTabCloseReadError, WorkbenchTabCloseRequest,
         WorkbenchTabCloseResumeSubmission, WorkbenchTabCloseSubmission, WorkbenchTabCreateCommit,

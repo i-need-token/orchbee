@@ -221,10 +221,10 @@ pub mod application {
         pub use crate::local_client::workbench::worktree_query::WorktreeQueryError;
         pub use crate::local_client::workbench::{
             LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure, SnapshotReadError,
-            SnapshotReadFailure, WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure,
-            WorkbenchTabCloseNotSubmitted, WorkbenchTabClosePrecommit, WorkbenchTabCloseRequest,
-            WorkbenchTabCloseResumeSubmission, WorkbenchTabCloseSubmission,
-            WorkbenchTabCreateCommit, WorkbenchTabCreateNotSubmitted,
+            SnapshotReadFailure, TerminalRuntimeReadError, WorkbenchTabCloseAccepted,
+            WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted, WorkbenchTabClosePrecommit,
+            WorkbenchTabCloseRequest, WorkbenchTabCloseResumeSubmission,
+            WorkbenchTabCloseSubmission, WorkbenchTabCreateCommit, WorkbenchTabCreateNotSubmitted,
             WorkbenchTabCreateOutcomeUnknownReason, WorkbenchTabCreatePrecommit,
             WorkbenchTabCreateRequest, WorkbenchTabCreateSubmission, WorkbenchTabMoveCommit,
             WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason,

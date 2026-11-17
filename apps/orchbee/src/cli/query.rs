@@ -127,11 +127,17 @@ pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
     Ok(snapshot)
 }
 
-/// `status`: the snapshot, then the Session's processes through one handshake `query` under the
-/// same deadline. A failed query fails the command; there is no partial answer. A platform whose
-/// Session cannot be asked for its processes answers none.
-pub(crate) fn status_read()
--> Result<(Snapshot, Option<orchbee_connection_handshake::QueryResult>), Failure> {
+/// What `status` reports beyond the snapshot: the Session's processes, none where the platform
+/// cannot ask, and its terminal-runtime state, none from a Server without that read.
+pub(crate) struct StatusFacts {
+    pub(crate) server: Option<orchbee_connection_handshake::QueryResult>,
+    pub(crate) terminal_runtime: Option<orchbee_workbench_protocol::TerminalRuntimeState>,
+}
+
+/// `status`: the snapshot and, on the same connection, the Session's terminal-runtime state when
+/// its handshake answer listed that read, then its processes through one handshake `query` under
+/// the same deadline. A failed read or query fails the command; there is no partial answer.
+pub(crate) fn status_read() -> Result<(Snapshot, StatusFacts), Failure> {
     super::execution::admit(super::execution::Capability::CanonicalWorkbenchRead)?;
     let (cohort, session) =
         session_preamble(deadline_after(COHORT_BUDGET)?, || Ok(())).map_err(|failure| {
@@ -150,19 +156,67 @@ pub(crate) fn status_read()
                 failure
             }
         })?;
-    let (client, deadline, snapshot) = admit_snapshot(
+    let (mut client, deadline, snapshot) = admit_snapshot(
         &cohort,
         &session,
         deadline_after(NETWORK_BUDGET)?,
         || Ok(()),
     )?;
+    let terminal_runtime = if client.server_serves(orchbee_connection_handshake::TERMINAL_RUNTIME) {
+        Some(read_terminal_runtime(&mut client, &snapshot, deadline)?)
+    } else {
+        None
+    };
     drop(client);
     if super::execution::admit(super::execution::Capability::RuntimeStatus).is_err() {
-        return Ok((snapshot, None));
+        return Ok((
+            snapshot,
+            StatusFacts {
+                server: None,
+                terminal_runtime,
+            },
+        ));
     }
     let processes = super::server_query::read(session.client_socket_path(), deadline, None)
         .map_err(super::runtime_status::classify_query)?;
-    Ok((snapshot, Some(processes)))
+    Ok((
+        snapshot,
+        StatusFacts {
+            server: Some(processes),
+            terminal_runtime,
+        },
+    ))
+}
+
+/// The snapshot's Session's terminal-runtime state, read once before `deadline`.
+fn read_terminal_runtime(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    deadline: Instant,
+) -> Result<orchbee_workbench_protocol::TerminalRuntimeState, Failure> {
+    use crate::local_client::TerminalRuntimeReadError;
+    use orchbee_workbench_protocol::{TerminalRuntimeOutcome, TerminalRuntimeRequest};
+    let request = TerminalRuntimeRequest {
+        protocol_version: ProtocolVersion,
+        request_id: request_id()?,
+        session_id: snapshot.session_id.clone(),
+    };
+    let unavailable =
+        || Failure::new(FailureKind::ServiceUnavailable).details(stage_details("terminal-runtime"));
+    match client.terminal_runtime_before(request, deadline) {
+        Ok(result) => match result.outcome {
+            TerminalRuntimeOutcome::Current { runtime } => Ok(runtime.state),
+            // The snapshot just named this Session's Workbench, so neither refusal applies.
+            TerminalRuntimeOutcome::Failed { .. } => Err(unavailable()),
+        },
+        Err(TerminalRuntimeReadError::Timeout) => Err(Failure::new(FailureKind::Timeout)),
+        Err(TerminalRuntimeReadError::Protocol) => Err(Failure::new(FailureKind::Incompatible)),
+        Err(
+            TerminalRuntimeReadError::Unavailable
+            | TerminalRuntimeReadError::Encoding
+            | TerminalRuntimeReadError::Transport,
+        ) => Err(unavailable()),
+    }
 }
 
 /// `terminal get`: the shared snapshot path admits the transport; the caller

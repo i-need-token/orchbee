@@ -186,6 +186,13 @@ written. Where the Session cannot be asked for its processes, `result.server` is
 `{"kind":"unsupported"}` and text has no process lines. See
 [runtime status](native-runtime-status.md).
 
+When the Session's handshake answer lists `terminal-runtime`, `status` also reads the
+[terminal-runtime state](../../../schemas/workbench/README.md#session-terminal-runtime-reads) once on
+the snapshot's connection. JSON carries it as `result.terminalRuntime`, `serving`, `reconnecting` or
+`given-up`; text prints a Terminals line after the Session lines: Ready, Reconnecting… while the
+Server replaces a lost Worker, or Can't reconnect once it gave up. A failed read fails the command.
+A Server without the read leaves both out.
+
 ## Workbench topology queries
 
 Windows and macOS `workspace list/get` return `number`, `tabCount`, and `panelCount`;
@@ -1635,7 +1642,7 @@ Result payloads (schema IDs are stable machine names):
 
 - `orchbee.status` → `{session:{reachable:true,sessionId,revision},
 counts:{projects,workspaces,tabs,panels,boundTerminals},
-worker:{status:"unknown",reason:"not-in-workbench-snapshot"}}`. `boundTerminals` counts
+worker:{status:"unknown",reason:"not-in-workbench-snapshot"},terminalRuntime?}`. `boundTerminals` counts
   presentations with a `binding`; snapshot validation already guarantees terminal IDs are unique,
   so each binding names a distinct terminal. `reachable` proves only this read succeeded.
   Text reports a running Session only after a successful snapshot read, followed by the

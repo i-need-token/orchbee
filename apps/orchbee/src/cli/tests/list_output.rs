@@ -295,6 +295,7 @@ fn status_text_reports_selected_session_identity_client_version_and_counts() {
                 panels: 5,
                 bound_terminals: 6,
                 server: None,
+                terminal_runtime: None,
             }),
             json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"999"}),
             &QueryCommand::Status,
@@ -356,6 +357,7 @@ fn status_text_reports_selected_session_identity_client_version_and_counts() {
             panels: 0,
             bound_terminals: 0,
             server: None,
+            terminal_runtime: None,
         }),
         json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"999"}),
         &QueryCommand::Status,
@@ -416,6 +418,7 @@ fn status_text_lists_each_session_process_on_its_own_line() {
                 panels: 0,
                 bound_terminals: 0,
                 server: Some(processes()),
+                terminal_runtime: None,
             }),
             json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
             &QueryCommand::Status,
@@ -555,6 +558,7 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
         panels: 4,
         bound_terminals: 5,
         server: Some(processes()),
+        terminal_runtime: None,
     };
     let status_output = success_output(
         Projection::Status(status.clone()),

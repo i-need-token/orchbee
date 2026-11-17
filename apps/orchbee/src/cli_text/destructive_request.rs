@@ -16,6 +16,22 @@ impl super::CliText {
         }
     }
 
+    /// What a local stop ends, ahead of its prompt: the Session `name` and its `terminals`, every
+    /// terminal in it when the count is unknown, and nothing for a Session that holds none.
+    pub(crate) fn cli_stop_terminals(self, name: &str, terminals: Option<u32>) -> String {
+        let name = super::escape::escape(name);
+        match (self.locale, terminals) {
+            (_, Some(0)) => String::new(),
+            (Locale::EnUs, Some(1)) => format!("This stops Session {name} and its 1 terminal. "),
+            (Locale::EnUs, Some(count)) => {
+                format!("This stops Session {name} and its {count} terminals. ")
+            }
+            (Locale::EnUs, None) => format!("This stops Session {name} and every terminal in it. "),
+            (Locale::ZhCn, Some(count)) => format!("这会停止会话 {name} 及其中的 {count} 个终端。"),
+            (Locale::ZhCn, None) => format!("这会停止会话 {name} 及其中的所有终端。"),
+        }
+    }
+
     /// The console prompt of `--machine <selector> server stop`: what stops on the Machine `label`,
     /// then the remote Session `name` to type.
     pub(crate) fn cli_machine_stop_prompt(self, label: &str, name: &str) -> String {

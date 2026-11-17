@@ -9,7 +9,9 @@ use serde_json::Value;
 
 use orchbee_agent_observation_protocol::AgentListOutcome;
 use orchbee_agent_observation_protocol::{AgentGetOutcome, AgentSessionDetail};
-use orchbee_workbench_protocol::{LaunchProfileEntry, WorktreeEntry, WorktreeEntryText};
+use orchbee_workbench_protocol::{
+    LaunchProfileEntry, TerminalRuntimeState, WorktreeEntry, WorktreeEntryText,
+};
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::output::{Bounded, TooLarge};
@@ -905,6 +907,7 @@ fn status(
         text.bound_terminals_word,
     ]
     .into_iter()
+    .chain(doc.terminal_runtime.map(|_| text.status_terminals))
     .chain(processes.iter().map(|(label, _)| *label))
     .map(display_width)
     .max()
@@ -919,6 +922,15 @@ fn status(
     )?;
     if let Some(session_name) = &doc.session_name {
         status_field(out, 0, text.status_session_name, session_name, label_width)?;
+    }
+    // A Server without the terminal-runtime read keeps the lines it had.
+    if let Some(state) = doc.terminal_runtime {
+        let value = match state {
+            TerminalRuntimeState::Serving => text.status_terminals_serving,
+            TerminalRuntimeState::Reconnecting => text.status_terminals_reconnecting,
+            TerminalRuntimeState::GivenUp => text.status_terminals_given_up,
+        };
+        status_field(out, 0, text.status_terminals, value, label_width)?;
     }
     status_field(
         out,

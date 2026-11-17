@@ -77,6 +77,10 @@
 						}
 					}
 				},
+				"terminalRuntime": {
+					"description": "The Session's terminal-runtime state, absent from a Server without that read.",
+					"enum": ["serving", "reconnecting", "given-up"]
+				},
 				"server": {
 					"oneOf": [
 						{

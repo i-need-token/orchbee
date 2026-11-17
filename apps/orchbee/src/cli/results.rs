@@ -110,6 +110,8 @@ pub(crate) struct StatusDoc {
     pub(crate) bound_terminals: usize,
     /// The Session's processes from its handshake `query`; none where the platform cannot ask.
     pub(crate) server: Option<orchbee_connection_handshake::QueryResult>,
+    /// The Session's terminal-runtime state; none from a Server without that read.
+    pub(crate) terminal_runtime: Option<orchbee_workbench_protocol::TerminalRuntimeState>,
 }
 
 #[derive(Clone, Debug)]
@@ -1446,7 +1448,8 @@ impl Projection {
                 result
             }
             Self::AgentTerminalWait(doc) => doc.document(),
-            Self::Status(doc) => json!({
+            Self::Status(doc) => {
+                let mut result = json!({
                 "session": {
                     "reachable": true,
                     "sessionId": doc.session_id,
@@ -1467,7 +1470,12 @@ impl Projection {
                     || json!({"kind": "unsupported"}),
                     super::runtime_status::processes_document,
                 ),
-            }),
+                });
+                if let Some(state) = doc.terminal_runtime {
+                    result["terminalRuntime"] = json!(state);
+                }
+                result
+            }
             Self::ProjectList(rows) => json!({
                 "projects": rows
                     .iter()
@@ -2502,11 +2510,9 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
     }
 }
 
-/// `status`: the snapshot's identity and counts with the Session's processes.
-pub(crate) fn status(
-    snapshot: &Snapshot,
-    server: Option<orchbee_connection_handshake::QueryResult>,
-) -> Projection {
+/// `status`: the snapshot's identity and counts with the Session's processes and terminal-runtime
+/// state.
+pub(crate) fn status(snapshot: &Snapshot, facts: super::query::StatusFacts) -> Projection {
     let mut tabs = 0_usize;
     let mut panels = 0_usize;
     let mut bound_terminals = 0_usize;
@@ -2541,7 +2547,8 @@ pub(crate) fn status(
         tabs,
         panels,
         bound_terminals,
-        server,
+        server: facts.server,
+        terminal_runtime: facts.terminal_runtime,
     })
 }
 

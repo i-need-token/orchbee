@@ -665,8 +665,8 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         // `status` adds the Session's processes, read after the snapshot under its deadline.
         QueryCommand::Status => match query::status_read() {
             Err(failure) => failure_output(failure, Some(format), locale),
-            Ok((snapshot, server)) => success_output(
-                results::status(&snapshot, server),
+            Ok((snapshot, facts)) => success_output(
+                results::status(&snapshot, facts),
                 results::snapshot_source(&snapshot),
                 &command,
                 format,

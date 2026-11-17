@@ -20,6 +20,7 @@ pub(crate) mod panel_metadata;
 mod plugins;
 #[cfg(test)]
 mod settings;
+mod terminal_runtime;
 mod window_title;
 mod workspace_git;
 pub(crate) mod workspace_metadata;
@@ -66,6 +67,7 @@ pub use tab_move::{
     WorkbenchTabMovePrecommit, WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
 };
 pub use tab_set_close::TabSetCloseExchangeError;
+pub use terminal_runtime::TerminalRuntimeReadError;
 pub use workspace_close::{
     WorkbenchWorkspaceCloseAccepted, WorkbenchWorkspaceCloseRequest,
     WorkbenchWorkspaceCloseSubmission,
