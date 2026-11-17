@@ -112,7 +112,15 @@
 			"additionalProperties": false,
 			"properties": {
 				"stage": {
-					"enum": ["admission", "discovery", "launch-read", "snapshot", "viewer", "current-panel"]
+					"enum": [
+						"admission",
+						"discovery",
+						"launch-read",
+						"snapshot",
+						"terminal-runtime",
+						"viewer",
+						"current-panel"
+					]
 				},
 				"matchObserved": {
 					"const": true
@@ -147,6 +155,7 @@
 						"launch-read",
 						"send",
 						"snapshot",
+						"terminal-runtime",
 						"viewer",
 						"current-panel"
 					]
@@ -436,7 +445,14 @@
 			"additionalProperties": false,
 			"properties": {
 				"stage": {
-					"enum": ["admission", "launch-read", "snapshot", "viewer", "current-panel"]
+					"enum": [
+						"admission",
+						"launch-read",
+						"snapshot",
+						"terminal-runtime",
+						"viewer",
+						"current-panel"
+					]
 				},
 				"matchObserved": {
 					"const": true

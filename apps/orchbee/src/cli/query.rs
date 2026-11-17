@@ -188,34 +188,40 @@ pub(crate) fn status_read() -> Result<(Snapshot, StatusFacts), Failure> {
     ))
 }
 
-/// The snapshot's Session's terminal-runtime state, read once before `deadline`.
+/// The snapshot's Session's terminal-runtime state, read once before `deadline`. Its failures
+/// classify like the snapshot read's on the same connection, under the `terminal-runtime` stage.
 fn read_terminal_runtime(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     deadline: Instant,
 ) -> Result<orchbee_workbench_protocol::TerminalRuntimeState, Failure> {
     use crate::local_client::TerminalRuntimeReadError;
-    use orchbee_workbench_protocol::{TerminalRuntimeOutcome, TerminalRuntimeRequest};
+    use orchbee_workbench_protocol::{
+        TerminalRuntimeFailure, TerminalRuntimeOutcome, TerminalRuntimeRequest,
+    };
     let request = TerminalRuntimeRequest {
         protocol_version: ProtocolVersion,
         request_id: request_id()?,
         session_id: snapshot.session_id.clone(),
     };
-    let unavailable =
-        || Failure::new(FailureKind::ServiceUnavailable).details(stage_details("terminal-runtime"));
+    let failed = |kind| Failure::new(kind).details(stage_details("terminal-runtime"));
     match client.terminal_runtime_before(request, deadline) {
         Ok(result) => match result.outcome {
             TerminalRuntimeOutcome::Current { runtime } => Ok(runtime.state),
-            // The snapshot just named this Session's Workbench, so neither refusal applies.
-            TerminalRuntimeOutcome::Failed { .. } => Err(unavailable()),
+            TerminalRuntimeOutcome::Failed {
+                reason: TerminalRuntimeFailure::Denied,
+            } => Err(Failure::new(FailureKind::Denied)),
+            TerminalRuntimeOutcome::Failed {
+                reason: TerminalRuntimeFailure::Unavailable,
+            } => Err(failed(FailureKind::ServiceUnavailable)),
         },
-        Err(TerminalRuntimeReadError::Timeout) => Err(Failure::new(FailureKind::Timeout)),
-        Err(TerminalRuntimeReadError::Protocol) => Err(Failure::new(FailureKind::Incompatible)),
-        Err(
-            TerminalRuntimeReadError::Unavailable
-            | TerminalRuntimeReadError::Encoding
-            | TerminalRuntimeReadError::Transport,
-        ) => Err(unavailable()),
+        Err(TerminalRuntimeReadError::Transport | TerminalRuntimeReadError::Timeout) => {
+            Err(failed(FailureKind::TransportLoss))
+        }
+        Err(TerminalRuntimeReadError::Protocol) => Err(failed(FailureKind::ProtocolInvalid)),
+        Err(TerminalRuntimeReadError::Unavailable | TerminalRuntimeReadError::Encoding) => {
+            Err(Failure::new(FailureKind::InternalFailure))
+        }
     }
 }
 

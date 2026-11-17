@@ -37,9 +37,10 @@ use orchbee_terminal_protocol::{
     inspect_terminal_frame_route,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome,
-    WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason, parse_snapshot,
-    read_workbench_request, write_workbench_response,
+    ProtocolVersion, TerminalRuntimeOutcome, TerminalRuntimeResult, TerminalRuntimeState,
+    WorkbenchRequest, WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome,
+    WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason, WorkbenchTerminalRuntime,
+    parse_snapshot, read_workbench_request, write_workbench_response,
 };
 use sha2::{Digest, Sha256};
 
@@ -239,6 +240,30 @@ fn snapshot_response(
         }),
     )
     .expect("peer writes snapshot result");
+}
+
+/// Answers the `workbench.terminal-runtime` read `status` sends after its snapshot: `admit` lists
+/// every offered capability, `terminal-runtime` among them.
+fn terminal_runtime_response(stream: &UnixStream) {
+    let request = match read_workbench_request(&mut &*stream) {
+        Ok(WorkbenchRequest::TerminalRuntime(request)) => request,
+        other => panic!("peer expected workbench.terminal-runtime, got {other:?}"),
+    };
+    write_workbench_response(
+        &mut &*stream,
+        &WorkbenchResponse::TerminalRuntime(TerminalRuntimeResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            session_id: request.session_id,
+            outcome: TerminalRuntimeOutcome::Current {
+                runtime: WorkbenchTerminalRuntime {
+                    revision: WorkbenchRevision::new(1),
+                    state: TerminalRuntimeState::Serving,
+                },
+            },
+        }),
+    )
+    .expect("peer writes terminal-runtime result");
 }
 
 /// Every spawned CLI child runs under the shared 45s wall-clock backstop in
@@ -627,11 +652,13 @@ fn fixture_document() -> &'static [u8] {
 fn available_snapshot_projects_every_resource() -> TestResult {
     let base = base_dir("available");
     let scope = stage_scope(&base);
-    // macOS `status` also asks the Session for its processes, on the second connection.
+    // `status` reads the terminal-runtime state on its own connection, the first; macOS also asks
+    // the Session for its processes, on the second.
     let asks_processes = cfg!(target_os = "macos");
     let connection = std::sync::atomic::AtomicUsize::new(0);
     let peer = spawn_peer_n(&scope, 2 + usize::from(asks_processes), move |stream| {
-        if asks_processes && connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 1 {
+        let index = connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if asks_processes && index == 1 {
             orchbee_workbench_client::test_support::local_client::handshake::answer_query(
                 &mut &stream,
                 "0.1.0",
@@ -649,6 +676,9 @@ fn available_snapshot_projects_every_resource() -> TestResult {
                 snapshot: parse_snapshot(fixture_document()).expect("fixture"),
             },
         );
+        if index == 0 {
+            terminal_runtime_response(&stream);
+        }
     });
 
     // status
@@ -665,6 +695,12 @@ fn available_snapshot_projects_every_resource() -> TestResult {
     assert!(
         text.lines()
             .any(|line| line.split_whitespace().eq(["bound", "terminals", "2"])),
+        "{text}"
+    );
+    // The Session's terminal-runtime answer, Serving, prints as Ready.
+    assert!(
+        text.lines()
+            .any(|line| line.split_whitespace().eq(["Terminals", "Ready"])),
         "{text}"
     );
 
@@ -807,9 +843,8 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     let connection = std::sync::atomic::AtomicUsize::new(0);
     let connections = derived.len() + usize::from(asks_processes);
     let peer = spawn_peer_n(&scope, connections, move |stream| {
-        if asks_processes
-            && connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == query_connection
-        {
+        let index = connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if asks_processes && index == query_connection {
             orchbee_workbench_client::test_support::local_client::handshake::answer_query(
                 &mut &stream,
                 "0.1.0",
@@ -827,8 +862,12 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
                 snapshot: parse_snapshot(fixture_document()).expect("fixture"),
             },
         );
-        // `terminal get` follows with one launch read on the same session;
-        // every other query retires the session after its snapshot.
+        // `status` follows with its terminal-runtime read and `terminal get` with one launch read
+        // on the same session; every other query retires the session after its snapshot.
+        if index + 1 == query_connection {
+            terminal_runtime_response(&stream);
+            return;
+        }
         if let Ok(ClientMessage::TerminalLaunchRead(request)) = read_client_message(&mut &stream) {
             launch_read_reply(&stream, &request);
             expect_session_eof(&stream);
@@ -1160,12 +1199,13 @@ fn missing_cohort_is_a_check_failure_not_a_crash() -> TestResult {
 fn query_writes_nothing_to_the_scope() -> TestResult {
     let base = base_dir("readonly");
     let scope = stage_scope(&base);
-    // macOS `status`, which runs first, also asks the Session for its processes, on the second
-    // connection.
+    // `status`, which runs first, reads the terminal-runtime state on its own connection; macOS
+    // also asks the Session for its processes, on the second.
     let asks_processes = cfg!(target_os = "macos");
     let connection = std::sync::atomic::AtomicUsize::new(0);
     let peer = spawn_peer_n(&scope, 4 + usize::from(asks_processes), move |stream| {
-        if asks_processes && connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 1 {
+        let index = connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if asks_processes && index == 1 {
             orchbee_workbench_client::test_support::local_client::handshake::answer_query(
                 &mut &stream,
                 "0.1.0",
@@ -1183,6 +1223,9 @@ fn query_writes_nothing_to_the_scope() -> TestResult {
                 snapshot: parse_snapshot(fixture_document()).expect("fixture"),
             },
         );
+        if index == 0 {
+            terminal_runtime_response(&stream);
+        }
     });
     for arguments in [
         vec!["status"],

@@ -353,6 +353,13 @@ impl super::CliText {
                             .to_owned()
                     }
                     (Locale::ZhCn, "viewer") => "与本地会话的连接在终端读取期间中断。\n".to_owned(),
+                    (Locale::EnUs, "terminal-runtime") => {
+                        "The connection to the local session was lost while reading its terminal state.\n"
+                            .to_owned()
+                    }
+                    (Locale::ZhCn, "terminal-runtime") => {
+                        "与本地会话的连接在读取终端状态期间中断。\n".to_owned()
+                    }
                     (Locale::EnUs, _) => {
                         "The connection to the local session was lost before a snapshot arrived.\n"
                             .to_owned()
@@ -567,6 +574,10 @@ impl super::CliText {
                 "The local session could not produce a snapshot right now.\n".to_owned()
             }
             (Locale::ZhCn, "snapshot") => "本地会话当前无法产出快照。\n".to_owned(),
+            (Locale::EnUs, "terminal-runtime") => {
+                "The local session could not report its terminal state right now.\n".to_owned()
+            }
+            (Locale::ZhCn, "terminal-runtime") => "本地会话当前无法报告终端状态。\n".to_owned(),
             (_, "viewer") => self.cli_viewer_unavailable(reason).to_owned(),
             (Locale::EnUs, "command") => {
                 "The local session could not execute the command right now; nothing was applied.\n"

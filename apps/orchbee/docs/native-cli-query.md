@@ -190,8 +190,10 @@ When the Session's handshake answer lists `terminal-runtime`, `status` also read
 [terminal-runtime state](../../../schemas/workbench/README.md#session-terminal-runtime-reads) once on
 the snapshot's connection. JSON carries it as `result.terminalRuntime`, `serving`, `reconnecting` or
 `given-up`; text prints a Terminals line after the Session lines: Ready, Reconnecting… while the
-Server replaces a lost Worker, or Can't reconnect once it gave up. A failed read fails the command.
-A Server without the read leaves both out.
+Server replaces a lost Worker, or Can't reconnect once it gave up. A failed read fails the command
+as a failed snapshot read on that connection does, under stage `terminal-runtime`: a lost or late
+answer is `transport-loss`, a malformed or uncorrelated one `protocol-invalid`, and the Session's
+refusal `denied` or `service-unavailable`. A Server without the read leaves both out.
 
 ## Workbench topology queries
 
