@@ -88,6 +88,52 @@ fn cancellation_fences_a_late_reply_while_another_stream_completes() {
     server.finish().unwrap();
 }
 
+/// A Session whose answer admits the close reports one request as run with an unknown outcome;
+/// that request alone fails as submitted, and the same carrier serves the next one.
+#[test]
+fn an_outcome_unknown_close_fails_one_request_as_submitted_and_keeps_the_carrier() {
+    let server = FakeServer::start(move |mut peer| {
+        admit(&mut peer, 1)?;
+        let first = read_open(&mut peer)?;
+        write_multiplex_message(
+            &mut peer,
+            &MultiplexMessage::StreamClose {
+                stream_id: first.id,
+                reason: StreamCloseReason::OutcomeUnknown,
+            },
+        )?;
+        let second = read_open(&mut peer)?;
+        frame(&mut peer, second.id, 1, StreamFrameKind::Result, 2)?;
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint())
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
+    let connection = client.origin().multiplex.clone().unwrap();
+    let clock = crate::local_client::SystemMonotonicClock;
+    let exchange = |id: u64| {
+        let mut bytes = Vec::new();
+        orchbee_workbench_protocol::write_workbench_request(&mut bytes, &request(id)).unwrap();
+        connection.exchange(
+            MultiplexLaneId::ROOT,
+            &bytes,
+            Instant::now() + Duration::from_secs(2),
+            &clock,
+            None,
+            None,
+        )
+    };
+    let Err((submitted, error)) = exchange(1) else {
+        panic!("the request's outcome is unknown");
+    };
+    assert!(submitted && outcome_unknown(&error));
+    assert!(matches!(exchange(2), Ok((bytes, _)) if bytes == [2]));
+    drop((connection, client));
+    server.finish().unwrap();
+}
+
 #[test]
 fn a_ready_listener_hears_a_record_no_reader_is_waiting_for() {
     let (send, release) = mpsc::sync_channel(1);

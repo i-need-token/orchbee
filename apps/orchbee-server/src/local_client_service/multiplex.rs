@@ -75,6 +75,18 @@ struct Queued {
     claim: Claim,
 }
 
+/// How the carrier answers an intent that ran but whose outcome it cannot report: it failed after
+/// it ran, or its result cannot be delivered.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum IntentUnknown {
+    /// The Client's handshake answer lists `stream-outcome-unknown`: only that stream closes, as
+    /// `OutcomeUnknown`, and the connection keeps serving.
+    ClosesStream,
+    /// It does not: such a Client reads every other close as a request that never ran, so the
+    /// connection ends, which it reads as unknown.
+    EndsConnection,
+}
+
 /// Why the dispatcher closes one stream while its connection keeps serving.
 #[derive(Clone, Copy, Debug)]
 enum StreamFailure {
@@ -82,56 +94,79 @@ enum StreamFailure {
     Drained,
     /// The request record inside an intact frame did not decode.
     InvalidRequest,
-    /// The record is larger than one frame (`record-size`) or than the connection's remaining
-    /// budget (`budget`).
+    /// The read's record is larger than one frame (`record-size`) or than the connection's
+    /// remaining budget (`budget`).
     Undeliverable(&'static str),
     /// The read failed at this connection stage.
     Execution(&'static str),
+    /// The intent ran, then failed at this connection stage, or its record could not be delivered
+    /// (`record-size`, `budget`).
+    OutcomeUnknown(&'static str),
 }
 
 impl StreamFailure {
     /// The stream failure of one failed execution, or the error that ends the connection. A
-    /// Session stop ends every connection. An intent that failed after it ran keeps ending its
-    /// connection: a closed request stream tells the Client that its request never ran.
-    fn execution(effect: Effect, error: ApplicationConnectionError) -> io::Result<Self> {
+    /// Session stop ends every connection.
+    fn execution(
+        effect: Effect,
+        error: ApplicationConnectionError,
+        unknown: IntentUnknown,
+    ) -> io::Result<Self> {
         match error {
             ApplicationConnectionError::Draining => Ok(Self::Drained),
             ApplicationConnectionError::Stopping => Err(io::Error::other(error)),
             error if effect == Effect::Read => Ok(Self::Execution(error.stage())),
-            error => Err(io::Error::other(error)),
+            error => match unknown {
+                IntentUnknown::ClosesStream => Ok(Self::OutcomeUnknown(error.stage())),
+                IntentUnknown::EndsConnection => Err(io::Error::other(error)),
+            },
         }
     }
 
-    /// Closes the stream with a reason its Client already handles, and keeps the failure's class
-    /// in the Server log rather than on the Client's screen.
+    /// Closes the stream with a reason its Client handles, and keeps the failure's class in the
+    /// Server log rather than on the Client's screen.
     fn close(
         self,
         writer: &mut impl Write,
         stream_id: MultiplexStreamId,
         stage: &'static str,
     ) -> io::Result<()> {
-        let reason = match self {
-            Self::Drained => StreamCloseReason::Stopping,
-            Self::InvalidRequest => {
-                crate::fault_records::client_stream_failed(stage, "invalid-request");
-                StreamCloseReason::InvalidRequest
-            }
+        let (reason, failure) = match self {
+            Self::Drained => (StreamCloseReason::Stopping, None),
+            Self::InvalidRequest => (StreamCloseReason::InvalidRequest, Some("invalid-request")),
             Self::Undeliverable(failure) | Self::Execution(failure) => {
-                crate::fault_records::client_stream_failed(stage, failure);
-                StreamCloseReason::Capacity
+                (StreamCloseReason::Capacity, Some(failure))
             }
+            Self::OutcomeUnknown(failure) => (StreamCloseReason::OutcomeUnknown, Some(failure)),
         };
+        if let Some(failure) = failure {
+            crate::fault_records::client_stream_failed(stage, failure, close_token(reason));
+        }
         write_multiplex_message(writer, &MultiplexMessage::StreamClose { stream_id, reason })
     }
 }
 
-/// Claims budget for a record the connection can deliver in one frame. A record it cannot deliver
-/// fails only its stream, unless it answers an intent that has already run: the Client could not
-/// learn that outcome, so the connection ends with `Capacity` as before.
+/// The close reason a `client-stream-failed` record names.
+const fn close_token(reason: StreamCloseReason) -> &'static str {
+    match reason {
+        StreamCloseReason::Complete => "complete",
+        StreamCloseReason::Cancelled => "cancelled",
+        StreamCloseReason::Unsupported => "unsupported",
+        StreamCloseReason::Capacity => "capacity",
+        StreamCloseReason::InvalidRequest => "invalid-request",
+        StreamCloseReason::Stopping => "stopping",
+        StreamCloseReason::OutcomeUnknown => "outcome-unknown",
+    }
+}
+
+/// Claims budget for a record the connection can deliver in one frame. A read's record it cannot
+/// deliver fails only its stream. An intent's has already run, so its stream closes as unknown, or,
+/// for a Client that cannot read that close, the connection ends with `Capacity` as before.
 fn deliverable(
     effect: Effect,
     budget: &Arc<AtomicUsize>,
     record: &[u8],
+    unknown: IntentUnknown,
 ) -> io::Result<Result<Claim, StreamFailure>> {
     let failure = if record.is_empty() || record.len() > MAXIMUM_STREAM_RECORD_BYTES {
         "record-size"
@@ -140,10 +175,13 @@ fn deliverable(
     } else {
         "budget"
     };
-    if effect == Effect::Intent {
-        return Err(io::ErrorKind::OutOfMemory.into());
+    match (effect, unknown) {
+        (Effect::Read, _) => Ok(Err(StreamFailure::Undeliverable(failure))),
+        (Effect::Intent, IntentUnknown::ClosesStream) => {
+            Ok(Err(StreamFailure::OutcomeUnknown(failure)))
+        }
+        (Effect::Intent, IntentUnknown::EndsConnection) => Err(io::ErrorKind::OutOfMemory.into()),
     }
-    Ok(Err(StreamFailure::Undeliverable(failure)))
 }
 
 #[derive(Default)]
@@ -241,6 +279,7 @@ impl JobReads {
 pub(super) fn run(
     stream: &LocalStream,
     first: MultiplexMessage,
+    unknown: IntentUnknown,
     signal: Arc<SessionChangeSignal>,
     mut execute: impl FnMut(
         MultiplexLaneId,
@@ -286,6 +325,7 @@ pub(super) fn run(
         let result = dispatch(
             &mut writer,
             first,
+            unknown,
             &inbox,
             &signal,
             &job_reads,
@@ -381,6 +421,7 @@ fn read_loop(
 fn dispatch(
     writer: &mut impl Write,
     first: Queued,
+    unknown: IntentUnknown,
     inbox: &Mutex<Inbox>,
     signal: &SessionChangeSignal,
     job_reads: &JobReads,
@@ -431,7 +472,7 @@ fn dispatch(
             let record = match read.outcome {
                 Ok(record) => record,
                 Err(error) => {
-                    StreamFailure::execution(read.effect, error)?.close(
+                    StreamFailure::execution(read.effect, error, unknown)?.close(
                         writer,
                         read.stream_id,
                         "job-read",
@@ -439,7 +480,7 @@ fn dispatch(
                     continue;
                 }
             };
-            let _frame_claim = match deliverable(read.effect, budget, &record)? {
+            let _frame_claim = match deliverable(read.effect, budget, &record, unknown)? {
                 Ok(claim) => claim,
                 Err(failure) => {
                     failure.close(writer, read.stream_id, "job-read")?;
@@ -539,11 +580,11 @@ fn dispatch(
                     // the connection keeps serving. A listener a failed stream may have registered
                     // is released, since no other stream of its owner remains.
                     let failure = match execute(lane_id, &parsed) {
-                        Ok(record) => match deliverable(effect, budget, &record)? {
+                        Ok(record) => match deliverable(effect, budget, &record, unknown)? {
                             Ok(claim) => Ok((record, claim)),
                             Err(failure) => Err(failure),
                         },
-                        Err(error) => Err(StreamFailure::execution(effect, error)?),
+                        Err(error) => Err(StreamFailure::execution(effect, error, unknown)?),
                     };
                     let (record, last_claim) = match failure {
                         Ok(delivered) => delivered,
@@ -620,6 +661,7 @@ fn dispatch(
                             cancel,
                             signal,
                             budget,
+                            unknown,
                         )? {
                             failure.close(writer, stream_id, "resnapshot")?;
                             remove_subscription(&mut subscriptions, stream_id, cancel);
@@ -676,8 +718,12 @@ fn dispatch(
                     match execute(subscription.lane, &subscription.continuation) {
                         Ok(record) => record,
                         Err(error) => {
-                            StreamFailure::execution(subscription.continuation.effect(), error)?
-                                .close(writer, *stream_id, "update")?;
+                            StreamFailure::execution(
+                                subscription.continuation.effect(),
+                                error,
+                                unknown,
+                            )?
+                            .close(writer, *stream_id, "update")?;
                             failed.push(*stream_id);
                             continue;
                         }
@@ -694,6 +740,7 @@ fn dispatch(
                         cancel,
                         signal,
                         budget,
+                        unknown,
                     )? {
                         failure.close(writer, *stream_id, "resnapshot")?;
                         failed.push(*stream_id);
@@ -704,15 +751,19 @@ fn dispatch(
                     || (subscription.mode == StreamMode::Events
                         && ApplicationRequest::has_event(&record))
                 {
-                    let last_claim =
-                        match deliverable(subscription.continuation.effect(), budget, &record)? {
-                            Ok(claim) => claim,
-                            Err(failure) => {
-                                failure.close(writer, *stream_id, "update")?;
-                                failed.push(*stream_id);
-                                continue;
-                            }
-                        };
+                    let last_claim = match deliverable(
+                        subscription.continuation.effect(),
+                        budget,
+                        &record,
+                        unknown,
+                    )? {
+                        Ok(claim) => claim,
+                        Err(failure) => {
+                            failure.close(writer, *stream_id, "update")?;
+                            failed.push(*stream_id);
+                            continue;
+                        }
+                    };
                     subscription.sequence = subscription
                         .sequence
                         .checked_add(1)
@@ -805,6 +856,10 @@ fn remove_subscription(
 
 /// Sends a gap and a fresh snapshot. The inner error fails only this subscription; the outer one
 /// ends the connection.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the resnapshot borrows the dispatcher's callbacks and shared state without owning them"
+)]
 fn resnapshot(
     writer: &mut impl Write,
     stream_id: MultiplexStreamId,
@@ -816,6 +871,7 @@ fn resnapshot(
     cancel: &mut impl FnMut(&ApplicationRequest),
     signal: &SessionChangeSignal,
     budget: &Arc<AtomicUsize>,
+    unknown: IntentUnknown,
 ) -> io::Result<Result<(), StreamFailure>> {
     write_multiplex_message(
         writer,
@@ -837,9 +893,9 @@ fn resnapshot(
     let effect = fresh.effect();
     let record = match execute(subscription.lane, &fresh) {
         Ok(record) => record,
-        Err(error) => return StreamFailure::execution(effect, error).map(Err),
+        Err(error) => return StreamFailure::execution(effect, error, unknown).map(Err),
     };
-    let last_claim = match deliverable(effect, budget, &record)? {
+    let last_claim = match deliverable(effect, budget, &record, unknown)? {
         Ok(claim) => claim,
         Err(failure) => return Ok(Err(failure)),
     };

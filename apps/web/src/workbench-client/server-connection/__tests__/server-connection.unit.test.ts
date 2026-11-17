@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ContainedClientFault } from '../../contained-client-fault';
 import { MultiplexDecoder, encodeMultiplexMessage } from '../workbench-multiplex-codec';
-import type { MultiplexMessage } from '../workbench-multiplex-codec';
+import type { MultiplexCapabilities, MultiplexMessage } from '../workbench-multiplex-codec';
 import {
 	type ServerCarrier,
 	ServerConnection,
@@ -11,10 +11,15 @@ import {
 } from '../server-connection';
 
 class FakeCarrier implements ServerCarrier {
+	readonly capabilities: MultiplexCapabilities;
 	readonly sent: MultiplexMessage[] = [];
 	readonly #decoder = new MultiplexDecoder();
 	#closed: (() => void) | null = null;
 	#receive: ((chunk: Uint8Array) => void) | null = null;
+
+	constructor(capabilities: MultiplexCapabilities = { streamOutcomeUnknown: false }) {
+		this.capabilities = capabilities;
+	}
 
 	close(): void {
 		this.#closed = null;
@@ -100,6 +105,28 @@ describe('ServerConnection', () => {
 		carrier.deliver(result(carrier.opened()[0]?.streamId ?? 0n));
 
 		await expect(exchange).resolves.toBeInstanceOf(Uint8Array);
+	});
+
+	it('fails one request as unknown, not refused, only on a carrier that admits that close', async () => {
+		const carrier = new FakeCarrier({ streamOutcomeUnknown: true });
+		const connection = new ServerConnection(carrier);
+		const unknown = connection.exchange(REQUEST);
+		carrier.deliver({ kind: 'stream-close', reason: 'outcome-unknown', streamId: 1n });
+
+		const failure: unknown = await unknown.catch((error: unknown) => error);
+		expect(failure).toBeInstanceOf(Error);
+		expect(failure).not.toBeInstanceOf(ServerStreamRefusedError);
+		expect(connection.ended).toBeNull();
+		const next = connection.exchange(REQUEST);
+		carrier.deliver(result(2n));
+		await expect(next).resolves.toBeInstanceOf(Uint8Array);
+
+		const base = new FakeCarrier();
+		const baseConnection = new ServerConnection(base);
+		const held = baseConnection.exchange(REQUEST);
+		base.deliver({ kind: 'stream-close', reason: 'outcome-unknown', streamId: 1n });
+		await expect(held).rejects.toBeInstanceOf(ServerConnectionEndedError);
+		expect(baseConnection.ended?.kind).toBe('protocol-violation');
 	});
 
 	it('cancels at its deadline and ignores the result that crosses the cancellation', async () => {

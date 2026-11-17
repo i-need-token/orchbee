@@ -26,13 +26,25 @@ const CLOSE_REASONS = [
 	'capacity',
 	'invalid-request',
 	'stopping',
+	'outcome-unknown',
 ] as const;
+/** The close reasons of the frozen base contract; later ones need their handshake capability. */
+const BASE_CLOSE_REASONS = 6;
 const DISCONNECT_REASONS = ['slow-consumer', 'capacity', 'invalid-stream', 'unavailable'] as const;
 
 export type MultiplexStreamMode = (typeof STREAM_MODES)[number];
 export type MultiplexFrameKind = (typeof FRAME_KINDS)[number];
 export type MultiplexCloseReason = (typeof CLOSE_REASONS)[number];
 export type MultiplexDisconnectReason = (typeof DISCONNECT_REASONS)[number];
+
+/**
+ * What the carrier's handshake answer adds to the base contract the frozen corpus pins. A decoder
+ * admits a value one of these adds only when the answer listed its capability.
+ */
+export interface MultiplexCapabilities {
+	/** `stream-outcome-unknown`: a request stream may close as `outcome-unknown`. */
+	readonly streamOutcomeUnknown: boolean;
+}
 
 export type MultiplexMessage =
 	| {
@@ -197,7 +209,11 @@ function validBodyLength(kind: number, length: number): boolean {
 	}
 }
 
-function decodeBody(kind: number, body: Uint8Array): MultiplexMessage {
+function decodeBody(
+	kind: number,
+	body: Uint8Array,
+	capabilities: MultiplexCapabilities,
+): MultiplexMessage {
 	const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
 	switch (kind) {
 		case 64:
@@ -216,12 +232,17 @@ function decodeBody(kind: number, body: Uint8Array): MultiplexMessage {
 				sequence: positive(view, 8),
 				streamId: positive(view, 0),
 			};
-		case 66:
+		case 66: {
+			const code = body[8];
+			if (code !== undefined && code >= BASE_CLOSE_REASONS && !capabilities.streamOutcomeUnknown) {
+				throw new MultiplexProtocolError('Unknown multiplex close reason.');
+			}
 			return {
 				kind: 'stream-close',
-				reason: member(CLOSE_REASONS, body[8], 'close reason'),
+				reason: member(CLOSE_REASONS, code, 'close reason'),
 				streamId: positive(view, 0),
 			};
+		}
 		case 67:
 			return { kind: 'gap', streamId: positive(view, 0), through: positive(view, 8) };
 		case 68:
@@ -251,11 +272,17 @@ function decodeBody(kind: number, body: Uint8Array): MultiplexMessage {
  * without another.
  */
 export class MultiplexDecoder {
+	readonly #capabilities: MultiplexCapabilities;
 	readonly #header = new Uint8Array(HEADER_BYTES);
 	#headerFill = 0;
 	#body: Uint8Array | null = null;
 	#bodyFill = 0;
 	#kind = 0;
+
+	/** Without `capabilities`, the decoder admits the base contract alone. */
+	constructor(capabilities: MultiplexCapabilities = { streamOutcomeUnknown: false }) {
+		this.#capabilities = capabilities;
+	}
 
 	/** Whether a message has started and not finished; the Client bounds how long this may last. */
 	get partial(): boolean {
@@ -281,7 +308,7 @@ export class MultiplexDecoder {
 			this.#bodyFill += copied;
 			offset += copied;
 			if (this.#bodyFill === this.#body.byteLength) {
-				messages.push(decodeBody(this.#kind, this.#body));
+				messages.push(decodeBody(this.#kind, this.#body, this.#capabilities));
 				this.#body = null;
 				this.#bodyFill = 0;
 				this.#headerFill = 0;

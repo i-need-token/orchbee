@@ -41,6 +41,7 @@ fn a_drain_refuses_one_intent_stream_while_the_connection_keeps_serving() {
         run(
             &server,
             open(1, 1, StreamMode::Request),
+            IntentUnknown::ClosesStream,
             Arc::default(),
             move |_, _| {
                 executions += 1;
@@ -92,6 +93,7 @@ fn a_failed_stream_closes_alone_while_the_connection_keeps_serving() {
             run(
                 &server,
                 open(1, 1, StreamMode::State),
+                IntentUnknown::ClosesStream,
                 signal,
                 move |_, _| {
                     executions += 1;
@@ -171,6 +173,125 @@ fn a_failed_stream_closes_alone_while_the_connection_keeps_serving() {
     }));
 }
 
+fn reload(id: u64) -> MultiplexMessage {
+    use orchbee_workbench_protocol::{ConfigurationAction, ConfigurationRequest, SessionId};
+    let mut request = Vec::new();
+    write_workbench_request(
+        &mut request,
+        &WorkbenchRequest::Configuration(ConfigurationRequest {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{id:032x}")).unwrap(),
+            session_id: SessionId::parse(&format!("{:032x}", 9)).unwrap(),
+            action: ConfigurationAction::Reload,
+        }),
+    )
+    .unwrap();
+    MultiplexMessage::StreamOpen {
+        stream_id: MultiplexStreamId::new(id).unwrap(),
+        lane_id: MultiplexLaneId::ROOT,
+        mode: StreamMode::Request,
+        request,
+    }
+}
+
+/// Reads one message as a Client whose handshake answer listed `stream-outcome-unknown`.
+fn read_admitted(peer: &mut LocalStream) -> MultiplexMessage {
+    use orchbee_workbench_protocol::{MultiplexCapabilities, MultiplexDecoder};
+    use std::io::Read;
+    let mut header = [0; 12];
+    peer.read_exact(&mut header).unwrap();
+    let mut payload = vec![0; u32::from_be_bytes(header[8..].try_into().unwrap()) as usize];
+    peer.read_exact(&mut payload).unwrap();
+    let mut decoder = MultiplexDecoder::admitting(MultiplexCapabilities {
+        stream_outcome_unknown: true,
+    });
+    decoder.push(&header).unwrap();
+    decoder.push(&payload).unwrap();
+    decoder.next_message().unwrap().unwrap()
+}
+
+/// An intent that ran but whose outcome cannot be reported closes only its stream as unknown for a
+/// Client whose answer admits that close, and ends the connection for one that would read any
+/// other close as never submitted.
+#[test]
+fn an_intent_with_an_unknown_outcome_closes_alone_only_when_the_client_reads_that_close() {
+    let serve = |unknown: IntentUnknown| {
+        let (mut peer, server) = bounded_pair();
+        let task = thread::spawn(move || {
+            let mut executions = 0;
+            crate::fault_records::capture::records(|| {
+                run(
+                    &server,
+                    reload(1),
+                    unknown,
+                    Arc::default(),
+                    move |_, _| {
+                        executions += 1;
+                        // Its own failure class: another test's record of the same site within the
+                        // minute would hide this one.
+                        match executions {
+                            1 => Err(ApplicationConnectionError::Write(
+                                orchbee_client_server_protocol::WriteMessageError::Io(
+                                    io::ErrorKind::BrokenPipe.into(),
+                                ),
+                            )),
+                            2 => Ok(vec![0; MAXIMUM_STREAM_RECORD_BYTES + 1]),
+                            value => Ok(vec![value]),
+                        }
+                    },
+                    Vec::new,
+                    no_job_read,
+                    |_| {},
+                    |_| {},
+                    || Ok(None),
+                )
+            })
+        });
+        let first = read_admitted(&mut peer);
+        (peer, first, task)
+    };
+    let unknown_close = |id: u64| MultiplexMessage::StreamClose {
+        stream_id: MultiplexStreamId::new(id).unwrap(),
+        reason: StreamCloseReason::OutcomeUnknown,
+    };
+
+    let (mut peer, first, task) = serve(IntentUnknown::ClosesStream);
+    assert_eq!(first, unknown_close(1));
+    write_multiplex_message(&mut peer, &reload(2)).unwrap();
+    assert_eq!(read_admitted(&mut peer), unknown_close(2));
+    write_multiplex_message(&mut peer, &reload(3)).unwrap();
+    let MultiplexMessage::StreamFrame {
+        stream_id, record, ..
+    } = read_admitted(&mut peer)
+    else {
+        panic!("result frame");
+    };
+    assert_eq!((stream_id.value(), record), (3, vec![3]));
+    drop(peer);
+    let (_closed, records) = task.join().unwrap();
+    assert!(records.iter().any(|record| {
+        record.event == "client-stream-failed"
+            && record.fields.contains(&(
+                "failure",
+                orchbee_local_runtime::LogValue::Token("terminal-write"),
+            ))
+            && record.fields.contains(&(
+                "close",
+                orchbee_local_runtime::LogValue::Token("outcome-unknown"),
+            ))
+    }));
+
+    let (_peer, first, task) = serve(IntentUnknown::EndsConnection);
+    assert_eq!(
+        first,
+        MultiplexMessage::Disconnect {
+            reason: MultiplexDisconnectReason::Unavailable,
+        }
+    );
+    let (closed, _) = task.join().unwrap();
+    assert!(closed.is_err());
+}
+
 #[test]
 fn a_waiting_job_read_never_delays_another_request_on_the_connection() {
     use orchbee_workbench_protocol::{SessionId, WorkbenchWorkspaceId, WorkspaceGitRequest};
@@ -197,6 +318,7 @@ fn a_waiting_job_read_never_delays_another_request_on_the_connection() {
                 mode: StreamMode::Request,
                 request: git,
             },
+            IntentUnknown::ClosesStream,
             Arc::default(),
             |_, _| Ok(vec![2]),
             Vec::new,
@@ -308,6 +430,7 @@ fn idle_metadata_expiry_rearms_after_a_same_value_report_without_client_polling(
         run(
             &server,
             open(1, 1, StreamMode::Invalidations),
+            IntentUnknown::ClosesStream,
             observer,
             |_, request| {
                 let WorkbenchExecution::Response(response) =
@@ -387,6 +510,7 @@ fn maintenance_failure_closes_instead_of_retrying_a_past_deadline() {
         run(
             &server,
             open(1, 1, StreamMode::State),
+            IntentUnknown::ClosesStream,
             Arc::default(),
             |_, _| Ok(vec![1]),
             Vec::new,
@@ -434,6 +558,7 @@ fn late_scope_completion_is_reclaimed_without_releasing_a_sibling_owner() {
             MultiplexMessage::LaneOpen {
                 lane_id: MultiplexLaneId::new(2).unwrap(),
             },
+            IntentUnknown::ClosesStream,
             Arc::default(),
             move |lane, _| {
                 if lane.value() == 2 {
@@ -523,6 +648,7 @@ fn a_slow_writer_cannot_hide_a_commit_during_another_clients_snapshot_capture() 
         run(
             &slow_server,
             open(1, 1, StreamMode::State),
+            IntentUnknown::ClosesStream,
             slow_signal,
             |_, _| {
                 entered.send(()).unwrap();
@@ -542,6 +668,7 @@ fn a_slow_writer_cannot_hide_a_commit_during_another_clients_snapshot_capture() 
         run(
             &fast_server,
             open(1, 1, StreamMode::State),
+            IntentUnknown::ClosesStream,
             fast_signal,
             |_, _| {
                 let captured = revision;
@@ -581,6 +708,7 @@ fn terminal_output_wakes_value_streams_without_an_invalidation_hint() {
         run(
             &server,
             open(1, 1, StreamMode::Invalidations),
+            IntentUnknown::ClosesStream,
             signal,
             |_, _| {
                 value += 1;
@@ -641,6 +769,7 @@ fn title_changes_wake_only_the_published_title_read() {
         run(
             &server,
             open(1, 1, StreamMode::State),
+            IntentUnknown::ClosesStream,
             signal,
             |_, _| {
                 value += 1;
@@ -723,6 +852,7 @@ fn sustained_event_overrun_disconnects_only_its_carrier_with_a_typed_reason() {
         run(
             &server,
             open(1, 1, StreamMode::Events),
+            IntentUnknown::ClosesStream,
             Arc::default(),
             |_, _| Ok(vec![1]),
             Vec::new,
@@ -807,6 +937,7 @@ fn an_active_event_cursor_rejects_competing_streams_and_one_shot_reads() {
         run(
             &server,
             first,
+            IntentUnknown::ClosesStream,
             Arc::default(),
             |_, _| {
                 executed.fetch_add(1, Ordering::AcqRel);

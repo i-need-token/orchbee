@@ -7,6 +7,11 @@ import type { ServerCarrier } from '../../workbench-client';
  * Each chunk is reported read once its handling returns, which is what lets Main relay more.
  */
 export class MessagePortServerCarrier implements ServerCarrier {
+	/**
+	 * The bundled `orchbee server connect` is this build and offers `stream-outcome-unknown`, and a
+	 * Server sends that close only when its answer lists it, so the page may admit it unseen.
+	 */
+	readonly capabilities = { streamOutcomeUnknown: true } as const;
 	readonly #port: MessagePort;
 
 	constructor(port: MessagePort) {

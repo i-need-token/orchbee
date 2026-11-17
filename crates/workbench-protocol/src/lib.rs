@@ -20,10 +20,10 @@ mod carrier;
 mod multiplex;
 pub use multiplex::{
     MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_LANES, MAXIMUM_MULTIPLEX_STREAMS,
-    MAXIMUM_STREAM_RECORD_BYTES, MULTIPLEX_OPEN_KIND, MultiplexDecoder, MultiplexDisconnectReason,
-    MultiplexLaneId, MultiplexMessage, MultiplexStreamId, MultiplexViewerId, StreamCloseReason,
-    StreamFrameKind, StreamMode, encode_multiplex_message, read_multiplex_message,
-    write_multiplex_message,
+    MAXIMUM_STREAM_RECORD_BYTES, MULTIPLEX_OPEN_KIND, MultiplexCapabilities, MultiplexDecoder,
+    MultiplexDisconnectReason, MultiplexLaneId, MultiplexMessage, MultiplexStreamId,
+    MultiplexViewerId, StreamCloseReason, StreamFrameKind, StreamMode, encode_multiplex_message,
+    read_multiplex_message, write_multiplex_message,
 };
 mod command;
 pub use command::{

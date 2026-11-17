@@ -19,6 +19,7 @@ import {
 	MAXIMUM_MULTIPLEX_LANES,
 	MAXIMUM_MULTIPLEX_STREAMS,
 	MULTIPLEX_ROOT_LANE,
+	type MultiplexCapabilities,
 	type MultiplexCloseReason,
 	MultiplexDecoder,
 	type MultiplexDisconnectReason,
@@ -30,6 +31,8 @@ import {
 
 /** A duplex byte carrier that has already finished local admission. */
 export interface ServerCarrier {
+	/** What the carrier's handshake negotiated beyond the base OBWP contract; absent, nothing. */
+	readonly capabilities?: MultiplexCapabilities;
 	close(): void;
 	send(bytes: Uint8Array): void;
 	subscribe(receive: (chunk: Uint8Array) => void, closed: () => void): () => void;
@@ -60,6 +63,14 @@ export class ServerStreamRefusedError extends Error {
 		super(`Server closed the stream: ${reason}.`);
 		this.name = 'ServerStreamRefusedError';
 		this.reason = reason;
+	}
+}
+
+/** The Server ran the request and cannot report how it ended; the connection keeps serving. */
+class ServerOutcomeUnknownError extends Error {
+	constructor() {
+		super('Server ran the request and cannot report its outcome.');
+		this.name = 'ServerOutcomeUnknownError';
 	}
 }
 
@@ -122,7 +133,7 @@ interface WaitingOpen {
 
 export class ServerConnection {
 	readonly #carrier: ServerCarrier;
-	readonly #decoder = new MultiplexDecoder();
+	readonly #decoder: MultiplexDecoder;
 	readonly #endListeners = new Set<(end: ServerConnectionEnd) => void>();
 	readonly #lanes = new Set<bigint>([MULTIPLEX_ROOT_LANE]);
 	readonly #reportFault: ContainedClientFaultReporter;
@@ -140,6 +151,7 @@ export class ServerConnection {
 		reportFault: ContainedClientFaultReporter = reportContainedClientFault,
 	) {
 		this.#carrier = carrier;
+		this.#decoder = new MultiplexDecoder(carrier.capabilities);
 		this.#reportFault = reportFault;
 		const unsubscribe = carrier.subscribe(
 			(chunk) => this.#receive(chunk),
@@ -395,7 +407,11 @@ export class ServerConnection {
 				this.#streams.delete(message.streamId);
 				if (stream.kind === 'request') {
 					if (stream.timer !== null) clearTimeout(stream.timer);
-					stream.reject(new ServerStreamRefusedError(message.reason));
+					stream.reject(
+						message.reason === 'outcome-unknown'
+							? new ServerOutcomeUnknownError()
+							: new ServerStreamRefusedError(message.reason),
+					);
 				} else {
 					stream.handlers.onClosed(message.reason);
 				}

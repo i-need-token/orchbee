@@ -290,6 +290,7 @@ impl ApplicationRequest {
 )]
 pub(super) fn run_network<Permit>(
     stream: &orchbee_local_ipc::LocalStream,
+    intent_unknown: super::multiplex::IntentUnknown,
     mut execute: impl FnMut(MultiplexLaneId, ClientMessage) -> ServerMessage,
     mut execute_workbench: impl FnMut(MultiplexLaneId, WorkbenchRequest) -> WorkbenchExecution,
     execute_job_read: impl Fn(WorkbenchRequest) -> WorkbenchExecution + Sync,
@@ -332,6 +333,7 @@ pub(super) fn run_network<Permit>(
     super::multiplex::run(
         stream,
         first,
+        intent_unknown,
         signal,
         |lane, request| {
             let _permit = admitted(admit(request.effect()))?;

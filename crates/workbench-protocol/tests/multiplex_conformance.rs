@@ -2,19 +2,33 @@
 use std::num::NonZeroU64;
 
 use orchbee_workbench_protocol::{
-    MultiplexDecoder, MultiplexDisconnectReason, MultiplexLaneId, MultiplexMessage,
-    MultiplexStreamId, MultiplexViewerId, StreamCloseReason, StreamFrameKind, StreamMode,
-    encode_multiplex_message,
+    MultiplexCapabilities, MultiplexDecoder, MultiplexDisconnectReason, MultiplexLaneId,
+    MultiplexMessage, MultiplexStreamId, MultiplexViewerId, StreamCloseReason, StreamFrameKind,
+    StreamMode, encode_multiplex_message,
 };
 use serde::Deserialize;
 
+/// The frozen generation 1 corpus: what a carrier admits when its handshake answer lists no
+/// capability.
 const CORPUS: &str =
     include_str!("../../../schemas/workbench/v1/workbench-multiplex-conformance-v1.json");
+/// What a carrier whose answer lists `stream-outcome-unknown` admits besides the base corpus.
+const OUTCOME_UNKNOWN_CORPUS: &str = include_str!(
+    "../../../schemas/workbench/v1/workbench-multiplex-outcome-unknown-conformance-v1.json"
+);
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Corpus {
     contract_version: u8,
+    valid: Vec<ValidCase>,
+    invalid: Vec<InvalidCase>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct CapabilityCorpus {
+    contract_version: u8,
+    capability: String,
     valid: Vec<ValidCase>,
     invalid: Vec<InvalidCase>,
 }
@@ -135,6 +149,7 @@ fn expected(message: &Message) -> MultiplexMessage {
                 "capacity" => StreamCloseReason::Capacity,
                 "invalid-request" => StreamCloseReason::InvalidRequest,
                 "stopping" => StreamCloseReason::Stopping,
+                "outcome-unknown" => StreamCloseReason::OutcomeUnknown,
                 other => panic!("unknown close reason {other}"),
             },
         },
@@ -166,7 +181,12 @@ fn expected(message: &Message) -> MultiplexMessage {
     }
 }
 fn decode(frame: &[u8]) -> std::io::Result<Option<MultiplexMessage>> {
-    let mut decoder = MultiplexDecoder::default();
+    decode_with(MultiplexDecoder::default(), frame)
+}
+fn decode_with(
+    mut decoder: MultiplexDecoder,
+    frame: &[u8],
+) -> std::io::Result<Option<MultiplexMessage>> {
     decoder.push(frame)?;
     decoder.next_message()
 }
@@ -194,5 +214,48 @@ fn stream_frames_match_the_shared_corpus() {
     }
     for case in &corpus.invalid {
         assert!(decode(&bytes(&case.hex)).is_err(), "{}", case.name);
+    }
+}
+
+/// The capability's values decode only where its answer admits them, and the base decoder keeps
+/// refusing them as the frozen corpus says.
+#[test]
+fn outcome_unknown_closes_decode_only_under_their_capability() {
+    let corpus: CapabilityCorpus = serde_json::from_str(OUTCOME_UNKNOWN_CORPUS).unwrap();
+    assert_eq!(corpus.contract_version, 1);
+    assert_eq!(corpus.capability, "stream-outcome-unknown");
+    assert!(!corpus.valid.is_empty() && !corpus.invalid.is_empty());
+    let admitted = || {
+        MultiplexDecoder::admitting(MultiplexCapabilities {
+            stream_outcome_unknown: true,
+        })
+    };
+    for case in &corpus.valid {
+        let frame = bytes(&case.hex);
+        let message = expected(&case.message);
+        assert_eq!(
+            decode_with(admitted(), &frame).unwrap().as_ref(),
+            Some(&message),
+            "{}",
+            case.name
+        );
+        assert_eq!(
+            encode_multiplex_message(&message).unwrap(),
+            frame,
+            "{}",
+            case.name
+        );
+        assert!(
+            decode(&frame).is_err(),
+            "{} without the capability",
+            case.name
+        );
+    }
+    for case in &corpus.invalid {
+        assert!(
+            decode_with(admitted(), &bytes(&case.hex)).is_err(),
+            "{}",
+            case.name
+        );
     }
 }

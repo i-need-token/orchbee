@@ -10,6 +10,10 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 const DEFAULT_SEED: u64 = 0x0b7d_0238_5eed_0002;
 const RANDOM_CASES: u64 = 2048;
 const BOUNDARY_BYTES: [u8; 6] = [0x00, 0x01, 0x7f, 0x80, 0xfe, 0xff];
+/// Both decoders admit every capability, so the corpus reaches every value a carrier may accept.
+const ADMITTED: MultiplexCapabilities = MultiplexCapabilities {
+    stream_outcome_unknown: true,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Ending {
@@ -141,6 +145,7 @@ fn corpus() -> Vec<MultiplexMessage> {
             StreamCloseReason::Capacity,
             StreamCloseReason::InvalidRequest,
             StreamCloseReason::Stopping,
+            StreamCloseReason::OutcomeUnknown,
         ]
         .into_iter()
         .map(|reason| MultiplexMessage::StreamClose { stream_id, reason }),
@@ -301,7 +306,7 @@ fn blocking(bytes: &[u8]) -> (Vec<MultiplexMessage>, Ending) {
         if usize::try_from(reader.position()).unwrap() == bytes.len() {
             return (messages, Ending::Clean);
         }
-        match read_multiplex_message(&mut reader) {
+        match read_admitted(&mut reader, ADMITTED) {
             Ok(message) => messages.push(message),
             Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => {
                 return (messages, Ending::Incomplete);
@@ -312,7 +317,7 @@ fn blocking(bytes: &[u8]) -> (Vec<MultiplexMessage>, Ending) {
 }
 
 fn incremental(bytes: &[u8], cuts: &[usize]) -> (Vec<MultiplexMessage>, Ending) {
-    let mut decoder = MultiplexDecoder::default();
+    let mut decoder = MultiplexDecoder::admitting(ADMITTED);
     let mut messages = Vec::new();
     let mut start = 0;
     for end in cuts

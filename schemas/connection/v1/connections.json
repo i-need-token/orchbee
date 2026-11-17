@@ -7,6 +7,7 @@
 				{ "name": "agent-input-area", "addedIn": "0.1.0" },
 				{ "name": "compatibility-window", "addedIn": "0.1.0-beta.14" },
 				{ "name": "prompt-gated-input", "addedIn": "0.1.0" },
+				{ "name": "stream-outcome-unknown", "addedIn": "0.1.0-beta.14" },
 				{ "name": "terminal-runtime", "addedIn": "0.1.0-beta.14" }
 			],
 			"fingerprintInputs": [
@@ -226,6 +227,10 @@
 		{
 			"path": "schemas/workbench/v1/workbench-multiplex-conformance-v1.json",
 			"sha256": "959f732691bd98bd366976652f5665d62902f72e43a22ca17c8609f3ba083ba1"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-multiplex-outcome-unknown-conformance-v1.json",
+			"sha256": "7604c230950ffd9a38e1fdf87028be0eba5f8bcf8cc74f50adb668d26fc5ee7c"
 		},
 		{
 			"path": "schemas/workbench/v1/workbench-notification-conformance-v1.json",

@@ -1,12 +1,12 @@
 //! The sole TUI connection owner. Lanes submit complete records and never own a Server socket.
 use super::LocalClientOrigin;
-use orchbee_connection_handshake::{CapabilitySet, Generation};
+use orchbee_connection_handshake::{CapabilitySet, Generation, STREAM_OUTCOME_UNKNOWN};
 use orchbee_local_client_protocol::ClientConnection;
 use orchbee_local_ipc::{AsLocalIo, LocalIo, LocalStream, PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
-    MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_LANES, MAXIMUM_MULTIPLEX_STREAMS, MultiplexDecoder,
-    MultiplexLaneId, MultiplexMessage, MultiplexStreamId, MultiplexViewerId, StreamCloseReason,
-    StreamFrameKind, StreamMode, encode_multiplex_message,
+    MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_LANES, MAXIMUM_MULTIPLEX_STREAMS,
+    MultiplexCapabilities, MultiplexDecoder, MultiplexLaneId, MultiplexMessage, MultiplexStreamId,
+    MultiplexViewerId, StreamCloseReason, StreamFrameKind, StreamMode, encode_multiplex_message,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -83,6 +83,8 @@ struct DeliveryState {
     failure: Option<orchbee_workbench_protocol::MultiplexDisconnectReason>,
     /// A drained Server refused this stream's request before it took effect.
     refused: bool,
+    /// The Server ran this stream's request and cannot report how it ended.
+    unknown: bool,
 }
 /// Runs on the connection actor or the thread cancelling the stream, so it must not block.
 struct ReadyListener(Box<dyn Fn() + Send + Sync>);
@@ -218,6 +220,9 @@ impl Delivery {
             if state.refused {
                 return Err(io::Error::new(io::ErrorKind::ConnectionRefused, Refused));
             }
+            if state.unknown {
+                return Err(io::Error::new(io::ErrorKind::BrokenPipe, OutcomeUnknown));
+            }
             return Err(io::ErrorKind::BrokenPipe.into());
         }
         drop(state);
@@ -232,6 +237,13 @@ impl Delivery {
     fn refuse(&self) {
         if let Ok(mut state) = self.state.lock() {
             state.refused = true;
+            state.closed = true;
+        }
+        self.signal();
+    }
+    fn unknown(&self) {
+        if let Ok(mut state) = self.state.lock() {
+            state.unknown = true;
             state.closed = true;
         }
         self.signal();
@@ -714,6 +726,11 @@ impl Connection {
                 subscription.delivery.cancel();
                 Err((false, error))
             }
+            // The Server ran the request, whatever this side's handoff state says.
+            Err(error) if outcome_unknown(&error) => {
+                subscription.delivery.cancel();
+                Err((true, error))
+            }
             Err(error) => Err((subscription.delivery.cancel(), error)),
         }
     }
@@ -785,6 +802,17 @@ struct Incoming {
     decoder: MultiplexDecoder,
     partial_at: Option<Instant>,
 }
+impl Incoming {
+    /// Admits what the carrier's handshake answer listed, and nothing it did not.
+    fn for_carrier(capabilities: &CapabilitySet) -> Self {
+        Self {
+            decoder: MultiplexDecoder::admitting(MultiplexCapabilities {
+                stream_outcome_unknown: capabilities.contains(STREAM_OUTCOME_UNKNOWN),
+            }),
+            partial_at: None,
+        }
+    }
+}
 
 fn actor(
     connection: ClientConnection,
@@ -793,11 +821,11 @@ fn actor(
     shared: Arc<Shared>,
     timing: health::Timing,
 ) {
+    let mut incoming = Incoming::for_carrier(connection.capabilities());
     let mut connection = Some(connection);
     let mut active = BTreeMap::<MultiplexStreamId, Active>::new();
     let mut lanes = BTreeSet::from([MultiplexLaneId::ROOT]);
     let mut outgoing = VecDeque::new();
-    let mut incoming = Incoming::default();
     let mut reconnect_at = Instant::now();
     let mut health = health::Health::new(timing, Instant::now());
     loop {
@@ -945,6 +973,7 @@ fn actor(
                             .lock()
                             .unwrap_or_else(|poisoned| poisoned.into_inner()),
                     );
+                    incoming = Incoming::for_carrier(next.capabilities());
                     connection = Some(next);
                     for lane in lanes.iter().filter(|lane| **lane != MultiplexLaneId::ROOT) {
                         queue_lane(&mut outgoing, *lane, true);
@@ -1284,10 +1313,10 @@ fn deliver(
         }
         MultiplexMessage::StreamClose { stream_id, reason } => {
             if let Some(item) = active.remove(&stream_id) {
-                if reason == StreamCloseReason::Stopping {
-                    item.delivery.refuse();
-                } else {
-                    item.delivery.close();
+                match reason {
+                    StreamCloseReason::Stopping => item.delivery.refuse(),
+                    StreamCloseReason::OutcomeUnknown => item.delivery.unknown(),
+                    _ => item.delivery.close(),
                 }
             } else {
                 return Ok(false);
@@ -1355,6 +1384,23 @@ impl std::error::Error for Refused {}
 /// Whether the Server refused this request because it is stopping; nothing was applied.
 fn refused(error: &io::Error) -> bool {
     error.get_ref().is_some_and(|source| source.is::<Refused>())
+}
+
+/// The Server ran one request and cannot report how it ended; the connection stays usable.
+#[derive(Debug)]
+struct OutcomeUnknown;
+impl std::fmt::Display for OutcomeUnknown {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("the Session ran the request and cannot report its outcome")
+    }
+}
+impl std::error::Error for OutcomeUnknown {}
+
+/// Whether the Server closed this request as run with an unknown outcome.
+fn outcome_unknown(error: &io::Error) -> bool {
+    error
+        .get_ref()
+        .is_some_and(|source| source.is::<OutcomeUnknown>())
 }
 
 /// A typed peer rejection retires this carrier; an outer profile owner must not retry around it.

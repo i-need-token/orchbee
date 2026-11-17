@@ -25,6 +25,12 @@ pub const COMPATIBILITY_WINDOW: &str = "compatibility-window";
 /// Client whose Server lacks it never sends the read.
 pub const TERMINAL_RUNTIME: &str = "terminal-runtime";
 
+/// The `client-server` capability before a Server may close one request stream with the OBWP
+/// `OutcomeUnknown` reason, for an intent that failed after it ran or whose result it could not
+/// deliver, instead of ending the connection. A Client without it keeps the connection-ending
+/// answer it understands.
+pub const STREAM_OUTCOME_UNKNOWN: &str = "stream-outcome-unknown";
+
 /// A connection that starts with an `OBHS` offer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConnectionKind {
@@ -89,6 +95,7 @@ impl ConnectionKind {
                 AGENT_INPUT_AREA,
                 COMPATIBILITY_WINDOW,
                 PROMPT_GATED_INPUT,
+                STREAM_OUTCOME_UNKNOWN,
                 TERMINAL_RUNTIME,
             ],
             Self::WorkerHost => &[PROMPT_GATED_INPUT],

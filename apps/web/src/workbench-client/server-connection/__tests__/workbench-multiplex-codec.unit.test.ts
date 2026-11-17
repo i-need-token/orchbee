@@ -34,6 +34,7 @@ const messageSchema = z.discriminatedUnion('kind', [
 			'capacity',
 			'invalid-request',
 			'stopping',
+			'outcome-unknown',
 		]),
 		streamId: decimal,
 	}),
@@ -53,17 +54,19 @@ const corpusSchema = z.strictObject({
 	valid: z.array(z.strictObject({ hex, message: messageSchema, name: z.string() })),
 });
 
-const corpus = corpusSchema.parse(
+const readCorpus = async (name: string): Promise<unknown> =>
 	JSON.parse(
 		await readFile(
-			new URL(
-				'../../../../../../schemas/workbench/v1/workbench-multiplex-conformance-v1.json',
-				import.meta.url,
-			),
+			new URL(`../../../../../../schemas/workbench/v1/${name}`, import.meta.url),
 			'utf8',
 		),
-	),
-);
+	);
+/** The frozen base contract: what a carrier admits when its answer lists no capability. */
+const corpus = corpusSchema.parse(await readCorpus('workbench-multiplex-conformance-v1.json'));
+/** What a carrier whose answer lists `stream-outcome-unknown` admits besides the base corpus. */
+const outcomeUnknownCorpus = corpusSchema
+	.extend({ capability: z.literal('stream-outcome-unknown') })
+	.parse(await readCorpus('workbench-multiplex-outcome-unknown-conformance-v1.json'));
 
 describe('OBWP stream codec', () => {
 	it.each(corpus.valid)('agrees with the corpus on $name', ({ hex: frame, message }) => {
@@ -92,5 +95,23 @@ describe('OBWP stream codec', () => {
 		}
 		expect(decoder.partial).toBe(false);
 		expect(decoded).toEqual(corpus.valid.map(({ message }) => message));
+	});
+
+	it.each(outcomeUnknownCorpus.valid)(
+		'agrees on $name only under its capability',
+		({ hex: frame, message }) => {
+			const expected: MultiplexMessage = message;
+			expect(new MultiplexDecoder({ streamOutcomeUnknown: true }).push(frame)).toEqual([expected]);
+			expect(encodeMultiplexMessage(expected)).toEqual(frame);
+			expect(() => new MultiplexDecoder().push(frame)).toThrow(
+				expect.objectContaining({ name: 'MultiplexProtocolError' }),
+			);
+		},
+	);
+
+	it.each(outcomeUnknownCorpus.invalid)('refuses $name under its capability', ({ hex: frame }) => {
+		expect(() => new MultiplexDecoder({ streamOutcomeUnknown: true }).push(frame)).toThrow(
+			expect.objectContaining({ name: 'MultiplexProtocolError' }),
+		);
 	});
 });

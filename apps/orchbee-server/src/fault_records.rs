@@ -254,8 +254,13 @@ pub(crate) fn worker_reply_dropped(
 }
 
 /// Records one Client stream the Server closed while that Client's connection kept serving: the
-/// stage that failed it and the failure's class. At most one record a minute per stage and failure.
-pub(crate) fn client_stream_failed(stage: &'static str, failure: &'static str) {
+/// stage that failed it, the failure's class and the close reason the Client read. At most one
+/// record a minute per stage and failure.
+pub(crate) fn client_stream_failed(
+    stage: &'static str,
+    failure: &'static str,
+    close: &'static str,
+) {
     let now = Instant::now();
     let site = Site {
         event: CLIENT_STREAM_FAILED,
@@ -270,6 +275,7 @@ pub(crate) fn client_stream_failed(stage: &'static str, failure: &'static str) {
             &[
                 ("stage", LogValue::Token(stage)),
                 ("failure", LogValue::Token(failure)),
+                ("close", LogValue::Token(close)),
                 ("suppressed", LogValue::Count(suppressed)),
             ],
         );

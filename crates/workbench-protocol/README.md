@@ -17,17 +17,17 @@ uses the same 12-byte OBWP header: magic, big-endian u16 version 1, u16 kind and
 Kinds 64–71 carry complete bounded inner OBCS/OBWP/OBAP records without changing their semantic
 version or codec. This namespace is separate from graphics producer stream identity.
 
-| Kind                 | Payload                                                                                                                                                           |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 64 StreamOpen        | Nonzero u64 stream ID, nonzero u64 logical lane ID, u8 mode, inner request. Modes: Request 0, State 1, Events 2, Invalidations 3.                                 |
-| 65 StreamFrame       | Nonzero u64 stream ID and sequence, u8 frame kind, inner response. Kinds: Result 0, Snapshot 1, Update 2. Invalidation updates contain an eight-byte commit hint. |
-| 66 StreamClose       | Nonzero u64 stream ID, u8 reason: Complete 0, Cancelled 1, Unsupported 2, Capacity 3, InvalidRequest 4, Stopping 5 (a drained Server refused the intent).         |
-| 67 Gap               | Nonzero u64 stream ID and last Server sequence through the loss boundary. A replacement Snapshot follows.                                                         |
-| 68 Disconnect        | u8 reason: SlowConsumer 0, Capacity 1, InvalidStream 2, Unavailable 3.                                                                                            |
-| 69 Resnapshot        | Nonzero u64 stream ID; Client requests Gap then fresh Snapshot after local event inbox overflow.                                                                  |
-| 70 LaneOpen          | Nonzero u64 lane ID, monotonically increasing within the connection. Root lane 1 exists implicitly.                                                               |
-| 71 LaneClose         | Nonzero u64 lane ID; release only that lane's logical resources. Root lane cannot be closed independently.                                                        |
-| 72 ViewerRecordReady | Nonzero u128 viewer ID, Server to Client only: that viewer on this connection holds something to Poll. A hint, never a record.                                    |
+| Kind                 | Payload                                                                                                                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 64 StreamOpen        | Nonzero u64 stream ID, nonzero u64 logical lane ID, u8 mode, inner request. Modes: Request 0, State 1, Events 2, Invalidations 3.                                                                                                                            |
+| 65 StreamFrame       | Nonzero u64 stream ID and sequence, u8 frame kind, inner response. Kinds: Result 0, Snapshot 1, Update 2. Invalidation updates contain an eight-byte commit hint.                                                                                            |
+| 66 StreamClose       | Nonzero u64 stream ID, u8 reason: Complete 0, Cancelled 1, Unsupported 2, Capacity 3, InvalidRequest 4, Stopping 5 (a drained Server refused the intent), OutcomeUnknown 6 (the intent ran and its outcome is unknown; only under `stream-outcome-unknown`). |
+| 67 Gap               | Nonzero u64 stream ID and last Server sequence through the loss boundary. A replacement Snapshot follows.                                                                                                                                                    |
+| 68 Disconnect        | u8 reason: SlowConsumer 0, Capacity 1, InvalidStream 2, Unavailable 3.                                                                                                                                                                                       |
+| 69 Resnapshot        | Nonzero u64 stream ID; Client requests Gap then fresh Snapshot after local event inbox overflow.                                                                                                                                                             |
+| 70 LaneOpen          | Nonzero u64 lane ID, monotonically increasing within the connection. Root lane 1 exists implicitly.                                                                                                                                                          |
+| 71 LaneClose         | Nonzero u64 lane ID; release only that lane's logical resources. Root lane cannot be closed independently.                                                                                                                                                   |
+| 72 ViewerRecordReady | Nonzero u128 viewer ID, Server to Client only: that viewer on this connection holds something to Poll. A hint, never a record.                                                                                                                               |
 
 A `ViewerRecordReady` belongs to no stream or lane, and a Client may discard one it cannot place.
 Poll remains the only way to take a frame, so a lost hint delays that Poll and loses nothing.
@@ -52,6 +52,14 @@ ownership or delivery ordering.
 `schemas/workbench/v1/workbench-multiplex-conformance-v1.json` fixes the exact bytes of valid
 records and rejected inputs for both implementations: `tests/multiplex_conformance.rs` checks this
 crate and the `apps/web` Client codec test checks TypeScript against the same file.
+
+That corpus is frozen, so it pins the base contract: the default `MultiplexDecoder` and
+`read_multiplex_message`, with which a Server reads its Client, admit exactly it. A value a
+handshake capability adds is admitted only by a decoder built with `MultiplexDecoder::admitting`
+(or the TypeScript decoder's capabilities) for a carrier that negotiated it; a Server sends it
+only when its answer lists the capability. Its cases live in a corpus of their own that both
+implementations check with and without the capability:
+`workbench-multiplex-outcome-unknown-conformance-v1.json` for `stream-outcome-unknown`.
 
 The Client implementation reserves one of those 64 streams and 256 KiB within the total budget
 for its bounded idle progress read; this changes no wire version or record kind. Decoder input

@@ -21,7 +21,8 @@ use std::{
 use orchbee_connection_handshake::{
     AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, CANDIDATE_DEADLINE, CohortIdentity,
     ConnectionKind, Decision, DrainResult, ExitResult, Extensions, ProductVersion, ReadError,
-    RequestKind, RequestName, Unsupported, encode_acceptor_frame, read_initiator_message,
+    RequestKind, RequestName, STREAM_OUTCOME_UNKNOWN, Unsupported, encode_acceptor_frame,
+    read_initiator_message,
 };
 use orchbee_local_client_protocol::{
     LocalClientMessage, ReadMessageError, RejectionReason, read_message, write_message,
@@ -338,11 +339,17 @@ fn handle_candidate_control(
         control_slot_free: true,
         state: control.offer_state(),
     };
-    match profile.decide(&message, load) {
+    let intent_unknown = match profile.decide(&message, load) {
         Decision::Accept(answer) => {
+            let unknown = if answer.capabilities.contains(STREAM_OUTCOME_UNKNOWN) {
+                multiplex::IntentUnknown::ClosesStream
+            } else {
+                multiplex::IntentUnknown::EndsConnection
+            };
             if !send_handshake(&mut stream, &AcceptorMessage::Answer(answer)) {
                 return;
             }
+            unknown
         }
         Decision::Reject(rejection) => {
             let _delivered = send_handshake(&mut stream, &AcceptorMessage::Rejection(rejection));
@@ -391,7 +398,7 @@ fn handle_candidate_control(
             }
             return;
         }
-    }
+    };
 
     let message = match read_message(&mut stream) {
         Ok(message) => message,
@@ -472,6 +479,7 @@ fn handle_candidate_control(
     let connections = std::cell::RefCell::new(std::collections::BTreeMap::new());
     let connection_result = application_connection::run_network(
         &stream,
+        intent_unknown,
         |lane, request| {
             connections
                 .borrow_mut()

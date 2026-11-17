@@ -902,8 +902,10 @@ unpacking, and a bundle the launcher swaps at the click.
   window's Update reads it for the join check.
 - Chosen when the window self-update release was built: no window action needs a capability yet.
   `prompt-gated-input` serves only the TUI's start in the focused Panel, which the window lacks;
-  `agent-input-area` serves only the CLI's Agent read; and `compatibility-window` serves Main's
-  join check. So the page gets no bootstrap member yet. The first window action that needs a
+  `agent-input-area` serves only the CLI's Agent read; `compatibility-window` serves Main's
+  join check; and `stream-outcome-unknown` changes only what the page's decoder admits, which it
+  may admit unseen because the relay's Client offers it and a Server sends that close only when
+  its answer lists it. So the page gets no bootstrap member yet. The first window action that needs a
   capability adds the bootstrap member of the same name
   (`packages/desktop-client-protocol/src/desktop-server-connection-contract.ts`), null when the
   answer has none, and one table from capability to window actions, as the TUI's

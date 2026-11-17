@@ -680,6 +680,9 @@ separate console and ConPTY evidence are described above.
 All feature origins refer to its connection actor. Creating a logical lane allocates a resource
 scope and cancellation handle, never another Server socket or OBLC identity. The actor owns
 reconnect and restores subscriptions; one-shot mutations are never replayed after possible write.
+Its decoder admits the `outcome-unknown` stream close only when the carrier's handshake answer
+listed `stream-outcome-unknown`; such a close fails that one request as submitted with an unknown
+outcome, never as not submitted, and the carrier keeps serving.
 A local wake stream makes command/cancel admission interrupt the same readiness wait as incoming
 frames. No channel polling timer is used for delivery. The [Server delivery contract](../orchbee-server/README.md#multiplexed-client-delivery)
 owns framing, bounds, gap recovery and the finite model's exact claims and exclusions.

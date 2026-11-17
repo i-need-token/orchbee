@@ -1,0 +1,21 @@
+{
+	"contractVersion": 1,
+	"capability": "stream-outcome-unknown",
+	"valid": [
+		{
+			"name": "stream-close-outcome-unknown",
+			"hex": "4f4257500001004200000009000000000000000306",
+			"message": {
+				"kind": "stream-close",
+				"streamId": "3",
+				"reason": "outcome-unknown"
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "stream-close-reason-after-outcome-unknown",
+			"hex": "4f4257500001004200000009000000000000000307"
+		}
+	]
+}

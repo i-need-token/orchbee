@@ -82,6 +82,21 @@ pub enum StreamCloseReason {
     /// A drained Server refuses this intent before it takes effect; the connection keeps serving
     /// reads.
     Stopping,
+    /// The Server ran this intent but cannot report how it ended: it failed after it ran, or its
+    /// result could not be delivered. Its effect is unknown, and the connection keeps serving. A
+    /// Server sends it only to a Client whose handshake answer lists `stream-outcome-unknown`,
+    /// and only a decoder that [`MultiplexCapabilities`] lets admit it accepts it.
+    OutcomeUnknown,
+}
+
+/// What a connection's handshake answer adds to the base OBWP stream contract, which the frozen
+/// generation 1 corpus pins. A decoder admits a value one of these adds only when the answer
+/// listed its capability.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct MultiplexCapabilities {
+    /// `stream-outcome-unknown`: a request stream may close with
+    /// [`StreamCloseReason::OutcomeUnknown`].
+    pub stream_outcome_unknown: bool,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MultiplexDisconnectReason {
@@ -205,6 +220,7 @@ pub fn encode_multiplex_message(message: &MultiplexMessage) -> io::Result<Vec<u8
                 StreamCloseReason::Capacity => 3,
                 StreamCloseReason::InvalidRequest => 4,
                 StreamCloseReason::Stopping => 5,
+                StreamCloseReason::OutcomeUnknown => 6,
             });
         }
         MultiplexMessage::Gap { stream_id, through } => {
@@ -260,20 +276,36 @@ fn payload_length(header: &[u8]) -> io::Result<usize> {
     if valid { Ok(length) } else { Err(invalid()) }
 }
 
+/// Reads one message of the base contract, as a Server reads its Client's.
 pub fn read_multiplex_message(reader: &mut impl Read) -> io::Result<MultiplexMessage> {
+    read_admitted(reader, MultiplexCapabilities::default())
+}
+
+fn read_admitted(
+    reader: &mut impl Read,
+    capabilities: MultiplexCapabilities,
+) -> io::Result<MultiplexMessage> {
     let mut header = [0; HEADER_BYTES];
     reader.read_exact(&mut header)?;
     let length = payload_length(&header)?;
     let mut payload = vec![0; length];
     reader.read_exact(&mut payload)?;
-    decode(u16::from_be_bytes([header[6], header[7]]), &payload)
+    decode(
+        u16::from_be_bytes([header[6], header[7]]),
+        &payload,
+        capabilities,
+    )
 }
 
 fn nonzero(bytes: &[u8]) -> io::Result<NonZeroU64> {
     NonZeroU64::new(u64::from_be_bytes(bytes.try_into().map_err(|_| invalid())?))
         .ok_or_else(invalid)
 }
-fn decode(kind: u16, payload: &[u8]) -> io::Result<MultiplexMessage> {
+fn decode(
+    kind: u16,
+    payload: &[u8],
+    capabilities: MultiplexCapabilities,
+) -> io::Result<MultiplexMessage> {
     if kind == 68 {
         return Ok(MultiplexMessage::Disconnect {
             reason: match payload[0] {
@@ -332,6 +364,7 @@ fn decode(kind: u16, payload: &[u8]) -> io::Result<MultiplexMessage> {
                 3 => StreamCloseReason::Capacity,
                 4 => StreamCloseReason::InvalidRequest,
                 5 => StreamCloseReason::Stopping,
+                6 if capabilities.stream_outcome_unknown => StreamCloseReason::OutcomeUnknown,
                 _ => return Err(invalid()),
             },
         },
@@ -343,12 +376,23 @@ fn decode(kind: u16, payload: &[u8]) -> io::Result<MultiplexMessage> {
     })
 }
 
-/// Partial network reads never block the connection actor's command/cancellation queue.
+/// Partial network reads never block the connection actor's command/cancellation queue. The
+/// default decoder admits the base contract.
 #[derive(Default, Debug)]
 pub struct MultiplexDecoder {
     bytes: Vec<u8>,
+    capabilities: MultiplexCapabilities,
 }
 impl MultiplexDecoder {
+    /// A decoder that also admits what `capabilities` adds, for a carrier whose handshake answer
+    /// listed them.
+    #[must_use]
+    pub fn admitting(capabilities: MultiplexCapabilities) -> Self {
+        Self {
+            bytes: Vec::new(),
+            capabilities,
+        }
+    }
     pub fn push(&mut self, bytes: &[u8]) -> io::Result<()> {
         // A read may contain the end of one maximum record and the next header/record.
         if self.bytes.len().saturating_add(bytes.len()) > MAXIMUM_MULTIPLEX_BYTES {
@@ -377,7 +421,7 @@ impl MultiplexDecoder {
             return Ok(None);
         }
         let kind = u16::from_be_bytes([self.bytes[6], self.bytes[7]]);
-        let message = decode(kind, &self.bytes[HEADER_BYTES..length])?;
+        let message = decode(kind, &self.bytes[HEADER_BYTES..length], self.capabilities)?;
         self.bytes.drain(..length);
         // A decoded payload now belongs to the delivery budget. Do not retain a second large
         // allocation as idle scratch; copying at most one read chunk preserves any next header.

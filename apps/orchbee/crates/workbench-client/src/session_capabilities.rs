@@ -4,7 +4,8 @@
 //! owner still checks the answer again at its effect boundary.
 
 use orchbee_connection_handshake::{
-    AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CapabilitySet, PROMPT_GATED_INPUT, TERMINAL_RUNTIME,
+    AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CapabilitySet, PROMPT_GATED_INPUT,
+    STREAM_OUTCOME_UNKNOWN, TERMINAL_RUNTIME,
 };
 
 /// A TUI action that only a Session listing a certain capability can serve.
@@ -22,6 +23,9 @@ const NEEDED_BY: &[(&str, &[SessionAction])] = &[
     // Update reads it itself: without it, a press waits instead of leaving for the new version.
     (COMPATIBILITY_WINDOW, &[]),
     (PROMPT_GATED_INPUT, &[SessionAction::StartInThisPanel]),
+    // The connection reads it itself: without it, an intent that fails after it ran ends the
+    // connection instead of closing its own stream as unknown.
+    (STREAM_OUTCOME_UNKNOWN, &[]),
     // The terminal-runtime follower reads it itself: without it, the TUI keeps its own recovery.
     (TERMINAL_RUNTIME, &[]),
 ];
