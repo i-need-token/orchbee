@@ -111,6 +111,9 @@ export const projectedTerminalMessages = defineMessages({
 	heldRestoreTitle: message('terminal.projected.heldRestore.title'),
 	heldRestoreRetry: message('terminal.projected.heldRestore.retry'),
 	heldRestoreStartInHome: message('terminal.projected.heldRestore.startInHome'),
+	displayFailed: message('terminal.projected.display.failed'),
+	displayFailedDescription: message('terminal.projected.display.failedDescription'),
+	displayRetry: message('terminal.projected.display.retry'),
 	useRegex: message('terminal.projected.find.useRegex'),
 	wholeWord: message('terminal.projected.find.wholeWord'),
 });

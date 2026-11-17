@@ -625,6 +625,28 @@ describe('openServerTerminalProjection', () => {
 		projection.transport.close();
 	});
 
+	it('retires the attachment when its renderer fails to take a polled record', async () => {
+		const server = new ScriptedServer(accepted);
+		server.enqueuePollRecord(SNAPSHOT);
+		const projection = await openServerTerminalProjection(
+			new ServerConnection(server),
+			BINDING,
+			GEOMETRY,
+		);
+		let unavailable = false;
+		projection.transport.subscribe(
+			() => {
+				throw new Error('renderer defect');
+			},
+			() => {
+				unavailable = true;
+			},
+		);
+
+		await settled(() => unavailable);
+		expect(unavailable).toBe(true);
+	});
+
 	it('takes no record before anyone is subscribed, because Poll would lose it', async () => {
 		const server = new ScriptedServer(accepted);
 		server.enqueuePollRecord(SNAPSHOT);

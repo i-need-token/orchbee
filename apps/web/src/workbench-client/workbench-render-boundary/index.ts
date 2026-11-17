@@ -1,0 +1,1 @@
+export { WorkbenchRenderBoundary } from './WorkbenchRenderBoundary';

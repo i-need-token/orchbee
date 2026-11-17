@@ -4,6 +4,7 @@ import {
 	type WorkbenchSnapshot,
 } from '@orchbee/workbench-client-protocol';
 
+import { notifyEachListener } from '../contained-client-fault';
 import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 import type { ServerWorkbenchSession } from './ServerWorkbenchSession';
 import {
@@ -135,7 +136,7 @@ export function createServerWorkspaceLocations({
 		const next = presentWorkspaceLocations(state, now, homeDirectory);
 		if (!sameWorkspaceLocations(next, presented)) {
 			presented = next;
-			for (const listener of Array.from(listeners)) listener();
+			notifyEachListener(listeners, 'source-listener', (listener) => listener());
 		}
 		if (current.holdTimer !== null) clearTimeout(current.holdTimer);
 		const deadline = nextHoldDeadline(state, now);

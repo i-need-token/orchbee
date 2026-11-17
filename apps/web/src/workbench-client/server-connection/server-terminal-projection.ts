@@ -24,6 +24,7 @@ import {
 	type ProjectedTerminalFailure,
 } from '@orchbee/workbench-client-protocol';
 
+import { ContainedClientFault, reportContainedClientFault } from '../contained-client-fault';
 import type {
 	ProjectedTerminalTakeControlOutcome,
 	ProjectedTerminalTransport,
@@ -121,7 +122,10 @@ type SemanticInputCommand = Extract<
 	{ readonly kind: keyof typeof SEMANTIC_INPUT_ROUTES }
 >;
 
-/** Runs asynchronous steps one at a time so a retry can never overtake a later step. */
+/**
+ * Runs asynchronous steps one at a time so a retry can never overtake a later step. A step that
+ * fails is reported and the next one runs, so it cannot stall every step behind it.
+ */
 class SerialSteps {
 	readonly #queue: (() => Promise<void>)[] = [];
 	#onIdle: (() => void) | null = null;
@@ -149,7 +153,11 @@ class SerialSteps {
 	async #run(): Promise<void> {
 		this.#running = true;
 		for (let step = this.#queue.shift(); step !== undefined; step = this.#queue.shift()) {
-			await step();
+			try {
+				await step();
+			} catch (error) {
+				reportContainedClientFault(new ContainedClientFault('terminal-step', error));
+			}
 		}
 		this.#running = false;
 		this.#onIdle?.();
@@ -1012,7 +1020,14 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		}).then(
 			(response) => {
 				this.#pollInFlight = false;
-				this.#receivePoll(response);
+				try {
+					this.#receivePoll(response);
+				} catch (error) {
+					// A record this transport or its renderer failed to take leaves no next Poll scheduled,
+					// so the attachment retires and the surface opens a fresh one.
+					reportContainedClientFault(new ContainedClientFault('terminal-poll-record', error));
+					this.#retire(true);
+				}
 			},
 			() => {
 				this.#pollInFlight = false;

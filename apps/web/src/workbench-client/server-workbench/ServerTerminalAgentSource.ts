@@ -16,6 +16,7 @@ import {
 	type ServerConnection,
 	type ServerSubscription,
 } from '../server-connection';
+import { notifyEachListener } from '../contained-client-fault';
 import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 import type { ServerWorkbenchSession } from './ServerWorkbenchSession';
 
@@ -275,7 +276,7 @@ export class ServerTerminalAgentSource implements WorkbenchAgentSource {
 	}
 
 	#notify(): void {
-		for (const listener of this.#listeners) listener();
+		notifyEachListener(this.#listeners, 'source-listener', (listener) => listener());
 	}
 }
 

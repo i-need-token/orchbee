@@ -4,12 +4,21 @@
  * and the original error travels as its cause.
  */
 export type ContainedClientFaultSite =
+	| 'command-decision'
 	| 'connection-end-listener'
 	| 'message-dispatch'
+	| 'publication-apply'
+	| 'session-end-listener'
+	| 'snapshot-listener'
+	| 'source-listener'
 	| 'subscription-closed'
 	| 'subscription-frame'
 	| 'subscription-gap'
-	| 'viewer-ready-listener';
+	| 'terminal-poll-record'
+	| 'terminal-step'
+	| 'terminal-surface-render'
+	| 'viewer-ready-listener'
+	| 'workbench-render';
 
 export class ContainedClientFault extends Error {
 	readonly site: ContainedClientFaultSite;
@@ -34,5 +43,21 @@ export function reportContainedClientFault(fault: ContainedClientFault): void {
 		Reflect.apply(report, globalThis, [fault]);
 	} catch {
 		// Reporting never owns or alters what it reports on.
+	}
+}
+
+/** Calls every listener in turn; one that throws loses only its own call and is reported. */
+export function notifyEachListener<Listener>(
+	listeners: Iterable<Listener>,
+	site: ContainedClientFaultSite,
+	call: (listener: Listener) => void,
+): void {
+	// A copy, so a listener that subscribes another during the call does not extend this round.
+	for (const listener of Array.from(listeners)) {
+		try {
+			call(listener);
+		} catch (error) {
+			reportContainedClientFault(new ContainedClientFault(site, error));
+		}
 	}
 }

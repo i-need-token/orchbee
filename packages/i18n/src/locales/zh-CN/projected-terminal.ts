@@ -114,4 +114,7 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.heldRestore.title': '目录不可用',
 	'terminal.projected.heldRestore.retry': '重试',
 	'terminal.projected.heldRestore.startInHome': '改在主目录启动',
+	'terminal.projected.display.failed': '没能显示此终端',
+	'terminal.projected.display.failedDescription': '终端仍在运行。重试即可再次显示。',
+	'terminal.projected.display.retry': '重试',
 } as const satisfies Readonly<Record<ProjectedTerminalMessageId, string>>;

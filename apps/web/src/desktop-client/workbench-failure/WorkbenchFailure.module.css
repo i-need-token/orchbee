@@ -1,0 +1,43 @@
+.root {
+	position: relative;
+	display: grid;
+	height: 100%;
+	box-sizing: border-box;
+	place-items: center;
+	padding: var(--ob-ref-space-8);
+	background: var(--ob-sys-color-surface-canvas);
+}
+
+.dragRegion {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline: 0;
+	height: var(--ob-ref-size-control-lg);
+	-webkit-app-region: drag;
+	app-region: drag;
+}
+
+.content {
+	display: grid;
+	max-width: var(--ob-ref-layout-prose-width);
+	gap: var(--ob-ref-space-2);
+	justify-items: center;
+	text-align: center;
+}
+
+.title {
+	margin: 0;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-heading-md);
+}
+
+.description {
+	margin: 0;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-body-md);
+	user-select: text;
+}
+
+.action {
+	margin-block-start: var(--ob-ref-space-2);
+}

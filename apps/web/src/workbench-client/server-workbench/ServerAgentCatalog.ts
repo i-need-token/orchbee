@@ -12,6 +12,7 @@ import {
 	type ServerConnection,
 	type ServerSubscription,
 } from '../server-connection';
+import { notifyEachListener } from '../contained-client-fault';
 import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 
 interface ServerAgentCatalogOptions {
@@ -103,7 +104,7 @@ export class ServerAgentCatalog implements WorkbenchAgentCatalogSource {
 			return;
 		}
 		this.#catalog = catalog;
-		for (const listener of this.#listeners) listener();
+		notifyEachListener(this.#listeners, 'source-listener', (listener) => listener());
 	}
 
 	#observe(): void {

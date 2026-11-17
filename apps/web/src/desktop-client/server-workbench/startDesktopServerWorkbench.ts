@@ -61,6 +61,7 @@ import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
 import { SessionDisconnectedStatus } from '../session-disconnected-status';
 import { SessionUnavailable } from '../session-unavailable';
+import { WorkbenchFailure } from '../workbench-failure';
 import { followDesktopWindowCaption } from '../window-caption';
 import { MessagePortServerCarrier } from './MessagePortServerCarrier';
 
@@ -387,6 +388,8 @@ async function run(
 				},
 				onReconnect: () => targetWindow.location.reload(),
 			}),
+			// A Workbench that failed to render recovers as a lost connection does, by a reload.
+			failure: createElement(WorkbenchFailure, { onReload: () => targetWindow.location.reload() }),
 			router: routing.router,
 			terminalSurfaceCapability: runtime.terminalSurfaceCapability,
 			windowControls: shortcutPlatform === 'apple' ? 'leading' : 'trailing',

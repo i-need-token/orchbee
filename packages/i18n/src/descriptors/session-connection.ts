@@ -36,4 +36,7 @@ export const sessionConnectionMessages = defineMessages({
 	),
 	unavailableTitle: message('session.connection.unavailable.title'),
 	unavailableTryAgain: message('session.connection.unavailable.tryAgain'),
+	workbenchFailedDescription: message('session.connection.workbenchFailed.description'),
+	workbenchFailedReload: message('session.connection.workbenchFailed.reload'),
+	workbenchFailedTitle: message('session.connection.workbenchFailed.title'),
 });

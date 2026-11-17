@@ -3,14 +3,41 @@ import { Button } from '@orchbee/ui/components';
 import type { WorkbenchTerminalSurfaceProps } from '../../workbench';
 import type { ReactNode } from 'react';
 
+import { WorkbenchRenderBoundary } from '../workbench-render-boundary';
 import styles from './ProjectedTerminalSurface.module.css';
+import { ProjectedTerminalDisplayFailure } from './components/projected-terminal-display-failure/ProjectedTerminalDisplayFailure';
 import { ProjectedTerminalLaunchFailure } from './components/projected-terminal-launch-failure/ProjectedTerminalLaunchFailure';
 import { ProjectedTerminalMobileInputBar } from './components/projected-terminal-mobile-input-bar/ProjectedTerminalMobileInputBar';
 import { ProjectedTerminalPasteReviewDialog } from './components/projected-terminal-paste-review-dialog/ProjectedTerminalPasteReviewDialog';
 import { ProjectedTerminalPersistentStatus } from './components/projected-terminal-persistent-status/ProjectedTerminalPersistentStatus';
 import { useProjectedTerminalSurface } from './hooks/useProjectedTerminalSurface';
 
+/**
+ * A surface that fails to render fails alone: its Panel shows that in its place, and every other
+ * Panel and the Workbench keep running. Retry mounts the surface again, which opens a fresh
+ * projection of the same terminal.
+ */
 export function ProjectedTerminalSurface(props: WorkbenchTerminalSurfaceProps): ReactNode {
+	return (
+		<WorkbenchRenderBoundary
+			fallback={(retry) => (
+				<ProjectedTerminalDisplayFailure
+					onClose={() => props.closeTerminal('button')}
+					onRetry={retry}
+				/>
+			)}
+			site='terminal-surface-render'
+		>
+			<ProjectedTerminalSurfaceContent surfaceProps={props} />
+		</WorkbenchRenderBoundary>
+	);
+}
+
+function ProjectedTerminalSurfaceContent({
+	surfaceProps: props,
+}: {
+	readonly surfaceProps: WorkbenchTerminalSurfaceProps;
+}): ReactNode {
 	const { presentation } = props;
 	// The host's props pass through whole, so an optional capability the host adds cannot be
 	// dropped by a field list kept here.

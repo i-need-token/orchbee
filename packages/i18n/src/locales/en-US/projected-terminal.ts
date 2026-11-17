@@ -121,6 +121,10 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.heldRestore.title': 'Folder unavailable',
 	'terminal.projected.heldRestore.retry': 'Retry',
 	'terminal.projected.heldRestore.startInHome': 'Start in home folder',
+	'terminal.projected.display.failed': "Couldn't show this terminal",
+	'terminal.projected.display.failedDescription':
+		'The terminal keeps running. Retry to show it again.',
+	'terminal.projected.display.retry': 'Retry',
 } as const;
 
 export type ProjectedTerminalMessageId = keyof typeof enUSProjectedTerminalMessages;

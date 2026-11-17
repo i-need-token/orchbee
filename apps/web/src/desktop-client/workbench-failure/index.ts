@@ -1,0 +1,1 @@
+export { WorkbenchFailure } from './WorkbenchFailure';

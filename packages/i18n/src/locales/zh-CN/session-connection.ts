@@ -18,4 +18,8 @@ export const zhCNSessionConnectionMessages = {
 		'{hasSessionVersion, select, true {正在运行的会话（{sessionVersion}）版本过旧，无法与 Orchbee Desktop {desktopVersion} 配合。请运行 <command>orchbee server stop</command>，然后重试。} other {正在运行的会话由早于版本检查的 Orchbee 启动。请用启动它的那个 Orchbee 运行 <command>server stop</command>，然后重试。}}',
 	'session.connection.unavailable.title': 'Orchbee 会话不可用',
 	'session.connection.unavailable.tryAgain': '重试',
+	'session.connection.workbenchFailed.description':
+		'终端仍在 Orchbee 会话中运行。重新加载窗口即可再次显示它们。',
+	'session.connection.workbenchFailed.reload': '重新加载',
+	'session.connection.workbenchFailed.title': '此窗口出了问题',
 } as const satisfies Readonly<Record<SessionConnectionMessageId, string>>;

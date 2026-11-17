@@ -1,5 +1,5 @@
 import { parseWorkbenchAction } from '@orchbee/workbench-client-protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { decodeWorkbenchResponse } from '../../server-connection';
 import {
@@ -213,6 +213,46 @@ describe('ServerWorkbenchSession', () => {
 		expect(session.ended).toEqual({ kind: 'connection-ended' });
 		await expect(session.submit(() => RENAME)).resolves.toEqual({ kind: 'not-submitted' });
 		expect(connection.exchanges).toHaveLength(1);
+	});
+
+	it('keeps serving the commands and listeners behind one that throws', async () => {
+		const connection = new FakeConnection();
+		const session = await openSession(connection);
+		const seen: string[] = [];
+		session.subscribe(() => {
+			throw new Error('listener defect');
+		});
+		session.subscribe((snapshot) => seen.push(snapshot.revision));
+		const failing = session.submit(() => {
+			throw new Error('decision defect');
+		});
+		const next = session.submit(() => RENAME);
+
+		await expect(failing).resolves.toEqual({ kind: 'not-submitted' });
+		await flush();
+		answer(connection.exchanges[0], { kind: 'renamed', revision: '6' });
+		connection.publish('6');
+
+		await expect(next).resolves.toMatchObject({ kind: 'settled' });
+		expect(seen).toEqual(['6']);
+	});
+
+	it('stops waiting for a committed publication at its bound and still applies it later', async () => {
+		vi.useFakeTimers();
+		try {
+			const connection = new FakeConnection();
+			const session = await openSession(connection);
+			const submission = session.submit(() => RENAME);
+			await vi.advanceTimersByTimeAsync(0);
+			answer(connection.exchanges[0], { kind: 'renamed', revision: '6' });
+
+			await vi.advanceTimersByTimeAsync(10_000);
+			await expect(submission).resolves.toEqual({ kind: 'outcome-unknown' });
+			connection.publish('6');
+			expect(session.snapshot.revision).toBe('6');
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('refuses a response whose frame kind does not match it', () => {

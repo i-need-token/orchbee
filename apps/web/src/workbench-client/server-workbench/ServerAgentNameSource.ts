@@ -19,6 +19,7 @@ import {
 	encodeWorkbenchRequest,
 	type ServerConnection,
 } from '../server-connection';
+import { notifyEachListener } from '../contained-client-fault';
 import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 import { readServerTerminalTask } from './server-terminal-names';
 import type { ServerTerminalAgentBinding } from './ServerTerminalAgentSource';
@@ -362,7 +363,7 @@ export class ServerAgentNameSource implements WorkbenchAgentNameSource {
 	#publish(snapshot: ReadonlyMap<string, WorkbenchAgentNames>): void {
 		if (snapshot === this.#snapshot || (snapshot.size === 0 && this.#snapshot.size === 0)) return;
 		this.#snapshot = snapshot;
-		for (const listener of this.#listeners) listener();
+		notifyEachListener(this.#listeners, 'source-listener', (listener) => listener());
 	}
 }
 

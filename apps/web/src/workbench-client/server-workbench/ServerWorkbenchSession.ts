@@ -7,6 +7,11 @@ import {
 } from '@orchbee/workbench-client-protocol';
 
 import {
+	ContainedClientFault,
+	notifyEachListener,
+	reportContainedClientFault,
+} from '../contained-client-fault';
+import {
 	decodeWorkbenchResponse,
 	encodeWorkbenchRequest,
 	ServerStreamRefusedError,
@@ -44,6 +49,13 @@ export type ServerWorkbenchConnection = Pick<
 >;
 
 type SnapshotListener = (snapshot: WorkbenchSnapshot) => void;
+
+/**
+ * How long a command waits for the publication carrying what it committed, so one publication
+ * that never comes cannot hold every command behind it. The command then reports an unknown
+ * outcome, and the publication still applies whenever it arrives.
+ */
+const COMMITTED_PUBLICATION_WAIT_MILLISECONDS = 10_000;
 
 interface PublicationWaiter {
 	readonly resolve: () => void;
@@ -144,14 +156,14 @@ export class ServerWorkbenchSession {
 
 	/**
 	 * `decide` runs when this command's turn comes and reads the snapshot its revision names, so nothing
-	 * it chose is older than what the Server checks it against. Null asks for nothing. It must not
-	 * throw, because the commands queued behind it would never run.
+	 * it chose is older than what the Server checks it against. Null asks for nothing, and so does a
+	 * decision that throws, which is reported; the commands queued behind either still run.
 	 */
 	submit(
 		decide: (snapshot: WorkbenchSnapshot) => ServerWorkbenchAction | null,
 	): Promise<ServerWorkbenchSubmission> {
 		const submission = this.#queue.then(() => this.#submitNext(decide));
-		this.#queue = submission;
+		this.#queue = submission.catch(() => undefined);
 		return submission;
 	}
 
@@ -193,7 +205,13 @@ export class ServerWorkbenchSession {
 		decide: (snapshot: WorkbenchSnapshot) => ServerWorkbenchAction | null,
 	): Promise<ServerWorkbenchSubmission> {
 		if (this.#end !== null) return { kind: 'not-submitted' };
-		const action = decide(this.#snapshot);
+		let action: ServerWorkbenchAction | null;
+		try {
+			action = decide(this.#snapshot);
+		} catch (error) {
+			reportContainedClientFault(new ContainedClientFault('command-decision', error));
+			return { kind: 'not-submitted' };
+		}
 		if (action === null) return { kind: 'not-submitted' };
 		const requestId = createWorkbenchRequestId();
 		let record: Uint8Array;
@@ -216,7 +234,9 @@ export class ServerWorkbenchSession {
 		const outcome = this.#readOutcome(record, requestId);
 		if (outcome === null) return { kind: 'outcome-unknown' };
 		const revision = observableRevision(outcome);
-		if (revision !== null) await this.#published(revision);
+		if (revision !== null && !(await this.#publishedWithin(revision))) {
+			return { kind: 'outcome-unknown' };
+		}
 		return { kind: 'settled', outcome };
 	}
 
@@ -240,9 +260,22 @@ export class ServerWorkbenchSession {
 		return new Promise((resolve) => this.#waiters.push({ resolve, revision }));
 	}
 
+	/** True once the snapshot reached `revision`; false when the bound passed first. */
+	#publishedWithin(revision: bigint): Promise<boolean> {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		return Promise.race([
+			this.#published(revision).then(() => true),
+			new Promise<boolean>((resolve) => {
+				timer = setTimeout(() => resolve(false), COMMITTED_PUBLICATION_WAIT_MILLISECONDS);
+			}),
+		]).finally(() => clearTimeout(timer));
+	}
+
 	#publish(snapshot: WorkbenchSnapshot): void {
 		this.#snapshot = snapshot;
-		for (const listener of this.#snapshotListeners) listener(snapshot);
+		notifyEachListener(this.#snapshotListeners, 'snapshot-listener', (listener) =>
+			listener(snapshot),
+		);
 		const revision = BigInt(snapshot.revision);
 		const waiting: PublicationWaiter[] = [];
 		for (const waiter of this.#waiters) {
@@ -260,8 +293,9 @@ export class ServerWorkbenchSession {
 		this.#subscription = null;
 		for (const waiter of this.#waiters) waiter.resolve();
 		this.#waiters = [];
-		for (const listener of this.#endListeners) listener(end);
+		const listeners = [...this.#endListeners];
 		this.#endListeners.clear();
+		notifyEachListener(listeners, 'session-end-listener', (listener) => listener(end));
 		this.#snapshotListeners.clear();
 	}
 }

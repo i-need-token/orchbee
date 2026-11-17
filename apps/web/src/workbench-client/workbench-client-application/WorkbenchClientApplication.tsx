@@ -9,10 +9,13 @@ import {
 	ProjectedTerminalSurfaceCapabilityContext,
 	type ProjectedTerminalSurfaceCapability,
 } from '../projected-terminal-surface';
+import { WorkbenchRenderBoundary } from '../workbench-render-boundary';
 
 export interface WorkbenchClientApplicationProps {
 	readonly applicationLocaleSource: ApplicationLocaleSource;
 	readonly children?: ReactNode;
+	/** What takes the Workbench's place when it fails to render; `children` stay beside it. */
+	readonly failure: ReactNode;
 	readonly router: WebApplicationRouter;
 	readonly terminalSurfaceCapability: ProjectedTerminalSurfaceCapability;
 }
@@ -20,6 +23,7 @@ export interface WorkbenchClientApplicationProps {
 export function WorkbenchClientApplication({
 	applicationLocaleSource,
 	children,
+	failure,
 	router,
 	terminalSurfaceCapability,
 }: WorkbenchClientApplicationProps): ReactNode {
@@ -28,7 +32,9 @@ export function WorkbenchClientApplication({
 			<ApplicationLocaleProvider source={applicationLocaleSource}>
 				<TooltipProvider>
 					<>
-						<RouterProvider router={router} />
+						<WorkbenchRenderBoundary fallback={() => failure} site='workbench-render'>
+							<RouterProvider router={router} />
+						</WorkbenchRenderBoundary>
 						{children}
 					</>
 				</TooltipProvider>

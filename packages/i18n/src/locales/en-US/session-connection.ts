@@ -17,6 +17,10 @@ export const enUSSessionConnectionMessages = {
 		'{hasSessionVersion, select, true {The running Session ({sessionVersion}) is too old for Orchbee Desktop {desktopVersion}. Run <command>orchbee server stop</command>, then try again.} other {The running Session was started by an Orchbee from before version checks. Run <command>server stop</command> with the Orchbee that started it, then try again.}}',
 	'session.connection.unavailable.title': 'The Orchbee Session isn’t available',
 	'session.connection.unavailable.tryAgain': 'Try Again',
+	'session.connection.workbenchFailed.description':
+		'Your terminals keep running in the Orchbee Session. Reload the window to show them again.',
+	'session.connection.workbenchFailed.reload': 'Reload',
+	'session.connection.workbenchFailed.title': 'Something went wrong in this window',
 } as const;
 
 export type SessionConnectionMessageId = keyof typeof enUSSessionConnectionMessages;

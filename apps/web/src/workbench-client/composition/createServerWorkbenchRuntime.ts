@@ -25,6 +25,7 @@ import {
 	DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	type TerminalInputConfigurationSource,
 } from '../../terminal-input-configuration';
+import { ContainedClientFault, reportContainedClientFault } from '../contained-client-fault';
 import type { ProjectedTerminalShortcutBindingSource } from '../projected-terminal-actions';
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import {
@@ -274,6 +275,7 @@ export function createServerWorkbenchRuntime({
 				projectServerSnapshot(snapshot, intl, terminalEnds.ends, leaving),
 			);
 		} catch (error) {
+			reportContainedClientFault(new ContainedClientFault('publication-apply', error));
 			onPublicationFailure(error);
 			return;
 		}

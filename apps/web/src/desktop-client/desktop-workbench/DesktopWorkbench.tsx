@@ -16,6 +16,7 @@ export interface DesktopWorkbenchProps extends Omit<WorkbenchClientApplicationPr
 export function DesktopWorkbench({
 	applicationLocaleSource,
 	connectionStatus,
+	failure,
 	router,
 	terminalSurfaceCapability,
 	windowControls,
@@ -28,6 +29,7 @@ export function DesktopWorkbench({
 		>
 			<WorkbenchClientApplication
 				applicationLocaleSource={applicationLocaleSource}
+				failure={failure}
 				router={router}
 				terminalSurfaceCapability={terminalSurfaceCapability}
 			>
