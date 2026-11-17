@@ -34,7 +34,7 @@ export const enUSWebsiteDesktopMessages = {
 		'Asks which agent and where: a new Tab, a split to the right, a split downward, or a new worktree.',
 	'website.desktop.highlight.settings.title': 'Settings on one page',
 	'website.desktop.highlight.settings.body':
-		'A full page with seven categories, a search field, and Restore default on each setting.',
+		'One large dialog over the workspace: eight categories, a search field, and Restore default on each setting.',
 	'website.desktop.highlight.appearance.title': 'Light and dark, chosen separately',
 	'website.desktop.highlight.appearance.body':
 		'Follow the system, or stay light or dark. The terminal theme is chosen for each of them, from 16 built-in themes.',

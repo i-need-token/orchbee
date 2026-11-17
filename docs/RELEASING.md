@@ -92,8 +92,11 @@ repository>`. Print each public half with the command in
    `pnpm website:release 0.1.0-beta.1`, then commit what it changed: the update feed pair of each
    platform the release published under `apps/website/public/update/stable/<platform>/`, any pair
    it removed for a platform the release did not publish, and
-   `apps/website/src/website/release.ts`, with every published platform's download. Then build
-   and deploy the website as [its README](../apps/website/README.md#static-delivery) says. The
+   `apps/website/src/website/release.ts`, with every published platform's download. Also read the
+   site's copy for claims the release changes (platforms, requirements, install and update steps,
+   shipped features), and update `packages/i18n/src/locales/*/website-*.ts` in the same commit.
+   Then build and deploy the website as [its README](../apps/website/README.md#static-delivery)
+   says. The
    command needs no credentials; it refuses, writing nothing, while the release is a draft or lacks
    a file, and when a feed signature or an archive does not check out. The update channel has moved
    when the deploy finishes, and the download buttons name the same version. The first release

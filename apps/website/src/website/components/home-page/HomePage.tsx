@@ -23,7 +23,7 @@ export function HomePage({
 	return (
 		<>
 			<Hero release={release} />
-			<Statement />
+			<Statement release={release} />
 			<Multiplexing />
 			<Collaboration />
 			<Agents />

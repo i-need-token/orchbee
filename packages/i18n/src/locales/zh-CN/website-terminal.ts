@@ -34,7 +34,7 @@ export const zhCNWebsiteTerminalMessages = {
 		'创建一个工作树，并作为相邻的工作区打开，并行的工作各在各的分支上。<code>Ctrl+b</code> <code>Shift+O</code> 打开已有的检出目录。',
 	'website.terminal.highlight.settings.title': '设置就在终端里',
 	'website.terminal.highlight.settings.body':
-		'七个分类，按 <code>/</code> 搜索，16 个主题，浅色和深色可以分别选择。改动保存在 <code>config.toml</code> 里。',
+		'八个分类，按 <code>/</code> 搜索，16 个主题，浅色和深色可以分别选择。改动保存在 <code>config.toml</code> 里。',
 	'website.terminal.highlight.leave.title': '离开，再回来',
 	'website.terminal.highlight.leave.body':
 		'离开界面，终端继续运行。再次运行 <code>orchbee</code>，一切都在原处。会话恢复时，其中的 Agent 也会一并恢复。',

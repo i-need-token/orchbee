@@ -17,6 +17,10 @@ export const websiteHomeMessages = defineMessages({
 	title: message('website.home.title', 'Headline of the home page.'),
 	lead: message('website.home.lead', 'Paragraph beside the headline.'),
 	beta: message('website.home.beta', 'Line under the download button.'),
+	betaMacos: message(
+		'website.home.betaMacos',
+		'Line under the download buttons once a release offers macOS downloads.',
+	),
 	stageView: message(
 		'website.home.stage.view',
 		'Label before the buttons that switch the drawn Session between the clients.',
@@ -81,6 +85,10 @@ export const websiteHomeMessages = defineMessages({
 	sheetPlatformValue: message(
 		'website.home.sheet.platformValue',
 		'Value of the platform row of the data sheet.',
+	),
+	sheetPlatformValueMacos: message(
+		'website.home.sheet.platformValueMacos',
+		'Value of the platform row of the data sheet once a release offers macOS downloads.',
 	),
 	sheetLicense: message(
 		'website.home.sheet.license',

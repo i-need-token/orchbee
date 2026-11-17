@@ -4,9 +4,10 @@
 // download buttons and the update channel always name the same version. Keep the block's shape:
 // the command rewrites it.
 //
-// Every section that offers Orchbee reads this value; nothing else changes. A platform without a
-// download here is not mentioned: the macOS downloads, the install script command and the Open
-// Anyway steps render only while a macOS download is present.
+// Every section that offers Orchbee or names its platforms reads this value; nothing else changes.
+// A platform without a download here is not mentioned: the macOS downloads, the install script
+// command, the Open Anyway steps, the Mac call to action and the copy that names macOS render only
+// while a macOS download is present.
 
 export const REPOSITORY_URL = 'https://github.com/i-need-token/orchbee';
 
@@ -58,6 +59,11 @@ export function macosDownloads(
 		const url = downloads[platform];
 		return url === undefined ? [] : [{ platform, url }];
 	});
+}
+
+/** Whether the release offers macOS, that is, publishes at least one macOS disk image. */
+export function offersMacos(offered: Release): boolean {
+	return offered.published && macosDownloads(offered.downloads).length > 0;
 }
 
 export function releaseNotesUrl(version: string): string {

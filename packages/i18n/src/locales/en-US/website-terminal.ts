@@ -32,7 +32,7 @@ export const enUSWebsiteTerminalMessages = {
 		'Creates a worktree and opens it as a Workspace beside the current one, so parallel work stays on separate branches. <code>Ctrl+b</code> <code>Shift+O</code> opens an existing checkout.',
 	'website.terminal.highlight.settings.title': 'Settings inside the terminal',
 	'website.terminal.highlight.settings.body':
-		'Seven categories, a search on <code>/</code>, and 16 themes with separate choices for light and dark. Changes are saved to <code>config.toml</code>.',
+		'Eight categories, a search on <code>/</code>, and 16 themes with separate choices for light and dark. Changes are saved to <code>config.toml</code>.',
 	'website.terminal.highlight.leave.title': 'Leave, and come back',
 	'website.terminal.highlight.leave.body':
 		'Leaves the interface; the terminals keep running. Run <code>orchbee</code> again and everything is where you left it. When a Session is restored, its agents resume as well.',

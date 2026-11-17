@@ -36,7 +36,7 @@ export const zhCNWebsiteDesktopMessages = {
 		'询问启动哪个 Agent、放在哪里：新标签页、向右拆分、向下拆分，或是新的工作树。',
 	'website.desktop.highlight.settings.title': '一页看完的设置',
 	'website.desktop.highlight.settings.body':
-		'整页设置：七个分类、一个搜索框，每项设置都可以恢复默认。',
+		'在工作区上方打开的大对话框：八个分类、一个搜索框，每项设置都可以恢复默认。',
 	'website.desktop.highlight.appearance.title': '浅色和深色，各选各的',
 	'website.desktop.highlight.appearance.body':
 		'外观可以跟随系统，也可以固定为浅色或深色。终端主题为两者分别选择，共 16 个内置主题。',

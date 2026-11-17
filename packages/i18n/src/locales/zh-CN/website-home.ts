@@ -8,6 +8,8 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.lead':
 		'会话在后台持续运行，可同时从终端界面、桌面应用和命令行访问，为人与 Agent 提供共同的工作环境。',
 	'website.home.beta': '测试版。目前支持 Windows 11（x86_64）；macOS 和 Linux 版本正在开发中。',
+	'website.home.betaMacos':
+		'测试版。目前支持 Windows 11（x86_64）和 macOS 13 或更高版本；Linux 版本正在开发中。',
 	'website.home.stage.view': '查看这个会话的客户端',
 	'website.home.stage.closeHint': '关闭窗口不会结束会话。',
 	'website.home.stage.close': '关闭窗口',
@@ -28,6 +30,8 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.sheet.platform': '平台',
 	'website.home.sheet.platformValue':
 		'目前支持 Windows 11（x86_64），macOS 和 Linux 版本正在开发中。',
+	'website.home.sheet.platformValueMacos':
+		'目前支持 Windows 11（x86_64）和 macOS 13 或更高版本，Linux 版本正在开发中。',
 	'website.home.sheet.license': '许可证',
 	'website.home.sheet.source': '源码',
 	'website.home.multiplexing.kicker': '多路复用',

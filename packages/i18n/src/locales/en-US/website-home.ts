@@ -9,6 +9,8 @@ export const enUSWebsiteHomeMessages = {
 		'Sessions persist in the background and remain accessible from the terminal, the desktop, and the command line simultaneously, giving people and agents a shared environment to work in.',
 	'website.home.beta':
 		'Beta. Runs on Windows 11 (x86_64) today; macOS and Linux builds are in progress.',
+	'website.home.betaMacos':
+		'Beta. Runs on Windows 11 (x86_64) and macOS 13 or later today; Linux builds are in progress.',
 	'website.home.stage.view': 'Viewing this Session in the',
 	'website.home.stage.closeHint': 'Closing the window does not end the Session.',
 	'website.home.stage.close': 'Close window',
@@ -29,6 +31,8 @@ export const enUSWebsiteHomeMessages = {
 	'website.home.sheet.platform': 'Platform',
 	'website.home.sheet.platformValue':
 		'Windows 11 (x86_64) today. macOS and Linux builds are in progress.',
+	'website.home.sheet.platformValueMacos':
+		'Windows 11 (x86_64) and macOS 13 or later today. Linux builds are in progress.',
 	'website.home.sheet.license': 'License',
 	'website.home.sheet.source': 'Source',
 	'website.home.multiplexing.kicker': 'multiplexing',

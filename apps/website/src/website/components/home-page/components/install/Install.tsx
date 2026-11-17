@@ -10,6 +10,7 @@ import {
 	INSTALL_SCRIPT_DESKTOP_COMMAND,
 	macosDownloads,
 	NPM_INSTALL_COMMAND,
+	offersMacos,
 	releaseNotesUrl,
 	SOURCE_COMMANDS,
 	type Release,
@@ -49,7 +50,7 @@ function InstallRow({
 export function Install({ release }: { release: Release }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	const macos = release.published ? macosDownloads(release.downloads) : [];
-	const offersMacos = macos.length > 0;
+	const withMacos = offersMacos(release);
 	return (
 		<section className={styles['section']} id='install'>
 			<div className={styles['install']} data-reveal=''>
@@ -58,7 +59,7 @@ export function Install({ release }: { release: Release }): ReactElement {
 						layout='stack'
 						kicker={t(messages.installKicker)}
 						title={t(messages.installTitle)}
-						lead={t(offersMacos ? messages.installLeadMacos : messages.installLead)}
+						lead={t(withMacos ? messages.installLeadMacos : messages.installLead)}
 					/>
 					{release.published ? (
 						<a
@@ -75,14 +76,14 @@ export function Install({ release }: { release: Release }): ReactElement {
 					{release.published ? (
 						<>
 							<InstallRow
-								title={t(offersMacos ? messages.installAppWindows : messages.installApp)}
+								title={t(withMacos ? messages.installAppWindows : messages.installApp)}
 								detail={t(shellMessages.installerNote, richText)}
 							>
 								<LinkButton href={release.downloads['windows-x86_64']} icon='download'>
 									{t(shellMessages.downloadForWindows)}
 								</LinkButton>
 							</InstallRow>
-							{offersMacos ? (
+							{withMacos ? (
 								<>
 									<InstallRow
 										title={t(messages.installMacosApp)}
@@ -117,12 +118,12 @@ export function Install({ release }: { release: Release }): ReactElement {
 							</InstallRow>
 							<InstallRow
 								title={t(messages.installStart)}
-								detail={t(offersMacos ? messages.installStartNoteMacos : messages.installStartNote)}
+								detail={t(withMacos ? messages.installStartNoteMacos : messages.installStartNote)}
 							>
 								<CommandChip command='orchbee' tone='quiet' />
 							</InstallRow>
 							<p className={styles['note']}>{t(messages.installNote)}</p>
-							{offersMacos ? (
+							{withMacos ? (
 								<p className={styles['note']}>{t(messages.installMacosNote, richText)}</p>
 							) : null}
 						</>

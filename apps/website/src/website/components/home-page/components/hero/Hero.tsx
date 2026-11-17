@@ -1,7 +1,7 @@
 import { useOrchbeeIntl, websiteHomeMessages as messages } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
-import type { Release } from '../../../../release';
+import { offersMacos, type Release } from '../../../../release';
 import { GetOrchbee } from '../../../get-orchbee/GetOrchbee';
 import { SessionScene } from '../../../session-scene/SessionScene';
 import { useSessionFrame } from '../../../session-scene/useSessionFrame';
@@ -28,7 +28,9 @@ export function Hero({ release }: { release: Release }): ReactElement {
 					<div>
 						<p className={styles['lead']}>{t(messages.lead)}</p>
 						<GetOrchbee release={release} offer='both' />
-						<p className={styles['beta']}>{t(messages.beta)}</p>
+						<p className={styles['beta']}>
+							{t(offersMacos(release) ? messages.betaMacos : messages.beta)}
+						</p>
 					</div>
 				</div>
 				<HeroStage />
