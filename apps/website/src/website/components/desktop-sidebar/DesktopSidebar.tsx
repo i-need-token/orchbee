@@ -15,8 +15,9 @@ export interface DesktopSidebarWorkspace extends TuiSidebarWorkspace {
 
 /**
  * The sidebar of the desktop application: the sidebar button, New workspace, one Project with its
- * Workspaces and their Agents, and Settings with Shortcuts. The two labels are product chrome and
- * follow the page language. It works alone or as a DesktopWindow's `sidebar`.
+ * Workspaces and their Agents, and the Settings gear alone in the footer, as a release build shows
+ * it while no update is offered. The New workspace label is product chrome and follows the page
+ * language. It works alone or as a DesktopWindow's `sidebar`.
  */
 export function DesktopSidebar({
 	project,
@@ -51,14 +52,8 @@ export function DesktopSidebar({
 				</div>
 			</div>
 			<div className={styles['footer']}>
-				<div className={styles['settings']}>
-					<span className={styles['itemIcon']}>
-						<Codicon name='settings-gear' />
-					</span>
-					<span className={styles['label']}>{t(workbenchMessages.settings)}</span>
-				</div>
 				<span className={styles['iconButton']}>
-					<Codicon name='question' />
+					<Codicon name='settings-gear' />
 				</span>
 			</div>
 		</div>

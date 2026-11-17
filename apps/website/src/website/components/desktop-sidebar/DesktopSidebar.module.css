@@ -33,20 +33,17 @@
 	border-radius: var(--ob-ref-radius-ui-md);
 	color: var(--ob-sys-color-icon-secondary);
 }
-.newWorkspace,
-.settings {
+.newWorkspace {
 	display: flex;
+	flex: none;
 	align-items: center;
 	gap: var(--ob-ref-space-1-5);
 	height: var(--ob-ref-size-control-navigation);
 	padding: 0 var(--ob-ref-space-2) 0 var(--ob-ref-space-1);
 	border-radius: var(--ob-ref-radius-ui-lg);
 	color: var(--ob-sys-color-text-secondary);
-	white-space: nowrap;
-}
-.newWorkspace {
-	flex: none;
 	margin: 0 var(--ob-ref-space-2);
+	white-space: nowrap;
 }
 .itemIcon {
 	display: flex;
@@ -218,21 +215,13 @@
 	border-radius: var(--ob-ref-radius-full);
 	background: var(--ob-sys-color-status-unread);
 }
-/* Settings grows to the width the row leaves beside Shortcuts and the room the product keeps for
-   a development build's marker; Shortcuts follows it. */
+/* The footer holds the Settings gear alone, a 28 px square at its start, as the product's sidebar
+   footer does in a release build while no update is offered. */
 .footer {
 	display: flex;
 	flex: none;
 	align-items: center;
-	gap: var(--ob-ref-space-0-5);
 	padding: var(--ob-ref-space-2);
-}
-.settings {
-	flex: 1 0 auto;
-	max-width: calc(
-		100% - var(--ob-ref-size-control-sm) - var(--ob-ref-space-0-5) - var(--ob-ref-space-0-5) -
-			var(--ob-ref-space-2) - var(--ob-ref-space-1)
-	);
 }
 /* The mini layout drops the provider names and half the space above the Projects. */
 @container window-fit (max-width: 48rem) {

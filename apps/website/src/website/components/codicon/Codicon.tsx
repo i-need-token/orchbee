@@ -3,7 +3,6 @@ import chevronRight from '@vscode/codicons/src/icons/chevron-right.svg?raw';
 import close from '@vscode/codicons/src/icons/close.svg?raw';
 import ellipsis from '@vscode/codicons/src/icons/ellipsis.svg?raw';
 import layoutSidebarLeft from '@vscode/codicons/src/icons/layout-sidebar-left.svg?raw';
-import question from '@vscode/codicons/src/icons/question.svg?raw';
 import settingsGear from '@vscode/codicons/src/icons/settings-gear.svg?raw';
 import terminal from '@vscode/codicons/src/icons/terminal.svg?raw';
 import type { ReactElement } from 'react';
@@ -18,7 +17,6 @@ const SOURCES = {
 	close,
 	ellipsis,
 	'layout-sidebar-left': layoutSidebarLeft,
-	question,
 	'settings-gear': settingsGear,
 	terminal,
 } as const;
