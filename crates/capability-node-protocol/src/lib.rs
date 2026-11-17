@@ -2,6 +2,12 @@
 //! types describe authorized terminal and job operations; runtime owners retain peer admission,
 //! authorization state, process lifetime and recovery policy.
 
+mod adopt_host;
+pub use adopt_host::{
+    AdoptBinding, AdoptBindingState, AdoptCloseInFlight, AdoptHostFailure, AdoptHostOutcome,
+    AdoptHostPage, AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest, AdoptHostResult,
+    AdoptHostTarget, MAXIMUM_ADOPT_HOST_BINDINGS, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS,
+};
 mod agent_drain;
 mod agent_integration_job;
 pub use agent_integration_job::{

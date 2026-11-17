@@ -575,7 +575,8 @@ and a Close in flight with its operation id, highest attempt and step, and wheth
 is unknown. A binding whose launch or start outcome is unknown is never sent. The result counts the
 imported, quarantined, and missing terminals and lists the missing terminal ids, or names one
 failure: `host-gone`, `host-unreachable`, `host-unverified`, `host-mismatch`, `host-refused`, or
-`inventory-failed`.
+`inventory-failed`. Built: the wire contract is
+[AdoptHost messages](../../crates/capability-node-protocol/README.md#adopthost-messages).
 
 **Adopt mode.** The Worker opens the Host process by its recorded id, compares its creation time,
 and keeps the handle; dials the endpoint and requires its server process to be that Host; offers

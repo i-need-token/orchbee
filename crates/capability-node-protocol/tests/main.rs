@@ -1,5 +1,6 @@
 //! Integration and conformance tests through this crate's public boundaries.
 
+mod adopt_host;
 mod agent_integration_job;
 mod agent_probe_job;
 mod control;

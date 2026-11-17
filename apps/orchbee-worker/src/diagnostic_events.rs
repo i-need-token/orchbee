@@ -457,6 +457,7 @@ fn declined_token(kind: orchbee_capability_node_protocol::DeclinedRequestKind) -
         Kind::TitleChanges => "title-changes",
         Kind::PluginJob => "plugin-job",
         Kind::GraphicsDecode => "graphics-decode",
+        Kind::AdoptHost => "adopt-host",
     }
 }
 

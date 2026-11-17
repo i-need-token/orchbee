@@ -45,8 +45,8 @@ which keeps the loop's own cause.
 `request-declined` records a whole Server request the Worker declined instead of ending, with its
 `kind` (`launch`, `start`, `viewer`, `control`, `lifecycle`, `cwd-validation`, `send`,
 `worktree-job`, `agent-drain`, `shutdown`, `worktree-mutation`, `titles`, `handoff`,
-`agent-integration-job`, `agent-probe-job`, `host-query`, `title-changes`, `plugin-job` or
-`graphics-decode`) and its `cause`: `unserved` (a kind this Worker does not serve on its platform,
+`agent-integration-job`, `agent-probe-job`, `host-query`, `title-changes`, `plugin-job`,
+`graphics-decode` or `adopt-host`) and its `cause`: `unserved` (a kind this Worker does not serve on its platform,
 or a terminal request before the first Launch), `fence` (addressed to another Worker or
 generation), `watermark` (an Agent drain acknowledgement above what this Worker offered), `handoff`
 (an ordinary request while a Server handoff is prepared) or `state` (the operation kernel refused it

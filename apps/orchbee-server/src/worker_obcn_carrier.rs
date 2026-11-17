@@ -2144,8 +2144,13 @@ fn validate_response(
             }
             Ok(WorkerOperationResult::Shutdown(actual))
         }
-        (_, CapabilityNodeMessage::WorkerShutdownRequest(_)) => {
+        (_, CapabilityNodeMessage::WorkerShutdownRequest(_))
+        | (_, CapabilityNodeMessage::AdoptHostRequest(_)) => {
             Err(WorkerResponseFailure::WrongDirection)
+        }
+        // No request in this carrier is an adoption page yet.
+        (_, CapabilityNodeMessage::AdoptHostResult(_)) => {
+            Err(WorkerResponseFailure::WrongResultKind)
         }
         (
             WorkerOperationRequest::HostQuery(expected),

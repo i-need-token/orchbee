@@ -586,14 +586,51 @@ is still answered and never ends the Worker or its terminals. The body after the
 request's kind (`u8`: 1 Launch, 2 Start, 3 viewer, 4 control, 5 lifecycle, 6 cwd validation, 7 Send,
 8 Worktree Job, 9 Agent drain, 10 shutdown, 11 Worktree mutation, 12 titles, 13 handoff, 14 Agent
 integration job, 15 Agent probe job, 16 Host query, 17 title changes, 18 plugin job, 19 graphics
-decode) and its 16-byte identity: the request or operation ID it carries, the Launch or Start
-authorization's operation ID, or for an Agent drain its token and acknowledged sequence, each a
-big-endian `u64`. `WorkerRequestDeclined::of` names the decline of every Server request and of no
+decode, 20 AdoptHost) and its 16-byte identity: the request or operation ID it carries, the Launch
+or Start authorization's operation ID, an AdoptHost page's adoption ID, or for an Agent drain its
+token and acknowledged sequence, each a big-endian `u64`. `WorkerRequestDeclined::of` names the decline of every Server request and of no
 Worker-sent message, by an exhaustive match, so a new request kind must name its decline to build.
 An unknown declined kind, a short identity or a trailing byte is refused. A decline means the Worker
 did nothing for that request; a message only a Worker sends, arriving at a Worker, answers no
 request, so the Worker drops it unanswered. The kind follows this protocol's
 exact-cohort rule: frame version 1 stays, and older cohorts reject the new tag.
+
+## AdoptHost messages
+
+Kind 40 `AdoptHostRequest` and kind 41 `AdoptHostResult` carry a replacement Worker's adoption of
+the Session's running Terminal Host under frame version 1 and the 40 KiB bound, with no capability
+name. All integers are unsigned big-endian, IDs are nonzero 16-byte values, and every option or
+flag byte is `0` or `1`.
+
+An adoption is one or more pages, each its own request answered before the next is sent; the
+Worker applies them together only after the last. A page's body after its kind is the adoption ID
+(16), Worker ID (16), positive Worker generation (`u64`), the Host target, page index (`u16`, from
+0), last flag, binding count (`u16`, 0 through 256) and the bindings. The target tag is 1 NoHost or
+2 Host; Host adds the registered process (option: nonzero PID `u32`, nonzero creation time `u64`)
+and the Host epoch (option: 16). A binding is its product Terminal ID (16), Host creation, epoch and
+terminal IDs (16 each), state (`u8`: 1 awaiting start, 2 started), the highest fence the Server
+issued (positive `u64`), and an optional Close in flight: Close operation ID (16), highest attempt
+generation (positive `u64`), step ordinal (`u8`, 1 through 32) and an effect-unknown flag. A page
+is at most 25,677 payload bytes.
+
+Construction and decoding refuse bindings under NoHost, a binding whose epoch differs from a
+present target epoch, and two bindings in one page naming one product terminal, Host terminal or
+creation. Agreement between the pages of one adoption, their order, their total of at most 1,024
+bindings (the generation-local binding bound) and duplicates across pages are the Worker's checks.
+
+A result echoes the adoption ID, Worker ID, generation, page index and last flag, then an outcome
+tag: 1 PageAccepted; 2 Adopted, with imported and quarantined counts (`u32` each), a missing count
+(`u16`, at most 1,024) and that many distinct missing Terminal IDs; or 3 Failed, with a failure tag:
+1 `host-gone`, 2 `host-unreachable`, 3 `host-unverified`, 4 `host-mismatch`, 5 `host-refused` or
+6 `inventory-failed`. PageAccepted answers only a page before the last, and Adopted or Failed only
+the last. A result is at most 16,439 payload bytes.
+
+The Worker's adopt mode owns Host verification, the inventory and the import, and the Server owns
+the bindings it sends and their rebinding, as
+[Worker loss](../../proposals/platform/versioning-and-upgrade.md#worker-loss) decides. Hand-derived
+golden bytes, the largest page and answer, construction contradictions and malformed bounds verify
+this representation. The pair follows this protocol's exact-cohort rule: frame version 1 stays, and
+older cohorts reject the new tags.
 
 ## Carrier and ownership boundaries
 

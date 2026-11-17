@@ -23,6 +23,7 @@ use crate::{
     },
 };
 
+mod adopt_host;
 mod agent_drain;
 mod agent_integration_job;
 mod agent_probe_job;
@@ -62,6 +63,8 @@ pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 40 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CapabilityNodeMessage {
+    AdoptHostRequest(crate::AdoptHostRequest),
+    AdoptHostResult(crate::AdoptHostResult),
     WorkerHandoffRequest(crate::WorkerHandoffRequest),
     WorkerHandoffResult(crate::WorkerHandoffResult),
     WorkerHandoffHello(crate::WorkerHandoffPeer),
@@ -269,6 +272,8 @@ pub fn write_message(
 
 fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
     match message {
+        CapabilityNodeMessage::AdoptHostRequest(value) => adopt_host::encode_request(value),
+        CapabilityNodeMessage::AdoptHostResult(value) => adopt_host::encode_result(value),
         CapabilityNodeMessage::WorkerHandoffRequest(value) => worker_handoff::request(*value),
         CapabilityNodeMessage::WorkerHandoffResult(value) => worker_handoff::result(*value),
         CapabilityNodeMessage::WorkerHandoffHello(value) => worker_handoff::peer(28, *value),
@@ -449,6 +454,12 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
         }
         Some(host_query::REQUEST_KIND) => {
             host_query::decode_request(payload).map(CapabilityNodeMessage::HostQueryRequest)
+        }
+        Some(adopt_host::REQUEST_KIND) => {
+            adopt_host::decode_request(payload).map(CapabilityNodeMessage::AdoptHostRequest)
+        }
+        Some(adopt_host::RESULT_KIND) => {
+            adopt_host::decode_result(payload).map(CapabilityNodeMessage::AdoptHostResult)
         }
         Some(request_declined::KIND) => {
             request_declined::decode(payload).map(CapabilityNodeMessage::WorkerRequestDeclined)

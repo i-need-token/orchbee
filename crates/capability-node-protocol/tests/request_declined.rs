@@ -5,7 +5,7 @@ use orchbee_capability_node_protocol::{
 };
 use std::{io::Cursor, num::NonZeroU64};
 
-const KINDS: [Kind; 19] = [
+const KINDS: [Kind; 20] = [
     Kind::Launch,
     Kind::Start,
     Kind::Viewer,
@@ -25,6 +25,7 @@ const KINDS: [Kind; 19] = [
     Kind::TitleChanges,
     Kind::PluginJob,
     Kind::GraphicsDecode,
+    Kind::AdoptHost,
 ];
 
 #[test]
@@ -84,7 +85,7 @@ fn malformed_declines_are_refused() {
     // The header is 8 bytes; the kind 39, the declined kind and the identity follow.
     type Corruption = fn(&mut Vec<u8>);
     let cases: [(&str, Corruption); 4] = [
-        ("unknown declined kind", |bad| bad[9] = 20),
+        ("unknown declined kind", |bad| bad[9] = 21),
         ("no declined kind", |bad| bad[9] = 0),
         ("short identity", |bad| {
             bad.pop();
