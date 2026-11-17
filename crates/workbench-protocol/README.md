@@ -225,6 +225,23 @@ and Duplicated only when every copy started. There is no Cancel or Resume: a sto
 leaves the copies it made and never replays one. Requests keep the 16 KiB intent cap; results have
 a 256 KiB pre-allocation cap.
 
+## Update check
+
+`workbench.update-check` (OBWP 79/80) lets an admitted Client ask its Session Server to run the
+scheduled automatic-update job now, or read where that job stands. The request names the Client's
+`sessionId` and an `action`: `start` queues a run unless one is queued or running, and `read`
+changes nothing; `UpdateCheckAction::mutating` tells them apart. Both answer at once: `checking`
+while a run is queued or running, `finished` with the last run's `result` (`up-to-date`,
+`installed` or `failed`, scheduled runs included), `idle` before any run finished, `unavailable`
+from a Server that runs no automatic updates, `rejected` (`session-mismatch`) and `denied`. A run
+can take minutes, so a Client reads again rather than waiting on one request. Both frames keep the
+16 KiB intent cap. A Server lists the `update-check` capability in its `client-server` handshake
+answer, and a Client sends neither action to one that does not. The
+[schema](../../schemas/workbench/v1/workbench-update-check.schema.json) and
+[shared corpus](../../schemas/workbench/v1/workbench-update-check-conformance-v1.json) drive this
+binding and TypeScript; the [Server](../../apps/orchbee-server/README.md#automatic-update-schedule)
+owns the job.
+
 ## Tab configuration
 
 `tabs.configure` carries an exact context and one closed `TabConfiguration`; `tabs-configured`

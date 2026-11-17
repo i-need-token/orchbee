@@ -147,6 +147,11 @@ pub use session_stop::{
     SessionStopOutcome, SessionStopRejection, WorkbenchSessionStopRequest,
     WorkbenchSessionStopResult,
 };
+mod update_check;
+pub use update_check::{
+    UpdateCheckAction, UpdateCheckFinish, UpdateCheckOutcome, UpdateCheckRejection,
+    WorkbenchUpdateCheckRequest, WorkbenchUpdateCheckResult,
+};
 mod tab_set_close;
 pub use tab_set_close::{
     MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES, MAXIMUM_TAB_SET_CLOSE_MEMBERS, TabSetCloseAction,
@@ -1124,6 +1129,8 @@ pub enum WorkbenchRequest {
     TabDuplicate(WorkbenchTabDuplicateRequest),
     #[serde(rename = "workbench.session-stop")]
     SessionStop(WorkbenchSessionStopRequest),
+    #[serde(rename = "workbench.update-check")]
+    UpdateCheck(WorkbenchUpdateCheckRequest),
     #[serde(rename = "workbench.worktree.query")]
     WorktreeQuery(WorkbenchWorktreeQuery),
     #[serde(rename = "workbench.worktree.operation")]
@@ -1568,6 +1575,8 @@ pub enum WorkbenchResponse {
     TabDuplicate(WorkbenchTabDuplicateResult),
     #[serde(rename = "workbench.session-stop.result")]
     SessionStop(WorkbenchSessionStopResult),
+    #[serde(rename = "workbench.update-check.result")]
+    UpdateCheck(WorkbenchUpdateCheckResult),
     #[serde(rename = "workbench.worktree.query.result")]
     WorktreeQuery(WorkbenchWorktreeQueryResult),
     #[serde(rename = "workbench.worktree.operation.result")]
@@ -1952,7 +1961,7 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES)?;
             result.validate()
         }
-        WorkbenchResponse::SessionStop(_) => {
+        WorkbenchResponse::SessionStop(_) | WorkbenchResponse::UpdateCheck(_) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_INTENT_BYTES)
         }
         WorkbenchResponse::WorktreeQuery(result) => {

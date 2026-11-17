@@ -228,6 +228,11 @@ pub use command::{
 };
 
 pub use command::{
+    UpdateCheckAction, UpdateCheckFinish, UpdateCheckOutcome, UpdateCheckRejection,
+    WorkbenchUpdateCheckRequest, WorkbenchUpdateCheckResult,
+};
+
+pub use command::{
     MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES, MAXIMUM_TAB_DUPLICATE_MEMBERS, TabDuplicateAction,
     TabDuplicateCopy, TabDuplicateFailure, TabDuplicateMember, TabDuplicateOutcome,
     TabDuplicateRejection, TabDuplicateStatus, TabDuplicateUnavailable,

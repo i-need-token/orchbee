@@ -8,7 +8,8 @@
 				{ "name": "compatibility-window", "addedIn": "0.1.0-beta.14" },
 				{ "name": "prompt-gated-input", "addedIn": "0.1.0" },
 				{ "name": "stream-outcome-unknown", "addedIn": "0.1.0-beta.14" },
-				{ "name": "terminal-runtime", "addedIn": "0.1.0-beta.14" }
+				{ "name": "terminal-runtime", "addedIn": "0.1.0-beta.14" },
+				{ "name": "update-check", "addedIn": "0.1.0-beta.15" }
 			],
 			"fingerprintInputs": [
 				"crates/agent-observation-protocol/src",
@@ -274,6 +275,9 @@
 		},
 		{
 			"path": "schemas/workbench/v1/workbench-terminal-runtime-conformance-v1.json"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-update-check-conformance-v1.json"
 		},
 		{
 			"path": "schemas/workbench/v1/workbench-window-title-conformance-v1.json",

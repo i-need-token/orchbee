@@ -5,7 +5,7 @@
 
 use orchbee_connection_handshake::{
     AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CapabilitySet, PROMPT_GATED_INPUT,
-    STREAM_OUTCOME_UNKNOWN, TERMINAL_RUNTIME,
+    STREAM_OUTCOME_UNKNOWN, TERMINAL_RUNTIME, UPDATE_CHECK,
 };
 
 /// A TUI action that only a Session listing a certain capability can serve.
@@ -14,6 +14,8 @@ pub(crate) enum SessionAction {
     /// The Start Agent picker's start in the focused Panel, which types the start line at a
     /// confirmed prompt. Its other places have the Server start the Agent in a new shell.
     StartInThisPanel,
+    /// About's Check for updates, which asks the Session Server to run its update job now.
+    CheckForUpdates,
 }
 
 /// Every capability this build's `client-server` offer lists, with the TUI actions that need it.
@@ -28,6 +30,7 @@ const NEEDED_BY: &[(&str, &[SessionAction])] = &[
     (STREAM_OUTCOME_UNKNOWN, &[]),
     // The terminal-runtime follower reads it itself: without it, the TUI keeps its own recovery.
     (TERMINAL_RUNTIME, &[]),
+    (UPDATE_CHECK, &[SessionAction::CheckForUpdates]),
 ];
 
 /// Whether `action` is available under the Session's handshake answer. Without an answer, as

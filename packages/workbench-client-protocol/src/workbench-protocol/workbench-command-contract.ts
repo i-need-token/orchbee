@@ -102,6 +102,10 @@ import {
 	WorkbenchSessionStopResultSchema,
 } from './workbench-session-stop-contract';
 import {
+	WorkbenchUpdateCheckRequestSchema,
+	WorkbenchUpdateCheckResultSchema,
+} from './workbench-update-check-contract';
+import {
 	WorkbenchTabSetCloseRequestSchema,
 	WorkbenchTabSetCloseResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES,
@@ -687,6 +691,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchTabSetCloseRequestSchema,
 		WorkbenchTabDuplicateRequestSchema,
 		WorkbenchSessionStopRequestSchema,
+		WorkbenchUpdateCheckRequestSchema,
 		WorkbenchClientViewRequestSchema,
 	])
 	.refine((value) => {
@@ -826,6 +831,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchTabSetCloseResultSchema,
 		WorkbenchTabDuplicateResultSchema,
 		WorkbenchSessionStopResultSchema,
+		WorkbenchUpdateCheckResultSchema,
 		WorkbenchClientViewResultSchema,
 	])
 	.superRefine((value, context) => {

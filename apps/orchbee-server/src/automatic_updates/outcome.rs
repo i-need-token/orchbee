@@ -3,6 +3,7 @@
 //! counts and flags. The document is the helper's untrusted output: only its closed members are
 //! read, and a value outside the log's token grammar is never written.
 use orchbee_local_runtime::{CommandFailure, CommandOutput, LogField, LogLevel, LogValue};
+use orchbee_workbench_protocol::UpdateCheckFinish;
 use std::sync::{Mutex, PoisonError};
 
 /// The diagnostic record of one helper run.
@@ -71,6 +72,26 @@ impl Outcome {
             phase: token(phase),
             error,
             up_to_date: result["upToDate"].as_bool().unwrap_or(false),
+        }
+    }
+
+    /// How a Client reads this run's end: only a helper that exited cleanly and answered no error
+    /// completed it, as up to date or with a newer version made active.
+    pub(super) fn finish(&self) -> UpdateCheckFinish {
+        match *self {
+            Self::Answered {
+                status: Some(0),
+                error: "none",
+                up_to_date,
+                ..
+            } => {
+                if up_to_date {
+                    UpdateCheckFinish::UpToDate
+                } else {
+                    UpdateCheckFinish::Installed
+                }
+            }
+            _ => UpdateCheckFinish::Failed,
         }
     }
 

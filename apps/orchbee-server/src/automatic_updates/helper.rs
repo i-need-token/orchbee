@@ -3,7 +3,7 @@
 //! schedule's stop. On Windows it runs in a below-normal Job that ends with this process; on macOS
 //! in a process group of its own under `nice`, with an empty signal mask. It reads the store only to
 //! find that Client.
-use super::{Stop, outcome::Outcome};
+use super::{UpdateJob, outcome::Outcome};
 use orchbee_local_runtime::{
     AUTOMATIC_UPDATE_HELPER, CohortArtifact, CommandOutput, active_release, private_filesystem,
     release_store_root,
@@ -25,7 +25,7 @@ const RUN_LIMIT: Duration = Duration::from_secs(7 * 60 * 60);
 
 /// Runs the helper once and answers how the run ended. The helper inherits this process's
 /// environment, so the store root, the feed and proxy variables reach it unchanged.
-pub(super) fn run(stop: &Stop) -> Outcome {
+pub(super) fn run(job: &UpdateJob) -> Outcome {
     let Ok(root) = release_store_root(|name| std::env::var_os(name)) else {
         return Outcome::NotStarted("no-store-root");
     };
@@ -38,7 +38,7 @@ pub(super) fn run(stop: &Stop) -> Outcome {
     let Ok(pins) = admit(&client) else {
         return Outcome::NotStarted("client-missing");
     };
-    let Some(output) = exchange(&client, stop) else {
+    let Some(output) = exchange(&client, job) else {
         return Outcome::NotStarted("spawn-failed");
     };
     // The exchange starts and settles the helper in one call, so the pins stay for the whole run
@@ -52,7 +52,7 @@ pub(super) fn run(stop: &Stop) -> Outcome {
 /// Runs the helper in a below-normal Job, with the system folder as working folder so that no run
 /// holds a folder the store may remove. `None` when that folder is unknown.
 #[cfg(windows)]
-fn exchange(client: &Path, stop: &Stop) -> Option<CommandOutput> {
+fn exchange(client: &Path, job: &UpdateJob) -> Option<CommandOutput> {
     let system = winsafe::GetSystemDirectory().ok()?;
     let mut command = Command::new(client);
     // A Server started by an announced TUI inherits its launcher's relaunch variable.
@@ -64,7 +64,7 @@ fn exchange(client: &Path, stop: &Stop) -> Option<CommandOutput> {
         command,
         OUTPUT_LIMIT,
         Some(Instant::now() + RUN_LIMIT),
-        || Ok(stop.requested()),
+        || Ok(job.stopped()),
     ))
 }
 
@@ -81,7 +81,7 @@ const NICENESS: &str = "10";
 /// removed. Settling the group sends `SIGTERM`, which the helper answers by settling its own
 /// downloads, and `SIGKILL` two seconds later.
 #[cfg(target_os = "macos")]
-fn exchange(client: &Path, stop: &Stop) -> Option<CommandOutput> {
+fn exchange(client: &Path, job: &UpdateJob) -> Option<CommandOutput> {
     let mut command = Command::new(NICE);
     command
         .arg("-n")
@@ -93,7 +93,7 @@ fn exchange(client: &Path, stop: &Stop) -> Option<CommandOutput> {
         orchbee_local_runtime::SpawnEnvironment::Inherited,
         OUTPUT_LIMIT,
         Some(Instant::now() + RUN_LIMIT),
-        || Ok(stop.requested()),
+        || Ok(job.stopped()),
     ))
 }
 

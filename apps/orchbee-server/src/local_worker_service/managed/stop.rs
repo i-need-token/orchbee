@@ -61,6 +61,8 @@ pub(super) struct Owners {
     pub(super) checkpoint: Option<super::checkpoint::Kept>,
     #[cfg(any(windows, target_os = "macos"))]
     pub(super) automatic_updates: Option<crate::automatic_updates::AutomaticUpdates>,
+    /// What admitted Clients' checks for updates reach, from before the listener opens.
+    pub(super) update_job: Arc<crate::update_job::UpdateJob>,
     pub(super) session_record: RetainedSessionRecord,
 }
 
@@ -110,9 +112,14 @@ pub(super) fn run(
     // The schedule counts from the moment the Session admits Clients.
     #[cfg(any(windows, target_os = "macos"))]
     {
-        owners.automatic_updates =
-            crate::automatic_updates::AutomaticUpdates::start(Arc::clone(&owners.terminals));
+        owners.automatic_updates = crate::automatic_updates::AutomaticUpdates::start(
+            Arc::clone(&owners.terminals),
+            Arc::clone(&owners.update_job),
+        );
     }
+    // Only Windows and macOS keep a release store, so elsewhere no job ever runs.
+    #[cfg(all(unix, not(target_os = "macos")))]
+    owners.update_job.end();
     let mut worker_completed = false;
     #[cfg(windows)]
     let mut idle = idle::IdleMove::default();
@@ -257,6 +264,7 @@ fn start(
         Arc::clone(&owners.terminals),
         Arc::clone(&owners.agents),
         Arc::clone(shutdown),
+        Arc::clone(&owners.update_job),
     )
 }
 

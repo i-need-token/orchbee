@@ -206,6 +206,13 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
             TabDuplicateAction::Start { .. } => Intent,
         },
         WorkbenchRequest::SessionStop(_) => Intent,
+        WorkbenchRequest::UpdateCheck(request) => {
+            if request.action.mutating() {
+                Intent
+            } else {
+                Read
+            }
+        }
         WorkbenchRequest::WorktreeOperation(request) => match request.action {
             WorkbenchWorktreeAction::Read { .. } => Read,
             WorkbenchWorktreeAction::Start { .. } | WorkbenchWorktreeAction::Resume { .. } => {

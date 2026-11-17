@@ -1,4 +1,4 @@
-use super::{Decision, Outcome, Pace, Unscheduled, rule, serve};
+use super::{Decision, Outcome, Pace, Unscheduled, Wake, rule, serve};
 use orchbee_local_runtime::{
     CommandFailure, CommandOutput, EnvironmentKind, LogField, LogLevel, LogValue,
 };
@@ -8,12 +8,14 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// A clock that jumps to each moment the schedule waits for, and reports the stop once the
-/// schedule waits past `end`.
+/// A clock that jumps to each moment the schedule waits for, or to an earlier minute a Client asks
+/// for a run in, and reports the stop once the schedule waits past `end`.
 struct Clock {
     origin: Instant,
     now: Cell<Instant>,
     end: Instant,
+    /// The minutes, in order, at which a Client asks for a run.
+    requests: RefCell<Vec<u64>>,
 }
 
 impl Clock {
@@ -23,7 +25,13 @@ impl Clock {
             origin,
             now: Cell::new(origin),
             end: origin + end,
+            requests: RefCell::new(vec![]),
         }
+    }
+
+    fn requesting(self, minutes: &[u64]) -> Self {
+        *self.requests.borrow_mut() = minutes.to_vec();
+        self
     }
 
     fn minute(&self) -> u64 {
@@ -40,12 +48,22 @@ impl Pace for Clock {
         self.now.get()
     }
 
-    fn wait_until(&self, due: Instant) -> bool {
+    fn wait_until(&self, due: Instant) -> Option<Wake> {
+        let mut requests = self.requests.borrow_mut();
+        if let Some(&minute) = requests.first() {
+            let asked = self.origin + minutes(minute);
+            // A request made while a run was running waits for that run's end.
+            if asked < due {
+                requests.remove(0);
+                self.now.set(self.now.get().max(asked));
+                return Some(Wake::Requested);
+            }
+        }
         if due > self.end {
-            return false;
+            return None;
         }
         self.now.set(self.now.get().max(due));
-        true
+        Some(Wake::Due)
     }
 }
 
@@ -158,6 +176,27 @@ fn a_run_that_outlasts_the_hour_never_overlaps_the_next_and_is_not_caught_up() {
     for pair in runs.windows(2) {
         assert!(pair[1].0 >= pair[0].1, "{pair:?} overlap");
     }
+}
+
+#[test]
+fn a_request_runs_at_once_whatever_the_setting_and_keeps_the_hourly_grid() {
+    let clock = Clock::until(minutes(2 * 60 + 30)).requesting(&[20, 61, 62]);
+    let runs = RefCell::new(vec![]);
+    serve(
+        &clock,
+        || false,
+        || {
+            let start = clock.minute();
+            // The run asked for at minute 61 outlasts the request made at minute 62.
+            clock.pass(minutes(if start == 61 { 3 } else { 1 }));
+            runs.borrow_mut().push((start, clock.minute()));
+            installed()
+        },
+        |_| {},
+    );
+    // Automatic updates are off, so only requests run, each at once or right after the run
+    // before it; the scheduled moments at 61 and 121 stay where they were and run nothing.
+    assert_eq!(runs.into_inner(), [(20, 21), (61, 64), (64, 65)]);
 }
 
 fn record(outcome: Outcome) -> (LogLevel, Vec<LogField>) {

@@ -302,6 +302,7 @@ fn managed_candidate(
             super::super::stop_control::StopControl {
                 agents: &agents,
                 shutdown: Some(&shutdown),
+                updates: None,
             },
         );
     });

@@ -527,6 +527,17 @@ fn handle_candidate_control(
                     ),
                 )
             }
+            // The update job, not the Workbench, answers a check for updates.
+            orchbee_workbench_protocol::WorkbenchRequest::UpdateCheck(request) => {
+                crate::workbench_service::WorkbenchExecution::Response(
+                    orchbee_workbench_protocol::WorkbenchResponse::UpdateCheck(
+                        control.update_check(
+                            &request,
+                            terminals.workbench_session_matches(&request.session_id),
+                        ),
+                    ),
+                )
+            }
             request => workbench_connection.execute_scoped(request, lane),
         },
         |request| workbench_connection.execute(request),

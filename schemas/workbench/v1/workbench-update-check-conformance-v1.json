@@ -1,0 +1,308 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "start",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": "start"
+			}
+		},
+		{
+			"name": "read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": "read"
+			}
+		},
+		{
+			"name": "checking",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "checking"
+				}
+			}
+		},
+		{
+			"name": "up-to-date",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "finished",
+					"result": "up-to-date"
+				}
+			}
+		},
+		{
+			"name": "installed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "finished",
+					"result": "installed"
+				}
+			}
+		},
+		{
+			"name": "failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "finished",
+					"result": "failed"
+				}
+			}
+		},
+		{
+			"name": "idle",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "idle"
+				}
+			}
+		},
+		{
+			"name": "unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "unavailable"
+				}
+			}
+		},
+		{
+			"name": "denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "session-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "session-mismatch"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "unknown-action",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": "install"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "uppercase-action",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": "START"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-action",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-session",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"action": "start"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "zero-session",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000000",
+				"action": "start"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-request-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": "start",
+				"force": true
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "older-protocol",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 0,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": "start"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-outcome",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "installing"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-finish",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "finished",
+					"result": "downloaded"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "finished-without-result",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "finished"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "checking-with-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "checking",
+					"version": "0.1.0"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-rejection",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "busy"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-result-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "idle"
+				},
+				"sessionId": "00000000000000000000000000000002"
+			},
+			"boundary": "schema"
+		}
+	],
+	"validJson": [
+		{
+			"name": "request-field-order",
+			"direction": "request",
+			"json": "{\"action\":\"read\",\"sessionId\":\"00000000000000000000000000000002\",\"requestId\":\"00000000000000000000000000000001\",\"protocolVersion\":1,\"kind\":\"workbench.update-check\"}",
+			"canonical": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": "read"
+			}
+		}
+	]
+}

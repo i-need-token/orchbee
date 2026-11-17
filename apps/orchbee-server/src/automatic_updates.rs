@@ -4,14 +4,20 @@
 //! a Job this process holds on Windows and in a process group of its own on macOS, with bounded
 //! output, on the schedule's own thread; no Session work waits on it, its failure only writes the
 //! outcome record, and it ends with the Server. Installing, verifying and cleaning up stay with the
-//! helper; this owner never touches the store. It also answers the [idle move](crate::idle_move) whether the helper runs and whether the
-//! store's active version has passed this Server.
-use crate::local_terminal_service::LocalTerminalService;
+//! helper; this owner never touches the store. An admitted Client's `workbench.update-check` asks
+//! for a run now through the shared [`UpdateJob`]: this thread runs it as it runs a scheduled one,
+//! whatever `update.automatic` says, and the hourly grid stays. It also answers the
+//! [idle move](crate::idle_move) whether the helper runs and whether the store's active version has
+//! passed this Server.
+use crate::{
+    local_terminal_service::LocalTerminalService,
+    update_job::{UpdateJob, Wake},
+};
 use orchbee_local_runtime::{EnvironmentKind, LogLevel, LogValue, log_event};
 use std::{
     path::Path,
     sync::{
-        Arc, Condvar, Mutex, PoisonError,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     thread::{self, JoinHandle},
@@ -35,7 +41,7 @@ const HELPER_SETTLEMENT: Duration = Duration::from_secs(6);
 
 /// The running schedule. Dropping it stops the schedule without waiting.
 pub(crate) struct AutomaticUpdates {
-    stop: Arc<Stop>,
+    job: Arc<UpdateJob>,
     thread: Option<JoinHandle<()>>,
     /// Whether the helper runs now.
     helper: Arc<AtomicBool>,
@@ -44,10 +50,19 @@ pub(crate) struct AutomaticUpdates {
 }
 
 impl AutomaticUpdates {
-    /// Starts the schedule when this Server schedules automatic updates, and records the decision
-    /// when the build would schedule at all. None means nothing runs: the build or the Server's
-    /// place rules it out, or the schedule's thread could not start.
-    pub(crate) fn start(terminals: Arc<LocalTerminalService>) -> Option<Self> {
+    /// Starts the schedule on `job` when this Server schedules automatic updates, and records the
+    /// decision when the build would schedule at all. None means nothing runs: the build or the
+    /// Server's place rules it out, or the schedule's thread could not start; `job` then answers
+    /// every Client as unavailable.
+    pub(crate) fn start(terminals: Arc<LocalTerminalService>, job: Arc<UpdateJob>) -> Option<Self> {
+        let started = Self::schedule(terminals, Arc::clone(&job));
+        if started.is_none() {
+            job.end();
+        }
+        started
+    }
+
+    fn schedule(terminals: Arc<LocalTerminalService>, job: Arc<UpdateJob>) -> Option<Self> {
         let own_directory = std::env::current_exe()
             .ok()
             .and_then(|executable| executable.parent().map(Path::to_path_buf));
@@ -74,21 +89,25 @@ impl AutomaticUpdates {
             .and_then(Path::file_name)
             .and_then(|name| name.to_str())?
             .to_owned();
-        let stop = Arc::new(Stop::default());
-        let owner = Arc::clone(&stop);
+        let owner = Arc::clone(&job);
         let helper = Arc::new(AtomicBool::new(false));
         let running = Arc::clone(&helper);
         let spawned = thread::Builder::new()
             .name("orchbee-automatic-update".into())
             .spawn(move || {
+                // However the thread ends, a panic included, no Client waits on a run that will
+                // never start.
+                let _ended = Ended(&owner);
                 serve(
-                    &*owner,
+                    &Schedule(&owner),
                     || terminals.automatic_updates_enabled(),
                     || {
                         // A helper that panics leaves the flag set, so the Session never moves
                         // under a helper whose end nothing observed.
                         running.store(true, Ordering::Release);
+                        owner.begin();
                         let outcome = helper::run(&owner);
+                        owner.finish(outcome.finish());
                         running.store(false, Ordering::Release);
                         outcome
                     },
@@ -99,7 +118,7 @@ impl AutomaticUpdates {
             Ok(thread) => {
                 record_schedule(true, None);
                 Some(Self {
-                    stop,
+                    job,
                     thread: Some(thread),
                     helper,
                     own_version,
@@ -119,7 +138,7 @@ impl AutomaticUpdates {
     /// no such Job, so there it waits up to [`HELPER_SETTLEMENT`] for the helper's group to settle
     /// before the Server goes on.
     pub(crate) fn stop(mut self) {
-        self.stop.request();
+        self.job.end();
         #[cfg(target_os = "macos")]
         if let Some(thread) = &self.thread {
             let settled_by = Instant::now() + HELPER_SETTLEMENT;
@@ -155,7 +174,16 @@ impl AutomaticUpdates {
 
 impl Drop for AutomaticUpdates {
     fn drop(&mut self) {
-        self.stop.request();
+        self.job.end();
+    }
+}
+
+/// Ends the job when the schedule's thread ends.
+struct Ended<'a>(&'a UpdateJob);
+
+impl Drop for Ended<'_> {
+    fn drop(&mut self) {
+        self.0.end();
     }
 }
 
@@ -201,17 +229,19 @@ fn record_schedule(scheduled: bool, reason: Option<&'static str>) {
     log_event(LogLevel::Info, "automatic-update-schedule", &fields);
 }
 
-/// Time as the schedule sees it, and its owner's stop.
+/// Time as the schedule sees it, its owner's stop, and Clients' requests.
 trait Pace {
     fn now(&self) -> Instant;
-    /// Waits until `due` and answers true, or answers false once the owner has stopped.
-    fn wait_until(&self, due: Instant) -> bool;
+    /// Waits until `due` or a Client's request and answers which came first, or `None` once the
+    /// owner has stopped.
+    fn wait_until(&self, due: Instant) -> Option<Wake>;
 }
 
 /// Runs the schedule until `pace` reports the stop: the first moment [`FIRST_RUN`] after it starts,
 /// then one every [`PERIOD`] on the same grid. Each moment reads `enabled` and runs nothing while it
-/// is off. A run happens on this thread and returns before the next moment is chosen, so runs never
-/// overlap, and a moment that passes during a run is skipped rather than caught up.
+/// is off; a Client's request runs at once whatever `enabled` says and leaves the grid as it was. A
+/// run happens on this thread and returns before the next wait, so runs never overlap, and a moment
+/// that passes during a run is skipped rather than caught up.
 fn serve(
     pace: &impl Pace,
     enabled: impl Fn() -> bool,
@@ -219,11 +249,14 @@ fn serve(
     mut record: impl FnMut(&Outcome),
 ) {
     let mut due = pace.now() + FIRST_RUN;
-    while pace.wait_until(due) {
-        if enabled() {
+    while let Some(wake) = pace.wait_until(due) {
+        if wake == Wake::Requested || enabled() {
             record(&run());
         }
-        due = next_moment(due, pace.now());
+        let now = pace.now();
+        if now >= due {
+            due = next_moment(due, now);
+        }
     }
 }
 
@@ -236,46 +269,16 @@ fn next_moment(due: Instant, now: Instant) -> Instant {
     next
 }
 
-/// The schedule's stop. A poisoned lock reads as stopped, so a broken owner never starts a run.
-#[derive(Default)]
-struct Stop {
-    stopped: Mutex<bool>,
-    changed: Condvar,
-}
+/// The schedule's clock over the shared job, whose end is the schedule's stop.
+struct Schedule<'a>(&'a UpdateJob);
 
-impl Stop {
-    fn request(&self) {
-        *self.stopped.lock().unwrap_or_else(PoisonError::into_inner) = true;
-        self.changed.notify_all();
-    }
-
-    fn requested(&self) -> bool {
-        self.stopped.lock().map_or(true, |stopped| *stopped)
-    }
-}
-
-impl Pace for Stop {
+impl Pace for Schedule<'_> {
     fn now(&self) -> Instant {
         Instant::now()
     }
 
-    fn wait_until(&self, due: Instant) -> bool {
-        let Ok(mut stopped) = self.stopped.lock() else {
-            return false;
-        };
-        loop {
-            if *stopped {
-                return false;
-            }
-            let now = Instant::now();
-            if now >= due {
-                return true;
-            }
-            stopped = match self.changed.wait_timeout(stopped, due - now) {
-                Ok((stopped, _)) => stopped,
-                Err(_) => return false,
-            };
-        }
+    fn wait_until(&self, due: Instant) -> Option<Wake> {
+        self.0.wait_until(due)
     }
 }
 

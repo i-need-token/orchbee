@@ -47,6 +47,8 @@ mod terminal_runtime;
 #[cfg(any(unix, windows))]
 mod terminal_titles;
 #[cfg(any(unix, windows))]
+mod update_job;
+#[cfg(any(unix, windows))]
 mod viewer_ready;
 #[cfg(any(unix, windows))]
 mod window_title_registry;

@@ -91,6 +91,7 @@ fn one_failed_accept_and_one_failed_handler_start_drop_only_their_candidates() {
         terminals,
         agents,
         Arc::new(SessionShutdown::default()),
+        Arc::default(),
         faulty_steps(Arc::clone(&accept_fault), Arc::clone(&spawn_fault)),
     )
     .unwrap();
@@ -134,6 +135,7 @@ fn control_fences_admission_freezes_new_hellos_and_joins_idle_and_partial_client
         terminals,
         agents,
         Arc::clone(&shutdown),
+        Arc::default(),
     )
     .unwrap();
     let mut admitted = connect(&endpoint);

@@ -102,6 +102,8 @@ impl WorkbenchService {
             WorkbenchRequest::PaneGraphics(_) | WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) => false,
             // Only the Client connection's lifecycle owner records a Session stop.
             WorkbenchRequest::SessionStop(_) => false,
+            // Only the Client connection reaches the update job.
+            WorkbenchRequest::UpdateCheck(_) => false,
             WorkbenchRequest::AgentView(request) => if request.action.mutating() { self.policy.manage_navigation } else { self.policy.read },
             WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::AgentIntegration(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
@@ -233,7 +235,7 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, false));
         }
         match &request {
-            WorkbenchRequest::PaneGraphics(_) | WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) | WorkbenchRequest::SessionStop(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
+            WorkbenchRequest::PaneGraphics(_) | WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) | WorkbenchRequest::SessionStop(_) | WorkbenchRequest::UpdateCheck(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
         WorkbenchRequest::Plugin(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::Plugin(self.terminals.execute_plugin(request.clone())));
             }
@@ -860,6 +862,17 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                     orchbee_workbench_protocol::SessionStopOutcome::Denied {}
                 } else {
                     orchbee_workbench_protocol::SessionStopOutcome::Unmanaged {}
+                },
+            })
+        }
+        WorkbenchRequest::UpdateCheck(request) => {
+            WorkbenchResponse::UpdateCheck(orchbee_workbench_protocol::WorkbenchUpdateCheckResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                outcome: if denied {
+                    orchbee_workbench_protocol::UpdateCheckOutcome::Denied {}
+                } else {
+                    orchbee_workbench_protocol::UpdateCheckOutcome::Unavailable {}
                 },
             })
         }

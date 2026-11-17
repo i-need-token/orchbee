@@ -38,10 +38,10 @@ error's text.
 The [automatic update schedule](#automatic-update-schedule) writes two more records. A build that
 does not schedule automatic updates writes neither.
 
-| Record                      | Written when                                                                                     | Fields                                                                                                                                                                                                                                       |
-| --------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `automatic-update-schedule` | The Session becomes ready in a build that runs automatic updates                                 | `scheduled`, and when false `reason` (`outside-store`, `thread-unavailable`)                                                                                                                                                                 |
-| `automatic-update`          | A scheduled run with `update.automatic` on ends; `info` for a run that answered without an error | `run` (`answered`, `unanswered`, `not-started`, `cancelled`, `timeout`, `unsettled`, `failed`), the helper's exit `status`, `reason` for `not-started`, and from its document `version`, `phase`, `error` (`none` on success) and `upToDate` |
+| Record                      | Written when                                                                                                                       | Fields                                                                                                                                                                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `automatic-update-schedule` | The Session becomes ready in a build that runs automatic updates                                                                   | `scheduled`, and when false `reason` (`outside-store`, `thread-unavailable`)                                                                                                                                                                 |
+| `automatic-update`          | A run ends: a scheduled one with `update.automatic` on, or one a Client asked for; `info` for a run that answered without an error | `run` (`answered`, `unanswered`, `not-started`, `cancelled`, `timeout`, `unsettled`, `failed`), the helper's exit `status`, `reason` for `not-started`, and from its document `version`, `phase`, `error` (`none` on success) and `upToDate` |
 
 `listener-fault`, `candidate-dropped`, `worker-request-failed`, `worker-reply-dropped`,
 `client-stream-failed` and `panicked` are written at most once a minute per site, and `suppressed`
@@ -150,6 +150,21 @@ own downloads, then `SIGKILL` two seconds later. A macOS Server ended by `SIGKIL
 helper to finish or fail on its own, and the next run cleans up. Installing, verifying and cleaning
 up stay with the
 [helper](../orchbee/docs/windows-cli-configuration.md#windows-release-installation).
+
+An admitted Client's
+[`workbench.update-check`](../../crates/workbench-protocol/README.md#update-check) reaches the same
+schedule through one job the Server creates before its Client listener opens. `start` queues a run
+unless one is queued or running, and answers `checking` at once. The schedule's thread runs it next
+as it runs a scheduled one, with the same helper, record and stop, whatever `update.automatic`
+says, and the hourly grid stays where it was. A request made while a run is queued or running joins
+that run. `read` never waits: it answers `checking`, the last run's result, scheduled runs included,
+or `idle` before any run finished. Only a helper that exits 0 with error `none` finishes a run, as
+`up-to-date` or, when it made a newer version active, `installed`; every other end is `failed`. A
+Server that schedules nothing, on Linux, outside a store version folder or in a build that does not
+run automatic updates, answers `unavailable`, as does one whose schedule stopped or whose thread
+ended, and drops a request it had queued. Another Session's ID is `rejected`, and the Workbench
+service, which never reaches the job, answers `denied`. The Server lists the `update-check`
+capability in every `client-server` handshake answer, whether or not it schedules.
 
 ## Idle move
 

@@ -176,6 +176,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::TabSetClose(_)
             | WorkbenchRequest::TabDuplicate(_)
             | WorkbenchRequest::SessionStop(_)
+            | WorkbenchRequest::UpdateCheck(_)
             | WorkbenchRequest::Configuration(_)
             | WorkbenchRequest::CloseOperationRead(_)
             | WorkbenchRequest::Settings(_)

@@ -24,6 +24,10 @@ pub const COMPATIBILITY_WINDOW: &str = "compatibility-window";
 /// Session's Serving, Reconnecting, or Given-up state while the Server replaces a lost Worker. A
 /// Client whose Server lacks it never sends the read.
 pub const TERMINAL_RUNTIME: &str = "terminal-runtime";
+/// The `client-server` capability before a Client may send `workbench.update-check`, which asks the
+/// Session Server to run its automatic-update job now. A Client shows Check for updates as
+/// unavailable on a Session without it.
+pub const UPDATE_CHECK: &str = "update-check";
 
 /// The `client-server` capability before a Server may close one request stream with the OBWP
 /// `OutcomeUnknown` reason, for an intent that failed after it ran or whose result it could not
@@ -97,6 +101,7 @@ impl ConnectionKind {
                 PROMPT_GATED_INPUT,
                 STREAM_OUTCOME_UNKNOWN,
                 TERMINAL_RUNTIME,
+                UPDATE_CHECK,
             ],
             Self::WorkerHost => &[PROMPT_GATED_INPUT],
             Self::MachineHub | Self::MachineLink => &[],

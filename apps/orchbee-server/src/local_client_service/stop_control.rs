@@ -1,5 +1,6 @@
 //! Client admission adapter: only the managed Session composition supplies a lifecycle owner, which
-//! records Session stops and serves the `drain` and `exit` control requests.
+//! records Session stops and serves the `drain` and `exit` control requests, and the update job,
+//! which answers a Client's check for updates.
 use super::application_connection::{Effect, Refusal};
 use crate::agent_service::AgentService;
 use orchbee_connection_handshake::ProcessState;
@@ -7,13 +8,16 @@ use orchbee_local_client_protocol::{
     SessionStopRequest, SessionStopResult, SessionStopStatus, StopAction, StopId,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SessionStopOutcome, SessionStopRejection, WorkbenchSessionStopRequest,
-    WorkbenchSessionStopResult,
+    ProtocolVersion, SessionStopOutcome, SessionStopRejection, UpdateCheckOutcome,
+    UpdateCheckRejection, WorkbenchSessionStopRequest, WorkbenchSessionStopResult,
+    WorkbenchUpdateCheckRequest, WorkbenchUpdateCheckResult,
 };
 
 pub(super) struct StopControl<'a> {
     pub(super) agents: &'a AgentService,
     pub(super) shutdown: Option<&'a crate::session_shutdown::SessionShutdown>,
+    /// The update job a check for updates reaches; none where the Server runs no such job.
+    pub(super) updates: Option<&'a crate::update_job::UpdateJob>,
 }
 
 pub(super) struct Lease<'a> {
@@ -73,6 +77,7 @@ impl<'a> StopControl<'a> {
         Self {
             agents,
             shutdown: None,
+            updates: None,
         }
     }
 
@@ -120,6 +125,30 @@ impl<'a> StopControl<'a> {
             }
         };
         WorkbenchSessionStopResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id.clone(),
+            outcome,
+        }
+    }
+
+    /// Answers an admitted Client's check for updates for the Session this Server holds. The job
+    /// answers at once under its own lock; a Server without one answers `unavailable`.
+    pub(super) fn update_check(
+        &self,
+        request: &WorkbenchUpdateCheckRequest,
+        session_matches: Option<bool>,
+    ) -> WorkbenchUpdateCheckResult {
+        let outcome = if session_matches == Some(true) {
+            self.updates
+                .map_or(UpdateCheckOutcome::Unavailable {}, |job| {
+                    job.answer(request.action)
+                })
+        } else {
+            UpdateCheckOutcome::Rejected {
+                reason: UpdateCheckRejection::SessionMismatch,
+            }
+        };
+        WorkbenchUpdateCheckResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
             outcome,

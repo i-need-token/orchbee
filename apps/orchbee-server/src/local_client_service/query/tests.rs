@@ -201,6 +201,7 @@ fn query_bypasses_connection_admission_without_allocating_a_generation_or_stop_l
                 StopControl {
                     agents: &agents,
                     shutdown: mode.map(|_| &shutdown),
+                    updates: None,
                 },
             );
             assert_eq!(shutdown.stopping(), mode == Some(true));

@@ -214,6 +214,7 @@ pub(super) fn run(
             checkpoint: kept,
             #[cfg(any(windows, target_os = "macos"))]
             automatic_updates: None,
+            update_job: Arc::default(),
             session_record,
         },
         shutdown,

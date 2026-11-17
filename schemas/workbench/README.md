@@ -466,6 +466,8 @@ replay immutability, authorization, state transitions or eventual cleanup.
 
 [`workbench-session-stop.schema.json`](v1/workbench-session-stop.schema.json) owns `workbench.session-stop` and its result, OBWP kinds 73/74, both under the 16 KiB intent cap. The request carries `sessionId` and `stopId`, a nonzero 32-digit lowercase hexadecimal identity that `operation status` reads the stop under. Outcomes are `recorded`, `busy`, `unmanaged`, `denied` and `rejected` (`session-mismatch`); none carries data, and only `recorded` holds a stop. The [shared corpus](v1/workbench-session-stop-conformance-v1.json) covers Rust, TypeScript and structural schema validation. The [Server](../../apps/orchbee-server/README.md#managed-windows-session-shutdown) owns admission and the stop itself.
 
+[`workbench-update-check.schema.json`](v1/workbench-update-check.schema.json) owns `workbench.update-check` and its result, OBWP kinds 79/80, both under the 16 KiB intent cap. The request carries `sessionId` and an `action`, `start` or `read`. Outcomes are `checking`, `finished` with a `result` (`up-to-date`, `installed` or `failed`), `idle`, `unavailable`, `denied` and `rejected` (`session-mismatch`); only `finished` and `rejected` carry data. A Server that serves the request lists the `update-check` capability in its `client-server` handshake answer. The [shared corpus](v1/workbench-update-check-conformance-v1.json) covers Rust, TypeScript and structural schema validation. The [Server](../../apps/orchbee-server/README.md#automatic-update-schedule) owns the job.
+
 ## Limits
 
 | Value                     | Version-1 limit                     |

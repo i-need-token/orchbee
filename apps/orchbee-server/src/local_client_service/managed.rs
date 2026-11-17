@@ -4,6 +4,7 @@ use super::{
     handle_candidate_control,
 };
 use crate::session_shutdown::SessionShutdown;
+use crate::update_job::UpdateJob;
 use crate::{
     agent_service::AgentService,
     client_connection_registry::ClientConnectionRegistry,
@@ -160,6 +161,7 @@ pub(crate) fn start(
     terminals: Arc<LocalTerminalService>,
     agents: Arc<AgentService>,
     shutdown: Arc<SessionShutdown>,
+    updates: Arc<UpdateJob>,
 ) -> io::Result<ManagedClients> {
     start_with(
         endpoint,
@@ -167,6 +169,7 @@ pub(crate) fn start(
         terminals,
         agents,
         shutdown,
+        updates,
         Steps::system(),
     )
 }
@@ -179,6 +182,7 @@ fn start_with(
     terminals: Arc<LocalTerminalService>,
     agents: Arc<AgentService>,
     shutdown: Arc<SessionShutdown>,
+    updates: Arc<UpdateJob>,
     mut steps: Steps,
 ) -> io::Result<ManagedClients> {
     terminals.bind_agent_names(&agents)?;
@@ -253,6 +257,7 @@ fn start_with(
                         let workbench = Arc::clone(&workbench);
                         let agents = Arc::clone(&agents);
                         let shutdown = Arc::clone(&shutdown);
+                        let updates = Arc::clone(&updates);
                         let handler: Handler = Box::new(move || {
                             let _registration = registration;
                             handle_candidate_control(
@@ -265,6 +270,7 @@ fn start_with(
                                 super::stop_control::StopControl {
                                     agents: &agents,
                                     shutdown: Some(&shutdown),
+                                    updates: Some(&updates),
                                 },
                             );
                         });

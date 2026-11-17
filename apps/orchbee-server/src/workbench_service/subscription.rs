@@ -97,6 +97,8 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
         | WorkbenchRequest::TabCloseResume(_)
         | WorkbenchRequest::WorkspaceCloseResume(_)
         | WorkbenchRequest::WorkspaceGroupClose(_)
-        | WorkbenchRequest::SessionStop(_) => false,
+        | WorkbenchRequest::SessionStop(_)
+        // A run's end is not a commit; Clients read it again while it runs.
+        | WorkbenchRequest::UpdateCheck(_) => false,
     }
 }

@@ -224,6 +224,10 @@ corpus cover this direction. Worktree source query associations require nullable
 
 `workbench-session-stop-contract.ts` implements the [Session stop contract](../../schemas/workbench/v1/workbench-session-stop.schema.json) and extends request/result unions; `WorkbenchStopIdSchema` brands the stop identity the requester chooses. Outcomes carry no data. The [shared corpus](../../schemas/workbench/v1/workbench-session-stop-conformance-v1.json) exercises the independent Rust binding and structural schema. Admission and the stop itself remain Server-owned.
 
+## Update check binding
+
+`workbench-update-check-contract.ts` implements the [update check contract](../../schemas/workbench/v1/workbench-update-check.schema.json) and extends request/result unions. Only `finished` carries a `result` and only `rejected` a `reason`. The [shared corpus](../../schemas/workbench/v1/workbench-update-check-conformance-v1.json) exercises the independent Rust binding and structural schema. The job and its runs remain Server-owned.
+
 ## Client view binding
 
 `workbench-client-presentation-contract.ts` validates the scalar exact current-member snapshot:
