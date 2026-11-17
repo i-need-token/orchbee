@@ -915,8 +915,9 @@ unpacking, and a bundle the launcher swaps at the click.
 - Landed with About's Check for updates, the first window action that needs one (`update-check`):
   the bootstrap's `negotiatedCapabilities` is null when the start answer named none, and a
   malformed list also reads as null rather than refusing the document. The table is
-  `apps/web/src/workbench-client/server-workbench/serverSessionServes.ts`; unlike the TUI's, it
-  reads an unknown list as serving nothing, because the window cannot read its own handshake. The
+  `apps/web/src/workbench-client/server-workbench/serverSessionServes.ts`. It reads an unknown
+  list as serving nothing, as the TUI reads an unknown answer for Check for updates, so the request
+  never reaches a Server that has not listed the capability. The
   [window's settings](../../apps/web/docs/terminal-settings.md#about-and-check-for-updates) describe
   the action.
 - Rejected: a first frame on the relay. Main and its bundled Client are an exact pair
