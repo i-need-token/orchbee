@@ -335,7 +335,7 @@ fn inventory_force_settle_dispose_and_local_retirement_are_ordered() {
     );
     assert_eq!(disposed, 2);
     for terminal in [5, 6] {
-        assert!(host.disposed_terminal(
+        assert!(host.unavailable_terminal(
             orchbee_capability_node_protocol::HostTerminalId::from_bytes([terminal; 16]).unwrap()
         ));
     }
@@ -397,7 +397,7 @@ fn unpublished_outcome_refusal_retries_the_same_disposal() {
         .is_ok()
     );
     assert_eq!(disposed, 1);
-    assert!(host.disposed_terminal(
+    assert!(host.unavailable_terminal(
         orchbee_capability_node_protocol::HostTerminalId::from_bytes([5; 16]).unwrap()
     ));
     driver.join().unwrap();
@@ -426,7 +426,7 @@ fn other_disposal_refusal_ends_the_attempt() {
     assert_eq!(failure.failure, ShutdownFailure::HostRefused);
     assert!(!failure.retire);
     assert_eq!(disposed, 0);
-    assert!(!host.disposed_terminal(
+    assert!(!host.unavailable_terminal(
         orchbee_capability_node_protocol::HostTerminalId::from_bytes([5; 16]).unwrap()
     ));
     driver.join().unwrap();
@@ -468,7 +468,7 @@ fn lost_dispose_reply_preserves_known_progress_without_replay() {
     assert_eq!(failure.failure, ShutdownFailure::Transport);
     assert!(failure.retire);
     assert_eq!(disposed, 1);
-    assert!(!host.disposed_terminal(
+    assert!(!host.unavailable_terminal(
         orchbee_capability_node_protocol::HostTerminalId::from_bytes([6; 16]).unwrap()
     ));
     driver.join().unwrap();
@@ -586,8 +586,8 @@ fn keep_shutdown_releases_the_host_without_a_terminal_request() {
     );
     host_side.join().unwrap();
     // The Host child outlives the shutdown it was not asked to end.
-    assert!(owner.child.try_wait().unwrap().is_none());
-    while owner.child.try_wait().unwrap().is_none() {
+    assert!(!owner.owner.exited().unwrap());
+    while !owner.owner.exited().unwrap() {
         thread::sleep(Duration::from_millis(10));
     }
 }

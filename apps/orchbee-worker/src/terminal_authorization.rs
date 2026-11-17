@@ -2,13 +2,18 @@
 //! retained launch or start receipts for one Worker incarnation. It records physical outcomes
 //! without opening a Host transport, creating a terminal, or selecting product membership.
 
-use std::{cmp::Ordering, collections::BTreeMap, fmt, num::NonZeroU64};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    num::NonZeroU64,
+};
 
 use orchbee_capability_node_protocol::{
     AuthorizedTerminalLaunch, AuthorizedTerminalStart, HostEpoch, HostLaunchAccepted,
-    HostLaunchState, HostStartAccepted, HostTerminalIdentity, ProtocolError,
-    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalId, TerminalLaunchFailure, TerminalLaunchMode,
-    TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
+    HostLaunchState, HostStartAccepted, HostTerminalId, HostTerminalIdentity, ProtocolError,
+    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence, TerminalId, TerminalLaunchFailure,
+    TerminalLaunchMode, TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
     TerminalOperationAuthorization, TerminalStartFailure, TerminalStartOutcome,
     TerminalStartRejection, TerminalStartResult, WorkerGeneration, WorkerId,
 };
@@ -16,6 +21,8 @@ use orchbee_local_worker_protocol::WorkerId as LocalWorkerId;
 
 pub(crate) const MAXIMUM_RETAINED_TERMINAL_BINDINGS: usize = 1_024;
 
+mod import;
+pub(crate) use import::InventoryTerminal;
 mod lifecycle;
 pub(crate) use lifecycle::{LifecycleAdmission, LifecycleDispatch};
 
@@ -156,8 +163,37 @@ impl From<ProtocolError> for AuthorizationKernelError {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct TerminalAuthorizationBinding {
     cached_result: Option<AuthorizedHostOperationResult>,
-    operation: AuthorizedHostOperation,
+    authority: BindingAuthority,
     lifecycle: Option<lifecycle::LifecycleReceipts>,
+}
+
+/// Where a binding's authority came from.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum BindingAuthority {
+    /// A Launch or Start this Worker admitted; only it replays.
+    Operation(Box<AuthorizedHostOperation>),
+    /// A binding a lost Worker of this Session held, imported with its Host terminal and the
+    /// highest fence the Server issued for it, which no request at or below passes.
+    Imported {
+        fence: TerminalFence,
+        identity: HostTerminalIdentity,
+    },
+}
+
+impl TerminalAuthorizationBinding {
+    fn fence(&self) -> TerminalFence {
+        match &self.authority {
+            BindingAuthority::Operation(operation) => operation.authorization().fence(),
+            BindingAuthority::Imported { fence, .. } => *fence,
+        }
+    }
+
+    fn operation(&self) -> Option<&AuthorizedHostOperation> {
+        match &self.authority {
+            BindingAuthority::Operation(operation) => Some(operation),
+            BindingAuthority::Imported { .. } => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -199,6 +235,8 @@ pub(crate) struct AuthorizedHostOperationKernel {
     current_worker_generation: WorkerGeneration,
     current_worker_id: WorkerId,
     maximum_observed_unix_milliseconds: u64,
+    /// Host terminals an import matched to no binding; no request addresses them.
+    quarantined: BTreeSet<HostTerminalId>,
     slot: Option<HostOperationSlot>,
 }
 
@@ -212,6 +250,7 @@ impl AuthorizedHostOperationKernel {
             current_worker_generation: WorkerGeneration::new(current_worker_generation),
             current_worker_id: WorkerId::from_bytes(current_worker_id.as_bytes())?,
             maximum_observed_unix_milliseconds: 0,
+            quarantined: BTreeSet::new(),
             slot: None,
         })
     }
@@ -286,7 +325,7 @@ impl AuthorizedHostOperationKernel {
                     terminal_id,
                     TerminalAuthorizationBinding {
                         cached_result: None,
-                        operation: operation.clone(),
+                        authority: BindingAuthority::Operation(Box::new(operation.clone())),
                         lifecycle: None,
                     },
                 );
@@ -315,8 +354,7 @@ impl AuthorizedHostOperationKernel {
 
         let existing_binding = self.bindings.get(&authorization.terminal_id());
         if let Some(binding) = existing_binding
-            && authorization.fence() == binding.operation.authorization().fence()
-            && operation == &binding.operation
+            && binding.operation() == Some(operation)
         {
             if binding.cached_result.is_none() {
                 return Err(AuthorizationKernelError::InconsistentBinding);
@@ -338,11 +376,7 @@ impl AuthorizedHostOperationKernel {
         }
 
         if let Some(binding) = existing_binding {
-            match authorization
-                .fence()
-                .get()
-                .cmp(&binding.operation.authorization().fence().get())
-            {
+            match authorization.fence().get().cmp(&binding.fence().get()) {
                 Ordering::Less => {
                     return Ok(AdmissionAction::Reject(AdmissionRejection::StaleFence));
                 }
@@ -353,6 +387,14 @@ impl AuthorizedHostOperationKernel {
                 }
                 Ordering::Greater => {}
             }
+        }
+        // A quarantined Host terminal is never started: its program belongs to no binding.
+        if let AuthorizedHostOperation::Start(start) = operation
+            && self.quarantined.contains(&start.identity().terminal_id())
+        {
+            return Ok(AdmissionAction::Reject(
+                AdmissionRejection::ConflictingReplay,
+            ));
         }
         if existing_binding.is_none() && self.bindings.len() >= MAXIMUM_RETAINED_TERMINAL_BINDINGS {
             return Ok(AdmissionAction::Reject(
@@ -368,7 +410,7 @@ impl AuthorizedHostOperationKernel {
     ) -> Result<AuthorizedHostOperationResult, AuthorizationKernelError> {
         self.bindings
             .get(&operation.authorization().terminal_id())
-            .filter(|binding| binding.operation == *operation)
+            .filter(|binding| binding.operation() == Some(operation))
             .and_then(|binding| binding.cached_result.clone())
             .ok_or(AuthorizationKernelError::InconsistentBinding)
     }
@@ -602,7 +644,7 @@ impl AuthorizedHostOperationKernel {
             .bindings
             .get_mut(&terminal_id)
             .ok_or(AuthorizationKernelError::InconsistentBinding)?;
-        if binding.operation != operation || binding.cached_result.is_some() {
+        if binding.operation() != Some(&operation) || binding.cached_result.is_some() {
             return Err(AuthorizationKernelError::InconsistentBinding);
         }
         binding.cached_result = Some(result.clone());

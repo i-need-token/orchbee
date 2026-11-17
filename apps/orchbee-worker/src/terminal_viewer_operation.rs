@@ -265,7 +265,8 @@ fn apply(
                     ViewerRejection::StaleHostEpoch,
                 ));
             }
-            if host.disposed_terminal(terminal_id) || host.disposed_viewer(request.attachment_id) {
+            if host.unavailable_terminal(terminal_id) || host.disposed_viewer(request.attachment_id)
+            {
                 return Ok(TerminalViewerOutcome::Rejected(
                     ViewerRejection::AttachmentUnavailable,
                 ));

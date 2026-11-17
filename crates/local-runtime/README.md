@@ -447,7 +447,10 @@ registry stays `not-started`, no observation ever reports a role absent, and `sp
 on its free activation and lifetime locks and a free Host lock. A socket outlives its listener until
 its owner removes it, unlike a Windows pipe, so socket files never count as a live process: the
 Server removes the Session's stale ones under its lifetime lock before it binds, and its own once its
-stop completes, and only a held Host lock refuses recovery, activation and deletion.
+stop completes, and only a held Host lock refuses recovery, activation and deletion. `host_lock_held`
+is that probe for other processes: a replacement Worker requires the lock held before it dials the
+Host it adopts, and waits for it to come free when it stops that Host. A free lock is taken for the
+instant of the probe, so only a caller that no Host of the Session can be starting beside may ask.
 
 ## User path operands
 

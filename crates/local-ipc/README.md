@@ -58,6 +58,12 @@ transport tests exercise a real short-wait connection and same-user process roun
 These are implementation traces; the existing shared models do not abstract kernel
 authentication scheduling or prove its latency.
 
+`LocalStream::server_process_id` reports the process the kernel names as the server of a
+client connection's pipe, read from the connected handle rather than looked up by name. A
+caller that knows which process must serve an endpoint compares it before writing any
+protocol byte, as a replacement Worker does for the Terminal Host it adopts; the same-user
+proof still runs first.
+
 The direct implementation challenge considered pipe squatting, remote clients, inherited
 handles, partial records, read-ahead duplication, blocked writes, and clone cancellation.
 It is an explicit adversarial read, not independent review. Native evidence must pass

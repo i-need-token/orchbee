@@ -184,6 +184,8 @@ pub(crate) fn test_temporary_directory() -> std::path::PathBuf {
 pub use cohort::{
     Cohort, CohortArtifact, CohortError, ObservationAdaptersSidecar, current_executable,
 };
+#[cfg(unix)]
+pub use rendezvous::host_lock_held;
 #[cfg(windows)]
 pub use rendezvous::{CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME};
 pub use rendezvous::{

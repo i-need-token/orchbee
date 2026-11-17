@@ -625,7 +625,8 @@ tag: 1 PageAccepted; 2 Adopted, with imported and quarantined counts (`u32` each
 6 `inventory-failed`. PageAccepted answers only a page before the last, and Adopted or Failed only
 the last. A result is at most 16,439 payload bytes.
 
-The Worker's adopt mode owns Host verification, the inventory and the import, and the Server owns
+The Worker's [adopt mode](../../apps/orchbee-worker/README.md#replacement-adoption) owns Host
+verification, the inventory and the import, and the Server owns
 the bindings it sends and their rebinding, as
 [Worker loss](../../proposals/platform/versioning-and-upgrade.md#worker-loss) decides. Hand-derived
 golden bytes, the largest page and answer, construction contradictions and malformed bounds verify

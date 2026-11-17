@@ -209,6 +209,15 @@ impl LocalStream {
         )
     }
 
+    /// The process that serves the pipe this client connection reached, as the kernel reports it.
+    pub fn server_process_id(&self) -> io::Result<u32> {
+        self.lock()?
+            .pipe
+            .as_ref()
+            .ok_or(io::ErrorKind::BrokenPipe)?
+            .server_process_id()
+    }
+
     /// Creates one private connected pair, including both admission checks.
     pub fn pair() -> io::Result<(Self, Self)> {
         static SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);

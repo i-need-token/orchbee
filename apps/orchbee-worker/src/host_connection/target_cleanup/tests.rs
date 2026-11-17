@@ -106,7 +106,7 @@ fn actual_zero_one_twenty_three_twenty_four_slots_are_freed_only_on_commit() -> 
         for id in 1..=count {
             assert!(host.viewers.borrow().contains(viewer(id, 5)?.attachment_id));
         }
-        assert!(!host.disposed_terminal(identity(5)?.terminal_id()));
+        assert!(!host.unavailable_terminal(identity(5)?.terminal_id()));
         host.commit_target_cleanup(prepared);
         assert_eq!(host.retired_targets.borrow().targets.capacity(), capacity);
         for id in 1..=count {
@@ -260,7 +260,7 @@ fn prepared_but_unacknowledged_cleanup_does_not_retire_any_owner() -> TestResult
     ));
     // Exact ordinary lease cleanup remains possible without any Dispose fact.
     host.viewers.borrow_mut().remove(request.attachment_id);
-    assert!(!host.disposed_terminal(identity(5)?.terminal_id()));
+    assert!(!host.unavailable_terminal(identity(5)?.terminal_id()));
     Ok(())
 }
 
@@ -511,6 +511,6 @@ fn retired_target_storage_reuses_prepared_cell_and_stops_at_binding_capacity() -
     );
     assert!(host.prepare_target_cleanup(overflow).is_err());
     assert_eq!(host.retired_targets.borrow().targets.len(), 1024);
-    assert!(!host.disposed_terminal(overflow.terminal_id()));
+    assert!(!host.unavailable_terminal(overflow.terminal_id()));
     Ok(())
 }

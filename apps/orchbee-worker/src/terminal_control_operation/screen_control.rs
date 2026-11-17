@@ -159,7 +159,7 @@ pub(super) fn apply(
     let Some(target) = host.viewers.borrow().target(request.viewer_id) else {
         return Ok(Outcome::Rejected(Rejection::ViewerUnavailable));
     };
-    if request.viewer_id == request.controller_id || host.disposed_terminal(target) {
+    if request.viewer_id == request.controller_id || host.unavailable_terminal(target) {
         return Ok(Outcome::Rejected(Rejection::ViewerUnavailable));
     }
     // While Detaches wait for cleanup, no further transient attachment is opened.

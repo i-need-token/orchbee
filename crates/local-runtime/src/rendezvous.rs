@@ -7,14 +7,16 @@ pub use crate::rendezvous_types::{
     EntryKind, EntryObservation, LockKind, RendezvousError, SessionHolderObservation,
     SessionLifetimeObservation, SessionScope,
 };
+#[cfg(unix)]
+pub use unix::host_lock_held;
+#[cfg(unix)]
+pub(crate) use unix::open_runtime_base;
 #[cfg(all(test, unix))]
 pub(crate) use unix::tests;
 #[cfg(unix)]
 pub use unix::{
     HOST_SCOPE_NAME, LockAttempt, ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock,
 };
-#[cfg(unix)]
-pub(crate) use unix::{host_lock_held, open_runtime_base};
 #[cfg(windows)]
 pub(crate) use windows::endpoint_exists;
 #[cfg(windows)]

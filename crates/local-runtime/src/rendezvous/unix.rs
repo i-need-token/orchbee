@@ -894,7 +894,7 @@ fn host_lock(runtime_directory: &Path, expected_uid: u32) -> std::io::Result<Hos
 /// Whether a Terminal Host of this runtime directory still holds its lock. On POSIX this, not a
 /// socket path, is a Host's presence: a socket file outlives its listener. The probe follows the
 /// rule of [`host_lock`].
-pub(crate) fn host_lock_held(runtime_directory: &Path) -> std::io::Result<bool> {
+pub fn host_lock_held(runtime_directory: &Path) -> std::io::Result<bool> {
     Ok(matches!(
         host_lock(runtime_directory, effective_uid())?,
         HostLock::Held

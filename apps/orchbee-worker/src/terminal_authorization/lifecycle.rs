@@ -3,14 +3,14 @@
 //! querying a Host or performing termination and disposal.
 
 use orchbee_capability_node_protocol::{
-    HostEpoch, HostTerminalIdentity, LifecycleRejection, TERMINAL_LIFECYCLE_CAPABILITY_VERSION,
-    TerminalLifecycleAction, TerminalLifecycleOutcome, TerminalLifecycleRequest,
-    TerminalLifecycleResult,
+    AdoptCloseInFlight, HostEpoch, HostTerminalIdentity, LifecycleRejection,
+    TERMINAL_LIFECYCLE_CAPABILITY_VERSION, TerminalLifecycleAction, TerminalLifecycleOutcome,
+    TerminalLifecycleRequest, TerminalLifecycleResult,
 };
 
 use super::{
     AuthorizationKernelError, AuthorizedHostOperation, AuthorizedHostOperationKernel,
-    AuthorizedHostOperationResult, HostHandoffAdmission, HostOperationSlot,
+    AuthorizedHostOperationResult, BindingAuthority, HostHandoffAdmission, HostOperationSlot,
     TerminalAuthorizationBinding,
 };
 
@@ -44,7 +44,30 @@ pub(super) struct LifecycleReceipts {
     known_disposed: bool,
 }
 
+/// The highest step of an attempt no later step of that attempt passes, so only a later attempt
+/// continues its Close.
+const CLOSED_ATTEMPT: u8 = u8::MAX;
+
 impl LifecycleReceipts {
+    /// The receipts of a Close a lost Worker carried. This Worker holds no result of its steps, so
+    /// none replays and no step at or below the issued one dispatches; a step whose effect is
+    /// unknown also closes its attempt.
+    pub(super) const fn imported(close: AdoptCloseInFlight) -> Self {
+        Self {
+            owner: close.close_operation_id,
+            high_attempt: close.attempt_generation,
+            high_ordinal: if close.step_effect_unknown {
+                CLOSED_ATTEMPT
+            } else {
+                close.step_ordinal.get()
+            },
+            last_step: None,
+            last_mutation: None,
+            mutation_unknown: false,
+            known_disposed: false,
+        }
+    }
+
     fn replay(self, request: TerminalLifecycleRequest) -> Option<TerminalLifecycleResult> {
         [self.last_step, self.last_mutation]
             .into_iter()
@@ -69,7 +92,11 @@ impl LifecycleReceipts {
 
 impl TerminalAuthorizationBinding {
     fn lifecycle_identity(&self) -> Option<HostTerminalIdentity> {
-        match &self.operation {
+        let operation = match &self.authority {
+            BindingAuthority::Imported { identity, .. } => return Some(*identity),
+            BindingAuthority::Operation(operation) => &**operation,
+        };
+        match operation {
             AuthorizedHostOperation::Start(start) => Some(start.identity()),
             AuthorizedHostOperation::Launch(_) => match self.cached_result.as_ref()? {
                 AuthorizedHostOperationResult::Launch(result) => match result.outcome() {
@@ -176,7 +203,7 @@ impl AuthorizedHostOperationKernel {
         let Some(binding) = self.bindings.get(&authorization.terminal_id) else {
             return Some(LifecycleRejection::BindingUnavailable);
         };
-        if authorization.binding_fence != binding.operation.authorization().fence() {
+        if authorization.binding_fence != binding.fence() {
             return Some(LifecycleRejection::BindingFenceMismatch);
         }
         let Some(identity) = binding.lifecycle_identity() else {

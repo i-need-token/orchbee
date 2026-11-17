@@ -594,6 +594,9 @@ the inventory changes. One kernel import transition then applies the whole resul
 - A terminal whose program exited during the gap is imported as exited and follows the ordinary exit
   path.
 
+Built: the Worker side is
+[Replacement adoption](../../apps/orchbee-worker/README.md#replacement-adoption).
+
 `host-gone` makes the Server stop itself, as above. `host-unverified`, `host-mismatch`, and
 `host-refused` give up at once; the other failures count against the cap.
 

@@ -1,10 +1,14 @@
 //! Prepares and commits retirement of a disposed physical target's viewer, controller, title,
 //! and color state, retaining bounded tombstones for late events. It also remembers attachments
-//! detached in this Host epoch, so their late events are dropped, and attachments whose Detach no
-//! request had room for, which later cleanups detach. It does not dispose the Host terminal or
-//! publish cleanup before its owner confirms the physical outcome.
+//! detached in this Host epoch, so their late events are dropped, attachments whose Detach no
+//! request had room for, which later cleanups detach, and the Host terminals an adoption
+//! quarantined. It does not dispose the Host terminal or publish cleanup before its owner confirms
+//! the physical outcome.
 
-use std::{collections::VecDeque, io};
+use std::{
+    collections::{BTreeSet, VecDeque},
+    io,
+};
 
 use orchbee_capability_node_protocol::{HostTerminalId, HostTerminalIdentity, OperationId};
 use orchbee_terminal_protocol::{
@@ -44,6 +48,8 @@ pub(super) struct RetiredTargets {
     /// Controller and transient attachments this Worker no longer uses whose Detach did not fit
     /// in a request, oldest first.
     pending: VecDeque<[u8; 16]>,
+    /// Host terminals an adoption quarantined, bounded by the inventory the adoption read.
+    quarantined: BTreeSet<HostTerminalId>,
 }
 
 #[derive(Clone, Copy)]
@@ -169,12 +175,32 @@ impl HostBrokerConnection {
         self.retired_targets.borrow().viewer(id.as_bytes())
     }
 
-    pub(crate) fn disposed_terminal(&self, terminal: HostTerminalId) -> bool {
+    /// Whether no request may reach `terminal`: this connection disposed it, or an adoption
+    /// quarantined it.
+    pub(crate) fn unavailable_terminal(&self, terminal: HostTerminalId) -> bool {
+        let retired = self.retired_targets.borrow();
+        retired.quarantined.contains(&terminal)
+            || retired
+                .targets
+                .iter()
+                .any(|target| target.disposed && target.identity.terminal_id() == terminal)
+    }
+
+    /// Whether an adoption quarantined `terminal`; its events reach no consumer.
+    pub(crate) fn quarantined_terminal(&self, terminal: HostTerminalId) -> bool {
         self.retired_targets
             .borrow()
-            .targets
-            .iter()
-            .any(|target| target.disposed && target.identity.terminal_id() == terminal)
+            .quarantined
+            .contains(&terminal)
+    }
+
+    /// Quarantines the Host terminals an adoption matched to no binding, for this connection's
+    /// whole life: they are never attached, sent input, named in a title or drained.
+    pub(crate) fn quarantine(&self, terminals: impl IntoIterator<Item = HostTerminalId>) {
+        self.retired_targets
+            .borrow_mut()
+            .quarantined
+            .extend(terminals);
     }
 }
 

@@ -573,125 +573,14 @@ fn a_silent_host_is_bounded_by_the_operation_deadline() -> TestResult {
 
 #[test]
 fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss() -> TestResult {
-    let directory = Directory::new()?;
-    let endpoint_id = format!("{:032x}", u128::from(std::process::id()) + (1u128 << 96));
-    #[cfg(unix)]
-    let endpoint = directory.0.join(format!("{endpoint_id}-host.sock"));
-    #[cfg(windows)]
-    let endpoint = PathBuf::from(format!(r"\\.\pipe\orchbee-terminal-host-{endpoint_id}"));
-    let binary = std::env::var_os("ORCHBEE_TERMINAL_HOST_TEST_BINARY")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
-                "../terminal-host/zig-out/bin/orchbee-terminal-host{}",
-                std::env::consts::EXE_SUFFIX
-            ))
-        });
-    if !binary.is_file() {
-        return Err(format!(
-            "real Host process witness requires `pnpm --filter @orchbee/terminal-host build` or \
-             ORCHBEE_TERMINAL_HOST_TEST_BINARY: {}",
-            binary.display()
-        )
-        .into());
-    }
-    // Zig names its output with the release name, which a test process never carries (ORC-382).
-    #[cfg(windows)]
-    let staged = Directory::new()?;
-    #[cfg(windows)]
-    let binary = {
-        let copy = staged
-            .0
-            .join(orchbee_local_runtime::CohortArtifact::TerminalHost.file_name());
-        fs::copy(&binary, &copy)?;
-        copy
-    };
-    let mut command = Command::new(binary);
-    // The Host and the terminal it starts never see the person's own profile.
-    #[cfg(windows)]
-    command.env("USERPROFILE", staged.0.join("profile"));
-    #[cfg(unix)]
-    {
-        let home = directory.0.join("home");
-        fs::create_dir(&home)?;
-        command.env("HOME", home);
-    }
-    let mut child = HostChild(
-        command
-            .args(["serve", "--runtime-directory"])
-            .arg(&directory.0)
-            .args(["--endpoint-id", &endpoint_id])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()?,
-    );
-    let deadline = Instant::now() + BUDGET;
-    loop {
-        #[cfg(unix)]
-        let appeared = endpoint.try_exists()?;
-        #[cfg(windows)]
-        let appeared = orchbee_local_ipc::endpoint_exists(&endpoint)?;
-        if appeared {
-            break;
-        }
-        if let Some(status) = child.0.try_wait()? {
-            return Err(format!("Host exited: {status}").into());
-        }
-        if Instant::now() >= deadline {
-            return Err("Host endpoint did not appear".into());
-        }
-        thread::yield_now();
-    }
-    let mut host = loop {
-        match HostBrokerConnection::connect(&endpoint, fresh_drain()?) {
-            Ok(host) => break host,
-            Err(error)
-                if error
-                    .downcast_ref::<io::Error>()
-                    .is_some_and(|error| error.kind() == io::ErrorKind::ConnectionRefused)
-                    && Instant::now() < deadline =>
-            {
-                thread::yield_now()
-            }
-            Err(error) => return Err(format!("initial Host connection: {error}").into()),
-        }
-    };
+    let real = RealHost::start(1)?;
+    let endpoint = &real.endpoint;
+    let mut host = real.connect()?;
     let (server, _server_peer) = UnixStream::pair()?;
     let mut kernel = kernel()?;
-    let operation = PreparedHostOperation::launch(
-        &launch_dispatch(&mut kernel)?,
-        facts()?,
-        correlation()?,
-        None,
-    )?;
-    assert_eq!(
-        operation.execute(&mut kernel, &mut host, &server, || 100, BUDGET)?,
-        HostOperationDisposition::ResultReady
-    );
-    let Some(AuthorizedHostOperationResult::Launch(result)) = kernel.take_result() else {
-        return Err("missing launch result".into());
-    };
-    let TerminalLaunchOutcome::HostAccepted(accepted) = result.outcome() else {
-        return Err(format!("launch outcome: {:?}", result.outcome()).into());
-    };
-    assert_eq!(accepted.state(), HostLaunchState::AwaitingStart);
-    let identity = accepted.identity();
-    let start = AuthorizedTerminalStart::new(authorization(2)?, identity, geometry()?);
-    let dispatch = self::dispatch(kernel.admit_start(start, 100, identity.host_epoch())?)?;
-    let operation = PreparedHostOperation::start(&dispatch, CorrelationId::from_bytes([7; 16])?)?;
-    assert_eq!(
-        operation.execute(&mut kernel, &mut host, &server, || 100, BUDGET)?,
-        HostOperationDisposition::ResultReady
-    );
-    let Some(AuthorizedHostOperationResult::Start(result)) = kernel.take_result() else {
-        return Err("missing start result".into());
-    };
-    assert!(
-        matches!(result.outcome(), TerminalStartOutcome::HostAccepted(value) if value.identity() == identity && value.geometry() == geometry()?)
-    );
+    let (_start, identity) = launch_and_start(&mut kernel, &mut host, &server)?;
     drop(host);
-    let observer = HostBrokerConnection::connect(&endpoint, fresh_drain()?)
+    let observer = HostBrokerConnection::connect(endpoint, fresh_drain()?)
         .map_err(|error| format!("retained Host connection: {error}"))?;
     assert_eq!(
         CapabilityHostEpoch::from_bytes(*observer.host_epoch().as_bytes())?,
@@ -754,6 +643,240 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
     );
     assert_eq!(envelope.payload, control.payload);
     Ok(())
+}
+
+/// A replacement Worker adopts the Host its predecessor started: the terminal it bound is imported
+/// and still answers through the adopted connection.
+#[cfg(windows)]
+#[test]
+fn a_second_connection_adopts_the_real_host_and_imports_its_terminal() -> TestResult {
+    use orchbee_capability_node_protocol::{AdoptBinding, AdoptBindingState, AdoptHostProcess};
+    let real = RealHost::start(2)?;
+    let mut host = real.connect()?;
+    let (server, _server_peer) = UnixStream::pair()?;
+    let mut kernel = kernel()?;
+    let (start, identity) = launch_and_start(&mut kernel, &mut host, &server)?;
+    drop(host);
+    let process_id = real.process_id;
+    let handle = winsafe::HPROCESS::OpenProcess(
+        winsafe::co::PROCESS::QUERY_LIMITED_INFORMATION,
+        false,
+        process_id,
+    )?;
+    let (creation, _, _, _) = handle.GetProcessTimes()?;
+    let process = AdoptHostProcess {
+        process_id: std::num::NonZeroU32::new(process_id).ok_or("zero process id")?,
+        creation_time: NonZeroU64::new(u64::from(creation)).ok_or("zero creation time")?,
+    };
+    // The Host may still be releasing the dropped session; the adoption dials it again meanwhile.
+    let found = crate::host_adoption::adopt_endpoint(
+        &real.runtime,
+        &real.endpoint,
+        Some(process),
+        Some(identity.host_epoch()),
+        crate::host_adoption::Channel {
+            server: &server,
+            correlation: CorrelationId::from_bytes([10; 16])?,
+            drain: fresh_drain()?,
+            deadline: Instant::now() + BUDGET,
+        },
+    )
+    .map_err(|failed| format!("adoption failed: {:?}: {}", failed.failure, failed.error))?;
+    let mut adopted = self::kernel()?;
+    let imported = adopted.import(
+        &[AdoptBinding {
+            terminal_id: start.authorization().terminal_id(),
+            identity,
+            state: AdoptBindingState::Started,
+            fence: start.authorization().fence(),
+            close: None,
+        }],
+        &found.inventory,
+    )?;
+    assert_eq!(imported.imported, 1);
+    assert!(imported.quarantined.is_empty() && imported.missing.is_empty());
+    // Ending the imported terminal through the adopted connection proves it still answers, and
+    // ends the witness's own process tree before the Host is torn down.
+    let control = encode_lifecycle_control(&LifecycleControl::ForceTerminateTerminal(
+        orchbee_terminal_protocol::TerminalTarget {
+            terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes(
+                identity.terminal_id().as_bytes(),
+            )?,
+        },
+    ))?;
+    let mut stream = found.host.stream();
+    stream.set_nonblocking(false)?;
+    stream.set_read_timeout(Some(BUDGET))?;
+    stream.write_all(&wire(
+        control.kind,
+        control.role,
+        &control.payload,
+        found.host.host_epoch(),
+        CorrelationId::from_bytes([11; 16])?,
+    )?)?;
+    let record = read_host_reply(&found.host)?;
+    let envelope = decode_transport_envelope(&record)?;
+    assert_eq!(envelope.role, MessageRole::Response);
+    assert_eq!(envelope.kind, control.kind);
+    assert_eq!(envelope.payload, control.payload);
+    Ok(())
+}
+
+/// A real Terminal Host process on its own endpoint, killed when dropped.
+struct RealHost {
+    endpoint: PathBuf,
+    /// The Host's process ID and runtime folder, which an adoption verifies.
+    #[cfg(windows)]
+    process_id: u32,
+    #[cfg(windows)]
+    runtime: PathBuf,
+    // Dropped in this order: the Host is killed before its folders are removed.
+    _child: HostChild,
+    _directory: Directory,
+    #[cfg(windows)]
+    _staged: Directory,
+}
+
+impl RealHost {
+    /// Starts the built Host on an endpoint `slot` keeps apart from another of this test process.
+    fn start(slot: u128) -> TestResult<Self> {
+        let directory = Directory::new()?;
+        let endpoint_id = format!("{:032x}", u128::from(std::process::id()) + (slot << 96));
+        #[cfg(unix)]
+        let endpoint = directory.0.join(format!("{endpoint_id}-host.sock"));
+        #[cfg(windows)]
+        let endpoint = PathBuf::from(format!(r"\\.\pipe\orchbee-terminal-host-{endpoint_id}"));
+        let binary = std::env::var_os("ORCHBEE_TERMINAL_HOST_TEST_BINARY")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+                    "../terminal-host/zig-out/bin/orchbee-terminal-host{}",
+                    std::env::consts::EXE_SUFFIX
+                ))
+            });
+        if !binary.is_file() {
+            return Err(format!(
+                "real Host process witness requires `pnpm --filter @orchbee/terminal-host build` or \
+                 ORCHBEE_TERMINAL_HOST_TEST_BINARY: {}",
+                binary.display()
+            )
+            .into());
+        }
+        // Zig names its output with the release name, which a test process never carries (ORC-382).
+        #[cfg(windows)]
+        let staged = Directory::new()?;
+        #[cfg(windows)]
+        let binary = {
+            let copy = staged
+                .0
+                .join(orchbee_local_runtime::CohortArtifact::TerminalHost.file_name());
+            fs::copy(&binary, &copy)?;
+            copy
+        };
+        let mut command = Command::new(binary);
+        // The Host and the terminal it starts never see the person's own profile.
+        #[cfg(windows)]
+        command.env("USERPROFILE", staged.0.join("profile"));
+        #[cfg(unix)]
+        {
+            let home = directory.0.join("home");
+            fs::create_dir(&home)?;
+            command.env("HOME", home);
+        }
+        let mut child = HostChild(
+            command
+                .args(["serve", "--runtime-directory"])
+                .arg(&directory.0)
+                .args(["--endpoint-id", &endpoint_id])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()?,
+        );
+        let deadline = Instant::now() + BUDGET;
+        loop {
+            #[cfg(unix)]
+            let appeared = endpoint.try_exists()?;
+            #[cfg(windows)]
+            let appeared = orchbee_local_ipc::endpoint_exists(&endpoint)?;
+            if appeared {
+                break;
+            }
+            if let Some(status) = child.0.try_wait()? {
+                return Err(format!("Host exited: {status}").into());
+            }
+            if Instant::now() >= deadline {
+                return Err("Host endpoint did not appear".into());
+            }
+            thread::yield_now();
+        }
+        Ok(Self {
+            endpoint,
+            #[cfg(windows)]
+            process_id: child.0.id(),
+            #[cfg(windows)]
+            runtime: directory.0.clone(),
+            _child: child,
+            _directory: directory,
+            #[cfg(windows)]
+            _staged: staged,
+        })
+    }
+
+    fn connect(&self) -> TestResult<HostBrokerConnection> {
+        let deadline = Instant::now() + BUDGET;
+        loop {
+            match HostBrokerConnection::connect(&self.endpoint, fresh_drain()?) {
+                Ok(host) => return Ok(host),
+                Err(error)
+                    if error
+                        .downcast_ref::<io::Error>()
+                        .is_some_and(|error| error.kind() == io::ErrorKind::ConnectionRefused)
+                        && Instant::now() < deadline =>
+                {
+                    thread::yield_now()
+                }
+                Err(error) => return Err(format!("initial Host connection: {error}").into()),
+            }
+        }
+    }
+}
+
+/// Launches a deferred terminal on the real Host and starts it, returning the Start and the
+/// terminal's Host identity.
+fn launch_and_start(
+    kernel: &mut AuthorizedHostOperationKernel,
+    host: &mut HostBrokerConnection,
+    server: &UnixStream,
+) -> TestResult<(AuthorizedTerminalStart, HostTerminalIdentity)> {
+    let operation =
+        PreparedHostOperation::launch(&launch_dispatch(kernel)?, facts()?, correlation()?, None)?;
+    assert_eq!(
+        operation.execute(kernel, host, server, || 100, BUDGET)?,
+        HostOperationDisposition::ResultReady
+    );
+    let Some(AuthorizedHostOperationResult::Launch(result)) = kernel.take_result() else {
+        return Err("missing launch result".into());
+    };
+    let TerminalLaunchOutcome::HostAccepted(accepted) = result.outcome() else {
+        return Err(format!("launch outcome: {:?}", result.outcome()).into());
+    };
+    assert_eq!(accepted.state(), HostLaunchState::AwaitingStart);
+    let identity = accepted.identity();
+    let start = AuthorizedTerminalStart::new(authorization(2)?, identity, geometry()?);
+    let dispatch = self::dispatch(kernel.admit_start(start, 100, identity.host_epoch())?)?;
+    let operation = PreparedHostOperation::start(&dispatch, CorrelationId::from_bytes([7; 16])?)?;
+    assert_eq!(
+        operation.execute(kernel, host, server, || 100, BUDGET)?,
+        HostOperationDisposition::ResultReady
+    );
+    let Some(AuthorizedHostOperationResult::Start(result)) = kernel.take_result() else {
+        return Err("missing start result".into());
+    };
+    assert!(
+        matches!(result.outcome(), TerminalStartOutcome::HostAccepted(value) if value.identity() == identity && value.geometry() == geometry()?)
+    );
+    Ok((start, identity))
 }
 
 // Real shells may publish metadata before the reply. Use the production

@@ -1,6 +1,7 @@
 //! Owns explicit-endpoint Worker admission to the same-user Server and Host, readiness
-//! publication, and entry into the serialized operation loop. It does not start a managed
-//! Host, retry enrollment, or adopt terminals after peer loss.
+//! publication, and entry into the serialized operation loop. A replacement Worker, named by the
+//! Server-minted id it registers with, enters adoption instead. It does not start a managed Host
+//! or retry enrollment.
 
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
@@ -60,6 +61,19 @@ pub(crate) fn run(
             .ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "missing Session runtime")
             })?;
+        let replacement = match arguments.next() {
+            None => None,
+            Some(flag) if flag == "--worker-id" => Some(
+                arguments
+                    .next()
+                    .as_deref()
+                    .and_then(parse_worker_id)
+                    .ok_or_else(|| {
+                        io::Error::new(io::ErrorKind::InvalidInput, "invalid Worker id")
+                    })?,
+            ),
+            Some(_) => return Err(io::Error::from(io::ErrorKind::InvalidInput).into()),
+        };
         if arguments.next().is_some() {
             return Err(io::Error::from(io::ErrorKind::InvalidInput).into());
         }
@@ -79,23 +93,35 @@ pub(crate) fn run(
             session.worker_socket_path(),
             cohort.identity(),
             &system_shell,
+            replacement,
         )?;
         let generation = server.generation();
         crate::diagnostic_events::started();
-        let outcome = terminal_operations::run_lazy(
-            server.stream,
-            server.worker_id,
-            generation,
-            &cohort,
-            &runtime,
-            &system_shell,
-        );
+        let outcome = if replacement.is_some() {
+            terminal_operations::run_adopt(
+                server.stream,
+                server.worker_id,
+                generation,
+                &cohort,
+                &runtime,
+                &system_shell,
+            )
+        } else {
+            terminal_operations::run_lazy(
+                server.stream,
+                server.worker_id,
+                generation,
+                &cohort,
+                &runtime,
+                &system_shell,
+            )
+        };
         crate::diagnostic_events::exited(&outcome);
         return outcome;
     }
     let options = WorkerOptions::parse(arguments)?;
     let system_shell = SystemShell::resolve();
-    let server = connect_to_server(&options.server_endpoint, cohort, &system_shell)?;
+    let server = connect_to_server(&options.server_endpoint, cohort, &system_shell, None)?;
     // The Agent Drain queue belongs to this admitted Server connection and is
     // created before the Host broker so both paths share one owner.
     let drain = Rc::new(RefCell::new(AgentDrain::new()));
@@ -112,18 +138,45 @@ pub(crate) fn run(
     )
 }
 
+/// A Worker id as the Server mints it for a replacement: 32 lowercase hexadecimal digits, not all
+/// zero.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn parse_worker_id(text: &std::ffi::OsStr) -> Option<WorkerId> {
+    let text = text.to_str()?.as_bytes();
+    if text.len() != 32 {
+        return None;
+    }
+    let digit = |byte: u8| match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        _ => None,
+    };
+    let mut bytes = [0_u8; 16];
+    for (byte, pair) in bytes.iter_mut().zip(text.chunks_exact(2)) {
+        *byte = (digit(pair[0])? << 4) | digit(pair[1])?;
+    }
+    bytes
+        .iter()
+        .any(|byte| *byte != 0)
+        .then_some(WorkerId::from_bytes(bytes))
+}
+
 fn connect_to_server(
     endpoint: &std::path::Path,
     cohort: &str,
     system_shell: &SystemShell,
+    replacement: Option<WorkerId>,
 ) -> Result<ServerConnection, Box<dyn Error>> {
-    // A local Worker has no restart/adoption contract. A fresh Windows
-    // identity prevents another Session's reused terminal counter from matching
-    // an old child caller. Mint once and retain the admitted value below.
+    // A replacement registers with the id the Server minted for it. Otherwise a fresh Windows
+    // identity prevents another Session's reused terminal counter from matching an old child
+    // caller. Mint once and retain the admitted value below.
     #[cfg(windows)]
-    let worker_id = WorkerId::from_bytes(crate::worker_identity::fresh_identity()?);
+    let worker_id = match replacement {
+        Some(worker_id) => worker_id,
+        None => WorkerId::from_bytes(crate::worker_identity::fresh_identity()?),
+    };
     #[cfg(not(windows))]
-    let worker_id = LOCAL_WORKER_ID;
+    let worker_id = replacement.unwrap_or(LOCAL_WORKER_ID);
     let mut stream = UnixStream::connect(endpoint)?;
     require_same_effective_user(&stream)?;
     stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT))?;

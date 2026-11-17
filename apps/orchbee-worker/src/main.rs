@@ -15,6 +15,8 @@ mod default_interactive_launch;
 mod diagnostic_events;
 #[cfg(any(unix, windows))]
 mod git_repository;
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+mod host_adoption;
 #[cfg(any(unix, windows))]
 mod host_connection;
 #[cfg(any(unix, windows))]

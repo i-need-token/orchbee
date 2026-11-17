@@ -1,6 +1,7 @@
 //! Owns the managed lazy-Host loop, starting the verified Host only after an admitted launch
 //! and retaining its child and connection for subsequent operations. It does not adopt an
-//! existing Host or replay a launch whose delivery is uncertain.
+//! existing Host, which only a replacement Worker's adoption does, or replay a launch whose
+//! delivery is uncertain.
 
 use super::{server_transport, unix_milliseconds};
 use crate::{
@@ -587,8 +588,12 @@ fn start_host(
                   dial: Result<HostBrokerConnection, DialFailure>| {
         let failure = match dial {
             Ok(host) => return Ok(host),
-            Err(DialFailure::Connect(error)) => failed(HostStartStage::Connect, error),
-            Err(DialFailure::Handshake(error)) => failed(HostStartStage::Handshake, error),
+            Err(DialFailure::Connect(error)) => failed(HostStartStage::Connect, error.into()),
+            #[cfg(windows)]
+            Err(DialFailure::ServerProcess(error)) => failed(HostStartStage::Connect, error.into()),
+            Err(DialFailure::Busy(error) | DialFailure::Handshake(error)) => {
+                failed(HostStartStage::Handshake, error)
+            }
         };
         // The elapsed time stays the dial's own; the wait only observes the Host's exit.
         Err(HostStartFailure {

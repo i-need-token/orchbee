@@ -102,13 +102,30 @@ pub(crate) struct HostBrokerConnection {
     pub(crate) pacing: Pacing,
 }
 
-/// A failed bounded Host dial, split where the Host answered: `Connect` never reached it, while
-/// `Handshake` reached it and failed the `worker-host` offer or the protocol `Hello`.
+/// A failed bounded Host dial, split where the Host answered: `Connect` never reached it,
+/// `ServerProcess` (Windows) reached an endpoint another process serves, `Busy` reached a Host that kept
+/// another Worker session past its retry deadline, and `Handshake` reached it and failed the
+/// `worker-host` offer or the protocol `Hello`.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[derive(Debug)]
 pub(crate) enum DialFailure {
-    Connect(Box<dyn Error>),
+    Connect(io::Error),
+    #[cfg(windows)]
+    ServerProcess(io::Error),
+    Busy(Box<dyn Error>),
     Handshake(Box<dyn Error>),
+}
+
+/// The bounds of one Host dial: on Windows the process that must serve the endpoint, when one is
+/// known, the deadline past which a busy Host is no longer dialed again, and the deadline of the
+/// whole dial.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DialBounds {
+    #[cfg(windows)]
+    pub(crate) server_process: Option<std::num::NonZeroU32>,
+    pub(crate) busy_until: Instant,
+    pub(crate) deadline: Instant,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -125,10 +142,45 @@ impl HostBrokerConnection {
         deadline: std::time::Instant,
         drain: Rc<RefCell<AgentDrain>>,
     ) -> Result<Self, DialFailure> {
+        Self::dial(
+            endpoint,
+            DialBounds {
+                #[cfg(windows)]
+                server_process: None,
+                busy_until: deadline,
+                deadline,
+            },
+            drain,
+        )
+    }
+
+    /// Dials `endpoint` within `bounds`. On Windows a known server process must serve the pipe
+    /// before any offer is written; on macOS and Linux the endpoint's peer user is checked as for
+    /// every dial, and a server process is never trusted.
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    pub(crate) fn dial(
+        endpoint: &Path,
+        bounds: DialBounds,
+        drain: Rc<RefCell<AgentDrain>>,
+    ) -> Result<Self, DialFailure> {
+        let deadline = bounds.deadline;
         let offer = offer::local().map_err(DialFailure::Handshake)?;
         let (mut transport, prompt_gated_input) = loop {
-            let mut transport = admission::Admission::connect(endpoint, deadline)
-                .map_err(|error| DialFailure::Connect(error.into()))?;
+            let mut transport =
+                admission::Admission::connect(endpoint, deadline).map_err(DialFailure::Connect)?;
+            #[cfg(windows)]
+            if let Some(expected) = bounds.server_process {
+                let served = transport
+                    .stream
+                    .server_process_id()
+                    .map_err(DialFailure::ServerProcess)?;
+                if served != expected.get() {
+                    return Err(DialFailure::ServerProcess(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "another process serves the Terminal Host endpoint",
+                    )));
+                }
+            }
             transport.set_deadline(deadline.min(Instant::now() + CANDIDATE_DEADLINE));
             if let offer::Outcome::Answered { prompt_gated_input } =
                 offer::exchange(&mut transport, &offer).map_err(DialFailure::Handshake)?
@@ -136,8 +188,8 @@ impl HostBrokerConnection {
                 transport.set_deadline(deadline);
                 break (transport, prompt_gated_input);
             }
-            if Instant::now() + offer::RETRY_INTERVAL >= deadline {
-                return Err(DialFailure::Handshake(offer::still_busy()));
+            if Instant::now() + offer::RETRY_INTERVAL >= bounds.busy_until.min(deadline) {
+                return Err(DialFailure::Busy(offer::still_busy()));
             }
             thread::sleep(offer::RETRY_INTERVAL);
         };
@@ -273,6 +325,10 @@ impl HostBrokerConnection {
             && let Ok(TerminalEffectEvent::ApplicationSignal(signal)) =
                 decode_terminal_effect_event(envelope.kind, envelope.role, envelope.payload)
         {
+            // A quarantined terminal belongs to no binding: its signal reaches no Agent.
+            if self.quarantined(&signal.identity) {
+                return;
+            }
             // The Agent Drain producer intercepts application signals before
             // the viewer borrow so terminals with no attached viewer still
             // reach the queue. A signal it cannot take is dropped and recorded.
@@ -297,6 +353,12 @@ impl HostBrokerConnection {
                     envelope.role,
                     envelope.payload,
                 ) {
+                    // A quarantined terminal's title is never named.
+                    Ok(TerminalEffectEvent::MetadataChanged(event))
+                        if self.quarantined(&event.identity) =>
+                    {
+                        true
+                    }
                     Ok(TerminalEffectEvent::MetadataChanged(event)) => {
                         self.titles.borrow_mut().observe(event).is_ok()
                     }
@@ -308,6 +370,13 @@ impl HostBrokerConnection {
             return;
         }
         self.viewers.borrow_mut().receive(record, self.host_epoch);
+    }
+
+    fn quarantined(&self, identity: &orchbee_terminal_protocol::TerminalIdentity) -> bool {
+        orchbee_capability_node_protocol::HostTerminalId::from_bytes(
+            *identity.terminal_id.as_bytes(),
+        )
+        .is_ok_and(|terminal| self.quarantined_terminal(terminal))
     }
 
     /// A controller's resize-lease event. One for a controller this Worker does not hold is

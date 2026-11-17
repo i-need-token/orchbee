@@ -53,7 +53,7 @@ fn separate_windows_connections_retain_their_own_admitted_worker_identity()
             arguments: Vec::new(),
             environment: crate::default_interactive_launch::default_launch_environment(),
         });
-        let connection = connect_to_server(&endpoint, "caller-context-test", &system_shell);
+        let connection = connect_to_server(&endpoint, "caller-context-test", &system_shell, None);
         let (admitted, reported_shell) = peer.join().expect("peer thread")?;
         let connection = connection?;
         assert_eq!(reported_shell.as_deref(), Some("pwsh.exe"));

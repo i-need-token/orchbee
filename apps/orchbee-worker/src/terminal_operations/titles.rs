@@ -28,7 +28,7 @@ pub(super) fn execute(
                 .filter(|host| {
                     current
                         && identity.host_epoch().as_bytes() == *host.host_epoch().as_bytes()
-                        && !host.disposed_terminal(identity.terminal_id())
+                        && !host.unavailable_terminal(identity.terminal_id())
                 })
                 .map_or(TerminalTitleObservation::Unavailable, |host| {
                     host.terminal_title(identity)

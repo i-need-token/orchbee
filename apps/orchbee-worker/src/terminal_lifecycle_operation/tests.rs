@@ -378,7 +378,11 @@ fn prehandoff_loss_and_deadline_after_handoff_have_distinct_truthful_results() -
             .outcome(),
         TerminalLifecycleOutcome::OutcomeUnknown(LifecycleUnknownReason::Deadline)
     );
-    assert!(!fixture.host.disposed_terminal(request.target.terminal_id()));
+    assert!(
+        !fixture
+            .host
+            .unavailable_terminal(request.target.terminal_id())
+    );
     Ok(())
 }
 
@@ -446,7 +450,11 @@ fn server_loss_after_known_dispose_cannot_erase_retained_receipt() -> TestResult
     fixture.server_peer.shutdown(Shutdown::Both)?;
     let result = kernel.take_lifecycle_result().ok_or("known result")?;
     assert_eq!(result.outcome(), TerminalLifecycleOutcome::Disposed);
-    assert!(fixture.host.disposed_terminal(request.target.terminal_id()));
+    assert!(
+        fixture
+            .host
+            .unavailable_terminal(request.target.terminal_id())
+    );
     assert_eq!(
         kernel.admit_lifecycle(request, 200, request.target.host_epoch())?,
         LifecycleAdmission::ResultReady

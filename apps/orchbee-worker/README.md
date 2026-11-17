@@ -21,9 +21,15 @@ waits up to 250 milliseconds to observe (the Host's failure codes are in its
 [executable interface](../terminal-host/README.md#executable-interface)); and `elapsedMs`, the
 milliseconds since the start began.
 
+A replacement Worker records its adoption as `adoption`: `target` (`no-host` or `host`), `outcome`
+(`adopted` or the failure token, such as `host-gone`), the `imported`, `quarantined` and `missing`
+counts, `pages`, `inventoryRestarts` and `elapsedMs` since the last page arrived. A failed adoption
+also ends the Worker with an `exited` record at site `adopt`.
+
 A failed `exited` also names where and why the Worker stopped: `site`, the step it was serving
 (`server-receive`, `server-send`, `viewer`, `process-read`, `lifecycle`, `graphics`, `control`,
-`send`, `launch`, `start`, `drain`, `titles`, `cleanup`, `handoff`, `host-start` or `shutdown`);
+`send`, `launch`, `start`, `drain`, `titles`, `cleanup`, `handoff`, `host-start`, `shutdown` or
+`adopt`);
 `reason`, one of `deadline` (a peer stayed silent past its bound), `host-closed`, `host-protocol`
 (the Host lost its record framing: a bad magic or a length that does not match, after which no
 later record can be found), `server-closed`,
@@ -49,8 +55,9 @@ which keeps the loop's own cause.
 `graphics-decode` or `adopt-host`) and its `cause`: `unserved` (a kind this Worker does not serve on its platform,
 or a terminal request before the first Launch), `fence` (addressed to another Worker or
 generation), `watermark` (an Agent drain acknowledgement above what this Worker offered), `handoff`
-(an ordinary request while a Server handoff is prepared) or `state` (the operation kernel refused it
-before anything reached the Host); it is written at most once a minute for each cause, with
+(an ordinary request while a Server handoff is prepared), `unavailable` (a request to a replacement
+Worker before its adoption, or an adoption page that breaks the pages before it) or `state` (the
+operation kernel refused it before anything reached the Host); it is written at most once a minute for each cause, with
 `suppressed`. `server-unexpected` records a message only a Worker sends that arrived from the Server
 and was dropped unanswered. `request-unprepared` records, with its `site` and `error` kind, a
 terminal operation that failed before handoff because the Worker could not prepare it, such as a
@@ -117,9 +124,10 @@ and leaves the loop available for the next request.
 
 Worker consumes authorization only from the admitted same-user Server and uses the OBLW generation
 for its authorization kernel. It sends Create/Start only after local admission and a fresh handoff
-check. Explicit-endpoint mode does not start a Host; managed Linux mode uses the lazy workflow below.
-Connection retry, restart, inventory adoption, PTY/VT operations, Agent behavior, service installation,
-and recovery remain excluded.
+check. Explicit-endpoint mode does not start a Host; managed Linux mode uses the lazy workflow below, and a
+replacement Worker adopts its predecessor's Host as [Replacement adoption](#replacement-adoption)
+describes. Connection retry, PTY/VT operations, Agent behavior, service installation and other
+recovery remain excluded.
 
 ## Managed explicit shutdown
 
@@ -141,7 +149,8 @@ Worker exit before publishing restart authority.
 Incomplete attempts retain their failure stage, reason and count of known disposal acknowledgements
 from that attempt. The Worker then accepts only explicit shutdown requests. A subsequent attempt may
 continue a healthy connection or wait for an already-disconnected, empty Host; protocol or transport
-uncertainty retires the Host connection and never authorizes mutation replay, reconnection or adoption.
+uncertainty retires the Host connection and never authorizes mutation replay or reconnection; only a
+replacement Worker adopts that Host.
 Unknown background job cleanup prevents success. A no-Host or confirmed Host-exit result ends the
 Worker after its bounded result-write attempt; ordinary Server loss retains its existing semantics.
 
@@ -202,8 +211,60 @@ non-managed launches gain no observation channel, and no CNP field or Server-pri
 introduced for it.
 
 The child reaper only waits for exit; it never kills Host. Host retains terminals after the
-Server/Worker connection closes. Restart adoption and replacement Host are unsupported.
-Explicit-endpoint mode retains its existing two-peer readiness semantics.
+Server/Worker connection closes, for a replacement Worker to adopt; a replacement Host is never
+started. Explicit-endpoint mode retains its existing two-peer readiness semantics.
+
+## Replacement adoption
+
+`--runtime-directory <dir> --worker-id <32 lowercase hex digits>` starts a replacement Worker. It
+registers with that Server-minted ID on every platform and serves only
+[AdoptHost](../../crates/capability-node-protocol/README.md#adopthost-messages) pages and
+`WorkerShutdownRequest` until its adoption completes; every other request is declined with cause
+`unavailable`, and it never ends itself while it waits. Page 0 begins an adoption, discarding one in
+progress; each later page must name the same adoption ID and target with the next index, and all
+pages together hold at most 1,024 bindings without naming a terminal, Host terminal or creation
+twice. A page that breaks this is declined as `adopt-host` with cause `unavailable` and leaves the
+pages before it unchanged; a page before the last is answered `PageAccepted`. Without `--worker-id`
+nothing changes.
+
+The last page is answered within 18 seconds of its arrival, inside the Server's 20-second window:
+
+- `NoHost` is answered `Adopted` with no counts, and the Worker continues in the lazy loop above.
+- For a Host, Windows opens the recorded process by ID, requires it alive with the recorded creation
+  time, keeps its handle, and after the dial requires the pipe's server process to be that process.
+  macOS and Linux require the Host lock held, the endpoint to be a socket of this user with mode
+  0600, and the peer's effective user to be this user; a recorded process ID is never trusted there.
+- The dial offers `worker-host` and dials again for up to five seconds while the Host still serves
+  the lost Worker's session, then performs the `Hello`. A recorded epoch must be the Host's.
+- `ListTerminals` is read page by page; a changed inventory or a stale cursor restarts the read, at
+  most eight times, and at most 4,096 Host terminals are read.
+- One kernel import then gives the new kernel the bindings: a binding matches the Host terminal with
+  its whole identity and the same started state (an exited or failed terminal counts as started),
+  and is imported with its fence as a floor, so every Start or lifecycle step at or below it is
+  refused. A Close in flight keeps its receipts: no step of its attempt at or below the issued
+  ordinal reaches the Host, a step whose effect was unknown closes that attempt, and only a later
+  attempt continues. A Host terminal no binding matches is quarantined for the connection's life:
+  it is never attached, sent input, named in a title or drained, and a Start naming it is refused.
+  A binding the inventory lacks or contradicts is reported missing.
+
+After `Adopted` the Worker serves the admitted loop with the imported kernel. Its stop still
+inventories, forces and disposes every Host terminal, then waits for the adopted Host to exit: on
+Windows on the retained process handle, and on macOS and Linux until the Host lock is free. `exit`
+releases the Host as for a started one.
+
+A failure is answered, then ends the Worker with an `exited` record at site `adopt`. No process with
+the recorded ID, or a free Host lock, is `host-gone`; a failed dial, a missing endpoint or a Host
+still busy after five seconds is `host-unreachable`; another creation time, another pipe server
+process, no recorded process on Windows, a foreign endpoint or a refused peer user is
+`host-unverified`; another epoch is `host-mismatch`; a handshake refusal for any reason but capacity
+is `host-refused`; and an inventory that cannot be read, never stays the same, or cannot be imported
+is `inventory-failed`. Host gone and unreachable record reason `host-closed`, the others
+`host-protocol`.
+
+A real Windows Host witness in `src/terminal_host_operation/tests.rs` starts a terminal through one
+connection, drops it, adopts the Host with a second, imports the terminal and has it answer. Kernel
+tests in `src/terminal_authorization/import/tests.rs` cover the fence floor, Close receipts,
+quarantine and missing bindings. The macOS and Linux verification has no Host witness yet.
 
 ## Worktree discovery job
 
@@ -565,6 +626,12 @@ capability version 1; a mismatched request fails closed as
 version 2 implementation; its constructor cannot be configured to admit a legacy or future
 capability while retaining version 2 capacity semantics.
 
+A replacement Worker's kernel begins with one import instead of admissions: an imported binding
+holds only its fence, as a floor at and below which every operation is refused, its Host identity
+and the receipts of a Close in flight, and the kernel also holds the Host terminals the adoption
+quarantined, whose Start it refuses. A higher fence replaces an imported binding as it replaces an
+admitted one; [Replacement adoption](#replacement-adoption) owns the import's rules.
+
 Every admission or pre-handoff decision also receives an explicit Unix-millisecond time, and Start
 admission receives the currently observed Host epoch. A returned dispatch is permission to prepare
 the matching operation, not evidence that a Host effect occurred. The adapter must call
@@ -575,21 +642,21 @@ observed, so a caller-visible wall-clock rollback cannot revive any expired leas
 
 ### Authorization-kernel modeling record
 
-| Field        | Current contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | The OBCN carrier may deliver a Server-authorized Launch or Start more than once, late, for the wrong Worker generation, or after authority has advanced. Worker must decide locally whether one Host operation may begin and must preserve the exact terminal result without acquiring Server placement authority or performing the Host effect itself.                                                                                                                                                                                                                                                                                                                                                             |
-| Inputs       | Canonical OBCN `AuthorizedTerminalLaunch` or `AuthorizedTerminalStart` from an authenticated authoritative Server that obeys the globally fresh `OperationId` producer invariant, with its authorization capability checked against the kernel's intrinsic version 2 policy; the caller-supplied current local-Session Worker ID, nonzero OBLW generation, and current Unix-millisecond time; the observed Host epoch at Start admission and again at the handoff boundary; and a typed Host completion. A missing result or occupied slot remains explicit state rather than inferred success.                                                                                                                     |
-| Data         | `AuthorizedHostOperationKernel` owns at most 1,024 complete highest-fence bindings per Worker generation, keyed by product `TerminalId` and including operation kind, full authorization, Launch or Start payload, and an optional exact cached result. It separately owns one process-local slot in `empty`, `awaiting-handoff`, `handed-off`, or `result-ready` state and a maximum-observed Unix-millisecond high-water mark. A private `AuthorizedHostDispatch` retains the complete admitted operation and therefore its generation and authority binding.                                                                                                                                                     |
-| Outputs      | Admission returns `Dispatch`, `ResultReady`, or `SlotOccupied`; handoff returns `HandedOff` or `ResultReady`; `take_result` returns one typed OBCN Launch or Start result, including `CapacityExceeded` for a valid unseen terminal after the retained-binding limit is reached; invalid completion observations return a typed internal error without changing the slot. The kernel opens no carrier, performs no Host call, emits no product event, and writes no durable state.                                                                                                                                                                                                                                  |
-| Invariants   | Wrong Worker, stale generation, unsupported capability, expired new lease, lower fence, conflicting same-fence binding, and a valid unseen terminal beyond capacity never dispatch. An exact binding dispatches at most once and replays only its cached exact result, even after expiry or at capacity. Once the kernel observes a lease as expired, a lower later time cannot revive it. A valid higher fence replaces the prior binding and clears its cache even at capacity. Capacity rejection never inserts a tombstone or changes any binding. At most one operation or undelivered result occupies the global slot. Only `handed-off` can become a Host outcome.                                           |
-| Decisions    | Classification order is occupied slot, Worker identity, Worker generation, exact cached replay, capability, lease expiry, per-terminal fence, unseen-terminal capacity, then Start target epoch. Consequently unsupported or expired new requests retain their capability or lease classification at capacity; existing lower and same-fence requests retain their fence classifications; and only a valid unseen terminal receives `CapacityExceeded`. At Start admission and again at handoff, a target epoch mismatch becomes `HostIdentityChanged`; capacity precedes that check for an unseen terminal. Handoff expiry prevents an effect, and accepted Start identity, epoch, and geometry must remain exact. |
-| Model        | One deterministic state owner combines a generation-local, 1,024-entry per-terminal monotonic binding map with one globally bounded operation/result slot. `admit_launch` and `admit_start` are the principal entry points; `begin_host_handoff` is the named external-effect boundary; typed observation methods close the accepted binding and queue its result. Capacity tests cover cross-terminal limits and an unseen identity while the global slot is empty, operation-pending or result-ready.                                                                                                                                                                                                             |
-| Transitions  | The transition table below defines admission, handoff, completion, exact replay, result delivery, conflict, and stale-token behavior. Rejection before a binding is accepted queues an uncached result; every terminal outcome after a binding is accepted is cached before it is exposed.                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Dependencies | The Rust standard library, canonical local-Session Worker identity, and OBCN semantic types and constructors only. Time, socket liveness, decoded framing, current Host epoch, and Host observations are supplied as values by the operation adapters; the kernel monotonizes supplied time but never reads a clock. It does not read an environment, filesystem, socket, process, profile, executable, shell, or working directory, and it does not parse or encode Host framing.                                                                                                                                                                                                                                  |
-| Ownership    | Server continues to own placement, authorization issuance, and reconciliation. OBCN owns the carrier-independent request/result types and wire codec. Worker owns only local validation, monotonic replay memory, the single dispatch gate, and classification around the Host handoff boundary. Terminal Host remains the sole owner of terminal and process effects.                                                                                                                                                                                                                                                                                                                                              |
-| Verification | Table-driven unit tests exercise both operation kinds across wrong identity, generation, legacy and future capability mismatch, expiry and clock rollback, overlapping rejection priorities, the 1,023/1,024/1,025 capacity boundary, no-tombstone rejection, exact replay and higher-fence replacement at capacity, lower and conflicting fences, exact replay of every accepted/rejected/failed/unknown outcome, expiry after admission, stale and wrong completions, slot backpressure, initial and raced Start identity changes, mismatched Start completion geometry, both Launch modes, and both Start success transitions. OBCN tests own value/codec validity.                                              |
-| Correctness  | Authorization and capacity tests check exact binding/fence admission, a single global slot, replay, rejection preservation and cached outcome/epoch/transition. Process tests connect those decisions to the Host. The kernel has no separate TLA workflow proof.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Limits       | The running private Worker request loop invokes this kernel and its Host adapter. Bindings and cached results are process-local, are not crash-persistent, and remain until the kernel is dropped or a higher fence replaces them. The 1,024 limit has no release, TTL, LRU, or eviction path; an explicit retirement contract remains required before production. The kernel cannot detect a Server's cross-terminal `OperationId` reuse without an unbounded ledger.                                                                                                                                                                                                                                              |
+| Field        | Current contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | The OBCN carrier may deliver a Server-authorized Launch or Start more than once, late, for the wrong Worker generation, or after authority has advanced. Worker must decide locally whether one Host operation may begin and must preserve the exact terminal result without acquiring Server placement authority or performing the Host effect itself.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Inputs       | Canonical OBCN `AuthorizedTerminalLaunch` or `AuthorizedTerminalStart` from an authenticated authoritative Server that obeys the globally fresh `OperationId` producer invariant, with its authorization capability checked against the kernel's intrinsic version 2 policy; the caller-supplied current local-Session Worker ID, nonzero OBLW generation, and current Unix-millisecond time; the observed Host epoch at Start admission and again at the handoff boundary; and a typed Host completion. A missing result or occupied slot remains explicit state rather than inferred success.                                                                                                                                                             |
+| Data         | `AuthorizedHostOperationKernel` owns at most 1,024 complete highest-fence bindings per Worker generation, keyed by product `TerminalId` and including operation kind, full authorization, Launch or Start payload, and an optional exact cached result. It separately owns one process-local slot in `empty`, `awaiting-handoff`, `handed-off`, or `result-ready` state and a maximum-observed Unix-millisecond high-water mark. A private `AuthorizedHostDispatch` retains the complete admitted operation and therefore its generation and authority binding.                                                                                                                                                                                             |
+| Outputs      | Admission returns `Dispatch`, `ResultReady`, or `SlotOccupied`; handoff returns `HandedOff` or `ResultReady`; `take_result` returns one typed OBCN Launch or Start result, including `CapacityExceeded` for a valid unseen terminal after the retained-binding limit is reached; invalid completion observations return a typed internal error without changing the slot. The kernel opens no carrier, performs no Host call, emits no product event, and writes no durable state.                                                                                                                                                                                                                                                                          |
+| Invariants   | Wrong Worker, stale generation, unsupported capability, expired new lease, lower fence, conflicting same-fence binding, and a valid unseen terminal beyond capacity never dispatch. An exact binding dispatches at most once and replays only its cached exact result, even after expiry or at capacity. Once the kernel observes a lease as expired, a lower later time cannot revive it. A valid higher fence replaces the prior binding and clears its cache even at capacity. Capacity rejection never inserts a tombstone or changes any binding. At most one operation or undelivered result occupies the global slot. Only `handed-off` can become a Host outcome.                                                                                   |
+| Decisions    | Classification order is occupied slot, Worker identity, Worker generation, exact cached replay, capability, lease expiry, per-terminal fence, an adoption's quarantined Start target, unseen-terminal capacity, then Start target epoch. Consequently unsupported or expired new requests retain their capability or lease classification at capacity; existing lower and same-fence requests retain their fence classifications; and only a valid unseen terminal receives `CapacityExceeded`. At Start admission and again at handoff, a target epoch mismatch becomes `HostIdentityChanged`; capacity precedes that check for an unseen terminal. Handoff expiry prevents an effect, and accepted Start identity, epoch, and geometry must remain exact. |
+| Model        | One deterministic state owner combines a generation-local, 1,024-entry per-terminal monotonic binding map with one globally bounded operation/result slot. `admit_launch` and `admit_start` are the principal entry points; `begin_host_handoff` is the named external-effect boundary; typed observation methods close the accepted binding and queue its result. Capacity tests cover cross-terminal limits and an unseen identity while the global slot is empty, operation-pending or result-ready.                                                                                                                                                                                                                                                     |
+| Transitions  | The transition table below defines admission, handoff, completion, exact replay, result delivery, conflict, and stale-token behavior. Rejection before a binding is accepted queues an uncached result; every terminal outcome after a binding is accepted is cached before it is exposed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Dependencies | The Rust standard library, canonical local-Session Worker identity, and OBCN semantic types and constructors only. Time, socket liveness, decoded framing, current Host epoch, and Host observations are supplied as values by the operation adapters; the kernel monotonizes supplied time but never reads a clock. It does not read an environment, filesystem, socket, process, profile, executable, shell, or working directory, and it does not parse or encode Host framing.                                                                                                                                                                                                                                                                          |
+| Ownership    | Server continues to own placement, authorization issuance, and reconciliation. OBCN owns the carrier-independent request/result types and wire codec. Worker owns only local validation, monotonic replay memory, the single dispatch gate, and classification around the Host handoff boundary. Terminal Host remains the sole owner of terminal and process effects.                                                                                                                                                                                                                                                                                                                                                                                      |
+| Verification | Table-driven unit tests exercise both operation kinds across wrong identity, generation, legacy and future capability mismatch, expiry and clock rollback, overlapping rejection priorities, the 1,023/1,024/1,025 capacity boundary, no-tombstone rejection, exact replay and higher-fence replacement at capacity, lower and conflicting fences, exact replay of every accepted/rejected/failed/unknown outcome, expiry after admission, stale and wrong completions, slot backpressure, initial and raced Start identity changes, mismatched Start completion geometry, both Launch modes, and both Start success transitions. OBCN tests own value/codec validity.                                                                                      |
+| Correctness  | Authorization and capacity tests check exact binding/fence admission, a single global slot, replay, rejection preservation and cached outcome/epoch/transition. Process tests connect those decisions to the Host. The kernel has no separate TLA workflow proof.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Limits       | The running private Worker request loop invokes this kernel and its Host adapter. Bindings and cached results are process-local, are not crash-persistent, and remain until the kernel is dropped or a higher fence replaces them. The 1,024 limit has no release, TTL, LRU, or eviction path; an explicit retirement contract remains required before production. The kernel cannot detect a Server's cross-terminal `OperationId` reuse without an unbounded ledger.                                                                                                                                                                                                                                                                                      |
 
 | Current slot       | Input or observation                               | Guard                                                                          | Next slot          | Binding/result effect                                                                                      |
 | ------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------- |
@@ -684,7 +751,7 @@ The accepted `HostBrokerConnection` epoch is immutable. Host loss before handoff
 | `handed-off` or `awaiting-host` | Host loss or timeout                                                    | `draining-result`        | Queue cached outcome unknown, close Host, block retry, and retain Server only for bounded result delivery.                      |
 | Any live operation/result       | Server loss                                                             | `stopped`                | Close both links immediately; an unobserved in-flight dispatch is unknown and any undelivered exact result is abandoned intact. |
 | `result-ready`                  | Result write succeeds or its bounded opportunity expires                | `completed` or `stopped` | Empty the global slot; deliver the cached result exactly once, or abandon it without changing its classification.               |
-| `stopped`, retained terminal    | Recovery classification                                                 | `recovery-required`      | Preserve the unmatched disposition for explicit reconciliation; no Worker-adoption transition exists.                           |
+| `stopped`, retained terminal    | Recovery classification                                                 | `recovery-required`      | Preserve the unmatched disposition for explicit reconciliation; only a replacement Worker's adoption imports it.                |
 
 For runtime refinement, keep capacity, `SlotOccupied`, pre-admission rejection, cached replay, and
 the one global slot in `AuthorizedHostOperationKernel`; consume only its post-capacity `Dispatch`
@@ -695,8 +762,9 @@ one nonzero correlation for that dispatch. A known completion requires actual `R
 request-specific success kind or generic `TypedFailure`, exact correlation, and exact handoff Host
 epoch. Map generic `TypedFailure` only to `HostReportedFailure` until an authoritative classified
 Host-rejection contract exists. Treat any post-boundary uncertainty as outcome unknown, cache it in
-the kernel, and never resend. Keep delivery single-slot and bounded, and quarantine inventory after
-Worker death for explicit recovery rather than startup adoption.
+the kernel, and never resend. Keep delivery single-slot and bounded, and leave inventory after Worker
+death to a replacement Worker's [adoption](#replacement-adoption), which quarantines what no binding
+matches.
 
 ### Single-operation Host exchange refinement
 
@@ -796,6 +864,9 @@ of a record is readable, all its fragments share one hard two-second monotonic b
 moment, readiness hints the Worker was writing then included. Result writes also share one
 two-second budget. Both waits observe Host loss. Host loss during result delivery preserves that
 bounded delivery attempt, then ends the Worker; Server loss abandons delivery and closes Host.
+These paths, like a Host exchange past its bound or a lost Host stream, end only the Worker: the
+Host and its terminals keep running, and the managed Server's replacement Worker takes them over
+through [adoption](#replacement-adoption).
 
 A Host that answers slowly is waited for; only one that stays silent past a hard bound is lost.
 Each Host exchange, its request written and its answer read, ends within ten seconds. The request
@@ -904,7 +975,8 @@ random source. A zero value or read failure fails preparation closed. Product Te
 never used as a Host creation identity. Resolved facts live only in the one prepared operation;
 replay uses the kernel's exact cached result and never resolves another launch or creates another
 Host terminal. Start resolves neither shell nor cwd and preserves the exact authorized Host target
-and complete geometry. Worker does not adopt retained Host inventory after reconnect.
+and complete geometry. A Worker never reconnects to its Host; only a replacement Worker adopts
+retained Host inventory.
 
 Process witnesses in `tests/process/terminal_operations.rs` cover real Worker and Zig Host deferred
 Create, Start, immediate Create, exact replay, and both retained terminals after Server/Worker loss;
@@ -1009,7 +1081,8 @@ The `target-cleanup` configuration fixes Dispose and explores empty, target, unr
 (two-slot) viewer caches, target/unrelated controller reservations, distinct old/new controller IDs,
 queued target frame/feedback, old leases and an already admitted Acquire. These finite bounds do
 not establish the actual eight-slot bound. Initial state assumes one authenticated admitted broker
-with immutable epoch/generation; no replacement or adoption transition exists. Configurations use
+with immutable epoch/generation; the model has no adoption transition, and a Host terminal an adoption
+quarantines never enters these caches. Configurations use
 no symmetry, state constraint or fairness assumption and claim no eventual cleanup success.
 
 | Owned claim                                               | Model actions and properties                                                                                                                                                                                                     | Required implementation refinement                                                                                                                                                                                                     |
@@ -1167,12 +1240,12 @@ No Panel or Workspace position is stored because a Panel may later move. The nat
 processes are not modified, and no Mac/Linux context injection is introduced.
 
 Windows additionally mints one nonzero 128-bit Worker ID from the existing OS random
-source before Server connection. `WorkerHello`, retained `ServerConnection`, and the
+source before Server connection, unless a replacement Worker received its ID from the Server. `WorkerHello`, retained `ServerConnection`, and the
 operation kernel share that exact identity. Separate connections do not reuse the
 old fixed local diagnostic ID: otherwise different Sessions' terminal counters could
 alias a stale caller. RNG failure or zero fails before connecting. Identity collision
 resistance relies on the OS random source. This changes no OBLW/OBCN fields and does
-not enable reconnect, inventory adoption, or migration of old Worker bindings.
+not enable reconnect; only a replacement Worker's adoption imports old Worker bindings.
 Mac/Linux retain their existing identity behavior. Two independent Windows Session
 process traces cover reused Terminal IDs and refusal of the old Worker context.
 

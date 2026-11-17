@@ -30,6 +30,10 @@ use crate::{
     terminal_host_operation::{HostOperationDisposition, PreparedHostOperation},
 };
 
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+mod adopt;
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+pub(crate) use adopt::run as run_adopt;
 mod background_jobs;
 mod exit_cause;
 mod host_query;

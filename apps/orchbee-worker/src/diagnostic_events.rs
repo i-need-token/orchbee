@@ -1,5 +1,5 @@
 //! The Worker's diagnostic log records: its own start and end, each Terminal Host start
-//! it attempts, the Host anomalies it contains with the class of each, the Server requests it
+//! it attempts, a replacement Worker's adoption with its counts, the Host anomalies it contains with the class of each, the Server requests it
 //! declines with their cause, a Server message it drops, an operation it could not prepare, and
 //! background cleanup its end could not prove, so Host diagnostics reach the log through the
 //! Worker. A record carries only closed tokens and numbers: an error kind, a site and reason, a
@@ -68,11 +68,13 @@ pub(crate) enum Site {
     Handoff,
     HostStart,
     Shutdown,
+    /// A replacement Worker adopting the Host of the Worker it replaces.
+    Adopt,
 }
 
 /// Each site keeps its own once-a-minute slot for `host-slow` and for `host-unexpected`.
-const SITE_SLOTS: usize = 16;
-const _: () = assert!((Site::Shutdown as usize) < SITE_SLOTS);
+const SITE_SLOTS: usize = 17;
+const _: () = assert!((Site::Adopt as usize) < SITE_SLOTS);
 
 impl Site {
     const fn token(self) -> &'static str {
@@ -94,6 +96,7 @@ impl Site {
             Self::Handoff => "handoff",
             Self::HostStart => "host-start",
             Self::Shutdown => "shutdown",
+            Self::Adopt => "adopt",
         }
     }
 }
@@ -245,6 +248,49 @@ pub(crate) fn host_started() {
     log_event(LogLevel::Info, "host-started", &[]);
 }
 
+/// What a replacement Worker's adoption found: its target, its outcome token, and the counts it
+/// read. A failed adoption also writes an `exited` record at site `adopt`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct AdoptionRecord {
+    /// `no-host` or `host`.
+    pub(crate) target: &'static str,
+    /// `adopted` or the failure token.
+    pub(crate) outcome: &'static str,
+    pub(crate) imported: u32,
+    pub(crate) quarantined: u32,
+    pub(crate) missing: u32,
+    pub(crate) pages: u32,
+    pub(crate) inventory_restarts: u32,
+    pub(crate) elapsed: Duration,
+}
+
+pub(crate) fn adoption(record: AdoptionRecord) {
+    let fields = [
+        ("target", LogValue::Token(record.target)),
+        ("outcome", LogValue::Token(record.outcome)),
+        ("imported", LogValue::Count(u64::from(record.imported))),
+        (
+            "quarantined",
+            LogValue::Count(u64::from(record.quarantined)),
+        ),
+        ("missing", LogValue::Count(u64::from(record.missing))),
+        ("pages", LogValue::Count(u64::from(record.pages))),
+        (
+            "inventoryRestarts",
+            LogValue::Count(u64::from(record.inventory_restarts)),
+        ),
+        ("elapsedMs", milliseconds(record.elapsed)),
+    ];
+    #[cfg(test)]
+    note("adoption", &fields);
+    let level = if record.outcome == "adopted" {
+        LogLevel::Info
+    } else {
+        LogLevel::Error
+    };
+    log_event(level, "adoption", &fields);
+}
+
 /// Names where a Host start failed: its `stage` token, the operating-system error code `error`
 /// carries, the Host's exit code when it had exited, and the time since the start began.
 pub(crate) fn host_start_failed(
@@ -353,6 +399,9 @@ pub(crate) enum DeclineCause {
     /// An ordinary request while a Server handoff is prepared.
     #[cfg(windows)]
     Handoff,
+    /// A request to a replacement Worker before its adoption, or an adoption page that breaks
+    /// the pages before it.
+    Unavailable,
     /// The operation kernel refused it before anything reached the Host.
     State,
 }
@@ -367,6 +416,7 @@ impl DeclineCause {
             Self::Watermark => "watermark",
             #[cfg(windows)]
             Self::Handoff => "handoff",
+            Self::Unavailable => "unavailable",
             Self::State => "state",
         }
     }

@@ -137,7 +137,7 @@ pub(crate) fn execute(
         Some(SendRejection::StaleWorkerGeneration)
     } else if request.target.host_epoch().as_bytes() != *host.host_epoch().as_bytes() {
         Some(SendRejection::StaleHostEpoch)
-    } else if host.disposed_terminal(request.target.terminal_id()) {
+    } else if host.unavailable_terminal(request.target.terminal_id()) {
         Some(SendRejection::TerminalUnavailable)
     } else if request.precondition == SendPrecondition::IdlePrompt
         && request.records.prompt_line().is_none()

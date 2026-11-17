@@ -28,16 +28,42 @@ enum HostState {
     },
 }
 
-/// Exact managed Host ownership; incomplete attempts never drop the child handle.
+/// The process whose exit completes a managed stop: the child this Worker started, or the Host a
+/// replacement Worker adopted.
+enum HostOwner {
+    Started(RetainedChild),
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    Adopted(crate::host_adoption::AdoptedHost),
+}
+
+impl HostOwner {
+    fn exited(&mut self) -> io::Result<bool> {
+        match self {
+            Self::Started(child) => child.try_wait().map(|status| status.is_some()),
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+            Self::Adopted(host) => host.exited(),
+        }
+    }
+}
+
+/// Exact managed Host ownership; incomplete attempts never drop the owner.
 pub(crate) struct ManagedHost {
-    child: RetainedChild,
+    owner: HostOwner,
     state: HostState,
 }
 
 impl ManagedHost {
     pub(super) const fn new(child: RetainedChild) -> Self {
         Self {
-            child,
+            owner: HostOwner::Started(child),
+            state: HostState::Connected,
+        }
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    pub(super) const fn adopted(host: crate::host_adoption::AdoptedHost) -> Self {
+        Self {
+            owner: HostOwner::Adopted(host),
             state: HostState::Connected,
         }
     }
@@ -85,14 +111,14 @@ impl ManagedHost {
             );
         }
         loop {
-            match self.child.try_wait() {
-                Ok(Some(_)) => {
+            match self.owner.exited() {
+                Ok(true) => {
                     return WorkerShutdownOutcome::Stopped {
                         host_epoch: epoch,
                         disposed_terminals: disposed,
                     };
                 }
-                Ok(None) => {}
+                Ok(false) => {}
                 Err(_) => {
                     return incomplete(
                         ShutdownStage::HostExit,
@@ -189,8 +215,8 @@ pub(super) fn run(
 }
 
 /// A Server `exit` ends this Worker without ending any terminal: closing the broker connection
-/// leaves the Host with every terminal unchanged, and the retained Host child is dropped without
-/// a wait or a termination.
+/// leaves the Host with every terminal unchanged, and the retained Host child or adopted Host
+/// owner is dropped without a wait or a termination.
 fn release(host: &HostBrokerConnection) -> WorkerShutdownOutcome {
     let _closed = host.stream().shutdown(Shutdown::Both);
     WorkerShutdownOutcome::Released {
