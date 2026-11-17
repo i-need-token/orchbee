@@ -1,0 +1,21 @@
+{
+	"contractVersion": 1,
+	"capability": "configured-command-source-exited",
+	"valid": [
+		{
+			"name": "source-exited",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "source-exited"
+				}
+			}
+		}
+	],
+	"invalid": []
+}

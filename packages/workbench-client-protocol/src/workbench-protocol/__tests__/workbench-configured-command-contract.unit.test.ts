@@ -17,9 +17,19 @@ it('validates configured commands across Rust, TypeScript and JSON shape boundar
 				'utf8',
 			),
 		);
-	const corpus = z
-		.strictObject({ contractVersion: z.literal(1), valid: z.array(entry), invalid: z.array(entry) })
-		.parse(await read('workbench-configured-command-conformance-v1.json'));
+	const corpusSchema = z.strictObject({
+		contractVersion: z.literal(1),
+		capability: z.string().optional(),
+		valid: z.array(entry),
+		invalid: z.array(entry),
+	});
+	// A capability's cases live in a corpus of their own, so the sealed one keeps its bytes.
+	const corpora = [
+		corpusSchema.parse(await read('workbench-configured-command-conformance-v1.json')),
+		corpusSchema.parse(
+			await read('workbench-configured-command-source-exited-conformance-v1.json'),
+		),
+	];
 	const schema = z
 		.record(z.string(), z.unknown())
 		.parse(await read('workbench-configured-command.schema.json'));
@@ -30,10 +40,13 @@ it('validates configured commands across Rust, TypeScript and JSON shape boundar
 	});
 	ajv.addSchema(z.record(z.string(), z.unknown()).parse(await read('workbench.schema.json')));
 	const validate = ajv.compile(schema);
-	for (const [cases, accepted] of [
-		[corpus.valid, true],
-		[corpus.invalid, false],
-	] as const)
+	for (const [cases, accepted] of corpora.flatMap(
+		(corpus) =>
+			[
+				[corpus.valid, true],
+				[corpus.invalid, false],
+			] as const,
+	))
 		for (const test of cases) {
 			const binding =
 				test.direction === 'request' ? WorkbenchRequestSchema : WorkbenchResponseSchema;

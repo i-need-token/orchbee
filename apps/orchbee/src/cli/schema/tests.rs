@@ -96,15 +96,21 @@ fn configured_catalog_and_receipts_publish_closed_native_schema() {
         "the embedded configured receipt keeps the complete canonical rejection vocabulary"
     );
     let validator = jsonschema::validator_for(&schema).unwrap();
-    let corpus: Value = serde_json::from_str(include_str!(
+    let corpus = |text: &str| -> Vec<Value> {
+        serde_json::from_str::<Value>(text).unwrap()["valid"]
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+    // A capability's cases live in a corpus of their own, so the sealed one keeps its bytes.
+    for case in corpus(include_str!(
         "../../../../../schemas/workbench/v1/workbench-configured-command-conformance-v1.json"
     ))
-    .unwrap();
-    for case in corpus["valid"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|case| case["direction"] == "response")
+    .into_iter()
+    .chain(corpus(include_str!(
+        "../../../../../schemas/workbench/v1/workbench-configured-command-source-exited-conformance-v1.json"
+    )))
+    .filter(|case| case["direction"] == "response")
     {
         let mut reply = case["document"].clone();
         reply.as_object_mut().unwrap().remove("kind");

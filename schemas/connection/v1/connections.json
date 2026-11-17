@@ -213,6 +213,10 @@
 			"sha256": "5490f75ba1fec2043fa74db452360b77e96a544b070d11b9c46ee32f1b65f987"
 		},
 		{
+			"path": "schemas/workbench/v1/workbench-configured-command-source-exited-conformance-v1.json",
+			"sha256": "a368c1108e0839ae6fcfa855fd45c052f35930f3edc86e4abb760d6823ecba79"
+		},
+		{
 			"path": "schemas/workbench/v1/workbench-conformance-v1.json",
 			"sha256": "4fd1fee345e028e25c044d2801ec66186e9acb7daaa1c8d0cbea2777eedb09c5"
 		},
