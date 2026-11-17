@@ -1,39 +1,54 @@
 use super::*;
+
+/// A private temporary folder, removed on drop.
+struct Root(PathBuf);
+
+impl Root {
+    fn new() -> Self {
+        // The counter keeps two roots taken in the same clock tick apart.
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = Self(crate::test_temporary_directory().join(format!(
+            "orchbee-private-cache-{:032x}-{}",
+            nonce,
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        )));
+        fs::create_dir(&root.0).unwrap();
+        permissions::protect_new(&mut permissions::open_directory(&root.0, true).unwrap()).unwrap();
+        root
+    }
+}
+
+impl Drop for Root {
+    fn drop(&mut self) {
+        let actual = self.0.canonicalize().unwrap();
+        assert_eq!(
+            actual.parent(),
+            Some(
+                crate::test_temporary_directory()
+                    .canonicalize()
+                    .unwrap()
+                    .as_path()
+            )
+        );
+        assert!(
+            actual
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with("orchbee-private-cache-")
+        );
+        fs::remove_dir_all(actual).unwrap();
+    }
+}
+
 #[test]
 fn private_cache_serializes_writers_and_preserves_rejected_targets() {
-    struct Root(PathBuf);
-    impl Drop for Root {
-        fn drop(&mut self) {
-            let actual = self.0.canonicalize().unwrap();
-            assert_eq!(
-                actual.parent(),
-                Some(
-                    crate::test_temporary_directory()
-                        .canonicalize()
-                        .unwrap()
-                        .as_path()
-                )
-            );
-            assert!(
-                actual
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .starts_with("orchbee-private-cache-")
-            );
-            fs::remove_dir_all(actual).unwrap();
-        }
-    }
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let root = Root(
-        crate::test_temporary_directory().join(format!("orchbee-private-cache-{:032x}", nonce)),
-    );
-    fs::create_dir(&root.0).unwrap();
-    permissions::protect_new(&mut permissions::open_directory(&root.0, true).unwrap()).unwrap();
+    let root = Root::new();
     let path = root.0.join("nested").join("remote");
     assert!(
         PrivateCache::read_existing(&path, "status.json", 10)
@@ -76,4 +91,19 @@ fn private_cache_serializes_writers_and_preserves_rejected_targets() {
     let cache = PrivateCache::acquire(&path, "codex").unwrap();
     assert!(!path.join("codex.pending").exists());
     drop(cache);
+}
+
+/// A child process that another thread starts while the lock is held keeps a copy of the lock's
+/// descriptor until it replaces its image; a duplicate here stands in for that copy. Dropping the
+/// owner still frees the record for the next writer at once.
+#[test]
+fn dropping_the_owner_frees_the_lock_while_a_copy_of_its_descriptor_is_open() {
+    let root = Root::new();
+    let path = root.0.join("store");
+    let cache = PrivateCache::acquire(&path, "install").unwrap();
+    let copy = cache._lock.0.try_clone().unwrap();
+    drop(cache);
+    let next = PrivateCache::acquire(&path, "install");
+    assert!(next.is_ok(), "{:?}", next.err().map(|error| error.kind()));
+    drop((next, copy));
 }

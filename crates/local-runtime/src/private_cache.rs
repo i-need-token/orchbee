@@ -18,8 +18,22 @@ pub struct PrivateCache {
     record: String,
     lock: String,
     pending: PathBuf,
-    _lock: File,
+    _lock: HeldLock,
     _pins: Vec<File>,
+}
+
+/// The locked lock file, unlocked before its descriptor closes. A child process that another
+/// thread starts while the lock is held keeps a copy of the descriptor until it replaces its
+/// image, and on macOS and Linux an `flock` lasts while any copy is open: closing alone could leave
+/// the record locked after its owner let go, and the next writer in this process would read
+/// `WouldBlock` with no other writer.
+struct HeldLock(File);
+
+impl Drop for HeldLock {
+    fn drop(&mut self) {
+        // Best effort: when the unlock fails, the close that follows releases the lock as before.
+        let _ = self.0.unlock();
+    }
 }
 
 /// One read whose admitted private ancestors remain pinned until validation completes.
@@ -91,7 +105,7 @@ impl PrivateCache {
             record: record.to_owned(),
             lock: lock_name.to_owned(),
             pending: directory.join(format!("{record}.{PENDING_EXTENSION}")),
-            _lock: lock,
+            _lock: HeldLock(lock),
             _pins: pins,
         };
         cache.recover_pending()?;

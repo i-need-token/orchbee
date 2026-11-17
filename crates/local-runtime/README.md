@@ -412,6 +412,14 @@ Windows mechanism maps to a POSIX one:
 | Consistent reader           | A snapshot handle without delete sharing blocks a replacement while it is open                                                                                                   | A held descriptor keeps reading the version it opened, since no writer changes a published file in place; a reader never blocks a writer                                                                         |
 | Other platform checks       | None                                                                                                                                                                             | macOS also refuses an extended ACL and a volume mounted to ignore ownership; Linux checks no ACL                                                                                                                 |
 
+The writer lock's owner unlocks it with `File::unlock` before its descriptor closes. A child process
+that another thread starts while the lock is held keeps a copy of that descriptor until it replaces
+its image, and an `flock` lasts while any copy is open: closing alone left the lock held for a
+moment after its owner let go, and the next writer in the same process read `WouldBlock` with no
+other writer. A thread that starts its own child is not exposed, since the spawn returns only after
+the child closed its close-on-exec copies. A Windows handle is never inherited, and the same unlock
+releases its lock at once.
+
 Windows admits SYSTEM and Administrators as owners beside the token user because an elevated
 session of the same account owns what it creates through Administrators, and an elevated installer
 creates the store root the same way; SYSTEM and every member of Administrators can take ownership
