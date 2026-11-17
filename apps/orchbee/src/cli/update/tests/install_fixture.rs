@@ -161,12 +161,17 @@ impl Fixture {
             std::process::id(),
             NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
-        // A Unix temporary folder others may enter is no private parent to create below.
+        // A temporary folder others may enter is no private parent to create below, so the cache
+        // admits a folder of its own. On Unix the mode makes it private. On Windows it takes only
+        // the inheritable entries of the temporary folder, and a sandbox's entry there, such as
+        // a traverse right for its app container, does not reach it.
         #[cfg(not(windows))]
         {
             use std::os::unix::fs::DirBuilderExt;
             fs::DirBuilder::new().mode(0o700).create(&path).unwrap();
         }
+        #[cfg(windows)]
+        fs::create_dir(&path).unwrap();
         PrivateCache::prepare(&path).unwrap();
         Self(path)
     }
