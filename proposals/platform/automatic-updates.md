@@ -72,7 +72,7 @@ Applying an update:
 | Zed                                          | Hourly                                           | In the background                                                 | Restart to update in the title bar                 | Terminals end                                      |
 | Chrome                                       | Its own updater                                  | In the background                                                 | An Update button in the toolbar                    | Tabs reopen; page state is lost                    |
 | Squirrel.Windows apps such as GitHub Desktop | At start                                         | Into a new version directory beside a stub that starts the newest | A restart prompt                                   | The application restarts                           |
-| Orchbee                                      | One minute after the Session starts, then hourly | In the background, beside the running version                     | Update to the right of Settings                    | Terminals and Agents keep running                  |
+| Orchbee                                      | One minute after the Session starts, then hourly | In the background, beside the running version                     | A primary Update at the end of the Settings row    | Terminals and Agents keep running                  |
 
 Each of them ends running work when it applies an update. Orchbee keeps it: the Terminal Host, which
 owns every program, takes part in no Client or Session switch, and a Host change moves each
@@ -101,7 +101,7 @@ borrows from.
 | 1   | The Session Server checks one minute after it starts and then hourly, through a background helper run of the store's active `orchbee`                                                                       | One Server per Session exists for TUI, CLI, and window users alike; Clients come and go, and several may be open          | Announced                                                                                        |
 | 2   | The helper downloads, verifies, and installs beside the running version and never touches a running file                                                                                                    | The store already installs only by adding directories                                                                     | Announced                                                                                        |
 | 3   | The window application updates too, through versioned window directories behind an unchanged launcher path, from the window self-update release on                                                          | A switch becomes an ordinary relaunch; nothing running is replaced; shortcut, identity, and registration stay             | Announced that it updates; Chosen how; its own release Decided by the owner's release-often rule |
-| 4   | An Update control sits to the right of Settings in the TUI and in the window                                                                                                                                | The owner's request                                                                                                       | Announced                                                                                        |
+| 4   | An Update control ends the sidebar's Settings row in the primary button style, in the TUI and in the window                                                                                                 | The owner's request; place and style revised 2026-11-17                                                                   | Announced                                                                                        |
 | 5   | A click switches only the Client it is in                                                                                                                                                                   | Relaunching a Client the person is not looking at would interrupt their typing there                                      | Chosen                                                                                           |
 | 6   | The TUI relaunches in the same console through its launcher; without one it leaves with a one-line hint                                                                                                     | Windows has no process replacement; the launcher already owns the console and the exit code                               | Chosen                                                                                           |
 | 7   | Before P1b the Session moves by itself only when no terminal runs and no Client is connected; P1b drops the Client condition and lets the click move it                                                     | Nothing reconnects on its own yet, so ending a Server under a connected Client strands it                                 | Decided by the owner; the Client condition Chosen                                                |
@@ -1106,19 +1106,22 @@ Decided: the background Session moves to the new version by itself once no termi
 The TUI comes first, and the window follows it under the
 [common feature contract](../../docs/INTERFACE-DESIGN.md#common-feature-contract).
 
-| State     | When                                                                                                               | TUI                                                                | Window                                                     |
-| --------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Absent    | No version newer than this Client's own is active, or a development build (a held version is never the active one) | Nothing                                                            | Nothing                                                    |
-| Ready     | A newer version is active; for the window, a newer window version                                                  | `[ Update ]` on the Settings row, its label in `accent-action`     | An Update button in the sidebar footer, in the accent role |
-| Switching | After a click                                                                                                      | The TUI leaves at once and its new version opens; no pending state | The same                                                   |
-| Waiting   | The click cannot switch yet: the Session must move first, or a restart could not complete                          | One notice; the control stays                                      | The same, in the window's notice surface                   |
+| State     | When                                                                                                               | TUI                                                                | Window                                            |
+| --------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------- |
+| Absent    | No version newer than this Client's own is active, or a development build (a held version is never the active one) | Nothing                                                            | Nothing                                           |
+| Ready     | A newer version is active; for the window, a newer window version                                                  | `[ Update ]` ending the Settings row as a primary button           | A primary Update button ending the sidebar footer |
+| Switching | After a click                                                                                                      | The TUI leaves at once and its new version opens; no pending state | The same                                          |
+| Waiting   | The click cannot switch yet: the Session must move first, or a restart could not complete                          | One notice; the control stays                                      | The same, in the window's notice surface          |
 
-- Place: on the Settings row right after Settings, one blank cell apart as adjacent buttons are.
+- Place: at the right end of the Settings row, two blank cells before Help in the TUI, and at the
+  right end of the window's sidebar footer, in line with the rows' end tools, with Settings at the
+  start of the row in both. It takes the primary button style as the sidebar's one
+  [ready-state chrome action](../../docs/INTERFACE-DESIGN.md#visual-roles-and-themes).
   Development builds, whose
   [environment marker](../../apps/orchbee/docs/tui-shell-layout.md#environment-marker) uses that
-  row, never show the control. When the row is short, Help drops first and then Update, which
-  stays reachable in the action menu. The window footer puts it between Settings and Help, where
-  its environment marker sits.
+  row, never show the control. When the row is short, Help drops first and Update takes the row's
+  end, then Update drops once it cannot keep one blank cell after Settings, and stays reachable in
+  the action menu.
 - Keyboard: the control invokes one Client Action, Update, which the action menu (`Ctrl+b ?`) lists
   while it is available. It has no default key.
 - A failed background check, install, or fallback changes nothing on screen; the next hour retries,

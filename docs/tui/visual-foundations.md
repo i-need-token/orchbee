@@ -128,9 +128,10 @@ Theme rules:
   action wording and ordinary interaction cues, without introducing warning bold, underline, or
   blink. Named ANSI contrast is checked against the reference palette and actual host evidence; a
   customized host palette is not inferred from RGB tests.
-- `accent-action` identifies the one primary action in the current decision context while it is at
-  rest. It never identifies keyboard focus, selection, or a successful outcome; those meanings keep
-  their own roles.
+- `accent-action` identifies the one primary action in the current decision context, or the one
+  ready-state chrome button that [`components.md`](components.md#action-controls) admits outside
+  it, while it is at rest. It never identifies keyboard focus, selection, or a successful outcome;
+  those meanings keep their own roles.
 - An RGB theme is designed for one background polarity and declares it. It paints only when the
   host appearance is known through a probe or an explicit setting, and only at truecolor: a lower
   level cannot hold its canvas and ANSI palette, so a quantized copy would be a different theme.

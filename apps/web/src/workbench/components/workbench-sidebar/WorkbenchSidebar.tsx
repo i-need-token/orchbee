@@ -90,8 +90,8 @@ interface WorkbenchSidebarProps {
 	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
 	/**
-	 * The footer's Update control right after Settings, present only while a newer version is
-	 * offered: its label, the tooltip that names the version, and what a press invokes.
+	 * The footer's Update control at the row's end, present only while a newer version is offered:
+	 * its label, the tooltip that names the version, and what a press invokes.
 	 */
 	readonly update?:
 		| { readonly label: string; readonly onUpdate: () => void; readonly tooltip: string }
@@ -371,23 +371,6 @@ export function WorkbenchSidebar({
 							{settingsShortcutLabel === undefined ? null : <Kbd>{settingsShortcutLabel}</Kbd>}
 						</TooltipContent>
 					</Tooltip>
-					{update === undefined ? null : (
-						<Tooltip>
-							<TooltipTrigger
-								render={
-									<button
-										className={styles['update']}
-										data-slot='workbench-sidebar-update'
-										type='button'
-										onClick={update.onUpdate}
-									/>
-								}
-							>
-								<span className={styles['updateText']}>{update.label}</span>
-							</TooltipTrigger>
-							<TooltipContent side='top'>{update.tooltip}</TooltipContent>
-						</Tooltip>
-					)}
 					{environmentMarker === undefined ? null : (
 						<Tooltip disabled={environmentMarker.description === null}>
 							<TooltipTrigger
@@ -413,6 +396,25 @@ export function WorkbenchSidebar({
 								)}
 							</TooltipTrigger>
 							<TooltipContent side='top'>{environmentMarker.description}</TooltipContent>
+						</Tooltip>
+					)}
+					{/* Update: the primary button that ends the row while a newer version is offered. */}
+					{update === undefined ? null : (
+						<Tooltip>
+							<TooltipTrigger
+								render={
+									<Button
+										className={styles['update']}
+										data-slot='workbench-sidebar-update'
+										size='sm'
+										type='button'
+										onClick={update.onUpdate}
+									/>
+								}
+							>
+								<span className={styles['updateText']}>{update.label}</span>
+							</TooltipTrigger>
+							<TooltipContent side='top'>{update.tooltip}</TooltipContent>
 						</Tooltip>
 					)}
 				</div>

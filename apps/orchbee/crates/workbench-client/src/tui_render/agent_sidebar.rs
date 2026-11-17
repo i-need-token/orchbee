@@ -66,6 +66,38 @@ struct ActionsContext<'a> {
     controls: &'a super::sidebar_chrome::Context<'a>,
 }
 
+fn rest_state(enabled: bool) -> InteractionState {
+    InteractionState::new(
+        FocusState::Unfocused,
+        PointerPresentation::Rest,
+        NavigationState::None,
+        CurrentState::NotCurrent,
+        CheckedState::Unchecked,
+        if enabled {
+            Availability::Enabled
+        } else {
+            Availability::Disabled
+        },
+        OperationState::Idle,
+    )
+}
+
+/// The extent `action` takes at rest from the start of `area`, before anything paints.
+fn resolve_fixed_action(
+    frame: &Frame<'_>,
+    area: Rect,
+    action: &FixedAction<'_>,
+    theme: &Theme,
+) -> Option<Rect> {
+    let rest = ActionSpec::new(
+        action.label,
+        action.kind,
+        ControlSurface::Chrome,
+        rest_state(action.enabled),
+    );
+    action_rect(frame.area(), area, rest, theme)
+}
+
 fn render_fixed_action(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -74,28 +106,14 @@ fn render_fixed_action(
     layer: HitLayer,
     hits: Option<&mut HitMapBuilder>,
 ) -> Option<Rect> {
+    let rect = resolve_fixed_action(frame, area, &action, theme)?;
     let FixedAction {
         label,
         kind,
         enabled,
         target,
     } = action;
-    let availability = if enabled {
-        Availability::Enabled
-    } else {
-        Availability::Disabled
-    };
-    let base_state = InteractionState::new(
-        FocusState::Unfocused,
-        PointerPresentation::Rest,
-        NavigationState::None,
-        CurrentState::NotCurrent,
-        CheckedState::Unchecked,
-        availability,
-        OperationState::Idle,
-    );
-    let rest = ActionSpec::new(label, kind, ControlSurface::Chrome, base_state);
-    let rect = action_rect(frame.area(), area, rest, theme)?;
+    let base_state = rest_state(enabled);
     let interaction = if enabled {
         InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
     } else {
@@ -393,22 +411,22 @@ pub(super) fn render(
             layer,
             hits.as_deref_mut(),
         );
-    // Update follows Settings one cell apart and keeps its place before Help does.
+    // Update ends the row before Help, or at its end once Help gives way, and keeps its place
+    // before Help does.
     let update_action = settings_action.zip(update).and_then(|(action, version)| {
-        let x = action
-            .right()
-            .saturating_add(super::sidebar_chrome::ACTION_GAP);
-        let row = Rect::new(x, settings.y, settings.right().saturating_sub(x), 1);
         let target = super::sidebar_chrome::update_target();
+        let control = FixedAction {
+            label: locale.update_control(),
+            kind: ActionKind::Primary,
+            enabled: true,
+            target: target.clone(),
+        };
+        let width = resolve_fixed_action(frame, settings, &control, theme)?.width;
+        let x = super::sidebar_chrome::update_x(settings, action, width, false)?;
         let painted = render_fixed_action(
             frame,
-            row,
-            FixedAction {
-                label: locale.update_control(),
-                kind: ActionKind::Primary,
-                enabled: true,
-                target: target.clone(),
-            },
+            Rect::new(x, settings.y, width, 1),
+            control,
             theme,
             layer,
             hits.as_deref_mut(),
@@ -428,9 +446,10 @@ pub(super) fn render(
         &controls,
         hits.as_deref_mut(),
     );
-    // The environment marker yields first: it takes only what Settings, Update and Help leave.
-    if let (Some(action), Some(help)) = (leading, help) {
-        let (start, end) = super::environment_marker::bounds(action.right(), help.x);
+    // The environment marker yields first: it takes only what Settings leaves before Update, or
+    // before Help while Update is absent.
+    if let (Some(action), Some(next)) = (settings_action, update_action.or(help)) {
+        let (start, end) = super::environment_marker::bounds(action.right(), next.x);
         if let Some(marker) = super::environment_marker::layout(&controls, settings.y, start, end) {
             super::environment_marker::paint(
                 frame,

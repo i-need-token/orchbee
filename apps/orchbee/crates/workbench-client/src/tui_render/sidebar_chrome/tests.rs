@@ -352,18 +352,18 @@ fn paint_sidebar(
     area: Rect,
     layer: SidebarLayer,
 ) -> (Buffer, HitMapBuilder) {
-    paint_sidebar_offering(view, locale, area, layer, None)
+    paint_sidebar_offering(view, locale, area, layer, None, &Theme::terminal_native())
 }
 
-/// [`paint_sidebar`] while the Update control offers `update`.
+/// [`paint_sidebar`] under `theme` while the Update control offers `update`.
 fn paint_sidebar_offering(
     view: &ClientView,
     locale: Locale,
     area: Rect,
     layer: SidebarLayer,
     update: Option<&str>,
+    theme: &Theme,
 ) -> (Buffer, HitMapBuilder) {
-    let theme = Theme::terminal_native();
     let mut terminal = Terminal::new(TestBackend::new(area.width, area.height)).unwrap();
     let mut hits = HitMapBuilder::new();
     terminal
@@ -381,7 +381,7 @@ fn paint_sidebar_offering(
                         text: "",
                         role: Role::StatusSuccess,
                     },
-                    theme: &theme,
+                    theme,
                     input: SidebarInput::Terminal,
                     creation: None,
                     held: None,
@@ -500,116 +500,160 @@ fn cells(text: &str) -> u16 {
     u16::try_from(display_width(text)).unwrap()
 }
 
-/// While a newer version is active, `[ Update ]` follows Settings one cell apart with its label in
-/// `accent-action`, and its tooltip says what keeps running. As the row narrows, Help gives way
-/// first and then Update; nothing overlaps, and the environment marker takes only what is left.
+/// The column `needle` starts at on row `y`, if the row shows it.
+fn find(buffer: &Buffer, y: u16, needle: &str) -> Option<u16> {
+    let line = text(buffer, y, 0, buffer.area.width);
+    line.find(needle).map(|at| cells(&line[..at]))
+}
+
+/// While a newer version is active, `[ Update ]` shows on the Settings row with its label in
+/// `accent-action` and its brackets in `text-primary`, and its tooltip over its whole target says
+/// what keeps running. As the row narrows, Help gives way first and then Update; no claim crowds
+/// another, and the environment marker takes only what Settings leaves before the next claim.
 #[test]
-fn update_follows_settings_and_gives_way_after_help() {
-    let theme = Theme::terminal_native();
+fn update_gives_way_after_help_without_crowding_its_neighbours() {
     let test_build = EnvironmentMarker {
         environment: MarkedEnvironment::Test,
         checkout: None,
     };
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let settings_width = cells(locale.settings_title()) + 4;
-        let update_width = cells(locale.update_control()) + 4;
-        let label = format!("[ {} ]", locale.update_control());
-        let effect = TooltipContent::Effect {
-            text: locale.update_tooltip("9.9.9"),
-        };
-        let word = locale.environment_label(MarkedEnvironment::Test);
-        for width in 3..=40 {
-            let mut view = visible_view(120, 40, 30);
-            view.set_environment_marker(Some(test_build));
-            let area = Rect::new(0, 0, width, 12);
-            let (buffer, hits) =
-                paint_sidebar_offering(&view, locale, area, SidebarLayer::Docked, Some("9.9.9"));
-            let last = area.bottom() - 1;
-            let list = width - 2;
-            let case = format!("{locale:?} width {width}");
-            let fits = list >= settings_width + 1 + update_width;
-            let offered = hits.tooltip_content_at(settings_width + 1, last).cloned();
-            let map = hits.finish();
-            let settings = extent(&map, area, &HitTarget::SettingsButton);
-            let update = extent(&map, area, &HitTarget::UpdateButton);
-            let help = extent(&map, area, &HitTarget::ShortcutsButton);
-            let leading = if fits {
-                settings_width + 1 + update_width
-            } else {
-                settings_width
+    for theme in [
+        Theme::terminal_native(),
+        Theme::orchbee_dark(),
+        Theme::orchbee_light(),
+    ] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let settings_width = cells(locale.settings_title()) + 4;
+            let update_width = cells(locale.update_control()) + 4;
+            let label = format!("[ {} ]", locale.update_control());
+            let effect = TooltipContent::Effect {
+                text: locale.update_tooltip("9.9.9"),
             };
-            assert_eq!(settings.is_some(), list >= settings_width, "{case}");
-            assert_eq!(update.is_some(), fits, "{case}");
-            assert_eq!(
-                help.is_some(),
-                list >= settings_width && list >= leading + 2 + 3,
-                "{case}"
-            );
-            if let Some(help) = help {
-                assert_eq!(help, Rect::new(list - 3, last, 3, 1), "{case}");
-                let between = text(&buffer, last, leading, help.x);
-                let room = usize::from(list - 3 - 2).saturating_sub(usize::from(leading + 2));
-                let marker = if display_width(word) <= room {
-                    word
-                } else {
-                    ""
-                };
-                assert_eq!(between.trim(), marker, "{case}");
+            let word = locale.environment_label(MarkedEnvironment::Test);
+            for layer in [SidebarLayer::Docked, SidebarLayer::Overlay] {
+                for width in 3..=40 {
+                    let mut view = visible_view(120, 40, 30);
+                    view.set_environment_marker(Some(test_build));
+                    let area = Rect::new(0, 0, width, 12);
+                    let (buffer, hits) =
+                        paint_sidebar_offering(&view, locale, area, layer, Some("9.9.9"), &theme);
+                    let last = area.bottom() - 1;
+                    let list = width - 2;
+                    let case = format!("{locale:?} {layer:?} width {width}");
+                    let tooltips = (0..width)
+                        .map(|x| hits.tooltip_content_at(x, last).cloned())
+                        .collect::<Vec<_>>();
+                    let map = hits.finish();
+                    let settings = extent(&map, area, &HitTarget::SettingsButton);
+                    let update = extent(&map, area, &HitTarget::UpdateButton);
+                    let help = extent(&map, area, &HitTarget::ShortcutsButton);
+                    let fits = list >= settings_width + 1 + update_width;
+                    let leading = if fits {
+                        settings_width + 1 + update_width
+                    } else {
+                        settings_width
+                    };
+                    assert_eq!(settings.is_some(), list >= settings_width, "{case}");
+                    assert_eq!(update.is_some(), fits, "{case}");
+                    assert_eq!(
+                        help.is_some(),
+                        list >= settings_width && list >= leading + 2 + 3,
+                        "{case}"
+                    );
+                    let Some(settings) = settings else {
+                        continue;
+                    };
+                    assert_eq!(settings.y, last, "{case}");
+                    if let Some(help) = help {
+                        assert!(help.right() <= list, "{case}");
+                    }
+                    let next = update.or(help);
+                    if let Some(next) = next {
+                        let between = text(&buffer, last, settings.right(), next.x);
+                        let room = usize::from(next.x.saturating_sub(settings.right() + 4));
+                        let marker = if display_width(word) <= room {
+                            word
+                        } else {
+                            ""
+                        };
+                        assert_eq!(between.trim(), marker, "{case}");
+                    }
+                    let Some(update) = update else {
+                        assert!(!tooltips.contains(&Some(effect.clone())), "{case}");
+                        continue;
+                    };
+                    assert_eq!(update.y, last, "{case}");
+                    assert!(update.x > settings.right(), "{case}");
+                    assert!(update.right() <= list, "{case}");
+                    if let Some(help) = help {
+                        assert!(help.x >= update.right() + 2, "{case}");
+                        assert_eq!(
+                            text(&buffer, last, update.right(), help.x).trim(),
+                            "",
+                            "{case}"
+                        );
+                    }
+                    assert_eq!(text(&buffer, last, update.x, update.right()), label);
+                    assert_eq!(
+                        buffer[(update.x + 2, last)].fg,
+                        theme.color(Role::AccentAction),
+                        "{case}"
+                    );
+                    for x in [update.x, update.right() - 1] {
+                        assert_eq!(
+                            buffer[(x, last)].fg,
+                            theme.color(Role::TextPrimary),
+                            "{case} at {x}"
+                        );
+                    }
+                    for x in update.x..update.right() {
+                        assert_eq!(
+                            tooltips[usize::from(x)],
+                            Some(effect.clone()),
+                            "{case} at {x}"
+                        );
+                    }
+                }
             }
-            let Some(update) = update else {
-                assert_ne!(offered, Some(effect.clone()), "{case}");
-                continue;
-            };
-            assert_eq!(
-                update,
-                Rect::new(settings_width + 1, last, update_width, 1),
-                "{case}"
-            );
-            assert_eq!(text(&buffer, last, update.x, update.right()), label);
-            assert_eq!(
-                buffer[(update.x + 2, last)].fg,
-                theme.color(Role::AccentAction),
-                "{case}"
-            );
-            assert_eq!(offered, Some(effect.clone()), "{case}");
-        }
 
-        // On the touch-spaced list the blank cell between Settings and Update belongs to neither,
-        // and Update's target runs over both touch lines to Help's.
-        let view = visible_view(120, 40, 30);
-        let area = Rect::new(0, 0, 46, 28);
-        let (buffer, hits) =
-            paint_sidebar_offering(&view, locale, area, SidebarLayer::Screen, Some("9.9.9"));
-        let row = area.bottom() - 2;
-        let offered = hits.tooltip_content_at(settings_width + 1, row).cloned();
-        let map = hits.finish();
-        assert_eq!(
-            text(
-                &buffer,
-                row,
-                settings_width + 1,
-                settings_width + 1 + update_width
-            ),
-            label,
-            "{locale:?}"
-        );
-        assert_eq!(offered, Some(effect.clone()), "{locale:?}");
-        let help_start = (0..area.width)
-            .find(|&x| map.hit_target_at(x, row) == Some(&HitTarget::ShortcutsButton))
-            .unwrap_or_else(|| panic!("{locale:?}: Help"));
-        for line in [row, row + 1] {
-            for x in 0..help_start {
-                let expected = if x < settings_width {
-                    Some(&HitTarget::SettingsButton)
-                } else if x == settings_width {
-                    None
-                } else {
-                    Some(&HitTarget::UpdateButton)
-                };
-                let found = map
-                    .hit_target_at(x, line)
-                    .filter(|target| **target != HitTarget::OverlaySurface);
-                assert_eq!(found, expected, "{locale:?} at {x},{line}");
+            // On the touch-spaced list Update's target holds its brackets on both touch lines and
+            // ends where Help's starts; its tooltip says what keeps running.
+            let view = visible_view(120, 40, 30);
+            let area = Rect::new(0, 0, 46, 28);
+            let (buffer, hits) = paint_sidebar_offering(
+                &view,
+                locale,
+                area,
+                SidebarLayer::Screen,
+                Some("9.9.9"),
+                &theme,
+            );
+            let row = area.bottom() - 2;
+            let x = find(&buffer, row, &label).unwrap_or_else(|| panic!("{locale:?}: Update"));
+            let offered = hits.tooltip_content_at(x, row).cloned();
+            let map = hits.finish();
+            assert_eq!(offered, Some(effect.clone()), "{locale:?}");
+            assert_eq!(
+                buffer[(x + 2, row)].fg,
+                theme.color(Role::AccentAction),
+                "{locale:?}"
+            );
+            let help_start = (0..area.width)
+                .find(|&x| map.hit_target_at(x, row) == Some(&HitTarget::ShortcutsButton))
+                .unwrap_or_else(|| panic!("{locale:?}: Help"));
+            assert!(help_start >= x + update_width, "{locale:?}");
+            for line in [row, row + 1] {
+                for cell in x..help_start {
+                    assert_eq!(
+                        map.hit_target_at(cell, line),
+                        Some(&HitTarget::UpdateButton),
+                        "{locale:?} at {cell},{line}"
+                    );
+                }
+                assert_eq!(
+                    map.hit_target_at(0, line),
+                    Some(&HitTarget::SettingsButton),
+                    "{locale:?} at 0,{line}"
+                );
             }
         }
     }

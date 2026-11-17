@@ -308,6 +308,10 @@ interface makes them visually similar.
 | `--ob-sys-color-action-primary-text`    | `#fcfcfc`       | Text and icon on the primary-action surface                   |
 | `--ob-sys-color-status-success`         | `#007041`       | Successful result or a state whose meaning is explicitly good |
 
+Outside a decision context, a persistent chrome action that announces a ready state, such as
+Update, may take the primary action role under the
+[shared rule](../INTERFACE-DESIGN.md#visual-roles-and-themes), at most one per surface.
+
 A generic binary switch does not use success merely because it is on. It uses the selected or
 component action role unless its enabled state explicitly communicates success. Warning, danger,
 and info roles similarly communicate status and never serve as arbitrary accents.

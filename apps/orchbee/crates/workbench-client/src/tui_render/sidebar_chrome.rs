@@ -8,8 +8,9 @@
 //! chrome. On a touch-spaced list both take their five-cell size and a target one cell wider on
 //! each side that spans their row's touch lines; the Mobile bar's toggle takes the same size.
 //!
-//! Update follows Settings one cell apart while a newer version is active. It keeps its place
-//! before Shortcuts does, and publishes the Update action through global chrome.
+//! While a newer version is active, Update ends the Settings row two cells before Shortcuts, or at
+//! the row's end once Shortcuts gives way, and keeps at least one cell after Settings. It keeps its
+//! place before Shortcuts does, and publishes the Update action through global chrome.
 
 use ratatui::{Frame, layout::Rect};
 
@@ -32,12 +33,32 @@ use crate::{
 pub(super) const TRAILING_GAP: u16 = 2;
 /// Blank strip cells between the hidden sidebar's toggle and the first Tab.
 const STRIP_GAP: u16 = 1;
-/// Blank cells between two adjacent bracket actions, as between Settings and Update.
-pub(super) const ACTION_GAP: u16 = 1;
+/// Blank cells between two adjacent bracket actions, the least Update keeps after Settings.
+const ACTION_GAP: u16 = 1;
+/// The cells Help takes at the end of a row of unspaced chrome.
+const ICON_WIDTH: u16 = 3;
 
 /// The Update control's target: the Update action through global chrome.
 pub(super) const fn update_target() -> InteractionTarget {
     InteractionTarget::GlobalChrome(GlobalChromeAction::Update)
+}
+
+/// Where `[ Update ]`, `width` cells wide, starts on `row` after `settings`: it ends
+/// [`TRAILING_GAP`] cells before Help's place at the row's end, touch-sized on a touch-spaced list,
+/// or at the row's end itself once Help cannot keep that place too, and drops once it cannot keep
+/// [`ACTION_GAP`] cells after Settings either. Help gives way first.
+pub(super) fn update_x(row: Rect, settings: Rect, width: u16, touch: bool) -> Option<u16> {
+    let help = if touch {
+        TOUCH_ICON_ACTION_WIDTH
+    } else {
+        ICON_WIDTH
+    };
+    let first = settings.right().saturating_add(ACTION_GAP);
+    [help + TRAILING_GAP, 0].into_iter().find_map(|after| {
+        row.right()
+            .checked_sub(width.checked_add(after)?)
+            .filter(|&x| x >= first)
+    })
 }
 
 /// Offers the Update control's tooltip over `rect`: its effect line, naming `version`.
@@ -351,13 +372,16 @@ fn paint_trailing(
     context: &Context<'_>,
     hits: Option<&mut HitMapBuilder>,
 ) -> Option<Rect> {
-    let x = row.right().checked_sub(3).filter(|&x| x >= row.x)?;
+    let x = row
+        .right()
+        .checked_sub(ICON_WIDTH)
+        .filter(|&x| x >= row.x)?;
     if leading.is_some_and(|leading| x < leading.right().saturating_add(TRAILING_GAP)) {
         return None;
     }
     paint(
         frame,
-        Rect::new(x, row.y, 3, 1),
+        Rect::new(x, row.y, ICON_WIDTH, 1),
         control,
         ControlSurface::Chrome,
         context,

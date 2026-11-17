@@ -120,6 +120,9 @@ operation status are independent facts. Define their combined appearance at the 
 moving focus does not erase current context, and hover never commits a value or changes focus.
 Checked state belongs to the control's declared editing boundary, which may project a parent draft
 or an authoritative value; the indicator alone never proves persistence.
+The primary-action role marks the one primary action of a decision context. Outside one, a
+persistent chrome action that announces a ready state the person should act on, such as Update,
+may take it too, at most one such action per surface, in both Clients.
 Primary actions and focus use action or focus roles, never success merely for emphasis. Pending
 and unknown outcomes must not look successful. Color is accompanied by meaningful text, shape,
 glyph, or emphasis so the distinction survives reduced color and unavailable modifiers.

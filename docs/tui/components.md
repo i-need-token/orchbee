@@ -164,6 +164,9 @@ auxiliary-action slots required by any state that the component can enter.
   secondary buttons use `text-primary`. Resting brackets follow the label, except that a primary
   button's use `text-primary`, so neither state looks like keyboard focus. Status roles never
   distinguish primary, default, or destructive actions.
+- Outside a decision context, a persistent chrome button that announces a ready state the person
+  should act on, such as Update, may take the primary button treatment. A surface shows at most
+  one such button.
 - An explicitly destructive action may declare the shared destructive intent tone. Its label uses
   `accent-destructive` independently of primary/secondary hierarchy; disabled content still uses
   `text-disabled`. Row and button owners retain their ordinary hover, pressed, focus, and provisional

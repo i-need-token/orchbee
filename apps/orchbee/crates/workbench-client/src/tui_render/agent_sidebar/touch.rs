@@ -3,8 +3,8 @@
 //! toggle and Help take their touch size.
 //!
 //! Lines from the top: blank, New workspace and the toggle, blank, Search, blank, blank, then the
-//! list; Settings and Help take the line above the last, which their targets share. A build that
-//! withholds Search leaves its lines blank.
+//! list; Settings, Update while it shows, and Help take the line above the last, which their
+//! targets share. A build that withholds Search leaves its lines blank.
 
 use super::super::environment_marker;
 use super::super::sidebar_chrome::{self, TRAILING_GAP, TouchRow};
@@ -218,39 +218,40 @@ pub(super) fn render(
         place: settings_place,
     };
     let resolved = resolve(frame, &settings, theme);
-    // Update follows Settings one cell apart and keeps its place before Help does; that cell
-    // belongs to neither target.
+    // Update ends the row before Help, or at its end once Help gives way, and keeps its place
+    // before Help does.
     let update = resolved.zip(update).and_then(|(action, version)| {
-        let x = action.right().saturating_add(sidebar_chrome::ACTION_GAP);
-        let row = Rect::new(x, settings_line, inner.right().saturating_sub(x), 1);
-        let control = TouchAction {
+        let mut control = TouchAction {
             label: locale.update_control(),
             kind: ActionKind::Primary,
             enabled: true,
             target: sidebar_chrome::update_target(),
-            place: TouchRow {
-                row,
-                ..settings_place
-            },
+            place: settings_place,
         };
-        resolve(frame, &control, theme).map(|rect| (control, rect, version))
+        let width = resolve(frame, &control, theme)?.width;
+        let x = sidebar_chrome::update_x(settings_row, action, width, true)?;
+        control.place.row = Rect::new(x, settings_line, width, 1);
+        Some((control, version))
     });
-    let leading = update.as_ref().map(|(_, rect, _)| *rect).or(resolved);
+    let update_rect = update.as_ref().map(|(control, _)| control.place.row);
+    let leading = update_rect.or(resolved);
     let help_x = leading.and_then(|_| sidebar_chrome::touch_trailing_x(settings_row, leading));
-    // The environment marker takes only what Settings, Update and Help leave, and the target
-    // before it ends a cell before it, so a press on the marker opens neither.
-    let marker = leading.zip(help_x).and_then(|(action, help_x)| {
-        let (start, end) = environment_marker::bounds(action.right(), help_x);
-        environment_marker::layout(controls, settings_line, start, end)
-    });
-    let leading_end = match (&marker, help_x) {
+    // The environment marker takes only what Settings leaves before Update, or before Help while
+    // Update is absent.
+    let marker = resolved
+        .zip(update_rect.map(|rect| rect.x).or(help_x))
+        .and_then(|(action, next_x)| {
+            let (start, end) = environment_marker::bounds(action.right(), next_x);
+            environment_marker::layout(controls, settings_line, start, end)
+        });
+    // The last target runs to Help's, or through the trailing padding once Help gives way.
+    // Settings' target ends a cell before the marker or Update, so a press on the cell between
+    // opens neither, and otherwise runs to Help's too.
+    let trailing_end = help_x.map_or(edge, |x| x - 1);
+    let settings_end = match (&marker, update_rect) {
         (Some(marker), _) => marker.rect.x - 1,
-        (None, Some(x)) => x - 1,
-        (None, None) => edge,
-    };
-    let settings_end = match (&update, resolved) {
-        (Some(_), Some(action)) => action.right(),
-        _ => leading_end,
+        (None, Some(update)) => update.x - 1,
+        (None, None) => trailing_end,
     };
     let mut painted = paint_action(
         frame,
@@ -262,13 +263,13 @@ pub(super) fn render(
         hits.as_deref_mut(),
     )
     .map(|painted| painted.action);
-    if let Some((control, _, version)) = update {
+    if let Some((control, version)) = update {
         let place = control.place;
         let target = control.target.clone();
         painted = paint_action(
             frame,
             control,
-            leading_end,
+            trailing_end,
             theme,
             layer,
             &mut halos,
@@ -279,7 +280,7 @@ pub(super) fn render(
             let rect = Rect::new(
                 place.row.x,
                 place.top,
-                leading_end - place.row.x,
+                trailing_end - place.row.x,
                 place.height,
             );
             sidebar_chrome::publish_update_tooltip(hits, layer, rect, &target, version, locale);

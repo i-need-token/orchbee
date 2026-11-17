@@ -293,7 +293,7 @@ pub enum GlobalChromeAction {
     HideSidebar,
     /// The sidebar's Shortcuts control beside Settings: the action menu, as `Ctrl+b ?` opens it.
     Shortcuts,
-    /// The Update control after Settings while a newer version is active: the Update action.
+    /// The Update control on the Settings row while a newer version is active: the Update action.
     Update,
     /// The Mobile bar's current Tab and Tabs button.
     OpenTabList,

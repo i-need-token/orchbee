@@ -141,8 +141,8 @@ Fixed-action shortcut hints end at the sidebar divider, or two blank cells befor
 toggle on the first row, with at least two blank cells after the button. A hint that cannot fit in
 full is omitted; its cells are outside
 the button's pointer target. The Settings action leads the sidebar's last row without a shortcut
-hint, followed only by the [Update control](#update-control) while it is offered and the
-[Help control](#sidebar-toggle-and-help) at the row's end, and at every
+hint; the [Update control](#update-control), while it is offered, and the
+[Help control](#sidebar-toggle-and-help) end it, and at every
 size the list runs directly down to it with no divider, hint or blank row between them. The
 prefix status teaches the sidebar-focus binding as `Tab` sidebar; while sidebar navigation
 owns the keyboard, the floating status shows its Back binding. The default focus switch
@@ -712,28 +712,36 @@ controls yet.
 ### Update control
 
 While the release store names a version newer than this Client active, `[ Update ]` (`[ 更新 ]`)
-follows Settings one blank cell apart, its label in `accent-action`, and invokes the Update Client
-Action through global chrome, as the action menu's Update row does. Its pointer tooltip is the
-effect line "Switch to Orchbee {version}. Terminals keep running." (`切换到 Orchbee {version}，终端继续运行。`).
-A development build never shows it. Each claim on the row takes only what the claims before it
-leave, in the order Settings, Update, Help, then the [marker](#environment-marker): as the row
-narrows Help gives way first, then Update, which stays reachable in the action menu. Help returns
-in the cells Update gave up when they hold it. Settings'
-[About Updates row](native-settings.md#about) offers the same switch, beside Check for updates.
+ends the Settings row two blank cells before Help, as a primary button: its label in
+`accent-action` and its brackets in `text-primary`, the one
+[ready-state chrome button](../../../docs/tui/components.md#action-controls) the sidebar shows. It
+invokes the Update Client Action through global chrome, as the action menu's Update row does. Its
+pointer tooltip is the effect line "Switch to Orchbee {version}. Terminals keep running."
+(`切换到 Orchbee {version}，终端继续运行。`). A development build never shows it. Each claim on the
+row takes only what the claims before it leave, in the order Settings, Update, Help, then the
+[marker](#environment-marker), which sits between Settings and Update: as the row narrows Help
+gives way first and Update takes the row's end, then Update gives way once it cannot keep one
+blank cell after Settings, and stays reachable in the action menu. Help returns in the cells
+Update gave up when they hold it. Settings' [About Updates row](native-settings.md#about) offers
+the same switch, beside Check for updates.
 
 ```text
-[ Settings ] [ Update ]  Test  [?]    room for all four
-[ Settings ] [ Update ]               Help gives way first
+[ Settings ]  Test  [ Update ]  [?]   room for all four
+[ 设置 ]       [ 更新 ]  [?]          zh-CN at the default 30 columns
+[ Settings ] [ Update ]  [?]          en-US at the default 30 columns: the row is full
+[ Settings ] [ Update ]               Help gives way first; Update takes the row's end
 [ Settings ]  [?]                     no room for Update
 ```
 
-The touch Settings row places it the same way: Settings' target ends at its brackets, the blank
-cell belongs to neither, and Update's target runs over both touch lines to Help's.
+The touch Settings row places it the same way at Help's touch size: Settings' target ends a blank
+cell before Update's brackets, or before the marker, and that cell belongs to neither; Update's
+target runs from its brackets over both touch lines to Help's, or to the row's edge once Help
+gives way.
 
 ### Environment marker
 
-A development or test build names its environment on the Settings row, right-aligned two cells
-before Help with two blank cells after Settings, or after Update while it shows: `Dev` or `Test` (`开发版` or `测试版`) in secondary
+A development or test build names its environment on the Settings row with two blank cells after
+Settings, right-aligned two cells before Update while it shows, otherwise before Help: `Dev` or `Test` (`开发版` or `测试版`) in secondary
 text, then, for a build from a checkout, a middle dot and the checkout directory's name in muted
 text. Release paints nothing there.
 
@@ -744,17 +752,18 @@ text. Release paints nothing there.
 ```
 
 The marker is the row's last claim: the checkout name drops whole first, then the word, before
-Settings or Help gives up a cell, and neither is cut with an ellipsis. It is no target. With a
+Settings, Update or Help gives up a cell, and neither is cut with an ellipsis. It is no target. With a
 checkout name, hovering it shows the tooltip "Development build from the orchbee checkout" from
 the sidebar surface; without one it offers none. The checkout name is compiled in only when the
 build's stem carries the digest of the checkout that built it, so a staged cohort from another
 checkout never names this one. The marker hides with the sidebar, and the touch Settings row
 places it the same way, ending Settings' target, which otherwise reaches R-7, one cell before it. The GUI sidebar footer shows
-the same marker between Settings and Shortcuts.
+the same marker after Settings, before Update while it shows.
 
 The [sidebar chrome renders](../crates/workbench-client/src/tui_render/sidebar_chrome/tests.rs)
-cover the marker's drop order and Update's place, role, tooltip and drop order in 3- to 40-column
-regions in both locales, Update's touch targets, and 120x40, 80x24 and
+cover the marker's drop order and Update's role, tooltip, drop order and clearance from its
+neighbours in 3- to 40-column regions in both locales under Terminal colors, Orchbee Dark and
+Orchbee Light, Update's touch targets, and 120x40, 80x24 and
 60x12 at widths 24, 30 and 60 in both locales with native, RGB and
 simplified glyphs, the hidden strip toggle and the drop order in 3- to 24-column regions. The
 [dispatcher trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/sidebar_width.rs)

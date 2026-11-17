@@ -198,47 +198,29 @@
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
-/* Update, right after Settings while a newer version is offered: its label in the primary
-   action role, a 28 px tall target that keeps its label whole. */
+/* Update ends the row while a newer version is offered: the shared primary button, its fill as
+   tall as the gear's and centered on it, ending 4 px in from the row's end like the rows' end
+   tools above. */
 .update {
-	display: inline-flex;
-	height: var(--ob-ref-size-control-sm);
-	flex: none;
-	align-items: center;
-	margin: var(--ob-ref-space-0);
-	padding-block: var(--ob-ref-space-0);
-	padding-inline: var(--ob-ref-space-2);
+	margin-inline: auto var(--ob-ref-space-1);
 	border: none;
-	border-radius: var(--ob-ref-radius-ui-md);
-	background: none;
-	color: var(--ob-sys-color-action-primary);
-	font: var(--ob-sys-typography-body-sm);
-	white-space: nowrap;
+	font: var(--ob-sys-typography-control-sm);
 }
 
-.update:hover,
-.update:focus-visible {
-	background: var(--ob-sys-color-surface-hovered);
+/* The environment marker before it takes the free space; Update keeps 8 px from its text. */
+.environment + .update {
+	margin-inline-start: var(--ob-ref-space-0-5);
 }
 
-.update:active {
-	background: var(--ob-sys-color-surface-pressed);
-}
-
-.update:focus-visible {
-	outline: none;
-	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
-}
-
-/* The label sits on the Settings label's line, as the environment marker's text does (G19). */
+/* The label sits on the gear's center line, as the environment marker's text does (G19). */
 .updateText {
 	text-box: trim-both cap alphabetic;
 	translate: 0 var(--ob-ref-text-icon-center-shift);
 }
 
-/* A development or test build's marker at the footer's end: its word, then the checkout name. It
-   alone shrinks, and whatever no longer fits wraps onto a second line it clips, so the name drops
-   whole, then the word. It is no target and carries no fill. */
+/* A development or test build's marker at the footer's end, before Update while it shows: its
+   word, then the checkout name. It alone shrinks, and whatever no longer fits wraps onto a second
+   line it clips, so the name drops whole, then the word. It is no target and carries no fill. */
 .environment {
 	display: flex;
 	box-sizing: border-box;
@@ -320,8 +302,8 @@
 }
 
 /* Touch sizes (D18, D19), which the mobile layout takes from 408 px high: the band that holds the
-   sidebar button and every one-line row are 44 px, and Settings owns a 44 px square. Fonts and
-   icons keep their sizes. */
+   sidebar button and every one-line row are 44 px, Settings owns a 44 px square, and Update is as
+   tall. Fonts and icons keep their sizes. */
 :global([data-workbench-touch]) .root {
 	padding-block-start: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }
@@ -336,5 +318,9 @@
 
 :global([data-workbench-touch]) .settings {
 	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+
+:global([data-workbench-touch]) .update {
 	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }

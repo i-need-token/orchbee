@@ -1,7 +1,8 @@
 //! The environment marker on the sidebar's Settings row: in a development or test build, the
 //! environment's word and, when it fits whole, the checkout name, right-aligned two cells before
-//! Help. It is the row's lowest priority: the checkout name drops first, then the whole marker,
-//! before Settings or Help gives up a cell. Release paints nothing.
+//! Update, or before Help while Update is absent. It is the row's lowest priority: the checkout
+//! name drops first, then the whole marker, before Settings, Update or Help gives up a cell.
+//! Release paints nothing.
 //!
 //! The marker is not a target. With a checkout name it offers a tooltip that names the build and
 //! the checkout in full, from the sidebar surface beneath it.
@@ -28,7 +29,8 @@ pub(super) struct Marker {
 }
 
 /// Lays out the marker on row `y` between the columns `start` and `end`, the first two cells after
-/// Settings and the last two before Help; `None` in release or when the word does not fit.
+/// Settings and the last two before the claim that follows it; `None` in release or when the word
+/// does not fit.
 pub(super) fn layout(context: &Context<'_>, y: u16, start: u16, end: u16) -> Option<Marker> {
     let marker = context.view.environment_marker()?;
     let theme = context.theme;
@@ -65,12 +67,13 @@ pub(super) fn layout(context: &Context<'_>, y: u16, start: u16, end: u16) -> Opt
     })
 }
 
-/// The columns a marker may take on a row whose Settings ends at `settings_right` and whose Help
-/// brackets start at `help_x`, each kept [`TRAILING_GAP`] cells away.
-pub(super) const fn bounds(settings_right: u16, help_x: u16) -> (u16, u16) {
+/// The columns a marker may take on a row whose Settings ends at `settings_right` and whose next
+/// claim, Update or else Help, starts its brackets at `next_x`, each kept [`TRAILING_GAP`] cells
+/// away.
+pub(super) const fn bounds(settings_right: u16, next_x: u16) -> (u16, u16) {
     (
         settings_right.saturating_add(TRAILING_GAP),
-        help_x.saturating_sub(TRAILING_GAP),
+        next_x.saturating_sub(TRAILING_GAP),
     )
 }
 
