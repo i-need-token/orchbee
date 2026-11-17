@@ -8,6 +8,7 @@ mod agent_attention;
 mod agent_not_resumed;
 mod agent_start_failure;
 mod captured_actions;
+mod control_failure;
 mod held_restore;
 mod last_panel;
 mod launch_profiles;
@@ -4033,6 +4034,14 @@ impl WorkbenchClientUi {
             if let WorkerEvent::TerminalClearOutcome { key, outcome } = event {
                 return self.apply_terminal_clear_outcome(key, outcome);
             }
+            if let WorkerEvent::ControlActionFailed {
+                key,
+                action,
+                failure,
+            } = event
+            {
+                return self.note_control_action_failure(&key, action, failure);
+            }
             if let WorkerEvent::WorkspaceCloseObserved {
                 generation,
                 observation,
@@ -4253,6 +4262,7 @@ impl WorkbenchClientUi {
                     return Err(CarrierFailure::Protocol);
                 }
                 WorkerEvent::TerminalClearOutcome { .. }
+                | WorkerEvent::ControlActionFailed { .. }
                 | WorkerEvent::WorkspaceCloseObserved { .. } => {
                     return Err(CarrierFailure::Protocol);
                 }

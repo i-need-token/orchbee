@@ -41,6 +41,9 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
         N::TerminalClearRefused,
         N::TerminalClearUnavailable,
         N::TerminalClearUnknown,
+        N::TerminalInputNotSent,
+        N::TerminalResizeNotDone,
+        N::TerminalActionUnknown,
         N::CloseRequestNotApplied,
         N::WorkspaceCloseUnavailable,
         N::WorkspaceChanged,
@@ -214,6 +217,9 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             | N::TerminalClearRefused
             | N::TerminalClearUnavailable
             | N::TerminalClearUnknown
+            | N::TerminalInputNotSent
+            | N::TerminalResizeNotDone
+            | N::TerminalActionUnknown
             | N::CloseRequestNotApplied
             | N::WorkspaceCloseUnavailable
             | N::WorkspaceChanged

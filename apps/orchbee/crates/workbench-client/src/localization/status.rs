@@ -118,6 +118,14 @@ impl Locale {
         }
     }
 
+    /// The one sentence for terminal input that did not reach the terminal.
+    pub(crate) const fn terminal_input_not_sent(self) -> &'static str {
+        match self {
+            Self::EnUs => "Couldn't send the input.",
+            Self::ZhCn => "没能发送输入。",
+        }
+    }
+
     /// Names the shown Panel's position while a split Tab shows it alone.
     pub(crate) fn panel_position(self, position: usize, total: usize) -> String {
         match self {

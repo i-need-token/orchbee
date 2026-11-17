@@ -4,6 +4,7 @@
 
 use super::{ClientExecutor, Result, closed, event, submission};
 use crate::local_client::SubmissionError;
+use crate::workbench_client::diagnostic_events::{self, ContainedCommand};
 use crate::workbench_client::mailbox::{
     CommandLease, EventDeadline, MutationResult, RefreshMarker, WorkerEvent,
 };
@@ -125,12 +126,17 @@ impl ClientExecutor {
                     ControllerMode::Controlling(controller_id.clone()),
                 )?;
                 self.attached_mut(&operation.key)?.accepted_geometry = None;
-                super::settle_ready_flow(self.sync_host_colors_for_lease(
-                    lease,
-                    &operation.key,
-                    controller_id.clone(),
-                    cutoff,
-                ))?;
+                // An unknown report parks the pane; the resize below then meets the released
+                // grant and settles the takeover as lost.
+                super::settle_ready_flow(
+                    self.sync_host_colors_for_lease(
+                        lease,
+                        &operation.key,
+                        controller_id.clone(),
+                        cutoff,
+                    )
+                    .map(drop),
+                )?;
                 self.attached_mut(&operation.key)?.control_frame =
                     Some(super::ControlFrame::Request);
                 self.ensure_before(cutoff)?;
@@ -145,9 +151,6 @@ impl ClientExecutor {
                     cutoff,
                 )?;
                 match resized {
-                    TerminalControlOutcome::Observed { .. } => {
-                        return Err(CarrierFailure::Protocol);
-                    }
                     TerminalControlOutcome::Resized { geometry }
                         if geometry == operation.geometry =>
                     {
@@ -195,16 +198,16 @@ impl ClientExecutor {
                     TerminalControlOutcome::OutcomeUnknown {} => {
                         return self.finish_control_activation(lease, marker, cutoff);
                     }
-                    TerminalControlOutcome::Acquired { .. }
-                    | TerminalControlOutcome::InputAccepted {}
-                    | TerminalControlOutcome::Resized { .. }
-                    | TerminalControlOutcome::Pasted { .. }
-                    | TerminalControlOutcome::HostColorsAccepted {}
-                    | TerminalControlOutcome::Cleared { .. }
-                    | TerminalControlOutcome::ResetAccepted { .. }
-                    | TerminalControlOutcome::Rejected { .. }
-                    | TerminalControlOutcome::Unavailable { .. } => {
-                        return Err(CarrierFailure::Transport);
+                    // The Host did not take this window's size, so the window cannot type at
+                    // it: the takeover settles as lost and leaves the connection and every other
+                    // Panel alone. Taking control again reuses the grant and resends the size.
+                    refused => {
+                        diagnostic_events::fault_contained(ContainedCommand::Resize, &refused);
+                        self.set_attached_mode(&operation.key, ControllerMode::ReadOnly)?;
+                        self.retain_takeover_result(
+                            &operation,
+                            TakeoverResult::Lost(controller_id),
+                        )?;
                     }
                 }
             }

@@ -63,6 +63,12 @@ pub(crate) enum WorkbenchClientNotice {
     TerminalClearRefused,
     TerminalClearUnavailable,
     TerminalClearUnknown,
+    /// The Server or Host did not carry out one input to the terminal.
+    TerminalInputNotSent,
+    /// The Server or Host did not resize the terminal to its Panel.
+    TerminalResizeNotDone,
+    /// One input or resize may or may not have reached the terminal.
+    TerminalActionUnknown,
     CloseRequestNotApplied,
     WorkspaceCloseUnavailable,
     WorkspaceChanged,

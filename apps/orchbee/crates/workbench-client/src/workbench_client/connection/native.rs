@@ -14,10 +14,12 @@ use crate::terminal_projection::TerminalProjection;
 use crate::terminal_viewport::{
     ViewportReadRejection, ViewportStep, ViewportWindowFailure, decode_viewport_window,
 };
+use crate::workbench_client::diagnostic_events::{self, ContainedCommand};
 use crate::workbench_client::mailbox::{
-    AdmissionError, BarrierKind, CausalSettlement, CommandLease, CommandMailbox,
-    CreatePrecommitOutcome, EventDeadline, EventError, MailboxClosed, MutationResult, PollKey,
-    QueuedCommand, ReconcileMarker, SetupPollKey, Tagged, UiReply, ViewportOutcome, WorkerEvent,
+    AdmissionError, BarrierKind, CausalSettlement, CommandLease, CommandMailbox, ControlAction,
+    ControlActionFailure, CreatePrecommitOutcome, EventDeadline, EventError, MailboxClosed,
+    MutationResult, PollKey, QueuedCommand, ReconcileMarker, SetupPollKey, Tagged, UiReply,
+    ViewportOutcome, WorkerEvent,
 };
 use crate::workbench_projection::{project_native_context_tabs, project_preferred_workspace};
 use crate::workbench_state::{
@@ -971,7 +973,9 @@ impl ClientExecutor {
         let Some(controller) = self.controller_for(key)? else {
             return Ok(());
         };
-        self.sync_host_colors_for_lease(lease, key, controller.clone(), deadline)?;
+        if !self.sync_host_colors_for_lease(lease, key, controller.clone(), deadline)? {
+            return Ok(());
+        }
         let sequence = self.next_control_sequence(key)?;
         let outcome = self.control_for_lease(
             lease,
@@ -985,32 +989,9 @@ impl ClientExecutor {
             deadline,
         )?;
         match outcome {
-            TerminalControlOutcome::Observed { .. } => Err(CarrierFailure::Protocol.into()),
             TerminalControlOutcome::InputAccepted {} => Ok(()),
-            TerminalControlOutcome::OutcomeUnknown {} => {
-                Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown))
-            }
-            TerminalControlOutcome::Rejected {
-                reason:
-                    ControlRejectedReason::NotController
-                    | ControlRejectedReason::HostInputUnavailable
-                    | ControlRejectedReason::HostRejected
-                    | ControlRejectedReason::ViewerUnavailable,
-            } => self.settle_pane_control_lost(lease, key, deadline),
-            TerminalControlOutcome::Rejected { .. } => {
-                Err(ReadyFlowError::Carrier(CarrierFailure::Protocol))
-            }
-            TerminalControlOutcome::Unavailable {
-                reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
-            } => self.settle_pane_control_lost(lease, key, deadline),
-            TerminalControlOutcome::Acquired { .. }
-            | TerminalControlOutcome::Resized { .. }
-            | TerminalControlOutcome::Pasted { .. }
-            | TerminalControlOutcome::HostColorsAccepted {}
-            | TerminalControlOutcome::Cleared { .. }
-            | TerminalControlOutcome::ResetAccepted { .. }
-            | TerminalControlOutcome::Unavailable { .. } => {
-                Err(ReadyFlowError::Carrier(CarrierFailure::Protocol))
+            outcome => {
+                self.settle_control_failure(lease, key, ControlAction::Input, &outcome, deadline)
             }
         }
     }
@@ -1032,7 +1013,9 @@ impl ClientExecutor {
         let Some(controller) = self.controller_for(&key)? else {
             return Ok(());
         };
-        self.sync_host_colors_for_lease(lease, &key, controller.clone(), deadline)?;
+        if !self.sync_host_colors_for_lease(lease, &key, controller.clone(), deadline)? {
+            return Ok(());
+        }
         let sequence = self.next_control_sequence(&key)?;
         let outcome = self.control_for_lease(
             lease,
@@ -1046,36 +1029,18 @@ impl ClientExecutor {
             deadline,
         )?;
         match outcome {
-            TerminalControlOutcome::Observed { .. } => return Err(CarrierFailure::Protocol.into()),
             TerminalControlOutcome::Resized { geometry: actual } if actual == geometry => {}
-            TerminalControlOutcome::OutcomeUnknown {} => {
-                return Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown));
-            }
-            TerminalControlOutcome::Rejected {
-                reason:
-                    ControlRejectedReason::NotController
-                    | ControlRejectedReason::HostRejected
-                    | ControlRejectedReason::ViewerUnavailable,
-            } => {
-                return self.settle_pane_control_lost(lease, &key, deadline);
-            }
-            TerminalControlOutcome::Rejected { .. } => {
-                return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
-            }
-            TerminalControlOutcome::Unavailable {
-                reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
-            } => {
-                return self.settle_pane_control_lost(lease, &key, deadline);
-            }
-            TerminalControlOutcome::Acquired { .. }
-            | TerminalControlOutcome::InputAccepted {}
-            | TerminalControlOutcome::Resized { .. }
-            | TerminalControlOutcome::Pasted { .. }
-            | TerminalControlOutcome::HostColorsAccepted {}
-            | TerminalControlOutcome::Cleared { .. }
-            | TerminalControlOutcome::ResetAccepted { .. }
-            | TerminalControlOutcome::Unavailable { .. } => {
-                return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
+            // The accepted geometry stays the one the Host last took. Admission compares each
+            // observed layout with the last size sent, so the next layout change sends again and
+            // an unchanged layout never resends the refused size.
+            outcome => {
+                return self.settle_control_failure(
+                    lease,
+                    &key,
+                    ControlAction::Resize,
+                    &outcome,
+                    deadline,
+                );
             }
         }
         self.set_accepted_geometry(&key, geometry)?;
@@ -3152,37 +3117,118 @@ impl ClientExecutor {
         }
     }
 
-    /// Covers an outer-terminal probe that settled after this pane acquired control.
+    /// Covers an outer-terminal probe that settled after this pane acquired control, and returns
+    /// whether the pane still holds it. The report is best effort: any settled answer marks the
+    /// colors reported so a refused report is not retried on every command. An unknown outcome
+    /// released the Server's grant, so the pane parks view-only and the caller sends nothing.
     fn sync_host_colors_for_lease(
         &mut self,
         lease: &CommandLease,
         key: &PaneRef,
         controller_id: orchbee_client_server_protocol::ControllerId,
         deadline: Instant,
-    ) -> ReadyResult<()> {
+    ) -> ReadyResult<bool> {
         let Some((action, colors)) = self.host_colors_action(key, controller_id)? else {
-            return Ok(());
+            return Ok(true);
         };
-        match self.control_for_lease(lease, key, action, deadline)? {
-            TerminalControlOutcome::Observed { .. } => Err(CarrierFailure::Protocol.into()),
-            TerminalControlOutcome::OutcomeUnknown {} => {
-                Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown))
+        let outcome = self.control_for_lease(lease, key, action, deadline)?;
+        if !matches!(outcome, TerminalControlOutcome::HostColorsAccepted {}) {
+            diagnostic_events::fault_contained(ContainedCommand::HostColors, &outcome);
+        }
+        if let Ok(attached) = self.attached_mut(key) {
+            attached.reported_host_colors = Some(colors);
+        }
+        if matches!(outcome, TerminalControlOutcome::OutcomeUnknown {}) {
+            self.settle_pane_control_lost(lease, key, deadline)?;
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    /// One input or resize was not accepted. Only that action is lost, and it is never replayed;
+    /// no answer ends the connection or touches another Panel.
+    ///
+    /// - A refusal that leaves the Server's grant in place keeps the pane controlling and shows
+    ///   the action's notice.
+    /// - An answer that says the grant is gone parks the pane view-only.
+    /// - An unknown outcome does both, because the Server releases the grant on it.
+    /// - An intact success that does not answer the action keeps control and shows that the
+    ///   outcome is not known.
+    ///
+    /// Every answer but another Client's takeover writes a contained-fault record.
+    fn settle_control_failure(
+        &mut self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        action: ControlAction,
+        outcome: &TerminalControlOutcome,
+        deadline: Instant,
+    ) -> ReadyResult<()> {
+        let command = match action {
+            ControlAction::Input => ContainedCommand::Input,
+            ControlAction::Resize => ContainedCommand::Resize,
+        };
+        if !matches!(
+            outcome,
+            TerminalControlOutcome::Rejected {
+                reason: ControlRejectedReason::NotController
             }
-            TerminalControlOutcome::Acquired { .. }
+        ) {
+            diagnostic_events::fault_contained(command, outcome);
+        }
+        let failure = match outcome {
+            TerminalControlOutcome::Rejected {
+                reason:
+                    ControlRejectedReason::NotController | ControlRejectedReason::ViewerUnavailable,
+            }
+            | TerminalControlOutcome::Unavailable {
+                reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
+            } => return self.settle_pane_control_lost(lease, key, deadline),
+            TerminalControlOutcome::OutcomeUnknown {} => {
+                self.publish_control_action_failure(
+                    lease,
+                    key,
+                    action,
+                    ControlActionFailure::Unknown,
+                    deadline,
+                )?;
+                return self.settle_pane_control_lost(lease, key, deadline);
+            }
+            TerminalControlOutcome::Rejected { .. }
+            | TerminalControlOutcome::Unavailable { .. } => ControlActionFailure::NotDone,
+            TerminalControlOutcome::Observed { .. }
+            | TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::InputAccepted {}
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
             | TerminalControlOutcome::HostColorsAccepted {}
             | TerminalControlOutcome::Cleared { .. }
-            | TerminalControlOutcome::ResetAccepted { .. }
-            | TerminalControlOutcome::Rejected { .. }
-            | TerminalControlOutcome::Unavailable { .. } => {
-                if let Ok(attached) = self.attached_mut(key) {
-                    attached.reported_host_colors = Some(colors);
-                }
-                Ok(())
-            }
-        }
+            | TerminalControlOutcome::ResetAccepted { .. } => ControlActionFailure::Unknown,
+        };
+        self.publish_control_action_failure(lease, key, action, failure, deadline)
+    }
+
+    fn publish_control_action_failure(
+        &self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        action: ControlAction,
+        failure: ControlActionFailure,
+        deadline: Instant,
+    ) -> ReadyResult<()> {
+        let cutoff = self.effective_lease_cutoff(lease, deadline)?;
+        self.mailbox
+            .publish_notice_before(
+                WorkerEvent::ControlActionFailed {
+                    key: key.clone(),
+                    action,
+                    failure,
+                },
+                cutoff,
+                &self.clock,
+            )
+            .map_err(|error| self.ready_event_error(lease, key, deadline, error))?;
+        Ok(())
     }
 
     /// The pane's controller grant ended or was refused: the viewer stays

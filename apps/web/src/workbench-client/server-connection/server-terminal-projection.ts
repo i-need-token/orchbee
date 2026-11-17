@@ -865,6 +865,9 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	}
 
 	#settleControl(command: ProjectedTerminalCommand, outcome: ClientServerControlOutcome): void {
+		// Clear and reset act through the viewer; every other control action spends the grant, which
+		// the Server releases on an unknown outcome and on losing the terminal's runtime.
+		const spendsGrant = command.kind !== 'clear-terminal' && command.kind !== 'reset-terminal';
 		switch (outcome.kind) {
 			case 'rejected':
 				// Another Client took over; the renderer only needs to become read-only.
@@ -882,9 +885,13 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				}
 				return;
 			case 'unavailable':
+				if (spendsGrant && outcome.reason === 'terminal-runtime-unavailable') {
+					this.#setController(null);
+				}
 				this.#fail(command, outcome.reason, `Unavailable: ${outcome.reason}.`, true);
 				return;
 			case 'outcome-unknown':
+				if (spendsGrant) this.#setController(null);
 				this.#fail(command, 'outcome-unknown', 'The action may or may not have applied.', false);
 				return;
 			default:

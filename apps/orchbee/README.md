@@ -735,8 +735,8 @@ A refused record returns `ProjectionRejection`: the record family (`operation`),
 `stage`, and the static protocol decoder error as its `source`, never record bytes or terminal text.
 Callers keep their external classification — `protocol-invalid` for CLI reads and the protocol
 carrier failure for the Workbench Client — and print none of it, because the Client's standard
-error and machine documents are product surfaces. The Workbench Client's only diagnostic exit is
-the `client-retired` record of the daily log described under the
+error and machine documents are product surfaces. The Workbench Client's only diagnostic exits are
+the `client-retired` and `client-fault-contained` records of the daily log described under the
 [diagnostic bundle](#diagnostic-bundle).
 
 [Workbench Client lifecycle regressions](crates/workbench-client/src/workbench_client/tests.rs) cover interrupted Drop/join,
@@ -1062,7 +1062,10 @@ writes `link-rights` with the rights its token runs with or why it refused, and 
 `session-start-source` and `server-job`; other commands write none. The TUI also writes `client-retired` when its connection retires on a failure: the failure's
 token, the kind of command the connection worker held then, such as `poll` or `panel`, and the
 source directory, file stem and line of the mailbox check or Client step that closed it, never the
-path. A process exit's close writes nothing. The TUI has no entry of its own: the command is one
+path. A process exit's close writes nothing. When the TUI contains one request's fault to its
+Panel instead, such as a refused input or resize, it writes `client-fault-contained`: the command,
+the Server's answer token and the number of records suppressed since, at most once a minute for
+each command and answer. The TUI has no entry of its own: the command is one
 line in any terminal, and Desktop offers it as an Action.
 
 ## Windows Panel layout queries

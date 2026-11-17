@@ -804,8 +804,9 @@ result write, the reply leaves by seventeen seconds, three seconds inside the Se
 twenty-second result wait. Work that no longer fits is never sent and never counts against the
 Host; the request gets the answer below, which neither the Worker nor the Server retries. Unless
 noted below, the Worker keeps the viewer and any grant, and the Server keeps the viewer and its
-controller lease. The Clients do not treat every answer as transient: the TUI parks a pane whose
-raw input or resize is refused as control lost, and the GUI reports those refusals as final.
+controller lease. Both Clients treat these refusals as transient: each loses only the refused
+action and never replays it, keeps control, and shows that action's failure notice. A refused
+resize sends its size again on the next layout change.
 
 | Request                           | Answer when its exchange cannot start           |
 | --------------------------------- | ----------------------------------------------- |

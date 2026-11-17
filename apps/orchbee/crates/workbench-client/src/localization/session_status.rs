@@ -243,8 +243,11 @@ impl Locale {
             N::TerminalClearRefused | N::TerminalClearUnavailable => {
                 say("Couldn't clear the terminal.", "没能清除终端。")
             }
+            N::TerminalInputNotSent => self.terminal_input_not_sent().to_owned(),
+            N::TerminalResizeNotDone => say("Couldn't resize the terminal.", "没能调整终端大小。"),
             N::TerminalClearUnconfirmed
             | N::TerminalClearUnknown
+            | N::TerminalActionUnknown
             | N::DuplicatePending
             | N::DuplicateOutcomeUnknown
             | N::CommandUnknown

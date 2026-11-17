@@ -2696,55 +2696,178 @@ fn create_projection_missing_committed_tab_retires_authority_divergence() -> Tes
     harness.finish_after_worker_failure(CarrierFailure::AuthorityDivergence)
 }
 
+/// One input the Server or Host did not carry out is lost alone: it is never replayed, the
+/// connection stays open, and the pane keeps control unless the answer released the grant.
 #[test]
-fn ambiguous_input_retires_unknown_without_replay() -> TestResult {
+fn unaccepted_input_is_lost_alone_without_replay() -> TestResult {
+    use crate::workbench_client::mailbox::{ControlAction, ControlActionFailure, WorkerEvent};
+    use orchbee_client_server_protocol::ControlRejectedReason;
+    for (outcome, failure, keeps_control) in [
+        (
+            TerminalControlOutcome::Rejected {
+                reason: ControlRejectedReason::HostInputUnavailable,
+            },
+            ControlActionFailure::NotDone,
+            true,
+        ),
+        (
+            TerminalControlOutcome::Rejected {
+                reason: ControlRejectedReason::HostInputBackpressure,
+            },
+            ControlActionFailure::NotDone,
+            true,
+        ),
+        (
+            TerminalControlOutcome::OutcomeUnknown {},
+            ControlActionFailure::Unknown,
+            false,
+        ),
+    ] {
+        let geometry = fixture_geometry()?;
+        let mut kinds = vec![WireKind::Workbench];
+        kinds.extend([WireKind::Obcs; 6]);
+        if keeps_control {
+            kinds.push(WireKind::Obcs);
+        }
+        let mut harness = Harness::start(kinds, geometry)?;
+        let (active, controller) = drive_controlling_ready(&mut harness, geometry)?;
+        let input = ControlInput::new(vec![b'?'])?;
+        harness.ui.admit_input(input.clone())?;
+        let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
+            return Err(test_error("accepted Input must reach the carrier"));
+        };
+        assert_control_input(&request, &controller, 2, &input)?;
+        harness
+            .carrier
+            .respond_obcs(ServerMessage::TerminalControlResult(
+                TerminalControlResult::new(request.request_id().clone(), outcome.clone()),
+            ))?;
+
+        let (wait, event) = harness.ui.take_next()?.into_parts();
+        assert!(wait.is_none());
+        assert!(matches!(
+            event,
+            WorkerEvent::ControlActionFailed { key, action: ControlAction::Input, failure: actual }
+                if key.anchor() == &active && actual == failure
+        ));
+        if !keeps_control {
+            let (wait, event) = harness.ui.take_next()?.into_parts();
+            assert!(wait.is_none());
+            assert!(matches!(
+                event,
+                WorkerEvent::PaneFailed {
+                    fault: crate::workbench_state::PaneFault::ControlLost,
+                    ..
+                }
+            ));
+        }
+        assert_eq!(harness.mailbox.is_closed(), None);
+        assert_eq!(harness.ui.state().phase_kind(), ClientPhaseKind::Ready);
+        assert_eq!(harness.ui.state().desired().unwrap(), &active);
+
+        if keeps_control {
+            // The next input goes out under the same grant; the refused one is not resent.
+            let next = ControlInput::new(vec![b'!'])?;
+            harness.ui.admit_input(next.clone())?;
+            let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
+                return Err(test_error("the next Input must reach the carrier"));
+            };
+            assert_control_input(&request, &controller, 3, &next)?;
+            harness
+                .carrier
+                .respond_obcs(ServerMessage::TerminalControlResult(
+                    TerminalControlResult::new(
+                        request.request_id().clone(),
+                        TerminalControlOutcome::InputAccepted {},
+                    ),
+                ))?;
+        }
+        // Any replay would be an unscripted trailing request and make finish fail.
+        harness.finish()?;
+    }
+    Ok(())
+}
+
+/// A resize the Host refuses keeps control and configures nothing; the next layout change sends
+/// its own size under the same grant, and the refused size is never resent.
+#[test]
+fn refused_resize_keeps_control_and_sends_the_next_size() -> TestResult {
+    use crate::workbench_client::mailbox::{ControlAction, ControlActionFailure, WorkerEvent};
+    use orchbee_client_server_protocol::ControlRejectedReason;
     let geometry = fixture_geometry()?;
-    let mut harness = Harness::start(
-        vec![
-            WireKind::Workbench,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-        ],
-        geometry,
+    let refused = Geometry::new(
+        geometry.columns().saturating_add(10),
+        geometry.rows(),
+        geometry.cell_pixel_width(),
+        geometry.cell_pixel_height(),
     )?;
+    let next = Geometry::new(
+        geometry.columns().saturating_add(20),
+        geometry.rows(),
+        geometry.cell_pixel_width(),
+        geometry.cell_pixel_height(),
+    )?;
+    let mut kinds = vec![WireKind::Workbench];
+    kinds.extend([WireKind::Obcs; 7]);
+    let mut harness = Harness::start(kinds, geometry)?;
     let (active, controller) = drive_controlling_ready(&mut harness, geometry)?;
-    let input = ControlInput::new(vec![b'?'])?;
-    harness.ui.admit_input(input.clone())?;
+
+    harness.ui.admit_resize(refused)?;
     let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
-        return Err(test_error("accepted Input must reach the carrier"));
+        return Err(test_error("an admitted Resize must reach the carrier"));
     };
-    assert_control_input(&request, &controller, 2, &input)?;
+    assert!(matches!(
+        request.action(),
+        TerminalControlAction::Resize { geometry: requested, .. } if *requested == refused
+    ));
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalControlResult(
             TerminalControlResult::new(
                 request.request_id().clone(),
-                TerminalControlOutcome::OutcomeUnknown {},
+                TerminalControlOutcome::Rejected {
+                    reason: ControlRejectedReason::HostRejected,
+                },
             ),
         ))?;
+    let (wait, event) = harness.ui.take_next()?.into_parts();
+    assert!(wait.is_none());
+    assert!(matches!(
+        event,
+        WorkerEvent::ControlActionFailed {
+            key,
+            action: ControlAction::Resize,
+            failure: ControlActionFailure::NotDone,
+        } if key.anchor() == &active
+    ));
+    assert_eq!(harness.mailbox.is_closed(), None);
 
-    assert!(harness.ui.take_next().is_err());
-    assert_eq!(
-        harness.mailbox.is_closed(),
-        Some(CarrierFailure::OutcomeUnknown)
-    );
-    assert_eq!(harness.ui.state().phase_kind(), ClientPhaseKind::Ready);
-    assert_eq!(harness.ui.state().desired().unwrap(), &active);
-    assert_eq!(
-        harness
-            .ui
-            .state()
-            .projection_key()
-            .map(|pane| pane.anchor()),
-        Some(&active)
-    );
-
-    // A second Input would be an unscripted trailing request and make finish fail.
-    harness.finish_after_worker_failure(CarrierFailure::OutcomeUnknown)
+    harness.ui.admit_resize(next)?;
+    let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
+        return Err(test_error("the next Resize must reach the carrier"));
+    };
+    assert!(matches!(
+        request.action(),
+        TerminalControlAction::Resize { controller_id, geometry: requested, .. }
+            if controller_id == &controller && *requested == next
+    ));
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                request.request_id().clone(),
+                TerminalControlOutcome::Resized { geometry: next },
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::SetupConfigured {
+            mode: ControllerMode::Controlling(ref actual),
+            applied_geometry: Some(applied),
+            ..
+        } if actual == &controller && applied == next
+    ));
+    harness.finish()
 }
 
 #[test]

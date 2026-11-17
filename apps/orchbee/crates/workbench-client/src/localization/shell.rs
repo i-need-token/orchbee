@@ -420,11 +420,8 @@ impl Locale {
             ) => "没能切换位置。",
             (Self::EnUs, None) => "Couldn't connect to Orchbee.",
             (Self::ZhCn, None) => "没能连接 Orchbee。",
-            (Self::EnUs, Some(Notice::TerminalInputUnavailable | Notice::NavigationInputHeld)) => {
-                "Couldn't send the input."
-            }
-            (Self::ZhCn, Some(Notice::TerminalInputUnavailable | Notice::NavigationInputHeld)) => {
-                "没能发送输入。"
+            (_, Some(Notice::TerminalInputUnavailable | Notice::NavigationInputHeld)) => {
+                self.terminal_input_not_sent()
             }
             (Self::EnUs, Some(Notice::WorkspaceNavigationUnavailable)) => "Couldn't switch there.",
             (Self::ZhCn, Some(Notice::WorkspaceNavigationUnavailable)) => "没能切换过去。",

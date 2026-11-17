@@ -863,6 +863,29 @@ pub(super) enum WorkerEvent {
         key: PaneRef,
         outcome: orchbee_client_server_protocol::TerminalControlOutcome,
     },
+    /// One controller action did not take effect, or may not have; the pane's control follows its
+    /// own fact, and only this action is lost.
+    ControlActionFailed {
+        key: PaneRef,
+        action: ControlAction,
+        failure: ControlActionFailure,
+    },
+}
+
+/// A controller action the person caused, named for its failure notice.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ControlAction {
+    Input,
+    Resize,
+}
+
+/// What became of a controller action that was not accepted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ControlActionFailure {
+    /// The Server or Host answered that the action was not carried out.
+    NotDone,
+    /// The action may or may not have reached the terminal.
+    Unknown,
 }
 
 /// The outcome of one `QueuedCommand::Viewport` step as the executor
@@ -910,6 +933,7 @@ impl WorkerEvent {
                 | Self::ViewportOutcome { .. }
                 | Self::SelectionOutcome { .. }
                 | Self::TerminalClearOutcome { .. }
+                | Self::ControlActionFailed { .. }
                 | Self::ControllerObserved { .. }
                 | Self::WorkspaceCloseObserved { .. }
         )
@@ -1052,7 +1076,9 @@ impl WorkerEvent {
             | Self::SelectionOutcome { .. } => {
                 return None;
             }
-            Self::TerminalClearOutcome { .. } | Self::WorkspaceCloseObserved { .. } => return None,
+            Self::TerminalClearOutcome { .. }
+            | Self::ControlActionFailed { .. }
+            | Self::WorkspaceCloseObserved { .. } => return None,
         };
         Some(UiWaitKey {
             serial,

@@ -1,10 +1,125 @@
-//! The Workbench Client's diagnostic log record: its connection retiring on a failure, so a
-//! disconnect leaves a trace. The record names the failure, the kind of command it interrupted and
-//! the source location that closed the mailbox, by directory, file stem and line; it holds no
-//! terminal content, input or paths.
+//! The Workbench Client's diagnostic log records: its connection retiring on a failure, so a
+//! disconnect leaves a trace, and one request's fault that the Client contained to its Panel. The
+//! retirement names the failure, the kind of command it interrupted and the source location that
+//! closed the mailbox, by directory, file stem and line; a contained fault names the command and
+//! the answer. Neither holds terminal content, input or paths.
 use super::mailbox::ClosedSite;
 use crate::workbench_state::CarrierFailure;
+use orchbee_client_server_protocol::{
+    ControlRejectedReason, ControlUnavailableReason, TerminalControlOutcome,
+};
 use orchbee_local_runtime::{LogLevel, LogValue, log_event};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+/// A command whose fault the Client contained to one Panel.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(super) enum ContainedCommand {
+    Input,
+    Resize,
+    HostColors,
+}
+
+impl ContainedCommand {
+    const fn token(self) -> &'static str {
+        match self {
+            Self::Input => "input",
+            Self::Resize => "resize",
+            Self::HostColors => "host-colors",
+        }
+    }
+}
+
+/// Records that `command` got `outcome` and the Client dropped the command alone, keeping the
+/// connection and every Panel. Each command and answer pair writes at most once a minute, with the
+/// number of records it suppressed since, so a refused key per keystroke cannot flood the log.
+pub(super) fn fault_contained(command: ContainedCommand, outcome: &TerminalControlOutcome) {
+    let answer = control_answer_token(outcome);
+    let Some(suppressed) = admit_once_a_minute(command, answer) else {
+        return;
+    };
+    log_event(
+        LogLevel::Warning,
+        "client-fault-contained",
+        &[
+            ("command", LogValue::Token(command.token())),
+            ("answer", LogValue::Token(answer)),
+            ("suppressed", LogValue::Count(suppressed)),
+        ],
+    );
+}
+
+const fn control_answer_token(outcome: &TerminalControlOutcome) -> &'static str {
+    match outcome {
+        TerminalControlOutcome::Rejected { reason } => match reason {
+            ControlRejectedReason::ViewerUnavailable => "viewer-unavailable",
+            ControlRejectedReason::ControllerBusy => "controller-busy",
+            ControlRejectedReason::NotController => "not-controller",
+            ControlRejectedReason::SequenceMismatch => "sequence-mismatch",
+            ControlRejectedReason::HostRejected => "host-rejected",
+            ControlRejectedReason::HostClearAlternateScreen => "host-clear-alternate-screen",
+            ControlRejectedReason::HostInputInvalid => "host-input-invalid",
+            ControlRejectedReason::HostInputLimitExceeded => "host-input-limit-exceeded",
+            ControlRejectedReason::HostInputBackpressure => "host-input-backpressure",
+            ControlRejectedReason::HostInputUnavailable => "host-input-unavailable",
+        },
+        TerminalControlOutcome::Unavailable { reason } => match reason {
+            ControlUnavailableReason::ServerBusy => "server-busy",
+            ControlUnavailableReason::TerminalRuntimeUnavailable => "terminal-runtime-unavailable",
+        },
+        TerminalControlOutcome::OutcomeUnknown {} => "outcome-unknown",
+        TerminalControlOutcome::Observed { .. }
+        | TerminalControlOutcome::Acquired { .. }
+        | TerminalControlOutcome::InputAccepted {}
+        | TerminalControlOutcome::Resized { .. }
+        | TerminalControlOutcome::Pasted { .. }
+        | TerminalControlOutcome::HostColorsAccepted {}
+        | TerminalControlOutcome::Cleared { .. }
+        | TerminalControlOutcome::ResetAccepted { .. } => "unexpected-answer",
+    }
+}
+
+/// One command and answer pair's last record and the records suppressed since.
+struct Slot {
+    command: ContainedCommand,
+    answer: &'static str,
+    last: Instant,
+    suppressed: u64,
+}
+
+/// The pairs are a closed set of a few dozen; a pair past this bound is never recorded.
+const SLOT_LIMIT: usize = 64;
+
+/// Admits the pair's record at most once a minute and returns how many of its records were
+/// suppressed since the last one admitted.
+fn admit_once_a_minute(command: ContainedCommand, answer: &'static str) -> Option<u64> {
+    static SLOTS: Mutex<Vec<Slot>> = Mutex::new(Vec::new());
+    let now = Instant::now();
+    let mut slots = SLOTS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(slot) = slots
+        .iter_mut()
+        .find(|slot| slot.command == command && slot.answer == answer)
+    {
+        if now.saturating_duration_since(slot.last) < Duration::from_secs(60) {
+            slot.suppressed = slot.suppressed.saturating_add(1);
+            return None;
+        }
+        slot.last = now;
+        return Some(std::mem::take(&mut slot.suppressed));
+    }
+    if slots.len() >= SLOT_LIMIT {
+        return None;
+    }
+    slots.push(Slot {
+        command,
+        answer,
+        last: now,
+        suppressed: 0,
+    });
+    Some(0)
+}
 
 /// Records the failure that retired the connection, the command the worker held then, and where
 /// the mailbox closed: the mailbox check that hit the failure, or the Client step that decided it. A
