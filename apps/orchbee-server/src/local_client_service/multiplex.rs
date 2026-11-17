@@ -25,13 +25,25 @@ use std::{
 const INPUT_RECORDS: usize = 64;
 const PERSISTENT_OVERRUN: u8 = 3;
 
+/// The budget a record of `len` bytes reserves: three times its length, which conservatively
+/// includes its encoded copies. The bound is the connection budget, `MAXIMUM_MULTIPLEX_BYTES`.
+/// `Claim::reserve` admits against that budget, so no reservation above it can ever be admitted,
+/// and a length that overflows or exceeds it has no reservation (`None`).
+fn reservation(len: usize) -> Option<usize> {
+    len.checked_mul(3)
+        .filter(|bytes| *bytes <= MAXIMUM_MULTIPLEX_BYTES)
+}
+
 struct Claim {
     budget: Arc<AtomicUsize>,
     bytes: usize,
     streams: Option<Arc<AtomicUsize>>,
 }
 impl Claim {
-    fn reserve(budget: &Arc<AtomicUsize>, bytes: usize) -> io::Result<Self> {
+    /// Reserves the budget of one record of `len` bytes. A length with no reservation is refused
+    /// with the same error as a full budget.
+    fn reserve(budget: &Arc<AtomicUsize>, len: usize) -> io::Result<Self> {
+        let bytes = reservation(len).ok_or(io::ErrorKind::OutOfMemory)?;
         budget
             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
                 current
@@ -50,7 +62,7 @@ impl Claim {
         streams: &Arc<AtomicUsize>,
         message: &MultiplexMessage,
     ) -> io::Result<Self> {
-        let mut claim = Self::reserve(budget, size(message).saturating_mul(3))?;
+        let mut claim = Self::reserve(budget, size(message))?;
         if matches!(message, MultiplexMessage::StreamOpen { .. }) {
             streams
                 .fetch_update(Ordering::AcqRel, Ordering::Acquire, |count| {
@@ -170,7 +182,7 @@ fn deliverable(
 ) -> io::Result<Result<Claim, StreamFailure>> {
     let failure = if record.is_empty() || record.len() > MAXIMUM_STREAM_RECORD_BYTES {
         "record-size"
-    } else if let Ok(claim) = Claim::reserve(budget, record.len().saturating_mul(3)) {
+    } else if let Ok(claim) = Claim::reserve(budget, record.len()) {
         return Ok(Ok(claim));
     } else {
         "budget"

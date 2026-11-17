@@ -173,6 +173,65 @@ fn a_failed_stream_closes_alone_while_the_connection_keeps_serving() {
     }));
 }
 
+/// A read record whose reservation exceeds the connection budget closes its stream alone, and the
+/// log names the budget. The connection keeps serving the requests around it.
+#[test]
+fn a_record_whose_reservation_exceeds_the_budget_closes_alone() {
+    // Three times this length exceeds the 32 MiB connection budget, so no budget state admits it.
+    const NEVER_DELIVERABLE: usize = 11_184_811;
+    let (mut peer, server) = bounded_pair();
+    let task = thread::spawn(move || {
+        let mut executions = 0;
+        crate::fault_records::capture::records(|| {
+            run(
+                &server,
+                open(1, 1, StreamMode::Request),
+                IntentUnknown::ClosesStream,
+                Arc::default(),
+                move |_, _| {
+                    executions += 1;
+                    if executions == 1 {
+                        Ok(vec![0; NEVER_DELIVERABLE])
+                    } else {
+                        Ok(vec![executions])
+                    }
+                },
+                Vec::new,
+                no_job_read,
+                |_| {},
+                |_| {},
+                || Ok(None),
+            )
+        })
+    });
+    assert_eq!(
+        read_multiplex_message(&mut peer).unwrap(),
+        MultiplexMessage::StreamClose {
+            stream_id: MultiplexStreamId::new(1).unwrap(),
+            reason: StreamCloseReason::Capacity,
+        }
+    );
+    write_multiplex_message(&mut peer, &open(2, 1, StreamMode::Request)).unwrap();
+    let MultiplexMessage::StreamFrame {
+        stream_id, record, ..
+    } = read_multiplex_message(&mut peer).unwrap()
+    else {
+        panic!("result frame");
+    };
+    assert_eq!((stream_id.value(), record), (2, vec![2]));
+    drop(peer);
+    let (_closed, records) = task.join().unwrap();
+    assert!(records.iter().any(|record| {
+        record.event == "client-stream-failed"
+            && record
+                .fields
+                .contains(&("stage", orchbee_local_runtime::LogValue::Token("open")))
+            && record
+                .fields
+                .contains(&("failure", orchbee_local_runtime::LogValue::Token("budget")))
+    }));
+}
+
 fn reload(id: u64) -> MultiplexMessage {
     use orchbee_workbench_protocol::{ConfigurationAction, ConfigurationRequest, SessionId};
     let mut request = Vec::new();

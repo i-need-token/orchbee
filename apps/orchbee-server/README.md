@@ -1098,7 +1098,12 @@ physical identity and generation match. Ingesting and publishing titles never co
 Workbench or report revision, writes the semantic journal, or raises unread state, notifications or
 Agent state; a change wakes only the streams that follow titles.
 Retained request/response reservations share a 32 MiB budget; they conservatively include
-encoded copies. Individual inner records are at most 24 MiB plus their 12-byte header. Decoder
+encoded copies. A delivered record reserves three times its length, and that reservation can never
+exceed the budget itself (`MAXIMUM_MULTIPLEX_BYTES`), so a record of 11,184,811 bytes or more is
+never deliverable. A shorter record is delivered only while the budget has room for its reservation
+after the claims the connection already holds, including its own request's. A length whose
+reservation overflows is refused as `budget` too. Individual inner records are at most 24 MiB plus
+their 12-byte header; a longer one fails as `record-size`. Decoder
 storage and one currently decoded record have separate bounded transient allocations; the
 reservation count is not an exact process heap bound. Incremental decoder input is capped at
 32 MiB with capped geometric capacity growth; after a large frame leaves, an empty or at-most-16-KiB
