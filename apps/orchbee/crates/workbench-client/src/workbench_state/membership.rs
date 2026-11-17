@@ -1114,10 +1114,12 @@ impl WorkbenchClientState {
                     && self.panes.iter().any(|record| {
                         &record.key.anchor == pending.cleanup.old() && record.attached()
                     })
+                    // An unattached anchor, begun from a parked focus or parked since, cleans up
+                    // the live siblings under the same old anchor.
                     && committed
                         .anchor
-                        .ready()
-                        .is_some_and(|ready| ready.selected.key().anchor() == pending.cleanup.old())
+                        .selected()
+                        .is_some_and(|selected| selected.key().anchor() == pending.cleanup.old())
             }
             (Some(pending), ClientPhase::ReconcilingMembership(selected)) => {
                 let Some(prepared) = &pending.prepared else {

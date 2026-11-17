@@ -161,6 +161,25 @@ impl CreateAnchor {
             Self::Unattached { .. } => CreateOriginKind::Unattached,
         }
     }
+    /// A Ready anchor whose focused viewer was lost mid-flight becomes the unattached anchor a
+    /// Create begun from that parked focus holds, so its precommit restoration and old-anchor
+    /// cleanup no longer name the viewer.
+    pub(super) fn park(&mut self, retryable: bool) {
+        if let Self::Ready(ready) = self {
+            *self = Self::Unattached {
+                selected: ready.selected.clone(),
+                retryable,
+            };
+        }
+    }
+
+    /// The origin a Create began from stays on its operation: a Ready origin also admits the
+    /// unattached anchor its focus parked into.
+    pub(super) fn admits_origin(&self, origin: CreateOriginKind) -> bool {
+        self.kind() == origin
+            || (origin == CreateOriginKind::Ready && matches!(self, Self::Unattached { .. }))
+    }
+
     pub(super) const fn ready(&self) -> Option<&ReadyAttachment> {
         match self {
             Self::Ready(ready) => Some(ready),

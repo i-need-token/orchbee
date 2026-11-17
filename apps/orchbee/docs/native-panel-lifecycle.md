@@ -192,9 +192,16 @@ selection, an uncertain Rename and a status-only close carrier read no focus vie
 parking mid-flight leaves the state each of them reaches when it begins from a parked focus, and
 it completes against the parked focus. A pending takeover stays pending: its Worker lease runs
 after the lease that lost the viewer, finds no viewer, sends nothing and settles the takeover as
-refused, the one answer a parked focus accepts. A staged membership install lives inside the one
-Worker lease that runs its cleanup, where no focus viewer is lost, so a loss beside it breaks the
-Worker's contract and still retires.
+refused, the one answer a parked focus accepts. A Create keeps its operation and request
+identity; a pre-marker Poll that loses the focus, or any loss while its committed projection waits
+for a later lease, turns its Ready anchor into the unattached anchor a Create begun from the parked
+focus holds. A definite precommit result then restores the parked selection, which takes no
+geometry, and a committed result cleans up only the live siblings under the old anchor. A staged
+membership install, a committed Create's cleanup and a Switch live inside the one Worker lease
+that runs them, and that lease serves no focus command, so a loss beside them breaks the Worker's
+contract and still retires. A Switch also moves the admitted focus at admission, so a queued
+command for the old focus finds it no longer admitted and loses nothing. Starting has no Ready
+focus to lose.
 A pane notice the record has already moved past is stale and settles nothing, never retiring the
 Client: a viewer or grant loss for a record that holds no viewer, an attach failure for a record
 that has since attached, or a detach proof for an incarnation the state no longer holds (its
@@ -282,12 +289,16 @@ focus loses its viewer, never an owner's own lease. `Queue`/`Lose`/`Drop` map to
 commands and `dispose_lost_viewer`, `Begin` to an owner's plan and begin, `ApplyLost` to
 `settle_pane_fault`, `RunOwner` to the owner's Worker lease, `ApplyResult` to its UI settlement and
 `Reattach` to the bounded automatic re-attach, which waits for every owner. The owner `takeover`
-needs the focus viewer; `free` stands for every owner whose completion reads none. Three owner
+needs the focus viewer; `create` holds the anchor it began from, which parking converts and the
+Worker answers by whether it still holds the viewer, and may finish in a second lease after an
+unavailable snapshot; `free` stands for every owner whose completion reads none. Three owner
 starts bound the run, enough to interleave a loss, a re-attach and a second owner. The model checks
 that no order of losses and owner leases retires the Client, that the UI parks exactly the focus
-whose viewer the Worker no longer holds, and that every owner settles; `RunOwner`, `ApplyLost` and
-`ApplyResult` use weak fairness. Its mutation controls retire on a loss beside an owner and let a
-takeover without a viewer fail; each must fail `NeverRetired`. Run
+whose viewer the Worker no longer holds, that a Create's anchor names the viewer exactly while the
+Worker holds it, and that every owner settles; `RunOwner`, `ApplyLost` and `ApplyResult` use weak
+fairness. Its mutation controls retire on a loss beside an owner, let a takeover without a viewer
+fail, keep a parked Create's Ready anchor, and let the Worker fail a Ready-origin Create whose
+viewer is gone; each must fail `NeverRetired` or `AnchorMatchesViewer`. Run
 `node scripts/tla/run-models.mjs --models native-focus-viewer-loss-parking`; the owners' completion
 against a parked focus is tested at `workbench_state`, and the takeover's skip at the Worker.
 

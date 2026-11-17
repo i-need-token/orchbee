@@ -44,7 +44,7 @@ impl WorkbenchClientState {
     }
 }
 
-fn create_candidate_key(
+pub(super) fn create_candidate_key(
     committed: &CommittedTabCreate,
     candidate: &PreparedMembershipCandidate,
 ) -> Option<AttachmentKey> {

@@ -169,13 +169,13 @@ cover normalization and aggregate limits; CLI tests witness the JVM argument and
 
 The verification runner is tested through its implementation. It has no separate workflow TLA model.
 
-| Claim                                                           | Maintained evidence                                      | Limit                                                           |
-| --------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------- |
-| FIFO resource admission, failure drain and model-local coverage | `model-checks.test.mjs`, `execution-properties.test.mjs` | Declared CPU/heap budgets and finite generated schedules        |
-| Complete immutable records and honest continuation              | `model-records.test.mjs`, `run-models.test.mjs`          | Exclusive writer, checked inputs and actual child/stdio closure |
-| Exact cache identity, invalidation and publication              | `model-cache.test.mjs`, `model-cache-cli.test.mjs`       | Local trusted filesystem; no power-loss durability claim        |
-| Conservative selection                                          | `model-inventory.test.mjs`, `document-scopes.test.mjs`   | Registered dependencies and supported Git/document forms        |
-| Protocol properties detect their motivating faults              | `model-mutations.test.mjs`                               | Thirty guard/ownership mutants of the retained protocol cores   |
+| Claim                                                           | Maintained evidence                                      | Limit                                                             |
+| --------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
+| FIFO resource admission, failure drain and model-local coverage | `model-checks.test.mjs`, `execution-properties.test.mjs` | Declared CPU/heap budgets and finite generated schedules          |
+| Complete immutable records and honest continuation              | `model-records.test.mjs`, `run-models.test.mjs`          | Exclusive writer, checked inputs and actual child/stdio closure   |
+| Exact cache identity, invalidation and publication              | `model-cache.test.mjs`, `model-cache-cli.test.mjs`       | Local trusted filesystem; no power-loss durability claim          |
+| Conservative selection                                          | `model-inventory.test.mjs`, `document-scopes.test.mjs`   | Registered dependencies and supported Git/document forms          |
+| Protocol properties detect their motivating faults              | `model-mutations.test.mjs`                               | Thirty-two guard/ownership mutants of the retained protocol cores |
 
 The scheduling corpus uses seeds 1 through 64, at most 128 commands, an independent oracle, replay and shrinking. The CLI suites retain cancellation, dirty/ignored/hidden inputs, historical failures, delayed stdio closure, partial results, mixed fresh/reused coverage and real pinned-TLC checks. Isolated fixtures run asynchronously with bounded concurrency; no case is dropped to meet the budget.
 

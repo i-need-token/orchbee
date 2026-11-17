@@ -1255,7 +1255,10 @@ Before the connection worker submits `tab.create`, it drains every FIFO record a
 
 This drain is necessary because a precommit result keeps the same viewer. Dropping its flight and
 assuming a later Detach could leave that retained viewer blocked. The UI never acknowledges an
-undrawn frame.
+undrawn frame. A pre-marker Poll that finds the focus runtime gone instead disposes the viewer and
+parks the focus beside the barrier, as [panel lifecycle](native-panel-lifecycle.md) states: the
+barrier keeps its operation and holds the unattached anchor, a definite precommit result restores
+the parked selection, and a committed result cleans up only the live siblings.
 
 The first `tab.create` submission uses its one captured request ID. There is no automatic new-ID
 retry, fallback OBCS Create/Open/Start, cancellation claim, or inference from a newly visible Tab.

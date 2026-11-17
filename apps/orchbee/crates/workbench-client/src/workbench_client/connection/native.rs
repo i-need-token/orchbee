@@ -1797,6 +1797,8 @@ impl ClientExecutor {
         outcome: CreatePrecommitOutcome,
     ) -> Result<()> {
         let applied_geometry = match operation.origin() {
+            // A pre-marker command that found the focus runtime gone disposed its viewer and
+            // parked the focus; the UI then holds the unattached anchor, which takes no geometry.
             crate::workbench_state::CreateOriginKind::Ready => {
                 let focus = self
                     .execution_desired(lease)?
@@ -1804,8 +1806,7 @@ impl ClientExecutor {
                 self.attachments
                     .iter()
                     .find(|attached| attached.key.pane() == &focus)
-                    .ok_or(CarrierFailure::Protocol)?
-                    .accepted_geometry
+                    .and_then(|attached| attached.accepted_geometry)
             }
             crate::workbench_state::CreateOriginKind::Unattached => None,
             crate::workbench_state::CreateOriginKind::Empty => {

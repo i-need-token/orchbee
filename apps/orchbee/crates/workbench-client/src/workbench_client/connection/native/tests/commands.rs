@@ -3027,6 +3027,77 @@ fn definite_precommit_keeps_viewer_and_runs_one_catch_up_resize_before_poll() ->
     harness.finish()
 }
 
+/// A focus Poll queued ahead of a Create finds the runtime gone: the worker disposes the viewer,
+/// the UI parks the focus beside the barrier, and the definite refusal that follows restores the
+/// parked selection instead of retiring for the missing viewer.
+#[test]
+fn create_behind_a_lost_focus_viewer_restores_the_parked_selection() -> TestResult {
+    use crate::workbench_client::mailbox::WorkerEvent;
+    use orchbee_client_server_protocol::ViewerUnavailableReason;
+    let geometry = fixture_geometry()?;
+    let mut kinds = vec![WireKind::Workbench];
+    kinds.extend([WireKind::Obcs; 6]);
+    kinds.push(WireKind::Workbench);
+    let mut harness = Harness::start(kinds, geometry)?;
+    let (active, _controller) = drive_controlling_ready(&mut harness, geometry)?;
+    harness
+        .mailbox
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&active)?,
+            (),
+        )))
+        .map_err(|error| test_error(&format!("focus Poll admission: {error:?}")))?;
+    let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
+        return Err(test_error("the focus Poll must reach the carrier"));
+    };
+    let operation = harness.ui.admit_create()?;
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                poll.request_id().clone(),
+                TerminalViewerOutcome::Unavailable {
+                    reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+                },
+            ),
+        ))?;
+    let taken = harness.ui.take_next()?;
+    assert!(matches!(
+        taken.event(),
+        WorkerEvent::PaneFailed {
+            fault: crate::workbench_state::PaneFault::ViewerLost,
+            ..
+        }
+    ));
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::PaneFailed
+    ));
+    assert_eq!(harness.ui.state().phase_kind(), ClientPhaseKind::Creating);
+    let WorkbenchRequest::Command(command) = harness.carrier.take_workbench()? else {
+        return Err(test_error("the Create still submits tab.create"));
+    };
+    harness
+        .carrier
+        .respond_workbench(WorkbenchResponse::Command(WorkbenchCommandResult {
+            protocol_version: ProtocolVersion,
+            request_id: command.request_id,
+            outcome: WorkbenchCommandOutcome::Denied {},
+        }))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::CreatePrecommit { operation: ref actual } if actual == &operation
+    ));
+    assert_eq!(
+        harness.ui.state().phase_kind(),
+        ClientPhaseKind::RetryableAttachUnavailable
+    );
+    assert!(harness.ui.state().focused_viewer_lost());
+    assert_eq!(harness.ui.state().desired().unwrap(), &active);
+    assert_eq!(harness.mailbox.is_closed(), None);
+    harness.finish()
+}
+
 fn drive_started_create_to_projection_unavailable(
     harness: &mut Harness,
     geometry: Geometry,

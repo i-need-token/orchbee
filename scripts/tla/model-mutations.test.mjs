@@ -233,8 +233,8 @@ const cases = [
 	[
 		'native-focus-viewer-loss-parking',
 		'a focus loss beside an owner retires the Client',
-		'/\\ ui\' = IF ui.phase = "ready" THEN',
-		'/\\ ui\' = IF ui.phase = "ready" /\\ ui.owner = "none" THEN',
+		'/\\ ui\' = IF ui.phase = "ready"\n',
+		'/\\ ui\' = IF ui.phase = "ready" /\\ ui.owner = "none"\n',
 		/Invariant NeverRetired is violated/u,
 	],
 	[
@@ -242,6 +242,20 @@ const cases = [
 		'a takeover whose viewer is gone fails instead of settling as refused',
 		'IF worker.viewer THEN "granted" ELSE "refused"',
 		'"granted"',
+		/Invariant NeverRetired is violated/u,
+	],
+	[
+		'native-focus-viewer-loss-parking',
+		'a focus parked beside a Create keeps the Ready anchor that names its lost viewer',
+		'!.anchor = IF @ = "ready" THEN "unattached" ELSE @]',
+		'!.anchor = @]',
+		/Invariant (?:NeverRetired|AnchorMatchesViewer) is violated/u,
+	],
+	[
+		'native-focus-viewer-loss-parking',
+		'a Create whose Ready origin lost its viewer fails instead of answering as unattached',
+		'IF worker.origin = "ready" /\\ worker.viewer THEN "viewer"',
+		'IF worker.origin = "ready" THEN IF worker.viewer THEN "viewer" ELSE "protocol"',
 		/Invariant NeverRetired is violated/u,
 	],
 ];

@@ -717,3 +717,198 @@ fn dropping_a_prepared_state_install_leaves_its_entire_visible_baseline_unchange
     assert!(state.ready().is_some());
     assert!(state.invariant_holds());
 }
+
+/// The Server's answer to a Create of Tab "2" beside the fixture's first Tab, whose root is `root`.
+fn created_tab_two(root: PanelNode) -> (Snapshot, WorkbenchTabCreateCommit) {
+    let mut candidate = snapshot(2, 2, Some("2"));
+    candidate.terminal_contexts[0].tabs[0].root = root;
+    let created = &candidate.terminal_contexts[0].tabs[1];
+    let PanelNode::Panel {
+        panel_id,
+        primary_presentation,
+        ..
+    } = &created.root
+    else {
+        unreachable!()
+    };
+    let commit = WorkbenchTabCreateCommit::Pending {
+        revision: WorkbenchRevision::new(2),
+        terminal_context_id: context_id(2),
+        tab_id: created.tab_id.clone(),
+        panel_id: panel_id.clone(),
+        presentation_id: primary_presentation.presentation_id.clone(),
+    };
+    (candidate, commit)
+}
+
+/// A Create whose focus parks before submission keeps its operation: a definite refusal restores
+/// the parked selection without geometry, and a commit installs its Tab.
+#[test]
+fn a_create_whose_focus_parks_before_submission_keeps_its_operation() {
+    for committed in [false, true] {
+        let mut state = ready(1);
+        let focus = state.focus_pane_ref().unwrap();
+        let root = state.cache().canonical_snapshot().terminal_contexts[0].tabs[0]
+            .root
+            .clone();
+        let operation = create_operation(&state, 4, 30, "2");
+        let key = operation.key().clone();
+        assert!(state.begin_create(operation));
+        assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
+        assert_eq!(state.phase_kind(), ClientPhaseKind::Creating);
+        assert!(state.invariant_holds());
+        if committed {
+            let (candidate, commit) = created_tab_two(root);
+            assert!(state.retain_create_commit(&key, commit));
+            let PreparedCreateSnapshot::Available {
+                baseline,
+                committed,
+                projection,
+            } = state.prepare_create_snapshot(
+                &key,
+                WorkbenchSnapshotOutcome::Available {
+                    snapshot: candidate,
+                },
+            )
+            else {
+                panic!("the created Tab projects")
+            };
+            let candidate = state
+                .prepare_create_membership_candidate(&baseline, &committed, projection)
+                .unwrap();
+            // The parked focus holds no viewer, so the Tab installs without a cleanup.
+            assert!(!state.has_attachments());
+            let desired = create_projection::create_candidate_key(&committed, &candidate);
+            let decision = state
+                .prepare_create_membership_install(
+                    &key,
+                    candidate,
+                    desired,
+                    committed.operation().deadlines(),
+                )
+                .unwrap()
+                .commit();
+            assert_eq!(
+                decision,
+                MembershipInstallDecision::SelectedWithoutAttachment
+            );
+            assert_eq!(state.cache().tabs().len(), 2);
+        } else {
+            assert!(!state.restore_precommit(&key, Some(geometry(80))));
+            assert!(state.restore_precommit(&key, None));
+            assert!(state.focused_viewer_lost());
+            assert_eq!(state.focus_pane_ref(), Some(focus));
+        }
+        assert!(state.invariant_holds(), "committed: {committed}");
+    }
+}
+
+/// A committed Create whose projection waits for a later lease parks the focus it still shows and
+/// installs its Tab in that lease.
+#[test]
+fn a_committed_create_awaiting_its_projection_parks_and_installs_later() {
+    let mut state = ready(1);
+    let focus = state.focus_pane_ref().unwrap();
+    let root = state.cache().canonical_snapshot().terminal_contexts[0].tabs[0]
+        .root
+        .clone();
+    let operation = create_operation(&state, 2, 30, "2");
+    let key = operation.key().clone();
+    assert!(state.begin_create(operation));
+    let (candidate, commit) = created_tab_two(root);
+    assert!(state.retain_create_commit(&key, commit));
+    assert_eq!(
+        state.settle_create_snapshot(&key, WorkbenchSnapshotOutcome::Denied {}),
+        CreateProjectionDecision::ProjectionUnavailable
+    );
+    assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
+    assert_eq!(state.phase_kind(), ClientPhaseKind::ProjectionUnavailable);
+    assert!(state.invariant_holds());
+    assert!(state.start_pending_refresh(1));
+    let PreparedRefresh::CreateMembership {
+        generation,
+        operation,
+        prepared,
+    } = state.prepare_refresh(
+        1,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: candidate,
+        },
+    )
+    else {
+        panic!("Create recovery must use the common membership candidate")
+    };
+    assert!(!state.has_attachments());
+    let committed = state.committed_target().unwrap().clone();
+    let desired = create_projection::create_candidate_key(&committed, &prepared);
+    let decision = state
+        .prepare_create_refresh_install(
+            generation,
+            &operation,
+            prepared,
+            desired,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap()
+        .commit();
+    assert_eq!(
+        decision,
+        MembershipInstallDecision::SelectedWithoutAttachment
+    );
+    assert_eq!(state.cache().tabs().len(), 2);
+    assert!(state.invariant_holds());
+}
+
+/// A Create from a parked focus whose sibling still has a viewer cleans that sibling up under the
+/// old anchor and installs its Tab.
+#[test]
+fn a_create_from_a_parked_focus_cleans_up_its_live_sibling() {
+    let mut state = ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap());
+    attach_nonfirst_leaf(&mut state);
+    let focus = state.focus_pane_ref().unwrap();
+    assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
+    let operation = create_operation(&state, 4, 30, "2").with_origin(CreateOriginKind::Unattached);
+    let key = operation.key().clone();
+    assert!(state.begin_create(operation));
+    let (candidate, commit) = created_tab_two(
+        split_panel_baseline().terminal_contexts[0].tabs[0]
+            .root
+            .clone(),
+    );
+    assert!(state.retain_create_commit(&key, commit));
+    let PreparedCreateSnapshot::Available {
+        baseline,
+        committed,
+        projection,
+    } = state.prepare_create_snapshot(
+        &key,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: candidate,
+        },
+    )
+    else {
+        panic!("the created Tab projects")
+    };
+    let candidate = state
+        .prepare_create_membership_candidate(&baseline, &committed, projection)
+        .unwrap();
+    assert!(state.has_attachments());
+    let desired = create_projection::create_candidate_key(&committed, &candidate);
+    let cleanup = state
+        .stage_create_membership_cleanup(&key, candidate, committed.operation().deadlines())
+        .unwrap();
+    assert!(state.invariant_holds(), "the staged sibling cleanup");
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
+        .unwrap();
+    let decision = state
+        .prepare_cleaned_membership_install(&cleanup, prepared, desired)
+        .unwrap()
+        .commit();
+    assert_eq!(
+        decision,
+        MembershipInstallDecision::SelectedWithoutAttachment
+    );
+    assert_eq!(state.cache().tabs().len(), 2);
+    assert!(state.invariant_holds());
+}

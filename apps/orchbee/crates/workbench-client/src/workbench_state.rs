@@ -1069,7 +1069,7 @@ impl CommittedTabCreate {
             };
         if terminal_context_id != barrier.operation.terminal_context_id
             || barrier.operation.expected_revision.value().checked_add(1) != Some(revision.value())
-            || barrier.operation.origin != barrier.anchor.kind()
+            || !barrier.anchor.admits_origin(barrier.operation.origin)
             || barrier.operation.key.reserved_generation
                 <= barrier
                     .anchor
@@ -2227,11 +2227,21 @@ impl WorkbenchClientState {
     /// selection, an uncertain Rename and a status-only close carrier read no focus viewer to
     /// complete, so parking mid-flight leaves the state they reach when they begin from a parked
     /// focus. A pending takeover stays and settles as refused: its Worker lease finds the viewer
-    /// gone. A staged membership install lives inside the one Worker lease that runs its cleanup,
-    /// where no focus viewer is lost, so a loss beside it breaks the Worker's contract.
+    /// gone. A Create's Ready anchor, before submission or while its committed projection waits
+    /// for a later lease, parks into the unattached anchor a Create begun from the parked focus
+    /// holds. A staged membership install and a committed Create's cleanup live inside the one
+    /// Worker lease that runs them, where no focus viewer is lost, so a loss beside them breaks
+    /// the Worker's contract. A Switch moves the admitted focus at admission, so the Worker no
+    /// longer serves the old focus and loses nothing for it.
     fn focus_runtime_loss_admissible(&self, key: &PaneRef) -> bool {
-        matches!(&self.phase, ClientPhase::Ready(ready)
-            if ready.selected.key == *key.pane() && self.desired.as_ref() == Some(key.pane()))
+        let ready = match &self.phase {
+            ClientPhase::Ready(ready) => Some(ready),
+            ClientPhase::Creating(barrier) => barrier.anchor.ready(),
+            ClientPhase::ProjectionUnavailableBeforeCleanup(committed) => committed.anchor.ready(),
+            _ => None,
+        };
+        ready.is_some_and(|ready| ready.selected.key == *key.pane())
+            && self.desired.as_ref() == Some(key.pane())
             && self.invariant_holds()
             && self.pending_membership.is_none()
             && self
@@ -2355,15 +2365,25 @@ impl WorkbenchClientState {
                 },
                 PaneFault::ViewerLost => {
                     self.clear_pane_attachment(&pane);
-                    if let Some(selected) = self.active().cloned() {
-                        let attachable = self
-                            .pane_record(&pane)
-                            .is_some_and(|record| record.attachable());
-                        self.phase = if attachable {
-                            ClientPhase::RetryableAttachUnavailable(selected)
-                        } else {
-                            ClientPhase::SelectedWithoutAttachment(selected)
-                        };
+                    let attachable = self
+                        .pane_record(&pane)
+                        .is_some_and(|record| record.attachable());
+                    match &mut self.phase {
+                        // The Create keeps its operation; only its anchor stops naming the viewer.
+                        ClientPhase::Creating(CreatingBarrier { anchor, .. })
+                        | ClientPhase::ProjectionUnavailableBeforeCleanup(CommittedTabCreate {
+                            anchor,
+                            ..
+                        }) => anchor.park(attachable),
+                        _ => {
+                            if let Some(selected) = self.active().cloned() {
+                                self.phase = if attachable {
+                                    ClientPhase::RetryableAttachUnavailable(selected)
+                                } else {
+                                    ClientPhase::SelectedWithoutAttachment(selected)
+                                };
+                            }
+                        }
                     }
                 }
                 _ => {}
