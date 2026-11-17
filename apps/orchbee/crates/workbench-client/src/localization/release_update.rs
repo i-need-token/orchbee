@@ -60,11 +60,11 @@ impl Locale {
             ),
             UpdateCheck::UpToDate => ("Orchbee is up to date.", "Orchbee 已是最新版本。"),
             UpdateCheck::Failed => (
-                "Couldn’t check for updates. Try again later.",
+                "Couldn't check for updates. Try again later.",
                 "无法检查更新，请稍后再试。",
             ),
             UpdateCheck::Unavailable(CheckUnavailable::Development) => {
-                ("Development builds don’t update.", "开发版不会更新。")
+                ("Development builds don't update.", "开发版不会更新。")
             }
             UpdateCheck::Unavailable(CheckUnavailable::Session) => {
                 ("Available once the Session updates.", "会话更新后可用。")

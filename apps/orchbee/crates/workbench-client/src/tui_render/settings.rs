@@ -1056,13 +1056,19 @@ fn render_row(
             } else {
                 locale.settings_description(row).to_owned()
             };
+            // A check's result carries its outcome's color, as the window's tone does.
+            let description_role = match (row, page.about().update(), page.about().check()) {
+                (Row::Updates, None, UpdateCheck::UpToDate) => Role::StatusSuccess,
+                (Row::Updates, None, UpdateCheck::Failed) => Role::StatusError,
+                _ => Role::TextMuted,
+            };
             put(
                 frame,
                 name_x,
                 second,
                 available,
                 &description,
-                style(Role::TextMuted),
+                style(description_role),
             );
             if display_width(&description) + RESTORE_GAP + restore_width <= usize::from(available)
                 && let Some(label) = restore.take()

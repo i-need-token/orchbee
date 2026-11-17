@@ -1147,20 +1147,20 @@ control while it is Ready. The action adds no second update state, and a Client 
   [release-store model](../../crates/local-runtime/README.md#fallback-after-a-failed-move); only
   `orchbee update` is the explicit install.
 
-| Text                         | `en-US`                                                        | `zh-CN`                                      |
-| ---------------------------- | -------------------------------------------------------------- | -------------------------------------------- |
-| Category                     | About                                                          | 关于                                         |
-| Version row                  | Version                                                        | 版本                                         |
-| Build kind                   | Release build / Test build / Development build                 | 正式版 / 测试版 / 开发版                     |
-| Updates row                  | Updates                                                        | 更新                                         |
-| Action                       | Check for updates                                              | 检查更新                                     |
-| Checking                     | Checking…                                                      | 正在检查…                                    |
-| Idle                         | Orchbee also checks every hour while automatic updates are on. | 自动更新开启时，Orchbee 也会每小时检查一次。 |
-| Up to date                   | Orchbee is up to date.                                         | Orchbee 已是最新版本。                       |
-| Failed                       | Couldn’t check for updates. Try again later.                   | 无法检查更新，请稍后再试。                   |
-| Unavailable, development     | Development builds don’t update.                               | 开发版不会更新。                             |
-| Unavailable, older Session   | Available once the Session updates.                            | 会话更新后可用。                             |
-| Unavailable, no release store | Not available for this installation.                          | 此安装不支持检查更新。                       |
+| Text                          | `en-US`                                                        | `zh-CN`                                      |
+| ----------------------------- | -------------------------------------------------------------- | -------------------------------------------- |
+| Category                      | About                                                          | 关于                                         |
+| Version row                   | Version                                                        | 版本                                         |
+| Build kind                    | Release build / Test build / Development build                 | 正式版 / 测试版 / 开发版                     |
+| Updates row                   | Updates                                                        | 更新                                         |
+| Action                        | Check for updates                                              | 检查更新                                     |
+| Checking                      | Checking…                                                      | 正在检查…                                    |
+| Idle                          | Orchbee also checks every hour while automatic updates are on. | 自动更新开启时，Orchbee 也会每小时检查一次。 |
+| Up to date                    | Orchbee is up to date.                                         | Orchbee 已是最新版本。                       |
+| Failed                        | Couldn't check for updates. Try again later.                   | 无法检查更新，请稍后再试。                   |
+| Unavailable, development      | Development builds don't update.                               | 开发版不会更新。                             |
+| Unavailable, older Session    | Available once the Session updates.                            | 会话更新后可用。                             |
+| Unavailable, no release store | Not available for this installation.                           | 此安装不支持检查更新。                       |
 
 ## Settings and the command
 
