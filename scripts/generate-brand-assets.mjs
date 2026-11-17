@@ -65,11 +65,14 @@ if (process.argv.includes('--check')) {
 		const render = async (svg, width, height, options = {}) => {
 			const key = JSON.stringify([svg, width, height, options]);
 			if (renderings.has(key)) return renderings.get(key);
-			const { background = null, kind = 'png', markSize = width } = options;
+			const { background = null, kind = 'png', markSize } = options;
+			// A mark centred on a card, or a picture that fills its canvas.
+			const [markWidth, markHeight] =
+				markSize === undefined ? [width, height] : [markSize, markSize];
 			await page.setViewportSize({ width, height });
 			const source = `data:image/svg+xml;base64,${Buffer.from(svgs.get(svg)).toString('base64')}`;
 			await page.setContent(
-				`<!doctype html><body style="margin:0;width:${width}px;height:${height}px;display:grid;place-items:center;background:${background ?? 'transparent'}"><img src="${source}" width="${markSize}" height="${markSize}" style="display:block"></body>`,
+				`<!doctype html><body style="margin:0;width:${width}px;height:${height}px;display:grid;place-items:center;background:${background ?? 'transparent'}"><img src="${source}" width="${markWidth}" height="${markHeight}" style="display:block"></body>`,
 			);
 			await page.locator('img').evaluate((image) => image.decode());
 			const image = await page.screenshot({

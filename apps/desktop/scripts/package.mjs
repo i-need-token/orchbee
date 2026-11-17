@@ -10,7 +10,6 @@ import {
 	realpath,
 	rm,
 	stat,
-	symlink,
 	writeFile,
 } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -34,6 +33,7 @@ import {
 	resolveDesktopTestApplicationName,
 	resolveDesktopWindowsInstallerIdentity,
 } from '../src/distribution/tooling/index.ts';
+import { writeMacDiskImage } from './mac-disk-image.mjs';
 
 const electronPackage = createRequire(import.meta.url)('electron/package.json');
 if (typeof electronPackage?.version !== 'string') {
@@ -406,7 +406,8 @@ async function verifyBundledCohort(directory, stagedFiles) {
 
 /**
  * Writes `<out>/<profile>/installer/<name>.dmg`, a compressed read-only image holding the signed
- * application beside a link to `/Applications`, named for the signed manifest's platform.
+ * application beside a link to `/Applications` over the brand background, named for the signed
+ * manifest's platform.
  */
 async function createMacDiskImage(application) {
 	const releaseManifest = JSON.parse(
@@ -428,43 +429,20 @@ async function createMacDiskImage(application) {
 	);
 	await rm(outputDirectory, { force: true, recursive: true });
 	await mkdir(outputDirectory, { recursive: true });
-	const volume = path.join(packageWorkspace, 'disk-image');
-	await mkdir(volume);
-	// ditto keeps the bundle's links, modes and signature.
-	execFileSync('/usr/bin/ditto', [application, path.join(volume, path.basename(application))], {
-		stdio: 'inherit',
-	});
-	await symlink('/Applications', path.join(volume, 'Applications'));
+	const workspace = path.join(packageWorkspace, 'disk-image');
+	await mkdir(workspace);
 	const image = path.join(outputDirectory, `${baseName}.dmg`);
-	// GitHub's macOS runners now and then answer `hdiutil create` with "Resource busy"; a later
-	// attempt succeeds.
-	for (let attempt = 1; ; attempt += 1) {
-		try {
-			execFileSync(
-				'/usr/bin/hdiutil',
-				[
-					'create',
-					'-volname',
-					distributionProfile.applicationName,
-					'-srcfolder',
-					volume,
-					'-fs',
-					'HFS+',
-					'-format',
-					'UDZO',
-					'-ov',
-					image,
-				],
-				{ stdio: 'inherit' },
-			);
-			break;
-		} catch (error) {
-			if (attempt === 3) throw error;
-			await rm(image, { force: true });
-			await new Promise((resolve) => setTimeout(resolve, 5000));
-		}
-	}
-	execFileSync('/usr/bin/hdiutil', ['verify', image], { stdio: 'inherit' });
+	const backgrounds = path.join(repositoryRoot, 'resources', 'brand', 'png', 'dmg');
+	await writeMacDiskImage({
+		application,
+		volumeName: distributionProfile.applicationName,
+		image,
+		workspace,
+		background: {
+			standard: path.join(backgrounds, 'orchbee-dmg-background.png'),
+			retina: path.join(backgrounds, 'orchbee-dmg-background@2x.png'),
+		},
+	});
 	console.info(`Created the macOS disk image (${profileId}): ${image}`);
 }
 

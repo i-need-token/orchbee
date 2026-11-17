@@ -55,6 +55,17 @@ const SOCIAL_CARDS = [
 	['light', '#EFEDE8', 'icon'],
 	['dark', INK, 'square'],
 ];
+// The macOS disk image window's background: the light paper of the light social card and one ink
+// arrow from the application to the Applications link, with no text, since a disk image cannot
+// switch language. Finder draws a window with a background picture in its light appearance, so the
+// black icon labels read in light and dark mode. Cross-runtime contract: the size, the icon centres
+// (180, 180) and (480, 180) and the 128 px icons are apps/desktop/scripts/mac-disk-image.mjs's
+// layout; change both together.
+const DISK_IMAGE_BACKGROUND = {
+	width: 660,
+	height: 400,
+	svg: `<svg xmlns="http://www.w3.org/2000/svg" width="660" height="400" viewBox="0 0 660 400"><rect width="660" height="400" fill="#EFEDE8"/><path d="M282 180h92m-20-20 20 20-20 20" fill="none" stroke="${INK}" stroke-opacity="0.42" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+};
 
 const darwinSuffix = (variant) => (variant === 'release' ? '' : `-${variant}`);
 const traySuffix = (status) => (status === 'none' ? '' : `-${status}`);
@@ -90,6 +101,7 @@ export function renderBrandSvgs(masterSvg) {
 			);
 		}
 	}
+	svgs.set('disk-image-background', DISK_IMAGE_BACKGROUND.svg);
 	return svgs;
 }
 
@@ -127,6 +139,18 @@ export function brandAssetPlan() {
 			kind: 'icns',
 			svg: name,
 			entries: ICNS_TYPES,
+		});
+	}
+	// The 1x and 2x pictures that packaging joins into one multi-resolution TIFF with tiffutil.
+	for (const [suffix, scale] of [
+		['', 1],
+		['@2x', 2],
+	]) {
+		plan.set(`png/dmg/orchbee-dmg-background${suffix}.png`, {
+			kind: 'png',
+			svg: 'disk-image-background',
+			width: DISK_IMAGE_BACKGROUND.width * scale,
+			height: DISK_IMAGE_BACKGROUND.height * scale,
 		});
 	}
 	for (const size of JPEG_SIZES) {

@@ -313,7 +313,7 @@ The bundle identifier is also the Windows AppUserModelID: a packaged Windows app
 startup and the installer's Start menu shortcut carries it, so Windows groups the window, its
 taskbar button and its notifications under that shortcut.
 
-On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Test badge over the lower-right corner. After changing `resources/icon.svg`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Every Windows profile uses `resources/brand/ico/orchbee.ico`; Linux packages still use the Electron default icon.
+On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Test badge over the lower-right corner. The disk image background in `resources/brand/png/dmg/` comes from the same kit. After changing `resources/icon.svg` or a kit definition in the repository's `scripts/brand-assets.mjs`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Every Windows profile uses `resources/brand/ico/orchbee.ico`; Linux packages still use the Electron default icon.
 
 Packages name their native cohort by an environment stem, so the operating system and the agent can tell the release, development, and test processes apart. The stem is `orchbee` for release, `ob-dev-<scope-digest>` for dev (one per checkout, so parallel worktrees never share names), and `ob-test-<home-digest>` for test (one per home directory). The Client, Server, Worker, and Terminal Host carry the same stem, for example `ob-dev-<scope-digest>` and `ob-dev-<scope-digest>-server`, with `.exe` on Windows. The packaged Windows Desktop executable is `<stem>-desktop.exe` (release `orchbee-desktop.exe`), so the shell never shares an image name with its own Client; the packaged output folder takes that executable's name. Display names and bundle identifiers do not change, and every data root is the same stem with a leading dot. Every cohort also compiles in the stem, which the handshake compares, so a release Client in a development or test Desktop's terminal is refused.
 
@@ -499,6 +499,18 @@ compressed read-only HFS+ image whose volume is named after the application and 
 application beside an `Applications` link to `/Applications`. `hdiutil verify` checks the image
 before the command reports it. `<platform>` is the signed `release.json`'s token, `macos-aarch64` or
 `macos-x86_64`, so the command names nothing by the host's architecture.
+
+The image opens in a fixed Finder window, which `scripts/mac-disk-image.mjs` lays out without a
+Finder session: it creates the image writable, mounts it with `-nobrowse`, writes the volume's
+`.DS_Store` itself, and converts the image to the compressed format. The window shows 660 × 400
+points of icon view with no toolbar, sidebar, status bar or path bar; 128 px icons with the
+application centred at (180, 180) and `Applications` at (480, 180); and the background
+`.background.tiff`, which `tiffutil -cathidpicheck` joins from the 1x and 2x pictures in
+`resources/brand/png/dmg/`. The picture carries only an arrow, since it cannot switch language,
+and is light because Finder draws a window with a background picture in its light appearance, so
+the black icon labels read in light and dark mode. The picture's arrow and the layout's positions
+form one contract: change the repository's `scripts/brand-assets.mjs` and this package's
+`scripts/mac-disk-image.mjs` together.
 
 | Profile | Disk image                                       | Application        |
 | ------- | ------------------------------------------------ | ------------------ |
