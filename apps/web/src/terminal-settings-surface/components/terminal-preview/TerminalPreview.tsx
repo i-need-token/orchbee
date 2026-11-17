@@ -1,6 +1,9 @@
 import type * as React from 'react';
 
-import type { WindowTerminalColors } from '../../../terminal-settings';
+import {
+	terminalFontListWithFallback,
+	type WindowTerminalColors,
+} from '../../../terminal-settings';
 import styles from './TerminalPreview.module.css';
 
 interface TerminalPreviewProps {
@@ -68,7 +71,7 @@ export function TerminalPreview({
 			<text
 				dominantBaseline='central'
 				fill={ink('foreground')}
-				fontFamily={fontFamily}
+				fontFamily={terminalFontListWithFallback(fontFamily)}
 				fontSize={fontSize}
 				fontWeight={fontWeight}
 				xmlSpace='preserve'

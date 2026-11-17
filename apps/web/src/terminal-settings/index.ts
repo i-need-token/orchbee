@@ -5,6 +5,7 @@ export {
 	leadingTerminalFontFamily,
 	normalizeTerminalHexColor,
 	terminalFontFamilyList,
+	terminalFontListWithFallback,
 	TerminalSettingsController,
 	windowTerminalColors,
 } from './model';

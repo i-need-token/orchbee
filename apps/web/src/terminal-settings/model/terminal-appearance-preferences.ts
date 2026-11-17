@@ -5,6 +5,7 @@ import {
 	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 	type TerminalPresentationConfigurationSource,
 } from '../../terminal-presentation';
+import { terminalFontListWithFallback } from './terminal-font-family';
 
 type ApplicationTheme = 'dark' | 'light' | 'system';
 type TerminalDisplayTheme = 'custom' | 'host' | 'theme';
@@ -109,7 +110,7 @@ export function terminalPresentationConfigurationFromPreferences(
 		allowTransparency: preferences.backgroundOpacityPercent < 100,
 		backgroundOpacity: preferences.backgroundOpacityPercent / 100,
 		defaultColorOverride: null,
-		fontFamily: preferences.fontFamily,
+		fontFamily: terminalFontListWithFallback(preferences.fontFamily),
 		fontLigatures: preferences.fontLigatures,
 		fontSize: preferences.fontSize,
 		fontWeight: preferences.fontWeight,

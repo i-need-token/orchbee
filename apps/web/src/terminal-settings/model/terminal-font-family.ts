@@ -14,6 +14,35 @@ export function terminalFontFamilyList(family: string): string {
 	return `${quoteFamily(family)}, ${quoteFamily(ORCHBEE_TERMINAL_SYMBOL_FONT_FAMILY)}, monospace`;
 }
 
+const GENERIC_FONT_FAMILY_KEYWORDS = new Set([
+	'monospace',
+	'ui-monospace',
+	'serif',
+	'sans-serif',
+	'ui-serif',
+	'ui-sans-serif',
+	'ui-rounded',
+	'system-ui',
+	'cursive',
+	'fantasy',
+	'math',
+	'emoji',
+	'fangsong',
+]);
+
+/**
+ * A list that names no generic family gets Orchbee's symbols and any monospace font after it, so
+ * a missing family never falls back to the browser's serif.
+ */
+export function terminalFontListWithFallback(list: string): string {
+	const lastEntry = list
+		.slice(list.lastIndexOf(',') + 1)
+		.trim()
+		.toLowerCase();
+	if (GENERIC_FONT_FAMILY_KEYWORDS.has(lastEntry)) return list;
+	return `${list}, ${quoteFamily(ORCHBEE_TERMINAL_SYMBOL_FONT_FAMILY)}, monospace`;
+}
+
 /** The first family a CSS font list names, without its quotes; empty for an empty list. */
 export function leadingTerminalFontFamily(list: string): string {
 	const text = list.trimStart();

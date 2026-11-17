@@ -52,8 +52,10 @@ list opens, which is why the list asks only then. Fixed-width families come firs
 Show all fonts is on; a search looks through every family. Each entry draws its name in its own
 face, except families that put pictures where letters belong. A picked family stores
 `"<family>", "Orchbee Symbols Nerd Font", monospace`, so prompt glyphs keep drawing where the family
-lacks them; the built-in entry restores the default; text the list lacks is stored as typed. Without
-Local Font Access, or after a refusal, the list holds the built-in entry and the typed text. Font
+lacks them; the built-in entry restores the default. Text the list lacks is stored as typed, and
+terminals and the preview draw any list naming no generic family with Orchbee's symbols and a
+monospace font after it. Without Local Font Access, or after a refusal, the list holds the
+built-in entry and the typed text. Font
 size is a stepper of one pixel per press or Up and Down arrow; a typed size applies on Enter or when
 the field loses focus. The page has no Zoom row because the application has no window zoom command.
 

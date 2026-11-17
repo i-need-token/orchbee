@@ -3,6 +3,7 @@ export {
 	BUILT_IN_TERMINAL_FONT_FAMILY,
 	leadingTerminalFontFamily,
 	terminalFontFamilyList,
+	terminalFontListWithFallback,
 } from './terminal-font-family';
 export type { TerminalAppearancePreferences } from './terminal-appearance-preferences';
 export { isTerminalThemePresentationSource } from './isTerminalThemePresentationSource';
