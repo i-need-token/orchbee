@@ -87,6 +87,14 @@ pub fn acquireLock(
     return lock_file;
 }
 
+/// Releases a lock `acquireLock` took. The unlock comes before the close: a child that another
+/// thread is starting holds a copy of every descriptor until it executes, and the `flock` lasts
+/// while any copy is open, so a close alone could leave the next Host refused as already running.
+pub fn releaseLock(io: std.Io, lock_file: std.Io.File) void {
+    lock_file.unlock(io);
+    lock_file.close(io);
+}
+
 pub fn secureEndpoint(
     directory: std.Io.Dir,
     endpoint_name: []const u8,

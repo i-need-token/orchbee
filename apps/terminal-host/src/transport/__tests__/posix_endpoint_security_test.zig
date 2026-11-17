@@ -334,6 +334,33 @@ test "POSIX lock acquisition retains lifetime nonblocking exclusivity" {
     );
 }
 
+test "POSIX lock release frees the lock while a copy of its descriptor is open" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+    var runtime = try TestDirectory.init(std.testing.allocator);
+    defer runtime.deinit();
+    const lock_name = "released.l";
+
+    const acquired = try security.acquireLock(
+        std.testing.io,
+        runtime.directory,
+        lock_name,
+        std.c.geteuid(),
+    );
+    // The copy stands in for a child that another thread started and that has not executed yet.
+    const copy = std.c.dup(acquired.handle);
+    try std.testing.expect(copy >= 0);
+    defer _ = std.c.close(copy);
+    security.releaseLock(std.testing.io, acquired);
+
+    const next = try security.acquireLock(
+        std.testing.io,
+        runtime.directory,
+        lock_name,
+        std.c.geteuid(),
+    );
+    security.releaseLock(std.testing.io, next);
+}
+
 test "bound POSIX endpoint validation enforces owner type mode and effective ACL" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
     var runtime = try TestDirectory.init(std.testing.allocator);

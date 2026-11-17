@@ -172,13 +172,13 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
 
         const lock_name = try endpoint_security.lockName(allocator, endpoint_id);
         errdefer allocator.free(lock_name);
-        var lock_file = try endpoint_security.acquireLock(
+        const lock_file = try endpoint_security.acquireLock(
             io,
             directory,
             lock_name,
             std.c.geteuid(),
         );
-        errdefer lock_file.close(io);
+        errdefer endpoint_security.releaseLock(io, lock_file);
 
         const owns_endpoint_directory = !std.mem.eql(u8, endpoint_directory, runtime_directory);
         const bind_directory = if (owns_endpoint_directory)
@@ -234,7 +234,7 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
     pub fn deinit(self: *Server) void {
         self.listener.deinit(self.io);
         self.endpoint_directory.deleteFile(self.io, self.socket_name) catch {};
-        self.lock_file.close(self.io);
+        endpoint_security.releaseLock(self.io, self.lock_file);
         if (self.owns_endpoint_directory) self.endpoint_directory.close(self.io);
         self.directory.close(self.io);
         self.allocator.free(self.socket_path);
