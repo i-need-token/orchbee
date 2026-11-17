@@ -478,8 +478,8 @@ pub(crate) fn session_start(format: OutputFormat, locale: Locale) -> Output {
     server::start(format, locale)
 }
 
-/// `agent integration` is provider onboarding through the local Session: each verb declares
-/// activation, and the Session's Worker owns every provider command.
+/// `agent integration` is provider onboarding. `list` and `explain` run in this process; `enable`
+/// and `disable` activate the local Session, whose Worker owns their provider commands.
 pub(crate) fn agent_integration(
     command: crate::invocation::AgentIntegrationCommand,
     format: OutputFormat,

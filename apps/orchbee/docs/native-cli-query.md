@@ -117,9 +117,10 @@ Status: current implementation and correctness contract for the native `orchbee`
 command line, covering queries, Workbench mutations, terminal observation and input,
 Agent names, and local provider onboarding. Queries observe an existing Session; Workbench
 mutations follow the mutation contract below. Only `server start`, `server connect`, the
-`agent integration` jobs, the TUI startup path, and `workspace create`, `project create`,
-`worktree create` and `worktree open` may activate a Session; those four creating commands start
-the selected Session first when it is not running, exactly as `server start` would. Agent state
+`agent integration enable` and `disable` jobs, the TUI startup path, and `workspace create`,
+`project create`, `worktree create` and `worktree open` may activate a Session; those four creating
+commands start the selected Session first when it is not running, exactly as `server start` would.
+Agent state
 comes from the Server's canonical model, never terminal-text inference; the Server owns names,
 while `agent integration` manages
 only the invoking user's local provider configuration. Each command's effects, budgets,
@@ -1000,7 +1001,7 @@ The shared process router preserves this path before locale selection. Its named
 retain Windows Session selection and Unix rejection of unavailable runtime routes; offline
 discovery continues to ignore Session selection. Integration `--outdated-only` admission also
 runs before the files-only inspection, retaining its existing Windows capability; `agent
-integration list` never starts or contacts a Session.
+integration list` and `explain` never start or contact a Session.
 `--skill` must be the sole root argument and emits the localized, embedded CLI usage guide.
 PowerShell completion is a static grammar projection: it never executes user expressions or
 queries a Session; loading it is explicit and does not modify a shell profile.

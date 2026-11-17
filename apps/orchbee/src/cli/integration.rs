@@ -1,10 +1,10 @@
-//! `agent integration` — provider onboarding. `list` is a query: it reads the provider files in
-//! this process, with its own home directory and `PATH`, and never starts or contacts a Session.
-//! `explain`, `enable` and `disable` declare activation: each converges the selected local Session
-//! toward readiness, then runs one Server-authorized job on the Session's Worker, which resolves
-//! provider executables from its own `PATH` and home directory, a macOS Worker after the `PATH` a
-//! new terminal's login shell leaves. Mutations are guarded and report the post-effect state they
-//! actually observed.
+//! `agent integration` — provider onboarding. `list` and `explain` are queries: they inspect the
+//! provider files in this process, with its own home directory and `PATH`, and never start or
+//! contact a Session; `explain` starts only the provider programs it reads from. `enable` and
+//! `disable` declare activation: each converges the selected local Session toward readiness, then
+//! runs one Server-authorized job on the Session's Worker, which resolves provider executables from
+//! its own `PATH` and home directory, a macOS Worker after the `PATH` a new terminal's login shell
+//! leaves. Mutations are guarded and report the post-effect state they actually observed.
 
 use crate::cli_text::CliText;
 use serde_json::{Map, Value, json};
@@ -65,6 +65,13 @@ fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, Failure> {
         }
         return list_here(*provider, adapter_source.as_deref(), command);
     }
+    if let AgentIntegrationCommand::Explain {
+        provider,
+        adapter_source,
+    } = command
+    {
+        return explain_here(*provider, adapter_source.as_deref(), command);
+    }
     // No handler is armed during activation, so a termination signal ends it by its default
     // disposition, exactly like `server start`.
     let started = std::time::Instant::now();
@@ -114,6 +121,55 @@ fn list_here(
         }
     };
     prepare(report, command)
+}
+
+/// `explain` runs the writer's inspection in this process, under the writer's own budget, with its
+/// own home directory and `PATH`, and never starts or contacts a Session. It starts the provider's
+/// own program for the rows only that program reports, so this process arms its termination signal
+/// as the writer's cooperative cancellation: an interruption stops those programs' process groups
+/// between bounded steps, and the command exits `130` with no plan, like any interrupted
+/// invocation.
+#[cfg(any(unix, windows))]
+fn explain_here(
+    provider: crate::agent_integrations::IntegrationId,
+    adapter_source: Option<&std::path::Path>,
+    command: &AgentIntegrationCommand,
+) -> Result<Prepared, Failure> {
+    use crate::agent_integrations::IntegrationReport as Report;
+    use crate::termination_signal::{TerminationSignal, TerminationSource};
+    let signal = std::sync::Arc::new(
+        TerminationSignal::install().map_err(|_| Failure::new(FailureKind::InternalFailure))?,
+    );
+    let cancel: std::sync::Arc<dyn orchbee_agent_integration_writer::TerminationSource> =
+        std::sync::Arc::new(Interrupt(std::sync::Arc::clone(&signal)));
+    let report = match orchbee_agent_integration_writer::context(adapter_source, Some(cancel)) {
+        Err(_) => Report::HomeUnavailable {},
+        Ok(context) => {
+            let (item, detail, capsule, plan) =
+                orchbee_agent_integration_writer::explain(&context, provider);
+            Report::Explain {
+                item,
+                detail,
+                capsule,
+                plan,
+            }
+        }
+    };
+    if TerminationSource::requested(signal.as_ref()) {
+        return Err(Failure::new(FailureKind::Cancelled));
+    }
+    prepare(report, command)
+}
+
+/// This process's termination signal, read as the writer's cooperative cancellation.
+#[cfg(any(unix, windows))]
+struct Interrupt(std::sync::Arc<crate::termination_signal::TerminationSignal>);
+
+#[cfg(any(unix, windows))]
+impl orchbee_agent_integration_writer::TerminationSource for Interrupt {
+    fn requested(&self) -> bool {
+        crate::termination_signal::TerminationSource::requested(self.0.as_ref())
+    }
 }
 
 /// Runs `command` as one job on the activated Session's Worker. The shared termination source is

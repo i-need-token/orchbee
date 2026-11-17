@@ -14,9 +14,9 @@ retained mutation outcomes. Values and report vocabularies come from the
   sources. Linux compiles the latter unverified and keeps the configuration-hook providers and
   Hermes manual-only. The hook command each declaration carries is the platform's launcher:
   PowerShell on Windows, a POSIX shell line elsewhere.
-- The actual consumers are `orchbee-worker`, whose job owner runs `explain`, every mutation and
-  the Settings `list` for its Session, and `orchbee`, which runs the files-only `list` of
-  `agent integration list` and `doctor` in its own process, reuses the read-only configuration
+- The actual consumers are `orchbee-worker`, whose job owner runs every mutation and the Settings
+  `explain` and `list` for its Session, and `orchbee`, which runs the `list` and `explain` of
+  `agent integration` and `doctor` in its own process, reuses the read-only configuration
   helpers for Windows update verification, and, after the environment's Sessions have stopped,
   runs the disable of each provider `uninstall` finds this environment may have enabled. It
   decides from `list_owned`, which reads Hermes's own state from its two entry files alone, so it

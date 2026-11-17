@@ -17,13 +17,13 @@ pub(super) const HELP_AGENT_INTEGRATION_LIST_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_AGENT_INTEGRATION_EXPLAIN_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration explain --provider <id> [--format text|json]",
-        "Explain one provider's local integration state and the guard-evaluated\nplan 'enable' would run for the observed dimensions. Starts the local\nSession when none is running. Nothing is written, but for claude-code,\ngrok, github-copilot and Windows hermes Orchbee starts the provider's\nown program from the Session's PATH to read its plugins, and that program\nmay create its own files. '--format json' emits the\norchbee.agent.integration.plan envelope.",
+        "Explain one provider's local integration state and the guard-evaluated\nplan 'enable' would run for the observed dimensions. Inspects with this\nshell's home and PATH; starts or contacts no Session. Nothing is written,\nbut for claude-code, grok, github-copilot and Windows hermes Orchbee starts\nthe provider's own program from this shell's PATH to read its plugins, and\nthat program may create its own files. '--format json' emits the\norchbee.agent.integration.plan envelope.",
     );
 
 pub(super) const HELP_AGENT_INTEGRATION_EXPLAIN_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration explain --provider <id> [--format text|json]",
-        "解释一个 provider 的本地集成状态，以及针对观测到的维度 'enable' 将执行的、经守卫求值的计划。没有运行中的本地 Session 时会先启动它。不写入任何内容，但对于 claude-code、grok、github-copilot 和 Windows 上的 hermes，Orchbee 会从 Session PATH 启动 provider 自身的程序来读取其插件，该程序可能会创建自己的文件。'--format json' 输出\norchbee.agent.integration.plan 封套。",
+        "解释一个 provider 的本地集成状态，以及针对观测到的维度 'enable' 将执行的、经守卫求值的计划。按当前 shell 的主目录和 PATH 检查，不启动也不连接 Session。不写入任何内容，但对于 claude-code、grok、github-copilot 和 Windows 上的 hermes，Orchbee 会从当前 shell 的 PATH 启动 provider 自身的程序来读取其插件，该程序可能会创建自己的文件。'--format json' 输出\norchbee.agent.integration.plan 封套。",
     );
 
 pub(super) const HELP_AGENT_INTEGRATION_ENABLE_EN: crate::cli_text::HelpDetails =

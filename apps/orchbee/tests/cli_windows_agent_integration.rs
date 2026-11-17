@@ -1,8 +1,8 @@
 //! Public Windows onboarding through a real local Session: isolated profile/configuration, a
 //! private cohort carrying the Server and Worker under test, a deterministic provider CLI, real
-//! batch launch, capsule publication, and schema receipts. `list` reads in the CLI's own process;
-//! the Worker explains and edits with the environment of the Session that runs it, so each of
-//! those verb invocations activates its own Session.
+//! batch launch, capsule publication, and schema receipts. `list` and `explain` read in the CLI's
+//! own process and start no Session; the Worker edits with the environment of the Session that
+//! runs it, so each `enable` and `disable` invocation activates its own Session.
 #![cfg(windows)]
 
 use orchbee_local_runtime::CohortArtifact;
@@ -2001,12 +2001,13 @@ fn list_starts_no_agent_program_and_explain_does() {
     }
 }
 
-/// A query has no effect beyond its answer: with no Session running, `list` answers and leaves
-/// no Session behind, so none restores saved terminals and no runtime folder appears.
+/// A query has no effect beyond its answer: with no Session running, `list` and `explain` answer
+/// and leave no Session behind, so none restores saved terminals and no runtime folder appears.
 #[test]
-fn list_answers_without_starting_a_session() {
+fn queries_answer_without_starting_a_session() {
     let fixture = Fixture::without_provider_commands();
     fixture.document("list", 0);
+    fixture.document("explain", 0);
     let output = fixture
         .cli()
         .args(["status", "server", "--format", "json"])

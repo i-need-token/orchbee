@@ -1,16 +1,16 @@
 # Windows Agent integrations
 
 This record owns the Windows refinement of native `agent integration list`,
-`explain`, `enable`, and `disable`. `list` is a query: it runs the files-only inspection in the
-CLI's own process, so the user profile, PATH and configuration roots below are the invoking
-process's, and it never starts, contacts or locks a Session, so no saved terminal is restored.
-A Session that `list` started before inherited that same environment, so the answer is unchanged;
-while a Session started from another environment runs, `availability` reflects the CLI's PATH,
-not its Worker's. A missing or unusable profile or data root answers `home-unavailable`.
-`explain`, `enable` and `disable` activate the local Session and run one Server-authorized job on
-its Worker, so their profile, PATH and configuration roots are those of the process that started
-the Session. Activation itself refuses a missing or non-absolute LOCALAPPDATA or APPDATA before
-any job runs.
+`explain`, `enable`, and `disable`. `list` and `explain` are queries that run in the CLI's own
+process: `list` reads the provider files, and `explain` also starts the provider's own program
+where only that program reports the state. Their user profile, PATH and configuration roots are
+the invoking process's, and they never start, contact or lock a Session, so no saved terminal is
+restored. While a Session started from another environment runs, `availability` reflects the
+CLI's PATH, not its Worker's. A missing or unusable profile or data root answers
+`home-unavailable`. `enable` and `disable` activate the local Session and run one
+Server-authorized job on its Worker, so their profile, PATH and configuration roots are those of
+the process that started the Session. Activation itself refuses a missing or non-absolute
+LOCALAPPDATA or APPDATA before any job runs.
 The shared provider classifier and mutation workflow remain authoritative
 for ownership, payload identity, plans, receipts, and residuals.
 

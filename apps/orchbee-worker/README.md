@@ -292,7 +292,8 @@ terminal outcome observable through `poll`.
 ## Agent integration job
 
 `agent_integration_jobs::AgentIntegrationJobs` answers OBCN kind 31 in both the pre-Host and Host
-request loops and is the node's only Agent integration writer. Every action is fenced to this Worker
+request loops and is the Session's only Agent integration job writer; the CLI's `list` and `explain`
+run the same writer in their own process. Every action is fenced to this Worker
 ID and generation before owner access. Start decodes the contract request, then runs one writer
 thread; while it runs, another Start answers `Busy`, and a replayed Start with the same document
 answers `Accepted`. The writer uses this Worker's own home directory and `PATH`, with the macOS

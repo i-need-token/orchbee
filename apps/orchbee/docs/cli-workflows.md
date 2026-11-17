@@ -88,10 +88,11 @@ are available; see [runtime status and doctor](native-runtime-status.md#doctor),
 
 - `jq` on `PATH` if you follow the id-extraction snippets below; otherwise
   read the same fields from `--format json` output manually.
-- Role split: `config check` and `api schema` are purely local (no connection, lock, or Session
-  effect), and `doctor` adds only the Session check's handshake `query`;
+- Role split: `config check`, `api schema`, and `agent integration list` and `explain` are purely
+  local (no connection, lock, or Session effect; `explain` may start a provider's own program),
+  and `doctor` adds only the Session check's handshake `query`;
   `help`, `completion`, and `--version` print fixed text without touching
-  runtime state; `server start`, `agent integration explain|enable|disable`,
+  runtime state; `server start`, `agent integration enable|disable`,
   and the creating commands `workspace create`, `project create`, `worktree create` and
   `worktree open` declare activation and start the Session when it is not running; every other
   command — and the bare/`tui` entry's connect-or-activate — talks to the local Session.
@@ -208,9 +209,11 @@ unborn repository and `null` marks the bare entry.
 
 `agent integration` manages the local onboarding of a supported provider —
 inspect its state, explain the enable plan, and enable or disable the
-managed integration. `list` only reads: it inspects the provider files in its
-own process, with its own home directory and `PATH`, and never starts or
-contacts a Session. `explain`, `enable` and `disable` activate the local Session
+managed integration. `list` and `explain` only inspect: they read the provider
+files in their own process, with its own home directory and `PATH`, and never
+start or contact a Session. `explain` starts a provider's own program only for
+the rows that only that program reports; an interruption stops that program and
+exits `130` with no plan. `enable` and `disable` activate the local Session
 when none is running, then run as one job on the Session's Worker, which
 resolves the provider from its own home directory and `PATH` — those of the
 process that started the Session. Every mutation stays bounded and non-interactive. An

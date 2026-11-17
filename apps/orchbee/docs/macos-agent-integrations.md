@@ -88,13 +88,14 @@ both enable and disable refuse them; see the writer's
 
 ## Finding Agent programs
 
-`explain`, `enable` and `disable`, and the Agents page of Settings in either Client, run on the
-Session's Worker. A Session that the window started from Finder or the Dock inherits launchd's
-`PATH`, which has none of the folders a profile adds, so the Worker first searches the `PATH` a new
-terminal's login shell leaves, then its own, and starts every provider command with both; the
+`enable`, `disable`, and the Agents page of Settings in either Client, run on the Session's Worker.
+A Session that the window started from Finder or the Dock inherits launchd's `PATH`, which has none
+of the folders a profile adds, so the Worker first searches the `PATH` a new terminal's login shell
+leaves, then its own, and starts every provider command with both; the
 [Worker's integration job](../../orchbee-worker/README.md#agent-integration-job) owns the lookup.
-`list` runs in the CLI's own process and searches only its `PATH`, which the terminal it runs in
-has set the same way.
+`list` and `agent integration explain` run in the CLI's own process and search only its `PATH`,
+which the terminal it runs in has set the same way. The CLI does not run that login-shell lookup,
+because an interactive shell takes the controlling terminal the command shares with its caller.
 
 ## Evidence
 
@@ -107,9 +108,9 @@ each written command runs under `/bin/sh` and `/bin/zsh` with the expected outpu
 Agent's program on PATH, enable refuses with `agent-unavailable`. Those runs stood in for the
 absent Agent programs, and for Hermes's plugin commands, with stand-in executables. A staged
 cohort whose Session started with launchd's `PATH` found stand-in `claude` and `codex` programs in
-a folder only the scratch HOME's `.zprofile` adds (`explain` read `available`, where the build
-before this change read `not-found`), and the test window opened the same way listed Codex as not
-enabled and Claude Code as not checked, the state of an available Agent whose state only starting
-it reads. Real hook
+a folder only the scratch HOME's `.zprofile` adds (the Worker's `explain` read `available`, where
+the build before this change read `not-found`), and the test window opened the same way listed
+Codex as not enabled and Claude Code as not checked, the state of an available Agent whose state
+only starting it reads. Real hook
 execution by each Agent, Hermes's own activation, delivery to the Server and authenticated Agent
 sessions are not established.

@@ -183,8 +183,10 @@ completion leave it out because Client shells, not people, run it.
 `enable`, `disable`) is the local provider-onboarding family: bounded reads
 and managed mutations of the invoking user's provider configuration on this
 machine only; only entries verifiably owned by Orchbee are installed or removed.
-`list` reads in its own process with no socket, lock, or Session contact;
-`explain`, `enable` and `disable` activate the local Session and run on its Worker. The complete grammar, target and
+`list` and `explain` run in their own process with no socket, lock, or Session contact;
+`explain` starts a provider's own program only for the rows that only that program reports.
+`enable` and `disable` activate the local Session and run on its Worker.
+The complete grammar, target and
 filter rules, mutation outcomes, and the failure matrix with exit classes are owned by
 [native CLI query](docs/native-cli-query.md); `orchbee help <family>` and
 `orchbee help <family> <command>` print the same grammar from the binary itself.
