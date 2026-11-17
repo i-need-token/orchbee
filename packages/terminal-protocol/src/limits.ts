@@ -52,4 +52,6 @@ export const PROTOCOL_LIMITS = {
 	maxPasteAutoInputPayloadBytes: 32 + 256 * 1024,
 	maxSemanticInputPayloadBytes: 32 + 1024 * 1024,
 	maxWriteInputPayloadBytes: 24 + 1024 * 1024,
+	// A 32-byte chunk header and up to 4 MiB of one handover record.
+	maxHandoverRecordBytes: 32 + 4 * 1024 * 1024,
 } as const;

@@ -70,7 +70,8 @@ const components = [
 			file === `${stem}-terminal-host${executable}` ||
 			file.startsWith('conpty/') ||
 			file.startsWith('shell-integration/'),
-		contracts: ['worker-host', ...frames],
+		// The Keeper runs as this executable, and the handover record's format is its own.
+		contracts: ['keeper', 'worker-host', 'obhr', ...frames],
 	},
 	{
 		id: 'agent-observation-capsule',

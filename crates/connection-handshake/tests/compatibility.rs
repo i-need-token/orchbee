@@ -17,8 +17,8 @@ use crate::{
 
 /// The shortest time a superseded generation stays supported after its superseding release.
 const WINDOW_DAYS: i64 = 90;
-/// The connection whose superseded generations stay supported in every 1.x release.
-const KEPT_THROUGH_MAJOR_VERSION: &str = "worker-host";
+/// The contracts whose superseded generations stay supported in every 1.x release.
+const KEPT_THROUGH_MAJOR_VERSION: [&str; 3] = ["keeper", "obhr", "worker-host"];
 
 #[test]
 fn no_generation_leaves_inside_its_compatibility_window() -> TestResult {
@@ -57,10 +57,12 @@ fn the_window_check_counts_ninety_days_from_the_superseding_release() -> TestRes
         )?,
         "a dropped generation names its supersession"
     );
-    assert!(
-        !admitted("worker-host", &entry(2, 2, "2026-01-01"))?,
-        "worker-host keeps its superseded generations"
-    );
+    for kept in ["keeper", "obhr", "worker-host"] {
+        assert!(
+            !admitted(kept, &entry(2, 2, "2026-01-01"))?,
+            "{kept} keeps its superseded generations"
+        );
+    }
     assert!(
         !admitted("obtf", &entry(1, 1, "2027-01-01"))?,
         "only a generation below the highest is superseded"
@@ -134,7 +136,7 @@ fn sealed_fixtures_keep_their_bytes() -> TestResult {
 /// The ways one contract's supersessions break the registry rules on `today`, counted in days
 /// since 1970-01-01 UTC: an entry that is out of order, not below the highest generation, or
 /// dated on no real day, and a generation below the lowest that left without a supersession,
-/// within the window, or from the connection that keeps every superseded generation.
+/// within the window, or from a contract that keeps every superseded generation.
 fn window_violations(
     name: &str,
     generations: GenerationRange,
@@ -168,7 +170,7 @@ fn window_violations(
         }
     }
     for dropped in 1..generations.lowest().get() {
-        if name == KEPT_THROUGH_MAJOR_VERSION {
+        if KEPT_THROUGH_MAJOR_VERSION.contains(&name) {
             violations.push(format!(
                 "{name}: generation {dropped} is dropped, but a superseded {name} generation stays \
                  supported in every 1.x release"

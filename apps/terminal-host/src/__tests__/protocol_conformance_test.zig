@@ -524,6 +524,7 @@ const ProtocolLimitsFixture = struct {
     frame_strings: u64,
     frame_styles: u64,
     graphics_image_bytes: u64,
+    handover_record_bytes: u64,
     terminal_graphics_destination_pixels: u64,
     terminal_graphics_dimension: u64,
     terminal_graphics_extension_bytes: u64,
@@ -2766,6 +2767,7 @@ fn payloadEncodingName(encoding: protocol.PayloadEncoding) []const u8 {
         .row_window => "row-window",
         .terminal_frame => "terminal-frame",
         .graphics_image => "graphics-image",
+        .handover_record => "handover-record",
     };
 }
 

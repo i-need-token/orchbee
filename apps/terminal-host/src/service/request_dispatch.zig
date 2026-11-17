@@ -149,6 +149,25 @@ pub const Dispatcher = struct {
                 correlation_id,
                 outgoing,
             ),
+            // This Host offers neither `keeper` nor `handover`, so no connection negotiated them.
+            .attach_keeper,
+            .detach_keeper,
+            .quiesce_terminal,
+            .read_handover_record,
+            .resume_terminal,
+            .drop_terminal,
+            .import_terminal,
+            .write_handover_record,
+            .restore_terminal,
+            .claim_terminal,
+            .discard_import,
+            => try self.context.addFailure(
+                outgoing,
+                correlation_id,
+                "not-negotiated",
+                "The connection did not negotiate this request's capability",
+                false,
+            ),
         }
     }
 };

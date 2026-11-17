@@ -119,9 +119,21 @@ fn rust_constants_mirror_the_registry() -> TestResult {
             .iter()
             .map(|capability| capability.name.as_str())
             .collect();
-        let capabilities = connection.capabilities();
-        let mirrored: Vec<&str> = capabilities.iter().map(|name| name.as_str()).collect();
+        let declared_capabilities = connection.declared_capabilities();
+        let mirrored: Vec<&str> = declared_capabilities
+            .iter()
+            .map(|name| name.as_str())
+            .collect();
         assert_eq!(names, mirrored, "{} capabilities", connection.name());
+        // A build offers only names the registry declares.
+        for name in connection.capabilities().iter() {
+            assert!(
+                mirrored.contains(&name.as_str()),
+                "{} offers {}",
+                connection.name(),
+                name.as_str()
+            );
+        }
     }
 
     let declared: Vec<&str> = registry.frame_formats.keys().map(String::as_str).collect();

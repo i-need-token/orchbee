@@ -66,3 +66,6 @@ fixtures, not a compatibility artifact.
 
 - 0.1.0-beta.14, the first automatic-update release: generation 1 of all five contracts, encoded
   `1.0.0`, is frozen with the fixtures the registry seals.
+- 0.1.0-beta.16: the wire protocol declares the capabilities `keeper` and `handover` with the
+  [Host handover](../references/protocol.md#host-handover) kinds 90 to 105, the payload encoding
+  `handover-record` (6), and its 4 MiB + 32 B bound. Generations stay at 1.

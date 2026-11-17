@@ -63,7 +63,7 @@ test "valid and boundary payloads decode only in their direction and round-trip"
     defer arena_state.deinit();
     const arena = arena_state.allocator();
     var cases_seen: usize = 0;
-    for ([_][]const u8{ fixtures.valid, fixtures.boundary }) |source| {
+    for ([_][]const u8{ fixtures.valid, fixtures.boundary, fixtures.host_handover, fixtures.dispatch_progress }) |source| {
         for (field(try parse(arena, source), "cases").array.items) |case| {
             cases_seen += 1;
             const name = text(case, "name");
@@ -262,23 +262,48 @@ test "every fixture reply decodes as an acceptor message" {
     }
 }
 
-test "worker-host constants mirror the registry and the fingerprint is configured" {
-    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-    const entry = field(field(try parse(arena, fixtures.registry), "negotiatedConnections"), registry.worker_host.name);
-    try std.testing.expectEqual(generations(field(entry, "generations")), registry.worker_host.generations);
-    const declared = field(entry, "capabilities").array.items;
-    try std.testing.expectEqual(declared.len, registry.worker_host.capabilities.len);
-    for (declared, registry.worker_host.capabilities) |capability, name| {
+fn expectMirrorsRegistry(arena: std.mem.Allocator, comptime entry: type) !void {
+    const declared_entry = field(field(try parse(arena, fixtures.registry), "negotiatedConnections"), entry.name);
+    try std.testing.expectEqual(generations(field(declared_entry, "generations")), entry.generations);
+    const declared = field(declared_entry, "capabilities").array.items;
+    try std.testing.expectEqual(declared.len, entry.declared_capabilities.len);
+    for (declared, entry.declared_capabilities) |capability, name| {
         try std.testing.expectEqualStrings(text(capability, "name"), name);
     }
+    // A Host offers only what it implements, so an implemented capability is always a declared one.
+    for (entry.capabilities) |name| {
+        var found = false;
+        for (entry.declared_capabilities) |declared_name| found = found or std.mem.eql(u8, name, declared_name);
+        try std.testing.expect(found);
+    }
+    try std.testing.expect(message.isCapabilityList(entry.capabilities));
     var inputs_include_binding = false;
-    for (field(entry, "fingerprintInputs").array.items) |input| {
+    for (field(declared_entry, "fingerprintInputs").array.items) |input| {
         if (std.mem.eql(u8, input.string, "apps/terminal-host/src/handshake")) inputs_include_binding = true;
     }
     try std.testing.expect(inputs_include_binding);
-    try std.testing.expect(message.isLowercaseHex(registry.worker_host.development_fingerprint, 64));
+    try std.testing.expect(message.isLowercaseHex(entry.development_fingerprint, 64));
+}
+
+test "registry constants mirror the registry and the fingerprints are configured" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    try expectMirrorsRegistry(arena, registry.worker_host);
+    try expectMirrorsRegistry(arena, registry.keeper);
+}
+
+test "the keeper role decodes as itself" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    for (field(try parse(arena, fixtures.host_handover), "cases").array.items) |case| {
+        if (!std.mem.eql(u8, text(case, "name"), "query-result-keeper")) continue;
+        const decoded = try decode.acceptorPayload(arena, text(case, "payload"));
+        try std.testing.expectEqual(message.ProcessRole.keeper, decoded.query_result.processes[0].role);
+        return;
+    }
+    return error.TestUnexpectedResult;
 }
 
 fn paddedOffer(arena: std.mem.Allocator, padding: usize) !message.InitiatorMessage {

@@ -11,7 +11,7 @@ generation numbers for every connection, frame format, and unnegotiated delivery
 | This README                                                                            | Frame, payload rules, messages, admission order, registry shape, and fingerprint             |
 | [`v1/handshake.schema.json`](v1/handshake.schema.json)                                 | JSON Schema of every message; the rules it cannot state are listed under [Payload](#payload) |
 | [`v1/connections.json`](v1/connections.json)                                           | The generation registry                                                                      |
-| [`v1/fixtures/`](v1/fixtures/)                                                         | Valid, boundary, invalid, and admission fixtures                                             |
+| [`v1/fixtures/`](v1/fixtures/)                                                         | Valid, boundary, invalid, admission, and Host handover fixtures                              |
 | [Versioning and Upgrade](../../proposals/platform/versioning-and-upgrade.md#handshake) | Accepted design and rationale until P0 to P2 ship                                            |
 
 `crates/connection-handshake` is the Rust binding, and `apps/terminal-host/src/handshake` is the
@@ -92,8 +92,8 @@ decoders only.
 - `reason`, `role`, and `state` grow: a receiver reads an unknown name as `unknown`. Reasons are
   `malformed`, `connection-unsupported`, `environment-mismatch`, `initiator-too-old`,
   `initiator-too-new`, `fingerprint-mismatch`, `capacity`, `stopping`, and `timeout`. Roles are
-  `server`, `worker`, `terminal-host`, `machine-hub`, and `machine-link`. States are `ready`,
-  `draining`, and `stopping`.
+  `server`, `worker`, `terminal-host`, `machine-hub`, `machine-link`, and `keeper`. States are
+  `ready`, `draining`, and `stopping`.
 - `processes` lists 1 to 258 entries: the answering process first, then for a Server its Worker
   and up to 256 connected Hosts. Each entry has exactly `role`, `productVersion`, `build`,
   `environment`, `pid` (integer from 1 to 4,294,967,295), `state`, `terminals` (integer from 0 to
@@ -101,6 +101,9 @@ decoders only.
 - `connections` lists at most 64 entries in strictly ascending bytewise `kind` order. Each entry has
   `kind`, a connection or delivery name, and `generations`; entries of the first process also carry
   `capabilities`, and entries of later processes never do.
+- A Terminal Host that implements `handover` adds `dispatch-progress` to its `query-result`'s
+  `extensions`: an integer from 0 to 9,007,199,254,740,991 counting the turns its dispatch loop has
+  completed, which grows while the loop is not stopped. A reader that does not know it ignores it.
 
 ## Admission
 
@@ -133,12 +136,12 @@ The acceptor runs these checks in order and rejects at the first failure.
 [`v1/connections.json`](v1/connections.json) holds three closed objects, each keyed by contract
 name, and the [frozen fixtures](#frozen-fixtures).
 
-| Member                  | Entries                                                       | Entry members                                                        |
-| ----------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `negotiatedConnections` | `client-server`, `machine-hub`, `machine-link`, `worker-host` | `generations`, `superseded`, `capabilities`, and `fingerprintInputs` |
-| `frameFormats`          | `obkg`, `obpb`, `obrw`, `obtf`                                | `generations` and `superseded`                                       |
-| `deliveries`            | `agent-hook`, `machine-route`                                 | `generations` and `superseded`                                       |
-| `frozenFixtures`        | One per fixture file that freezes                             | `path`, and `sha256` once a release seals it                         |
+| Member                  | Entries                                                                 | Entry members                                                        |
+| ----------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `negotiatedConnections` | `client-server`, `keeper`, `machine-hub`, `machine-link`, `worker-host` | `generations`, `superseded`, `capabilities`, and `fingerprintInputs` |
+| `frameFormats`          | `obhr`, `obkg`, `obpb`, `obrw`, `obtf`                                  | `generations` and `superseded`                                       |
+| `deliveries`            | `agent-hook`, `machine-route`                                           | `generations` and `superseded`                                       |
+| `frozenFixtures`        | One per fixture file that freezes                                       | `path`, and `sha256` once a release seals it                         |
 
 - `generations` is the supported range. Every contract starts at generation 1.
 - `superseded` lists, in ascending order, each generation that a released later generation
@@ -152,12 +155,14 @@ name, and the [frozen fixtures](#frozen-fixtures).
   `extensions`.
 - `fingerprintInputs` lists repository-relative `/`-separated directories in strictly ascending
   bytewise order; none repeats or contains another, and each exists. The `worker-host` list
-  includes the Terminal Host's `src/handshake` binding.
+  includes the Terminal Host's `src/handshake` binding, and the `keeper` list also its
+  `src/keeper_protocol` binding and `schemas/keeper`.
 - Each binding mirrors these numbers in its own constants under a conformance check.
 - What a connection carries after its `answer` belongs to that connection's own contract. The
   [machine connection contracts](../machine/README.md) state it for `machine-hub` and
   `machine-link`, whose `fingerprintInputs` both list `schemas/machine` and the source of their
-  binding, `crates/machine-protocol`.
+  binding, `crates/machine-protocol`. The [Keeper contract](../keeper/README.md) states it for
+  `keeper`.
 
 ### Compatibility window
 
@@ -166,8 +171,8 @@ under [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries), so every `s
 starts empty. From that release a superseded generation stays supported for at least 90 days after its
 `supersededOn`; a later release may then drop it by raising `lowest`. The Rust binding's registry
 test, judged on the day it runs, refuses a registry that drops a generation without a `superseded`
-entry or within those 90 days, and refuses any dropped `worker-host` generation, which stays
-supported in every 1.x release. The registry records no early end: a security fix that ends a
+entry or within those 90 days, and refuses any dropped `worker-host`, `keeper`, or `obhr`
+generation, each of which stays supported in every 1.x release. The registry records no early end: a security fix that ends a
 generation sooner changes this check together with its own decision.
 
 ### Frozen fixtures
@@ -185,6 +190,12 @@ dropped. The first automatic-update release, 0.1.0-beta.14, sealed the first lis
   [`schemas/terminal`](../terminal/README.md#fixtures-and-maintenance), and the wire conformance
   corpora of [`schemas/client-server`](../client-server/README.md) and the Workbench protocol
   under [`schemas/workbench`](../workbench/README.md).
+- A fixture file that only a new capability or extension serves, such as `host-handover.json`,
+  `dispatch-progress.json`, or a group of the [Keeper contract](../keeper/README.md#freezing),
+  joins the list with the change that makes a Host offer or report it, and the next release seals
+  it. Its names, such as a capability's `addedIn` or a connection kind's generation, are final
+  from the change that registers them, so bytes that no released Host speaks are never sealed
+  before a test exercises them.
 - Generator inputs, the other-generation corpus, records that follow the pinned Ghostty's output,
   parity tables shared by the Clients, and generated tables are not frozen.
 
@@ -209,12 +220,14 @@ hexadecimal SHA-256, and LF.
 Payload fixtures hold `payload`, the exact JSON text; frame fixtures hold `frameHex`, the complete
 bytes. `direction` names the sender, `initiator` or `acceptor`.
 
-| File                                           | Claim                                                                                                                                                                                                                                                                                                         |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`valid.json`](v1/fixtures/valid.json)         | Each decodes in its direction, re-encodes to an equal message, and satisfies the schema                                                                                                                                                                                                                       |
-| [`boundary.json`](v1/fixtures/boundary.json)   | Each value at its limit decodes and satisfies the schema                                                                                                                                                                                                                                                      |
-| [`invalid.json`](v1/fixtures/invalid.json)     | Each fails to decode in its direction. `layer` names the first layer that refuses it: `frame`, `encoding`, `schema` (the schema also refuses it), or `decoder`. Frame cases add `reader`: `closed`, `foreign`, `malformed`, or `message` when a stream reader returns the frame and leaves the trailing bytes |
-| [`admission.json`](v1/fixtures/admission.json) | `cases` give an acceptor, its load, a frame, and the decision; `replies` and `requestReplies` give the initiator's verdict on a reply                                                                                                                                                                         |
+| File                                                           | Claim                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`valid.json`](v1/fixtures/valid.json)                         | Each decodes in its direction, re-encodes to an equal message, and satisfies the schema                                                                                                                                                                                                                       |
+| [`boundary.json`](v1/fixtures/boundary.json)                   | Each value at its limit decodes and satisfies the schema                                                                                                                                                                                                                                                      |
+| [`invalid.json`](v1/fixtures/invalid.json)                     | Each fails to decode in its direction. `layer` names the first layer that refuses it: `frame`, `encoding`, `schema` (the schema also refuses it), or `decoder`. Frame cases add `reader`: `closed`, `foreign`, `malformed`, or `message` when a stream reader returns the frame and leaves the trailing bytes |
+| [`host-handover.json`](v1/fixtures/host-handover.json)         | Valid cases of the `keeper` connection and the `keeper` role, held to the claim of `valid.json`                                                                                                                                                                                                               |
+| [`dispatch-progress.json`](v1/fixtures/dispatch-progress.json) | Valid cases of a Host's query result with `dispatch-progress`, held to the claim of `valid.json`                                                                                                                                                                                                              |
+| [`admission.json`](v1/fixtures/admission.json)                 | `cases` give an acceptor, its load, a frame, and the decision; `replies` and `requestReplies` give the initiator's verdict on a reply                                                                                                                                                                         |
 
 Collection bounds too large for a fixture file — 258 processes and a 1,048,576-byte payload — are
 checked by the bindings' own tests. The Rust binding's

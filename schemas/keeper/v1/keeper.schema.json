@@ -1,0 +1,362 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:keeper:message",
+	"title": "OBKP Keeper message",
+	"description": "One OBKP payload object in either direction. Duplicate members, nesting deeper than 32, integer spellings with a fraction or exponent, all-zero ids and times, holding order in a status page, the mark target's presence by state, message direction, and request pairing are decoder rules outside this schema; see schemas/keeper/README.md.",
+	"oneOf": [
+		{ "$ref": "#/$defs/hello" },
+		{ "$ref": "#/$defs/hostRequest" },
+		{ "$ref": "#/$defs/status" },
+		{ "$ref": "#/$defs/hold" },
+		{ "$ref": "#/$defs/markRequest" },
+		{ "$ref": "#/$defs/markedRequest" },
+		{ "$ref": "#/$defs/claim" },
+		{ "$ref": "#/$defs/release" },
+		{ "$ref": "#/$defs/unknownRequest" },
+		{ "$ref": "#/$defs/emptyResult" },
+		{ "$ref": "#/$defs/statusResult" },
+		{ "$ref": "#/$defs/outcomeResult" },
+		{ "$ref": "#/$defs/inspectResult" },
+		{ "$ref": "#/$defs/refused" },
+		{ "$ref": "#/$defs/unsupported" },
+		{ "$ref": "#/$defs/event" }
+	],
+	"$defs": {
+		"name": {
+			"type": "string",
+			"pattern": "^[a-z0-9-]{1,64}$"
+		},
+		"id": {
+			"description": "A request id its connection has not used.",
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 4294967295
+		},
+		"time": {
+			"description": "A FILETIME as 16 lowercase hexadecimal digits, not all zero.",
+			"type": "string",
+			"pattern": "^[0-9a-f]{16}$"
+		},
+		"process": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["pid", "created"],
+			"properties": {
+				"pid": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+				"created": { "$ref": "#/$defs/time" }
+			}
+		},
+		"randomId": {
+			"description": "A holding id or mark id: 32 lowercase hexadecimal digits, not all zero.",
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"handle": {
+			"description": "A handle value in the process that holds it: nonzero and below 2^32.",
+			"type": "string",
+			"pattern": "^0{8}[0-9a-f]{8}$"
+		},
+		"handles": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["job", "program", "console", "signal", "reference", "input", "output"],
+			"properties": {
+				"job": { "$ref": "#/$defs/handle" },
+				"program": { "$ref": "#/$defs/handle" },
+				"console": { "$ref": "#/$defs/handle" },
+				"signal": { "$ref": "#/$defs/handle" },
+				"reference": { "$ref": "#/$defs/handle" },
+				"input": { "$ref": "#/$defs/handle" },
+				"output": { "$ref": "#/$defs/handle" }
+			}
+		},
+		"terminal": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["creationId", "hostEpoch", "terminalId"],
+			"properties": {
+				"creationId": { "$ref": "#/$defs/identity" },
+				"hostEpoch": { "$ref": "#/$defs/identity" },
+				"terminalId": { "$ref": "#/$defs/identity" }
+			}
+		},
+		"facts": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["terminal", "program", "console", "consoleBuild", "signalFormat", "launch"],
+			"properties": {
+				"terminal": { "$ref": "#/$defs/terminal" },
+				"program": { "$ref": "#/$defs/process" },
+				"console": { "$ref": "#/$defs/process" },
+				"consoleBuild": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+				"signalFormat": { "type": "integer", "minimum": 1, "maximum": 65535 },
+				"launch": { "$ref": "#/$defs/name" }
+			}
+		},
+		"extensions": {
+			"type": "object",
+			"propertyNames": { "$ref": "#/$defs/name" }
+		},
+		"hello": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "role"],
+			"properties": {
+				"type": { "const": "hello" },
+				"id": { "$ref": "#/$defs/id" },
+				"role": {
+					"description": "worker or host; the Keeper refuses any other name as wrong-role.",
+					"$ref": "#/$defs/name"
+				},
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"hostRequest": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "process"],
+			"properties": {
+				"type": { "enum": ["register-host", "unregister-host"] },
+				"id": { "$ref": "#/$defs/id" },
+				"process": { "$ref": "#/$defs/process" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"status": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id"],
+			"properties": {
+				"type": { "const": "status" },
+				"id": { "$ref": "#/$defs/id" },
+				"after": { "$ref": "#/$defs/randomId" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"hold": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "holding", "handles", "facts"],
+			"properties": {
+				"type": { "const": "hold" },
+				"id": { "$ref": "#/$defs/id" },
+				"holding": { "$ref": "#/$defs/randomId" },
+				"handles": { "$ref": "#/$defs/handles" },
+				"facts": { "$ref": "#/$defs/facts" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"markRequest": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "holding", "for", "mark"],
+			"properties": {
+				"type": { "const": "mark" },
+				"id": { "$ref": "#/$defs/id" },
+				"holding": { "$ref": "#/$defs/randomId" },
+				"for": { "$ref": "#/$defs/process" },
+				"mark": { "$ref": "#/$defs/randomId" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"markedRequest": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "holding", "mark"],
+			"properties": {
+				"type": { "enum": ["resume", "inspect", "decline"] },
+				"id": { "$ref": "#/$defs/id" },
+				"holding": { "$ref": "#/$defs/randomId" },
+				"mark": { "$ref": "#/$defs/randomId" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"claim": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "holding", "mark", "program", "terminal"],
+			"properties": {
+				"type": { "const": "claim" },
+				"id": { "$ref": "#/$defs/id" },
+				"holding": { "$ref": "#/$defs/randomId" },
+				"mark": { "$ref": "#/$defs/randomId" },
+				"program": { "$ref": "#/$defs/process" },
+				"terminal": { "$ref": "#/$defs/terminal" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"release": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "holding"],
+			"properties": {
+				"type": { "const": "release" },
+				"id": { "$ref": "#/$defs/id" },
+				"holding": { "$ref": "#/$defs/randomId" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"unknownRequest": {
+			"description": "A request type the Keeper does not know. Only type and id are read; other members belong to the newer contract.",
+			"type": "object",
+			"required": ["type", "id"],
+			"properties": {
+				"type": {
+					"allOf": [
+						{ "$ref": "#/$defs/name" },
+						{
+							"not": {
+								"enum": [
+									"hello",
+									"register-host",
+									"unregister-host",
+									"status",
+									"hold",
+									"mark",
+									"resume",
+									"inspect",
+									"claim",
+									"decline",
+									"release",
+									"refused",
+									"unsupported"
+								]
+							}
+						},
+						{ "not": { "pattern": "-result$" } }
+					]
+				},
+				"id": { "$ref": "#/$defs/id" }
+			}
+		},
+		"emptyResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id"],
+			"properties": {
+				"type": {
+					"enum": [
+						"hello-result",
+						"register-host-result",
+						"unregister-host-result",
+						"hold-result",
+						"mark-result",
+						"claim-result",
+						"release-result"
+					]
+				},
+				"id": { "$ref": "#/$defs/id" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"holdingEntry": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["holding", "owner", "state", "facts"],
+			"properties": {
+				"holding": { "$ref": "#/$defs/randomId" },
+				"owner": { "$ref": "#/$defs/process" },
+				"state": {
+					"description": "held, quiesced, or orphaned; a receiver reads any other name as unknown.",
+					"$ref": "#/$defs/name"
+				},
+				"for": { "$ref": "#/$defs/process" },
+				"facts": { "$ref": "#/$defs/facts" }
+			}
+		},
+		"hostEntry": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["process", "ended"],
+			"properties": {
+				"process": { "$ref": "#/$defs/process" },
+				"ended": { "type": "boolean" }
+			}
+		},
+		"statusResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "holdings"],
+			"properties": {
+				"type": { "const": "status-result" },
+				"id": { "$ref": "#/$defs/id" },
+				"holdings": {
+					"type": "array",
+					"maxItems": 256,
+					"items": { "$ref": "#/$defs/holdingEntry" }
+				},
+				"hosts": {
+					"type": "array",
+					"maxItems": 256,
+					"items": { "$ref": "#/$defs/hostEntry" }
+				},
+				"next": { "$ref": "#/$defs/randomId" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"outcomeResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "outcome"],
+			"properties": {
+				"type": { "enum": ["resume-result", "decline-result"] },
+				"id": { "$ref": "#/$defs/id" },
+				"outcome": {
+					"description": "resumed or claimed for resume, declined or claimed for decline; a receiver reads any other name as unknown.",
+					"$ref": "#/$defs/name"
+				},
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"inspectResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "handles", "facts"],
+			"properties": {
+				"type": { "const": "inspect-result" },
+				"id": { "$ref": "#/$defs/id" },
+				"handles": { "$ref": "#/$defs/handles" },
+				"facts": { "$ref": "#/$defs/facts" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"refused": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "reason"],
+			"properties": {
+				"type": { "const": "refused" },
+				"id": { "$ref": "#/$defs/id" },
+				"reason": {
+					"description": "not-registered, wrong-role, not-owner, not-target, unknown-holding, holding-exists, marked, stale-mark, identity-mismatch, capacity, draining, or handle-failed; a receiver reads any other name as unknown.",
+					"$ref": "#/$defs/name"
+				},
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"unsupported": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "request"],
+			"properties": {
+				"type": { "const": "unsupported" },
+				"id": { "$ref": "#/$defs/id" },
+				"request": { "$ref": "#/$defs/name" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"event": {
+			"description": "A frame from the Keeper without an id. Generation 1 defines none; a receiver ignores one it does not know.",
+			"type": "object",
+			"required": ["type"],
+			"not": { "required": ["id"] },
+			"properties": {
+				"type": { "$ref": "#/$defs/name" }
+			}
+		}
+	}
+}

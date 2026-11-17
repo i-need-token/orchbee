@@ -71,6 +71,7 @@ struct FixtureProtocolLimits {
     control_json_bytes: usize,
     frame_bytes: usize,
     graphics_image_bytes: usize,
+    handover_record_bytes: usize,
     raw_payload_bytes: usize,
     row_window_bytes: usize,
     transport_record_bytes: usize,
@@ -166,6 +167,10 @@ fn envelope_limits_match_registry() -> Result<(), Box<dyn Error>> {
     );
     assert_eq!(MAXIMUM_ROW_WINDOW_BYTES, limits.row_window_bytes);
     assert_eq!(
+        crate::MAXIMUM_HANDOVER_RECORD_BYTES,
+        limits.handover_record_bytes
+    );
+    assert_eq!(
         MAXIMUM_TRANSPORT_RECORD_BYTES,
         limits.transport_record_bytes
     );
@@ -229,6 +234,7 @@ fn constants_match_language_neutral_registry() -> Result<(), Box<dyn Error>> {
                 "terminal-frame": PayloadEncoding::TerminalFrame.code(),
                 "row-window": PayloadEncoding::RowWindow.code(),
                 "graphics-image": PayloadEncoding::GraphicsImage.code(),
+                "handover-record": PayloadEncoding::HandoverRecord.code(),
             },
             "message_role": roles,
         })
@@ -257,6 +263,7 @@ fn fixture_payload_encoding(value: &str) -> Result<PayloadEncoding, Box<dyn Erro
         "terminal-frame" => Ok(PayloadEncoding::TerminalFrame),
         "row-window" => Ok(PayloadEncoding::RowWindow),
         "graphics-image" => Ok(PayloadEncoding::GraphicsImage),
+        "handover-record" => Ok(PayloadEncoding::HandoverRecord),
         _ => Err(format!("unknown fixture payload encoding {value}").into()),
     }
 }

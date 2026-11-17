@@ -1,0 +1,19 @@
+{
+	"cases": [
+		{
+			"name": "query-result-host-dispatch-progress",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"query-result\",\"processes\":[{\"role\":\"terminal-host\",\"productVersion\":\"0.1.0-beta.16\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"},\"environment\":\"orchbee\",\"pid\":4200,\"state\":\"ready\",\"terminals\":3,\"connections\":[{\"kind\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[\"handover\",\"keeper\",\"prompt-gated-input\"]}]}],\"extensions\":{\"dispatch-progress\":1234}}"
+		},
+		{
+			"name": "query-result-host-dispatch-progress-zero",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"query-result\",\"processes\":[{\"role\":\"terminal-host\",\"productVersion\":\"0.1.0-beta.16\",\"build\":{},\"environment\":\"ob-dev-0123456789abcdef\",\"pid\":4200,\"state\":\"ready\",\"terminals\":0,\"connections\":[{\"kind\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[\"prompt-gated-input\"]}]}],\"extensions\":{\"dispatch-progress\":0}}"
+		},
+		{
+			"name": "query-result-host-dispatch-progress-maximum",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"query-result\",\"processes\":[{\"role\":\"terminal-host\",\"productVersion\":\"0.1.0-beta.16\",\"build\":{},\"environment\":\"orchbee\",\"pid\":4200,\"state\":\"draining\",\"terminals\":1,\"connections\":[{\"kind\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[\"prompt-gated-input\"]}]}],\"extensions\":{\"dispatch-progress\":9007199254740991}}"
+		}
+	]
+}

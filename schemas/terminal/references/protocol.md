@@ -163,8 +163,9 @@ without state mutation.
 Named response kinds are authoritative: `HelloAccepted`, `ProtocolRejected`,
 `TerminalStartAccepted`, `AttachmentCapabilities`, `InputAccepted`, `ResizeAccepted`,
 `ProjectionDemandAccepted`, `TerminalDefaultsAccepted`, `TerminalConfigurationAccepted`, and
-`TerminalControlAccepted` and `TerminalThemeResult` answer their corresponding request kinds.
-Other successful operations respond with their request kind. `TypedFailure` may answer any request
+`TerminalControlAccepted` and `TerminalThemeResult` answer their corresponding request kinds, and
+`HandoverRecordChunk` and `HandoverRecordWritten` answer `ReadHandoverRecord` and
+`WriteHandoverRecord`. Other successful operations respond with their request kind. `TypedFailure` may answer any request
 and preserves its correlation.
 
 | Operation                         | Successful payload                                                                                                                                                                                                                                                                                   |
@@ -387,25 +388,100 @@ has started since launch), `not-at-prompt` (rule 4), `input-pending` (rule 6), `
 a mark after preparation, or a prompt without a mark time), and `settling` (rule 7, reported only
 when every other rule holds). Only `settling` is retryable: its sender waits out the quiet period
 and sends the line once more, and a second `settling` is a refusal like the others. Every other
-reason is non-retryable. A root that has exited fails `invalid-phase` like other input. No other
-typed failure carries `reason`.
+reason is non-retryable. A root that has exited fails `invalid-phase` like other input. Apart from
+the [Host handover](#host-handover) refusals, no other typed failure carries `reason`.
 
 A Host that serves `PromptLineInput` lists the capability `prompt-gated-input` in its `worker-host`
 handshake answer. A Worker whose Host answer lacks it refuses an idle-prompt send before any
 attachment; it never types the line as ordinary input.
 
+## Host handover
+
+Kinds 90 to 105 move a running Windows terminal from one Terminal Host to another through the
+Keeper, whose own connection is [`../../keeper/README.md`](../../keeper/README.md). They belong to
+two `worker-host` capabilities: `keeper` covers `AttachKeeper`, `DetachKeeper`, and the events
+`KeeperLost`, `KeeperUnresponsive`, and `TerminalUnheld`; `handover` covers every other kind. A
+capability works only when both sides list it in the handshake. A request whose capability the
+connection did not negotiate fails with the non-retryable `TypedFailure` `not-negotiated` before any
+effect, and a Host sends no event of a capability the connection did not negotiate. The Worker is
+the only sender of these requests; no TypeScript producer exists, and the TypeScript control-request
+encoder refuses them.
+
+Control payloads name a process as `{pid, creationTime}`: a positive uint32 and its `FILETIME` as
+canonical decimal text, because a `FILETIME` exceeds the exact range of a JSON number. A Keeper
+endpoint id is 32 lowercase hexadecimal digits. Every answer below is the successful response of
+its request's kind unless it names another.
+
+| Request               | Payload                                                       | Successful answer                                                         |
+| --------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `AttachKeeper`        | `keeper` (a process) and `endpointId`                         | `keeper`; attaching an attached Keeper again succeeds without effect      |
+| `DetachKeeper`        | `keeper`                                                      | An empty object; detaching an unknown Keeper succeeds                     |
+| `QuiesceTerminal`     | `terminalId`, `target` (the new Host), `deadlineSeconds` 1-30 | `terminalId` and `recordBytes`, the exported record's size                |
+| `ReadHandoverRecord`  | `terminalId` and `offset`                                     | `HandoverRecordChunk`                                                     |
+| `ResumeTerminal`      | `terminalId`                                                  | `terminalId` and `outcome`, `resumed` or `claimed-elsewhere`              |
+| `DropTerminal`        | `terminalId`, once every attachment is gone                   | `terminalId`; the terminal leaves with no outcome and no `TerminalExited` |
+| `ImportTerminal`      | `creationId`, `recordBytes`, `deadlineSeconds` 1-30           | `creationId`                                                              |
+| `WriteHandoverRecord` | A handover-record chunk                                       | `HandoverRecordWritten`: `creationId` and `receivedBytes`                 |
+| `RestoreTerminal`     | `creationId`                                                  | `TerminalIdentity`                                                        |
+| `ClaimTerminal`       | `terminalId`                                                  | `terminalId`                                                              |
+| `DiscardImport`       | Exactly one of `creationId` (an import) or `terminalId`       | `outcome`, `discarded`, or `claimed` when the Keeper already moved it     |
+
+The events carry `keeper`; `TerminalUnheld` adds the `terminalId` that runs unheld and a `reason`.
+
+A handover-record payload (encoding `handover-record`) is a 32-byte header and then the chunk:
+bytes `0-15` carry the terminal id of an export or the creation id of an import, bytes `16-23` the
+little-endian offset of the chunk in the record, bytes `24-27` the little-endian chunk length, from
+1 to 4 MiB, and bytes `28-31` are reserved zero. A record is at most 128 MiB, and its chunks cross
+in order from offset 0. The record's own format is the `obhr` frame format of the
+[generation registry](../../connection/README.md#generation-registry).
+
+A refusal that the Worker acts on is a `TypedFailure` that adds `reason` after `retryable`, as
+`prompt-unconfirmed` does. Code `move-ineligible`, non-retryable, has the reasons `not-running`,
+`unheld`, `system-console`, `unknown-console-build`, `holds-image`, `too-large`, and `two-keepers`.
+Code `move-passing`, retryable, has the reasons `input-pending`, `signal-pending`, `mid-sequence`,
+and `moving`. `AttachKeeper` fails non-retryable `keeper-unavailable` when the Keeper check fails and
+`keeper-limit` when the Host already holds two Keeper attachments. A Host keeps at most one export
+and one import at a time.
+
+A settled terminal exports without a mark. Its import restores it settled with its outcome already
+published, so it never sends `TerminalExited` again, and refuses `ClaimTerminal` as
+`move-ineligible` with the reason `not-running`. A terminal that awaits its start, is finishing,
+contains a failure, or is terminating does not move.
+
+Inventory summaries grow additively. To a connection that negotiated `keeper`, a held terminal's
+summary adds `holdingId`, 32 lowercase hexadecimal digits that a Host mints at the terminal's first
+hold and that stay with it through a move. To a connection that negotiated `handover`, a summary adds
+`handoverState`: `quiesced` in the old Host from a quiesce until its resume or drop, `moved` there
+once the Keeper has answered `claimed` until `DropTerminal`, and `restored` in the new Host until its
+claim or discard. A connection without the capability never receives the member.
+
+The query result of a Host's control lane carries `dispatch-progress` in `extensions`, as the
+[connection contract](../../connection/README.md) describes.
+
+What an H1 Host serves freezes with the first release whose Host serves it, never with a release
+that only carries this contract: `AttachKeeper`, `DetachKeeper`, the three events, and `holdingId`
+with the change that makes a Host offer `keeper`; `QuiesceTerminal` with settled exports,
+`ReadHandoverRecord`, `ResumeTerminal`, `DropTerminal`, and `handoverState` with the change that
+makes a Host offer `handover`; and `dispatch-progress` with the change that makes a Host report it.
+Their fixture files join the registry's
+[frozen fixtures](../../connection/README.md#frozen-fixtures) with that change, and the next release
+seals them. The import requests, `ImportTerminal`, `WriteHandoverRecord`, `RestoreTerminal`,
+`ClaimTerminal`, and `DiscardImport`, first meet another version with H3's Worker and freeze with
+H3's release.
+
 ## Message registry
 
-| Range   | Group                                      | Kinds                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1-5`   | Connection                                 | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                                                                                    |
-| `10-19` | Inventory and lifecycle                    | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `StartTerminal=16`, `TerminalStartAccepted=17`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                                                                                |
-| `20-25` | Attachment                                 | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`, `UpdateAttachmentInputCapability=24`, `ClaimResizeLease=25`                                                                                                                                                                                                                                                                       |
-| `30-39` | Input and size                             | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`, `PasteAutoInput=39`                                                                                                                                                                                                                                              |
-| `41-58` | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56`, `TerminalMetadataChanged=57`, `TerminalApplicationSignal=58` |
-| `60-68` | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                                                                                     |
-| `70-78` | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                            |
-| `79-84` | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`, `PromptLineInput=84`                                                                                                                                                                                                                                                                                  |
+| Range    | Group                                      | Kinds                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1-5`    | Connection                                 | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                                                                                    |
+| `10-19`  | Inventory and lifecycle                    | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `StartTerminal=16`, `TerminalStartAccepted=17`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                                                                                |
+| `20-25`  | Attachment                                 | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`, `UpdateAttachmentInputCapability=24`, `ClaimResizeLease=25`                                                                                                                                                                                                                                                                       |
+| `30-39`  | Input and size                             | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`, `PasteAutoInput=39`                                                                                                                                                                                                                                              |
+| `41-58`  | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56`, `TerminalMetadataChanged=57`, `TerminalApplicationSignal=58` |
+| `60-68`  | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                                                                                     |
+| `70-78`  | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                            |
+| `79-84`  | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`, `PromptLineInput=84`                                                                                                                                                                                                                                                                                  |
+| `90-105` | Host handover                              | `AttachKeeper=90`, `DetachKeeper=91`, `KeeperLost=92`, `KeeperUnresponsive=93`, `TerminalUnheld=94`, `QuiesceTerminal=95`, `ReadHandoverRecord=96`, `HandoverRecordChunk=97`, `ResumeTerminal=98`, `DropTerminal=99`, `ImportTerminal=100`, `WriteHandoverRecord=101`, `HandoverRecordWritten=102`, `RestoreTerminal=103`, `ClaimTerminal=104`, `DiscardImport=105`                                                               |
 
 Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames and
 the identity-scoped metadata event. Initial resize-lease authority is returned by attachment
@@ -933,41 +1009,42 @@ Host; the separately defined OSC 52 request carries intent only and still grants
 
 The handshake may select smaller transport payload bounds. It never raises these package hard limits.
 
-| Input or retained unit                 |       Hard maximum |
-| -------------------------------------- | -----------------: |
-| Control JSON                           |             64 KiB |
-| One OSC 52 clipboard text              |             16 KiB |
-| Launch-overlay entries / one value     |         16 / 4 KiB |
-| One terminal application signal        |              4 KiB |
-| Terminals in one inventory page        |                128 |
-| One raw, text, or paste input body     |              1 MiB |
-| One `PasteAutoInput` content body      |            256 KiB |
-| One `PromptLineInput` content body     |            256 KiB |
-| One key text                           |              4 KiB |
-| `WriteInput` raw payload               |       1 MiB + 24 B |
-| `PasteAutoInput` raw payload           |     256 KiB + 32 B |
-| `PromptLineInput` raw payload          |     256 KiB + 32 B |
-| Largest semantic input payload         |       1 MiB + 32 B |
-| Pending ordered input per terminal     |              4 MiB |
-| Scrollback configuration per terminal  |    1,000,000,000 B |
-| PTY read batch                         |            256 KiB |
-| Packed frame                           |             36 MiB |
-| All frame extensions / one OBKG record |             33 MiB |
-| Decoded Kitty resources                |             32 MiB |
-| Kitty images / placements              |         256 / 1024 |
-| Transport record                       |      44 MiB + 64 B |
-| Row-window record                      |             44 MiB |
-| Search query at a client boundary      |             16 KiB |
-| Selection preview                      |              4 KiB |
-| Selection export / one chunk           |     16 MiB / 1 MiB |
-| `SelectionExportChunk` raw payload     |       1 MiB + 32 B |
-| One UTF-8 string                       |             16 KiB |
-| Strings / styles / row records         | 4096 / 1024 / 4096 |
-| Cells / frame extensions               |        262144 / 64 |
-| Total extension bytes                  |             33 MiB |
-| Grid columns / rows                    |        4096 / 4096 |
-| Cell-pixel width / height              |        4096 / 4096 |
-| Total terminal pixel width / height    |      65535 / 65535 |
+| Input or retained unit                 |           Hard maximum |
+| -------------------------------------- | ---------------------: |
+| Control JSON                           |                 64 KiB |
+| One OSC 52 clipboard text              |                 16 KiB |
+| Launch-overlay entries / one value     |             16 / 4 KiB |
+| One terminal application signal        |                  4 KiB |
+| Terminals in one inventory page        |                    128 |
+| One raw, text, or paste input body     |                  1 MiB |
+| One `PasteAutoInput` content body      |                256 KiB |
+| One `PromptLineInput` content body     |                256 KiB |
+| One key text                           |                  4 KiB |
+| `WriteInput` raw payload               |           1 MiB + 24 B |
+| `PasteAutoInput` raw payload           |         256 KiB + 32 B |
+| `PromptLineInput` raw payload          |         256 KiB + 32 B |
+| Largest semantic input payload         |           1 MiB + 32 B |
+| Pending ordered input per terminal     |                  4 MiB |
+| Scrollback configuration per terminal  |        1,000,000,000 B |
+| PTY read batch                         |                256 KiB |
+| Packed frame                           |                 36 MiB |
+| All frame extensions / one OBKG record |                 33 MiB |
+| Decoded Kitty resources                |                 32 MiB |
+| Kitty images / placements              |             256 / 1024 |
+| Transport record                       |          44 MiB + 64 B |
+| Row-window record                      |                 44 MiB |
+| Search query at a client boundary      |                 16 KiB |
+| Selection preview                      |                  4 KiB |
+| Selection export / one chunk           |         16 MiB / 1 MiB |
+| `SelectionExportChunk` raw payload     |           1 MiB + 32 B |
+| Handover record / one chunk payload    | 128 MiB / 4 MiB + 32 B |
+| One UTF-8 string                       |                 16 KiB |
+| Strings / styles / row records         |     4096 / 1024 / 4096 |
+| Cells / frame extensions               |            262144 / 64 |
+| Total extension bytes                  |                 33 MiB |
+| Grid columns / rows                    |            4096 / 4096 |
+| Cell-pixel width / height              |            4096 / 4096 |
+| Total terminal pixel width / height    |          65535 / 65535 |
 
 `One UTF-8 string` bounds each serialized string and, for text row windows, each logical cell's
 byte span: the bytes from a mapping start to the next mapping start, and the final span to row

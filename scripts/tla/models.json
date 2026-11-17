@@ -392,7 +392,11 @@
 			"module": "apps/terminal-host/formal/tla/TerminalHostHandover.tla",
 			"config": "apps/terminal-host/formal/tla/TerminalHostHandover.cfg",
 			"claims": ["apps/terminal-host/docs/runtime-model.md"],
-			"triggers": ["proposals/platform/host-handover.md"],
+			"triggers": [
+				"proposals/platform/host-handover.md",
+				"schemas/keeper/**",
+				"apps/terminal-host/src/keeper_protocol/**"
+			],
 			"requiredCoverage": [
 				"Read",
 				"Quiesce",

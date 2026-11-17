@@ -1,0 +1,520 @@
+{
+	"valid": [
+		{
+			"name": "hello-host",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hello\",\"id\":1,\"role\":\"host\"}"
+		},
+		{
+			"name": "hello-worker",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hello\",\"id\":1,\"role\":\"worker\"}"
+		},
+		{
+			"name": "hello-unknown-role",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hello\",\"id\":1,\"role\":\"observer\"}"
+		},
+		{
+			"name": "hold",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "hold-with-extensions",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold\",\"id\":3,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"other\"},\"extensions\":{\"trace-id\":\"abc\",\"nested-detail\":{\"list\":[1,2.5,null,true]}}}"
+		},
+		{
+			"name": "mark",
+			"direction": "initiator",
+			"payload": "{\"type\":\"mark\",\"id\":4,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"for\":{\"pid\":4300,\"created\":\"01db3f0e5c7a1b30\"},\"mark\":\"0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a\"}"
+		},
+		{
+			"name": "resume",
+			"direction": "initiator",
+			"payload": "{\"type\":\"resume\",\"id\":5,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"mark\":\"0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a\"}"
+		},
+		{
+			"name": "release",
+			"direction": "initiator",
+			"payload": "{\"type\":\"release\",\"id\":6,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "unknown-request",
+			"direction": "initiator",
+			"payload": "{\"type\":\"adopt\",\"id\":7,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"whatever\":[1]}"
+		},
+		{
+			"name": "hello-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"hello-result\",\"id\":1}"
+		},
+		{
+			"name": "hold-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"hold-result\",\"id\":2}"
+		},
+		{
+			"name": "mark-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"mark-result\",\"id\":4}"
+		},
+		{
+			"name": "resume-result-resumed",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"resume-result\",\"id\":5,\"outcome\":\"resumed\"}"
+		},
+		{
+			"name": "resume-result-claimed",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"resume-result\",\"id\":5,\"outcome\":\"claimed\"}"
+		},
+		{
+			"name": "resume-result-unknown-outcome",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"resume-result\",\"id\":5,\"outcome\":\"deferred\"}"
+		},
+		{
+			"name": "release-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"release-result\",\"id\":6}"
+		},
+		{
+			"name": "refused-not-registered",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"not-registered\"}"
+		},
+		{
+			"name": "refused-wrong-role",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"wrong-role\"}"
+		},
+		{
+			"name": "refused-not-owner",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"not-owner\"}"
+		},
+		{
+			"name": "refused-not-target",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"not-target\"}"
+		},
+		{
+			"name": "refused-unknown-holding",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"unknown-holding\"}"
+		},
+		{
+			"name": "refused-holding-exists",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"holding-exists\"}"
+		},
+		{
+			"name": "refused-marked",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"marked\"}"
+		},
+		{
+			"name": "refused-stale-mark",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"stale-mark\"}"
+		},
+		{
+			"name": "refused-identity-mismatch",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"identity-mismatch\"}"
+		},
+		{
+			"name": "refused-capacity",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"capacity\"}"
+		},
+		{
+			"name": "refused-draining",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"draining\"}"
+		},
+		{
+			"name": "refused-handle-failed",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"handle-failed\"}"
+		},
+		{
+			"name": "refused-busy-later",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"busy-later\"}"
+		},
+		{
+			"name": "unsupported",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"unsupported\",\"id\":7,\"request\":\"adopt\"}"
+		},
+		{
+			"name": "result-with-extensions",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"release-result\",\"id\":6,\"extensions\":{\"trace-id\":\"abc\"}}"
+		},
+		{
+			"name": "event-unknown",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"holding-moved\",\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		}
+	],
+	"boundary": [
+		{
+			"name": "id-lowest",
+			"direction": "initiator",
+			"payload": "{\"type\":\"release\",\"id\":1,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "id-highest",
+			"direction": "initiator",
+			"payload": "{\"type\":\"release\",\"id\":4294967295,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "reply-id-highest",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"release-result\",\"id\":4294967295}"
+		},
+		{
+			"name": "hold-extremes",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"ffffffffffffffffffffffffffffffff\",\"handles\":{\"job\":\"0000000000000004\",\"program\":\"00000000ffffffff\",\"console\":\"0000000000000001\",\"signal\":\"00000000fffffffc\",\"reference\":\"0000000000000008\",\"input\":\"000000000000000c\",\"output\":\"0000000000000010\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":4294967295,\"created\":\"ffffffffffffffff\"},\"console\":{\"pid\":1,\"created\":\"0000000000000001\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":65535,\"launch\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}"
+		},
+		{
+			"name": "holding-id-lowest",
+			"direction": "initiator",
+			"payload": "{\"type\":\"release\",\"id\":1,\"holding\":\"00000000000000000000000000000001\"}"
+		},
+		{
+			"name": "mark-id-lowest",
+			"direction": "initiator",
+			"payload": "{\"type\":\"mark\",\"id\":4,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"for\":{\"pid\":4300,\"created\":\"01db3f0e5c7a1b30\"},\"mark\":\"00000000000000000000000000000001\"}"
+		},
+		{
+			"name": "extensions-at-maximum-depth",
+			"direction": "initiator",
+			"payload": "{\"type\":\"release\",\"id\":6,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"extensions\":{\"deep\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":0}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
+		},
+		{
+			"name": "refused-reason-64-bytes",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr\"}"
+		},
+		{
+			"name": "whitespace-around-object",
+			"direction": "initiator",
+			"payload": " \n{\"type\":\"release\",\"id\":6,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}\t "
+		}
+	],
+	"invalid": [
+		{
+			"name": "foreign-magic",
+			"direction": "initiator",
+			"layer": "frame",
+			"frameHex": "48424b50000000257b2274797065223a2268656c6c6f222c226964223a312c22726f6c65223a22686f7374227d",
+			"reader": "foreign"
+		},
+		{
+			"name": "handshake-magic",
+			"direction": "initiator",
+			"layer": "frame",
+			"frameHex": "4f424853000000027b7d",
+			"reader": "foreign"
+		},
+		{
+			"name": "length-zero",
+			"direction": "acceptor",
+			"layer": "frame",
+			"frameHex": "4f424b5000000000",
+			"reader": "malformed"
+		},
+		{
+			"name": "length-above-maximum",
+			"direction": "initiator",
+			"layer": "frame",
+			"frameHex": "4f424b5000100001",
+			"reader": "malformed"
+		},
+		{
+			"name": "truncated-header",
+			"direction": "initiator",
+			"layer": "frame",
+			"frameHex": "4f424b500000",
+			"reader": "closed"
+		},
+		{
+			"name": "truncated-payload",
+			"direction": "acceptor",
+			"layer": "frame",
+			"frameHex": "4f424b500000001d7b2274797065223a22686f6c",
+			"reader": "closed"
+		},
+		{
+			"name": "trailing-bytes",
+			"direction": "initiator",
+			"layer": "frame",
+			"frameHex": "4f424b50000000467b2274797065223a2272656c65617365222c226964223a362c22686f6c64696e67223a223566306332643665386139623463336432653166306139623863376436653566227d4f42",
+			"reader": "message"
+		},
+		{
+			"name": "not-an-object",
+			"direction": "initiator",
+			"layer": "encoding",
+			"payload": "[1]"
+		},
+		{
+			"name": "duplicate-member",
+			"direction": "initiator",
+			"layer": "encoding",
+			"payload": "{\"type\":\"release\",\"id\":6,\"id\":7,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "duplicate-member-in-handles",
+			"direction": "initiator",
+			"layer": "encoding",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "lone-surrogate",
+			"direction": "acceptor",
+			"layer": "encoding",
+			"payload": "{\"type\":\"refused\",\"id\":9,\"reason\":\"\\ud800\"}"
+		},
+		{
+			"name": "nesting-33",
+			"direction": "initiator",
+			"layer": "encoding",
+			"payload": "{\"type\":\"release\",\"id\":6,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"extensions\":{\"deep\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":0}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
+		},
+		{
+			"name": "number-out-of-range",
+			"direction": "initiator",
+			"layer": "encoding",
+			"payload": "{\"type\":\"release\",\"id\":1e999,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "trailing-comma",
+			"direction": "initiator",
+			"layer": "encoding",
+			"payload": "{\"type\":\"release\",\"id\":6,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",}"
+		},
+		{
+			"name": "request-missing-id",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"release\",\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "id-zero",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"release\",\"id\":0,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "id-above-maximum",
+			"direction": "acceptor",
+			"layer": "schema",
+			"payload": "{\"type\":\"release-result\",\"id\":4294967296}"
+		},
+		{
+			"name": "id-negative",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"release\",\"id\":-1,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "id-string",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"release\",\"id\":\"6\",\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "unknown-member",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"release\",\"id\":6,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"owner\":{\"pid\":4200,\"created\":\"01db3f0e5c7a1b20\"}}"
+		},
+		{
+			"name": "null-member",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"status\",\"id\":6,\"after\":null}"
+		},
+		{
+			"name": "hello-missing-role",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hello\",\"id\":1}"
+		},
+		{
+			"name": "role-not-a-name",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hello\",\"id\":1,\"role\":\"Host\"}"
+		},
+		{
+			"name": "holding-uppercase",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"release\",\"id\":6,\"holding\":\"5F0C2D6E8A9B4C3D2E1F0A9B8C7D6E5F\"}"
+		},
+		{
+			"name": "holding-31-digits",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"release\",\"id\":6,\"holding\":\"f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "hold-missing-handle",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "hold-handle-above-32-bits",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000001000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "hold-pseudo-handle",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"ffffffffffffffff\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "hold-handle-15-digits",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"0000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "hold-extra-handle",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\",\"error\":\"00000000000001c0\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "hold-pid-zero",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":0,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "hold-created-uppercase",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01DB3F0E5C7A2B40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "hold-signal-format-zero",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":0,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "hold-console-build-63-digits",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "hold-launch-not-a-name",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"Managed PowerShell\"}}"
+		},
+		{
+			"name": "hold-terminal-missing-epoch",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "mark-missing-for",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"mark\",\"id\":4,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"mark\":\"0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a\"}"
+		},
+		{
+			"name": "refused-missing-reason",
+			"direction": "acceptor",
+			"layer": "schema",
+			"payload": "{\"type\":\"refused\",\"id\":9}"
+		},
+		{
+			"name": "resume-result-missing-outcome",
+			"direction": "acceptor",
+			"layer": "schema",
+			"payload": "{\"type\":\"resume-result\",\"id\":5}"
+		},
+		{
+			"name": "result-with-member",
+			"direction": "acceptor",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold-result\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "extension-name-not-a-name",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"release\",\"id\":6,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"extensions\":{\"Trace\":1}}"
+		},
+		{
+			"name": "holding-id-zero",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"release\",\"id\":6,\"holding\":\"00000000000000000000000000000000\"}"
+		},
+		{
+			"name": "mark-id-zero",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"resume\",\"id\":5,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"mark\":\"00000000000000000000000000000000\"}"
+		},
+		{
+			"name": "creation-time-zero",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"mark\",\"id\":4,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"for\":{\"pid\":4300,\"created\":\"0000000000000000\"},\"mark\":\"0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a\"}"
+		},
+		{
+			"name": "handle-zero",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"0000000000000000\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "id-with-fraction",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"release\",\"id\":6.0,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "id-with-exponent",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"release\",\"id\":6e0,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "result-from-initiator",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"hold-result\",\"id\":2}"
+		},
+		{
+			"name": "refused-from-initiator",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"refused\",\"id\":2,\"reason\":\"marked\"}"
+		},
+		{
+			"name": "request-from-acceptor",
+			"direction": "acceptor",
+			"layer": "decoder",
+			"payload": "{\"type\":\"release\",\"id\":6,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		}
+	]
+}

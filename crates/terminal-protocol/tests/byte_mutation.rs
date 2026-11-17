@@ -195,7 +195,8 @@ fn judge_envelope(bytes: &[u8]) -> Result<bool, String> {
         }
         PayloadEncoding::ControlJson
         | PayloadEncoding::RawBytes
-        | PayloadEncoding::GraphicsImage => {}
+        | PayloadEncoding::GraphicsImage
+        | PayloadEncoding::HandoverRecord => {}
     }
     Ok(true)
 }

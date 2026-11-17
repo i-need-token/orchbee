@@ -142,6 +142,8 @@ function maximumPayloadBytes(encoding: PayloadEncodingValue): number {
 			return PROTOCOL_LIMITS.maxRowWindowBytes;
 		case PayloadEncoding.terminalFrame:
 			return PROTOCOL_LIMITS.maxFrameBytes;
+		case PayloadEncoding.handoverRecord:
+			return PROTOCOL_LIMITS.maxHandoverRecordBytes;
 	}
 }
 
@@ -157,6 +159,8 @@ function payloadEncodingCode(encoding: PayloadEncodingValue): number {
 			return 4;
 		case PayloadEncoding.terminalFrame:
 			return 3;
+		case PayloadEncoding.handoverRecord:
+			return 6;
 	}
 }
 
@@ -172,6 +176,8 @@ function payloadEncodingFromCode(code: number): ProtocolResult<PayloadEncodingVa
 			return protocolSuccess(PayloadEncoding.terminalFrame);
 		case 4:
 			return protocolSuccess(PayloadEncoding.rowWindow);
+		case 6:
+			return protocolSuccess(PayloadEncoding.handoverRecord);
 		default:
 			return protocolFailure(ProtocolErrorCode.invalidField, `Unknown payload encoding ${code}`);
 	}

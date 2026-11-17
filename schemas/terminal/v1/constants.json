@@ -59,7 +59,8 @@
 			"raw-bytes": 2,
 			"terminal-frame": 3,
 			"row-window": 4,
-			"graphics-image": 5
+			"graphics-image": 5,
+			"handover-record": 6
 		},
 		"message_role": {
 			"request": 0,
@@ -701,6 +702,151 @@
 				"success_kind": 31
 			},
 			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 90,
+			"name": "AttachKeeper",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 90
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 91,
+			"name": "DetachKeeper",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 91
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 92,
+			"name": "KeeperLost",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 93,
+			"name": "KeeperUnresponsive",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 94,
+			"name": "TerminalUnheld",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 95,
+			"name": "QuiesceTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 95
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 96,
+			"name": "ReadHandoverRecord",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 97
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 97,
+			"name": "HandoverRecordChunk",
+			"request": null,
+			"response_encoding": "handover-record"
+		},
+		{
+			"event_encoding": null,
+			"kind": 98,
+			"name": "ResumeTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 98
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 99,
+			"name": "DropTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 99
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 100,
+			"name": "ImportTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 100
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 101,
+			"name": "WriteHandoverRecord",
+			"request": {
+				"payload_encoding": "handover-record",
+				"success_kind": 102
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 102,
+			"name": "HandoverRecordWritten",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 103,
+			"name": "RestoreTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 103
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 104,
+			"name": "ClaimTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 104
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 105,
+			"name": "DiscardImport",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 105
+			},
+			"response_encoding": "control-json"
 		}
 	],
 	"protocol_limits": {
@@ -753,6 +899,7 @@
 		"paste_auto_input_bytes": 262144,
 		"paste_auto_input_payload_bytes": 262176,
 		"semantic_input_payload_bytes": 1048608,
-		"write_input_payload_bytes": 1048600
+		"write_input_payload_bytes": 1048600,
+		"handover_record_bytes": 4194336
 	}
 }

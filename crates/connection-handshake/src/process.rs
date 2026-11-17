@@ -16,17 +16,20 @@ pub enum ProcessRole {
     MachineHub,
     /// The remote helper `orchbee --machine-link-v1` at the far end of a machine link.
     MachineLink,
+    /// The Keeper, which holds Windows terminals' handles across a Host handover.
+    Keeper,
     /// A role this build does not know.
     Unknown,
 }
 
 impl ProcessRole {
-    const NAMES: [(Self, &'static str); 6] = [
+    const NAMES: [(Self, &'static str); 7] = [
         (Self::Server, "server"),
         (Self::Worker, "worker"),
         (Self::TerminalHost, "terminal-host"),
         (Self::MachineHub, "machine-hub"),
         (Self::MachineLink, "machine-link"),
+        (Self::Keeper, "keeper"),
         (Self::Unknown, "unknown"),
     ];
 

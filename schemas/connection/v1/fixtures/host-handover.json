@@ -1,0 +1,29 @@
+{
+	"cases": [
+		{
+			"name": "offer-keeper-release",
+			"direction": "initiator",
+			"payload": "{\"type\":\"offer\",\"connection\":\"keeper\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[],\"productVersion\":\"0.1.0-beta.16\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}"
+		},
+		{
+			"name": "offer-keeper-development",
+			"direction": "initiator",
+			"payload": "{\"type\":\"offer\",\"connection\":\"keeper\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[],\"productVersion\":\"0.0.0-dev\",\"build\":{},\"environment\":\"ob-dev-0123456789abcdef\",\"fingerprint\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}"
+		},
+		{
+			"name": "answer-keeper",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"answer\",\"generation\":1,\"capabilities\":[],\"productVersion\":\"0.1.0-beta.16\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"}}"
+		},
+		{
+			"name": "query-result-keeper",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"query-result\",\"processes\":[{\"role\":\"keeper\",\"productVersion\":\"0.1.0-beta.16\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"},\"environment\":\"orchbee\",\"pid\":4400,\"state\":\"ready\",\"terminals\":3,\"connections\":[{\"kind\":\"keeper\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[]}]}]}"
+		},
+		{
+			"name": "query-result-keeper-draining-empty",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"query-result\",\"processes\":[{\"role\":\"keeper\",\"productVersion\":\"0.1.0-beta.16\",\"build\":{},\"environment\":\"ob-dev-0123456789abcdef\",\"pid\":4400,\"state\":\"draining\",\"terminals\":0,\"connections\":[{\"kind\":\"keeper\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[]}]}]}"
+		}
+	]
+}

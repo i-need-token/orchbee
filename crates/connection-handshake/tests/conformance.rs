@@ -24,6 +24,10 @@ use crate::support::{self, Direction, TestResult};
 const VALID: &str = include_str!("../../../schemas/connection/v1/fixtures/valid.json");
 const BOUNDARY: &str = include_str!("../../../schemas/connection/v1/fixtures/boundary.json");
 const INVALID: &str = include_str!("../../../schemas/connection/v1/fixtures/invalid.json");
+const HOST_HANDOVER: &str =
+    include_str!("../../../schemas/connection/v1/fixtures/host-handover.json");
+const DISPATCH_PROGRESS: &str =
+    include_str!("../../../schemas/connection/v1/fixtures/dispatch-progress.json");
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -72,7 +76,7 @@ enum ReaderOutcome {
 fn valid_and_boundary_payloads_satisfy_the_schema_and_round_trip_in_their_direction() -> TestResult
 {
     let schema = support::schema()?;
-    for source in [VALID, BOUNDARY] {
+    for source in [VALID, BOUNDARY, HOST_HANDOVER, DISPATCH_PROGRESS] {
         let fixtures: Cases<AcceptedCase> = serde_json::from_str(source)?;
         assert!(!fixtures.cases.is_empty());
         for case in fixtures.cases {
@@ -99,6 +103,26 @@ fn valid_and_boundary_payloads_satisfy_the_schema_and_round_trip_in_their_direct
             );
         }
     }
+    Ok(())
+}
+
+#[test]
+fn the_keeper_role_decodes_as_itself() -> TestResult {
+    let fixtures: Cases<AcceptedCase> = serde_json::from_str(HOST_HANDOVER)?;
+    let case = fixtures
+        .cases
+        .iter()
+        .find(|case| case.name == "query-result-keeper")
+        .ok_or("host-handover.json holds query-result-keeper")?;
+    let AcceptorMessage::QueryResult(result) =
+        decode_acceptor_frame(&support::frame(case.payload.as_bytes())?)?
+    else {
+        return Err("query-result-keeper decodes as a query result".into());
+    };
+    assert_eq!(
+        result.processes().first().map(|process| process.role),
+        Some(ProcessRole::Keeper)
+    );
     Ok(())
 }
 

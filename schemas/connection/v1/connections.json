@@ -26,6 +26,18 @@
 				"schemas/workbench"
 			]
 		},
+		"keeper": {
+			"generations": { "lowest": 1, "highest": 1 },
+			"superseded": [],
+			"capabilities": [],
+			"fingerprintInputs": [
+				"apps/terminal-host/src/handshake",
+				"apps/terminal-host/src/keeper_protocol",
+				"crates/connection-handshake/src",
+				"schemas/connection",
+				"schemas/keeper"
+			]
+		},
 		"machine-hub": {
 			"generations": { "lowest": 1, "highest": 1 },
 			"superseded": [],
@@ -51,7 +63,11 @@
 		"worker-host": {
 			"generations": { "lowest": 1, "highest": 1 },
 			"superseded": [],
-			"capabilities": [{ "name": "prompt-gated-input", "addedIn": "0.1.0" }],
+			"capabilities": [
+				{ "name": "handover", "addedIn": "0.1.0-beta.16" },
+				{ "name": "keeper", "addedIn": "0.1.0-beta.16" },
+				{ "name": "prompt-gated-input", "addedIn": "0.1.0" }
+			],
 			"fingerprintInputs": [
 				"apps/terminal-host/src/control",
 				"apps/terminal-host/src/handshake",
@@ -64,6 +80,7 @@
 		}
 	},
 	"frameFormats": {
+		"obhr": { "generations": { "lowest": 1, "highest": 1 }, "superseded": [] },
 		"obkg": { "generations": { "lowest": 1, "highest": 1 }, "superseded": [] },
 		"obpb": { "generations": { "lowest": 1, "highest": 1 }, "superseded": [] },
 		"obrw": { "generations": { "lowest": 1, "highest": 1 }, "superseded": [] },

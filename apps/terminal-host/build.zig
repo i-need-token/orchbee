@@ -53,7 +53,7 @@ fn handshakeFixtureModule(builder: *std.Build) *std.Build.Module {
     _ = files.addCopyFile(.{ .cwd_relative = builder.pathFromRoot(
         "../../schemas/connection/v1/connections.json",
     ) }, "connections.json");
-    for ([_][]const u8{ "admission", "boundary", "invalid", "valid" }) |name| {
+    for ([_][]const u8{ "admission", "boundary", "dispatch-progress", "host-handover", "invalid", "valid" }) |name| {
         _ = files.addCopyFile(.{ .cwd_relative = builder.pathFromRoot(builder.fmt(
             "../../schemas/connection/v1/fixtures/{s}.json",
             .{name},
@@ -63,8 +63,29 @@ fn handshakeFixtureModule(builder: *std.Build) *std.Build.Module {
         \\pub const registry: []const u8 = @embedFile("connections.json");
         \\pub const admission: []const u8 = @embedFile("admission.json");
         \\pub const boundary: []const u8 = @embedFile("boundary.json");
+        \\pub const dispatch_progress: []const u8 = @embedFile("dispatch-progress.json");
+        \\pub const host_handover: []const u8 = @embedFile("host-handover.json");
         \\pub const invalid: []const u8 = @embedFile("invalid.json");
         \\pub const valid: []const u8 = @embedFile("valid.json");
+        \\
+    ) });
+}
+
+/// The Keeper protocol fixtures, embedded the same way.
+fn keeperFixtureModule(builder: *std.Build) *std.Build.Module {
+    const files = builder.addWriteFiles();
+    for ([_][]const u8{ "claimant", "claimant-sequences", "owner", "owner-sequences", "worker" }) |name| {
+        _ = files.addCopyFile(.{ .cwd_relative = builder.pathFromRoot(builder.fmt(
+            "../../schemas/keeper/v1/fixtures/{s}.json",
+            .{name},
+        )) }, builder.fmt("{s}.json", .{name}));
+    }
+    return builder.createModule(.{ .root_source_file = files.add("fixtures.zig",
+        \\pub const claimant: []const u8 = @embedFile("claimant.json");
+        \\pub const claimant_sequences: []const u8 = @embedFile("claimant-sequences.json");
+        \\pub const owner: []const u8 = @embedFile("owner.json");
+        \\pub const owner_sequences: []const u8 = @embedFile("owner-sequences.json");
+        \\pub const worker: []const u8 = @embedFile("worker.json");
         \\
     ) });
 }
@@ -206,6 +227,11 @@ pub fn build(builder: *std.Build) void {
         "worker_host_fingerprint",
         &fingerprint.forConnection(builder, "worker-host"),
     );
+    handshake_options.addOption(
+        []const u8,
+        "keeper_fingerprint",
+        &fingerprint.forConnection(builder, "keeper"),
+    );
 
     const terminal_input_module = builder.createModule(.{
         .root_source_file = builder.path("src/protocol/semantic_input.zig"),
@@ -271,6 +297,12 @@ pub fn build(builder: *std.Build) void {
         .optimize = optimize,
     });
     handshake_module.addOptions("handshake-options", handshake_options);
+    const keeper_protocol_module = builder.createModule(.{
+        .root_source_file = builder.path("src/keeper_protocol/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    keeper_protocol_module.addImport("terminal-host-handshake", handshake_module);
     const service_module = builder.createModule(.{
         .root_source_file = builder.path("src/service/root.zig"),
         .target = target,
@@ -863,9 +895,24 @@ pub fn build(builder: *std.Build) void {
     });
     builder.step("test-handshake", "Run the OBHS binding against the connection fixtures")
         .dependOn(&addTestRun(builder, focused_handshake_tests, test_home).step);
+    const keeper_protocol_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/keeper_protocol/__tests__/keeper_protocol_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    keeper_protocol_test_module.addImport("terminal-host-handshake", handshake_module);
+    keeper_protocol_test_module.addImport("terminal-host-keeper-protocol", keeper_protocol_module);
+    keeper_protocol_test_module.addImport("keeper-fixtures", keeperFixtureModule(builder));
+    const focused_keeper_protocol_tests = builder.addTest(.{
+        .name = "terminal-host-keeper-protocol-tests",
+        .root_module = keeper_protocol_test_module,
+    });
+    builder.step("test-keeper-protocol", "Run the OBKP binding against the Keeper fixtures")
+        .dependOn(&addTestRun(builder, focused_keeper_protocol_tests, test_home).step);
     for ([_]*std.Build.Module{
         cli_test_module,
         handshake_test_module,
+        keeper_protocol_test_module,
         benchmark_test_module,
         protocol_test_module,
         model_test_module,

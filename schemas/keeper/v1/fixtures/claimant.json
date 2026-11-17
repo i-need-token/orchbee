@@ -1,0 +1,101 @@
+{
+	"valid": [
+		{
+			"name": "inspect",
+			"direction": "initiator",
+			"payload": "{\"type\":\"inspect\",\"id\":1,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"mark\":\"0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a\"}"
+		},
+		{
+			"name": "claim",
+			"direction": "initiator",
+			"payload": "{\"type\":\"claim\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"mark\":\"0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a\",\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"terminal\":{\"creationId\":\"55555555555555555555555555555555\",\"hostEpoch\":\"66666666666666666666666666666666\",\"terminalId\":\"77777777777777777777777777777777\"}}"
+		},
+		{
+			"name": "decline",
+			"direction": "initiator",
+			"payload": "{\"type\":\"decline\",\"id\":3,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"mark\":\"0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a\"}"
+		},
+		{
+			"name": "inspect-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"inspect-result\",\"id\":1,\"handles\":{\"job\":\"0000000000000310\",\"program\":\"0000000000000314\",\"console\":\"0000000000000318\",\"signal\":\"000000000000031c\",\"reference\":\"0000000000000320\",\"input\":\"0000000000000324\",\"output\":\"0000000000000328\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		},
+		{
+			"name": "claim-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"claim-result\",\"id\":2}"
+		},
+		{
+			"name": "decline-result-declined",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"decline-result\",\"id\":3,\"outcome\":\"declined\"}"
+		},
+		{
+			"name": "decline-result-claimed",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"decline-result\",\"id\":3,\"outcome\":\"claimed\"}"
+		}
+	],
+	"boundary": [
+		{
+			"name": "claim-extremes",
+			"direction": "initiator",
+			"payload": "{\"type\":\"claim\",\"id\":4294967295,\"holding\":\"ffffffffffffffffffffffffffffffff\",\"mark\":\"00000000000000000000000000000001\",\"program\":{\"pid\":4294967295,\"created\":\"ffffffffffffffff\"},\"terminal\":{\"creationId\":\"ffffffffffffffffffffffffffffffff\",\"hostEpoch\":\"00000000000000000000000000000000\",\"terminalId\":\"00000000000000000000000000000001\"}}"
+		},
+		{
+			"name": "inspect-result-extremes",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"inspect-result\",\"id\":4294967295,\"handles\":{\"job\":\"00000000ffffffff\",\"program\":\"0000000000000314\",\"console\":\"0000000000000318\",\"signal\":\"000000000000031c\",\"reference\":\"0000000000000320\",\"input\":\"0000000000000324\",\"output\":\"0000000000000004\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":65535,\"launch\":\"managed-powershell\"}}"
+		}
+	],
+	"invalid": [
+		{
+			"name": "claim-missing-terminal",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"claim\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"mark\":\"0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a\",\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"}}"
+		},
+		{
+			"name": "claim-terminal-not-hex",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"claim\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"mark\":\"0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a\",\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"terminal\":{\"creationId\":\"55555555555555555555555555555555\",\"hostEpoch\":\"66666666666666666666666666666666\",\"terminalId\":\"gggggggggggggggggggggggggggggggg\"}}"
+		},
+		{
+			"name": "inspect-missing-mark",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"inspect\",\"id\":1,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "inspect-result-missing-facts",
+			"direction": "acceptor",
+			"layer": "schema",
+			"payload": "{\"type\":\"inspect-result\",\"id\":1,\"handles\":{\"job\":\"0000000000000310\",\"program\":\"0000000000000314\",\"console\":\"0000000000000318\",\"signal\":\"000000000000031c\",\"reference\":\"0000000000000320\",\"input\":\"0000000000000324\",\"output\":\"0000000000000328\"}}"
+		},
+		{
+			"name": "decline-result-outcome-not-a-name",
+			"direction": "acceptor",
+			"layer": "schema",
+			"payload": "{\"type\":\"decline-result\",\"id\":3,\"outcome\":\"Declined\"}"
+		},
+		{
+			"name": "claim-mark-zero",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"claim\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"mark\":\"00000000000000000000000000000000\",\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"terminal\":{\"creationId\":\"55555555555555555555555555555555\",\"hostEpoch\":\"66666666666666666666666666666666\",\"terminalId\":\"77777777777777777777777777777777\"}}"
+		},
+		{
+			"name": "claim-program-created-zero",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"claim\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"mark\":\"0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a\",\"program\":{\"pid\":5120,\"created\":\"0000000000000000\"},\"terminal\":{\"creationId\":\"55555555555555555555555555555555\",\"hostEpoch\":\"66666666666666666666666666666666\",\"terminalId\":\"77777777777777777777777777777777\"}}"
+		},
+		{
+			"name": "inspect-result-from-initiator",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"inspect-result\",\"id\":1,\"handles\":{\"job\":\"0000000000000310\",\"program\":\"0000000000000314\",\"console\":\"0000000000000318\",\"signal\":\"000000000000031c\",\"reference\":\"0000000000000320\",\"input\":\"0000000000000324\",\"output\":\"0000000000000328\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
+		}
+	]
+}

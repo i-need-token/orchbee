@@ -85,7 +85,7 @@ pub(super) fn result(
         ConnectionKind::WorkerHost.supported_generations(),
         None,
     )?];
-    for format in FrameFormat::ALL {
+    for format in FrameFormat::STREAMED {
         server.push(entry(
             format.name(),
             format.supported_generations(),

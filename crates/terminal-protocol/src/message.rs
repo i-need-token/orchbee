@@ -3,8 +3,8 @@
 //! decoding payload contents or maintaining request correlation.
 
 use crate::limits::{
-    MAXIMUM_CONTROL_JSON_BYTES, MAXIMUM_RAW_PAYLOAD_BYTES, MAXIMUM_ROW_WINDOW_BYTES,
-    MAXIMUM_TERMINAL_FRAME_BYTES,
+    MAXIMUM_CONTROL_JSON_BYTES, MAXIMUM_HANDOVER_RECORD_BYTES, MAXIMUM_RAW_PAYLOAD_BYTES,
+    MAXIMUM_ROW_WINDOW_BYTES, MAXIMUM_TERMINAL_FRAME_BYTES,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -14,6 +14,8 @@ pub enum PayloadEncoding {
     TerminalFrame,
     RowWindow,
     GraphicsImage,
+    /// A 32-byte chunk header and up to 4 MiB of one handover record.
+    HandoverRecord,
 }
 
 impl PayloadEncoding {
@@ -24,6 +26,7 @@ impl PayloadEncoding {
             Self::TerminalFrame => 3,
             Self::RowWindow => 4,
             Self::GraphicsImage => 5,
+            Self::HandoverRecord => 6,
         }
     }
 
@@ -34,6 +37,7 @@ impl PayloadEncoding {
             3 => Some(Self::TerminalFrame),
             4 => Some(Self::RowWindow),
             5 => Some(Self::GraphicsImage),
+            6 => Some(Self::HandoverRecord),
             _ => None,
         }
     }
@@ -47,6 +51,7 @@ impl PayloadEncoding {
             Self::GraphicsImage => {
                 crate::MAXIMUM_GRAPHICS_RGBA_BYTES + crate::GRAPHICS_DECODE_RESULT_HEADER_BYTES
             }
+            Self::HandoverRecord => MAXIMUM_HANDOVER_RECORD_BYTES,
         }
     }
 }
@@ -617,6 +622,118 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         None,
         Some(request(PayloadEncoding::RawBytes, 31)),
         None
+    ),
+    contract!(
+        90,
+        "AttachKeeper",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 90)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        91,
+        "DetachKeeper",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 91)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        92,
+        "KeeperLost",
+        Some(PayloadEncoding::ControlJson),
+        None,
+        None
+    ),
+    contract!(
+        93,
+        "KeeperUnresponsive",
+        Some(PayloadEncoding::ControlJson),
+        None,
+        None
+    ),
+    contract!(
+        94,
+        "TerminalUnheld",
+        Some(PayloadEncoding::ControlJson),
+        None,
+        None
+    ),
+    contract!(
+        95,
+        "QuiesceTerminal",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 95)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        96,
+        "ReadHandoverRecord",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 97)),
+        None
+    ),
+    contract!(
+        97,
+        "HandoverRecordChunk",
+        None,
+        None,
+        Some(PayloadEncoding::HandoverRecord)
+    ),
+    contract!(
+        98,
+        "ResumeTerminal",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 98)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        99,
+        "DropTerminal",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 99)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        100,
+        "ImportTerminal",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 100)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        101,
+        "WriteHandoverRecord",
+        None,
+        Some(request(PayloadEncoding::HandoverRecord, 102)),
+        None
+    ),
+    contract!(
+        102,
+        "HandoverRecordWritten",
+        None,
+        None,
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        103,
+        "RestoreTerminal",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 103)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        104,
+        "ClaimTerminal",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 104)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        105,
+        "DiscardImport",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 105)),
+        Some(PayloadEncoding::ControlJson)
     ),
 ];
 

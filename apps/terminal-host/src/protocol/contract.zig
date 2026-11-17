@@ -103,6 +103,8 @@ pub const Limits = struct {
     pub const semantic_input_payload_bytes: usize = 32 + input_bytes;
     pub const paste_auto_input_payload_bytes: usize = 32 + paste_auto_input_bytes;
     pub const write_input_payload_bytes: usize = 24 + input_bytes;
+    /// A 32-byte chunk header and up to 4 MiB of one handover record.
+    pub const handover_record_bytes: usize = 32 + 4 * 1024 * 1024;
 };
 
 pub const MessageKind = @import("message_kind.zig").MessageKind;
@@ -126,47 +128,11 @@ pub const PayloadEncoding = enum(u8) {
     terminal_frame = 3,
     row_window = 4,
     graphics_image = 5,
+    handover_record = 6,
 };
 
-/// Native dispatch operation owned by the protocol adapter. It is not a wire
-/// field; it makes Host request coverage exhaustive when the registry grows.
-pub const RequestOperation = enum {
-    decode_graphics_png,
-    stage_terminal_output,
-    read_process_info,
-    apply_terminal_theme,
-    attach_terminal,
-    claim_resize_lease,
-    clear_terminal,
-    create_terminal,
-    detach_terminal,
-    dispose_terminal,
-    force_terminate_terminal,
-    frame_applied,
-    hello,
-    history_observed,
-    list_terminals,
-    need_snapshot,
-    ping,
-    read_rows,
-    resize_terminal,
-    reset_terminal,
-    rows_applied,
-    selection_command,
-    selection_export,
-    selection_export_cancel,
-    selection_export_chunk_applied,
-    selection_gesture,
-    semantic_input,
-    set_history_demand,
-    set_projection_demand,
-    set_terminal_defaults,
-    start_terminal,
-    terminate_terminal,
-    update_terminal_configuration,
-    update_attachment_input_capability,
-    write_input,
-};
+pub const RequestOperation = @import("request_operation.zig").RequestOperation;
+const handover_contract = @import("handover_contract.zig");
 
 pub const RequestMessageContract = struct {
     operation: RequestOperation,
@@ -461,7 +427,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
             M.terminal_theme_result,
         ),
         M.terminal_theme_result => responseOnly("TerminalThemeResult", .control_json),
-        else => null,
+        else => handover_contract.messageContract(kind),
     };
 }
 
@@ -487,6 +453,7 @@ pub fn maximumPayloadBytes(encoding: u8) ProtocolError!usize {
         @intFromEnum(PayloadEncoding.raw_bytes) => Limits.raw_payload_bytes,
         @intFromEnum(PayloadEncoding.terminal_frame) => Limits.frame_bytes,
         @intFromEnum(PayloadEncoding.row_window) => Limits.row_window_bytes,
+        @intFromEnum(PayloadEncoding.handover_record) => Limits.handover_record_bytes,
         else => error.InvalidField,
     };
 }

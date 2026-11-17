@@ -62,6 +62,7 @@ pub const ProcessRole = enum {
     server,
     worker,
     terminal_host,
+    keeper,
     unknown,
 
     pub fn name(self: ProcessRole) []const u8 {

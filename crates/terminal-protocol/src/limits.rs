@@ -20,6 +20,9 @@ pub const MAXIMUM_RAW_PAYLOAD_BYTES: usize = MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTE
 pub const MAXIMUM_TERMINAL_FRAME_BYTES: usize = 36 * 1024 * 1024;
 pub const MAXIMUM_ROW_WINDOW_BYTES: usize = 44 * 1024 * 1024;
 pub const MAXIMUM_ROW_WINDOW_ROWS: usize = 4096;
+/// A handover record crosses in chunks of a 32-byte header and up to 4 MiB of the record.
+pub const MAXIMUM_HANDOVER_RECORD_CHUNK_BYTES: usize = 4 * 1024 * 1024;
+pub const MAXIMUM_HANDOVER_RECORD_BYTES: usize = 32 + MAXIMUM_HANDOVER_RECORD_CHUNK_BYTES;
 pub const MAXIMUM_SELECTION_PREVIEW_BYTES: usize = 4 * 1024;
 pub const MAXIMUM_SELECTION_EXPORT_BYTES: usize = 16 * 1024 * 1024;
 pub const MAXIMUM_SELECTION_EXPORT_CHUNK_BYTES: usize = 1024 * 1024;

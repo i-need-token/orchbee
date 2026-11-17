@@ -4,6 +4,22 @@ export const MessageKind = {
 	stageTerminalOutput: 82,
 	terminalOutputStaged: 83,
 	promptLineInput: 84,
+	attachKeeper: 90,
+	detachKeeper: 91,
+	keeperLost: 92,
+	keeperUnresponsive: 93,
+	terminalUnheld: 94,
+	quiesceTerminal: 95,
+	readHandoverRecord: 96,
+	handoverRecordChunk: 97,
+	resumeTerminal: 98,
+	dropTerminal: 99,
+	importTerminal: 100,
+	writeHandoverRecord: 101,
+	handoverRecordWritten: 102,
+	restoreTerminal: 103,
+	claimTerminal: 104,
+	discardImport: 105,
 	readProcessInfo: 79,
 	applyTerminalTheme: 77,
 	attachTerminal: 20,
@@ -82,6 +98,7 @@ export const PayloadEncoding = {
 	rowWindow: 'row-window',
 	graphicsImage: 'graphics-image',
 	terminalFrame: 'terminal-frame',
+	handoverRecord: 'handover-record',
 } as const;
 
 export type PayloadEncoding = (typeof PayloadEncoding)[keyof typeof PayloadEncoding];
@@ -102,6 +119,7 @@ interface MessageContract {
 
 const control = PayloadEncoding.controlJson;
 const raw = PayloadEncoding.rawBytes;
+const record = PayloadEncoding.handoverRecord;
 
 /**
  * The complete current-version message registry. A request entry also owns
@@ -143,6 +161,102 @@ export const MESSAGE_CONTRACTS = {
 		name: 'PromptLineInput',
 		request: { payloadEncoding: raw, successKind: MessageKind.inputAccepted },
 		responseEncoding: null,
+	},
+	[MessageKind.attachKeeper]: {
+		eventEncoding: null,
+		name: 'AttachKeeper',
+		request: { payloadEncoding: control, successKind: MessageKind.attachKeeper },
+		responseEncoding: control,
+	},
+	[MessageKind.detachKeeper]: {
+		eventEncoding: null,
+		name: 'DetachKeeper',
+		request: { payloadEncoding: control, successKind: MessageKind.detachKeeper },
+		responseEncoding: control,
+	},
+	[MessageKind.keeperLost]: {
+		eventEncoding: control,
+		name: 'KeeperLost',
+		request: null,
+		responseEncoding: null,
+	},
+	[MessageKind.keeperUnresponsive]: {
+		eventEncoding: control,
+		name: 'KeeperUnresponsive',
+		request: null,
+		responseEncoding: null,
+	},
+	[MessageKind.terminalUnheld]: {
+		eventEncoding: control,
+		name: 'TerminalUnheld',
+		request: null,
+		responseEncoding: null,
+	},
+	[MessageKind.quiesceTerminal]: {
+		eventEncoding: null,
+		name: 'QuiesceTerminal',
+		request: { payloadEncoding: control, successKind: MessageKind.quiesceTerminal },
+		responseEncoding: control,
+	},
+	[MessageKind.readHandoverRecord]: {
+		eventEncoding: null,
+		name: 'ReadHandoverRecord',
+		request: { payloadEncoding: control, successKind: MessageKind.handoverRecordChunk },
+		responseEncoding: null,
+	},
+	[MessageKind.handoverRecordChunk]: {
+		eventEncoding: null,
+		name: 'HandoverRecordChunk',
+		request: null,
+		responseEncoding: record,
+	},
+	[MessageKind.resumeTerminal]: {
+		eventEncoding: null,
+		name: 'ResumeTerminal',
+		request: { payloadEncoding: control, successKind: MessageKind.resumeTerminal },
+		responseEncoding: control,
+	},
+	[MessageKind.dropTerminal]: {
+		eventEncoding: null,
+		name: 'DropTerminal',
+		request: { payloadEncoding: control, successKind: MessageKind.dropTerminal },
+		responseEncoding: control,
+	},
+	[MessageKind.importTerminal]: {
+		eventEncoding: null,
+		name: 'ImportTerminal',
+		request: { payloadEncoding: control, successKind: MessageKind.importTerminal },
+		responseEncoding: control,
+	},
+	[MessageKind.writeHandoverRecord]: {
+		eventEncoding: null,
+		name: 'WriteHandoverRecord',
+		request: { payloadEncoding: record, successKind: MessageKind.handoverRecordWritten },
+		responseEncoding: null,
+	},
+	[MessageKind.handoverRecordWritten]: {
+		eventEncoding: null,
+		name: 'HandoverRecordWritten',
+		request: null,
+		responseEncoding: control,
+	},
+	[MessageKind.restoreTerminal]: {
+		eventEncoding: null,
+		name: 'RestoreTerminal',
+		request: { payloadEncoding: control, successKind: MessageKind.restoreTerminal },
+		responseEncoding: control,
+	},
+	[MessageKind.claimTerminal]: {
+		eventEncoding: null,
+		name: 'ClaimTerminal',
+		request: { payloadEncoding: control, successKind: MessageKind.claimTerminal },
+		responseEncoding: control,
+	},
+	[MessageKind.discardImport]: {
+		eventEncoding: null,
+		name: 'DiscardImport',
+		request: { payloadEncoding: control, successKind: MessageKind.discardImport },
+		responseEncoding: control,
 	},
 	[MessageKind.readProcessInfo]: {
 		eventEncoding: null,
@@ -571,7 +685,27 @@ type RequestKindForEncoding<Encoding extends PayloadEncoding> = {
 		: never;
 }[MessageKind];
 
-type ControlRequestKind = RequestKindForEncoding<typeof PayloadEncoding.controlJson>;
+// Only the Worker sends the Host handover requests, under the `keeper` and `handover`
+// capabilities; no TypeScript producer encodes them, so none is a client control request here.
+const WORKER_ONLY_CONTROL_REQUEST_KINDS = [
+	MessageKind.attachKeeper,
+	MessageKind.detachKeeper,
+	MessageKind.quiesceTerminal,
+	MessageKind.readHandoverRecord,
+	MessageKind.resumeTerminal,
+	MessageKind.dropTerminal,
+	MessageKind.importTerminal,
+	MessageKind.restoreTerminal,
+	MessageKind.claimTerminal,
+	MessageKind.discardImport,
+] as const;
+const workerOnlyControlRequestKinds: ReadonlySet<MessageKind> = new Set(
+	WORKER_ONLY_CONTROL_REQUEST_KINDS,
+);
+type ControlRequestKind = Exclude<
+	RequestKindForEncoding<typeof PayloadEncoding.controlJson>,
+	(typeof WORKER_ONLY_CONTROL_REQUEST_KINDS)[number]
+>;
 // Staged output and prompt lines are raw bytes too, but only the Worker sends them; no
 // TypeScript producer encodes either, so neither is a client input request here.
 type InputRequestKind = Exclude<
@@ -584,7 +718,10 @@ export function isKnownMessageKind(value: number): value is MessageKind {
 }
 
 export function isControlRequestKind(kind: MessageKind): kind is ControlRequestKind {
-	return MESSAGE_CONTRACTS[kind].request?.payloadEncoding === PayloadEncoding.controlJson;
+	return (
+		!workerOnlyControlRequestKinds.has(kind) &&
+		MESSAGE_CONTRACTS[kind].request?.payloadEncoding === PayloadEncoding.controlJson
+	);
 }
 
 export function isInputRequestKind(kind: MessageKind): kind is InputRequestKind {

@@ -40,11 +40,21 @@ pub const STREAM_OUTCOME_UNKNOWN: &str = "stream-outcome-unknown";
 /// reads `unavailable` for that refusal, as its own release did.
 pub const CONFIGURED_COMMAND_SOURCE_EXITED: &str = "configured-command-source-exited";
 
+/// The `worker-host` capability before a Worker may ask a Host to attach a Keeper and hold its
+/// terminals' handles there. No build offers it before the Worker uses the Keeper.
+pub const KEEPER: &str = "keeper";
+
+/// The `worker-host` capability before a Worker may ask a Host to quiesce, export, import, or
+/// claim a terminal for a Host move. No build offers it before the Worker moves terminals.
+pub const HANDOVER: &str = "handover";
+
 /// A connection that starts with an `OBHS` offer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConnectionKind {
     /// Client → Server's Client endpoint.
     ClientServer,
+    /// A Terminal Host or the Worker → the Keeper's endpoint, before `OBKP` frames.
+    Keeper,
     /// A TUI, a CLI command, or Desktop's bundled Client → the remote-machine hub.
     MachineHub,
     /// The remote-machine hub → `orchbee --machine-link-v1` on a remote machine, through `ssh`.
@@ -55,8 +65,9 @@ pub enum ConnectionKind {
 
 impl ConnectionKind {
     /// Every negotiated connection the registry declares.
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::ClientServer,
+        Self::Keeper,
         Self::MachineHub,
         Self::MachineLink,
         Self::WorkerHost,
@@ -67,6 +78,7 @@ impl ConnectionKind {
     pub const fn name(self) -> &'static str {
         match self {
             Self::ClientServer => "client-server",
+            Self::Keeper => "keeper",
             Self::MachineHub => "machine-hub",
             Self::MachineLink => "machine-link",
             Self::WorkerHost => "worker-host",
@@ -90,13 +102,14 @@ impl ConnectionKind {
     pub const fn supported_generations(self) -> GenerationRange {
         match self {
             Self::ClientServer => const { GenerationRange::declared(1, 1) },
+            Self::Keeper => const { GenerationRange::declared(1, 1) },
             Self::MachineHub => const { GenerationRange::declared(1, 1) },
             Self::MachineLink => const { GenerationRange::declared(1, 1) },
             Self::WorkerHost => const { GenerationRange::declared(1, 1) },
         }
     }
 
-    /// The capability names this build implements.
+    /// The capability names this build implements and offers, each one the registry declares.
     #[must_use]
     pub fn capabilities(self) -> CapabilitySet {
         let names: &[&str] = match self {
@@ -110,12 +123,21 @@ impl ConnectionKind {
                 UPDATE_CHECK,
             ],
             Self::WorkerHost => &[PROMPT_GATED_INPUT],
-            Self::MachineHub | Self::MachineLink => &[],
+            Self::Keeper | Self::MachineHub | Self::MachineLink => &[],
         };
-        CapabilitySet::new(names.iter().map(|name| {
-            CapabilityName::new(*name).expect("registry capability names follow the name grammar")
-        }))
-        .expect("the registry lists at most 256 capability names")
+        capability_set(names)
+    }
+
+    /// Every capability name the registry declares for this connection, including names this
+    /// build does not offer yet.
+    #[must_use]
+    pub fn declared_capabilities(self) -> CapabilitySet {
+        match self {
+            Self::WorkerHost => capability_set(&[HANDOVER, KEEPER, PROMPT_GATED_INPUT]),
+            Self::ClientServer | Self::Keeper | Self::MachineHub | Self::MachineLink => {
+                self.capabilities()
+            }
+        }
     }
 
     /// This build's development protocol fingerprint, which `build.rs` computed from the
@@ -124,6 +146,7 @@ impl ConnectionKind {
     pub const fn development_fingerprint(self) -> Fingerprint {
         Fingerprint::from_bytes(match self {
             Self::ClientServer => CLIENT_SERVER_FINGERPRINT,
+            Self::Keeper => KEEPER_FINGERPRINT,
             Self::MachineHub => MACHINE_HUB_FINGERPRINT,
             Self::MachineLink => MACHINE_LINK_FINGERPRINT,
             Self::WorkerHost => WORKER_HOST_FINGERPRINT,
@@ -131,7 +154,14 @@ impl ConnectionKind {
     }
 }
 
-/// A terminal frame format, which carries its generation in its major version byte.
+fn capability_set(names: &[&str]) -> CapabilitySet {
+    CapabilitySet::new(names.iter().map(|name| {
+        CapabilityName::new(*name).expect("registry capability names follow the name grammar")
+    }))
+    .expect("the registry lists at most 256 capability names")
+}
+
+/// A frame format, which carries its generation in its header.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum FrameFormat {
     /// Terminal frame, `OBTF`.
@@ -142,11 +172,16 @@ pub enum FrameFormat {
     Obrw,
     /// Kitty graphics, `OBKG`.
     Obkg,
+    /// A Windows terminal's handover record, `OBHR`, which a Terminal Host writes and imports.
+    Obhr,
 }
 
 impl FrameFormat {
     /// Every frame format the registry declares.
-    pub const ALL: [Self; 4] = [Self::Obtf, Self::Obpb, Self::Obrw, Self::Obkg];
+    pub const ALL: [Self; 5] = [Self::Obtf, Self::Obpb, Self::Obrw, Self::Obkg, Self::Obhr];
+
+    /// The formats of terminal streams, which every Session process carries.
+    pub const STREAMED: [Self; 4] = [Self::Obtf, Self::Obpb, Self::Obrw, Self::Obkg];
 
     /// The registry name.
     #[must_use]
@@ -156,6 +191,7 @@ impl FrameFormat {
             Self::Obpb => "obpb",
             Self::Obrw => "obrw",
             Self::Obkg => "obkg",
+            Self::Obhr => "obhr",
         }
     }
 
@@ -163,7 +199,7 @@ impl FrameFormat {
     #[must_use]
     pub const fn supported_generations(self) -> GenerationRange {
         match self {
-            Self::Obtf | Self::Obpb | Self::Obrw | Self::Obkg => {
+            Self::Obtf | Self::Obpb | Self::Obrw | Self::Obkg | Self::Obhr => {
                 const { GenerationRange::declared(1, 1) }
             }
         }
