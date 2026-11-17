@@ -5,6 +5,7 @@ import {
 } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
+import { offersMacos, type Release } from '../../../../release';
 import { Kicker } from '../../../kicker/Kicker';
 import { DetailDuo } from '../../../detail-duo/DetailDuo';
 import styles from './DesktopBackground.module.css';
@@ -35,17 +36,23 @@ function TrayIcon(): ReactElement {
 
 /**
  * Running in the background: what closing the window does, beside the Windows notification it
- * shows and the notification-area menu, both in the application's own words.
+ * shows and the notification-area menu, both in the application's own words. While the release
+ * offers macOS, the text names Windows and adds what macOS does: Orchbee stays in the Dock, whose
+ * menu holds the same items (apps/desktop/docs/window-lifecycle.md, Running in the Dock).
  */
-export function DesktopBackground(): ReactElement {
+export function DesktopBackground({ release }: { release: Release }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
+	const withMacos = offersMacos(release);
 	return (
 		<DetailDuo
 			text={
 				<>
 					<Kicker>{t(messages.backgroundKicker)}</Kicker>
 					<h2 className={styles['title']}>{t(messages.backgroundTitle)}</h2>
-					<p className={styles['paragraph']}>{t(messages.backgroundBody)}</p>
+					<p className={styles['paragraph']}>
+						{t(withMacos ? messages.backgroundBodyWindows : messages.backgroundBody)}
+					</p>
+					{withMacos ? <p className={styles['paragraph']}>{t(messages.backgroundMacos)}</p> : null}
 					<p className={styles['paragraph']}>{t(messages.backgroundQuitAll)}</p>
 				</>
 			}

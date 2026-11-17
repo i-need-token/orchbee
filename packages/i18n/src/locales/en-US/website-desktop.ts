@@ -23,6 +23,8 @@ export const enUSWebsiteDesktopMessages = {
 	'website.desktop.highlight.search.title': 'Search for anything',
 	'website.desktop.highlight.search.body':
 		'<code>Ctrl+Shift+P</code> searches actions. <code>Ctrl+Shift+K</code> searches everything at once: agents, actions, and settings.',
+	'website.desktop.highlight.search.bodyMacos':
+		'<code>Ctrl+Shift+P</code> searches actions. <code>Ctrl+Shift+K</code> searches everything at once: agents, actions, and settings. On a Mac, <code>⇧⌘P</code> and <code>⇧⌘F</code>.',
 	'website.desktop.highlight.find.title': 'Find in the terminal',
 	'website.desktop.highlight.find.body':
 		'Finds text in a Panel, with Match case, Match whole word, and Use regular expression.',
@@ -45,6 +47,10 @@ export const enUSWebsiteDesktopMessages = {
 	'website.desktop.background.title': 'Closing the window is not quitting',
 	'website.desktop.background.body':
 		'While terminals are running, closing the window keeps Orchbee in the notification area. Its icon shows the most urgent agent state, and its menu says how many terminals are running.',
+	'website.desktop.background.bodyWindows':
+		'On Windows, while terminals are running, closing the window keeps Orchbee in the notification area. Its icon shows the most urgent agent state, and its menu says how many terminals are running.',
+	'website.desktop.background.macos':
+		'On a Mac, Orchbee stays in the Dock when you close its window, whether or not terminals are running. Control-click its Dock icon for the same menu.',
 	'website.desktop.background.quitAll': 'Quit All asks before it stops anything.',
 	'website.desktop.tray.label':
 		'The Windows notification and the notification-area menu of Orchbee',
@@ -64,6 +70,8 @@ export const enUSWebsiteDesktopMessages = {
 	'website.desktop.keys.title': 'Shortcuts',
 	'website.desktop.keys.lead':
 		'On Windows. Every shortcut is also an action you can find with <code>Ctrl+Shift+P</code>.',
+	'website.desktop.keys.leadMacos':
+		'Every shortcut is also an action you can find with <code>Ctrl+Shift+P</code>, or <code>⇧⌘P</code> on a Mac.',
 	'website.desktop.keys.terminals': 'Terminals and Tabs',
 	'website.desktop.keys.terminals.newTerminal': 'New terminal',
 	'website.desktop.keys.terminals.newWorkspace': 'New Workspace',

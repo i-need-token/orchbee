@@ -29,6 +29,8 @@ export const enUSWebsiteShellMessages = {
 	'website.shell.getSource': 'Get the source',
 	'website.shell.installerNote':
 		'Installs for the current user only; no administrator rights needed. Adds the <code>orchbee</code> command to your <code>Path</code>.',
+	'website.shell.installerNoteWindows':
+		'Windows: installs for the current user only; no administrator rights needed. Adds the <code>orchbee</code> command to your <code>Path</code>.',
 	'website.shell.copyCommand': 'Copy command',
 	'website.shell.footer.name':
 		'The name combines <b>orch</b>estrator with <b>bee</b>—independent workers coordinating as one.',

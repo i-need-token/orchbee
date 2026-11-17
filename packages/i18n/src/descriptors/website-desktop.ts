@@ -72,6 +72,10 @@ export const websiteDesktopMessages = defineMessages({
 		'website.desktop.highlight.search.body',
 		'Explanation of the highlight "Search for anything"; <code> marks a key or a text pattern.',
 	),
+	highlightSearchBodyMacos: message(
+		'website.desktop.highlight.search.bodyMacos',
+		'Explanation of the highlight "Search for anything" with the macOS keys, once a release offers macOS; <code> marks a key.',
+	),
 	highlightFindTitle: message(
 		'website.desktop.highlight.find.title',
 		'Title of the highlight "Find in the terminal".',
@@ -132,6 +136,14 @@ export const websiteDesktopMessages = defineMessages({
 		'website.desktop.background.body',
 		'What closing the window does while terminals run.',
 	),
+	backgroundBodyWindows: message(
+		'website.desktop.background.bodyWindows',
+		'What closing the window does on Windows while terminals run, once a release offers macOS.',
+	),
+	backgroundMacos: message(
+		'website.desktop.background.macos',
+		'What closing the window does on macOS, once a release offers macOS.',
+	),
 	backgroundQuitAll: message(
 		'website.desktop.background.quitAll',
 		'Second paragraph of the section on running in the background.',
@@ -189,6 +201,10 @@ export const websiteDesktopMessages = defineMessages({
 	keysLead: message(
 		'website.desktop.keys.lead',
 		'Line under the shortcut heading; <code> marks a key.',
+	),
+	keysLeadMacos: message(
+		'website.desktop.keys.leadMacos',
+		'Line under the shortcut heading once a release offers macOS and the tables show both platforms; <code> marks a key.',
 	),
 	keysTerminals: message(
 		'website.desktop.keys.terminals',

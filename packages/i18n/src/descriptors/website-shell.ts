@@ -88,6 +88,10 @@ export const websiteShellMessages = defineMessages({
 		'website.shell.installerNote',
 		'What the Windows installer does; <code> marks a command and a variable name.',
 	),
+	installerNoteWindows: message(
+		'website.shell.installerNoteWindows',
+		'What the Windows installer does, led by the platform name once a release also offers macOS; <code> marks a command and a variable name.',
+	),
 	copyCommand: message(
 		'website.shell.copyCommand',
 		'Accessible name of the button that copies a command.',

@@ -29,8 +29,58 @@
 	flex: none;
 	justify-content: flex-end;
 }
+/* A paired table lines its two key columns up across the group's rows; on a narrow screen each
+   action takes a line of its own above its keys, since two sets of arrow keys leave no room for
+   a label beside them. */
+.paired {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	column-gap: var(--ob-ref-length-website-16);
+}
+.head,
+.pairedRow {
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+	align-items: center;
+}
+.head {
+	margin-bottom: var(--ob-ref-length-website-10);
+}
+/* The title stays on one line, even where wide arrow keys leave its column narrower than it. */
+.pairedTitle {
+	composes: title;
+	margin: 0;
+	white-space: nowrap;
+}
+.platform {
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-label);
+	text-align: end;
+}
+.pairedRow {
+	composes: row;
+}
+.pairedKeys {
+	display: flex;
+	justify-content: flex-end;
+}
 @media (max-width: 64rem) {
 	.groups {
 		grid-template-columns: minmax(0, 1fr);
+	}
+}
+@media (max-width: 40rem) {
+	.pairedRow {
+		row-gap: var(--ob-ref-length-website-8);
+	}
+	.pairedLabel {
+		grid-column: 1 / -1;
+	}
+	.pairedKeys {
+		grid-column: 2;
+	}
+	.pairedKeys:last-child {
+		grid-column: 3;
 	}
 }

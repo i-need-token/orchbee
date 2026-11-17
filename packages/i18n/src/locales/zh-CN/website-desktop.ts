@@ -25,6 +25,8 @@ export const zhCNWebsiteDesktopMessages = {
 	'website.desktop.highlight.search.title': '什么都能搜',
 	'website.desktop.highlight.search.body':
 		'<code>Ctrl+Shift+P</code> 搜索操作。<code>Ctrl+Shift+K</code> 一次搜索所有内容：Agent、操作和设置。',
+	'website.desktop.highlight.search.bodyMacos':
+		'<code>Ctrl+Shift+P</code> 搜索操作。<code>Ctrl+Shift+K</code> 一次搜索所有内容：Agent、操作和设置。在 Mac 上分别是 <code>⇧⌘P</code> 和 <code>⇧⌘F</code>。',
 	'website.desktop.highlight.find.title': '在终端里查找',
 	'website.desktop.highlight.find.body':
 		'在面板里查找文本，可以区分大小写、全字匹配、使用正则表达式。',
@@ -47,6 +49,10 @@ export const zhCNWebsiteDesktopMessages = {
 	'website.desktop.background.title': '关闭窗口不等于退出',
 	'website.desktop.background.body':
 		'只要还有终端在运行，关闭窗口后 Orchbee 会留在通知区域。图标显示最紧急的 Agent 状态，菜单里写着有多少终端正在运行。',
+	'website.desktop.background.bodyWindows':
+		'在 Windows 上，只要还有终端在运行，关闭窗口后 Orchbee 会留在通知区域。图标显示最紧急的 Agent 状态，菜单里写着有多少终端正在运行。',
+	'website.desktop.background.macos':
+		'在 Mac 上，关闭窗口后 Orchbee 会留在程序坞中，不管有没有终端在运行。按住 Control 键点按程序坞图标，可以打开同样的菜单。',
 	'website.desktop.background.quitAll': '“全部退出”在停止任何内容之前会先询问。',
 	'website.desktop.tray.label': 'Orchbee 的 Windows 通知和通知区域菜单',
 	'website.desktop.tray.whenClosed': '关闭窗口时',
@@ -65,6 +71,8 @@ export const zhCNWebsiteDesktopMessages = {
 	'website.desktop.keys.title': '快捷键',
 	'website.desktop.keys.lead':
 		'Windows 上的快捷键。每个快捷键对应的操作，都可以用 <code>Ctrl+Shift+P</code> 搜到。',
+	'website.desktop.keys.leadMacos':
+		'每个快捷键对应的操作，都可以用 <code>Ctrl+Shift+P</code> 搜到，在 Mac 上是 <code>⇧⌘P</code>。',
 	'website.desktop.keys.terminals': '终端与标签页',
 	'website.desktop.keys.terminals.newTerminal': '新建终端',
 	'website.desktop.keys.terminals.newWorkspace': '新建工作区',

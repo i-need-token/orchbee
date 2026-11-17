@@ -28,6 +28,8 @@ export const zhCNWebsiteShellMessages = {
 	'website.shell.getSource': '获取源码',
 	'website.shell.installerNote':
 		'只为当前用户安装，不需要管理员权限。会把 <code>orchbee</code> 命令加入 <code>Path</code>。',
+	'website.shell.installerNoteWindows':
+		'Windows：只为当前用户安装，不需要管理员权限。会把 <code>orchbee</code> 命令加入 <code>Path</code>。',
 	'website.shell.copyCommand': '复制命令',
 	'website.shell.footer.name':
 		'名字由 <b>orch</b>estrator（编排者）和 <b>bee</b>（蜜蜂）组合而来，寓意独立个体协同如一。',
