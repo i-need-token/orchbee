@@ -48,9 +48,95 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
         return .{ .handle = handle };
     }
 
+    /// The endpoint with every protection of `init` and another pipe-instance limit, from 1 to
+    /// 254, or 255 for no system limit, for a listener that bounds its own instances.
+    pub fn initWithInstanceLimit(
+        allocator: std.mem.Allocator,
+        runtime_directory: []const u8,
+        endpoint_id: []const u8,
+        instance_limit: u8,
+    ) !Server {
+        if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
+        if (!connection.validEndpointId(endpoint_id)) return error.InvalidEndpointId;
+        const directory_w = try std.unicode.utf8ToUtf16LeAllocZ(allocator, runtime_directory);
+        defer allocator.free(directory_w);
+        const endpoint_w = try std.unicode.utf8ToUtf16LeAllocZ(allocator, endpoint_id);
+        defer allocator.free(endpoint_w);
+        var status: c_int = windows_c.OB_WINDOWS_IPC_SYSTEM_ERROR;
+        const handle = windows_c.ob_windows_local_server_create_limited(
+            directory_w.ptr,
+            endpoint_w.ptr,
+            instance_limit,
+            &status,
+        ) orelse return statusError(status);
+        return .{ .handle = handle, .observe_output_wake = false };
+    }
+
     pub fn deinit(self: *Server) void {
         windows_c.ob_windows_local_server_destroy(self.handle);
         self.* = undefined;
+    }
+
+    /// Waits at most `timeout_ms` for the next client: false after a timeout or for a client that
+    /// left before its accept. The listen stays armed across a timeout.
+    pub fn acceptBefore(self: *Server, timeout_ms: u32) !bool {
+        const status = windows_c.ob_windows_local_server_accept_before(self.handle, timeout_ms);
+        return switch (status) {
+            windows_c.OB_WINDOWS_IPC_OK => true,
+            windows_c.OB_WINDOWS_IPC_ACCEPT_TIMEOUT, windows_c.OB_WINDOWS_IPC_CONNECTION_CLOSED => false,
+            else => statusError(status),
+        };
+    }
+
+    /// Moves the client just accepted, before any byte was read or written, to its own instance,
+    /// which the caller owns and may serve and close on any thread; this instance then waits for
+    /// the next client. On failure the client stays here.
+    pub fn takeConnection(self: *Server) !Server {
+        var status: c_int = windows_c.OB_WINDOWS_IPC_SYSTEM_ERROR;
+        const handle = windows_c.ob_windows_local_server_take_connection(
+            self.handle,
+            &status,
+        ) orelse return statusError(status);
+        return .{ .handle = handle, .observe_output_wake = false };
+    }
+
+    /// The connected client's process id, taken from the pipe before any byte is read.
+    pub fn clientProcessId(self: *const Server) ?u32 {
+        const process_id = windows_c.ob_windows_local_server_client_process_id(self.handle);
+        return if (process_id == 0) null else process_id;
+    }
+
+    /// Ends the accepted connection; an armed listen stays armed.
+    pub fn disconnect(self: *Server) void {
+        windows_c.ob_windows_local_server_disconnect(self.handle);
+    }
+
+    /// Whether a byte became readable within `timeout_ms`; false also once `wake`, a
+    /// self-resetting event, is signalled. The peer's identity is checked at its first byte.
+    pub fn waitReadableOrWake(self: *Server, timeout_ms: u32, wake: ?std.os.windows.HANDLE) !bool {
+        var readable: u32 = 0;
+        try requireStatus(windows_c.ob_windows_local_server_wait_readable_or_wake(
+            self.handle,
+            timeout_ms,
+            wake,
+            null,
+            &readable,
+        ));
+        return readable != 0;
+    }
+
+    /// How many bytes the peer has sent that are not read yet.
+    pub fn pendingBytes(self: *Server) !u32 {
+        var available: u32 = 0;
+        try requireStatus(windows_c.ob_windows_local_server_peek(self.handle, &available));
+        return available;
+    }
+
+    /// Writes all of `bytes` within `timeout_ns`, or fails with `WriteTimeout`.
+    pub fn writeAllWithin(self: *Server, bytes: []const u8, timeout_ns: u64) !void {
+        var timer = monotonic.Timer.start() catch return error.ConnectionClosed;
+        var deadline = connection.Deadline.init(&timer, timeout_ns) catch return error.ConnectionClosed;
+        return self.writeAllBefore(bytes, &deadline);
     }
 
     pub fn serveUntilIdle(self: *Server, service: *host_service.HostService) !void {

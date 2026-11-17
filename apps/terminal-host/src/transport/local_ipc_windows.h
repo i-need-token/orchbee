@@ -23,12 +23,29 @@ ObWindowsLocalServer *ob_windows_local_server_create(
     const wchar_t *endpoint_id,
     int *status
 );
+/* The same endpoint with another pipe-instance limit, from 1 to 254, or 255 for no system limit,
+ * for a listener that bounds its instances itself. */
+ObWindowsLocalServer *ob_windows_local_server_create_limited(
+    const wchar_t *runtime_directory,
+    const wchar_t *endpoint_id,
+    uint32_t instance_limit,
+    int *status
+);
 /* Another instance of `primary`'s pipe for a control connection; it holds no lifetime mutex and
  * may be created and destroyed on any thread. */
 ObWindowsLocalServer *ob_windows_local_server_create_instance(
     const ObWindowsLocalServer *primary,
     int *status
 );
+/* Moves the client `primary` just accepted, before anything was read or written, to a new
+ * instance the caller owns and destroys on any thread, and leaves `primary` on a fresh instance
+ * that waits for the next client. NULL leaves the client on `primary`. */
+ObWindowsLocalServer *ob_windows_local_server_take_connection(
+    ObWindowsLocalServer *primary,
+    int *status
+);
+/* The connected client's process id from the pipe, 0 when unknown. */
+uint32_t ob_windows_local_server_client_process_id(const ObWindowsLocalServer *server);
 void ob_windows_local_server_destroy(ObWindowsLocalServer *server);
 /* The Win32 code of the last accept or listen failure on `server`, 0 when none was recorded. */
 uint32_t ob_windows_local_server_last_error(const ObWindowsLocalServer *server);

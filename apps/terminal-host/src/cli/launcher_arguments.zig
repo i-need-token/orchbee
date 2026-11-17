@@ -14,10 +14,21 @@ const serve_option_names = [_][]const u8{
     runtime_directory_option,
     scrollback_bytes_option,
 };
+const keep_option_names = [_][]const u8{
+    endpoint_id_option,
+    runtime_directory_option,
+};
 
 pub const Command = union(enum) {
     version,
     serve: ServeOptions,
+    /// The Keeper, which holds terminals' handles for the Hosts of one Session.
+    keep: KeepOptions,
+};
+
+pub const KeepOptions = struct {
+    endpoint_id: []const u8,
+    runtime_directory: []const u8,
 };
 
 pub const ServeOptions = struct {
@@ -37,9 +48,19 @@ pub fn parse(allocator: std.mem.Allocator, arguments: []const []const u8) !Comma
     var options = try argument_options.Options.parse(allocator, arguments[1..]);
     defer options.deinit();
 
+    if (std.mem.eql(u8, arguments[0], "keep")) return .{ .keep = try parseKeepOptions(options) };
     if (!std.mem.eql(u8, arguments[0], "serve")) return error.InvalidArguments;
 
     return .{ .serve = try parseServeOptions(options) };
+}
+
+fn parseKeepOptions(options: argument_options.Options) !KeepOptions {
+    try options.ensureOnly(&keep_option_names);
+    const runtime_directory = try options.requireOne(runtime_directory_option);
+    const endpoint_id = try options.requireOne(endpoint_id_option);
+    if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
+    if (!local_ipc.validEndpointId(endpoint_id)) return error.InvalidEndpointId;
+    return .{ .endpoint_id = endpoint_id, .runtime_directory = runtime_directory };
 }
 
 fn parseServeOptions(options: argument_options.Options) !ServeOptions {

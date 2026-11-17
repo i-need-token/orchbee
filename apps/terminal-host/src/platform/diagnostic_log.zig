@@ -11,6 +11,8 @@ const monotonic = @import("monotonic.zig");
 const record_file = @import("record_file.zig");
 
 pub const file_name = "host-diagnostics.jsonl";
+/// The Keeper's log, in the same format; its listener thread writes every line.
+pub const keeper_file_name = "keeper-diagnostics.jsonl";
 pub const max_file_bytes: u32 = 256 * 1024;
 /// A dispatch turn longer than this is recorded.
 pub const slow_turn_threshold_ns: u64 = 250 * std.time.ns_per_ms;
@@ -68,12 +70,65 @@ var dropped_recorded_at_ns: ?u64 = null;
 var accept_failures: Windowed = .{};
 var observation_refusals: Windowed = .{};
 var deferred_event_passes: Windowed = .{};
+var connections_beyond_bounds = std.atomic.Value(u64).init(0);
+var replies_not_taken = std.atomic.Value(u64).init(0);
+var recorded_beyond_bounds: u64 = 0;
+var recorded_replies_not_taken: u64 = 0;
+var dropped_connections_recorded_at_ns: ?u64 = null;
 
 /// Arms the log in `runtime_directory`, which this Host must already hold exclusively.
 pub fn arm(runtime_directory: []const u8) void {
+    armNamed(runtime_directory, file_name);
+}
+
+/// Arms the Keeper's log in `runtime_directory`, which the Keeper must already hold exclusively.
+pub fn armKeeper(runtime_directory: []const u8) void {
+    armNamed(runtime_directory, keeper_file_name);
+}
+
+fn armNamed(runtime_directory: []const u8, name: []const u8) void {
     if (path != null) return;
     clock = monotonic.Timer.start() catch null;
-    path = record_file.Path.init(runtime_directory, file_name);
+    path = record_file.Path.init(runtime_directory, name);
+}
+
+/// Counts one Keeper connection closed at once because it went beyond the Keeper's bounds; any
+/// thread, no I/O.
+pub fn noteConnectionBeyondBounds() void {
+    _ = connections_beyond_bounds.fetchAdd(1, .monotonic);
+}
+
+/// Counts one Keeper connection closed because its peer did not take a reply in time; any
+/// thread, no I/O.
+pub fn noteReplyNotTaken() void {
+    _ = replies_not_taken.fetchAdd(1, .monotonic);
+}
+
+/// Records the Keeper connections dropped since the last line, at most once per window. Only the
+/// Keeper's listener thread calls it.
+pub fn flushKeeper() void {
+    if (path == null) return;
+    const beyond = connections_beyond_bounds.load(.monotonic);
+    const not_taken = replies_not_taken.load(.monotonic);
+    if (beyond == recorded_beyond_bounds and not_taken == recorded_replies_not_taken) return;
+    const now = nowNs() orelse return;
+    if (dropped_connections_recorded_at_ns) |recorded_at| {
+        if (now -| recorded_at < rate_window_ns) return;
+    }
+    var buffer: [max_line_bytes]u8 = undefined;
+    const line = std.fmt.bufPrint(
+        &buffer,
+        "{{\"time_unix_ms\":{d},\"event\":\"connections-dropped\",\"beyond_bounds\":{d},\"reply_not_taken\":{d}}}\n",
+        .{
+            record_file.unixMilliseconds(),
+            beyond - recorded_beyond_bounds,
+            not_taken - recorded_replies_not_taken,
+        },
+    ) catch return;
+    recorded_beyond_bounds = beyond;
+    recorded_replies_not_taken = not_taken;
+    dropped_connections_recorded_at_ns = now;
+    writeLine(line);
 }
 
 /// An accept failure the serve loop survives.

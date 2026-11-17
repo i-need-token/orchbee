@@ -1219,7 +1219,8 @@ not verified. `reason` is the hyphenated class: one per safety
 check, one per exception name, or `serving-failed`. `error` is a source-defined error name for
 `unwrap-error` and `exit` records, and `null` otherwise or when the name is not a plain identifier.
 `thread` is `dispatch`, `control-lane`, `terminal-output`, `terminal-input`, `terminal-wait`,
-`terminal-animation`, `terminal-signals`, `terminal-creation`, `terminal-media`, or `other`. `module_offset` is the faulting return or instruction address as
+`terminal-animation`, `terminal-signals`, `terminal-creation`, `terminal-media`, `keeper-listener`,
+`keeper-connection`, or `other`. `module_offset` is the faulting return or instruction address as
 an offset into the Host executable image, or `null` outside it. The first fault claims the record;
 a fault on another thread waits up to 2 s for it and then exits. A panic or exception exits with
 code `16`; an `exit` record keeps the Host's own failure code, and a fault in the teardown that
@@ -1230,6 +1231,11 @@ no standard error on Windows and `/dev/null` elsewhere, and skips it. Arming als
 watchdog thread: once a fault claims the record, the process ends with `16` within 10 s even if
 the record write or the stack trace blocks, so a fault that leaves a filesystem or console call
 stuck still ends the Host and its programs. A fault before arming is not bounded.
+
+The [Keeper](#keeper) writes the same record as `keeper-fatal.json`, moving an earlier Keeper's to
+`keeper-fatal.previous.json`, with `role` `keeper` and the threads `keeper-listener` and
+`keeper-connection`. Its record is armed once it holds its endpoint and runtime directory, and it
+has no `exit` record, since its listener never returns after that.
 
 The diagnostic log is `<runtime_directory>/host-diagnostics.jsonl`, one JSON line per event,
 starting over when it would pass 256 KiB:
@@ -1249,11 +1255,79 @@ starting over when it would pass 256 KiB:
 - `events-deferred`: `error` (the Host's own error name) and `suppressed` (the failed passes since
   the previous line that were not written), when an event-delivery pass fails and leaves its events
   for the next pass, at most once a minute.
+- `connections-dropped`, the Keeper's only: `beyond_bounds` (connections closed at once beyond its
+  bounds) and `reply_not_taken` (connections closed because their peer did not take a reply within
+  2 s), each counted since the previous line, at most once a minute.
 
 Every line also carries `time_unix_ms` and `event`. Only the dispatch thread writes; other threads
-count dropped replies atomically. These files, with an earlier Host's record, stay after the Host
-exits, for diagnosis, and named Session deletion removes them with the rest of the Session's
-runtime folder.
+count dropped replies atomically. The Keeper's log is `keeper-diagnostics.jsonl`, written only by
+its listener thread, which also records `accept-failure`; its connection threads count dropped
+connections atomically. These files, with an earlier Host's record, stay after the Host exits, for
+diagnosis, and named Session deletion removes the Host's with the rest of the Session's runtime
+folder.
+
+### Keeper
+
+On Windows, `orchbee-terminal-host keep` runs the Keeper: a process that holds duplicates of each
+running terminal's seven handles for the Hosts of one Session, so a program outlives the Host that
+serves it, and that arbitrates which Host reads a terminal. The
+[Keeper contract](../../../schemas/keeper/README.md) owns its frames, admission, messages, holding
+states, and bounds; this section owns how the process meets them. Nothing starts a Keeper before
+the [Host handover](../../../proposals/platform/host-handover.md)'s H2, and no release Worker or
+Host offers `keeper`. Rule: nothing a peer sends or does ends the Keeper or a holding, because the
+Keeper may hold a program's last handles (`TH-034`).
+
+- **Endpoint**: the Keeper serves its own runtime directory and endpoint through the Host's Local
+  IPC with every protection it has: the private directory, the lifetime mutex, the user-only pipe
+  DACL, the same-user check when a connection's first byte arrives, and the High label with
+  no-read-up and no-write-up when it runs elevated. Unlike a Host's five pipe instances, its
+  listener keeps one instance waiting and counts connections itself.
+- **Connections**: each accepted connection runs on its own thread. The listener takes the peer's
+  process id from the pipe first, and closes a connection beyond 8 not yet admitted or carrying a
+  control request at once, without a frame. A first `OBHS` frame is due within 2 s; a peer that
+  has sent no byte by then was never identified and is closed without a reply, and one that stopped
+  partway is refused `timeout`. Control requests are answered:
+  `query` reports the role `keeper` with its holdings as `terminals`, and `drain` and `exit` apply
+  as below. A `keeper` offer is answered at generation 1 unless the Keeper is draining.
+- **Admission**: `hello` must be the first frame. `worker` is admitted from a process that is not a
+  registered Host while no other Worker connection is open, and `host` only from a registered Host
+  that has not ended, while fewer than 256 Host connections are open; otherwise the reply is
+  `refused` with `not-registered` or `capacity` and the connection closes.
+- **Frames**: after `hello`, a frame must complete within 2 s of its first byte. A frame or payload
+  that does not decode, a reused or absent `id`, or a second request sent before the reply closes
+  only that connection. A request the connection's role does not allow is refused `wrong-role`, an
+  unknown one is answered `unsupported`, and the connection serves on. A reply the peer has not
+  taken within 2 s closes that connection, so a peer that stops reading stalls no other and cannot
+  make the Keeper late to the Worker.
+- **Application**: one lock guards the holdings, the registered Hosts, and the connection counts.
+  It is held across no I/O and no wait: a connection decodes before it takes the lock and writes
+  after it releases it, and the duplicates a `release` frees, or the handle of a Host the table
+  forgets, are closed after the lock is released. Requests therefore apply one at a time across
+  every connection, so a `claim` and a `resume` of one mark never both succeed.
+- **Registered Hosts**: `register-host` opens the Host with `SYNCHRONIZE`,
+  `PROCESS_QUERY_LIMITED_INFORMATION`, and `PROCESS_DUP_HANDLE` and checks its creation time; a
+  mismatch is `identity-mismatch`. A thread-pool wait on that handle reports the Host's end, which
+  orphans the holdings it owns and clears what holdings remember of claims from it; the Keeper
+  forgets an ended Host once no holding names it as owner. `unregister-host` closes the Host's
+  connections.
+- **Holds**: `hold` duplicates the seven handles from the Host with `DUPLICATE_SAME_ACCESS`, not
+  inheritable, and then checks its own duplicates: each object's type and access through
+  `NtQueryObject` with `ObjectTypeInformation` and `ObjectBasicInformation` (the Job grants
+  `JOB_OBJECT_QUERY`, both processes a query, the signal and input ends `FILE_WRITE_DATA`, and the
+  output end `FILE_READ_DATA`), both process identities, and the program's membership in the Job
+  through `IsProcessInJob`. A failed duplicate is `handle-failed` and a failed check
+  `identity-mismatch`, and either keeps nothing. No step reads, writes, or names a pipe, so a hold
+  completes while another process's synchronous read blocks the pipe.
+- **Status**: `status` returns up to 256 holdings in holding id order after `after`, with `next`
+  while more remain, and the registered Hosts on the first page.
+- **Life**: after `drain` the Keeper refuses `register-host`, `hold`, and offers with `draining`,
+  and it exits once it holds nothing. After `exit` it closes every duplicate before it replies and
+  then ends; it terminates no Job and no process, so a program ends only where the Keeper held its
+  last handle. A Keeper that has held nothing, with no Host registered and no Worker connected, for
+  30 seconds exits. A drained or empty Keeper exits only while no connection is unadmitted or
+  carrying a control request, and every exit uses code `0`. Startup failures exit as a Host's do:
+  `11` for a runtime directory that is not private, `12` when another Keeper holds the endpoint,
+  and `13` when the endpoint could not be created.
 
 ### Attachment delivery
 
@@ -2105,6 +2179,7 @@ Stable claim identifiers are used by tests, models, and review findings.
 | `TH-026` | A prompt line occupies one client-FIFO position only when the root interactive shell is confirmed at a fresh, empty, quiet prompt at both preparation and publication; no other console program, alternate screen, input after the prompt's input start, moved anchor, or later prompt mark may admit it. A refusal names the first failing rule and occupies no position. Preparation never waits; only a prompt younger than the quiet period that passes every other rule is refused as retryable `settling`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `TH-027` | While the Host retains a terminal, no program output, peer input, timeout, or transient accept failure ends it. A failure after a committed terminal change, or an Engine observation Core refuses, fails at most that terminal. An accept failure is recorded and retried after a backoff from 100 ms to 5 s while terminals stay maintained. An active-session request that fails before its commit, cannot be held, or carries an unknown required kind or flag is answered on its own correlation id, and the session serves the next request. The Worker session has no read or write deadline and closes only on a broken pipe, a failed read or write, lost framing, or a due `exit`. A panic or processor exception writes exactly one closed fatal record, carrying no program output, titles, paths, or peer bytes, before exit code `16`.                                                                                                                                                                                                                                                           |
 | `TH-029` | A pause stops a terminal's reader only at ground, and resume undoes it. The reader commits every byte a paused read returned, reads on through a standing pause while Ghostty's parser or UTF-8 decoder, the private APC, or the OSC 7501 scanner is inside a sequence, and parks under the terminal mutex only after a batch that leaves all of them at ground. A resume, or a pause withdrawn before the park, reads on with nothing lost or repeated; a failure fence or output abort ends a parked reader, and a resume never undoes an abort. A pause the platform refuses is withdrawn, and a refused resume or a cancelled read that returned bytes fails at most that terminal. Only a quiesce pauses a reader.                                                                                                                                                                                                                                                                                                                                                                                        |
+| `TH-034` | The Keeper applies one request at a time across all its connections, under one lock held across no I/O and no wait, so a `claim` and a `resume` of one mark never both succeed. Nothing a peer sends or does ends the Keeper or a holding: a peer that fails admission, sends an invalid or late frame, goes beyond a bound, or does not take its reply loses only its own connection; a process of another user or of a lower integrity level cannot send it a frame; a hold checks its own duplicates without reading, writing, or naming a pipe, so a blocked read of a held pipe cannot stall it; a Host's end orphans its holdings without closing them; `exit` closes only the Keeper's duplicates and terminates no Job or process; and the Keeper ends by itself only once drained with nothing held, or after 30 seconds without holdings, registered Hosts, or a Worker connection.                                                                                                                                                                                                                  |
 
 ## Scenario decisions
 
@@ -2218,6 +2293,26 @@ The ordinary package `test` target runs this trace. Repository CI therefore supp
 execution evidence on Linux, macOS, and Windows; `test:cross` compiles the same runner for FreeBSD
 but does not promote that compile result to PTY, IPC, or ABI runtime evidence.
 
+`src/__tests__/keeper_black_box_test.zig` is the [Keeper](#keeper)'s real-process evidence on
+Windows x86-64, where the package `test` target, and `test-keeper` alone, run it through
+`scripts/run-keeper-test.mjs`. The runner stages the built Keeper and the test beside the pinned
+conpty in an owned temporary directory. The test acts as the Worker, and copies of itself act as
+stand-in Hosts: each holds `cmd.exe` in a kill-on-close Job on the pinned conpty, keeps a
+synchronous read of its output pending as a Host's reader does, and opens Keeper connections that
+the test takes over. Every frame goes through real Local IPC. It replays every owner and claimant
+sequence fixture with real handles; refuses mismatched identities; completes a hold while another
+process's pipe query waits behind the pending read; keeps Host requests answered while the Worker
+stops reading `status` replies; sends a `claim` and a `resume` of one mark at once 1,000 times;
+sends every invalid fixture on a real connection; closes connections beyond the bounds; measures
+reply times at full capacity while a spinning thread occupies every logical processor; and checks
+an unregistered peer, the anonymous token, a Low-integrity child, a Host's end, `drain`, `exit`,
+and both 30-second empty exits.
+
+Run elevated, as on GitHub's Windows runner, the Keeper labels its pipe High with no-read-up, so
+the Low-integrity child cannot open it at all; at Medium the pipe's default label lets that child
+open it for reading only, and its write fails. Either way it sends no frame, and the anonymous
+token is refused by the pipe's DACL.
+
 Named application-system refinements close the affected cross-owner boundaries without replacing
 the native evidence below. The real-PTY `terminal-parity/SU-13-cursor-defaults`,
 `terminal-parity/SU-16-startup-geometry`, and `terminal-parity/HS-07-selection-export` refinements
@@ -2255,6 +2350,7 @@ and raw VT formats are rejected before runtime access.
 | `TH-026`           | `src/engine/__tests__/prompt_gate_test.zig`: every refusal reason, `settling` as the last rule without a wait, publication-time refusal, and no reservation on refusal; `prompt_gate_witness_test.zig`: real cmd and managed PowerShell on system ConHost and the pinned bundle; `src/service/__tests__/input_request_test.zig`: the `prompt-unconfirmed` reply and its `reason` member.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `TH-027`           | `src/transport/__tests__/transport_adapter_test.zig`: an accept failure while a terminal is retained renews the endpoint, records the system code, and keeps serving; `src/transport/__tests__/local_endpoint_test.zig`: a request too large to hold answers `resource-exhausted`, and an unknown required flag or payload encoding answers `invalid-envelope`, on its correlation id, and each session then serves a ping; `src/transport/__tests__/transport_maintenance_test.zig`: a Worker that stops reading or stops partway through a record holds its session until `exit`, which ends it in the same step and cancels a pending write, while the retained terminal is maintained; `src/platform/__tests__/fatal_record_test.zig`: the closed record encoder and a real subprocess panic that leaves one record without its message and exits with `16`; `src/engine/__tests__/runtime_failure_test.zig`: a terminal reply flood leaves the program running; `src/engine/__tests__/program_output_fuzz_test.zig`: seeded generated program output, attachment resizes, and strictly validated frames through one terminal's reader commit either commit or fence only that terminal, and, in the release build mode, a reflow after a long hyperlinked listing keeps the terminal and its newest links |
 | `TH-029`           | `src/platform/__tests__/pty_test.zig`: a pause cancels a blocked read and stands for reads that stop at it, a resume reads on, a pause withdrawn before a read takes it leaves the next read reading, and an abort ends reads through a pause and survives a resume; `src/engine/__tests__/reader_pause_test.zig`: scripted reads cut a corpus of CSI, OSC, OSC 7501, both private APCs, DCS, UTF-8, and ESC sequences at every byte, and a pause parks only at ground, reports `mid_sequence` inside a sequence, and loses nothing whether it rests or is withdrawn; a pause the platform refuses is withdrawn and the reader reads on, a parked reader ends when its terminal fails or shuts down, and a refused resume fails only its terminal as `pty_read`; `conpty_reader_pause_test.zig`, on system ConHost and the pinned bundle: a numbered-line probe survives 1,000 pause-and-resume cycles with nothing lost or repeated, a pause during a 20,000-line flood parks within 1 second and loses no line, and on POSIX a pause while the program stops inside a CSI never parks and withdrawing it loses nothing; the quiesce's forced failures join with the `handover` requests                                                                                                                      |
+| `TH-034`           | `src/__tests__/keeper_black_box_test.zig`, on Windows: every sequence fixture of `schemas/keeper` against real handles; identity-mismatch refusals that keep nothing; a hold that completes while another process's synchronous read blocks the held pipe; a Worker that stops reading closed after the reply deadline while Host requests stay answered; 1,000 simultaneous `claim` and `resume` pairs of one mark, never both succeeding; every invalid fixture closing only its connection while a bystander is answered; immediate closes beyond the connection bounds and `capacity` beyond the Host, holding, and Host-connection bounds; the reply time at capacity under full processor load; an unregistered peer, the anonymous token, and a Low-integrity child; a Host's end orphaning its holdings; `drain`; `exit` ending no program; and the 30-second empty exit                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 The deterministic commit-seam set is: creation preparation/spawn/admission; deferred-start spawn;
 control-reply

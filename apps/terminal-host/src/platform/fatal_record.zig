@@ -20,6 +20,29 @@ const record_file = @import("record_file.zig");
 
 pub const file_name = "host-fatal.json";
 pub const previous_file_name = "host-fatal.previous.json";
+pub const keeper_file_name = "keeper-fatal.json";
+pub const keeper_previous_file_name = "keeper-fatal.previous.json";
+
+/// The process a record describes: a Terminal Host, or the Keeper the same executable runs as
+/// `keep`, which writes the same format under its own file names.
+pub const Role = enum {
+    @"terminal-host",
+    keeper,
+
+    fn fileName(self: Role) []const u8 {
+        return switch (self) {
+            .@"terminal-host" => file_name,
+            .keeper => keeper_file_name,
+        };
+    }
+
+    fn previousFileName(self: Role) []const u8 {
+        return switch (self) {
+            .@"terminal-host" => previous_file_name,
+            .keeper => keeper_previous_file_name,
+        };
+    }
+};
 /// The exit code of a Host that panicked or took a processor exception.
 pub const exit_code: u8 = 16;
 pub const format_version = 1;
@@ -45,6 +68,8 @@ pub const ThreadKind = enum {
     @"terminal-signals",
     @"terminal-creation",
     @"terminal-media",
+    @"keeper-listener",
+    @"keeper-connection",
     other,
 };
 
@@ -99,6 +124,7 @@ pub const Reason = enum {
 };
 
 pub const Record = struct {
+    role: Role = .@"terminal-host",
     kind: Kind,
     reason: Reason,
     /// A source-defined error name, for `unwrap-error` and `exit` records only. Anything other
@@ -118,8 +144,8 @@ pub const Record = struct {
 pub fn encode(buffer: *[max_record_bytes]u8, record: Record) error{WriteFailed}![]const u8 {
     var writer: std.Io.Writer = .fixed(buffer);
     try writer.print(
-        "{{\"format\":{d},\"role\":\"terminal-host\",\"kind\":\"{s}\",\"reason\":\"{s}\",\"error\":",
-        .{ format_version, @tagName(record.kind), @tagName(record.reason) },
+        "{{\"format\":{d},\"role\":\"{s}\",\"kind\":\"{s}\",\"reason\":\"{s}\",\"error\":",
+        .{ format_version, @tagName(record.role), @tagName(record.kind), @tagName(record.reason) },
     );
     if (plainIdentifier(record.error_name)) |name| {
         try writer.print("\"{s}\"", .{name});
@@ -150,6 +176,7 @@ threadlocal var current_thread: ThreadKind = .other;
 threadlocal var handling_fault = false;
 /// Written once by `arm` before `armed` is published; read by any faulting thread after it.
 var armed_path: record_file.Path = .{};
+var armed_role: Role = .@"terminal-host";
 var executable: record_file.ExecutableRange = .{};
 var armed = std.atomic.Value(bool).init(false);
 /// The first fault or fatal exit claims the one record.
@@ -168,11 +195,17 @@ pub fn markThread(kind: ThreadKind) void {
 /// Arms the record in `runtime_directory`, which this Host must already hold exclusively. Called
 /// once, by the dispatch thread, before the Host starts any other thread.
 pub fn arm(runtime_directory: []const u8) void {
+    armAs(.@"terminal-host", runtime_directory);
+}
+
+/// Arms the record of `role` in `runtime_directory`, on the same terms as `arm`.
+pub fn armAs(role: Role, runtime_directory: []const u8) void {
     if (armed.load(.acquire)) return;
-    armed_path = record_file.Path.init(runtime_directory, file_name) orelse return;
-    // An earlier Host's record is kept for diagnosis, but never under this Host's name. A record
-    // that cannot move still names its own process ID.
-    if (record_file.Path.init(runtime_directory, previous_file_name)) |previous| {
+    armed_path = record_file.Path.init(runtime_directory, role.fileName()) orelse return;
+    armed_role = role;
+    // An earlier process's record is kept for diagnosis, but never under this process's name. A
+    // record that cannot move still names its own process ID.
+    if (record_file.Path.init(runtime_directory, role.previousFileName())) |previous| {
         _ = armed_path.moveTo(&previous);
     }
     executable = record_file.ExecutableRange.capture();
@@ -194,6 +227,7 @@ fn writeRecord(kind: Kind, reason: Reason, error_name: ?[]const u8, address: ?us
     if (!armed.load(.acquire)) return;
     var buffer: [max_record_bytes]u8 = undefined;
     const bytes = encode(&buffer, .{
+        .role = armed_role,
         .kind = kind,
         .reason = reason,
         .error_name = error_name,

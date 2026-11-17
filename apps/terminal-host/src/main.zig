@@ -31,7 +31,23 @@ pub fn main(init: std.process.Init) !void {
             if (servingFailureExit(err)) |exit| failed(exit, err);
             return err;
         },
+        .keep => |options| try keep(allocator, options),
     }
+}
+
+/// Runs the Keeper, which ends its own process once it is empty for 30 seconds, drained, or told
+/// to exit; it returns only when it could not start. A Keeper failure exits like a Host's.
+fn keep(allocator: std.mem.Allocator, options: launcher_arguments.KeepOptions) !void {
+    if (comptime !terminal_host.keeper.supported) return error.KeeperUnsupported;
+    terminal_host.keeper.service.run(allocator, .{
+        .runtime_directory = options.runtime_directory,
+        .endpoint_id = options.endpoint_id,
+    }) catch |err| switch (err) {
+        error.InsecureRuntimeDirectory => failed(.runtime_directory, err),
+        error.AlreadyRunning => failed(.already_running, err),
+        error.Endpoint => failed(.endpoint, err),
+        else => return err,
+    };
 }
 
 fn writeVersion(io: std.Io) !void {

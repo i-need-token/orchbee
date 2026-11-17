@@ -18,6 +18,8 @@ _Static_assert(
 /* One Worker session plus at most four control connections (runtime-model TH-003). Every
  * instance of a pipe must declare the same limit. */
 #define OB_WINDOWS_PIPE_INSTANCES 5
+/* The largest limit a pipe may declare; PIPE_UNLIMITED_INSTANCES (255) declares none. */
+#define OB_WINDOWS_PIPE_INSTANCE_LIMIT_MAXIMUM PIPE_UNLIMITED_INSTANCES
 #define OB_WINDOWS_PIPE_NAME_CHARACTERS 96
 
 typedef enum {
@@ -48,6 +50,8 @@ struct ObWindowsLocalServer {
     BOOL write_pending;
     /* The Win32 code of the last accept or listen failure, for the Host's diagnostic log. */
     DWORD last_error;
+    /* The instance limit every instance of this pipe declares. */
+    DWORD instance_limit;
     BOOL connected;
     /* A pipe server can impersonate its client only after reading from the pipe, so the peer's
      * identity is checked when its first byte arrives; nothing is written to it before. */
@@ -312,13 +316,14 @@ static ObWindowsLocalServer *ob_windows_local_server_open_instance(
     const wchar_t *pipe_name,
     BYTE *token_user,
     SECURITY_ATTRIBUTES *attributes,
-    DWORD first_instance_flag
+    DWORD first_instance_flag,
+    DWORD instance_limit
 ) {
     HANDLE pipe = CreateNamedPipeW(
         pipe_name,
         PIPE_ACCESS_DUPLEX | first_instance_flag | FILE_FLAG_OVERLAPPED,
         PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-        OB_WINDOWS_PIPE_INSTANCES,
+        instance_limit,
         256 * 1024,
         256 * 1024,
         0,
@@ -349,6 +354,7 @@ static ObWindowsLocalServer *ob_windows_local_server_open_instance(
     }
     server->pipe = pipe;
     server->token_user = token_user;
+    server->instance_limit = instance_limit;
     wcscpy_s(server->pipe_name, OB_WINDOWS_PIPE_NAME_CHARACTERS, pipe_name);
     return server;
 }
@@ -358,7 +364,22 @@ ObWindowsLocalServer *ob_windows_local_server_create(
     const wchar_t *endpoint_id,
     int *status
 ) {
+    return ob_windows_local_server_create_limited(
+        runtime_directory,
+        endpoint_id,
+        OB_WINDOWS_PIPE_INSTANCES,
+        status
+    );
+}
+
+ObWindowsLocalServer *ob_windows_local_server_create_limited(
+    const wchar_t *runtime_directory,
+    const wchar_t *endpoint_id,
+    uint32_t instance_limit,
+    int *status
+) {
     *status = OB_WINDOWS_IPC_SYSTEM_ERROR;
+    if (instance_limit < 1 || instance_limit > OB_WINDOWS_PIPE_INSTANCE_LIMIT_MAXIMUM) return NULL;
     DWORD integrity_level = 0;
     BYTE *token_user = ob_process_identity(&integrity_level);
     if (token_user == NULL) return NULL;
@@ -414,7 +435,8 @@ ObWindowsLocalServer *ob_windows_local_server_create(
         pipe_name,
         token_user,
         &attributes,
-        FILE_FLAG_FIRST_PIPE_INSTANCE
+        FILE_FLAG_FIRST_PIPE_INSTANCE,
+        (DWORD)instance_limit
     );
     LocalFree(descriptor);
     if (server == NULL) {
@@ -455,13 +477,48 @@ ObWindowsLocalServer *ob_windows_local_server_create_instance(
         primary->pipe_name,
         token_user,
         &attributes,
-        0
+        0,
+        primary->instance_limit
     );
     LocalFree(descriptor);
     if (server == NULL) return NULL;
     server->accept_wake = primary->instances_stop;
     *status = OB_WINDOWS_IPC_OK;
     return server;
+}
+
+ObWindowsLocalServer *ob_windows_local_server_take_connection(
+    ObWindowsLocalServer *primary,
+    int *status
+) {
+    *status = OB_WINDOWS_IPC_CONNECTION_CLOSED;
+    if (!primary->connected || primary->read_state != OB_WINDOWS_READ_IDLE ||
+        primary->write_pending) {
+        return NULL;
+    }
+    ObWindowsLocalServer *connection = ob_windows_local_server_create_instance(primary, status);
+    if (connection == NULL) {
+        primary->last_error = GetLastError();
+        return NULL;
+    }
+    // The fresh instance takes over listening and the accepted pipe moves to the connection, so
+    // the pipe name always has an instance a client can reach.
+    HANDLE listening_pipe = connection->pipe;
+    connection->pipe = primary->pipe;
+    primary->pipe = listening_pipe;
+    connection->connected = TRUE;
+    connection->accept_wake = NULL;
+    primary->connected = FALSE;
+    primary->peer_verified = FALSE;
+    primary->listening = FALSE;
+    *status = OB_WINDOWS_IPC_OK;
+    return connection;
+}
+
+uint32_t ob_windows_local_server_client_process_id(const ObWindowsLocalServer *server) {
+    ULONG process_id = 0;
+    if (!server->connected || !GetNamedPipeClientProcessId(server->pipe, &process_id)) return 0;
+    return (uint32_t)process_id;
 }
 
 void ob_windows_local_server_destroy(ObWindowsLocalServer *server) {

@@ -259,7 +259,9 @@ pub fn build(builder: *std.Build) void {
     const conpty_options = builder.addOptions();
     conpty_options.addOption([]const u8, "dll_sha256", conpty_files.get("dll").?.object.get("sha256").?.string);
     conpty_options.addOption([]const u8, "console_sha256", conpty_files.get("console").?.object.get("sha256").?.string);
-    platform_module.addOptions("windows-conpty-options", conpty_options);
+    // The platform and the Keeper's test share one options module, since both link into the test.
+    const conpty_options_module = conpty_options.createModule();
+    platform_module.addImport("windows-conpty-options", conpty_options_module);
     platform_module.addImport("powershell-startup-options", powershellStartupModule(builder));
     // The fatal record and the diagnostic log write through one C file on every target.
     platform_module.addCSourceFile(.{
@@ -318,6 +320,11 @@ pub fn build(builder: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    const keeper_module = builder.createModule(.{
+        .root_source_file = builder.path("src/keeper/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
     const terminal_host_module = builder.createModule(.{
         .root_source_file = builder.path("src/terminal_host.zig"),
         .target = target,
@@ -331,6 +338,11 @@ pub fn build(builder: *std.Build) void {
     });
     const black_box_test_module = builder.createModule(.{
         .root_source_file = builder.path("src/__tests__/host_black_box_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const keeper_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/__tests__/keeper_black_box_test.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -400,18 +412,31 @@ pub fn build(builder: *std.Build) void {
     service_module.addImport("terminal-host-model", model_module);
     service_module.addImport("terminal-host-platform", platform_module);
     service_module.addImport("terminal-host-handshake", handshake_module);
-    service_module.addOptions("build-options", build_options);
+    // The service and the Keeper share one options module, since both link into the executable.
+    const build_options_module = build_options.createModule();
+    service_module.addImport("build-options", build_options_module);
     transport_module.addImport("terminal-protocol", protocol_module);
     transport_module.addImport("terminal-host-platform", platform_module);
     transport_module.addImport("terminal-host-handshake", handshake_module);
     transport_module.addImport("terminal-host-service", service_module);
     cli_module.addImport("terminal-host-model", model_module);
     cli_module.addImport("terminal-host-transport", transport_module);
+    keeper_module.addImport("terminal-host-handshake", handshake_module);
+    keeper_module.addImport("terminal-host-keeper-protocol", keeper_protocol_module);
+    keeper_module.addImport("terminal-host-platform", platform_module);
+    keeper_module.addImport("terminal-host-transport", transport_module);
+    keeper_module.addImport("build-options", build_options_module);
     terminal_host_module.addImport("terminal-host-cli", cli_module);
+    terminal_host_module.addImport("terminal-host-keeper", keeper_module);
     terminal_host_module.addImport("terminal-host-service", service_module);
     terminal_host_module.addImport("terminal-host-transport", transport_module);
     executable_module.addImport("terminal-host", terminal_host_module);
     executable_module.addImport("terminal-host-platform", platform_module);
+    keeper_test_module.addImport("terminal-host-handshake", handshake_module);
+    keeper_test_module.addImport("terminal-host-keeper-protocol", keeper_protocol_module);
+    keeper_test_module.addImport("terminal-host-platform", platform_module);
+    keeper_test_module.addImport("windows-conpty-options", conpty_options_module);
+    keeper_test_module.addImport("build-options", build_options_module);
     black_box_test_module.addImport("terminal-protocol", protocol_module);
     black_box_test_module.addImport("terminal-host-platform", platform_module);
     black_box_test_module.addImport("terminal-host-handshake", handshake_module);
@@ -690,6 +715,12 @@ pub fn build(builder: *std.Build) void {
                 .flags = authored_c_flags,
             });
             black_box_test_module.linkSystemLibrary("advapi32", .{});
+            keeper_test_module.addIncludePath(builder.path("src/transport"));
+            keeper_test_module.addCSourceFile(.{
+                .file = builder.path("src/transport/local_ipc_windows.c"),
+                .flags = authored_c_flags,
+            });
+            keeper_test_module.linkSystemLibrary("advapi32", .{});
         },
         else => {},
     }
@@ -808,6 +839,30 @@ pub fn build(builder: *std.Build) void {
         run_conpty_orchbee_pointer_tests.addArtifactArg(conpty_orchbee_pointer_tests);
         conpty_orchbee_pointer_step.dependOn(&run_conpty_orchbee_pointer_tests.step);
         test_step.dependOn(&run_conpty_orchbee_pointer_tests.step);
+    }
+    // The Keeper exists on Windows only; its real-process test drives the built executable with
+    // stand-in Hosts on the pinned conpty, which the runner stages beside the test.
+    if (target.result.os.tag == .windows and target.result.cpu.arch == .x86_64) {
+        const keeper_test = builder.addExecutable(.{
+            .name = "terminal-host-keeper-test",
+            .root_module = keeper_test_module,
+        });
+        keeper_test.root_module.link_libc = true;
+        test_compile_step.dependOn(&keeper_test.step);
+        const run_keeper_test = builder.addSystemCommand(&.{
+            "node",
+            builder.pathFromRoot("scripts/run-keeper-test.mjs"),
+            "--test-executable",
+        });
+        run_keeper_test.addArtifactArg(keeper_test);
+        run_keeper_test.addArg("--keeper-executable");
+        run_keeper_test.addArtifactArg(executable);
+        const keeper_test_step = builder.step(
+            "test-keeper",
+            "Run the Keeper's real-process witnesses with stand-in Hosts",
+        );
+        keeper_test_step.dependOn(&run_keeper_test.step);
+        test_step.dependOn(&run_keeper_test.step);
     }
     const focused_cli_tests = builder.addTest(.{
         .name = "terminal-host-cli-tests",

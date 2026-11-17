@@ -199,6 +199,21 @@ orchbee-terminal-host serve \
 
 The broker derives the runtime directory and endpoint identifier from its own runtime scope; the Host treats both as infrastructure values and does not infer product topology from them.
 
+On Windows the same binary also runs as the Keeper, which holds terminals' handles for the Hosts of
+one Session so a program outlives the Host that serves it:
+
+```text
+orchbee-terminal-host keep \
+  --runtime-directory <absolute-path> \
+  --endpoint-id <32-lowercase-hex>
+```
+
+The runtime directory and endpoint are the Keeper's own. Nothing starts a Keeper yet: the
+[Host handover](../../proposals/platform/host-handover.md) adds its start in H2. The
+[Keeper contract](../../schemas/keeper/README.md) owns its connection, and the
+[runtime model](docs/runtime-model.md#keeper) owns its behavior and exit codes; it writes
+`keeper-fatal.json` and `keeper-diagnostics.jsonl` in the Host's formats with the role `keeper`.
+
 A POSIX Host reads its managed zsh and bash startup from `shell-integration/` beside the binary:
 `zsh/.zshenv`, `zsh/orchbee.zsh` and `bash/orchbee.bash`, the sources in this package's
 `shell-integration/` directory. `zig build` installs them there for every non-Windows target, the
