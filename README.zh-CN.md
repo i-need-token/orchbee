@@ -80,9 +80,10 @@ Orchbee 无需任何配置即可识别 30 余种 CLI Agent，并显示每个 Age
 ## 安装
 
 > [!IMPORTANT]
-> Orchbee 处于测试阶段，目前支持 Windows 11（x86_64）；macOS 和 Linux 版本正在开发中。
+> Orchbee 处于测试阶段，目前支持 Windows 11（x86_64）和 macOS 13 或更高版本（Apple 芯片和
+> Intel）；Linux 版本正在开发中。
 
-### 桌面应用、终端和 CLI
+### Windows：桌面应用、终端和 CLI
 
 从[发布页](https://github.com/i-need-token/orchbee/releases)下载
 `Orchbee-<version>-windows-x86_64-setup.exe` 并运行。
@@ -91,9 +92,42 @@ Orchbee 无需任何配置即可识别 30 余种 CLI Agent，并显示每个 Age
 - 会把 `orchbee` 命令加入 `Path`，新开一个终端即可使用。
 - 安装程序暂未做代码签名，Windows SmartScreen 可能会要求你确认。
 
+### macOS：桌面应用、终端和 CLI
+
+在终端中安装：
+
+```sh
+curl -fsSL https://orchbee.com/install.sh | sh                  # 终端界面和 CLI
+curl -fsSL https://orchbee.com/install.sh | sh -s -- --desktop  # 同时安装桌面应用
+```
+
+- 桌面应用装进 `/Applications`（有写权限时），否则装进 `~/Applications`。
+- 命令链接在 `~/.local/bin/orchbee`。`PATH` 里没有这个文件夹时（新 Mac 上 zsh 默认就没有），安装程序会
+  打印要加到 `~/.zshrc` 的那一行。加上后新开一个终端：
+
+  ```sh
+  export PATH="$HOME/.local/bin:$PATH"
+  ```
+
+也可以从[发布页](https://github.com/i-need-token/orchbee/releases)下载磁盘映像：Apple 芯片下载
+`Orchbee-<version>-macos-aarch64.dmg`，Intel 下载 `Orchbee-<version>-macos-x86_64.dmg`。打开后把
+**Orchbee** 拖到“应用程序”。
+
+- 应用暂未经过 Apple 公证，所以从浏览器下载的副本第一次打开时会被 macOS 拦下。点**完成**，再到
+  **系统设置 › 隐私与安全性**中点**仍要打开**；[官网](https://orchbee.com/#install)有详细步骤。用终端安装
+  不会遇到这一步。
+- Orchbee 里的终端能找到 `orchbee`；要在其他终端中使用，请运行上面的第一条命令。
+
+macOS 上的已知限制：
+
+- Intel Mac 只在 CI 中测试过。
+- 记住的 SSH 密码：在 Orchbee 签名之前，每次更新后 macOS 都会再次请求钥匙串访问权限。
+- 终端中的图片只在支持 Kitty 图形协议的终端（如 Ghostty 和 kitty）中显示；iTerm2 和“终端”显示的是较粗的
+  字符画面。
+
 ### 仅终端和 CLI
 
-```powershell
+```sh
 npm install -g orchbee@next
 ```
 
@@ -101,25 +135,26 @@ npm install -g orchbee@next
 
 ### 启动
 
-```powershell
+```sh
 orchbee          # 打开终端界面
 ```
 
-也可以从开始菜单打开 **Orchbee**。
+也可以在 Windows 上从开始菜单、在 macOS 上从“应用程序”打开 **Orchbee**。
 
 ### 更新
 
-```powershell
+```sh
 orchbee update
 ```
 
 在现有版本旁边安装最新版本。运行中的终端和 Agent 不会被打断，在重新启动前继续使用旧版本；重新打开
-Orchbee 即可使用新版本。0.1.0-beta.1 没有更新命令，从该版本升级时，请按上面的方式用安装程序或 npm
-手动安装一次新版本。
+Orchbee 即可使用新版本。有新版本就绪时，桌面应用也会显示**更新**。0.1.0-beta.1 没有更新命令，从该版本
+升级时，请按上面的方式用安装程序或 npm 手动安装一次新版本。
 
 ### 卸载
 
-在**设置 › 应用**中移除 Orchbee，或运行 `orchbee uninstall`。通过 npm 安装的，先运行
+Windows 上，在**设置 › 应用**中移除 Orchbee，或运行 `orchbee uninstall`。macOS 上，运行
+`orchbee uninstall`，再把“应用程序”中的 **Orchbee** 移到废纸篓。通过 npm 安装的，先运行
 `orchbee uninstall`，再运行 `npm rm -g orchbee`。`~/.orchbee` 中的数据会保留；加上
 `--delete-data` 可一并删除。
 

@@ -80,9 +80,10 @@ When local resources are not enough, other computers can be added over SSH to ex
 ## Install
 
 > [!IMPORTANT]
-> Orchbee is in beta. It runs on Windows 11 (x86_64) today; macOS and Linux builds are in progress.
+> Orchbee is in beta. It runs on Windows 11 (x86_64) and on macOS 13 or later (Apple silicon and
+> Intel); Linux builds are in progress.
 
-### Desktop app, terminal and CLI
+### Windows: desktop app, terminal and CLI
 
 Download `Orchbee-<version>-windows-x86_64-setup.exe` from the
 [releases page](https://github.com/i-need-token/orchbee/releases) and run it.
@@ -91,9 +92,45 @@ Download `Orchbee-<version>-windows-x86_64-setup.exe` from the
 - Adds the `orchbee` command to your `Path`. Open a new terminal to use it.
 - The installer is not code-signed yet, so Windows SmartScreen may ask you to confirm.
 
+### macOS: desktop app, terminal and CLI
+
+Install from a terminal:
+
+```sh
+curl -fsSL https://orchbee.com/install.sh | sh                  # terminal interface and CLI
+curl -fsSL https://orchbee.com/install.sh | sh -s -- --desktop  # the desktop app as well
+```
+
+- The desktop app goes into `/Applications` when you can write to it, otherwise into
+  `~/Applications`.
+- The command is linked at `~/.local/bin/orchbee`. When your `PATH` lacks that folder, as zsh's does
+  on a new Mac, the installer prints the line to add to `~/.zshrc`. Add it and open a new terminal:
+
+  ```sh
+  export PATH="$HOME/.local/bin:$PATH"
+  ```
+
+Or download the disk image from the
+[releases page](https://github.com/i-need-token/orchbee/releases):
+`Orchbee-<version>-macos-aarch64.dmg` for Apple silicon, `Orchbee-<version>-macos-x86_64.dmg` for
+Intel. Open it and drag **Orchbee** to Applications.
+
+- The app is not notarized by Apple yet, so macOS blocks the first open of a browser download. Click
+  **Done**, then **Open Anyway** in **System Settings › Privacy & Security**; the
+  [website](https://orchbee.com/#install) has the steps. The terminal install skips this.
+- Terminals inside Orchbee find `orchbee`; for other terminals, run the first command above.
+
+Known limits on macOS:
+
+- Intel Macs are tested in CI only.
+- Remembered SSH passwords: macOS asks again for Keychain access after each update, until Orchbee is
+  signed.
+- Images show in terminals that speak the Kitty graphics protocol, such as Ghostty and kitty; iTerm2
+  and Terminal.app show a coarser cell picture.
+
 ### Terminal and CLI only
 
-```powershell
+```sh
 npm install -g orchbee@next
 ```
 
@@ -101,26 +138,28 @@ Requires Node.js 22 or later. This installs the terminal interface and the CLI, 
 
 ### Start
 
-```powershell
+```sh
 orchbee          # open the terminal interface
 ```
 
-Or open **Orchbee** from the Start menu.
+Or open **Orchbee** from the Start menu on Windows, or from Applications on macOS.
 
 ### Update
 
-```powershell
+```sh
 orchbee update
 ```
 
 Installs the newest version beside the one you have. Running terminals and Agents are not
 interrupted: they keep the old version until they are restarted. Open Orchbee again to use the new
-one. Version 0.1.0-beta.1 has no update command, so from it install the next version once by hand,
-with the installer or npm as above.
+one. The desktop app also offers **Update** when a newer version is ready. Version 0.1.0-beta.1 has
+no update command, so from it install the next version once by hand, with the installer or npm as
+above.
 
 ### Uninstall
 
-Remove Orchbee from **Settings › Apps**, or run `orchbee uninstall`. For an npm install, run
+On Windows, remove Orchbee from **Settings › Apps**, or run `orchbee uninstall`. On macOS, run
+`orchbee uninstall`, then move **Orchbee** from Applications to the Trash. For an npm install, run
 `orchbee uninstall` and then `npm rm -g orchbee`. Your data in `~/.orchbee` is kept; add
 `--delete-data` to remove it too.
 
