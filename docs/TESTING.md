@@ -163,6 +163,12 @@ it. An existing failing test, compiler check, or contract check can supply that 
 failure and the fix's effect are demonstrated; do not duplicate it at another layer. Difficulty,
 cost, or author confidence does not waive this evidence.
 
+A defect where a peer's input, an outcome the process builds for a peer, or a slow peer ends a unit
+the fault did not damage, or ends a process that the exit rule does not allow, violates
+[fault containment](ARCHITECTURE.md#fault-containment). Its regression drives the input through the
+real boundary, at the lowest layer that does so, and asserts that the process and its other units
+keep serving and that the diagnostic record names the failure class.
+
 Verify a presentation defect, such as layout, alignment, color, wording, or visual hierarchy, by
 reviewing the running interface: the TUI uses
 [whole-screen visual review](tui/verification.md#whole-screen-visual-review), and a GUI uses a

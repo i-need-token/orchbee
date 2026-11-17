@@ -106,11 +106,23 @@ A process that holds independent units of work, such as terminals, viewers, atta
 Client connections, contains every fault to the units it damaged. A peer's message, a contract
 violation, or a slow system call never takes down work it did not touch.
 
+- **Prevention first.** Contain a fault at the boundary that received it. Recovery, such as a
+  restart, reattach, or reconnect, is the safety net for faults that containment did not stop; it
+  never replaces containment of the input that caused the fault.
 - **Smallest scope.** Name what a fault damaged and fail no wider: one request gets a typed refusal,
   one viewer, attachment, or controller closes alone, and a connection whose framing is lost ends
   alone. An intact message that is unexpected, late, stray, refused, or outside its contract is
-  dropped or answered and recorded. Never end a process that holds other work for a fault in one
-  of its units.
+  dropped or answered and recorded. A malformed or unexpected peer message ends at most that peer's
+  connection, never the receiving process; a process left with nothing to serve then follows Exit
+  last. Never end a process that holds other work for a fault in one of its units.
+- **Own the boundary.** Each side of a process boundary handles its peer's loss, silence, or bad
+  data itself: it records the class, fails only what depended on the peer, and keeps serving the
+  rest. It never relies on the peer to clean up or to exit first.
+- **Own the outcomes.** A process checks each outcome it builds for a peer before sending it. An
+  outcome that fails its own check becomes the most conservative outcome the contract defines, is
+  recorded with its class and site, and does not end the process.
+- **Transient failures.** A transient failure of a shared operation, such as an accept, a read, or a
+  record write, drops or retries only the work it affected and never ends the process.
 - **Late is not invalid.** Time is not evidence of misbehavior. An intact answer that arrives after
   its caller stopped waiting is still well formed; a peer is lost only when it stays silent past
   its hard bound.
@@ -119,10 +131,23 @@ violation, or a slow system call never takes down work it did not touch.
   writes a record of closed tokens and numbers, never content.
 - **Hard bounds.** Every wait on a peer or on the operating system has a hard bound below the
   waiting peer's own timeout. A wait that can block, such as a filesystem or account lookup, runs
-  off the thread that serves peers, and its late result is dropped.
+  off the thread that serves peers, and its late result is dropped. In each pair of processes that
+  write to each other, at least one side keeps reading while its own write waits, so two full
+  buffers can never leave both sides waiting.
+- **Fence the unit.** An invariant violated after a unit's state commits fences that unit: the
+  process stops serving it, closes its clients with a typed record, and keeps serving its other
+  units. The process exits for such an invariant only when the violated state is shared by its
+  units.
 - **Exit last.** A process that holds user work exits last, and only for a cause that damages that
   work, such as the loss of the connection all of it is served through, or an invariant of its own
   whose violation would corrupt state or act without authority.
+
+No lint rule enforces this section; review does. Reviewers check that each path that peer input
+reaches ends in a typed refusal, a drop, a fence, or a connection end, and never in a process exit
+unless Exit last applies; that each failed outcome check maps to a contract outcome; that each
+blocking write has a concurrent reader or a bound; and that a recovery change for an
+input-triggered fault also contains that input at its boundary.
+[Regression coverage](TESTING.md#regression-coverage) states the evidence.
 
 Language rules apply these principles in [Rust](RUST.md#errors-and-panic-boundaries) and
 [Zig](ZIG.md#boundaries-and-safety).
