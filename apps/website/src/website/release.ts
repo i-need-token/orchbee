@@ -41,11 +41,11 @@ export type Release =
 
 export const release: Release = {
 	published: true,
-	version: '0.1.0-beta.17',
+	version: '0.1.0-beta.18',
 	downloads: {
-		'windows-x86_64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.17/Orchbee-0.1.0-beta.17-windows-x86_64-setup.exe`,
-		'macos-aarch64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.17/Orchbee-0.1.0-beta.17-macos-aarch64.dmg`,
-		'macos-x86_64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.17/Orchbee-0.1.0-beta.17-macos-x86_64.dmg`,
+		'windows-x86_64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.18/Orchbee-0.1.0-beta.18-windows-x86_64-setup.exe`,
+		'macos-aarch64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.18/Orchbee-0.1.0-beta.18-macos-aarch64.dmg`,
+		'macos-x86_64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.18/Orchbee-0.1.0-beta.18-macos-x86_64.dmg`,
 	},
 };
 
