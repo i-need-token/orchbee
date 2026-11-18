@@ -13,7 +13,7 @@ use super::output;
 use super::{FailureKind, Output, failure_output};
 use crate::cli_text::CliText;
 use crate::{
-    agent_start::Request,
+    agent_start::{Request, ReservationState},
     cli::{
         caller_context::PanelTarget,
         command_interrupt::{ArmedSignals, Finish},
@@ -40,6 +40,14 @@ const PROMPT_RETRY: Duration = Duration::from_millis(250);
 /// a shell that still runs its profile redraws its prompt for seconds. The picker's first-prompt
 /// fallback waits as long.
 const NEW_SHELL_SETTLE: Duration = Duration::from_secs(30);
+/// How long `--here` waits for zero-mark shells (`Unmarked`) to emit initial prompt marks.
+const UNMARKED_SHELL_SETTLE: Duration = Duration::from_secs(10);
+
+#[derive(Clone, Copy)]
+enum PromptRetryPolicy {
+    NewPanel,
+    HereUnmarked,
+}
 
 #[cfg(test)]
 mod tests;
@@ -198,16 +206,14 @@ fn run_local(
             );
         }
         placed.panel = Some(panel.clone());
-        return crate::agent_start::run_on_client(
-            request,
-            started,
-            deadline,
+        return run_with_prompt_retry(
+            &request,
+            (started, deadline),
             armed.poll_fd(),
-            client,
-            snapshot,
-            panel,
-        )
-        .into();
+            &panel,
+            Some((client, snapshot)),
+            PromptRetryPolicy::HereUnmarked,
+        );
     }
     let selector = first_command(command);
     let created = place::create(
@@ -249,7 +255,14 @@ fn run_local(
     } else {
         request
     };
-    start_in_new_panel(&request, (started, deadline), armed.poll_fd(), &panel)
+    run_with_prompt_retry(
+        &request,
+        (started, deadline),
+        armed.poll_fd(),
+        &panel,
+        None,
+        PromptRetryPolicy::NewPanel,
+    )
 }
 
 /// The catalog Agent a new Panel's shell runs as its first command. Only a start that is exactly
@@ -265,20 +278,35 @@ fn first_command(
     orchbee_workbench_protocol::AgentStartSelector::parse(&command.provider)
 }
 
-/// Start on a Panel this invocation just created. Until its terminal is bound and its shell shows
-/// an idle prompt, a start types nothing and is only read again; a submission the prompt gate
-/// refused, which typed nothing, is the stale-base refusal and is attempted again under a fresh
-/// identity until `NEW_SHELL_SETTLE` has passed since this call. Every attempt shares the original
-/// deadline.
-fn start_in_new_panel(
+/// Start in `panel`, retrying transient prompt-unready responses according to `policy` while
+/// sharing the original command deadline.
+fn run_with_prompt_retry(
     request: &Request,
     (started, deadline): (Instant, Instant),
     wake: Option<orchbee_local_ipc::LocalIo<'_>>,
     panel: &WorkbenchPanelId,
+    mut initial: Option<(crate::local_client::LocalClient, Snapshot)>,
+    policy: PromptRetryPolicy,
 ) -> Report {
-    let settle_until = Instant::now() + NEW_SHELL_SETTLE;
+    let settle_until = Instant::now()
+        + match policy {
+            PromptRetryPolicy::NewPanel => NEW_SHELL_SETTLE,
+            PromptRetryPolicy::HereUnmarked => UNMARKED_SHELL_SETTLE,
+        };
+    let min_remaining = if request.name.is_some() {
+        // Named startups refuse at `ttl <= 3000` before `Reserve`; stop retrying before crossing
+        // that floor so the settled prompt-gate diagnosis stays intact.
+        Duration::from_millis(3250)
+    } else {
+        PROMPT_RETRY * 8
+    };
+    let mut prior: Option<Report> = None;
     loop {
-        let report = match settle(admit(deadline, wake), wake) {
+        let session = match initial.take() {
+            Some(pair) => Ok(pair),
+            None => settle(admit(deadline, wake), wake),
+        };
+        let client_report = match session {
             Ok((client, snapshot)) => crate::agent_start::run_on_client(
                 request.clone(),
                 started,
@@ -288,16 +316,40 @@ fn start_in_new_panel(
                 snapshot,
                 panel.clone(),
             ),
-            Err(error) => return Report::preflight(request.clone(), started, error),
+            Err(error) => {
+                if let Some(previous) = prior
+                    && error.kind == FailureKind::Timeout
+                {
+                    return previous;
+                }
+                return Report::preflight(request.clone(), started, error);
+            }
         };
-        let gate_refusal = report.submission.is_some();
-        let retry = report.awaits_new_shell()
-            && (!gate_refusal || Instant::now() < settle_until)
-            && deadline.saturating_duration_since(Instant::now()) > PROMPT_RETRY * 8;
-        // An interruption ends the wait here; signal finalization reports the cancellation.
-        if !retry || crate::agent_runtime::wait_backoff(wake, PROMPT_RETRY) {
-            return report.into();
+        let should_retry = match policy {
+            PromptRetryPolicy::NewPanel => {
+                let gate_refusal = client_report.submission.is_some();
+                client_report.awaits_new_shell() && (!gate_refusal || Instant::now() < settle_until)
+            }
+            PromptRetryPolicy::HereUnmarked => {
+                client_report.awaits_unmarked() && Instant::now() < settle_until
+            }
+        } && deadline.saturating_duration_since(Instant::now()) > min_remaining;
+        let report: Report = client_report.into();
+        // Only an attempt that timed out before sending `Reserve` falls back to the earlier
+        // attempt's report; an attempt that sent it reports its own reservation state, which may
+        // still hold the name.
+        if report.failure_kind() == Some(FailureKind::Timeout)
+            && report.submission.is_none()
+            && report.reservation_state == ReservationState::None
+            && let Some(previous) = prior
+        {
+            return previous;
         }
+        // An interruption ends the wait here; signal finalization reports the cancellation.
+        if !should_retry || crate::agent_runtime::wait_backoff(wake, PROMPT_RETRY) {
+            return report;
+        }
+        prior = Some(report);
     }
 }
 

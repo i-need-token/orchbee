@@ -17,6 +17,7 @@ pub use failure::{ExchangeFailure, Failure, StartFailure};
 use orchbee_agent_observation_protocol::{
     AgentLaunchReservation, AgentName, AgentProviderId, AgentSessionId, ObapRequestId,
 };
+use orchbee_client_server_protocol::SendPromptState;
 use std::sync::Arc;
 
 mod command;
@@ -168,6 +169,17 @@ impl Report {
         }
     }
 
+    fn prompt_retryable(&self, failure: &Failure) -> bool {
+        !self.shell_refused
+            && !failure.unknown()
+            && !failure.cancelled()
+            && !matches!(
+                self.reservation_state,
+                ReservationState::Pending | ReservationState::Unknown
+            )
+            && !self.delivery.possibly_applied()
+    }
+
     /// Whether the start typed nothing only because its new Panel is not ready yet: the Panel has
     /// no bound terminal yet, or its shell shows no idle, confirmed prompt yet. Nothing was
     /// delivered and no reservation is left pending, so starting again on that Panel is safe. A
@@ -177,20 +189,28 @@ impl Report {
         let Verdict::Failed { failure, .. } = &self.verdict else {
             return false;
         };
-        !self.shell_refused
-            && !failure.unknown()
-            && !failure.cancelled()
-            && !matches!(
-                self.reservation_state,
-                ReservationState::Pending | ReservationState::Unknown
-            )
-            && !self.delivery.possibly_applied()
+        self.prompt_retryable(failure)
             && matches!(
                 failure,
                 Failure::Primary(_)
                     | Failure::Start(
                         StartFailure::TerminalNotIdle | StartFailure::PromptUnconfirmed(_)
                     )
+            )
+    }
+
+    /// Whether an existing terminal (`--here`) has reported only zero initial prompt marks since
+    /// launch, so waiting briefly for the shell's first prompt is safe without retrying busy or
+    /// non-shell failures.
+    #[must_use]
+    pub fn awaits_unmarked(&self) -> bool {
+        let Verdict::Failed { failure, .. } = &self.verdict else {
+            return false;
+        };
+        self.prompt_retryable(failure)
+            && matches!(
+                failure,
+                Failure::Start(StartFailure::PromptUnconfirmed(SendPromptState::Unmarked))
             )
     }
 }

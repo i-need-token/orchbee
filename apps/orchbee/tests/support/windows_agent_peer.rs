@@ -1177,9 +1177,33 @@ pub(super) fn process_sample_for(
     sample: Result<Vec<orchbee_terminal_protocol::TerminalProcess>, &str>,
     expected_terminal: &str,
 ) {
+    assert!(
+        try_process_sample_for(stream, sample, expected_terminal),
+        "the CLI closed the connection before the process sample completed"
+    );
+}
+
+/// Whether a connection read or write failed because the CLI closed its end.
+pub(super) fn peer_closed(error: &std::io::Error) -> bool {
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::UnexpectedEof
+            | std::io::ErrorKind::BrokenPipe
+            | std::io::ErrorKind::ConnectionReset
+    )
+}
+
+/// Answers one process sample as the Host would: attach, read, detach. Returns `false` if the CLI
+/// closes its end first, and `true` once the whole sample is answered.
+pub(super) fn try_process_sample_for(
+    stream: &mut LocalStream,
+    sample: Result<Vec<orchbee_terminal_protocol::TerminalProcess>, &str>,
+    expected_terminal: &str,
+) -> bool {
     use orchbee_client_server_protocol::{
-        ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
-        TerminalViewerResult, ViewerId, read_client_message, write_server_message,
+        ClientMessage, ReadMessageError, ServerMessage, TerminalViewerAction,
+        TerminalViewerOutcome, TerminalViewerResult, ViewerId, WriteMessageError,
+        read_client_message, write_server_message,
     };
     use orchbee_terminal_protocol::{
         AttachmentId, CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch, MessageRole,
@@ -1249,8 +1273,11 @@ pub(super) fn process_sample_for(
         ("query", TerminalViewerOutcome::Record(record)),
         ("detach", TerminalViewerOutcome::Detached {}),
     ] {
-        let ClientMessage::TerminalViewer(request) = read_client_message(stream).unwrap() else {
-            panic!("read-only process {stage} before any input");
+        let request = match read_client_message(stream) {
+            Ok(ClientMessage::TerminalViewer(request)) => request,
+            Ok(_) => panic!("read-only process {stage} before any input"),
+            Err(ReadMessageError::Io(error)) if peer_closed(&error) => return false,
+            Err(error) => panic!("read-only process {stage}: {error}"),
         };
         match (stage, request.action()) {
             ("attach", TerminalViewerAction::AttachBinding { terminal_id, .. }) => {
@@ -1262,15 +1289,18 @@ pub(super) fn process_sample_for(
             }
             _ => panic!("unexpected preflight operation"),
         }
-        write_server_message(
+        match write_server_message(
             stream,
             &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
                 request.request_id().clone(),
                 outcome,
             )),
-        )
-        .unwrap();
+        ) {
+            Err(WriteMessageError::Io(error)) if peer_closed(&error) => return false,
+            written => written.unwrap(),
+        }
     }
+    true
 }
 
 /// Answer the `identify` that follows a successful process sample as a settled Server would: the

@@ -1,7 +1,8 @@
 //! Process-level startup effects, wire identity and recovery on Windows pipes.
 use super::peer_support;
 use orchbee_agent_observation_protocol::{
-    AgentLaunchRequest, AgentRequest, AgentResult, read_agent_request, write_agent_result,
+    AgentLaunchRequest, AgentRequest, AgentResult, AgentWireError, read_agent_request,
+    write_agent_result,
 };
 use orchbee_client_server_protocol::*;
 use orchbee_local_ipc::{LocalListener, LocalStream};
@@ -32,7 +33,18 @@ fn respond(
     write_agent_result(stream, &result).unwrap();
 }
 fn reserve(stream: &mut LocalStream) -> Value {
-    let request = request(stream);
+    reserve_or_abandoned(stream).expect("the CLI closed the attempt before its launch request")
+}
+/// The attempt's reservation, or `None` when the CLI closed the attempt before sending its launch
+/// request. The CLI refuses a named start that reaches its floor after the process sample, before
+/// `Reserve`, and closes the connection; such an attempt reports nothing new.
+fn reserve_or_abandoned(stream: &mut LocalStream) -> Option<Value> {
+    let request = match read_agent_request(stream) {
+        Ok(AgentRequest::Launch(request)) => request,
+        Ok(_) => panic!("launch request"),
+        Err(AgentWireError::Io(error)) if peer_closed(&error) => return None,
+        Err(error) => panic!("launch request: {error}"),
+    };
     let AgentLaunchRequest::Reserve {
         name,
         provider_id,
@@ -55,7 +67,20 @@ fn reserve(stream: &mut LocalStream) -> Value {
         "reserve",
         json!({"kind":"reserved","reservation":reservation,"runToken":RUN}),
     );
-    reservation
+    Some(reservation)
+}
+/// Answers each process sample on this attempt with the Host's unavailable reply until the CLI
+/// closes the connection; returns how many samples it answered.
+fn unavailable_samples_until_closed(stream: &mut LocalStream) -> usize {
+    let mut answered = 0;
+    while try_process_sample_for(
+        stream,
+        Err("process-sample-unavailable"),
+        "33333333333333333333333333333333",
+    ) {
+        answered += 1;
+    }
+    answered
 }
 fn release(stream: &mut LocalStream, reservation: &Value) {
     let request = request(stream);
@@ -165,6 +190,30 @@ fn accept_client(stream: &mut LocalStream) {
         },
     )
     .unwrap();
+}
+/// The longest the peer waits for the CLI's next connection; a missing reconnect fails the test
+/// with a message instead of blocking it.
+const PEER_ACCEPT_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Accepts the CLI's next connection by polling, so the peer never blocks past
+/// [`PEER_ACCEPT_BUDGET`] or past `done`. Returns `None` once either has passed.
+fn accept_before(
+    listener: &LocalListener,
+    done: &std::sync::atomic::AtomicBool,
+) -> Option<LocalStream> {
+    listener.set_nonblocking(true).unwrap();
+    let until = std::time::Instant::now() + PEER_ACCEPT_BUDGET;
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => return Some(stream),
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+            Err(error) => panic!("peer accept failed: {error}"),
+        }
+        if done.load(std::sync::atomic::Ordering::Acquire) || std::time::Instant::now() >= until {
+            return None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 }
 fn run(script: impl FnOnce(LocalStream) + Send + 'static) -> (std::process::Output, Value) {
     run_with_timeout("30000", script)
@@ -296,50 +345,276 @@ fn refused(reason: SendRejectedReason) -> TerminalSendOutcome {
 }
 
 /// Every prompt refusal types nothing and releases the name, so retrying is safe. A `settling`
-/// prompt is asked again, more than once, and the first other refusal is final; a peer without
-/// the gate is incompatible, never sent ungated.
+/// prompt is asked again on the same connection; `--here` retries an `unmarked` prompt across
+/// connections inside the shell settle window; `busy` and every other refusal is final at once,
+/// and a peer without the gate is incompatible, never sent ungated.
 #[test]
 fn startup_types_nothing_where_the_prompt_or_a_peer_cannot_confirm_it() {
-    for (answers, code, reason, state) in [
-        (
-            vec![
-                SendPromptState::Settling,
-                SendPromptState::Settling,
-                SendPromptState::Unmarked,
-            ],
-            3,
-            "prompt-unconfirmed",
-            Some("unmarked"),
-        ),
-        (
-            vec![SendPromptState::Unmarked],
-            3,
-            "prompt-unconfirmed",
-            Some("unmarked"),
-        ),
-        (vec![SendPromptState::Busy], 3, "terminal-not-idle", None),
-    ] {
-        let (output, document) = run(move |mut stream| {
+    // `Busy` refuses immediately without a retry loop.
+    let (output, document) = run(move |mut stream| {
+        bound_snapshot_reply(&mut stream);
+        shell(&mut stream);
+        let reservation = reserve(&mut stream);
+        shell(&mut stream);
+        input(
+            &mut stream,
+            refused(SendRejectedReason::PromptUnconfirmed(SendPromptState::Busy)),
+        );
+        release(&mut stream, &reservation);
+        assert_closed(&mut stream);
+    });
+    assert_eq!(output.status.code(), Some(3));
+    let details = &document["failure"]["details"];
+    assert_eq!(details["reason"], "terminal-not-idle");
+    assert!(details.get("promptState").is_none());
+    assert_eq!(details["reservationState"], "released");
+    assert_eq!(details["submission"]["result"]["inputStatus"], "rejected");
+
+    // `Settling` is asked again on the same connection, and `Busy` after it is final.
+    let (output, document) = run(move |mut stream| {
+        bound_snapshot_reply(&mut stream);
+        shell(&mut stream);
+        let reservation = reserve(&mut stream);
+        shell(&mut stream);
+        for answer in [
+            SendPromptState::Settling,
+            SendPromptState::Settling,
+            SendPromptState::Busy,
+        ] {
+            input(
+                &mut stream,
+                refused(SendRejectedReason::PromptUnconfirmed(answer)),
+            );
+        }
+        release(&mut stream, &reservation);
+        assert_closed(&mut stream);
+    });
+    assert_eq!(output.status.code(), Some(3));
+    let details = &document["failure"]["details"];
+    assert_eq!(details["reason"], "terminal-not-idle");
+    assert!(details.get("promptState").is_none());
+    assert_eq!(details["reservationState"], "released");
+    assert_eq!(details["submission"]["result"]["inputStatus"], "rejected");
+
+    // Transient `Unmarked` on `--here` retries and succeeds once initial prompt marks appear.
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+    let transient = std::thread::spawn(move || {
+        let never = std::sync::atomic::AtomicBool::new(false);
+        for attempt in 0..2 {
+            let Some(mut stream) = accept_before(&listener, &never) else {
+                panic!("attempt {attempt}: the CLI did not reconnect");
+            };
+            accept_client(&mut stream);
             bound_snapshot_reply(&mut stream);
             shell(&mut stream);
             let reservation = reserve(&mut stream);
             shell(&mut stream);
-            for answer in answers {
+            if attempt == 0 {
                 input(
                     &mut stream,
-                    refused(SendRejectedReason::PromptUnconfirmed(answer)),
+                    refused(SendRejectedReason::PromptUnconfirmed(
+                        SendPromptState::Unmarked,
+                    )),
                 );
+                release(&mut stream, &reservation);
+                assert_closed(&mut stream);
+            } else {
+                input(&mut stream, accepted());
+                let inspect = request(&mut stream);
+                assert!(matches!(inspect, AgentLaunchRequest::Inspect { .. }));
+                std::thread::sleep(std::time::Duration::from_millis(3050));
+                let mut ready_reservation = reservation.clone();
+                ready_reservation["settleRemainingMs"] = json!(0);
+                respond(
+                    &mut stream,
+                    &inspect,
+                    "inspect",
+                    pending(
+                        &ready_reservation,
+                        json!("sess-alpha"),
+                        json!({"phase":"awaiting"}),
+                    ),
+                );
+                process_reply(
+                    &mut stream,
+                    vec![process(10, None, "cmd.exe"), process(11, Some(10), AMP)],
+                );
+                identify(
+                    &mut stream,
+                    &ready_reservation,
+                    r#"{"result":"agent","providerId":"amp","grade":"recognized"}"#,
+                );
+                let mut detail = session_detail("sess-alpha");
+                detail["snapshot"]["providerId"] = json!("amp");
+                detail["snapshot"]["turn"] = json!({"kind":"idle"});
+                detail["snapshot"]["pendingRequests"] = json!([]);
+                detail["status"] = json!({"kind":"idle"});
+                detail["snapshot"]["presentationAttachments"][0]["generation"] = json!(GENERATION);
+                read_reply(
+                    &mut stream,
+                    "get",
+                    json!({"kind":"found","revision":2,"session":detail}),
+                );
+                let complete = request(&mut stream);
+                assert!(matches!(&complete, AgentLaunchRequest::Complete { .. }));
+                respond(
+                    &mut stream,
+                    &complete,
+                    "complete",
+                    json!({"kind":"completed","reservationId":ready_reservation["reservationId"],"name":"alpha","sessionId":"sess-alpha"}),
+                );
+                assert_closed(&mut stream);
             }
+        }
+    });
+    let output = fixture.run(&[
+        "agent",
+        "start",
+        "amp",
+        "--here",
+        "--name",
+        "alpha",
+        "--panel",
+        PANEL,
+        "--format=json",
+        "--timeout",
+        "10000",
+    ]);
+    transient.join().unwrap();
+    let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(output.status.code(), Some(0), "{doc}");
+    assert_eq!(doc["result"]["sessionId"], "sess-alpha");
+
+    // Persistent `Unmarked` on `--here` retries, then stops with its details preserved.
+    let persistent_fixture = Fixture::new();
+    let persistent_rendezvous = persistent_fixture.rendezvous();
+    let endpoint = persistent_rendezvous.client_socket_path().to_path_buf();
+    let listener = LocalListener::bind(&endpoint).unwrap();
+    let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let done_peer = done.clone();
+    let persistent = std::thread::spawn(move || -> usize {
+        let mut attempts = 0;
+        loop {
+            let Some(mut stream) = accept_before(&listener, &done_peer) else {
+                break;
+            };
+            if done_peer.load(std::sync::atomic::Ordering::Acquire) {
+                break;
+            }
+            attempts += 1;
+            accept_client(&mut stream);
+            bound_snapshot_reply(&mut stream);
+            shell(&mut stream);
+            // An attempt the CLI closes at its named-startup floor still counts; the loop then
+            // waits for the next connection, and the CLI reports the earlier attempt's details.
+            let Some(reservation) = reserve_or_abandoned(&mut stream) else {
+                continue;
+            };
+            shell(&mut stream);
+            input(
+                &mut stream,
+                refused(SendRejectedReason::PromptUnconfirmed(
+                    SendPromptState::Unmarked,
+                )),
+            );
             release(&mut stream, &reservation);
             assert_closed(&mut stream);
-        });
-        assert_eq!(output.status.code(), Some(code));
-        let details = &document["failure"]["details"];
-        assert_eq!(details["reason"], reason);
-        assert_eq!(details.get("promptState").and_then(Value::as_str), state);
-        assert_eq!(details["reservationState"], "released");
-        assert_eq!(details["submission"]["result"]["inputStatus"], "rejected");
-    }
+        }
+        attempts
+    });
+    // Attempt 1 must finish before the 3250 ms named-start floor; 6000 ms leaves it about 2.75 s.
+    let output = persistent_fixture.run(&[
+        "agent",
+        "start",
+        "amp",
+        "--here",
+        "--name",
+        "alpha",
+        "--panel",
+        PANEL,
+        "--format=json",
+        "--timeout",
+        "6000",
+    ]);
+    done.store(true, std::sync::atomic::Ordering::Release);
+    let attempts = persistent.join().unwrap();
+    assert!(
+        attempts >= 2,
+        "expected bounded retry attempts, got {attempts}"
+    );
+    assert_eq!(output.status.code(), Some(3));
+    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let details = &document["failure"]["details"];
+    assert_eq!(details["reason"], "prompt-unconfirmed");
+    assert_eq!(
+        details.get("promptState").and_then(Value::as_str),
+        Some("unmarked")
+    );
+    assert_eq!(details["reservationState"], "released");
+    assert_eq!(details["submission"]["result"]["inputStatus"], "rejected");
+
+    // A later attempt that reaches its deadline after `Reserve` reports its own `pending`
+    // reservation, which still holds the name, not the earlier attempt's `released`.
+    let held_fixture = Fixture::new();
+    let held_rendezvous = held_fixture.rendezvous();
+    let held_listener = LocalListener::bind(held_rendezvous.client_socket_path()).unwrap();
+    let held = std::thread::spawn(move || {
+        let never = std::sync::atomic::AtomicBool::new(false);
+        let Some(mut stream) = accept_before(&held_listener, &never) else {
+            panic!("first attempt: the CLI did not connect");
+        };
+        accept_client(&mut stream);
+        bound_snapshot_reply(&mut stream);
+        shell(&mut stream);
+        let reservation = reserve(&mut stream);
+        shell(&mut stream);
+        input(
+            &mut stream,
+            refused(SendRejectedReason::PromptUnconfirmed(
+                SendPromptState::Unmarked,
+            )),
+        );
+        release(&mut stream, &reservation);
+        assert_closed(&mut stream);
+        let Some(mut stream) = accept_before(&held_listener, &never) else {
+            panic!("second attempt: the CLI did not reconnect");
+        };
+        accept_client(&mut stream);
+        bound_snapshot_reply(&mut stream);
+        shell(&mut stream);
+        reserve(&mut stream);
+        unavailable_samples_until_closed(&mut stream)
+    });
+    let output = held_fixture.run(&[
+        "agent",
+        "start",
+        "amp",
+        "--here",
+        "--name",
+        "alpha",
+        "--panel",
+        PANEL,
+        "--format=json",
+        "--timeout",
+        "8000",
+    ]);
+    let answered = held.join().unwrap();
+    assert!(
+        answered >= 1,
+        "the held attempt's process sample was never reached"
+    );
+    assert_eq!(output.status.code(), Some(7));
+    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+    validate(
+        &document,
+        include_str!("../../src/cli/schemas/orchbee.cli.failure.agent-start.json"),
+    );
+    let details = &document["failure"]["details"];
+    assert_eq!(details["reason"], "start-deadline");
+    assert_eq!(details["reservationState"], "pending");
+    assert_eq!(details.get("submission"), Some(&Value::Null));
 
     let (output, document) = run(|mut stream| {
         bound_snapshot_reply(&mut stream);

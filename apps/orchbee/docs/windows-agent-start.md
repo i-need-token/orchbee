@@ -59,7 +59,10 @@ terminal is unbound or its shell is not idle, the CLI only reads again, every 25
 seconds before the deadline. A submission the [prompt gate](#prompt-gated-input) refused typed
 nothing and is this workflow's stale-base refusal: it is attempted again under a fresh request
 identity for up to 30 seconds, because a shell that still runs its profile redraws its prompt for
-seconds, and never past the deadline. A refused creation reports `place-failed` with the Server's reason;
+seconds, and never past the deadline. For `--here`, when the prompt gate reports `unmarked` (no
+initial primary prompt mark has arrived yet since launch), it retries every 250 ms for up to 10
+seconds within the same deadline; `busy`, `not-shell`, and other non-idle states on `--here` still
+refuse immediately without retry. A refused creation reports `place-failed` with the Server's reason;
 a Panel created before a later step fails stays open, and the outcome names it. A focus that does
 not switch the Client does not fail the start: `result.focus`, or `details.focus` on failure, names
 the stage, the typed reason, and the Client's answer when one came back. Three focus failures do fail
