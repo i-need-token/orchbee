@@ -123,7 +123,9 @@ export interface WindowRelaunchOptions {
  * version at the same place, and quits once it has started. On Windows that is the window entry; on
  * macOS the launcher of the version this window switches to, which first replaces the application
  * bundle this window runs from. A window whose launcher cannot start keeps running and says so;
- * nothing else changes.
+ * nothing else changes. Changing this (the relaunch and version switch) needs a manual real-window
+ * self-test before merging: the relaunch must reach the new version. Its steps are in
+ * `apps/desktop/README.md`, Window Update, Manual self-test.
  */
 export async function relaunchWindow(options: WindowRelaunchOptions): Promise<boolean> {
 	const paths = options.platform === 'win32' ? path.win32 : path.posix;

@@ -78,7 +78,7 @@ const WINDOW_HIDDEN_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_WINDOW_HIDDEN';
 const SAVE_DIAGNOSTIC_BUNDLE_SWITCH = '--save-diagnostic-bundle';
 /**
  * How long after startup Main runs `--tend-window-store-v1` so any replaced window version or
- * moved-aside flat executable has finished exiting and released its files.
+ * moved-aside launcher has finished exiting and released its files.
  */
 const WINDOW_STORE_TEND_DELAY_MILLISECONDS = 15_000;
 // Cross-runtime contract: search for `packaged-desktop-resources` before changing these values.

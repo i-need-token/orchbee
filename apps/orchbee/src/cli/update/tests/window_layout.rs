@@ -1,9 +1,10 @@
 //! The window step's arrangement on a scratch store (AU § Moving a flat layout, § Window cleanup): a
-//! running flat window's entry moves aside as `.remove-flat-*.exe` so the active version's launcher
-//! takes its path at once while the flat files stay intact until that window quits; once it quits,
-//! the moved-aside executable and the flat files go, except a flat bundled release directory a
-//! Session still runs from, which goes once that Session ends. Unused window versions, crashed runs'
-//! leftovers and an earlier Setup's `desktop.previous` go meanwhile.
+//! running flat Electron window's entry never moves, so its placement waits and the flat files stay
+//! intact until that window quits; once it quits, the active version's launcher takes the entry and
+//! the flat files go, except a flat bundled release directory a Session still runs from, which goes
+//! once that Session ends. A running launcher moves aside as `.remove-flat-*.exe` so the new
+//! launcher takes its path at once. Unused window versions, crashed runs' leftovers and an earlier
+//! Setup's `desktop.previous` go meanwhile.
 use super::super::{
     running_programs,
     window::{FOLDER, layout},
@@ -119,19 +120,11 @@ fn a_flat_layout_moves_on_once_its_window_quits_and_its_session_ends() {
     assert!(found.iter().any(|process| process.pid == window.0.id()));
 
     layout::tend(&root);
-    assert_eq!(fs::read(&entry).unwrap(), launcher);
-    let current = names(&desktop);
-    let aside = current
-        .iter()
-        .find(|name| name.starts_with(".remove-flat-") && name.ends_with(".exe"))
-        .unwrap()
-        .clone();
-    assert_eq!(fs::read(desktop.join(&aside)).unwrap(), flat_window);
+    assert_eq!(fs::read(&entry).unwrap(), flat_window);
     assert!(desktop.join(r"resources\app.asar").is_file());
     assert_eq!(
-        current,
+        names(&desktop),
         sorted(&[
-            aside.as_str(),
             entry_name.as_str(),
             "active.json",
             "ffmpeg.dll",
@@ -166,4 +159,90 @@ fn a_flat_layout_moves_on_once_its_window_quits_and_its_session_ends() {
     tend_until(&root, || names(&desktop) == arranged);
     assert_eq!(names(&desktop), arranged);
     assert_eq!(fs::read(version.join(&entry_name)).unwrap(), b"window");
+}
+
+/// A flat Electron window's entry runs from `desktop\` with `resources\app.asar` beside it, so it
+/// never moves aside: the launcher waits for that window to quit, and its files stay until then.
+#[test]
+fn a_running_flat_electron_entry_is_never_moved_aside() {
+    let fixture = Fixture::new();
+    let root = fixture.0.join("install");
+    let desktop = root.join(FOLDER);
+    drop(ReleaseStore::acquire(&root).unwrap());
+    let stem = environment_stem();
+    let entry_name = format!("{stem}-desktop.exe");
+    let entry = desktop.join(&entry_name);
+    write(
+        &desktop.join(format!(
+            r"versions\0.2.0\resources\cohort\{stem}-desktop-launcher.exe"
+        )),
+        b"the window launcher",
+    );
+    let mut store = ReleaseStore::acquire(&desktop).unwrap();
+    store
+        .replace_pointer(&Pointer::activate(None, entry_for("0.2.0", b"list")).encode())
+        .unwrap();
+    drop(store);
+    write(&desktop.join(r"resources\app.asar"), b"page");
+    let window = start(&entry);
+    let flat_window = fs::read(&entry).unwrap();
+
+    layout::tend(&root);
+    assert_eq!(fs::read(&entry).unwrap(), flat_window);
+    assert_eq!(
+        names(&desktop),
+        sorted(&[
+            entry_name.as_str(),
+            "active.json",
+            "install.lock",
+            "resources",
+            "versions"
+        ])
+    );
+    assert_eq!(names(&desktop.join("resources")), ["app.asar"]);
+    drop(window);
+}
+
+/// A window launcher, which has no `resources\app.asar` beside it, moves aside while it runs so the
+/// new launcher takes its path at once; the moved-aside copy goes once its process has exited.
+#[test]
+fn a_running_launcher_moves_aside_so_the_new_launcher_takes_its_path() {
+    let fixture = Fixture::new();
+    let root = fixture.0.join("install");
+    let desktop = root.join(FOLDER);
+    drop(ReleaseStore::acquire(&root).unwrap());
+    let stem = environment_stem();
+    let entry_name = format!("{stem}-desktop.exe");
+    let entry = desktop.join(&entry_name);
+    let launcher = b"the new launcher".as_slice();
+    write(
+        &desktop.join(format!(
+            r"versions\0.2.0\resources\cohort\{stem}-desktop-launcher.exe"
+        )),
+        launcher,
+    );
+    let mut store = ReleaseStore::acquire(&desktop).unwrap();
+    store
+        .replace_pointer(&Pointer::activate(None, entry_for("0.2.0", b"list")).encode())
+        .unwrap();
+    drop(store);
+    let running = start(&entry);
+    let old_launcher = fs::read(&entry).unwrap();
+
+    layout::tend(&root);
+    assert_eq!(fs::read(&entry).unwrap(), launcher);
+    let aside = names(&desktop)
+        .into_iter()
+        .find(|name| name.starts_with(".remove-flat-") && name.ends_with(".exe"))
+        .unwrap();
+    assert_eq!(fs::read(desktop.join(&aside)).unwrap(), old_launcher);
+    drop(running);
+    let settled = sorted(&[
+        entry_name.as_str(),
+        "active.json",
+        "install.lock",
+        "versions",
+    ]);
+    tend_until(&root, || names(&desktop) == settled);
+    assert_eq!(names(&desktop), settled);
 }

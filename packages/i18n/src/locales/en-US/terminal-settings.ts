@@ -127,7 +127,8 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.about.updates.failed':
 		"Couldn't check for updates. Try again, or install from orchbee.com—terminals and Agents keep running.",
 	'terminal.settings.page.about.updates.unavailableDevelopment': "Development builds don't update.",
-	'terminal.settings.page.about.updates.unavailableSession': 'Available once the Session updates.',
+	'terminal.settings.page.about.updates.unavailableSession':
+		'Available once the Session updates. Or install from orchbee.com—terminals and Agents keep running.',
 	'terminal.settings.page.about.updates.unavailableInstallation':
 		'Not available for this installation.',
 	'terminal.settings.page.groups.afterRestart': 'After a restart',

@@ -231,7 +231,9 @@ export class DesktopWindowUpdate {
 	/**
 	 * A request for anything but the current offer, or one made while a check or its switch runs, does
 	 * nothing: the offer the page shows follows Main's, and one check answers every click made during
-	 * it.
+	 * it. Changing this (the Update action and its refusal and failure notices) needs a manual
+	 * real-window self-test before merging; its steps are in `apps/desktop/README.md`, Window Update,
+	 * Manual self-test.
 	 */
 	async #request(
 		served: ServedPort,

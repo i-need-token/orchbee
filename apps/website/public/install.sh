@@ -13,7 +13,9 @@
 #    with --version the feed pair of that GitHub release. A platform without a feed is told so in
 #    one sentence, and nothing is downloaded or installed. Verifies the Ed25519 signature over
 #    `orchbee-update-feed-v1\n` and the exact feed bytes against RELEASE_KEYS (with OpenSSL 3 or
-#    Node.js `node:crypto`) before reading the feed or downloading any archive.
+#    Node.js `node:crypto`) before reading the feed or downloading any archive. Without either, it
+#    says in one line that the signature could not be checked and goes on over HTTPS, where the
+#    signed release.json that `orchbee install` verifies still gates the install.
 # 3. Downloads the .tar.gz the feed names, checks its size and SHA-256 against the feed, unpacks
 #    it into a temporary folder and runs its `orchbee install`, which verifies the signed
 #    release.json, activates the version under ~/.local/share/orchbee, links ~/.local/bin/orchbee,
@@ -35,9 +37,10 @@
 #    Gatekeeper prompt a browser download meets.
 # 5. Removes the temporary folder on every exit, interrupted or not.
 #
-# Both the feed signature (here) and the release directory's signed release.json (`orchbee install`)
-# are verified before their contents are trusted, so neither an unsigned feed nor a tampered archive
-# can run or install anything.
+# Where a verifier exists, the feed signature (here) is checked before the feed is trusted, so an
+# unsigned feed is refused, and `orchbee install` then verifies the release directory's signed
+# release.json before its contents are trusted. Without a verifier the script falls back to HTTPS
+# alone, prints a notice, and runs the downloaded `orchbee` unverified.
 # Messages follow LC_ALL, LC_MESSAGES or LANG: zh-CN for any zh value, otherwise en-US.
 #
 # Two variables exist for tests and rehearsals only:
@@ -210,7 +213,9 @@ ob_size() {
 
 # Selects an Ed25519 verifier: first an OpenSSL binary whose `pkeyutl` supports `-rawin` (on macOS,
 # `/usr/bin/openssl` is LibreSSL without `-rawin`, while Homebrew installs keg-only OpenSSL 3), then
-# Node.js >= 18 through built-in `node:crypto`.
+# Node.js >= 18 through built-in `node:crypto`. Finding neither is not fatal: ob_verify_feed says so
+# and goes on over HTTPS, where `orchbee install` still verifies the signed release.json. Returns 1
+# and leaves ob_openssl and ob_node empty when there is none.
 ob_find_verifier() {
 	ob_openssl=''
 	ob_node=''
@@ -228,8 +233,7 @@ ob_find_verifier() {
 		ob_node=$ob_path_node
 		return 0
 	fi
-	ob_fail 'This script needs OpenSSL with Ed25519 support or Node.js >= 18 (on macOS: brew install openssl@3, or install from the .dmg at https://orchbee.com). Nothing was installed.' \
-		'本脚本需要支持 Ed25519 的 OpenSSL 或 Node.js >= 18（macOS 可运行 brew install openssl@3，或使用 https://orchbee.com 的 .dmg 安装包）。未安装任何内容。'
+	return 1
 }
 
 # Writes raw bytes from an even-length lowercase hexadecimal string $1 into file $2 without
@@ -254,13 +258,19 @@ ob_sig_malformed() {
 
 # Verifies $ob_tmp/feed.json.sig over `orchbee-update-feed-v1\n` + $ob_tmp/feed.json against
 # RELEASE_KEYS (and TEST_KEYS only when ORCHBEE_INSTALL_SH_FEED is non-empty) before reading the
-# feed or downloading any archive.
+# feed or downloading any archive. With no verifier it says so in one line and returns, leaving the
+# feed trusted over HTTPS alone; a verifier that finds a bad signature still stops the install.
 ob_verify_feed() {
 	[ -n "$ob_openssl" ] || [ -n "$ob_node" ] || ob_find_verifier
 	ob_feed_bytes=$(ob_size "$ob_tmp/feed.json")
 	if [ -z "$ob_feed_bytes" ] || [ "$ob_feed_bytes" -le 0 ] || [ "$ob_feed_bytes" -gt "$ob_feed_limit" ]; then
 		ob_fail "The feed document at $ob_feed_url exceeds the size bound. Nothing was installed." \
 			"$ob_feed_url 的发布源文档超出大小限制。未安装任何内容。"
+	fi
+	if [ -z "$ob_openssl" ] && [ -z "$ob_node" ]; then
+		ob_say 'The feed signature could not be checked: this machine has neither OpenSSL 3 with Ed25519 support nor Node.js 18 or later. Continuing over HTTPS; orchbee install still verifies the signed release.' \
+			'无法校验发布源签名：这台机器既没有支持 Ed25519 的 OpenSSL 3，也没有 Node.js 18 或更高版本。将通过 HTTPS 继续；orchbee install 仍会校验已签名的发布。'
+		return 0
 	fi
 	ob_sig_bytes=$(ob_size "$ob_tmp/feed.json.sig")
 	if [ -z "$ob_sig_bytes" ] || [ "$ob_sig_bytes" -le 0 ] || [ "$ob_sig_bytes" -gt "$ob_signature_limit" ]; then

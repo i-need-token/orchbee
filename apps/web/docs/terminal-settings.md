@@ -445,17 +445,19 @@ in the TUI's words:
 
 - **Version** shows the version the window runs, which Main states in the document's bootstrap, and
   the build (Release build, Test build, Development build) as its description.
-- **Updates** has one control, except on a failed check where Get installer sits beside Check for
-  updates. While Main offers a newer window version it is the sidebar footer's
-  Update: the same `workbench.client.update` Action, registered in a `WebApplication` scope above
-  the Workbench's so both surfaces reach it, with the footer's tooltip sentence as the
-  description and the same waiting notice; when switching fails or is refused, About shows the same
-  failure notice on Settings' notice line, advising to quit and reopen Orchbee or run
-  `orchbee update`. Otherwise it is Check for updates, which reads
-  “Checking…” and is disabled, without a spinner, while a run is queued or running. When a check
-  fails, the danger description notes that installing the latest version from `orchbee.com` keeps
-  terminals and Agents running, and, where the composition supplies `openExternal`, Get installer
-  opens `https://orchbee.com/#install` in the person's browser.
+- **Updates** has one control, except on a failed check, or on a Session too old to check, where
+  Get installer sits beside Check for updates. While Main offers a newer window version it is the
+  sidebar footer's Update: the same `workbench.client.update` Action, registered in a
+  `WebApplication` scope above the Workbench's so both surfaces reach it, with the footer's tooltip
+  sentence as the description and the same waiting notice; when switching fails or is refused,
+  About shows the same failure notice on Settings' notice line, advising to quit and reopen Orchbee
+  or run `orchbee update`. Otherwise it is Check for updates, which reads “Checking…” and is
+  disabled, without a spinner, while a run is queued or running. When a check fails, the danger
+  description notes that installing the latest version from `orchbee.com` keeps terminals and
+  Agents running, and, where the composition supplies `openExternal`, Get installer opens
+  `https://orchbee.com/#install` in the person's browser. A Session too old to check reads
+  “Available once the Session updates. Or install from orchbee.com—terminals and Agents keep
+  running.” in a neutral tone, with the same Get installer.
 
 Check for updates asks the Session Server to run its scheduled automatic-update job now, through the
 `workbench.update-check` request; the client never starts `orchbee update` itself.

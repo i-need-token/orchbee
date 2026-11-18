@@ -199,10 +199,13 @@ then set `"publish": true` on its row of `RELEASE_PLATFORMS` in `.github/workflo
   the new one, and keep `RELEASE_KEYS` in `apps/orchbee/src/cli/update/signature.rs` and
   `ob_release_keys` in `apps/website/public/install.sh` identical (verified by
   `apps/website/src/website/__tests__/install-script.unit.test.ts`).
-- `apps/website/public/install.sh` requires an Ed25519-capable `openssl` (`pkeyutl -rawin`),
-  fetches `feed.json.sig` beside `feed.json` (bounded to 4096 bytes), and verifies the signature
-  under `orchbee-update-feed-v1` against `ob_release_keys` before reading the feed or downloading
-  any archive; if no trusted key verifies, it exits 1 with nothing installed.
+- `apps/website/public/install.sh` fetches `feed.json.sig` beside `feed.json` (bounded to 4096
+  bytes) and verifies the signature under `orchbee-update-feed-v1` against `ob_release_keys` before
+  reading the feed or downloading any archive, using an Ed25519-capable `openssl` (`pkeyutl -rawin`)
+  or Node.js >= 18. When neither exists, as on a stock Mac (LibreSSL has no `-rawin`), it prints one
+  line saying the signature could not be checked and continues over HTTPS; `orchbee install` still
+  verifies the signed `release.json`. When a verifier exists and no trusted key verifies, it exits 1
+  with nothing installed.
 - Breaking feed or archive formats: `apps/website/public/update/<channel>/` is frozen at
   `schemaVersion: 1`, and `scripts/website-release.mjs` refuses to write any feed whose
   `schemaVersion` is not `1` there. To introduce an incompatible `v2` feed or archive format

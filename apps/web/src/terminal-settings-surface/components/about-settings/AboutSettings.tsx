@@ -95,9 +95,10 @@ export function AboutSettings({ about }: AboutSettingsProps): React.ReactNode {
 		description = intl.formatMessage(updatesDescription(status));
 		tone = statusTone(status);
 		const checking = status.kind === 'checking';
+		const installerOffered = status.kind === 'failed' || isSessionUnavailable(status);
 		control = (
 			<div className={styles['actions']}>
-				{status.kind === 'failed' && about.downloadInstaller !== undefined ? (
+				{installerOffered && about.downloadInstaller !== undefined ? (
 					<Button
 						data-about-download
 						size='sm'
@@ -177,6 +178,11 @@ function updatesDescription(status: TerminalSettingsUpdateCheckStatus): MessageD
 		case 'unavailable':
 			return UNAVAILABLE_DESCRIPTIONS[status.reason];
 	}
+}
+
+/** A Session too old to run checks, like a failed check, leaves installing from orchbee.com open. */
+function isSessionUnavailable(status: TerminalSettingsUpdateCheckStatus): boolean {
+	return status.kind === 'unavailable' && status.reason === 'session';
 }
 
 function statusTone(status: TerminalSettingsUpdateCheckStatus): 'danger' | 'positive' | undefined {

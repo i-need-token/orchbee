@@ -138,6 +138,36 @@ data root's configuration file, as [Desktop data root](docs/data-root.md) descri
 they start keeps its [settings](../../crates/local-runtime/README.md#user-settings) apart from the
 installed release's. A Session already running keeps the configuration it started with.
 
+### Manual self-test
+
+Run these steps on real windows before merging a change to the Update action and its refusal and
+failure notices, the relaunch, the window launcher, or the window store handover. The unit tests
+do not start a real window. Use Test builds: they join the `desktop-test` Session, so the release
+Session is not touched. Keep a terminal with a long-running command open through every step
+(`ping -t 127.0.0.1` on Windows, `sleep 600` on macOS).
+
+1. Install an older Test build and start it. Install a newer Test build without closing the older
+   window: its window version lands in `desktop\versions\<newer>\` (on macOS,
+   `desktop/versions/<newer>/<name>.app`), and `desktop\active.json` names it. The older window's
+   sidebar footer shows Update. On Windows, clear Launch Orchbee on Setup's last page; otherwise
+   the older window moves to the newer version at once and steps 2 to 4 cannot run. On macOS,
+   install the newer build with `orchbee update` or the `--installer-window-v1` install, not with
+   `install.sh --desktop`, which quits the older window first, and not by copying from the `.dmg`,
+   which needs the older app to quit.
+2. Refusal: move the newer version's bundled Client aside (`<stem>.exe` in its
+   `resources\cohort\` folder; on macOS `<stem>` in `Contents/Resources/cohort/`). Press Update and
+   check that the waiting notice appears, the window keeps running, and the terminal is untouched.
+   Move the Client back.
+3. Failure: move the window entry aside (Windows: `desktop\<stem>-desktop.exe`, the file the
+   relaunch starts, which is not the running copy; macOS: `<stem>-desktop-launcher` in the newer
+   version's `Contents/Resources/cohort/`). Press Update and check that the failure notice appears,
+   the window keeps running, and the terminal is untouched. Move the file back.
+4. Success: press Update. The window quits and opens again running the newer version: About's
+   version row shows it, and the terminal and its command still run.
+
+`<stem>` is the build's artifact stem: `orchbee` in a release, `ob-test-` plus 16 hex digits in a
+Test build.
+
 ## Window
 
 - A hidden title bar, with the system's controls drawn over the page. On macOS the traffic lights sit
@@ -464,12 +494,14 @@ An install changes exactly this:
    so a terminal opened afterwards finds the command.
 
 Installing a newer setup over an older one replaces it in place: one Settings entry, one Start menu
-entry, the new window version active, and the new version active in the store. Setup never ends or
-refuses a running Orchbee window when window versions are enabled: a running flat layout's entry
-moves aside as `.remove-flat-<pid>-<n>.exe` so the window launcher takes `desktop\<executable>` at
-once while the flat files wait until that window quits, and launching Orchbee at the end of Setup
-triggers a live window switch when a versioned window is already running; the helper removes no file
-a process runs from, so a Session an earlier window started blocks nothing.
+entry, the new window version active, and the new version active in the store. When window versions
+are enabled, Setup stops before it changes anything while a flat layout's window runs: its
+`resources\app.asar` lies beside `desktop\<executable>`, which is in use, and that window must quit
+first. A running window launcher has no such file beside it and never blocks Setup: its entry moves
+aside as `.remove-flat-<pid>-<n>.exe` so the new launcher takes `desktop\<executable>` at once, and
+launching Orchbee at the end of Setup triggers a live window switch when a versioned window is
+already running; the helper removes no file a process runs from, so a Session an earlier window
+started blocks nothing.
 
 A build whose window updates are still switched off stops instead while any program or library
 below `desktop\` is loaded, and exits with code 7, saying which program to quit. When the bundled cohort's Server,

@@ -3,12 +3,14 @@
 //! `desktop/install.lock`, whatever that step did. On Windows it places the window entry
 //! `desktop\<stem>-desktop.exe`, the path the Start menu shortcut, the taskbar and the uninstall
 //! registration name, as a copy of the active window version's
-//! `resources\cohort\<stem>-desktop-launcher.exe`, renaming a running flat-layout entry aside as
-//! `desktop\.remove-flat-<process>-<number>.exe` so the launcher takes its path at once; once the
-//! entry is placed it removes what a flat layout, which a window before the window self-update
-//! release kept directly in `desktop\`, left there once no process runs from it, and it removes a
-//! `desktop.previous` that an earlier Setup left. On Windows it then removes window versions as
-//! runtime versions go: neither active nor previous, and no process runs from them. On macOS the
+//! `resources\cohort\<stem>-desktop-launcher.exe`. A running window launcher is renamed aside as
+//! `desktop\.remove-flat-<process>-<number>.exe` so the new launcher takes its path at once; a
+//! running flat Electron entry, which has `resources\app.asar` beside it, never moves, and its
+//! placement waits until that window quits. Once the entry is placed it removes what a flat layout,
+//! which a window before the window self-update release kept directly in `desktop\`, left there
+//! once no process runs from it, and it removes a `desktop.previous` that an earlier Setup left.
+//! On Windows it then removes window versions as runtime versions go: neither active nor previous,
+//! and no process runs from them. On macOS the
 //! application bundle the person opens is the entry, which the window launcher backs up and replaces
 //! with a copy of `pointer.active`, so cleanup keeps only `pointer.active` plus any stored version a
 //! process still runs from. Each step is best effort: whatever runs, cannot be told, or is refused
@@ -21,7 +23,9 @@ use std::{fs, path::Path};
 /// Places the entry, moves a flat layout on and removes unused window versions of the window store
 /// below the store root `root`. Without a real `desktop` folder there is no window store, and one is
 /// never created here; without a window pointer there is no active window version yet, so nothing is
-/// placed or removed.
+/// placed or removed. Changing this (the install and handover step) needs a manual real-window
+/// self-test before merging; its steps are in `apps/desktop/README.md`, Window Update, Manual
+/// self-test.
 pub(in crate::cli::update) fn tend(root: &Path) {
     let desktop = root.join(super::FOLDER);
     if !fs::symlink_metadata(&desktop).is_ok_and(|metadata| metadata.is_dir()) {
@@ -94,11 +98,12 @@ mod windows {
     }
 
     /// Makes the entry a byte copy of the active window version's launcher and says whether it is
-    /// one now. A different entry is replaced by renaming a flushed `.new-*` copy over it; when
-    /// Windows refuses because a flat window runs from the entry, the running file moves aside to
-    /// `.remove-flat-<process>-<number>.exe` first (and moves back if the second rename fails) so
-    /// the launcher takes its path at once while the flat files stay until that window quits. A
-    /// version without a launcher places nothing.
+    /// one now. A different entry is replaced by renaming a flushed `.new-*` copy over it. When
+    /// Windows refuses because a running window holds the entry, a launcher moves aside to
+    /// `.remove-flat-<process>-<number>.exe` first (and moves back if the second rename fails), so
+    /// the new launcher takes its path at once. A flat Electron entry never moves: the placement
+    /// waits until that window quits, and the flat files stay intact meanwhile. A version without a
+    /// launcher places nothing.
     fn place_entry(desktop: &Path, active: &str, stem: &str, entry: &str) -> bool {
         let version = desktop.join("versions").join(active);
         let launcher = format!("resources/cohort/{stem}-desktop-launcher.exe");
@@ -118,7 +123,8 @@ mod windows {
         if fs::rename(&copy, &entry).is_ok() {
             return true;
         }
-        if fs::symlink_metadata(&entry).is_ok_and(|metadata| !metadata.is_dir())
+        if !flat_electron_entry(desktop)
+            && fs::symlink_metadata(&entry).is_ok_and(|metadata| !metadata.is_dir())
             && let Some(aside) = move_entry_aside(desktop, &entry)
         {
             if fs::rename(&copy, &entry).is_ok() {
@@ -129,6 +135,12 @@ mod windows {
         }
         let _ = fs::remove_file(&copy);
         false
+    }
+
+    /// Whether the entry is a flat Electron window's executable: `resources\app.asar`, which only a
+    /// flat layout has, lies beside it. Anything at that name counts, so a doubtful entry never moves.
+    fn flat_electron_entry(desktop: &Path) -> bool {
+        fs::symlink_metadata(desktop.join("resources").join("app.asar")).is_ok()
     }
 
     /// Renames a running `entry` to a fresh `desktop\.remove-flat-<process>-<number>.exe`, keeping

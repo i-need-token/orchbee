@@ -66,9 +66,10 @@ impl Locale {
             UpdateCheck::Unavailable(CheckUnavailable::Development) => {
                 ("Development builds don't update.", "开发版不会更新。")
             }
-            UpdateCheck::Unavailable(CheckUnavailable::Session) => {
-                ("Available once the Session updates.", "会话更新后可用。")
-            }
+            UpdateCheck::Unavailable(CheckUnavailable::Session) => (
+                "Available once the Session updates. Or orchbee update; terminals run.",
+                "会话更新后可用。也可运行 orchbee update，终端和 Agent 不断。",
+            ),
             UpdateCheck::Unavailable(CheckUnavailable::Installation) => (
                 "Not available for this installation.",
                 "此安装不支持检查更新。",
