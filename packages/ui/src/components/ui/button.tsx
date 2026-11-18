@@ -8,6 +8,11 @@ const buttonVariants = cva(
 	{
 		variants: {
 			variant: {
+				/*
+				 * Orchbee adaptation: primary buttons use the contrast-gated primary action hover and
+				 * pressed shifts (`--ob-sys-color-action-primary-{hover,pressed}`) rather than flat
+				 * `bg-primary/80` so direction matches `text-inverse` on light and dark primary fills.
+				 */
 				default:
 					'bg-primary text-primary-foreground hover:bg-[var(--ob-sys-color-action-primary-hover)] active:bg-[var(--ob-sys-color-action-primary-pressed)]',
 				outline:
@@ -16,8 +21,13 @@ const buttonVariants = cva(
 					'bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground',
 				ghost:
 					'hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50',
+				/*
+				 * Orchbee adaptation: destructive tint fills match the resolved status-tint steps
+				 * (`10%/15%` light, `15%/20%` dark) through the `--destructive` alias instead of
+				 * upstream's lower-contrast `20%/30%` dark wash.
+				 */
 				destructive:
-					'bg-[var(--ob-sys-color-status-danger-surface)] text-[var(--ob-sys-color-status-danger-text)] hover:bg-[var(--ob-sys-color-status-danger-surface-hover)] hover:text-[var(--ob-sys-color-status-danger-text-hover)] active:text-[var(--ob-sys-color-status-danger-text-pressed)] focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
+					'bg-destructive/10 text-destructive hover:bg-destructive/15 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/15 dark:hover:bg-destructive/20 dark:focus-visible:ring-destructive/40',
 				link: 'text-primary underline-offset-4 hover:underline',
 			},
 			size: {

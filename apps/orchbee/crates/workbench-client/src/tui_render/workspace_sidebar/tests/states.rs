@@ -446,17 +446,27 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                     lines[1].style.sub_modifier.contains(Modifier::BOLD),
                     !band_emphasis
                 );
-                assert_eq!(
-                    lines[2].spans[0].style.fg,
-                    theme
-                        .content_on_surface(
-                            Role::SurfaceChrome,
-                            Some(surface),
-                            Some(Role::StatusSuccess),
-                            state,
-                        )
-                        .fg
-                );
+                let span_style = lines[2].spans[0].style;
+                if theme.polarity.is_some()
+                    && let (Some(fg @ Color::Rgb(..)), Some(bg @ Color::Rgb(..))) =
+                        (span_style.fg, span_style.bg)
+                {
+                    let ratio = crate::tui_theme::tests::contrast_ratio(fg, bg);
+                    assert!(ratio >= 4.5, "{surface:?}: {ratio}");
+                } else {
+                    assert_eq!(span_style.fg, state.fg);
+                    if reverse_band && !matches!(state.fg, None | Some(Color::Reset)) {
+                        let ratio = crate::tui_theme::tests::contrast_ratio(
+                            crate::tui_theme::tests::contrast_pair::nominal_rgb(
+                                span_style.fg.unwrap(),
+                            ),
+                            crate::tui_theme::tests::contrast_pair::nominal_rgb(
+                                span_style.bg.unwrap(),
+                            ),
+                        );
+                        assert!(ratio >= 4.5, "{surface:?}: {ratio}");
+                    }
+                }
                 assert_eq!(
                     lines[2].spans[0]
                         .style

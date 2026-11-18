@@ -1880,4 +1880,4 @@ impl GlyphSetTestAccess for GlyphSet {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

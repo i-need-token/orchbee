@@ -144,6 +144,15 @@ pub struct TabGroups {
 }
 
 impl Roles {
+    /// GUI status fill mix percentages (`rest`, `hover`) over neutral surfaces.
+    #[must_use]
+    pub const fn status_surface_tints(polarity: Polarity) -> (u8, u8) {
+        match polarity {
+            Polarity::Light => (10, 15),
+            Polarity::Dark => (15, 20),
+        }
+    }
+
     /// Resolves every role of `theme` from its declared polarity, canvas, and corrected ANSI values.
     #[must_use]
     pub fn resolve(theme: &Theme) -> Self {
@@ -176,10 +185,7 @@ impl Roles {
             || oklab::mix(background, blue, 0.30),
             crate::PaletteColor::value,
         );
-        let (tint_rest, tint_hover) = match theme.polarity() {
-            Polarity::Light => (10_u8, 15_u8),
-            Polarity::Dark => (15_u8, 20_u8),
-        };
+        let (tint_rest, tint_hover) = Self::status_surface_tints(theme.polarity());
         let resting = [background, chrome, overlay];
         let subtle_over = |base| srgb_composite(foreground, base, 5);
         let gui_alphas = resting.into_iter().flat_map(|base| {

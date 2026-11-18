@@ -9,7 +9,7 @@ use ratatui::{
 
 use super::{ColorLevel, GlyphMode, GlyphSet, Polarity, Role, Theme, quantize_color};
 
-mod contrast_pair;
+pub(crate) mod contrast_pair;
 mod cursor;
 mod source;
 mod terminal_defaults;
@@ -194,7 +194,7 @@ fn relative_luminance(color: Color) -> f64 {
     0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
 }
 
-fn contrast_ratio(foreground: Color, background: Color) -> f64 {
+pub(crate) fn contrast_ratio(foreground: Color, background: Color) -> f64 {
     let foreground = relative_luminance(foreground);
     let background = relative_luminance(background);
     (foreground.max(background) + 0.05) / (foreground.min(background) + 0.05)

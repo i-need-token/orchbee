@@ -84,8 +84,13 @@ function DropdownMenuItem({
 			data-slot='dropdown-menu-item'
 			data-inset={inset}
 			data-variant={variant}
+			/*
+			 * Orchbee adaptation: destructive focus fill uses `15%` in dark mode to match gated
+			 * status-tint floors, and destructive icons use full `text-destructive` instead of `/70`
+			 * so both label and icon meet 4.5:1.
+			 */
 			className={cn(
-				"group/dropdown-menu-item relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7 data-[variant=destructive]:text-[var(--ob-sys-color-status-danger-text)] data-[variant=destructive]:focus:bg-[var(--ob-sys-color-status-danger-surface)] data-[variant=destructive]:focus:text-[var(--ob-sys-color-status-danger-text)] data-disabled:pointer-events-none data-disabled:opacity-50 [&_[data-icon]]:text-muted-foreground focus:[&_[data-icon]]:text-accent-foreground data-[variant=destructive]:[&_[data-icon]]:text-[var(--ob-sys-color-status-danger-text)] data-[variant=destructive]:focus:[&_[data-icon]]:text-[var(--ob-sys-color-status-danger-text)] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 data-[variant=destructive]:*:[svg]:text-[var(--ob-sys-color-status-danger-text)]",
+				"group/dropdown-menu-item relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/15 data-disabled:pointer-events-none data-disabled:opacity-50 [&_[data-icon]]:text-muted-foreground focus:[&_[data-icon]]:text-accent-foreground data-[variant=destructive]:[&_[data-icon]]:text-destructive data-[variant=destructive]:focus:[&_[data-icon]]:text-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 data-[variant=destructive]:*:[svg]:text-destructive",
 				className,
 			)}
 			{...props}

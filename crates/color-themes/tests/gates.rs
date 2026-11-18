@@ -287,32 +287,28 @@ fn gate(theme: &Theme, reference: &Roles) -> Vec<String> {
         contrast(roles.text_inverse, roles.accent_focus),
         4.5,
     );
-    gate_gui_derived_states(&mut findings, theme, &roles, dark);
+    gate_gui_derived_states(&mut findings, &roles, dark);
     gate_selection_hues(&mut findings, &roles, reference);
     findings.failures
 }
 
-fn gate_gui_derived_states(findings: &mut Findings<'_>, theme: &Theme, roles: &Roles, dark: bool) {
-    let _ = theme;
+fn gate_gui_derived_states(findings: &mut Findings<'_>, roles: &Roles, dark: bool) {
     let alpha_over = |base: Rgb, percent: u8| srgb_composite(roles.text_primary, base, percent);
     let white = Rgb::new(255, 255, 255);
     let black = Rgb::new(0, 0, 0);
-    // Match client_files.rs GUI state derivation formulas.
-    let lighter = |color: Rgb| oklab_mix(color, white, 85);
-    let darker = |color: Rgb| oklab_mix(color, black, 85);
     let stronger_text = |color: Rgb| {
-        if dark {
-            oklab_mix(color, white, 85)
-        } else {
-            oklab_mix(color, black, 85)
-        }
+        oklab_mix(
+            color,
+            if dark { white } else { black },
+            super::client_files::GUI_FG_HOVER_KEEP_PERCENT,
+        )
     };
     let pressed_text = |color: Rgb| {
-        if dark {
-            oklab_mix(color, white, 70)
-        } else {
-            oklab_mix(color, black, 72)
-        }
+        oklab_mix(
+            color,
+            if dark { white } else { black },
+            super::client_files::gui_fg_pressed_keep_percent(dark),
+        )
     };
 
     let bases = [
@@ -389,7 +385,7 @@ fn gate_gui_derived_states(findings: &mut Findings<'_>, theme: &Theme, roles: &R
     }
 
     // Status surface tints over canvas, chrome, overlay.
-    let (tint, tint_hover) = if dark { (15, 20) } else { (10, 15) };
+    let (tint, tint_hover) = super::client_files::gui_status_surface_tints(dark);
     let statuses = [
         ("info", roles.status_info),
         ("success", roles.status_success),
@@ -411,7 +407,6 @@ fn gate_gui_derived_states(findings: &mut Findings<'_>, theme: &Theme, roles: &R
     }
 
     // Check base + hover/pressed semantic foregrounds across all derived GUI surfaces.
-    let _ = (lighter, darker);
     let gui_foregrounds: Vec<(String, Rgb, f64)> = [
         ("text-primary".to_owned(), roles.text_primary, 4.5),
         ("text-secondary".to_owned(), roles.text_secondary, 4.5),
@@ -481,11 +476,17 @@ fn gate_gui_derived_states(findings: &mut Findings<'_>, theme: &Theme, roles: &R
         ("action-primary", roles.accent_action),
         (
             "action-primary-hover",
-            action_shift(roles.accent_action, 88),
+            action_shift(
+                roles.accent_action,
+                super::client_files::GUI_ACTION_HOVER_KEEP_PERCENT,
+            ),
         ),
         (
             "action-primary-pressed",
-            action_shift(roles.accent_action, 76),
+            action_shift(
+                roles.accent_action,
+                super::client_files::GUI_ACTION_PRESSED_KEEP_PERCENT,
+            ),
         ),
     ] {
         findings.at_least(

@@ -33,6 +33,29 @@ const TERMINAL_HEADER: &str = "\
 import type { TerminalColorTheme, TerminalColorThemePair } from './terminal-color-theme';
 ";
 
+/// Generator constants shared with the derived-state contrast gate so a mix change updates both.
+pub(crate) const GUI_FG_HOVER_KEEP_PERCENT: u8 = 85;
+pub(crate) const GUI_FG_PRESSED_KEEP_PERCENT_DARK: u8 = 70;
+pub(crate) const GUI_FG_PRESSED_KEEP_PERCENT_LIGHT: u8 = 72;
+pub(crate) const GUI_ACTION_HOVER_KEEP_PERCENT: u8 = 88;
+pub(crate) const GUI_ACTION_PRESSED_KEEP_PERCENT: u8 = 76;
+
+pub(crate) const fn gui_fg_pressed_keep_percent(dark: bool) -> u8 {
+    if dark {
+        GUI_FG_PRESSED_KEEP_PERCENT_DARK
+    } else {
+        GUI_FG_PRESSED_KEEP_PERCENT_LIGHT
+    }
+}
+
+pub(crate) const fn gui_status_surface_tints(dark: bool) -> (u8, u8) {
+    Roles::status_surface_tints(if dark {
+        Polarity::Dark
+    } else {
+        Polarity::Light
+    })
+}
+
 const ANSI_KEYS: [&str; 16] = [
     "black",
     "red",
@@ -199,8 +222,8 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
             toward(color, percent, "black")
         }
     };
-    let hover_fg = |color: Rgb| stronger(color, 85);
-    let pressed_fg = |color: Rgb| stronger(color, if dark { 70 } else { 72 });
+    let hover_fg = |color: Rgb| stronger(color, GUI_FG_HOVER_KEEP_PERCENT);
+    let pressed_fg = |color: Rgb| stronger(color, gui_fg_pressed_keep_percent(dark));
     let chrome = roles.surface_chrome.to_string();
     let canvas = roles.surface_canvas.to_string();
     let inverse = roles.text_inverse.to_string();
@@ -224,7 +247,7 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
     };
     let on_action = roles.text_inverse.to_string();
     let (thumb, thumb_hover, thumb_pressed) = if dark { (28, 40, 52) } else { (40, 52, 64) };
-    let (tint, tint_hover) = if dark { (15, 20) } else { (10, 15) };
+    let (tint, tint_hover) = gui_status_surface_tints(dark);
     let mut colors: Vec<(String, String)> = [
         ("brand-accent", fixed("amber-400", "amber-300")),
         ("brand-accent-hover", fixed("amber-300", "amber-200")),
@@ -280,8 +303,14 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
             fixed("overlay-scrollbar-gray", "overlay-scrollbar-gray"),
         ),
         ("action-primary", action.to_string()),
-        ("action-primary-hover", action_shift(88)),
-        ("action-primary-pressed", action_shift(76)),
+        (
+            "action-primary-hover",
+            action_shift(GUI_ACTION_HOVER_KEEP_PERCENT),
+        ),
+        (
+            "action-primary-pressed",
+            action_shift(GUI_ACTION_PRESSED_KEEP_PERCENT),
+        ),
         ("action-primary-text", on_action),
         ("action-secondary", roles.surface_hover.to_string()),
         ("action-secondary-hover", roles.surface_current.to_string()),

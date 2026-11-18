@@ -2,7 +2,7 @@ use super::*;
 
 // Reference xterm palette values are an independent contrast oracle. An actual host may customize
 // these slots, so real-host acceptance remains required in addition to this nominal-palette proof.
-fn nominal_rgb(color: Color) -> Color {
+pub(crate) fn nominal_rgb(color: Color) -> Color {
     let indexed = match color {
         Color::Rgb(..) => return color,
         Color::Indexed(index) => index,

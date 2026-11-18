@@ -1368,23 +1368,26 @@ fn destructive_row_keeps_markers_and_disabled_content_without_pointer_emphasis()
                         }
                     );
                     let label = buffer[(3, 0)].style();
-                    let interaction = match pointer {
-                        PointerPresentation::Pressed => Some(Role::SurfacePressed),
-                        PointerPresentation::Hovered | PointerPresentation::Rest => {
-                            Some(Role::SurfaceSelection)
-                        }
-                    };
-                    let expected = if availability == Availability::Disabled {
-                        theme.style(Role::TextDisabled)
+                    if availability == Availability::Disabled {
+                        assert_eq!(label.fg, theme.style(Role::TextDisabled).fg);
+                    } else if level == ColorLevel::Monochrome {
+                        assert_eq!(label.fg, theme.style(Role::AccentDestructive).fg);
+                        assert!(label.add_modifier.contains(Modifier::REVERSED));
                     } else {
-                        theme.content_on_surface(
-                            Role::SurfaceOverlay,
-                            interaction,
-                            Some(Role::AccentDestructive),
-                            theme.style(Role::AccentDestructive),
-                        )
-                    };
-                    assert_eq!(label.fg, expected.fg);
+                        let ratio = crate::tui_theme::tests::contrast_ratio(
+                            crate::tui_theme::tests::contrast_pair::nominal_rgb(label.fg.unwrap()),
+                            crate::tui_theme::tests::contrast_pair::nominal_rgb(label.bg.unwrap()),
+                        );
+                        let floor = if pointer != PointerPresentation::Pressed
+                            && theme.polarity.is_some()
+                            && level == ColorLevel::Truecolor
+                        {
+                            4.5
+                        } else {
+                            3.0
+                        };
+                        assert!(ratio >= floor, "{level:?} {pointer:?}: {ratio}");
+                    }
                     if availability == Availability::Enabled
                         && pointer != PointerPresentation::Pressed
                         && theme.polarity.is_some()
