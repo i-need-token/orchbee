@@ -81,7 +81,6 @@ export const designTokenNames = [
 	'--ob-comp-tab-strip-shadow-scroll-leading',
 	'--ob-comp-tab-strip-shadow-scroll-trailing',
 	'--ob-comp-tab-strip-tab-icon-surface',
-	'--ob-comp-tab-strip-track-overlay',
 	'--ob-comp-tab-strip-viewport-block-size',
 	'--ob-comp-website-terminal-ansi-0',
 	'--ob-comp-website-terminal-ansi-1',

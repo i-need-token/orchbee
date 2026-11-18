@@ -924,7 +924,6 @@
 	--ob-comp-tab-strip-group-color: var(--ob-sys-color-data-3);
 	--ob-comp-tab-strip-group-foreground: var(--ob-sys-color-text-inverse);
 	--ob-comp-tab-strip-group-option-color: var(--ob-sys-color-data-3);
-	--ob-comp-tab-strip-track-overlay: var(--ob-sys-color-surface-subtle);
 	--ob-comp-tab-strip-tab-icon-surface: var(--ob-sys-color-surface-raised);
 	--ob-comp-tab-strip-alert-fade-duration: var(--ob-sys-motion-duration-tab-strip-layout);
 	--ob-comp-tab-strip-bottom-inset-block: var(--ob-ref-space-0);

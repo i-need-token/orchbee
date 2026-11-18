@@ -170,10 +170,14 @@ button.statusNoticeText {
 	cursor: col-resize;
 }
 
-.resizeHandle::after {
+/* Keep shadcn's `after:left-1/2` + `after:-translate-x-1/2` centering and widen `::after` to 17 px to match `WORKBENCH_RESIZE_TARGET_SIZE_PX.fine`. */
+.resizeHandle[data-slot='resizable-handle']::after {
 	position: absolute;
 	inset-block: 0;
-	inset-inline: calc(var(--ob-ref-space-1) * -1);
+	left: 50%;
+	right: auto;
+	width: calc(var(--ob-ref-space-2) * 2 + var(--ob-ref-border-width-default));
+	height: auto;
 	content: '';
 }
 

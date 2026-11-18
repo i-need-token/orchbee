@@ -61,6 +61,7 @@ import type { WorkbenchWorkspaceLocationSource } from './types/workbench-workspa
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 import { workbenchEnvironmentMarkerView } from './model/workbenchEnvironmentMarkerView';
+import { WORKBENCH_RESIZE_TARGET_SIZE_PX } from './model/workbench-resize-target';
 import type { WorkbenchEnvironmentMarker } from './types/workbench-environment-marker';
 import {
 	defaultWorkbenchShortcutBindings,
@@ -492,6 +493,7 @@ export function Workbench({
 					disableCursor
 					onLayoutChanged={view.onLayoutChanged}
 					orientation='horizontal'
+					resizeTargetMinimumSize={WORKBENCH_RESIZE_TARGET_SIZE_PX}
 				>
 					{view.sidebarPresentation === 'docked' && (
 						<>

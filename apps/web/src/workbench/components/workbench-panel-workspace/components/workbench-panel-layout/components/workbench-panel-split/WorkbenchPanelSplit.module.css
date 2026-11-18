@@ -11,16 +11,38 @@
 	background: var(--ob-sys-color-border-default);
 }
 
+/* Keep shadcn's `-translate-x-1/2` / `-translate-y-1/2` centering and widen `::after` to 17 px on both split axes to match `PANEL_RESIZE_TARGET_SIZE_PX.fine`. */
+.separator[data-slot='resizable-handle']::after {
+	position: absolute;
+	content: '';
+}
+
 .separator[aria-orientation='vertical'] {
 	cursor: col-resize;
+}
+
+.separator[data-slot='resizable-handle'][aria-orientation='vertical']::after {
+	inset-block: 0;
+	left: 50%;
+	right: auto;
+	width: calc(var(--ob-ref-space-2) * 2 + var(--ob-ref-border-width-default));
+	height: auto;
 }
 
 .separator[aria-orientation='horizontal'] {
 	cursor: row-resize;
 }
 
+.separator[data-slot='resizable-handle'][aria-orientation='horizontal']::after {
+	inset-inline: 0;
+	top: 50%;
+	bottom: auto;
+	width: auto;
+	height: calc(var(--ob-ref-space-2) * 2 + var(--ob-ref-border-width-default));
+}
+
 .separator:hover,
 .separator[data-separator='hover'],
 .separator[data-separator='active'] {
-	background: var(--ob-sys-color-border-default);
+	background: var(--ob-sys-color-border-strong);
 }
