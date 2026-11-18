@@ -204,7 +204,8 @@ second line: its Git branch, or without one its folder's name. A location never 
 directory: the folder reads as its last name, such as `Desktop`, a local home folder itself as `~`,
 and only a drive or file-system root keeps its own spelling. A branch that equals the Workspace
 name, as a Worktree's Workspace named after its branch has, gives the line to the folder's name
-instead. The folder's name repeats even when it equals the Workspace name, so every row keeps its
+instead; a configured `branch` row leaves such a branch out, so the word appears once. The folder's
+name repeats even when it equals the Workspace name, so every row keeps its
 height when Git settles. The folder is the first
 terminal's current directory, otherwise the Workspace's own directory; see
 [automatic Workspace names](native-location-labels.md#automatic-workspace-names). The branch is

@@ -176,15 +176,16 @@ impl<'a> Context<'a> {
     fn branch(&self) -> Option<&'a str> {
         self.git()?.branch.as_deref()
     }
-    /// The branch a location line shows: none when it repeats the Workspace's name, as a worktree
-    /// named after its branch does, so the line gives the folder instead.
-    fn location_branch(&self) -> Option<&'a str> {
+    /// The branch a branch or location line shows: none when it repeats the Workspace's name, as a
+    /// worktree named after its branch does, so the word appears once. A location line then gives
+    /// the folder instead.
+    fn distinct_branch(&self) -> Option<&'a str> {
         let name = self.value(Kind::Workspace).map(str::trim);
         self.branch().filter(|branch| Some(branch.trim()) != name)
     }
     /// Branch text is a name, while a folder location is a path.
     fn shows_branch(&self, kind: Kind<'_>) -> bool {
-        kind == Kind::Branch || kind == Kind::Location && self.location_branch().is_some()
+        kind == Kind::Branch || kind == Kind::Location && self.distinct_branch().is_some()
     }
     /// A continuation line appears only once one of its tokens has a visible value; pending
     /// metadata reserves no blank row, so a non-repository Workspace never shrinks after Git settles.
@@ -217,8 +218,8 @@ impl<'a> Context<'a> {
                     })
                     .unwrap_or(self.no_workspace),
             ),
-            Kind::Branch => self.branch(),
-            Kind::Location => self.location_branch().or(self.folder.as_deref()),
+            Kind::Branch => self.distinct_branch(),
+            Kind::Location => self.distinct_branch().or(self.folder.as_deref()),
             Kind::Custom(key) => self
                 .observed?
                 .tokens

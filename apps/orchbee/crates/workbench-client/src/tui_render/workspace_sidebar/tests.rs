@@ -928,6 +928,67 @@ fn a_branch_that_repeats_the_workspace_name_gives_the_location_line_to_the_folde
     );
 }
 
+/// A `branch` row that repeats the Workspace name paints nothing, because the name line above it
+/// already shows that word; a different branch still paints its own line.
+#[test]
+fn a_branch_row_that_repeats_the_workspace_name_paints_nothing() {
+    fn paint_worktrees(branch: &str, layout: serde_json::Value) -> Vec<String> {
+        let mut view = view(120, 40);
+        configure(&mut view, layout, 0);
+        let rows = view
+            .machines
+            .space_rows()
+            .iter()
+            .map(|r| {
+                let mut observed = view.machines.space_checkpoint_row(r).unwrap().clone();
+                observed.label = Some("fix-checkout".into());
+                observed.git.as_mut().unwrap().branch = Some(branch.into());
+                observed
+            })
+            .collect::<Vec<_>>();
+        view.machines.observe_local(
+            rows.iter()
+                .map(|r| NavigationContext {
+                    target: r.target.clone(),
+                    project_id: r.project_id.clone(),
+                    project: Some("Repo".into()),
+                    workspace: r.label.clone(),
+                })
+                .collect(),
+        );
+        view.machines.observe_spaces(vec![(
+            Choice::Local,
+            crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
+                crate::machine_spaces::Checkpoint {
+                    session_id: SessionId::parse(&id(1)).unwrap(),
+                    revision: WorkbenchRevision::new(1),
+                    metadata_revision: WorkbenchRevision::new(2),
+                    git_requested: true,
+                    known_git: Vec::new().into(),
+                    projects: vec![crate::machine_spaces::ProjectSummary {
+                        project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
+                        label: "Repo".into(),
+                    }]
+                    .into(),
+                    rows: rows.into(),
+                },
+            )),
+        )]);
+        paint(&view, Locale::EnUs, &Theme::rgb_test_dark(), 120, 40).0
+    }
+    let name_only = paint_worktrees("fix-checkout", serde_json::json!([[token("workspace")]]));
+    let repeated = paint_worktrees(
+        "fix-checkout",
+        serde_json::json!([[token("workspace")], [token("branch")]]),
+    );
+    let distinct = paint_worktrees(
+        "feature/checkout",
+        serde_json::json!([[token("workspace")], [token("branch")]]),
+    );
+    assert_eq!(repeated, name_only);
+    assert_ne!(distinct, name_only);
+}
+
 #[test]
 fn cut_names_give_their_whole_text_only_when_cut_and_each_cut_line_its_own() {
     use crate::tui_layout::SidebarWidth;
