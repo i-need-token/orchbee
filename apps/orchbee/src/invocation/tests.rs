@@ -6299,11 +6299,50 @@ fn agent_panel_selectors_are_exclusive_and_preserve_following_operands() {
     }
     for words in [
         vec!["agent", "prompt", "--panel", panel, "literal"],
+        vec![
+            "agent",
+            "prompt",
+            "--terminal",
+            "@terminal:0x33333333333333333333333333333333",
+            "literal",
+        ],
         vec!["agent", "send-keys", "--panel", panel, "enter"],
+        vec![
+            "agent",
+            "send-keys",
+            "--terminal",
+            "@terminal:0x33333333333333333333333333333333",
+            "enter",
+        ],
         vec!["agent", "rename", "--panel", panel, "alpha"],
         vec!["agent", "rename", "--panel", panel, "--clear"],
     ] {
         assert!(parse_request(words.into_iter().map(OsString::from)).is_ok());
+    }
+    for words in [
+        vec![
+            "agent",
+            "prompt",
+            "--terminal",
+            "@terminal:0x33333333333333333333333333333333",
+            "--panel",
+            panel,
+            "literal",
+        ],
+        vec![
+            "agent",
+            "send-keys",
+            "--terminal",
+            "@terminal:0x33333333333333333333333333333333",
+            "--name",
+            "alpha",
+            "enter",
+        ],
+    ] {
+        assert!(
+            parse_request(words.iter().map(OsString::from)).is_err(),
+            "{words:?}"
+        );
     }
 }
 

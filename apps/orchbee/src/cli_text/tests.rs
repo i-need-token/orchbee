@@ -569,3 +569,43 @@ fn a_workspace_create_that_applied_nothing_never_says_incomplete() {
         assert!(!unknown.contains(not_created), "{locale:?}: {unknown}");
     }
 }
+
+#[test]
+fn terminal_agent_rejections_preserve_terminal_diagnostics_in_both_locales() {
+    use crate::cli::{Failure, FailureKind, failure_output, stage_reason_details};
+    use crate::invocation::OutputFormat;
+
+    for (locale, forbidden) in [
+        (Locale::EnUs, &["agent list cursor", "local session"][..]),
+        (Locale::ZhCn, &["列表游标", "本地会话"][..]),
+    ] {
+        for (reason, expects_process_hint) in [
+            ("agent-identity-unknown", true),
+            ("agent-provider-unsupported", true),
+            ("agent-not-running", true),
+            ("cursor-invalid", false),
+        ] {
+            let failure = Failure::new(FailureKind::Rejected)
+                .failure_schema(crate::invocation::grammar::schemas::AGENT_FAILURE_ID)
+                .details(stage_reason_details("agent-terminal", reason));
+            let text = CliText::new(locale).cli_failure(&failure);
+            for term in forbidden {
+                assert!(!text.contains(term), "{locale:?} {reason}: {text}");
+            }
+            let rendered = failure_output(failure, Some(OutputFormat::Text), locale);
+            assert_eq!(
+                rendered.stderr.contains("panel process-info"),
+                expects_process_hint,
+                "{locale:?} {reason}: {}",
+                rendered.stderr
+            );
+            for term in forbidden {
+                assert!(
+                    !rendered.stderr.contains(term),
+                    "{locale:?} {reason}: {}",
+                    rendered.stderr
+                );
+            }
+        }
+    }
+}

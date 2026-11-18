@@ -242,6 +242,7 @@ pub(super) fn resolve_words(
                 options.name.is_none()
                     && options.agent_session.is_none()
                     && options.panel.is_none()
+                    && options.terminal.is_none()
                     && !rest.is_empty(),
             );
             let target = agent_selector(&rest[..selector_len], options, context, envelope)?;
@@ -302,6 +303,7 @@ pub(super) fn resolve_words(
                 options.name.is_none()
                     && options.agent_session.is_none()
                     && options.panel.is_none()
+                    && options.terminal.is_none()
                     && !rest.is_empty(),
             );
             let target = agent_selector(&rest[..selector_len], options, context, envelope)?;

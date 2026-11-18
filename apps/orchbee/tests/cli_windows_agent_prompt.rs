@@ -909,3 +909,293 @@ fn prompt_refuses_pending_startup_and_failed_management_reads_before_any_input()
         assert!(doc["failure"]["details"].get("submission").is_none());
     }
 }
+
+#[test]
+fn terminal_observed_antigravity_accepts_all_selectors_and_reports_identity_unknown_honestly() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    let binding = json!({
+        "presentationId": "11111111111111111111111111111111",
+        "generation": "11111111111111111111111111111111",
+        "hostEpoch": "66666666666666666666666666666666",
+        "hostTerminalId": "77777777777777777777777777777777",
+    });
+    fn snapshot_only_reply(stream: &mut LocalStream) {
+        use orchbee_workbench_protocol::*;
+        let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap()
+        else {
+            panic!("snapshot read")
+        };
+        write_workbench_response(
+            stream,
+            &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                outcome: WorkbenchSnapshotOutcome::Available {
+                    snapshot: bound_snapshot(9),
+                },
+            }),
+        )
+        .unwrap();
+    }
+    fn reply_terminal_resolve(stream: &mut LocalStream, binding: &Value) {
+        use orchbee_agent_observation_protocol::{
+            AgentRequest, AgentResult, read_agent_request, write_agent_result,
+        };
+        let AgentRequest::Names(request) = read_agent_request(stream).unwrap() else {
+            panic!("resolve projected terminal target")
+        };
+        write_agent_result(
+            stream,
+            &AgentResult::Names(
+                serde_json::from_value(json!({
+                    "kind": "agent.session.resolve.result",
+                    "requestId": request.request_id(),
+                    "result": {"outcome": {
+                        "kind": "resolved-target",
+                        "resolvedBy": "presentation",
+                        "target": {"kind": "terminal", "binding": binding},
+                    }},
+                }))
+                .unwrap(),
+            ),
+        )
+        .unwrap();
+    }
+    fn reply_terminal_observe(
+        stream: &mut LocalStream,
+        binding: &Value,
+        after_sequence: Option<&str>,
+    ) {
+        use orchbee_workbench_protocol::*;
+        let WorkbenchRequest::PanelAgent(request) = read_workbench_request(stream).unwrap() else {
+            panic!("terminal observation")
+        };
+        assert_eq!(
+            json!(request.action),
+            json!({"kind": "observe", "binding": binding, "afterSequence": after_sequence})
+        );
+        write_workbench_response(
+            stream,
+            &WorkbenchResponse::PanelAgent(PanelAgentResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                session_id: request.session_id,
+                outcome: PanelAgentOutcome::Observed {
+                    workbench_revision: WorkbenchRevision::new(9),
+                    report_revision: WorkbenchRevision::new(7),
+                    observation: Box::new(
+                        serde_json::from_value(json!({
+                            "binding": binding,
+                            "sequence": "4",
+                            "changes": [],
+                            "view": {
+                                "agent": "agy",
+                                "state": "idle",
+                                "authoritySource": null,
+                                "message": null,
+                            },
+                        }))
+                        .unwrap(),
+                    ),
+                },
+            }),
+        )
+        .unwrap();
+    }
+
+    for (case, args) in [
+        (
+            "panel",
+            vec![
+                "agent",
+                "prompt",
+                "--panel",
+                "@panel:0x22222222222222222222222222222222",
+                "fix it",
+                "--format",
+                "json",
+            ],
+        ),
+        (
+            "terminal",
+            vec![
+                "agent",
+                "prompt",
+                "--terminal",
+                "@terminal:0x33333333333333333333333333333333",
+                "fix it",
+                "--format",
+                "json",
+            ],
+        ),
+        (
+            "ordinal",
+            vec!["agent", "prompt", "@agent:1", "fix it", "--format", "json"],
+        ),
+        (
+            "provider",
+            vec![
+                "agent",
+                "prompt",
+                "@agent:antigravity",
+                "fix it",
+                "--format",
+                "json",
+            ],
+        ),
+        (
+            "unclassified",
+            vec![
+                "agent",
+                "prompt",
+                "--terminal",
+                "@terminal:0x33333333333333333333333333333333",
+                "fix it",
+                "--format",
+                "json",
+            ],
+        ),
+    ] {
+        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+        let test_binding = binding.clone();
+        let handler = peer(&fixture, listener, move |mut stream| {
+            let projection = AgentProjectionFixture::canonical(bound_snapshot(9), 1, &[])
+                .with_state(
+                    "11111111111111111111111111111111",
+                    Some(peer_support::terminal_agent_state(
+                        "11111111111111111111111111111111",
+                        "11111111111111111111111111111111",
+                        "66666666666666666666666666666666",
+                        "77777777777777777777777777777777",
+                        Some("agy"),
+                        "idle",
+                    )),
+                );
+            bound_snapshot_reply(&mut stream);
+            projection.read(&mut stream, false);
+            reply_terminal_resolve(&mut stream, &test_binding);
+            snapshot_only_reply(&mut stream);
+            reply_terminal_observe(&mut stream, &test_binding, None);
+            projection.read(&mut stream, false);
+            reply_terminal_resolve(&mut stream, &test_binding);
+            let mut agy = process(20, Some(10), "agy.exe");
+            agy.command_line = Some(if case == "unclassified" {
+                "agy.exe --unlisted-flag".into()
+            } else {
+                "agy.exe --model gemini-2.5-pro -c --dangerously-skip-permissions --effort high"
+                    .into()
+            });
+            process_reply_identified(&mut stream, vec![process(10, None, "cmd.exe"), agy]);
+            if case == "unclassified" {
+                assert_closed(&mut stream);
+                return;
+            }
+            snapshot_only_reply(&mut stream);
+            reply_terminal_observe(&mut stream, &test_binding, Some("4"));
+            projection.read(&mut stream, false);
+            reply_terminal_resolve(&mut stream, &test_binding);
+            accept_prompt(&mut stream, "fix it");
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&args);
+        handler.join().unwrap();
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        if case == "unclassified" {
+            assert_eq!(output.status.code(), Some(3), "{doc}");
+            validate(
+                &doc,
+                include_str!("../src/cli/schemas/orchbee.cli.failure.agent.json"),
+            );
+            assert_eq!(doc["failure"]["details"]["stage"], "agent-terminal");
+            assert_eq!(
+                doc["failure"]["details"]["reason"],
+                "agent-identity-unknown"
+            );
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(stderr.contains("panel process-info"), "{stderr}");
+            assert!(!stderr.contains("agent list cursor"), "{stderr}");
+            assert!(!stderr.contains("local session"), "{stderr}");
+        } else {
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{case}: {doc} stderr={}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            validate(
+                &doc,
+                include_str!("../src/cli/schemas/orchbee.agent.prompt.json"),
+            );
+            assert_eq!(doc["result"]["target"]["kind"], "terminal");
+            assert_eq!(
+                doc["result"]["submission"]["result"]["terminalId"],
+                "33333333333333333333333333333333"
+            );
+        }
+    }
+
+    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+    let handler = peer(&fixture, listener, move |mut stream| {
+        bound_snapshot_reply(&mut stream);
+        AgentProjectionFixture::canonical(bound_snapshot(9), 1, &[])
+            .with_state(
+                "11111111111111111111111111111111",
+                Some(peer_support::terminal_agent_state(
+                    "11111111111111111111111111111111",
+                    "11111111111111111111111111111111",
+                    "66666666666666666666666666666666",
+                    "77777777777777777777777777777777",
+                    Some("agy"),
+                    "idle",
+                )),
+            )
+            .read(&mut stream, false);
+        reply_terminal_resolve(&mut stream, &binding);
+        reply_terminal_resolve(&mut stream, &binding);
+        let ClientMessage::TerminalSend(request) = read_client_message(&mut stream).unwrap() else {
+            panic!("terminal send-keys")
+        };
+        assert_eq!(
+            request.terminal_id().as_str(),
+            "33333333333333333333333333333333"
+        );
+        let target = SendTarget::new(
+            std::num::NonZeroU64::MIN,
+            HostEpoch::parse("66666666666666666666666666666666").unwrap(),
+            HostTerminalId::parse("77777777777777777777777777777777").unwrap(),
+        );
+        write_server_message(
+            &mut stream,
+            &ServerMessage::TerminalSendResult(
+                TerminalSendResult::new(
+                    request.request_id().clone(),
+                    Some(target),
+                    TerminalSendOutcome::Accepted {
+                        progress: SendProgress::complete(1, 1),
+                        cleanup: SendCleanupStatus::Confirmed,
+                    },
+                )
+                .unwrap(),
+            ),
+        )
+        .unwrap();
+        assert_closed(&mut stream);
+    });
+    let output = fixture.run(&[
+        "agent",
+        "send-keys",
+        "--terminal",
+        "@terminal:0x33333333333333333333333333333333",
+        "enter",
+        "--format",
+        "json",
+    ]);
+    handler.join().unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

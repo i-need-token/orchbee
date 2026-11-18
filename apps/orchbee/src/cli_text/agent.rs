@@ -435,12 +435,42 @@ impl super::CliText {
                 Locale::ZhCn => "本地会话拒绝了本次智能体读取。\n".to_owned(),
             },
             FailureKind::Rejected => {
+                let stage = failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("stage"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("");
                 let reason = failure
                     .details
                     .as_ref()
                     .and_then(|details| details.get("reason"))
                     .and_then(|value| value.as_str())
                     .unwrap_or("");
+                if stage == "agent-terminal" {
+                    return match (self.locale, reason) {
+                        (Locale::EnUs, "history-lost" | "cursor-invalid" | "revision-ahead") => {
+                            format!(
+                                "The terminal Agent observation rejected the cursor or fence ({reason}).\n"
+                            )
+                        }
+                        (Locale::ZhCn, "history-lost" | "cursor-invalid" | "revision-ahead") => {
+                            format!("终端智能体观测拒绝了游标或栅栏（{reason}）。\n")
+                        }
+                        (Locale::EnUs, "canonical-condition-required") => {
+                            "This wait condition requires a canonical Agent session.\n".to_owned()
+                        }
+                        (Locale::ZhCn, "canonical-condition-required") => {
+                            "该等待条件需要规范的智能体会话。\n".to_owned()
+                        }
+                        (Locale::EnUs, _) => {
+                            format!("The terminal Agent rejected the request ({reason}).\n")
+                        }
+                        (Locale::ZhCn, _) => {
+                            format!("终端智能体拒绝了请求（{reason}）。\n")
+                        }
+                    };
+                }
                 match self.locale {
                     Locale::EnUs => {
                         format!("The local session rejected the agent list cursor ({reason}).\n")

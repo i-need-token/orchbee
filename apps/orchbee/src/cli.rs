@@ -238,7 +238,14 @@ pub(crate) fn failure_output(
 ) -> Output {
     let status = failure.kind.exit_code();
     let mut stderr = CliText::new(locale).cli_failure(&failure);
-    if failure.failure_schema == Some("orchbee.cli.failure.agent-runtime")
+    let stage = failure
+        .details
+        .as_ref()
+        .and_then(|details| details.get("stage"))
+        .and_then(Value::as_str);
+    if (failure.failure_schema == Some("orchbee.cli.failure.agent-runtime")
+        || (failure.failure_schema == Some(schema::AGENT_FAILURE_ID)
+            && stage == Some("agent-terminal")))
         && let Some(hint) = failure
             .details
             .as_ref()
