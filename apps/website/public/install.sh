@@ -9,8 +9,11 @@
 #    linux-aarch64. A shell under Rosetta on Apple silicon still installs macos-aarch64.
 #    On a Mac older than macOS 13 it stops here, before anything is downloaded.
 # 2. Reads that platform's feed document, https://orchbee.com/update/stable/<platform>/feed.json,
-#    or with --version the feed asset of that GitHub release. A platform without a feed is told so
-#    in one sentence, and nothing is downloaded or installed.
+#    and its detached signature, https://orchbee.com/update/stable/<platform>/feed.json.sig, or
+#    with --version the feed pair of that GitHub release. A platform without a feed is told so in
+#    one sentence, and nothing is downloaded or installed. Verifies the Ed25519 signature over
+#    `orchbee-update-feed-v1\n` and the exact feed bytes against RELEASE_KEYS before reading the
+#    feed or downloading any archive.
 # 3. Downloads the .tar.gz the feed names, checks its size and SHA-256 against the feed, unpacks
 #    it into a temporary folder and runs its `orchbee install`, which verifies the signed
 #    release.json, activates the version under ~/.local/share/orchbee, links ~/.local/bin/orchbee,
@@ -28,14 +31,16 @@
 #    browser download meets.
 # 5. Removes the temporary folder on every exit, interrupted or not.
 #
-# The feed signature is not checked here: `orchbee install` verifies the release directory's
-# signed release.json against the keys compiled into it, so a tampered archive installs nothing.
+# Both the feed signature (here) and the release directory's signed release.json (`orchbee install`)
+# are verified before their contents are trusted, so neither an unsigned feed nor a tampered archive
+# can run or install anything.
 # Messages follow LC_ALL, LC_MESSAGES or LANG: zh-CN for any zh value, otherwise en-US.
 #
 # Two variables exist for tests and rehearsals only:
 #   ORCHBEE_INSTALL_SH_FEED          the feed document address in place of orchbee.com's: HTTPS,
 #                                    http://127.0.0.1:<port>/…, or file:///…; only with it may the
-#                                    feed name its archive by a path relative to the feed
+#                                    feed name its archive by a path relative to the feed or verify
+#                                    with TEST_KEYS
 #   ORCHBEE_INSTALL_SH_APPLICATIONS  the absolute folder --desktop copies the application into
 #
 # Exit codes: 0 installed; 1 nothing or not everything was installed, with the reason; 2 malformed
@@ -47,9 +52,20 @@
 ob_feed_root='https://orchbee.com/update/stable'
 ob_release_root='https://github.com/i-need-token/orchbee/releases/download'
 ob_feed_limit=65536
+ob_signature_limit=4096
 ob_archive_limit=1073741824
 
+# Compiled Ed25519 public keys from apps/orchbee/src/cli/update/signature.rs.
+ob_release_keys='
+16bcd2b392d5427892787568853a7ff2d2e40393761c25f187823f2818ec1497
+16bf2794f79721de5621c2f0d3c23afc96bc91d5183bfaef71b26bae93c14839
+'
+ob_test_keys='
+02c5eb6b1228c0f555fabd1295d89777920595bae4cfe384f28c4b57edff3518
+'
+
 ob_zh=0
+ob_openssl=''
 ob_tmp=''
 ob_staged=''
 ob_previous=''
@@ -176,6 +192,143 @@ ob_sha256() {
 
 ob_size() {
 	wc -c <"$1" | tr -d ' '
+}
+
+# Selects an OpenSSL binary whose `pkeyutl` supports `-rawin` for Ed25519 verification; on macOS,
+# `/usr/bin/openssl` is LibreSSL without `-rawin`, while Homebrew installs keg-only OpenSSL 3.
+ob_find_openssl() {
+	ob_openssl=''
+	for ob_candidate in \
+		"$(command -v openssl 2>/dev/null)" \
+		/opt/homebrew/opt/openssl@3/bin/openssl \
+		/usr/local/opt/openssl@3/bin/openssl \
+		/opt/homebrew/opt/openssl/bin/openssl \
+		/usr/local/opt/openssl/bin/openssl \
+		/opt/local/bin/openssl; do
+		[ -n "$ob_candidate" ] && [ -x "$ob_candidate" ] || continue
+		if [ -n "$("$ob_candidate" pkeyutl -help 2>&1 | sed -n '/-rawin/p')" ]; then
+			ob_openssl=$ob_candidate
+			return 0
+		fi
+	done
+	ob_fail 'This script needs OpenSSL with Ed25519 support (on macOS: brew install openssl@3, or install from the .dmg at https://orchbee.com). Nothing was installed.' \
+		'本脚本需要支持 Ed25519 的 OpenSSL（macOS 可运行 brew install openssl@3，或使用 https://orchbee.com 的 .dmg 安装包）。未安装任何内容。'
+}
+
+# Writes raw bytes from an even-length lowercase hexadecimal string $1 into file $2 without
+# forking a subshell per byte.
+ob_hex_to_raw() {
+	ob_rest=$1
+	ob_octal=''
+	while [ -n "$ob_rest" ]; do
+		ob_tail=${ob_rest#??}
+		ob_pair=${ob_rest%"$ob_tail"}
+		ob_rest=$ob_tail
+		ob_byte=$((0x$ob_pair))
+		ob_octal="$ob_octal\\0$((ob_byte / 64))$(((ob_byte / 8) % 8))$((ob_byte % 8))"
+	done
+	printf '%b' "$ob_octal" >"$2"
+}
+
+ob_sig_malformed() {
+	ob_fail "The feed signature at $ob_feed_url.sig is malformed. Nothing was installed." \
+		"$ob_feed_url.sig 的发布源签名格式无效。未安装任何内容。"
+}
+
+# Verifies $ob_tmp/feed.json.sig over `orchbee-update-feed-v1\n` + $ob_tmp/feed.json against
+# RELEASE_KEYS (and TEST_KEYS only when ORCHBEE_INSTALL_SH_FEED is non-empty) before reading the
+# feed or downloading any archive.
+ob_verify_feed() {
+	[ -n "$ob_openssl" ] || ob_find_openssl
+	ob_feed_bytes=$(ob_size "$ob_tmp/feed.json")
+	if [ -z "$ob_feed_bytes" ] || [ "$ob_feed_bytes" -le 0 ] || [ "$ob_feed_bytes" -gt "$ob_feed_limit" ]; then
+		ob_fail "The feed document at $ob_feed_url exceeds the size bound. Nothing was installed." \
+			"$ob_feed_url 的发布源文档超出大小限制。未安装任何内容。"
+	fi
+	ob_sig_bytes=$(ob_size "$ob_tmp/feed.json.sig")
+	if [ -z "$ob_sig_bytes" ] || [ "$ob_sig_bytes" -le 0 ] || [ "$ob_sig_bytes" -gt "$ob_signature_limit" ]; then
+		ob_sig_malformed
+	fi
+	ob_sig_nonul=$(tr -d '\000' <"$ob_tmp/feed.json.sig" | wc -c | tr -d ' ')
+	[ "$ob_sig_nonul" = "$ob_sig_bytes" ] || ob_sig_malformed
+
+	ob_sig_flat=$(tr '\r\n\t' '   ' <"$ob_tmp/feed.json.sig")
+	ob_sig_list=$(printf '%s\n' "$ob_sig_flat" | sed -n '
+		s/^ *{ *"signatures" *: *\[ *\(.*\) *\] *} *$/\1/p
+		t
+		s/^ *{ *"signatures" *: *\[ *\(.*\) *\] *, *"extensions" *: *{ *} *} *$/\1/p
+		t
+		s/^ *{ *"extensions" *: *{ *} *, *"signatures" *: *\[ *\(.*\) *\] *} *$/\1/p
+	')
+	[ -n "$ob_sig_list" ] || ob_sig_malformed
+
+	printf '%s\n' "$ob_sig_list" | sed 's/} *, *{/}\
+{/g' >"$ob_tmp/sig.entries"
+	ob_entry_count=$(wc -l <"$ob_tmp/sig.entries" | tr -d ' ')
+	case $ob_entry_count in
+	1 | 2 | 3 | 4) ;;
+	*) ob_sig_malformed ;;
+	esac
+
+	: >"$ob_tmp/sig.parsed"
+	while IFS= read -r ob_entry; do
+		ob_key_id=$(printf '%s\n' "$ob_entry" | sed -n 's/^.*"keyId" *: *"\([0-9a-f]\{16\}\)".*$/\1/p')
+		ob_sig_b64=$(printf '%s\n' "$ob_entry" | sed -n 's/^.*"signature" *: *"\([A-Za-z0-9+/]\{85\}[AQgw]==\)".*$/\1/p')
+		[ -n "$ob_key_id" ] && [ -n "$ob_sig_b64" ] || ob_sig_malformed
+		ob_skeleton=$(printf '%s\n' "$ob_entry" |
+			sed 's/"keyId" *: *"[0-9a-f]\{16\}"/K/; s/"algorithm" *: *"ed25519"/A/; s/"signature" *: *"[A-Za-z0-9+/]\{85\}[AQgw]=="/S/' |
+			tr -d ' ')
+		case $ob_skeleton in
+		'{K,A,S}' | '{K,S,A}' | '{A,K,S}' | '{A,S,K}' | '{S,K,A}' | '{S,A,K}') ;;
+		*) ob_sig_malformed ;;
+		esac
+		printf '%s %s\n' "$ob_key_id" "$ob_sig_b64" >>"$ob_tmp/sig.parsed"
+	done <"$ob_tmp/sig.entries"
+
+	ob_trusted_keys=$ob_release_keys
+	if [ -n "${ORCHBEE_INSTALL_SH_FEED:-}" ]; then
+		ob_trusted_keys="$ob_release_keys
+$ob_test_keys"
+	fi
+
+	{
+		printf 'orchbee-update-feed-v1\n'
+		cat "$ob_tmp/feed.json"
+	} >"$ob_tmp/feed.signed"
+
+	ob_named=0
+	while IFS=' ' read -r ob_key_id ob_sig_b64; do
+		for ob_pub_hex in $ob_trusted_keys; do
+			case $ob_pub_hex in
+			*[!0-9a-f]*) continue ;;
+			esac
+			[ "${#ob_pub_hex}" = 64 ] || continue
+			ob_hex_to_raw "$ob_pub_hex" "$ob_tmp/pub.raw"
+			ob_candidate_id=$(ob_sha256 "$ob_tmp/pub.raw" | cut -c 1-16)
+			[ "$ob_candidate_id" = "$ob_key_id" ] || continue
+			ob_named=1
+			# Ed25519 SubjectPublicKeyInfo DER: 12-byte header 302a300506032b6570032100 + 32-byte raw key.
+			ob_hex_to_raw "302a300506032b6570032100$ob_pub_hex" "$ob_tmp/pub.der"
+			ob_spki_b64=$("$ob_openssl" base64 -A <"$ob_tmp/pub.der" 2>/dev/null) || continue
+			[ -n "$ob_spki_b64" ] || continue
+			printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$ob_spki_b64" >"$ob_tmp/pub.pem"
+			printf '%s' "$ob_sig_b64" | "$ob_openssl" base64 -d -A >"$ob_tmp/sig.raw" 2>/dev/null || continue
+			[ "$(ob_size "$ob_tmp/sig.raw")" = 64 ] || continue
+			if "$ob_openssl" pkeyutl -verify -pubin -inkey "$ob_tmp/pub.pem" -rawin \
+				-in "$ob_tmp/feed.signed" -sigfile "$ob_tmp/sig.raw" </dev/null >/dev/null 2>&1; then
+				rm -f "$ob_tmp/feed.signed" "$ob_tmp/sig.entries" "$ob_tmp/sig.parsed" \
+					"$ob_tmp/pub.raw" "$ob_tmp/pub.der" "$ob_tmp/pub.pem" "$ob_tmp/sig.raw"
+				return 0
+			fi
+		done
+	done <"$ob_tmp/sig.parsed"
+
+	if [ "$ob_named" = 1 ]; then
+		ob_fail "The feed signature at $ob_feed_url.sig did not verify. Nothing was installed." \
+			"$ob_feed_url.sig 的发布源签名验证失败。未安装任何内容。"
+	fi
+	ob_fail "The feed at $ob_feed_url is not signed by a trusted Orchbee release key. Nothing was installed." \
+		"$ob_feed_url 的发布源未由受信任的 Orchbee 发布密钥签名。未安装任何内容。"
 }
 
 # An address the feed names: absolute, or with the test feed only, a path beside the feed.
@@ -430,10 +583,11 @@ ob_main() {
 		;;
 	esac
 
-	for ob_program in curl tar uname sed cut wc mktemp; do
+	for ob_program in curl tar uname sed cut wc mktemp tr openssl; do
 		command -v "$ob_program" >/dev/null 2>&1 ||
 			ob_fail "This script needs $ob_program. Nothing was installed." "本脚本需要 ${ob_program}。未安装任何内容。"
 	done
+	ob_find_openssl
 	ob_detect_platform
 	if [ "$ob_desktop" = 1 ] && [ "$ob_os" != macos ]; then
 		ob_fail "--desktop is not available on $ob_platform yet. Nothing was installed." \
@@ -480,6 +634,18 @@ ob_main() {
 		ob_fail "$ob_feed_url answered $ob_status. Nothing was installed." "$ob_feed_url 返回了 ${ob_status}。未安装任何内容。"
 		;;
 	esac
+	if ! ob_fetch "$ob_feed_url.sig" "$ob_tmp/feed.json.sig" "$ob_signature_limit"; then
+		ob_fail "Could not download the feed signature from $ob_feed_url.sig. Check the connection and run this again. Nothing was installed." \
+			"无法从 $ob_feed_url.sig 下载发布源签名。请检查网络后重新运行。未安装任何内容。"
+	fi
+	case $ob_status in
+	200 | 000) ;;
+	*)
+		ob_fail "$ob_feed_url.sig answered $ob_status. Nothing was installed." \
+			"$ob_feed_url.sig 返回了 ${ob_status}。未安装任何内容。"
+		;;
+	esac
+	ob_verify_feed
 	ob_read_feed
 	ob_fetch_archive
 	if [ "$ob_desktop" = 1 ]; then

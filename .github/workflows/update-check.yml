@@ -5,9 +5,11 @@ name: Update check
 # published by hand, or by hand with a published tag, and proves on a fresh runner of each platform
 # whose release builds update themselves (Windows and both macOS rows; Linux withholds `update`)
 # that the version people have now updates to the new release through its own `orchbee update`
-# over HTTPS, reading the release's feed asset of that platform. The owner moves the update channel
-# with `pnpm website:release` only after every row passes. Every request is an anonymous GET to the
-# public release: no secret, no environment, read-only permissions.
+# over HTTPS, reading the release's feed asset of that platform, including the window store when
+# both releases carry `extensions.desktop`. Every request in `update-check` is an anonymous GET to
+# the public release: no secret, no environment, read-only permissions. Once every row passes,
+# `website-release` advances `main` and deploys the website when the tag is newer than `main`'s
+# `release.ts`, then verifies the live edge feeds and `install.sh` byte for byte.
 # Contract: docs/VERIFICATION.md#update-check-workflow; the owner's steps: docs/RELEASING.md.
 on:
   release:
@@ -48,12 +50,12 @@ jobs:
       # A release run checks out the tagged commit, a manual run the chosen branch; either way the
       # tracked update pair there names the version people have now.
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -66,3 +68,169 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: node scripts/release-smoke-macos.mjs update "$RELEASE_TAG" --release "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/" --work "$RUNNER_TEMP/update-check"
+
+  website-release:
+    name: Roll out website channel ${{ github.event.release.tag_name || inputs.tag }}
+    needs: [update-check]
+    if: ${{ !cancelled() && needs.update-check.result == 'success' }}
+    environment: website
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: website-release
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      # Read main without deployment secrets first so an older tag re-run exits 0 before any secret
+      # is needed.
+      - name: Check out main for monotonic version guard
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Set up Node.js for version guard
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Check monotonic version guard against main
+        id: guard
+        run: |
+          version="${RELEASE_TAG#v}"
+          if [ "v$version" != "$RELEASE_TAG" ]; then
+            echo "Expected a release tag v<version>, not $RELEASE_TAG" >&2
+            exit 1
+          fi
+          node scripts/website-release.mjs should-advance "$version"
+
+      - name: Check whether an already-committed release still needs deployment
+        id: rollout
+        run: |
+          version="${RELEASE_TAG#v}"
+          advance="${{ steps.guard.outputs.advance }}"
+          current="${{ steps.guard.outputs.current-version }}"
+          if [ "$advance" = true ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "commit=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$current" = "$version" ]; then
+            if node scripts/website-release.mjs verify-live --retries 1 --retry-delay-ms 3000; then
+              echo "main and the live edge already serve $version; nothing to deploy."
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              echo "commit=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "main already names $version, while the live edge does not match yet; resuming deployment."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "commit=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "run=false" >> "$GITHUB_OUTPUT"
+          echo "commit=false" >> "$GITHUB_OUTPUT"
+
+      - name: Check website deployment secrets
+        if: steps.rollout.outputs.run == 'true'
+        env:
+          WEBSITE_PUSH_TOKEN: ${{ secrets.WEBSITE_PUSH_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/website-release.mjs preconditions
+
+      - name: Check out main with push token
+        if: steps.rollout.outputs.run == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          token: ${{ secrets.WEBSITE_PUSH_TOKEN }}
+
+      - name: Set up pnpm
+        if: steps.rollout.outputs.run == 'true'
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - name: Set up Node.js
+        if: steps.rollout.outputs.run == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.rollout.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Update website channel and download links
+        if: steps.rollout.outputs.commit == 'true'
+        run: |
+          version="${RELEASE_TAG#v}"
+          pnpm website:release "$version"
+          node scripts/website-release.mjs assert-clean-diff
+
+      - name: Test and build the website
+        if: steps.rollout.outputs.run == 'true'
+        run: |
+          pnpm --filter @orchbee/website test
+          pnpm website:build
+          if [ "${{ steps.rollout.outputs.commit }}" = true ]; then
+            node scripts/website-release.mjs assert-clean-diff
+          fi
+
+      - name: Commit and push to main
+        if: steps.rollout.outputs.commit == 'true'
+        run: |
+          version="${RELEASE_TAG#v}"
+          git config user.name 'i-need-token'
+          git config user.email '37071716+i-need-token@users.noreply.github.com'
+          git add -- apps/website/src/website/release.ts apps/website/public/update
+          node scripts/website-release.mjs assert-clean-diff
+          git commit -m "chore(website): move the stable channel and download to $version"
+          node scripts/website-release.mjs assert-clean-diff --since origin/main
+
+          pushed=0
+          rebased=0
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then
+              pushed=1
+              break
+            fi
+            echo "Push to main failed (attempt $attempt of 4); refreshing against origin/main..." >&2
+            git fetch origin main
+            git reset --hard origin/main
+            retry_guard="$RUNNER_TEMP/retry-guard-$attempt.out"
+            rm -f "$retry_guard"
+            GITHUB_OUTPUT="$retry_guard" node scripts/website-release.mjs should-advance "$version"
+            if grep -qx 'advance=false' "$retry_guard"; then
+              echo "origin/main already moved to or past $version concurrently."
+              pushed=1
+              rebased=1
+              break
+            fi
+            pnpm website:release "$version"
+            node scripts/website-release.mjs assert-clean-diff
+            git add -- apps/website/src/website/release.ts apps/website/public/update
+            git commit -m "chore(website): move the stable channel and download to $version"
+            node scripts/website-release.mjs assert-clean-diff --since origin/main
+            rebased=1
+            sleep $((attempt * 2))
+          done
+          if [ "$pushed" != 1 ]; then
+            echo "Could not push website release commit for $version to main after 4 attempts." >&2
+            exit 1
+          fi
+          if [ "$rebased" = 1 ]; then
+            pnpm --filter @orchbee/website test
+            pnpm website:build
+          fi
+
+      - name: Deploy website to Cloudflare
+        if: steps.rollout.outputs.run == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm dlx wrangler@4 deploy --config apps/website/wrangler.jsonc
+
+      - name: Verify live feeds and install script byte for byte
+        if: steps.rollout.outputs.run == 'true'
+        run: node scripts/website-release.mjs verify-live

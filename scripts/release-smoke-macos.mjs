@@ -10,6 +10,8 @@
 //   node scripts/release-smoke-macos.mjs npm        <artifacts> --work <absolute new directory>
 //   node scripts/release-smoke-macos.mjs update     v<version> --release <assets address>
 //     --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]
+//   node scripts/release-smoke-macos.mjs gate       v<older version> --release <assets address>
+//     --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]
 //
 // <artifacts> is a directory `node scripts/release-artifacts.mjs collect` wrote on macOS; its release
 // directory names the version, the platform and the program stem, so the same lines serve the test
@@ -28,15 +30,15 @@
 //   `~/.zshenv`, which uninstall removes; `uninstall` through the link removes the store root and
 //   the link.
 // - install-script: runs apps/website/public/install.sh with `--desktop` as `curl … | sh -s --` does,
-//   the script on the standard input of /bin/sh, against a copy of the row's feed that names its
-//   archives by file name, in a folder beside the `.tar.gz` and the window archive, reached
-//   through the script's test variables: ORCHBEE_INSTALL_SH_FEED, a file: address, and
-//   ORCHBEE_INSTALL_SH_APPLICATIONS, a folder in the work folder, under a shell's soft open-file
-//   limit of 256. It must activate the version, link the command, add the PATH lines to
-//   ~/.zshenv, which uninstall removes, copy the application with a valid signature and the
-//   row's release.json, store the window version with the application in the store's `desktop`
-//   folder, and leave its temporary folder empty; `uninstall` through the link then removes the
-//   store root and the link.
+//   the script on the standard input of /bin/sh, against a signed copy of the row's feed
+//   (`feed.json` and `feed.json.sig`) that names its archives by file name, in a folder beside the
+//   `.tar.gz` and the window archive, reached through the script's test variables:
+//   ORCHBEE_INSTALL_SH_FEED, a file: address, and ORCHBEE_INSTALL_SH_APPLICATIONS, a folder in the
+//   work folder, under a shell's soft open-file limit of 256. It must verify `feed.json.sig`,
+//   activate the version, link the command, add the PATH lines to ~/.zshenv, which uninstall
+//   removes, copy the application with a valid signature and the row's release.json, store the
+//   window version with the signed application in the store's `desktop` folder, and leave its
+//   temporary folder empty; `uninstall` through the link then removes the store root and the link.
 // - npm: `npm install --global --offline` of the tarballs into a prefix; the first start installs
 //   the carried version, `--version` answers it again, the program's `uninstall` removes the store
 //   root, and `npm rm --global` removes the carrier.
@@ -46,21 +48,29 @@
 //   names (apps/website/public/update/stable/<platform>/, or the folder `--current` names). Its
 //   `.tar.gz`, fetched from the address the pair signs and checked against the signed size and
 //   SHA-256, is unpacked by the system tar and installed by its own `install` into
-//   `~/.local/share/<stem>` with the link `~/.local/bin/<stem>`; then `update` runs through that
-//   link with `ORCHBEE_UPDATE_FEED` naming the release's `<stem>-<version>-<platform>.feed.json` in
-//   the assets folder, and must activate the release: the pointer names it, the version's Client
-//   and the link answer `--version` with it, and the link names that Client. Without an older
-//   tracked version, the release's `update` fills an empty scratch store beside the store root.
-//   TMPDIR is a folder in the work folder too, and nothing is uninstalled: the work folder goes. A
-//   failure names the stage and tells the owner not to move the update channel.
+//   `~/.local/share/<stem>` with the link `~/.local/bin/<stem>`, and when both feeds carry
+//   `extensions.desktop` its window archive is unpacked and installed into `<store root>/desktop`
+//   with `--installer-window-v1`; then `update` runs through that link with `ORCHBEE_UPDATE_FEED`
+//   naming the release's `<stem>-<version>-<platform>.feed.json` in the assets folder, and must
+//   activate the release and the new signed window bundle. Without an older tracked version, the
+//   release's `update` fills an empty scratch store beside the store root. TMPDIR is a folder in
+//   the work folder too, and nothing is uninstalled: the work folder goes. A failure names the
+//   stage and tells the owner not to move the update channel.
+// - gate: one path of the pre-publish release gate on this Mac's platform, from an older published
+//   macOS release to the release being made, before Publish. Installs the older runtime and window
+//   into the work folder's HOME, starts its Session with `ORCHBEE_UPDATE_FEED` naming `--feed` and
+//   a terminal running a Python probe, waits for `--automatic-update-v1` to activate the new
+//   runtime and signed `Orchbee.app` window version, joins with the new Client, confirms zero probe
+//   gaps, waits for the idle move, and verifies layout preservation on the new Server before
+//   stopping the Session cleanly.
 //
 // A test build's `uninstall` takes `--confirm`. A release build refuses it and asks a person to type
 // `orchbee` on a terminal, so its `uninstall` runs on a terminal that python3's pty module opens,
 // and the word is typed once the prompt shows. script(1) cannot stand in: it refuses Node's socket
 // as its input, and on macOS it passes the end of a closed input ahead of a line not yet read.
 //
-// The archive, install-script, npm and update steps then require that no process runs from the work
-// folder.
+// The archive, install-script, npm, update and gate steps then require that no process runs from
+// the work folder.
 // Exit codes: 0 the step passed; 1 it failed; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
 import {
@@ -82,17 +92,29 @@ import { fileURLToPath } from 'node:url';
 import { readRelease } from './package-npm.mjs';
 import { feedName, gateFeed } from './release-feed.mjs';
 import {
+	gateFailureAdvice,
+	parseGateArguments,
 	parseUpdateArguments,
+	runDocument,
+	runGatePath,
 	StepFailure,
 	updateCheck,
 	updateFailureAdvice,
 	UsageError,
 } from './release-update-check.mjs';
+import { FEED_DOMAIN, loadKey, signatureDocument } from './sign-release-manifest.mjs';
 
 const usage =
 	'Usage: node scripts/release-smoke-macos.mjs <disk-image|archive|install-script|npm> <artifacts> --work <absolute new directory>\n' +
-	'       node scripts/release-smoke-macos.mjs update v<version> --release <assets address> --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]';
+	'       node scripts/release-smoke-macos.mjs update v<version> --release <assets address> --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]\n' +
+	'       node scripts/release-smoke-macos.mjs gate v<older version> --release <assets address> --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]';
 const installScript = fileURLToPath(new URL('../apps/website/public/install.sh', import.meta.url));
+const testSigningKey = fileURLToPath(
+	new URL(
+		'../apps/orchbee/src/cli/update/tests/fixtures/test-only-signing-key.pem',
+		import.meta.url,
+	),
+);
 // Each command gets this long; an install, an npm run or a mount gets longer.
 const commandDeadline = 120_000;
 const setupDeadline = 600_000;
@@ -280,13 +302,12 @@ function expectActive(identity, root) {
 }
 
 /**
- * Requires the store's window pointer to name `version` with its copy of `application` beside its
- * list; test and release builds both install window versions.
+ * Requires the store's window pointer to name `version` with a signed application bundle and valid
+ * executable beside `desktop-files.json`; test and release builds both install window versions.
  */
-function expectWindowVersion(root, version, application) {
+function expectWindowVersion(root, version, application = undefined) {
 	const desktop = path.join(root, 'desktop');
-	if (!existsSync(desktop))
-		throw new StepFailure(`install.sh left no window version in ${desktop}`);
+	if (!existsSync(desktop)) throw new StepFailure(`No window store exists in ${desktop}`);
 	const pointer = path.join(desktop, 'active.json');
 	const active = existsSync(pointer)
 		? JSON.parse(readFileSync(pointer, 'utf8'))?.active?.product
@@ -294,10 +315,37 @@ function expectWindowVersion(root, version, application) {
 	if (active !== version)
 		throw new StepFailure(`${pointer} names ${active}, not the window version ${version}`);
 	const stored = path.join(desktop, 'versions', version);
-	for (const entry of ['desktop-files.json', application])
-		if (!existsSync(path.join(stored, entry)))
-			throw new StepFailure(`The window version ${stored} holds no ${entry}`);
-	log(`${desktop} names the window version ${version}.`);
+	if (!existsSync(path.join(stored, 'desktop-files.json')))
+		throw new StepFailure(`The window version ${stored} holds no desktop-files.json`);
+	const chosenApplication =
+		application ??
+		(() => {
+			const bundles = readdirSync(stored, { withFileTypes: true })
+				.filter((entry) => entry.isDirectory() && entry.name.endsWith('.app'))
+				.map((entry) => entry.name);
+			if (bundles.length !== 1)
+				throw new StepFailure(
+					`The window version ${stored} must hold one application bundle, not ${bundles.join(', ')}`,
+				);
+			return bundles[0];
+		})();
+	const bundlePath = path.join(stored, chosenApplication);
+	if (!existsSync(bundlePath))
+		throw new StepFailure(`The window version ${stored} holds no ${chosenApplication}`);
+	const executable = path.join(
+		bundlePath,
+		'Contents',
+		'MacOS',
+		chosenApplication.slice(0, -'.app'.length),
+	);
+	if (!existsSync(executable) || (statSync(executable).mode & 0o111) === 0)
+		throw new StepFailure(`The stored window bundle lacks executable ${executable}`);
+	expectStatus(
+		run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', bundlePath]),
+		0,
+		`codesign --verify --deep --strict ${chosenApplication}`,
+	);
+	log(`${desktop} names the verified window version ${version} (${chosenApplication}).`);
 }
 
 function expectGone(filename, what) {
@@ -471,6 +519,10 @@ function installScriptStep(identity, work) {
 	);
 	const servedFeed = gateFeed(feed);
 	writeFileSync(path.join(served, 'feed.json'), servedFeed);
+	writeFileSync(
+		path.join(served, 'feed.json.sig'),
+		signatureDocument(servedFeed, [loadKey(readFileSync(testSigningKey, 'utf8'))], FEED_DOMAIN),
+	);
 	// The gate feed names both archives by their bare names.
 	const window = JSON.parse(servedFeed.toString('utf8'))?.extensions?.desktop;
 	if (typeof window?.archive?.url !== 'string' || typeof window.version !== 'string')
@@ -586,14 +638,66 @@ function expectRunning(root, stem, version, env) {
 	log(`${link} names the Client of ${version}.`);
 }
 
+// The probe the gate's terminal runs: a numbered line every 100 ms on the terminal and, with its
+// process id, in the record file, until the stop file appears or the bound passes.
+const macosProbeScript = `import os, sys, time
+record, stop, limit = sys.argv[1], sys.argv[2], int(sys.argv[3])
+pid = os.getpid()
+n = 0
+while n < limit and not os.path.exists(stop):
+    n += 1
+    with open(record, "a", encoding="utf-8") as handle:
+        handle.write(f"{pid} {n}\\n")
+    sys.stdout.write(f"probe-{pid}-{n}\\n")
+    sys.stdout.flush()
+    time.sleep(0.1)
+`;
+
+// Runs `server stop` on a release build over a PTY, answering the Session name prompt once shown.
+const typeSessionStop = `
+import os, pty, re, sys
+program = sys.argv[1:]
+pid, terminal = pty.fork()
+if pid == 0:
+    os.execv(program[0], program)
+seen, typed = b"", False
+pattern = re.compile(rb"Type the Session name (\\S+) to stop it: ")
+while True:
+    try:
+        chunk = os.read(terminal, 4096)
+    except OSError:
+        break
+    if not chunk:
+        break
+    os.write(1, chunk)
+    seen += chunk
+    if not typed:
+        match = pattern.search(seen)
+        if match is not None:
+            os.write(terminal, match.group(1) + b"\\n")
+            typed = True
+sys.exit(os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]))
+`;
+
 /**
- * How the update check installs and updates on this Mac: HOME and TMPDIR in the work folder, so the
- * store root, the command link and the data root lie inside it.
+ * How the update check and the release gate install and update on this Mac: HOME and TMPDIR in the
+ * work folder, so the store root, the command link and the data root lie inside it.
  */
 const updatePort = {
 	platform: hostPlatform,
 	tar: '/usr/bin/tar',
 	client: (directory, stem) => path.join(directory, stem),
+	versionClient: (root, stem, version) => path.join(root, 'versions', version, stem),
+	bundledWindowClient(windowDirectory, stem) {
+		const bundles = readdirSync(windowDirectory, { withFileTypes: true })
+			.filter((entry) => entry.isDirectory() && entry.name.endsWith('.app'))
+			.map((entry) => entry.name);
+		if (bundles.length !== 1)
+			throw new StepFailure(
+				`The window directory ${windowDirectory} must hold one application bundle, not ${bundles.join(', ')}`,
+			);
+		return path.join(windowDirectory, bundles[0], 'Contents', 'Resources', 'cohort', stem);
+	},
 	environment(work) {
 		const home = path.join(work, 'home');
 		const temporary = path.join(work, 'tmp');
@@ -603,6 +707,80 @@ const updatePort = {
 	storeRoot: (stem, env) => env.ORCHBEE_INSTALL_DIR ?? storeRoot({ stem }, env.HOME),
 	updater: (_root, stem, env) => path.join(env.HOME, '.local', 'bin', stem),
 	expectActive: expectRunning,
+	expectWindowActive: (root, stem, version) =>
+		expectWindowVersion(root, version, stem === releaseStem ? 'Orchbee.app' : undefined),
+	prepareGateWork(workPath, stem) {
+		const env = updatePort.environment(workPath);
+		const root = updatePort.storeRoot(stem, env);
+		const dataRoot = env.ORCHBEE_HOME ?? path.join(env.HOME, `.${stem}`);
+		if (existsSync(dataRoot))
+			throw new StepFailure(`Refusing to start a Session in an existing data root ${dataRoot}`);
+		return { work: workPath, env, storeRoot: root, dataRoot };
+	},
+	startProbe({ olderClient, olderEnv, work, record, stop, limit, terminalDeadline, terminalPoll }) {
+		const scriptFile = path.join(work, 'probe.py');
+		writeFileSync(scriptFile, macosProbeScript, { flag: 'wx' });
+		const created = runDocument(
+			olderClient,
+			[
+				'workspace',
+				'create',
+				'--exec',
+				'/usr/bin/python3',
+				'--arg',
+				scriptFile,
+				'--arg',
+				record,
+				'--arg',
+				stop,
+				'--arg',
+				String(limit),
+				'--cwd',
+				work,
+			],
+			olderEnv,
+			{ deadline: commandDeadline },
+		);
+		const workspace = created.document?.result?.workspace?.result;
+		if (created.status !== 0 || typeof workspace?.panelId !== 'string')
+			throw new StepFailure(`workspace create exited ${created.status}`);
+		for (const opened = Date.now(); ; sleep(terminalPoll)) {
+			const listed = runDocument(olderClient, ['terminal', 'list'], olderEnv, {
+				deadline: commandDeadline,
+				quiet: true,
+			});
+			const terminal = (listed.document?.result?.terminals ?? []).find(
+				(each) => each.boundTo?.panelId === workspace.panelId,
+			)?.terminalId;
+			if (typeof terminal === 'string') return terminal;
+			if (Date.now() - opened >= terminalDeadline)
+				throw new StepFailure(
+					`Panel ${workspace.panelId} has no terminal after ${terminalDeadline} ms`,
+				);
+		}
+	},
+	finishGateSession({ sessionStarted, stem, olderClient, newClient, olderEnv, work }) {
+		if (!sessionStarted || processesInside(work).length === 0) return;
+		const client = existsSync(newClient) ? newClient : olderClient;
+		if (stem !== releaseStem) {
+			spawnSync(client, ['server', 'stop', '--confirm'], {
+				encoding: 'utf8',
+				env: olderEnv,
+				stdio: ['ignore', 'pipe', 'pipe'],
+				timeout: commandDeadline,
+			});
+		} else {
+			spawnSync('/usr/bin/python3', ['-I', '-c', typeSessionStop, client, 'server', 'stop'], {
+				encoding: 'utf8',
+				env: { ...olderEnv, LC_ALL: 'en_US.UTF-8' },
+				stdio: ['ignore', 'pipe', 'pipe'],
+				timeout: setupDeadline,
+				maxBuffer: 64 * 1024 * 1024,
+			});
+		}
+		const until = Date.now() + settleDeadline;
+		while (processesInside(work).length > 0 && Date.now() < until) sleep(500);
+	},
 };
 
 function update(options, work, progress) {
@@ -610,8 +788,19 @@ function update(options, work, progress) {
 	expectNoProcesses(work);
 }
 
+function gate(options, work, progress) {
+	const gateOptions = { ...options, work };
+	try {
+		runGatePath(gateOptions, progress, updatePort, usage);
+	} finally {
+		options.version = gateOptions.version;
+	}
+	expectNoProcesses(work);
+}
+
 function parseArguments(argv) {
 	if (argv[0] === 'update') return parseUpdateArguments(argv.slice(1), usage, hostPlatform);
+	if (argv[0] === 'gate') return parseGateArguments(argv.slice(1), usage);
 	const [step, artifacts, option, work, ...rest] = argv;
 	if (
 		!['disk-image', 'archive', 'install-script', 'npm'].includes(step) ||
@@ -637,7 +826,9 @@ if (
 		if (hostPlatform === undefined)
 			throw new StepFailure(`${process.arch} is not a macOS release platform`);
 		options = parseArguments(process.argv.slice(2));
-		const identity = options.step === 'update' ? undefined : readIdentity(options.artifacts);
+		const identity = ['update', 'gate'].includes(options.step)
+			? undefined
+			: readIdentity(options.artifacts);
 		if (existsSync(options.work))
 			throw new StepFailure(`Refusing to work in an existing ${options.work}`);
 		mkdirSync(options.work, { recursive: true });
@@ -645,6 +836,8 @@ if (
 		work = realpathSync(options.work);
 		if (options.step === 'update') {
 			update(options, work, progress);
+		} else if (options.step === 'gate') {
+			gate(options, work, progress);
 		} else {
 			const steps = { 'disk-image': diskImage, archive, 'install-script': installScriptStep, npm };
 			steps[options.step](identity, work);
@@ -655,6 +848,9 @@ if (
 		// The channel must not move to a release nobody could update to.
 		if (options?.step === 'update' && !(error instanceof UsageError))
 			process.stderr.write(updateFailureAdvice(options.version, progress.stage));
+		// A failing path stops the release before Publish.
+		if (options?.step === 'gate' && !(error instanceof UsageError))
+			process.stderr.write(gateFailureAdvice(options.older, options.version, progress.stage));
 	} finally {
 		if (work !== undefined && pending.mount === undefined)
 			rmSync(work, { recursive: true, force: true });

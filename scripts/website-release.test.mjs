@@ -10,6 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
 	FEED_DOMAIN,
@@ -19,7 +20,16 @@ import {
 	signFeed,
 } from './sign-release-manifest.mjs';
 import { feedDocument } from './release-feed.mjs';
-import { planWebsiteRelease, publishedPlatforms } from './website-release.mjs';
+import {
+	allowedWebsiteReleasePath,
+	checkWebsiteDiff,
+	checkWebsitePreconditions,
+	planWebsiteRelease,
+	publishedPlatforms,
+	releaseSource,
+	shouldAdvanceWebsite,
+	verifyLiveWebsite,
+} from './website-release.mjs';
 
 // The shared feed fixture, signed with the public test key; TEST_KEYS stands in for RELEASE_KEYS.
 const fixtures = new URL('../apps/orchbee/src/cli/update/tests/fixtures/', import.meta.url);
@@ -202,4 +212,170 @@ test('a feed not in its written form is neither signed nor moves the channel', (
 		assert.deepEqual(plan.writes, [], name);
 		assert.match(plan.problems.join('\n'), /written form/u, name);
 	}
+});
+
+test('the v1 update channel explicitly refuses a feed whose schemaVersion is not 1', () => {
+	const v2Bytes = Buffer.from(
+		feed.toString('utf8').replace('"schemaVersion":1,', '"schemaVersion":2,'),
+	);
+	const plan = planWebsiteRelease({
+		...good,
+		rows: [
+			{
+				...windows,
+				feed: v2Bytes,
+				signature: Buffer.from(signatureDocument(v2Bytes, [testKey], FEED_DOMAIN)),
+			},
+		],
+	});
+	assert.deepEqual(plan.writes, []);
+	assert.deepEqual(plan.removals, []);
+	assert.match(plan.problems.join('\n'), /schemaVersion 2, not 1.*\/update\/v2\//u);
+});
+
+test('monotonic channel guard follows SemVer 2.0.0 precedence and skips older or equal releases', () => {
+	const atBeta18 = releaseSource(release, '0.1.0-beta.18');
+	assert.equal(shouldAdvanceWebsite(atBeta18, '0.1.0-beta.19').advance, true);
+	assert.equal(shouldAdvanceWebsite(atBeta18, '0.1.0').advance, true);
+	assert.equal(shouldAdvanceWebsite(atBeta18, '0.1.0-beta.18').advance, false);
+	assert.equal(shouldAdvanceWebsite(atBeta18, '0.1.0-beta.17').advance, false);
+	// Numeric pre-release identifiers compare numerically: beta.2 < beta.18.
+	assert.equal(shouldAdvanceWebsite(atBeta18, '0.1.0-beta.2').advance, false);
+
+	const unpublished = release.replace(
+		/^export const release: Release = \{[\s\S]*?\n\};\n/mu,
+		'export const release: Release = {\n\tpublished: false,\n};\n',
+	);
+	assert.deepEqual(shouldAdvanceWebsite(unpublished, '0.1.0-beta.1'), {
+		advance: true,
+		currentVersion: null,
+		message:
+			'apps/website/src/website/release.ts has no published release yet; advancing to 0.1.0-beta.1.',
+	});
+	assert.throws(
+		() => shouldAdvanceWebsite('export const release = {};\n', '0.1.0'),
+		/release: Release/u,
+	);
+});
+
+test('website deployment preconditions name missing secrets and never echo values', () => {
+	const missing = checkWebsitePreconditions({});
+	assert.equal(missing.problems.length, 3);
+	for (const name of ['WEBSITE_PUSH_TOKEN', 'CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']) {
+		assert.match(
+			missing.problems.join('\n'),
+			new RegExp(`gh secret set ${name} --env website`, 'u'),
+		);
+	}
+	const secretValue = 'cf_super_secret_token_value_987654';
+	const ready = checkWebsitePreconditions({
+		WEBSITE_PUSH_TOKEN: 'ghp_push_secret_123',
+		CLOUDFLARE_API_TOKEN: secretValue,
+		CLOUDFLARE_ACCOUNT_ID: 'acct_456',
+	});
+	assert.deepEqual(ready.problems, []);
+	const combined = [...ready.problems, ...ready.notes, ...missing.problems].join('\n');
+	assert.ok(!combined.includes(secretValue));
+	assert.ok(!combined.includes('ghp_push_secret_123'));
+});
+
+test('the strict path whitelist admits only release.ts and update feed pairs', () => {
+	assert.equal(allowedWebsiteReleasePath('apps/website/src/website/release.ts'), true);
+	assert.equal(
+		allowedWebsiteReleasePath('apps/website/public/update/stable/windows-x86_64/feed.json.signed'),
+		true,
+	);
+	assert.equal(
+		allowedWebsiteReleasePath('apps/website/public/update/stable/macos-aarch64/feed.json.sig'),
+		true,
+	);
+	for (const forbidden of [
+		'apps/website/public/install.sh',
+		'apps/website/public/update/stable/windows-x86_64/feed.json',
+		'apps/website/public/update/v2/windows-x86_64/feed.json.signed',
+		'scripts/website-release.mjs',
+		'.github/workflows/update-check.yml',
+	]) {
+		assert.equal(allowedWebsiteReleasePath(forbidden), false, forbidden);
+	}
+
+	const cleanWorktree = [
+		' M apps/website/src/website/release.ts',
+		' M apps/website/public/update/stable/windows-x86_64/feed.json.signed',
+		'?? apps/website/public/update/stable/macos-aarch64/feed.json.sig',
+		'',
+	].join('\0');
+	assert.deepEqual(checkWebsiteDiff({ statusZ: cleanWorktree }).problems, []);
+	assert.match(checkWebsiteDiff({ statusZ: '' }).problems.join('\n'), /No website release files/u);
+	assert.match(
+		checkWebsiteDiff({ statusZ: `${cleanWorktree}?? rogue.txt\0` }).problems.join('\n'),
+		/Disallowed modified or untracked path: rogue\.txt/u,
+	);
+	assert.deepEqual(
+		checkWebsiteDiff({
+			statusZ: '',
+			committedZ:
+				'apps/website/src/website/release.ts\0apps/website/public/update/stable/windows-x86_64/feed.json.sig\0',
+			since: 'origin/main',
+		}).problems,
+		[],
+	);
+	assert.match(
+		checkWebsiteDiff({
+			statusZ: ' M apps/website/src/website/release.ts\0',
+			committedZ: 'apps/website/src/website/release.ts\0',
+			since: 'origin/main',
+		}).problems.join('\n'),
+		/Worktree is not clean/u,
+	);
+});
+
+test('live verification checks every tracked feed pair and install.sh byte for byte with retries', () => {
+	const root = fileURLToPath(new URL('..', import.meta.url));
+	let calls = 0;
+	const okAfterRetry = verifyLiveWebsite({
+		root,
+		origin: 'https://orchbee.com',
+		retries: 2,
+		retryDelayMs: 0,
+		sleepImpl: () => {},
+		fetchRemote(url) {
+			calls += 1;
+			if (calls === 1) {
+				return { ok: true, status: 200, bytes: Buffer.from('stale edge bytes') };
+			}
+			const relative = url.endsWith('/feed.json')
+				? `apps/website/public${new URL(url).pathname}.signed`
+				: `apps/website/public${new URL(url).pathname}`;
+			return {
+				ok: true,
+				status: 200,
+				bytes: readFileSync(path.join(root, ...relative.split('/'))),
+			};
+		},
+	});
+	assert.deepEqual(okAfterRetry.problems, []);
+	assert.equal(okAfterRetry.attempts, 2);
+	assert.ok(okAfterRetry.verified >= 3);
+
+	const challenged = verifyLiveWebsite({
+		root,
+		origin: 'https://orchbee.com',
+		retries: 1,
+		retryDelayMs: 0,
+		sleepImpl: () => {},
+		fetchRemote(url) {
+			if (url.endsWith('/install.sh')) {
+				return {
+					ok: true,
+					status: 200,
+					bytes: Buffer.from('<!DOCTYPE html><html><body>Just a moment...</body></html>'),
+				};
+			}
+			return { ok: false, status: 403, error: 'curl: (22) The requested URL returned error: 403' };
+		},
+	});
+	assert.equal(challenged.attempts, 2);
+	assert.match(challenged.problems.join('\n'), /HTTP 403.*Bot Fight Mode/u);
+	assert.match(challenged.problems.join('\n'), /HTML page.*\/install\.sh/su);
 });

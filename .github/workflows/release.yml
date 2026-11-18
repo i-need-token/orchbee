@@ -78,13 +78,13 @@ jobs:
       ORCHBEE_SOURCE_COMMIT: ${{ github.sha }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -138,7 +138,7 @@ jobs:
         run: node scripts/release-artifacts.mjs collect --profile test --output "$env:RUNNER_TEMP\release-artifacts"
 
       - name: Upload the release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-test-${{ matrix.platform }}
           path: ${{ runner.temp }}\release-artifacts
@@ -160,15 +160,15 @@ jobs:
         shell: pwsh
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
       - name: Download the release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-test-${{ matrix.platform }}
           path: ${{ runner.temp }}\release-artifacts
@@ -201,15 +201,15 @@ jobs:
         shell: pwsh
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
       - name: Download the release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-test-${{ matrix.platform }}
           path: ${{ runner.temp }}\release-artifacts
@@ -244,14 +244,16 @@ jobs:
       # Whether the release gate runs a path, and one row per older release it updates from.
       gate: ${{ steps.gate.outputs.gate }}
       gate-matrix: ${{ steps.gate.outputs.gate-matrix }}
+      macos-gate: ${{ steps.gate.outputs.macos-gate }}
+      macos-gate-matrix: ${{ steps.gate.outputs.macos-gate-matrix }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -281,7 +283,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.plan.outputs.version }}
-        run: node scripts/release-publish.mjs gate-paths --version "$RELEASE_VERSION" --repository "$GITHUB_REPOSITORY"
+          MACOS_AARCH64: ${{ steps.plan.outputs.macos-aarch64 }}
+        run: node scripts/release-publish.mjs gate-paths --version "$RELEASE_VERSION" --repository "$GITHUB_REPOSITORY" --macos-aarch64 "$MACOS_AARCH64"
 
   release-preconditions:
     name: Release preconditions
@@ -291,12 +294,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -326,12 +329,12 @@ jobs:
       ORCHBEE_SOURCE_COMMIT: ${{ github.sha }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -369,7 +372,7 @@ jobs:
         run: node scripts/package-native-release.mjs "$env:RUNNER_TEMP\cohort" stable "$env:RELEASE_VERSION" "$env:BUILD_ID"
 
       - name: Upload the unsigned cohort
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-cohort-${{ matrix.platform }}
           path: ${{ runner.temp }}\cohort
@@ -379,7 +382,7 @@ jobs:
 
       # The signing job receives only the manifest it signs.
       - name: Upload the manifest to sign
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-manifest-${{ matrix.platform }}
           path: ${{ runner.temp }}\cohort\release.json
@@ -405,12 +408,12 @@ jobs:
       ORCHBEE_SOURCE_COMMIT: ${{ github.sha }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -464,7 +467,7 @@ jobs:
           if [ "$token" != "$PLATFORM" ]; then echo "The cohort is for $token, not $PLATFORM" >&2; exit 1; fi
 
       - name: Upload the unsigned cohort
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-cohort-${{ matrix.platform }}
           path: ${{ runner.temp }}/cohort
@@ -473,7 +476,7 @@ jobs:
           retention-days: 1
 
       - name: Upload the manifest to sign
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-manifest-${{ matrix.platform }}
           path: ${{ runner.temp }}/cohort/release.json
@@ -496,17 +499,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
       - name: Download the manifest
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-manifest-${{ matrix.platform }}
           path: ${{ runner.temp }}/manifest
@@ -518,7 +521,7 @@ jobs:
         run: node scripts/sign-release-manifest.mjs "$RUNNER_TEMP/manifest/release.json" --key-env ORCHBEE_RELEASE_SIGNING_KEY
 
       - name: Upload the signature
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-signature-${{ matrix.platform }}
           path: ${{ runner.temp }}/manifest/release.json.sig
@@ -541,15 +544,15 @@ jobs:
         shell: pwsh
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -571,13 +574,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download the unsigned cohort
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-cohort-${{ matrix.platform }}
           path: ${{ runner.temp }}\cohort
 
       - name: Download the signature beside it
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-signature-${{ matrix.platform }}
           path: ${{ runner.temp }}\cohort
@@ -596,7 +599,7 @@ jobs:
       # A tag run keeps them long enough to run a failed publication again; a rehearsal only for
       # its smoke.
       - name: Upload the release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-assets-${{ matrix.platform }}
           path: ${{ runner.temp }}\release-artifacts
@@ -607,7 +610,7 @@ jobs:
       # The feed job receives only the feed document it signs. A tag run keeps it as long as the
       # release artifacts, so a failed feed job can run again.
       - name: Upload the feed to sign
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-feed-${{ matrix.platform }}
           path: ${{ runner.temp }}\release-artifacts\orchbee-${{ needs.release-plan.outputs.version }}-${{ matrix.platform }}.feed.json
@@ -630,15 +633,15 @@ jobs:
         shell: bash
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -646,13 +649,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download the unsigned cohort
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-cohort-${{ matrix.platform }}
           path: ${{ runner.temp }}/cohort
 
       - name: Download the signature beside it
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-signature-${{ matrix.platform }}
           path: ${{ runner.temp }}/cohort
@@ -675,7 +678,7 @@ jobs:
         run: node scripts/release-artifacts.mjs collect --profile release --output "$RUNNER_TEMP/release-artifacts"
 
       - name: Upload the release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-assets-${{ matrix.platform }}
           path: ${{ runner.temp }}/release-artifacts
@@ -684,7 +687,7 @@ jobs:
           retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
 
       - name: Upload the feed to sign
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-feed-${{ matrix.platform }}
           path: ${{ runner.temp }}/release-artifacts/orchbee-${{ needs.release-plan.outputs.version }}-${{ matrix.platform }}.feed.json
@@ -712,17 +715,17 @@ jobs:
       GATE_FEED_NAME: orchbee-${{ needs.release-plan.outputs.version }}-${{ matrix.platform }}.gate.feed.json
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
       - name: Download the feed
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-feed-${{ matrix.platform }}
           path: ${{ runner.temp }}/feed
@@ -740,7 +743,7 @@ jobs:
 
       # A tag run keeps both as long as the release artifacts, for a re-run of a later job.
       - name: Upload the feed signature
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-feed-signature-${{ matrix.platform }}
           path: ${{ runner.temp }}/feed/${{ env.FEED_NAME }}.sig
@@ -748,7 +751,7 @@ jobs:
           retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
 
       - name: Upload the signed gate copy
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-gate-feed-${{ matrix.platform }}
           path: |
@@ -771,17 +774,17 @@ jobs:
         shell: pwsh
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
       - name: Download the release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-assets-${{ matrix.platform }}
           path: ${{ runner.temp }}\release-artifacts
@@ -815,17 +818,17 @@ jobs:
         shell: pwsh
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
       - name: Download the release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-assets-${{ matrix.platform }}
           path: ${{ runner.temp }}\release-artifacts
@@ -856,17 +859,17 @@ jobs:
         shell: bash
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
       - name: Download the release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-assets-${{ matrix.platform }}
           path: ${{ runner.temp }}/release-artifacts
@@ -904,24 +907,24 @@ jobs:
         shell: pwsh
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
       - name: Download the release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-assets-windows-x86_64
           path: ${{ runner.temp }}\gate
 
       # The gate copy names the archive by its file name, so it goes beside it.
       - name: Download the signed gate feed beside them
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-gate-feed-windows-x86_64
           path: ${{ runner.temp }}\gate
@@ -932,6 +935,51 @@ jobs:
           OLDER: ${{ matrix.older }}
           GATE_FEED: ${{ runner.temp }}\gate\orchbee-${{ needs.release-plan.outputs.version }}-windows-x86_64.gate.feed.json
         run: node scripts/release-smoke-windows.mjs gate $env:OLDER --release "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/releases/download/$env:OLDER/" --feed "$env:GATE_FEED" --work "$env:RUNNER_TEMP\gate-work"
+
+  # The Apple silicon pre-publish gate path from the newest published macOS release to this run's
+  # `macos-aarch64` runtime and window archives. Skipped when no macOS row is planned or no older
+  # macOS release exists yet; a failed path stops publication before GitHub Release or npm moves.
+  release-gate-macos:
+    name: Release gate macos-aarch64 from ${{ matrix.older }}
+    needs: [release-plan, release-feed]
+    if: ${{ !cancelled() && needs.release-plan.outputs.macos-gate == 'true' && needs.release-feed.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.macos-gate-matrix) }}
+    runs-on: macos-15
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-assets-macos-aarch64
+          path: ${{ runner.temp }}/gate
+
+      # The gate copy names the archive and window archive by file name, so it goes beside them.
+      - name: Download the signed gate feed beside them
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-gate-feed-macos-aarch64
+          path: ${{ runner.temp }}/gate
+
+      - name: Update from ${{ matrix.older }} while a terminal keeps running
+        env:
+          OLDER: ${{ matrix.older }}
+          GATE_FEED: ${{ runner.temp }}/gate/orchbee-${{ needs.release-plan.outputs.version }}-macos-aarch64.gate.feed.json
+        run: node scripts/release-smoke-macos.mjs gate "$OLDER" --release "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$OLDER/" --feed "$GATE_FEED" --work "$RUNNER_TEMP/gate-work"
 
   # Joins every row's artifacts, each with the feed signature `release-feed` made beside its feed,
   # into the one set `release-publish` publishes: one row unchanged, several with one main npm
@@ -945,23 +993,23 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
       - name: Download the release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: release-assets-*
           path: ${{ runner.temp }}/release
 
       - name: Download the feed signatures
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: release-feed-signature-*
           path: ${{ runner.temp }}/feed-signatures
@@ -983,7 +1031,7 @@ jobs:
 
       # A tag run keeps it as long as the row artifacts, for a re-run of the publication.
       - name: Upload the joined release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-joined
           path: ${{ runner.temp }}/release-joined
@@ -1008,13 +1056,15 @@ jobs:
         release-smoke-npm,
         release-smoke-macos,
         release-gate,
+        release-gate-macos,
       ]
     if: >-
       ${{ !cancelled() && github.event_name == 'push' && needs.release-plan.outputs.publish == 'true' &&
       needs.release-join.result == 'success' && needs.release-smoke.result == 'success' &&
       needs.release-smoke-npm.result == 'success' &&
       (needs.release-smoke-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') &&
-      (needs.release-gate.result == 'success' || needs.release-plan.outputs.gate == 'false') }}
+      (needs.release-gate.result == 'success' || needs.release-plan.outputs.gate == 'false') &&
+      (needs.release-gate-macos.result == 'success' || needs.release-plan.outputs.macos-gate == 'false') }}
     environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -1028,7 +1078,7 @@ jobs:
       RELEASE_VERSION: ${{ needs.release-plan.outputs.version }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
@@ -1037,14 +1087,14 @@ jobs:
 
       # registry-url makes npm read its credential from NODE_AUTH_TOKEN, set only in the npm step.
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
       # The joined set, every feed signature `release-feed` made beside its feed.
       - name: Download the joined release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-joined
           path: ${{ runner.temp }}/release

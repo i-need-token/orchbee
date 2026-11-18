@@ -6,7 +6,7 @@
 //
 //   node scripts/release-publish.mjs plan --event <name> --ref <git ref> [--version <version>]
 //   node scripts/release-publish.mjs notes --tag v<version> --repository <owner/name>
-//   node scripts/release-publish.mjs gate-paths --version <version> --repository <owner/name>
+//   node scripts/release-publish.mjs gate-paths --version <version> --repository <owner/name> [--macos-aarch64 <true|false>]
 //   node scripts/release-publish.mjs preconditions --signing-key-env <VARIABLE> [--npm-token-env <VARIABLE>]
 //   node scripts/release-publish.mjs github <artifacts> --tag v<version> --repository <owner/name>
 //   node scripts/release-publish.mjs npm <artifacts> --version <version> --repository-url <https URL>
@@ -17,14 +17,16 @@
 //   publishes nothing. Reads the platform rows from RELEASE_PLATFORMS, refuses a row of a platform
 //   family the workflow has no jobs for and a run without a Windows row, and writes `version`,
 //   `tag`, `publish`, `prerelease`, `dist-tag`, `matrix` (every row), `windows-matrix`,
-//   `macos-matrix` and `macos` (whether it has a macOS row) to GITHUB_OUTPUT.
+//   `macos-matrix`, `macos` (whether it has a macOS row) and `macos-aarch64` (whether it has a
+//   `macos-aarch64` row) to GITHUB_OUTPUT.
 // - notes: prints the release notes, the message of the annotated tag read through the GitHub API
 //   (a checkout drops tag annotations) without a trailing signature block. A lightweight tag or an
 //   empty message fails with the command that tags correctly.
 // - gate-paths: the older releases the release gate updates from to <version>, chosen from the
-//   repository's releases read through the GitHub API by the rule of selectGatePaths below; writes
-//   `gate` (whether there is any) and `gate-matrix`, one row `{"older": "v<version>"}` per path, to
-//   GITHUB_OUTPUT. No path is not a failure: the workflow then skips the gate jobs.
+//   repository's releases read through the GitHub API by selectGatePaths and selectMacosGatePaths
+//   below; writes `gate`, `gate-matrix`, `macos-gate` and `macos-gate-matrix`, each matrix holding
+//   one row `{"older": "v<version>"}` per path, to GITHUB_OUTPUT. No path is not a failure: the
+//   workflow then skips the gate jobs.
 // - preconditions: the signing key variable holds an Ed25519 PKCS #8 PEM key whose public half is in
 //   RELEASE_KEYS of apps/orchbee/src/cli/update/signature.rs, and the npm token variable, when named,
 //   is not empty.
@@ -53,7 +55,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 
-import { SEMVER } from './release-version.mjs';
+import { feedName } from './release-feed.mjs';
+import { compareVersions, SEMVER } from './release-version.mjs';
 import { FEED_DOMAIN, keyTable, verifySignature } from './sign-release-manifest.mjs';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
@@ -67,7 +70,7 @@ const releaseFamilies = ['windows', 'macos'];
 const usage =
 	'Usage: node scripts/release-publish.mjs plan --event <name> --ref <git ref> [--version <version>]\n' +
 	'       node scripts/release-publish.mjs notes --tag v<version> --repository <owner/name>\n' +
-	'       node scripts/release-publish.mjs gate-paths --version <version> --repository <owner/name>\n' +
+	'       node scripts/release-publish.mjs gate-paths --version <version> --repository <owner/name> [--macos-aarch64 <true|false>]\n' +
 	'       node scripts/release-publish.mjs preconditions --signing-key-env <VARIABLE> [--npm-token-env <VARIABLE>]\n' +
 	'       node scripts/release-publish.mjs github <artifacts> --tag v<version> --repository <owner/name>\n' +
 	'       node scripts/release-publish.mjs npm <artifacts> --version <version> --repository-url <https URL>\n' +
@@ -139,6 +142,7 @@ export function planRelease({ event, ref, version: requested, platforms }) {
 		windowsMatrix: { include: rowsOf('windows') },
 		macosMatrix: { include: rowsOf('macos') },
 		macos: rowsOf('macos').length > 0,
+		macosAarch64: rowsOf('macos').some((row) => row.platform === 'macos-aarch64'),
 	};
 }
 
@@ -151,16 +155,20 @@ const gateFirstVersion = '0.1.0-beta.14';
 // The release gate's window: the releases published in the last 90 days.
 const gateWindowDays = 90;
 
-/**
- * The older releases the release gate updates from to `version`
- * (proposals/platform/automatic-updates.md#the-release-gate), as tags: the previous release, the one
- * before it, the one in the middle of the window (the older of two middle ones) and the oldest,
- * each counted once, so at most four and every release of a window of four or fewer. The window
- * holds the published releases below `version`, from `firstVersion` on, published within 90 days
- * before `now`; drafts and tags that are not `v<version>` never count. `releases` are
- * `{ tag, draft, publishedAt }` rows as the GitHub API lists them, in any order.
- */
-export function selectGatePaths({ releases, version, now, firstVersion = gateFirstVersion }) {
+function hasSignedPlatformFeed(release, version, platform, requireAssetList) {
+	if (!Array.isArray(release?.assets)) return !requireAssetList;
+	const expected = feedName(releaseStem, version, platform);
+	return release.assets.includes(expected) && release.assets.includes(`${expected}.sig`);
+}
+
+function gateWindowVersions({
+	releases,
+	version,
+	now,
+	firstVersion,
+	platform,
+	requireAssetList = false,
+}) {
 	const since = now.getTime() - gateWindowDays * 24 * 60 * 60 * 1000;
 	const window = new Set();
 	for (const release of releases) {
@@ -173,17 +181,62 @@ export function selectGatePaths({ releases, version, now, firstVersion = gateFir
 			Number.isNaN(published) ||
 			published < since ||
 			compareVersions(tag[1], firstVersion) < 0 ||
-			compareVersions(tag[1], version) >= 0
+			compareVersions(tag[1], version) >= 0 ||
+			!hasSignedPlatformFeed(release, tag[1], platform, requireAssetList)
 		)
 			continue;
 		window.add(tag[1]);
 	}
-	const newestFirst = [...window].toSorted((left, right) => compareVersions(right, left));
+	return [...window].toSorted((left, right) => compareVersions(right, left));
+}
+
+/**
+ * The older Windows releases the release gate updates from to `version`
+ * (proposals/platform/automatic-updates.md#the-release-gate), as tags: the previous release, the one
+ * before it, the one in the middle of the window (the older of two middle ones) and the oldest,
+ * each counted once, so at most four and every release of a window of four or fewer. The window
+ * holds the published releases below `version`, from `firstVersion` on, published within 90 days
+ * before `now` (and carrying `windows-x86_64` feed assets when `assets` are listed); drafts and
+ * tags that are not `v<version>` never count.
+ */
+export function selectGatePaths({ releases, version, now, firstVersion = gateFirstVersion }) {
+	const newestFirst = gateWindowVersions({
+		releases,
+		version,
+		now,
+		firstVersion,
+		platform: 'windows-x86_64',
+	});
 	const count = newestFirst.length;
 	if (count === 0) return [];
 	// Ascending positions, so the paths list the newest older release first.
 	const picks = new Set([0, Math.min(1, count - 1), Math.floor(count / 2), count - 1]);
 	return [...picks].map((index) => `v${newestFirst[index]}`);
+}
+
+/**
+ * The older `macos-aarch64` release the pre-publish macOS gate updates from to `version`: the
+ * newest published release in the 90-day window from `firstVersion` on that actually carries
+ * `orchbee-<ver>-macos-aarch64.feed.json` and `.sig` (earlier Windows-only betas had no macOS
+ * assets). Returns `[]` when `hasMacosRow` is false or no published macOS release qualifies.
+ */
+export function selectMacosGatePaths({
+	releases,
+	version,
+	now,
+	firstVersion = gateFirstVersion,
+	hasMacosRow = true,
+}) {
+	if (!hasMacosRow) return [];
+	const newestFirst = gateWindowVersions({
+		releases,
+		version,
+		now,
+		firstVersion,
+		platform: 'macos-aarch64',
+		requireAssetList: true,
+	});
+	return newestFirst.length === 0 ? [] : [`v${newestFirst[0]}`];
 }
 
 /** The 64-hex public keys of RELEASE_KEYS in the Rust source, or undefined when the table is not found. */
@@ -448,40 +501,6 @@ async function registryDocument(name, fetchImpl) {
 	return response.json();
 }
 
-/** Numeric identifiers compare as numbers and rank below alphanumeric ones, which compare as text. */
-function compareIdentifiers(left, right) {
-	const leftNumeric = /^\d+$/u.test(left);
-	const rightNumeric = /^\d+$/u.test(right);
-	if (leftNumeric && rightNumeric) return Number(left) - Number(right);
-	if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
-	if (left === right) return 0;
-	return left < right ? -1 : 1;
-}
-
-/** A version's three numbers and its pre-release identifiers, empty for a stable version. */
-function versionParts(version) {
-	const dash = version.indexOf('-');
-	return {
-		core: (dash === -1 ? version : version.slice(0, dash)).split('.').map(Number),
-		pre: dash === -1 ? [] : version.slice(dash + 1).split('.'),
-	};
-}
-
-/** Semantic Versioning precedence of two versions without build metadata: below, at or above zero. */
-function compareVersions(left, right) {
-	const a = versionParts(left);
-	const b = versionParts(right);
-	for (let index = 0; index < 3; index += 1)
-		if (a.core[index] !== b.core[index]) return a.core[index] - b.core[index];
-	// A version without a pre-release part ranks above every pre-release of the same core.
-	if (a.pre.length === 0 || b.pre.length === 0) return b.pre.length - a.pre.length;
-	for (let index = 0; index < Math.min(a.pre.length, b.pre.length); index += 1) {
-		const order = compareIdentifiers(a.pre[index], b.pre[index]);
-		if (order !== 0) return order;
-	}
-	return a.pre.length - b.pre.length;
-}
-
 /**
  * Whether the pre-release `version` also takes the dist-tag `latest`, which names `current` now: while
  * `latest` is missing or an older pre-release. Until a stable version exists a plain `npm install`
@@ -536,14 +555,14 @@ export function githubReleases(tag, repositoryName, gh = (argv) => run('gh', arg
 		.map((line) => JSON.parse(line));
 }
 
-/** Every release of `repositoryName` as `{ tag, draft, publishedAt }`, drafts included. */
+/** Every release of `repositoryName` as `{ tag, draft, publishedAt, assets }`, drafts included. */
 function githubReleaseList(repositoryName, gh = (argv) => run('gh', argv)) {
 	const result = gh([
 		'api',
 		'--paginate',
 		`repos/${repositoryName}/releases?per_page=100`,
 		'--jq',
-		'.[] | {tag: .tag_name, draft, publishedAt: .published_at}',
+		'.[] | {tag: .tag_name, draft, publishedAt: .published_at, assets: [.assets[].name]}',
 	]);
 	return result.stdout
 		.split('\n')
@@ -811,30 +830,57 @@ async function main(argv) {
 			'windows-matrix': JSON.stringify(plan.windowsMatrix),
 			'macos-matrix': JSON.stringify(plan.macosMatrix),
 			macos: String(plan.macos),
+			'macos-aarch64': String(plan.macosAarch64),
 		});
 		return;
 	}
 	if (command === 'gate-paths') {
-		const { positional, options } = parseOptions(rest, ['version', 'repository']);
+		const { positional, options } = parseOptions(rest, ['version', 'repository', 'macos-aarch64']);
 		if (
 			positional.length > 0 ||
 			!SEMVER.test(options.version ?? '') ||
-			!/^[\w.-]+\/[\w.-]+$/u.test(options.repository ?? '')
+			!/^[\w.-]+\/[\w.-]+$/u.test(options.repository ?? '') ||
+			(options['macos-aarch64'] !== undefined &&
+				!['true', 'false'].includes(options['macos-aarch64']))
 		)
 			throw new UsageError(usage);
+		const releases = githubReleaseList(options.repository);
+		const now = new Date();
 		const paths = selectGatePaths({
-			releases: githubReleaseList(options.repository),
+			releases,
 			version: options.version,
-			now: new Date(),
+			now,
+		});
+		const hasMacosRow = options['macos-aarch64'] !== 'false';
+		const macosPaths = selectMacosGatePaths({
+			releases,
+			version: options.version,
+			now,
+			hasMacosRow,
 		});
 		log(
 			paths.length > 0
-				? `The release gate of ${options.version} updates from ${paths.join(', ')}.`
-				: `The release gate of ${options.version} runs no path: no release from ${gateFirstVersion} on was published in the last ${gateWindowDays} days.`,
+				? `The Windows release gate of ${options.version} updates from ${paths.join(', ')}.`
+				: `The Windows release gate of ${options.version} runs no path: no Windows release from ${gateFirstVersion} on was published in the last ${gateWindowDays} days.`,
 		);
+		if (macosPaths.length > 0) {
+			log(
+				`The macOS aarch64 release gate of ${options.version} updates from ${macosPaths.join(', ')}.`,
+			);
+		} else if (!hasMacosRow) {
+			log(
+				`The macOS aarch64 release gate of ${options.version} is skipped: macos-aarch64 is not in the planned rows.`,
+			);
+		} else {
+			log(
+				`The macOS aarch64 release gate of ${options.version} runs no path: no macos-aarch64 release from ${gateFirstVersion} on was published in the last ${gateWindowDays} days.`,
+			);
+		}
 		writeOutputs({
 			gate: String(paths.length > 0),
 			'gate-matrix': JSON.stringify({ include: paths.map((older) => ({ older })) }),
+			'macos-gate': String(macosPaths.length > 0),
+			'macos-gate-matrix': JSON.stringify({ include: macosPaths.map((older) => ({ older })) }),
 		});
 		return;
 	}

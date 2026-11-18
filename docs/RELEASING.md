@@ -21,14 +21,26 @@ repository>`. Print each public half with the command in
    Packages and scopes "Read and write", "All Packages" (a new name cannot be selected before it
    exists) plus the `orchbee` scope, "Bypass two-factor authentication" checked, and an expiry that
    covers the release.
-3. **GitHub environment.** Settings › Environments › New environment `release`:
-   - Required reviewers: none. A pushed tag publishes with no approval.
-   - Deployment branches and tags: Selected branches and tags, branch `main` and tag `v*`.
-   - Environment secrets: `ORCHBEE_RELEASE_SIGNING_KEY`, the working key's whole PEM text, which
-     signs the manifest and, in the job "Release feed", the update feed document and the release
-     gate's copy of it, set with
-     `gh secret set ORCHBEE_RELEASE_SIGNING_KEY --env release < <working key file>`; and `NPM_TOKEN`,
-     the npm token, set with `gh secret set NPM_TOKEN --env release`, which asks for the value.
+3. **GitHub environments.** Settings › Environments:
+   - New environment `release`:
+     - Required reviewers: none. A pushed tag publishes with no approval.
+     - Deployment branches and tags: Selected branches and tags, branch `main` and tag `v*`.
+     - Environment secrets: `ORCHBEE_RELEASE_SIGNING_KEY`, the working key's whole PEM text, which
+       signs the manifest and, in the job "Release feed", the update feed document and the release
+       gate's copy of it, set with
+       `gh secret set ORCHBEE_RELEASE_SIGNING_KEY --env release < <working key file>`; and
+       `NPM_TOKEN`, the npm token, set with `gh secret set NPM_TOKEN --env release`, which asks for
+       the value.
+   - New environment `website`, used by `website-release` in `.github/workflows/update-check.yml`:
+     - Required reviewers: none.
+     - Deployment branches and tags: Selected branches and tags, branch `main` and tag `v*`.
+     - Environment secrets: `WEBSITE_PUSH_TOKEN`, a fine-grained personal access token scoped to
+       this repository with `Contents: Read and write` (so the job can push the website channel
+       commit to `main`), `CLOUDFLARE_API_TOKEN` (Workers Scripts edit permission for the website
+       Worker), and `CLOUDFLARE_ACCOUNT_ID`, each set with `gh secret set <NAME> --env website`.
+   - On Cloudflare, keep Bot Fight Mode, Browser Integrity Check, and challenge rules off for
+     `/update/*` and `/install.sh`, because CLI clients and `install.sh` fetch them anonymously with
+     `curl` and fail closed on any 403 or HTML challenge page.
 4. **Tag rule.** Settings › Rules › Rulesets › New tag ruleset, target `v*`, active, restricting
    creations, updates and deletions, with the repository administrator role on the bypass list, so
    only the owner can create or move a release tag.
@@ -64,11 +76,13 @@ repository>`. Print each public half with the command in
 5. After packaging, each job "Release feed <platform>" signs its row's update feed document and the
    release gate's copy of it with the release key, in a rehearsal too; the gate copy names the
    archives by their file names and is never published. Then the jobs "Release gate from
-   v<older>" each install an older release from its published archive on a fresh Windows runner
-   and let its own automatic helper update it to this release from the gate copy while a terminal
-   keeps running; the job "Release version" names the older releases it selected, or says the gate
-   runs no path, which until a release after the first self-updating one is always the case and
-   lets publication go on. Publication places the feed's signature beside it, then creates
+   v<older>" (on fresh Windows runners) and "Release gate macos-aarch64 from v<older>" (on a fresh
+   `macos-15` runner from the newest published macOS release) each install an older release and its
+   window version into `<store root>/desktop/` from its published archives and let its own automatic
+   helper update both runtime and window to this release from the gate copy while a terminal keeps
+   running; the job "Release version" names the older releases it selected, or says a gate runs no
+   path when no qualifying release exists yet, which lets publication go on. Publication places the
+   feed's signature beside it, then creates
    a draft release `v0.1.0-beta.1` holding the setup file, the `.zip`, the
    window archive `orchbee-desktop-0.1.0-beta.1-windows-x86_64.zip`, the feed
    document `orchbee-0.1.0-beta.1-windows-x86_64.feed.json` and its `.sig`, for each macOS row
@@ -81,41 +95,30 @@ repository>`. Print each public half with the command in
    message. The release
    is not a pre-release even for a beta: GitHub shows a Latest release on the repository page, and
    answers `/releases/latest`, only for a release that is not one.
-6. Wait for the update check: the publication job starts Actions › Update check for the tag,
-   which on a fresh runner of each platform whose release builds update themselves, Windows and
-   both macOS rows, installs the version people have now and updates it to the release through
-   `orchbee update` from the published assets
-   ([Update check workflow](VERIFICATION.md#update-check-workflow)). Go on only when every row
-   passes; to run it again, Run workflow with the tag, or
-   `gh workflow run update-check.yml --ref main -f tag=v0.1.0-beta.1`. A release published by
-   hand starts it too.
-7. Move the website to the release once the update check passed: on `main`, run
-   `pnpm website:release 0.1.0-beta.1`, then commit what it changed: the update feed pair of each
-   platform the release published under `apps/website/public/update/stable/<platform>/`, any pair
-   it removed for a platform the release did not publish, and
-   `apps/website/src/website/release.ts`, with every published platform's download. Also read the
-   site's copy for claims the release changes (platforms, requirements, install and update steps,
-   shipped features), and update `packages/i18n/src/locales/*/website-*.ts` in the same commit.
-   Then build and deploy the website as [its README](../apps/website/README.md#static-delivery)
-   says. The
-   command needs no credentials; it refuses, writing nothing, while the release is a draft or lacks
-   a file, and when a feed signature or an archive does not check out. The update channel has moved
-   when the deploy finishes, and the download buttons name the same version. The first release
-   with macOS rows is also the first that shows the macOS downloads, the `install.sh` command and
-   the Open Anyway steps.
-8. Check what clients read, after the deploy and from a computer signed in nowhere. For each
-   platform folder under `apps/website/public/update/stable/`, run
-   `%SystemRoot%\System32\curl.exe --disable --fail --silent --show-error --output feed.json https://orchbee.com/update/stable/<platform>/feed.json`,
-   the same for `feed.json.sig`, and compare both byte for byte with that folder's tracked
-   `feed.json.signed` and `feed.json.sig` (`fc.exe /b`). Fetch
-   `https://orchbee.com/install.sh` the same way and compare it with
-   `apps/website/public/install.sh`. Clients and the install script send exactly such a request:
-   curl's own user agent, no cookie, no script. A challenge page, a 403 or other bytes make every
-   client report `download` or `signature-invalid`, so keep Cloudflare's challenge features (Bot
-   Fight Mode, Browser Integrity Check, challenge rules) off for `/update/*` and `/install.sh`,
-   then check again.
-9. Move `main` to the next version in a new commit, for example
-   `node scripts/release-version.mjs set 0.1.0-beta.2`.
+6. Confirm the Update check workflow: the publication job starts Actions › Update check for the tag,
+   which on a fresh runner of each platform whose release builds update themselves (Windows and
+   both macOS rows) installs the version people have now—including `<store root>/desktop/` when
+   both feeds carry `extensions.desktop`—and updates it to the release through `orchbee update`
+   from the published assets ([Update check workflow](VERIFICATION.md#update-check-workflow)). To
+   run it again by hand, Run workflow with the tag, or
+   `gh workflow run update-check.yml --ref main -f tag=v0.1.0-beta.1`.
+7. Automatic website rollout and live verification: once every `update-check` row passes, the
+   `website-release` job in `update-check.yml` checks `node scripts/website-release.mjs should-advance <version>`
+   against `main` (skipping cleanly with exit 0 when `main`'s `release.ts` is already above
+   `<version>` in SemVer order so re-running an older tag never downgrades the channel), runs
+   `pnpm website:release <version>`, enforces `node scripts/website-release.mjs assert-clean-diff`
+   so only `apps/website/src/website/release.ts` and
+   `apps/website/public/update/<channel>/<platform>/feed.json.{signed,sig}` can change, runs website
+   tests and `pnpm website:build`, commits and pushes to `main` as `i-need-token`, deploys to
+   Cloudflare via `wrangler deploy`, and runs `node scripts/website-release.mjs verify-live` to
+   anonymously fetch every tracked `/update/<channel>/<platform>/feed.json`, `.sig` and
+   `/install.sh` with system `curl` and compare them byte for byte against the tracked repository
+   files. When a release also changes website copy in `packages/i18n/src/locales/*/website-*.ts`,
+   or when moving the website manually, you can still run `pnpm website:release <version>`, build,
+   deploy as [its README](../apps/website/README.md#static-delivery) says, and verify live with
+   `node scripts/website-release.mjs verify-live`.
+8. Pull `main` locally (so your checkout includes the website channel commit) and move `main` to
+   the next version in a new commit, for example `node scripts/release-version.mjs set 0.1.0-beta.2`.
 
 ## When a step fails
 
@@ -123,11 +126,11 @@ repository>`. Print each public half with the command in
   (`git push origin :refs/tags/v0.1.0-beta.1` and `git tag -d v0.1.0-beta.1`) and tag the fixed
   commit. A failed precondition names the missing secret, key or table entry; a lightweight tag or
   an empty tag message gives the tag command.
-- A failed job "Release gate from v<older>" means an Orchbee of that release could not update to
-  this one, so nothing was published. Its last lines name the stage that failed, the probe record's
-  last line and the diagnostic log's tail. A download that failed for a passing reason, such as a
-  timeout, is cleared by "Re-run failed jobs"; any other failure is fixed on `main` like any other
-  failure before publication.
+- A failed job "Release gate from v<older>" or "Release gate macos-aarch64 from v<older>" means an
+  Orchbee of that release could not update to this one, so nothing was published. Its last lines
+  name the stage that failed, the probe record's last line and the diagnostic log's tail. A download
+  that failed for a passing reason, such as a timeout, is cleared by "Re-run failed jobs"; any
+  other failure is fixed on `main` like any other failure before publication.
 - A failed publication job is run again: "Re-run failed jobs" on the same run, within 14 days while
   its artifacts are kept, never "Re-run all jobs". A failed npm step leaves the release a draft.
   The re-run publishes from the same artifacts, the feed signature of the job "Release feed"
@@ -157,11 +160,18 @@ repository>`. Print each public half with the command in
 - `pnpm website:release` refusing a published release whose signature or archive does not check
   out means the channel must not move to it: leave the website as it is and release the next
   version.
-- A failed update check means the channel must not move yet: leave the website as it is. Its last
+- A failed update check means the channel has not moved: `website-release` did not run. Its last
   lines name the stage that failed. A download that failed for a passing reason, such as a
   timeout or an answer in the 500s, is cleared by running the check again. Any other failure means
   the release cannot be updated to: fix the cause on `main` and release the next version; the
   failed release stays public for people who install it by hand.
+- A failed `website-release` job names the missing environment secret (`gh secret set <NAME> --env website`),
+  the path check, the Cloudflare deploy failure, or the live edge mismatch. If the commit to `main`
+  already landed before a transient deploy or edge failure, "Re-run failed jobs" on the same
+  `update-check.yml` run detects that `main` already names the version while the live edge lags and
+  resumes the Cloudflare deploy and `verify-live` without creating another commit. If `verify-live`
+  reports 403 or HTML challenge content, exempt `/update/*` and `/install.sh` from Cloudflare
+  challenges and re-run.
 
 ## Release directory per platform
 
@@ -183,7 +193,19 @@ then set `"publish": true` on its row of `RELEASE_PLATFORMS` in `.github/workflo
 
 - A published archive stays at its address for as long as a channel's feed names it. A feed is
   signed with a key every client still in use trusts; while rotating keys, sign with the old and
-  the new one.
+  the new one, and keep `RELEASE_KEYS` in `apps/orchbee/src/cli/update/signature.rs` and
+  `ob_release_keys` in `apps/website/public/install.sh` identical (verified by
+  `apps/website/src/website/__tests__/install-script.unit.test.ts`).
+- `apps/website/public/install.sh` requires an Ed25519-capable `openssl` (`pkeyutl -rawin`),
+  fetches `feed.json.sig` beside `feed.json` (bounded to 4096 bytes), and verifies the signature
+  under `orchbee-update-feed-v1` against `ob_release_keys` before reading the feed or downloading
+  any archive; if no trusted key verifies, it exits 1 with nothing installed.
+- Breaking feed or archive formats: `apps/website/public/update/<channel>/` is frozen at
+  `schemaVersion: 1`, and `scripts/website-release.mjs` refuses to write any feed whose
+  `schemaVersion` is not `1` there. To introduce an incompatible `v2` feed or archive format
+  without stranding v1 clients, ship a v1 bridge release whose updater reads a new versioned path
+  (such as `/update/v2/<channel>/<platform>/feed.json`), freeze `/update/<channel>/` on that bridge
+  release, and advance `/update/v2/<channel>/` for subsequent releases.
 - What `orchbee update` reports, for reading a person's report:
   - A 404 for the feed: `no-release`, exit 4, naming the channel and platform; a platform or
     channel without a published feed answers this way. A 404 for the archive: `download`.

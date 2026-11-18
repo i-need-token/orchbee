@@ -22,6 +22,47 @@ const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const SEMVER =
 	/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][\da-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][\da-zA-Z-]*))*)?$/u;
 
+function compareIdentifiers(left, right) {
+	const leftNumeric = /^\d+$/u.test(left);
+	const rightNumeric = /^\d+$/u.test(right);
+	if (leftNumeric && rightNumeric) {
+		const a = BigInt(left);
+		const b = BigInt(right);
+		if (a === b) return 0;
+		return a < b ? -1 : 1;
+	}
+	if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+	if (left === right) return 0;
+	return left < right ? -1 : 1;
+}
+
+function versionParts(version) {
+	const dash = version.indexOf('-');
+	return {
+		core: (dash === -1 ? version : version.slice(0, dash)).split('.').map(BigInt),
+		pre: dash === -1 ? [] : version.slice(dash + 1).split('.'),
+	};
+}
+
+/** Semantic Versioning 2.0.0 precedence of two versions without build metadata: -1, 0 or 1. */
+export function compareVersions(left, right) {
+	const a = versionParts(left);
+	const b = versionParts(right);
+	for (let index = 0; index < 3; index += 1) {
+		if (a.core[index] !== b.core[index]) return a.core[index] < b.core[index] ? -1 : 1;
+	}
+	// A plain version ranks above every pre-release of the same core.
+	if (a.pre.length === 0 && b.pre.length === 0) return 0;
+	if (a.pre.length === 0) return 1;
+	if (b.pre.length === 0) return -1;
+	for (let index = 0; index < Math.min(a.pre.length, b.pre.length); index += 1) {
+		const order = compareIdentifiers(a.pre[index], b.pre[index]);
+		if (order !== 0) return order;
+	}
+	if (a.pre.length === b.pre.length) return 0;
+	return a.pre.length < b.pre.length ? -1 : 1;
+}
+
 const CARGO_MANIFEST = 'Cargo.toml';
 const CARGO_LOCK = 'Cargo.lock';
 const DESKTOP_PACKAGE = 'apps/desktop/package.json';

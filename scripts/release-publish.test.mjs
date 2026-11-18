@@ -16,8 +16,16 @@ import {
 	releaseAssets,
 	releaseTable,
 	selectGatePaths,
+	selectMacosGatePaths,
 	tagNotes,
 } from './release-publish.mjs';
+import {
+	parseGateArguments,
+	probeFacts,
+	seedWindowStore,
+	StepFailure,
+	UsageError,
+} from './release-update-check.mjs';
 import {
 	FEED_DOMAIN,
 	loadKey,
@@ -141,6 +149,59 @@ test('the gate window holds only published releases from the first one on, withi
 	];
 	assert.deepEqual(gatePaths(releases, '0.2.0-beta.99', '0.2.0-beta.2'), ['v0.2.0-beta.2']);
 	assert.deepEqual(gatePaths([published(1, 1)], '0.2.0-beta.1'), []);
+});
+
+test('macOS gate paths pick the newest published release carrying macos-aarch64 feed assets', () => {
+	const winAssets = (ver) => [
+		`orchbee-${ver}-windows-x86_64.feed.json`,
+		`orchbee-${ver}-windows-x86_64.feed.json.sig`,
+	];
+	const macAssets = (ver) => [
+		`orchbee-${ver}-macos-aarch64.feed.json`,
+		`orchbee-${ver}-macos-aarch64.feed.json.sig`,
+	];
+	const releases = [
+		{
+			tag: 'v0.1.0-beta.12',
+			draft: false,
+			publishedAt: new Date(gateNow.getTime() - 20 * day).toISOString(),
+			assets: winAssets('0.1.0-beta.12'),
+		},
+		{
+			tag: 'v0.1.0-beta.17',
+			draft: false,
+			publishedAt: new Date(gateNow.getTime() - 5 * day).toISOString(),
+			assets: [...winAssets('0.1.0-beta.17'), ...macAssets('0.1.0-beta.17')],
+		},
+		{
+			tag: 'v0.1.0-beta.18',
+			draft: false,
+			publishedAt: new Date(gateNow.getTime() - 2 * day).toISOString(),
+			assets: winAssets('0.1.0-beta.18'),
+		},
+		{
+			tag: 'v0.1.0-beta.19',
+			draft: false,
+			publishedAt: new Date(gateNow.getTime() - 1 * day).toISOString(),
+			assets: [`orchbee-0.1.0-beta.19-macos-aarch64.feed.json`],
+		},
+	];
+	assert.deepEqual(selectMacosGatePaths({ releases, version: '0.1.0-beta.20', now: gateNow }), [
+		'v0.1.0-beta.17',
+	]);
+	assert.deepEqual(
+		selectMacosGatePaths({
+			releases,
+			version: '0.1.0-beta.20',
+			now: gateNow,
+			hasMacosRow: false,
+		}),
+		[],
+	);
+	assert.deepEqual(selectGatePaths({ releases, version: '0.1.0-beta.20', now: gateNow }), [
+		'v0.1.0-beta.18',
+		'v0.1.0-beta.17',
+	]);
 });
 
 // Answers the two API reads of tagNotes the way `gh api --jq` prints them.
@@ -407,4 +468,177 @@ test('the registry answer is read without the network', async () => {
 	assert.equal(requested.at(-1), 'https://registry.npmjs.org/@orchbee%2fcli-win32-x64');
 	assert.equal(await registryIntegrity('orchbee', '0.1.1', answer(200, document)), undefined);
 	await assert.rejects(registryIntegrity('orchbee', '0.1.0', answer(503)), /answered 503/u);
+});
+
+test('seedWindowStore pre-seeds desktop/ when supported and fails closed on regressions', (t) => {
+	const root = mkdtempSync(path.join(realpathSync(tmpdir()), 'orchbee-window-seed-test-'));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const clientPath = path.join(root, 'bundled-orchbee');
+	writeFileSync(clientPath, '');
+
+	const desktopMember = (ver) => ({
+		version: ver,
+		archive: {
+			format: 'zip',
+			url: `https://github.com/owner/orchbee/releases/download/v${ver}/orchbee-desktop-${ver}-windows-x86_64.zip`,
+			size: 128,
+			sha256: 'a'.repeat(64),
+		},
+		manifest: { sha256: 'b'.repeat(64) },
+	});
+	const activeChecked = [];
+	const port = {
+		platform: 'windows-x86_64',
+		bundledWindowClient: () => clientPath,
+		expectWindowActive: (_storeRoot, _stem, ver) => activeChecked.push(ver),
+	};
+	const baseArgs = {
+		port,
+		source: { kind: 'https', base: 'https://github.com/owner/orchbee/releases/download/v0.1.0/' },
+		stem: 'orchbee',
+		work: root,
+		storeRoot: path.join(root, 'store'),
+		env: {},
+		fetchWindow: () => path.join(root, 'window.zip'),
+		unpackWindow: () => root,
+	};
+
+	// Missing extensions.desktop on either side skips without fetching or running the helper.
+	assert.deepEqual(
+		seedWindowStore({
+			...baseArgs,
+			olderFeed: { version: '0.1.0-beta.4' },
+			offeredFeed: {
+				version: '0.1.0-beta.18',
+				extensions: { desktop: desktopMember('0.1.0-beta.18') },
+			},
+			fetchWindow: () => assert.fail('should not fetch window archive'),
+		}),
+		{ seeded: false },
+	);
+
+	// Pre-window release (before 0.1.0-beta.14) exiting 2 without orchbee.install skips gracefully.
+	assert.deepEqual(
+		seedWindowStore({
+			...baseArgs,
+			olderFeed: {
+				version: '0.1.0-beta.12',
+				extensions: { desktop: desktopMember('0.1.0-beta.12') },
+			},
+			offeredFeed: {
+				version: '0.1.0-beta.18',
+				extensions: { desktop: desktopMember('0.1.0-beta.18') },
+			},
+			runInstaller: () => ({ status: 2, stdout: '', stderr: 'unknown option', document: null }),
+		}),
+		{ seeded: false },
+	);
+
+	// Release >= 0.1.0-beta.14 MUST support --installer-window-v1; exit 2 fails closed.
+	assert.throws(
+		() =>
+			seedWindowStore({
+				...baseArgs,
+				olderFeed: {
+					version: '0.1.0-beta.17',
+					extensions: { desktop: desktopMember('0.1.0-beta.17') },
+				},
+				offeredFeed: {
+					version: '0.1.0-beta.18',
+					extensions: { desktop: desktopMember('0.1.0-beta.18') },
+				},
+				runInstaller: () => ({ status: 2, stdout: '', stderr: 'unknown option', document: null }),
+			}),
+		StepFailure,
+	);
+
+	// Supported release seeds desktop/ with exact ['--installer-window-v1'] argv and checks active.json.
+	let seenArgv;
+	const seeded = seedWindowStore({
+		...baseArgs,
+		olderFeed: {
+			version: '0.1.0-beta.17',
+			extensions: { desktop: desktopMember('0.1.0-beta.17') },
+		},
+		offeredFeed: {
+			version: '0.1.0-beta.18',
+			extensions: { desktop: desktopMember('0.1.0-beta.18') },
+		},
+		runInstaller: (_program, argv) => {
+			seenArgv = argv;
+			return {
+				status: 0,
+				stdout: '',
+				stderr: '',
+				document: { schema: 'orchbee.install', result: { activated: true } },
+			};
+		},
+	});
+	assert.deepEqual(seenArgv, ['--installer-window-v1']);
+	assert.deepEqual(seeded, {
+		seeded: true,
+		olderVersion: '0.1.0-beta.17',
+		expectedVersion: '0.1.0-beta.18',
+	});
+	assert.deepEqual(activeChecked, ['0.1.0-beta.17']);
+});
+
+test('parseGateArguments and probeFacts validate gate inputs and gapless probe output', () => {
+	const workDir = path.resolve(tmpdir(), 'gate-work');
+	const feedFile = path.resolve(tmpdir(), 'orchbee-0.1.0-macos-aarch64.gate.feed.json');
+	const parsed = parseGateArguments(
+		[
+			'v0.1.0-beta.18',
+			'--release',
+			'https://github.com/owner/orchbee/releases/download/v0.1.0-beta.18/',
+			'--feed',
+			feedFile,
+			'--work',
+			workDir,
+		],
+		'usage',
+	);
+	assert.equal(parsed.older, '0.1.0-beta.18');
+	assert.equal(parsed.stem, 'orchbee');
+	assert.throws(
+		() =>
+			parseGateArguments(
+				[
+					'v0.1.0-beta.18',
+					'--release',
+					'http://127.0.0.1:8080/',
+					'--feed',
+					feedFile,
+					'--work',
+					workDir,
+				],
+				'usage',
+			),
+		UsageError,
+	);
+
+	assert.deepEqual(
+		probeFacts([
+			{ pid: 4242, number: 1 },
+			{ pid: 4242, number: 2 },
+			{ pid: 4242, number: 3 },
+		]),
+		{ pid: 4242, last: 3 },
+	);
+	assert.throws(
+		() =>
+			probeFacts([
+				{ pid: 4242, number: 1 },
+				{ pid: 4242, number: 3 },
+			]),
+		/jump from 1 to 3/u,
+	);
+	assert.throws(
+		() =>
+			probeFacts([
+				{ pid: 4242, number: 1 },
+				{ pid: 9999, number: 2 },
+			]),
+		/processes 4242, 9999/u,
+	);
 });
