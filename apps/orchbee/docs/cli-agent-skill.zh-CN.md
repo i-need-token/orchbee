@@ -1,6 +1,34 @@
 # Orchbee 原生 CLI Agent 指南
 
-本指南描述原生 CLI 的用户流程。Windows、Linux 和 macOS 公开相同语法、帮助与补全；执行可用性仍明确区分。操作前，通过已安装构建确认精确行为。
+本指南描述原生 CLI 在 Windows、Linux 和 macOS 上的工作流。语法、帮助与补全跨平台一致；实际执行能力仍明确区分。操作前，先通过已安装构建的 `--help` 确认精确行为。
+
+## 快速上手示例
+
+```text
+# 查看运行中的会话、面板与智能体
+orchbee status --format json
+orchbee agent list --format json
+
+# 在目标工作目录启动智能体且不抢占客户端焦点
+orchbee agent start antigravity --cwd <dir> --no-focus -- <provider-args>
+orchbee agent wait --panel @panel:0x1 --until idle
+
+# 按面板或子终端发送提示词、按键、查看进程信息或可见屏幕输出
+orchbee agent prompt --panel @panel:0x1 "<task>"
+orchbee agent prompt --terminal @terminal:0x2 "<task>" --wait --timeout 60000
+orchbee agent send-keys --panel @panel:0x1 escape
+orchbee agent read --panel @panel:0x1 --source visible --plain
+orchbee panel process-info @panel:0x1 --format json
+
+# 在受管 Shell 中执行单条有界命令并等待完成标记
+orchbee terminal run --panel @panel:0x1 "git status" --wait --timeout 30000 --format json
+```
+
+- 优先使用紧凑稳定句柄（`@panel:0x1`、`@terminal:0x2`、`@agent:<kind>`、`@agent:<n>`）；PowerShell 中记得给句柄加引号。
+- 启动时，`--cwd <dir>` 和 `--focus`/`--no-focus` 仅用于新建标签页或 `--split right|down` 启动，与 `--here` 互斥。`--client <id>` 指定 `--focus` 切换的客户端，且需与 `--focus` 同用。
+- 在现有终端内启动时，`--here --panel <panel-id>` 要求目标 shell 处于空闲提示符。若目标就是运行本命令的 Panel，会以 `own-panel` 拒绝。若拒绝信息出现 `stage: "agent-terminal"`，先用 `orchbee panel process-info <panel-id>` 和 `orchbee agent list` 排查。
+- 超时、取消或结果未知时绝不重放输入；先用 `agent read` 或 `terminal read` 检查现场。
+- 仅在用户当前对话明确要求停止时才停止 Server 或 Session；绝不擅自添加 `--confirm`。
 
 ## 发现当前构建
 
@@ -26,7 +54,7 @@ orchbee --session work status --format json
 orchbee --session work tui
 ```
 
-运行时根目录缺失属于环境检查失败；重试前查看 `config check`。Recovery-required 表示启动无法确认安全的所有权。诊断该精确 Session，或使用另一个名称。不要手动删除运行时目录。
+运行时根目录缺失属于环境检查失败；重试前查看 `config check`。`recovery-required` 表示启动无法确认安全的所有权。诊断该精确 Session，或使用另一个名称。不要手动删除运行时目录。
 
 ## 解析目标并检查状态
 
@@ -63,15 +91,17 @@ orchbee panel split <panel-id> --direction right
 
 ## 安装并操作 Agent
 
-智能体集成需要更新时，`doctor` 给出警告。适配器 Capsule 的契约版本为 1，以内容摘要 `capsule.payloadSha256` 为身份；每个环境把它安装在自己数据根的 `internal/integrations/agent-observation/<version>` 下（正式版为 `~/.orchbee`）。智能体条目属于其所指 Capsule 所在的环境，接入命令只修改本环境的条目，钩子也只向本环境的终端上报。任何版本都不会替换或删除其他环境的条目，也不会替换或删除指向各环境以前共用的 `~/.orchbee/agent-observation-adapters/<digest>` 的条目，该文件夹也不会被自动删除。`agent integration list` 将校验后发现的旧载荷报告为 `update-required`；使用 `orchbee agent integration enable --provider codex` 显式重装（选择实际提供方）。修改完成后会删除本环境中没有条目引用的 Capsule 版本；此外不执行迁移。先用 `agent integration list`，再用 `explain --provider <id>` 发现每个提供方的实际可用性与管理模式。`list` 只读取文件，不启动任何智能体程序，因此 `claude-code`、`grok`、`github-copilot` 和 Windows 与 macOS 上的 `hermes` 保持 `unknown` 且无问题，即未检查；对它们执行 `explain` 会启动该智能体自己的程序，该程序可能会创建自己的文件。`enable`/`disable --provider <id>` 执行显式受保护修改。`list --outdated-only` 显示自有修复候选，并分别报告被阻止或未能确认的提供方；空列表不代表检查完整。
+智能体集成需要更新时，`doctor` 给出警告。适配器 Capsule 的契约版本为 1，以内容摘要 `capsule.payloadSha256` 为身份；每个环境把它安装在自己数据根的 `internal/integrations/agent-observation/<version>` 下（正式版为 `~/.orchbee`）。智能体条目属于其所指 Capsule 所在的环境，接入命令只修改本环境的条目，钩子也只向本环境的终端上报。启用支持全局 Skill 的提供方时，还会安装带相同所有权标记的 `orchbee/SKILL.md` 发现文件，并在停用或卸载时干净移除（保留用户自建或其他环境的 Skill）。任何版本都不会替换或删除其他环境的条目，也不会替换或删除指向各环境以前共用的 `~/.orchbee/agent-observation-adapters/<digest>` 的条目，该文件夹也不会被自动删除。
+
+`agent integration list` 将校验后发现的旧载荷报告为 `update-required`；使用 `orchbee agent integration enable --provider codex` 显式修复（选择实际提供方）。修改完成后会删除本环境中没有条目引用的 Capsule 版本；此外不执行迁移。先用 `agent integration list`，再用 `explain --provider <id>` 发现每个提供方的实际可用性与管理模式。`list` 只读取文件，不启动任何智能体程序，因此 `claude-code`、`grok`、`github-copilot` 和 Windows 与 macOS 上的 `hermes` 保持 `unknown` 且无问题，即未检查；对它们执行 `explain` 会启动该智能体自己的程序，该程序可能会创建自己的文件。`enable`/`disable --provider <id>` 执行显式受保护修改。`list --outdated-only` 显示自有修复候选，并分别报告被阻止或未能确认的提供方；空列表不代表检查完整。
 
 Windows Codex 的检查与安装使用同一配置根：非空 `CODEX_HOME`，否则为原生用户目录中的 `.codex`。无效覆盖值拒绝且不回退。提供方退出成功不证明安装成功；应读取修改回执中的观察状态。
 
-`agent start codex` 在你自己的面板旁的新标签页中启动提供方；`--split right|down` 改为打开拆分面板，`--here --panel <panel-id>` 在该已观察到空闲的 cmd、PowerShell、pwsh 或 macOS zsh、bash 终端已确认的提示符处输入一次（不能是你自己的面板：`own-panel`）。`--panel <panel-id>` 或 `--current` 指定参照面板。不带参数和名称时，新标签页或拆分面板的 shell 以提供方作为首个命令运行，面板创建后即返回：`confirmation` 为 `launched`，`submission` 为 null。否则输入命令并在 3 秒检查后返回：`confirmation` 为 `sent`。两种情况下 `interactiveReady` 都为 false，`place` 和 `panelId` 指明启动位置；发送提示前先用 `agent wait --panel <panel-id> --until idle` 等待。shell 回到提示符时以 `command-not-found` 或 `agent-exited` 失败。加上 `--name review` 会等待其就绪并绑定名称。已启用提供方集成时，`confirmation` 为 `session`：`sessionId` 指向规范会话，名称已绑定。否则就绪由终端观察确认：`confirmation` 为 `observed`，没有 `sessionId`，名称不绑定，请用 `--panel` 指定该智能体。带名称的启动处于阻塞状态时以 `agent-blocked` 拒绝。后续步骤失败时，已创建的新标签页或拆分面板保留，失败结果的 `createdPanelId` 指向它。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并在 `agent list` 中查看该智能体的行。
+`agent start <provider>` 在你自己的面板旁的新标签页中启动提供方；`--split right|down` 改为打开拆分面板，`--cwd <dir>`、`--focus` 与 `--no-focus` 仅适用于此类新标签页或拆分面板启动，并与 `--here` 互斥。`--client <id>` 指定 `--focus` 切换的客户端，且需与 `--focus` 同用。`--here --panel <panel-id>` 在该已观察到空闲的 cmd、PowerShell、pwsh 或 macOS zsh、bash 终端已确认的提示符处输入一次（不能是你自己的面板：`own-panel`；交互启动时若提示符尚未标记会短暂等待稳定）。`--panel <panel-id>` 或 `--current` 指定参照面板。不带参数和名称时，新标签页或拆分面板的 shell 以提供方作为首个命令运行，面板创建后即返回：`confirmation` 为 `launched`，`submission` 为 null。否则输入命令并在 3 秒检查后返回：`confirmation` 为 `sent`。两种情况下 `interactiveReady` 都为 false，`place` 和 `panelId` 指明启动位置；发送提示前先用 `agent wait --panel <panel-id> --until idle` 等待。shell 回到提示符时以 `command-not-found` 或 `agent-exited` 失败。加上 `--name review` 会等待其就绪并绑定名称。已启用提供方集成时，`confirmation` 为 `session`：`sessionId` 指向规范会话，名称已绑定。否则就绪由终端观察确认：`confirmation` 为 `observed`，没有 `sessionId`，名称不绑定，请用 `--panel` 或 `--terminal` 指定该智能体。带名称的启动处于阻塞状态时以 `agent-blocked` 拒绝。后续步骤失败时，已创建的新标签页或拆分面板保留，失败结果的 `createdPanelId` 指向它。聚焦未切换时不会使启动失败；`result.focus`（失败时为 `details.focus`）给出阶段与原因。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并在 `agent list` 中查看该智能体的行。
 
-`agent list/get` 检查当前 Agent 状态；`agent get --format json` 还会给出 `result.explanation`（规范会话的状态如何得出）或 `result.detection`（终端 Agent 的检测规则评估），另一项为 null。Windows 和 macOS 上，`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态、位置和名称；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。Windows 和 macOS 的 JSON 使用 `orchbee.agent.list` v1 和 `orchbee.agent.get` v1。列表游标使用 `u1.<base64url>`，载荷为编码成 base64url 的规范 JSON，最多 1024 个字符，并绑定 会话、来源修订、筛选条件和 Client 选择。畸形游标在读取实时来源前作为用法错误拒绝；判断游标是否过期需要读取当前来源。收到 `cursor-restart` 后应从第一页重新开始。每页最多为 64 行添加可选 cwd 信息；无法获取时为 null。
+`agent list/get` 检查当前 Agent 状态；`agent get --format json` 还会给出 `result.explanation` 或 `result.detection`，另一项为 null。Windows 和 macOS 上，`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态、位置和名称；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。Windows 和 macOS 的 JSON 使用 `orchbee.agent.list` v1 和 `orchbee.agent.get` v1。分页游标应原样传回；畸形游标在读取实时来源前作为用法错误拒绝，收到 `cursor-restart` 时须从第一页重新开始；可选 cwd 信息每页最多为 64 行，无法获取时为 null。
 
-Windows 和 macOS 上，`@agent:<kind>` 选择唯一提供方，`@agent:<n>` 选择当前完整列表中的一基序号，而不是当前页的序号。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。`agent get`、`read`、`prompt`、`send-keys`、`wait` 和 `focus` 共用此解析器；不完整投影不能证明提供方匹配唯一。v1 `agent get` 将普通 Agent 身份和状态放在 `result.agent`，将各来源分面的详细信息放在 `result.inspection`。
+Windows 和 macOS 上，`@agent:<kind>` 选择唯一提供方，`@agent:<n>` 选择当前完整列表中的一基序号，而不是当前页的序号。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。`agent get`、`read`、`prompt`、`send-keys`、`wait` 和 `focus` 共用此解析器；`agent prompt`、`send-keys`、`read` 和 `wait` 也可直接传入 `--panel` 或 `--terminal`（仅通过终端识别的智能体，例如未启用集成时的 `antigravity`，以及子终端，应通过 `--panel` 或 `--terminal` 指定；若在 `stage: "agent-terminal"` 被拒绝，可用 `orchbee panel process-info <panel-id>` 检查进程归属）。不完整投影不能证明提供方匹配唯一。v1 `agent get` 将普通 Agent 身份和状态放在 `result.agent`，将各来源分面的详细信息放在 `result.inspection`。
 
 `agent rename <target> <name>` 分配运行时别名；`agent resolve` 与 `agent list` 显示别名，`agent rename <target> --clear` 释放别名。别名随会话结束而失效。之后复用别名不会改变已开始等待的原始目标。
 
@@ -79,10 +109,7 @@ Windows 和 macOS 上，`@agent:<kind>` 选择唯一提供方，`@agent:<n>` 选
 
 保留已观察的 revision；使用 `--after-revision` 等待后续状态前，先查看 `agent wait --help`。
 
-`--until`、`--timeout` 和 `--forever` 要求 `agent prompt --wait`；`--forever`
-与 `--timeout` 互斥。Windows Codex 的输入在 paste 与 Enter 之间包含 Right 键。
-Linux 保留 600000 毫秒的默认等待期限。等待失败会保留已接受的输入回执，因此不要
-重放结果不确定的输入。
+`--until`、`--timeout` 和 `--forever` 要求 `agent prompt --wait`；`--forever` 与 `--timeout` 互斥。Windows Codex 的输入在 paste 与 Enter 之间包含 Right 键。Linux 保留 600000 毫秒的默认等待期限。等待失败会保留已接受的输入回执，因此不要重放结果不确定的输入。
 
 ## 事件与终端流
 

@@ -1,10 +1,38 @@
 # Orchbee native CLI Agent guide
 
-This guide describes native CLI workflows. Windows, Linux and macOS expose the same syntax, help and completion; execution availability remains explicit. Discover exact behavior from the installed build before acting.
+This guide describes native CLI workflows across Windows, Linux, and macOS. Syntax, help, and completion are shared across platforms; inspect `--help` on the installed build for exact command and platform availability.
+
+## Quickstart Recipes
+
+```text
+# Inspect active session, panels, and agents
+orchbee status --format json
+orchbee agent list --format json
+
+# Start an agent in a target directory without stealing client focus
+orchbee agent start antigravity --cwd <dir> --no-focus -- <provider-args>
+orchbee agent wait --panel @panel:0x1 --until idle
+
+# Prompt, send keys, inspect process, or read visible output by panel or child terminal
+orchbee agent prompt --panel @panel:0x1 "<task>"
+orchbee agent prompt --terminal @terminal:0x2 "<task>" --wait --timeout 60000
+orchbee agent send-keys --panel @panel:0x1 escape
+orchbee agent read --panel @panel:0x1 --source visible --plain
+orchbee panel process-info @panel:0x1 --format json
+
+# Run one bounded shell command and wait for its completion marker
+orchbee terminal run --panel @panel:0x1 "git status" --wait --timeout 30000 --format json
+```
+
+- Prefer printed compact handles (`@panel:0x1`, `@terminal:0x2`, `@agent:<kind>`, `@agent:<n>`); quote handles in PowerShell.
+- On `agent start`, `--cwd <dir>` and `--focus`/`--no-focus` apply to new-tab or `--split right|down` starts and conflict with `--here`. `--client <id>` names the Client that `--focus` switches and needs `--focus`.
+- Inside an existing terminal, `--here --panel <panel-id>` needs the target shell at an idle prompt. It is refused with `own-panel` when the target is the Panel your own command runs in. If a rejection names `stage: "agent-terminal"`, inspect the target with `orchbee panel process-info <panel-id>` and `orchbee agent list`.
+- Never replay uncertain input after timeout or unknown outcome; inspect `agent read` or `terminal read` first.
+- Stop a Server or Session only when explicitly asked in the current conversation; never add `--confirm` autonomously.
 
 ## Discover this build
 
-Start with `orchbee --help`, then `orchbee <family> --help` and `orchbee <family> <command> --help`. A single help flag before `--` also works with already supplied operands and options, without executing them. Unknown options, missing values and duplicates still fail. `help <path>` accepts an exact help path. A bare `orchbee` starts the TUI.
+Start with `orchbee --help`, then `orchbee <family> --help` and `orchbee <family> <command> --help`. A single help flag before `--` also works with already supplied operands and options without executing them. Unknown options, missing values, and duplicates still fail. `help <path>` accepts an exact help path. A bare `orchbee` starts the TUI.
 
 `--version`, `--skill`, `completion <shell>`, `api schema`, and `config default` on Windows and macOS work offline. Completion supports Bash, Zsh, Fish, PowerShell and Elvish. `api schema` lists the schema IDs; use `api schema <schema-id>` for the same build's machine contract, or add `--output <path>` to export it. Read the emitted `schema` and `version`; this guide does not pin catalog counts or historical versions.
 
@@ -12,11 +40,11 @@ All CLI JSON documents use version `1` and one current schema. Fields stay prese
 
 For PowerShell, `orchbee completion powershell` prints the completion script.
 
-Pass a pagination cursor unchanged to the same command and backend that returned it. List and change cursors have separate owners and are never converted into one another. Omit wait options only when the documented backend defaults are intended.
+Pass any pagination cursor back unchanged to the same command and backend that returned it. List and change cursors have separate owners and are never converted into one another. Omit wait options only when the documented backend defaults are intended.
 
 ## Select and start a Session
 
-Use `doctor` to check whether Orchbee works here: installation, settings, saved data, runtime folder, Session and Agent integrations, each `pass`, `warning`, `fail` or `not-applicable`, exit `1` only when a check failed. Use `config check` to inspect local configuration and `status` to read the running Session's counts and processes. `doctor` and `config check` do not start a Session; `status` needs a running one. Use `server start` for headless startup; `workspace create`, `project create`, `worktree create` and `worktree open` start the selected Session themselves when it is not running and then print `Local session started.` on standard error.
+Use `doctor` to check installation, settings, saved data, runtime folder, Session, and Agent integrations (`pass`, `warning`, `fail`, or `not-applicable`, exit `1` only on failure). Use `config check` to inspect local configuration and `status` to read the running Session's counts and processes. `doctor` and `config check` do not start a Session; `status` needs a running one. Use `server start` for headless startup; `workspace create`, `project create`, `worktree create`, and `worktree open` start the selected Session themselves when it is not running and print `Local session started.` on stderr.
 
 `--session <name>` selects a local named Session and may appear before or after the command. The default is `default`. Use the same selection on subsequent commands and diagnostics. `session list` shows the local inventory; `session attach <name>` enters its TUI. Exiting a TUI leaves the Session running.
 
@@ -26,13 +54,13 @@ orchbee --session work status --format json
 orchbee --session work tui
 ```
 
-A missing runtime base is an environment check failure; inspect `config check` before retrying. Recovery-required means startup could not establish safe ownership. Diagnose that exact Session or use another name. Do not delete runtime directories manually.
+A missing runtime base is an environment check failure; inspect `config check` before retrying. `recovery-required` means startup could not establish safe ownership. Diagnose that exact Session or use another name. Do not delete runtime directories manually.
 
 ## Resolve targets and inspect state
 
-A Workspace has a directory and may belong to a Project. Project grouping is optional. A Workspace contains Tabs; Tabs contain Panels; a Panel has a primary terminal and may have child terminals. TUI Clients retain their own selection and view.
+A Workspace has a directory and may belong to a Project; Project grouping is optional. A Workspace contains Tabs; Tabs contain Panels; a Panel has a primary terminal and may have child terminals. TUI Clients retain their own selection and view.
 
-Use `api snapshot`, then the relevant `project`, `workspace`, `tab`, `panel`, `terminal`, `launch-profile`, `client` or `agent` list/get command. Reuse returned IDs. Prefer printed stable handles such as `@panel:0x1`: they preserve the exact ID with leading zeros omitted and cannot change when other resources come or go. Quote handles in PowerShell. IDs and compact handles are scoped to the selected Session and underlying identity lifetime; rediscover runtime terminal IDs after Server restart.
+Use `api snapshot`, then the relevant `project`, `workspace`, `tab`, `panel`, `terminal`, `launch-profile`, `client`, or `agent` list/get command. Reuse returned IDs and prefer printed handles such as `@panel:0x1`: they omit leading zeros without changing identity when other resources come or go. Quote handles in PowerShell. IDs and compact handles are scoped to the selected Session and underlying identity lifetime; rediscover runtime terminal IDs after Server restart.
 
 Inside an Orchbee terminal, caller metadata can select its Panel. Outside, `panel current` can use the unique current TUI Client; pass `--client <id>` when several exist or a positional Panel ID for a headless lookup. `agent start` without `--panel` specifically requires valid caller metadata. Partial or stale caller metadata never authorizes a fallback.
 
@@ -63,15 +91,17 @@ A receipt proves accepted input records, not Shell readiness, command completion
 
 ## Install and operate Agents
 
-`doctor` warns when an Agent integration needs an update. Adapter capsules use contract version 1 and a content digest as identity, `capsule.payloadSha256`; each environment installs them in its own data root under `internal/integrations/agent-observation/<version>` (release: `~/.orchbee`). An Agent entry belongs to the environment whose Capsule it names, integration commands change only their own environment's entries, and a hook reports only to its own environment's terminals. No build replaces or removes another environment's entries or an entry naming `~/.orchbee/agent-observation-adapters/<digest>`, the folder every environment shared before, and nothing deletes that folder. `agent integration list` reports a verified older payload as `update-required`; explicitly reinstall with `orchbee agent integration enable --provider codex` (choose the provider). A completed change removes its own Capsule versions that no entry names; nothing else migrates. Use `agent integration list`, then `explain --provider <id>` to discover each provider's actual availability and management mode. `list` reads files only and starts no Agent program, so `claude-code`, `grok`, `github-copilot` and Windows and macOS `hermes` stay `unknown` with no issue, not checked; `explain` of one of them starts that Agent's own program, which may create its own files. `enable`/`disable --provider <id>` perform explicit guarded changes. `list --outdated-only` shows owned repair candidates and separately reports blocked or unresolved providers; an empty list does not establish complete inspection.
+`doctor` warns when an Agent integration needs an update. Adapter capsules use contract version 1 and a content digest as identity, `capsule.payloadSha256`; each environment installs them in its own data root under `internal/integrations/agent-observation/<version>` (release: `~/.orchbee`). An Agent entry belongs to the environment whose Capsule it names, integration commands change only their own environment's entries, and a hook reports only to its own environment's terminals. Enabling a supported harness also installs its global `orchbee/SKILL.md` discovery entry stamped with the same ownership boundary, and disabling or uninstalling removes it cleanly (leaving any foreign or other-environment skill untouched). No build replaces or removes another environment's entries or an entry naming `~/.orchbee/agent-observation-adapters/<digest>`, the folder every environment shared before, and nothing deletes that folder.
+
+`agent integration list` reports a verified older payload as `update-required`; explicitly repair with `orchbee agent integration enable --provider codex` (choose the provider). A completed change removes its own Capsule versions that no entry names; nothing else migrates. Use `agent integration list`, then `explain --provider <id>` to discover each provider's actual availability and management mode. `list` reads files only and starts no Agent program, so `claude-code`, `grok`, `github-copilot`, and Windows and macOS `hermes` stay `unknown` with no issue, not checked; `explain` of one of them starts that Agent's own program, which may create its own files. `enable`/`disable --provider <id>` perform explicit guarded changes. `list --outdated-only` shows owned repair candidates and separately reports blocked or unresolved providers; an empty list does not establish complete inspection.
 
 Windows Codex inspection and installation use the same configuration root: nonempty `CODEX_HOME`, otherwise the native user profile's `.codex`. Invalid overrides refuse without fallback. Provider exit alone does not prove installation; read the observed state in the mutation receipt.
 
-`agent start codex` starts the provider in a new Tab beside your own Panel; `--split right|down` opens a split instead, and `--here --panel <panel-id>` types it once at the confirmed prompt of that observed idle cmd, PowerShell, pwsh, or macOS zsh or bash terminal (never your own Panel: `own-panel`). `--panel <panel-id>` or `--current` names the reference Panel. Without arguments or a name, a new Tab or split runs the provider as its shell's first command and returns once the Panel exists: `confirmation` is `launched` and `submission` is null. Otherwise the command is typed and the start returns after a three-second check: `confirmation` is `sent`. Either way `interactiveReady` is false and `place` and `panelId` name where it started; wait with `agent wait --panel <panel-id> --until idle` before prompting. A shell back at its prompt fails as `command-not-found` or `agent-exited`. Add `--name review` to wait until it is ready and bind the name. With an enabled provider integration, `confirmation` is `session`: `sessionId` names the canonical Session and the name is bound. Otherwise readiness is observed in the terminal: `confirmation` is `observed`, `sessionId` is absent and the name stays unbound, so address the Agent with `--panel`. A blocked named start is refused as `agent-blocked`. A new Tab or split that a later step failed in stays open as the failure's `createdPanelId`. Default timeout: 30000 ms; allowed range: 3001–300000. Literal provider arguments follow `--`, or use repeatable `--arg=<value>`. A timeout or cancellation can leave the provider running; inspect the submission and the Agent's row in `agent list` before retrying.
+`agent start <provider>` starts the provider in a new Tab beside your own Panel; `--split right|down` opens a split instead, and `--cwd <dir>`, `--focus`, or `--no-focus` apply only to those new Tab/split launches (conflicting with `--here`); `--client <id>` names the Client that `--focus` switches and needs `--focus`. `--here --panel <panel-id>` types it once at the confirmed prompt of an observed idle cmd, PowerShell, pwsh, or macOS zsh or bash terminal (never your own Panel: `own-panel`, waiting briefly for an unmarked shell prompt to settle when starting interactively). `--panel <panel-id>` or `--current` names the reference Panel. Without arguments or a name, a new Tab or split runs the provider as its shell's first command and returns once the Panel exists: `confirmation` is `launched` and `submission` is null. Otherwise the command is typed and the start returns after a three-second check: `confirmation` is `sent`. Either way `interactiveReady` is false and `place` and `panelId` name where it started; wait with `agent wait --panel <panel-id> --until idle` before prompting. A shell back at its prompt fails as `command-not-found` or `agent-exited`. Add `--name review` to wait until ready and bind the name. With an enabled provider integration, `confirmation` is `session`: `sessionId` names the canonical Session and the name is bound. Otherwise readiness is observed in the terminal: `confirmation` is `observed`, `sessionId` is absent, and the name stays unbound, so address the Agent with `--panel` or `--terminal`. A blocked named start is refused as `agent-blocked`. A new Tab or split that a later step failed in stays open as the failure's `createdPanelId`. A focus that misses does not fail the start; `result.focus`, or `details.focus` on failure, names the stage and reason. Default timeout: 30000 ms; allowed range: 3001–300000. Literal provider arguments follow `--`, or use `--arg=<value>`. A timeout or cancellation can leave the provider running; inspect the submission and `agent list` before retrying.
 
-`agent list/get` inspect current Agent state; `agent get --format json` adds `result.explanation` (how a canonical session's status was derived) or `result.detection` (a terminal Agent's detection-rule evaluation), and the other member is null. On Windows and macOS, `agent list` joins canonical sessions with physical terminal Agents and reports each row's source, semantic status, placement and name; `--client <id>` adds separate Client observations without changing status. Pages contain 1–100 rows (default 50). Windows and macOS JSON uses `orchbee.agent.list` v1 and `orchbee.agent.get` v1. List cursors use `u1.<base64url>` with canonical JSON encoded as base64url, are at most 1024 characters, and bind to the Session, source revisions, filters and Client selection. Malformed cursors are usage failures before live source reads; determining whether a cursor is stale requires reading the current sources. Restart from the first page after `cursor-restart`. Optional cwd enrichment is limited to 64 rows per page and may be null.
+`agent list/get` inspect current Agent state; `agent get --format json` adds `result.explanation` or `result.detection`, with the other member null. On Windows and macOS, `agent list` joins canonical sessions with physical terminal Agents and reports each row's source, semantic status, placement, and name; `--client <id>` adds separate Client observations without changing status. Pages contain 1–100 rows (default 50). Windows and macOS JSON uses `orchbee.agent.list` v1 and `orchbee.agent.get` v1. Pass any list cursor back unchanged; malformed cursors fail usage checks before live source reads, stale cursors require restarting from the first page after `cursor-restart`, and optional cwd enrichment covers up to 64 rows per page.
 
-On Windows and macOS, `@agent:<kind>` selects a unique provider and `@agent:<n>` selects a one-based ordinal in the complete current list, not the current page. Bare names keep Server alias precedence before provider matching. `agent get`, `read`, `prompt`, `send-keys`, `wait` and `focus` use the same resolver; an incomplete projection cannot establish a unique provider match. Version 1 `agent get` keeps ordinary Agent identity and status in `result.agent`, with facet-specific detail in `result.inspection`.
+On Windows and macOS, `@agent:<kind>` selects a unique provider and `@agent:<n>` selects a one-based ordinal in the complete current list, not the current page. Bare names keep Server alias precedence before provider matching. `agent get`, `read`, `prompt`, `send-keys`, `wait`, and `focus` share this resolver; `agent prompt`, `send-keys`, `read`, and `wait` also accept `--panel` or `--terminal` directly (agents observed only through their terminal, such as `antigravity` while its integration is not enabled, and secondary terminals are addressed via `--panel` or `--terminal`; if rejected at `stage: "agent-terminal"`, inspect the pane with `orchbee panel process-info <panel-id>`). An incomplete projection cannot establish a unique provider match. Version 1 `agent get` keeps ordinary Agent identity and status in `result.agent`, with facet-specific detail in `result.inspection`.
 
 `agent rename <target> <name>` assigns a runtime alias; `agent resolve` and `agent list` show it, and `agent rename <target> --clear` releases it. Aliases expire with their sessions. Waits remain pinned to their original target despite later alias reuse.
 
@@ -79,10 +109,7 @@ On Windows and macOS, `@agent:<kind>` selects a unique provider and `@agent:<n>`
 
 Retain observed revisions and inspect `agent wait --help` before using `--after-revision` for later state.
 
-`--until`, `--timeout` and `--forever` require `agent prompt --wait`; `--forever`
-conflicts with `--timeout`. Windows Codex input includes a Right key between paste and
-Enter. Linux retains a 600000 ms default wait deadline. A wait failure retains any
-accepted input receipt, so never replay uncertain input.
+`--until`, `--timeout`, and `--forever` require `agent prompt --wait`; `--forever` conflicts with `--timeout`. Windows Codex input includes a Right key between paste and Enter. Linux retains a 600000 ms default wait deadline. A wait failure retains any accepted input receipt, so never replay uncertain input.
 
 ## Events and terminal streams
 
@@ -144,7 +171,7 @@ orchbee workspace list --format json | ConvertFrom-Json
 
 ## Further capabilities
 
-Use help for metadata reporting, attention/acknowledgement, terminal graphics, layout export/apply, notifications, configured commands, manifest maintenance, configuration reload. Some are Windows-only; the installed grammar owns admission and effect details.
+Use help for metadata reporting, attention/acknowledgement, terminal graphics, layout export/apply, notifications, configured commands, manifest maintenance, and configuration reload. Some are Windows-only; the installed grammar owns admission and effect details.
 
 `update` installs the newest version of the channel beside the running one; running terminals and Agents keep their version. Its JSON `upToDate` is true when there was nothing newer and nothing changed.
 <!-- unreleased -->
@@ -168,7 +195,7 @@ and `panel swap <panel> --with <other-panel>` without `--client`. The shared rec
 canonical identities and outcomes; they make no viewport or focus claim. `layout apply --file
 layout.json --workspace <workspace>` also runs headlessly; explicit Workspace and confirmed Tab destinations
 are supported. Add `--client` for Client geometry/observations, or `--focus` when applying to a
-Client. Directional neighbors, resize and `panel maximize` require Client geometry. Only stop, close
+Client. Directional neighbors, resize, and `panel maximize` require Client geometry. Only stop, close,
 and worktree commands accept `--request-id` or `--detach`. Inspect unknown mutation receipts before another submission.
 
 ## Consistent command vocabulary
