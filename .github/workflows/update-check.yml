@@ -171,9 +171,11 @@ jobs:
 
       - name: Test and build the website
         if: steps.rollout.outputs.run == 'true'
+        # The website's tests import workspace packages through their built entries, so the build of
+        # the website and its dependencies runs first.
         run: |
-          pnpm --filter @orchbee/website test
           pnpm website:build
+          pnpm --filter @orchbee/website test
           if [ "${{ steps.rollout.outputs.commit }}" = true ]; then
             node scripts/website-release.mjs assert-clean-diff
           fi
