@@ -6,6 +6,22 @@ use std::{fs, path::PathBuf};
 const RECORD: VersionedRecord = VersionedRecord::Machines;
 const FILE: &str = RECORD.file_name();
 struct Root(PathBuf);
+impl Root {
+    fn new(id: &ProfileId) -> Self {
+        let path = std::env::temp_dir().join(format!("orchbee-machine-test-{}", id.as_str()));
+        // A temporary folder others may enter is no private parent to create below, so the store
+        // admits a folder of its own. On Unix the mode makes it private; on Windows it inherits
+        // only inheritable entries of `%TEMP%`, omitting sandbox non-inheritable traverse entries.
+        #[cfg(not(windows))]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            fs::DirBuilder::new().mode(0o700).create(&path).unwrap();
+        }
+        #[cfg(windows)]
+        fs::create_dir(&path).unwrap();
+        Self(path)
+    }
+}
 impl Drop for Root {
     fn drop(&mut self) {
         if !self.0.exists() {
@@ -29,10 +45,10 @@ impl Drop for Root {
 #[test]
 fn store_reloads_concurrent_changes_and_preserves_corruption_under_real_private_lock() {
     let id = ProfileId::generate().unwrap();
-    let root = Root(std::env::temp_dir().join(format!("orchbee-machine-test-{}", id.as_str())));
+    let root = Root::new(&id);
     let store = Store::in_data_root(DataRoot::at(root.0.join("machines")));
     assert_eq!(store.read().unwrap(), Catalog::default());
-    assert!(!root.0.exists());
+    assert!(!root.0.join("machines").exists());
     let draft = Draft::parse("First", "example.invalid", "work").unwrap();
     let first = Edit::Add {
         id: id.clone(),
@@ -74,7 +90,7 @@ fn store_reloads_concurrent_changes_and_preserves_corruption_under_real_private_
 #[test]
 fn extensions_survive_a_commit_and_a_newer_record_is_never_rewritten() {
     let id = ProfileId::generate().unwrap();
-    let root = Root(std::env::temp_dir().join(format!("orchbee-machine-test-{}", id.as_str())));
+    let root = Root::new(&id);
     let store = Store::in_data_root(DataRoot::at(root.0.join("machines")));
     let draft = Draft::parse("First", "example.invalid", "work").unwrap();
     let mut lock = PrivateCache::acquire(store.record.folder(), RECORD.name()).unwrap();
@@ -115,7 +131,7 @@ fn every_stored_sample_opens_through_the_reader() {
         let path = entry.unwrap().path();
         let bytes = fs::read(&path).unwrap();
         let id = ProfileId::generate().unwrap();
-        let root = Root(std::env::temp_dir().join(format!("orchbee-machine-test-{}", id.as_str())));
+        let root = Root::new(&id);
         let store = Store::in_data_root(DataRoot::at(root.0.join("machines")));
         PrivateCache::acquire(store.record.folder(), RECORD.name())
             .unwrap()

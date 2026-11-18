@@ -27,14 +27,23 @@ struct Fixture(Option<ModeCheckedLocalSessionRendezvous>);
 impl Fixture {
     fn new() -> Self {
         static SERIAL: AtomicU64 = AtomicU64::new(0);
-        let scope = SessionScope::parse(&format!(
+        let base = temporary().join(format!(
             "checkpoint-load-{}-{}",
             std::process::id(),
             SERIAL.fetch_add(1, Ordering::Relaxed)
-        ))
-        .unwrap();
+        ));
+        // Create the fixture folder first so runtime admission judges a folder the fixture owns
+        // rather than `%TEMP%`, where sandboxes may add non-inheritable traverse entries.
+        #[cfg(not(windows))]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            fs::DirBuilder::new().mode(0o700).create(&base).unwrap();
+        }
+        #[cfg(windows)]
+        fs::create_dir(&base).unwrap();
+        let scope = SessionScope::parse("base").unwrap();
         Self(Some(
-            ModeCheckedLocalSessionRendezvous::prepare_mode_checked(&temporary(), scope).unwrap(),
+            ModeCheckedLocalSessionRendezvous::prepare_mode_checked(&base, scope).unwrap(),
         ))
     }
 
@@ -78,7 +87,7 @@ impl Fixture {
 
 impl Drop for Fixture {
     fn drop(&mut self) {
-        let path = self.local().to_owned();
+        let path = self.local().parent().unwrap().to_owned();
         drop(self.0.take());
         let path = path.canonicalize().unwrap();
         assert_eq!(

@@ -14,6 +14,9 @@ impl Runtime {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!("orchbee-graphics-files-{nonce:032x}"));
+        // Create the fixture folder first so private admission judges it (inheriting only
+        // inheritable entries) rather than `%TEMP%`, where sandboxes may add traverse rights.
+        fs::create_dir(&path).unwrap();
         let cache = PrivateCache::acquire(&path, "runtime").unwrap();
         Self {
             path,
