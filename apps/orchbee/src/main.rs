@@ -90,6 +90,7 @@ fn opens_data_root(request: &invocation::Request) -> bool {
             | invocation::Request::Install { .. }
             | invocation::Request::CompleteInstall { .. }
             | invocation::Request::InstallerWindow
+            | invocation::Request::TendWindowStore
             | invocation::Request::RecordClientFailure { .. }
     )
 }
@@ -247,6 +248,7 @@ fn main() -> ExitCode {
             }) => cli::update::complete_install(no_path, allow_downgrade, locale),
             Ok(invocation::Request::AutomaticUpdate) => cli::update::automatic_update(locale),
             Ok(invocation::Request::InstallerWindow) => cli::update::installer_window(locale),
+            Ok(invocation::Request::TendWindowStore) => cli::update::tend_window_store(),
             Ok(invocation::Request::RecordClientFailure { version }) => {
                 cli::update::record_client_failure(&version)
             }

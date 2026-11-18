@@ -12,8 +12,9 @@ window, its menu and Actions, the native folder picker, and the `orchbee` proces
 Server. The page has no Node integration, generic IPC, filesystem capability, or Host access, and
 Main never reads terminal content.
 
-Main keeps one instance; starting Orchbee again brings the window forward. On macOS the application
-stays open without a window, and activating it opens one. A renderer that crashes is reloaded once,
+Main keeps one instance; starting Orchbee again switches to a newer joinable window version when
+Setup or an update just placed one, and otherwise brings the window forward. On macOS the
+application stays open without a window, and activating it opens one. A renderer that crashes is reloaded once,
 and the new document connects again; a second crash within a minute of the last stops reloading,
 and a native dialog, like VS Code's, offers Reopen or Close (Esc closes). Closing destroys the dead
 page, so the window opens afresh later. Closing the window or quitting asks nothing, because nothing ends
@@ -77,13 +78,14 @@ bundled Client's version and the Session's, which a Session older than the hands
 A window that runs from `desktop\versions\<its own version>\` offers Update in the sidebar footer
 while the window pointer `desktop\active.json` names a version of higher precedence than its own,
 unless that is the version a `--fallback-from-v1=<version>` start came back from. A development
-build, a flat layout, and a build's output folder never offer it. `src/main/window-update/` watches
-the pointer's folder, because the pointer is replaced by a rename, reads at most 16 KiB of it, and
-pushes the offer, or none, to every document's window-update port. A press first runs the new
-version's bundled Client with this window's Session arguments, `server start --format json`; the
-switch goes ahead only when the start succeeds and its `negotiatedCapabilities` include
-`compatibility-window`. Otherwise the page shows that the update applies when no terminal runs, and
-the diagnostic log records why. A joinable version is switched to through the window entry
+build, a flat layout, and a build's output folder never offer it. `src/main/window-update/` watches the pointer's folder, because the pointer is replaced by a rename,
+reads at most 16 KiB of it, and pushes the offer, or none, to every document's window-update port
+(and re-reads it directly from disk when an update check settles or a second instance starts). A
+press or a second instance first runs the new version's bundled Client with this window's Session
+arguments, `server start --format json`; the switch goes ahead only when the start succeeds and its
+`negotiatedCapabilities` include `compatibility-window`. Otherwise a press shows that the update
+applies when no terminal runs, a second instance brings the open window forward, and the diagnostic
+log records why. A joinable version is switched to through the window entry
 `desktop\<this window's file name>`: Main starts it detached, with `desktop\` as working folder and
 the arguments `--relaunch-after-v1 <its process id>` followed by the place the asking document shows,
 `--select-terminal-v1=<TerminalPresentationId>` for its displayed terminal or else
@@ -94,9 +96,10 @@ active version, whose Main strict-parses the place and gives it to its first doc
 `relaunchPlace`; nothing is stored. At start Main removes `ORCHBEE_RELAUNCH_V1` from its environment,
 so nothing it starts inherits it. When the variable named its parent and its first `server start`
 answer, within 90 seconds of its start, refuses with `session-too-old`, Main exits with status 1
-instead of showing the refusal, and the launcher starts the version it replaced. The Jump List task
-of a window that runs from a version folder names the entry, so it outlives that version. The
-maintained design is the
+instead of showing the refusal, and the launcher starts the version it replaced. The Jump List task of a window that runs from a version folder names the entry, so it outlives that
+version, and 15 seconds after startup Main runs `--tend-window-store-v1` through its bundled Client
+so retired window versions and flat-layout leftovers leave disk once any replaced process has
+exited. The maintained design is the
 [automatic-update proposal](../../proposals/platform/automatic-updates.md#window).
 
 On macOS the application bundle is the entry. A packaged window that runs from a bundle,
@@ -109,12 +112,14 @@ same cohort, `<stem>-desktop-launcher`, with `--replace-application-v1=<this win
 third argument, before the place. Once the window has ended, the launcher replaces the bundle in
 place, or installs into `~/Applications` when its folder cannot be written, and leaves the Session
 running. Window versions reach the macOS store through `orchbee update` and install.sh's
-`--desktop` in test and release builds. An application dragged from the disk image makes its store
-on its own: while the store has no active runtime version, every Session start of its bundled
-Client first installs that bundle's release directory, as `orchbee install` does with its PATH
-step, so the command works in new terminals, and the
-install also makes the window store `desktop/`, empty, since a copy from the image carries no
-window list to store its own version with. The bundle stays the entry, the Session runs from the
+`--desktop` in test and release builds. An application dragged from the disk image makes or advances its store on its own: while the store
+has no active runtime version, or its active version is lower than the bundle's, a Session start of
+its bundled Client installs that bundle's release directory (`orchbee install` with its PATH step
+when no store version is active, or `orchbee install --no-path` when upgrading a lower store so an
+existing `~/.local/bin` store link and `desktop/` advance without repeating the profile step), and
+when joining an already-running Session it starts the same store install detached in the background
+without delaying the join. The install also makes the window store `desktop/`, empty, since a copy
+from the image carries no window list to store its own version with. The bundle stays the entry, the Session runs from the
 store, and the window part of each later update installs the next window version there. An
 install that fails leaves the start to the bundle's own cohort, as before, and is tried again at
 the next start. Because `desktop/` may first appear during that start, the window follows
@@ -459,12 +464,12 @@ An install changes exactly this:
    so a terminal opened afterwards finds the command.
 
 Installing a newer setup over an older one replaces it in place: one Settings entry, one Start menu
-entry, the new window version active, and the new version active in the store. Setup never ends
-Orchbee. It stops before changing anything, exits with code 7 and asks the person to quit the window
-while keeping its terminals running only while the window of a flat layout runs, which happens at
-most once, before that layout moves on. A window that runs from a window version keeps running, and
-its next start runs the new version; the helper removes no file a process runs from, so a Session an
-earlier window started blocks nothing.
+entry, the new window version active, and the new version active in the store. Setup never ends or
+refuses a running Orchbee window when window versions are enabled: a running flat layout's entry
+moves aside as `.remove-flat-<pid>-<n>.exe` so the window launcher takes `desktop\<executable>` at
+once while the flat files wait until that window quits, and launching Orchbee at the end of Setup
+triggers a live window switch when a versioned window is already running; the helper removes no file
+a process runs from, so a Session an earlier window started blocks nothing.
 
 A build whose window updates are still switched off stops instead while any program or library
 below `desktop\` is loaded, and exits with code 7, saying which program to quit. When the bundled cohort's Server,

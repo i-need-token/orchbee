@@ -893,6 +893,10 @@ pub(crate) enum Request {
     /// directory: installs that window version into the store and prints only its JSON document;
     /// hidden from help, completion and the Agent guide.
     InstallerWindow,
+    /// The window-store cleanup helper Desktop Main runs through its bundled Client after startup:
+    /// arranges the window store and prints nothing; hidden from help, completion and the Agent
+    /// guide.
+    TendWindowStore,
     /// `uninstall`: removes the installed release, its PATH entry, installer entries and Agent
     /// integrations; data stays unless `delete_data`.
     Uninstall {

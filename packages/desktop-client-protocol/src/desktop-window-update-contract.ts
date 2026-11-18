@@ -34,13 +34,19 @@ export const DesktopWindowUpdateMainMessageSchema = z.discriminatedUnion('type',
 /**
  * What the page sends Main over the same port: a request to switch to the version Main last
  * offered, named so a request made for an earlier offer switches to nothing else, with the place
- * the window shows, which the relaunched window opens at.
+ * the window shows, which the relaunched window opens at; or a request to refresh the offer from
+ * disk once an update check settles.
  */
-export const DesktopWindowUpdateRendererMessageSchema = z.strictObject({
-	place: DesktopRelaunchPlaceSchema.nullable(),
-	type: z.literal('desktop-window-update-requested'),
-	version: DesktopWindowVersionSchema,
-});
+export const DesktopWindowUpdateRendererMessageSchema = z.discriminatedUnion('type', [
+	z.strictObject({
+		place: DesktopRelaunchPlaceSchema.nullable(),
+		type: z.literal('desktop-window-update-requested'),
+		version: DesktopWindowVersionSchema,
+	}),
+	z.strictObject({
+		type: z.literal('desktop-window-update-refresh'),
+	}),
+]);
 
 export type DesktopRelaunchPlace = z.infer<typeof DesktopRelaunchPlaceSchema>;
 export type DesktopWindowUpdateMainMessage = z.infer<typeof DesktopWindowUpdateMainMessageSchema>;

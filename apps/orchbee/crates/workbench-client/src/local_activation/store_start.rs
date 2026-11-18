@@ -9,12 +9,15 @@
 //! starting its own cohort.
 //!
 //! On macOS the window application's bundled Client is the only installer a copy dragged from the
-//! disk image has. Where no store version is active, it first installs its own release directory
-//! with its public `install`, the route Setup and install.sh take, which also links the command,
-//! makes the window store, and hands the start to the version it installed; one `store-install`
-//! record says how that went. An install that fails or outlasts its share of the deadline
-//! changes nothing about this start: the Client starts its own cohort as before and tries again
-//! at the next start.
+//! disk image has. Where no store version is active, or the store's active version is lower than
+//! this bundle's, it first installs its own release directory (`install` when no store version is
+//! active so new shells reach `~/.local/bin`, or `install --no-path` when upgrading a lower store
+//! so an existing store link and `desktop/` advance without repeating the profile step) and hands a
+//! fresh start to the version it installed; when joining a Session that is already running, it
+//! starts the same store install in the background without delaying the join. One `store-install`
+//! record says how that went. An install that fails or outlasts its share of the deadline changes
+//! nothing about this start: the Client starts or joins with its own cohort as before and tries
+//! again at the next start.
 use super::{ActivationFailure, StartupFailure};
 use crate::local_client::CLIENT_VERSION;
 use orchbee_local_ipc::ChildOutputReader;
@@ -126,9 +129,11 @@ impl Own {
 #[derive(Debug, Eq, PartialEq)]
 pub(super) enum Decision {
     Store(PathBuf),
-    /// No store version is active and this Client may install its own release directory: the
-    /// Session then starts as the store's start rule decides afterwards.
-    Install,
+    /// No store version is active (`no_path: false`) or the active store version is lower than this
+    /// Client (`no_path: true`), and this Client may install its own release directory first.
+    Install {
+        no_path: bool,
+    },
     Own(Own),
 }
 
@@ -136,9 +141,9 @@ pub(super) enum Decision {
 /// own folder, which may be a store version folder; the store root; the active version the store's
 /// pointer names; this Client's version; and whether the store's Client is present in that
 /// version's folder. A fact is read only when every earlier one allows the store, so a development
-/// build or a store Client reads nothing. Without an active version, `installs` says whether this
-/// Client installs its own release directory first, as a macOS window application's bundled
-/// Client does.
+/// build or a store Client reads nothing. Without an active version or when the active version is
+/// lower than `own_version`, `installs` says whether this Client installs its own release directory
+/// first, as a macOS window application's bundled Client does.
 pub(super) fn decide(
     kind: EnvironmentKind,
     own_directory: &Path,
@@ -159,13 +164,16 @@ pub(super) fn decide(
     };
     let release = match active(&root) {
         Ok(Some(release)) => release,
-        Ok(None) if installs => return Decision::Install,
+        Ok(None) if installs => return Decision::Install { no_path: false },
         Ok(None) => return Decision::Own(Own::NoPointer),
         Err(_) => return Decision::Own(Own::PointerUnreadable),
     };
     if orchbee_local_runtime::compare_product_versions(&release.version, own_version)
         == Ordering::Less
     {
+        if installs {
+            return Decision::Install { no_path: true };
+        }
         return Decision::Own(Own::StoreLower);
     }
     // The Client's file name carries this build's environment stem, so a build only ever names a
@@ -178,9 +186,12 @@ pub(super) fn decide(
 }
 
 /// Before this Client's own activation: when the selected Session's Client endpoint is absent and
-/// the rule chooses the store, runs the store's Client and waits for it until `deadline`. Answers
-/// whether that Client reports it started the Session. At the deadline the answer is `TimedOut` and
-/// the store's Client keeps running.
+/// the rule chooses the store, runs the store's Client and waits for it until `deadline`. When the
+/// Session is already running and a macOS bundle's Client is newer than the store (or the store has
+/// no active version), starts a non-blocking background store install so `~/.local/share/orchbee`
+/// and `desktop/` catch up without delaying the join. Answers whether the store's Client reports it
+/// started the Session. At the deadline the answer is `TimedOut` and the store's Client keeps
+/// running.
 pub(super) fn start_if_absent(
     base: &Path,
     scope: &str,
@@ -188,9 +199,6 @@ pub(super) fn start_if_absent(
     own_client: &Path,
     deadline: Instant,
 ) -> Result<bool, ActivationFailure> {
-    if !session_absent(base, scope) {
-        return Ok(false);
-    }
     let own_directory = own_client.parent().unwrap_or(own_client);
     let decide_now = |installs: bool| {
         decide(
@@ -205,16 +213,25 @@ pub(super) fn start_if_absent(
     };
     let installs = cfg!(target_os = "macos")
         && orchbee_local_runtime::bundle_of_cohort(own_directory).is_some();
+    if !session_absent(base, scope) {
+        #[cfg(target_os = "macos")]
+        if installs && let Decision::Install { no_path } = decide_now(true) {
+            spawn_install_own(own_client, no_path);
+        }
+        return Ok(false);
+    }
     let decision = match decide_now(installs) {
-        // The rule runs again over the store the install left, and never installs twice.
-        Decision::Install if install_own(own_client, deadline) => decide_now(false),
+        // The rule runs again over the store as the install left it, and never installs twice.
+        Decision::Install { no_path } => {
+            let _ = install_own(own_client, no_path, deadline);
+            decide_now(false)
+        }
         decided => decided,
     };
     let client = match decision {
         Decision::Store(client) => client,
         Decision::Own(reason) => return Ok(own(reason)),
-        // The install did not complete, so the store still has no active version.
-        Decision::Install => return Ok(own(Own::NoPointer)),
+        Decision::Install { .. } => return Ok(own(Own::NoPointer)),
     };
     match run(&client, explicit, deadline) {
         Run::Exited(status, output) if status.success() => {
@@ -298,16 +315,20 @@ fn run(client: &Path, explicit: Option<&str>, deadline: Instant) -> Run {
     wait_for(command, pins, deadline)
 }
 
-/// Runs this Client's own `install --format json`, as [`wait_for`] runs a command, and
+/// Runs this Client's own `install [--no-path] --format json`, as [`wait_for`] runs a command, and
 /// waits for it until the deadline leaves [`INSTALL_RESERVE`]. Answers whether it exited 0 with an
 /// `orchbee.install` document that reports the version activated, and writes one `store-install`
 /// record: `installed`; `failed` with the document's `error` token and the exit `status`, or with
 /// `start-failed` when it could not be started or watched; or `unfinished` when its share of the
 /// deadline ran out first, in which case it keeps running and completes on its own, as a store
 /// Client's start does. Its own folder needs no admission: it is the program this process runs.
-fn install_own(own_client: &Path, deadline: Instant) -> bool {
+fn install_own(own_client: &Path, no_path: bool, deadline: Instant) -> bool {
     let mut command = Command::new(own_client);
-    command.args(["install", "--format", "json"]);
+    command.arg("install");
+    if no_path {
+        command.arg("--no-path");
+    }
+    command.args(["--format", "json"]);
     let until = deadline
         .checked_sub(INSTALL_RESERVE)
         .unwrap_or_else(Instant::now);
@@ -351,6 +372,48 @@ fn install_own(own_client: &Path, deadline: Instant) -> bool {
     fields.insert(0, ("outcome", LogValue::Token(outcome)));
     orchbee_local_runtime::log_event(level, "store-install", &fields);
     installed
+}
+
+/// Starts this Client's `install [--no-path] --format json` detached in the background while
+/// joining an already-running Session on macOS, so the store, its `~/.local/bin` link, and
+/// `desktop/` advance to this bundle's version without delaying the join.
+#[cfg(target_os = "macos")]
+fn spawn_install_own(own_client: &Path, no_path: bool) {
+    let mut command = Command::new(own_client);
+    command.arg("install");
+    if no_path {
+        command.arg("--no-path");
+    }
+    command
+        .args(["--format", "json"])
+        .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)
+        .current_dir("/")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0);
+    match command.spawn() {
+        Ok(mut child) => {
+            drop(thread::Builder::new().spawn(move || {
+                let _ = child.wait();
+            }));
+            orchbee_local_runtime::log_event(
+                LogLevel::Info,
+                "store-install",
+                &[("outcome", LogValue::Token("started"))],
+            );
+        }
+        Err(_) => {
+            orchbee_local_runtime::log_event(
+                LogLevel::Warning,
+                "store-install",
+                &[
+                    ("outcome", LogValue::Token("failed")),
+                    ("error", LogValue::Token("start-failed")),
+                ],
+            );
+        }
+    }
 }
 
 /// Runs `command`, which inherits this process's environment, so it selects the same Session and

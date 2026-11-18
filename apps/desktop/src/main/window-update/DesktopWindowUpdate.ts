@@ -29,10 +29,13 @@ export interface DesktopWindowUpdateOptions {
 	readonly fallbackFrom: string | null;
 	/**
 	 * The new version's Client joins the Session; the window now switches to that version at the place
-	 * the asking document shows, returning false when launching it fails. Further requests wait until
-	 * it settles.
+	 * the asking document shows, returning `false` when launching it fails so this window stays.
+	 * Further requests wait until it settles.
 	 */
-	readonly onJoinable: (version: string, place: DesktopRelaunchPlace | null) => Promise<unknown>;
+	readonly onJoinable: (
+		version: string,
+		place: DesktopRelaunchPlace | null,
+	) => Promise<boolean | void>;
 	readonly ownVersion: string;
 	/** The active window version the pointer names, or null. */
 	readonly readPointer: (desktopRoot: string) => Promise<string | null>;
@@ -53,8 +56,9 @@ interface ServedPort {
 
 /**
  * The window's Update control, as Main owns it: the newer window version the pointer names, offered
- * to every document, and a document's request to switch to it. A request first checks that the new
- * version's Client joins this Session; when it cannot, the document is told the update waits.
+ * to every document, and a document's or second instance's request to switch to it. A request first
+ * checks that the new version's Client joins this Session; when it cannot, a document is told the
+ * update waits and a second instance focuses this window.
  */
 export class DesktopWindowUpdate {
 	#checking = false;
@@ -62,7 +66,7 @@ export class DesktopWindowUpdate {
 	#offer: string | null = null;
 	readonly #options: DesktopWindowUpdateOptions;
 	readonly #ports = new Set<ServedPort>();
-	#reading = false;
+	#reading: Promise<void> | null = null;
 	#rereadRequested = false;
 	#stopWatching: (() => void) | undefined;
 
@@ -81,6 +85,49 @@ export class DesktopWindowUpdate {
 	}
 
 	/**
+	 * Reads the pointer from disk now (or extends a read already running) so the offer reflects the
+	 * current `active.json` even when `fs.watch` has not fired yet.
+	 */
+	refresh(): Promise<void> {
+		const root = this.#options.desktopRoot;
+		if (root === null || this.#disposed) return Promise.resolve();
+		this.#follow();
+		return this.#startRead(root);
+	}
+
+	/**
+	 * Refreshes the pointer from disk and, when it offers a newer version whose Client joins this
+	 * Session, switches to that version. Answers whether the launcher started; when false, the caller
+	 * keeps and focuses this window.
+	 */
+	async switchIfOffered(
+		resolvePlace?: () => Promise<DesktopRelaunchPlace | null> | DesktopRelaunchPlace | null,
+	): Promise<boolean> {
+		const root = this.#options.desktopRoot;
+		if (root === null || this.#disposed || this.#checking) return false;
+		await this.refresh();
+		const version = this.#offer;
+		if (version === null || this.#disposed || this.#checking) return false;
+		this.#checking = true;
+		try {
+			const answer = await this.#options.startVersionClient(root, version).catch(() => null);
+			if (this.#disposed) return false;
+			if (answer?.negotiatedCapabilities.includes(COMPATIBILITY_WINDOW) !== true) {
+				this.#recordWaiting(answer);
+				return false;
+			}
+			this.#options.recordEvent('info', 'window-update-joinable');
+			const place =
+				resolvePlace === undefined ? null : await Promise.resolve(resolvePlace()).catch(() => null);
+			if (this.#disposed) return false;
+			const started = await this.#options.onJoinable(version, place).catch(() => false);
+			return started !== false;
+		} finally {
+			this.#checking = false;
+		}
+	}
+
+	/**
 	 * Serves one document's port: the current offer at once and every change, and its requests. A
 	 * document is served once a Session start has answered, and on macOS the first start of a window
 	 * with no store makes the window store then, so a pointer folder not yet followed is tried again.
@@ -90,7 +137,12 @@ export class DesktopWindowUpdate {
 		this.#ports.add(served);
 		port.on('message', ({ data }) => {
 			const message = DesktopWindowUpdateRendererMessageSchema.safeParse(data);
-			if (served.open && message.success) void this.#request(served, message.data);
+			if (!served.open || !message.success) return;
+			if (message.data.type === 'desktop-window-update-refresh') {
+				void this.refresh();
+				return;
+			}
+			void this.#request(served, message.data);
 		});
 		port.start();
 		port.postMessage({ type: 'desktop-window-update-offered', version: this.#offer });
@@ -123,38 +175,37 @@ export class DesktopWindowUpdate {
 	#follow(): void {
 		const root = this.#options.desktopRoot;
 		if (root === null || this.#disposed || this.#stopWatching !== undefined) return;
-		this.#stopWatching = this.#options.watchPointer(root, () => this.#refresh(root)) ?? undefined;
-		this.#refresh(root);
+		this.#stopWatching =
+			this.#options.watchPointer(root, () => void this.#startRead(root)) ?? undefined;
+		void this.#startRead(root);
 	}
 
 	/** One read at a time; a change seen during a read reads again once it ends. */
-	#refresh(root: string): void {
-		if (this.#reading) {
+	#startRead(root: string): Promise<void> {
+		if (this.#reading !== null) {
 			this.#rereadRequested = true;
-			return;
+			return this.#reading;
 		}
-		this.#reading = true;
-		void this.#read(root);
+		const reading = this.#read(root).finally(() => {
+			this.#reading = null;
+		});
+		this.#reading = reading;
+		return reading;
 	}
 
 	async #read(root: string): Promise<void> {
-		try {
-			do {
-				this.#rereadRequested = false;
-				const activeVersion = await this.#options.readPointer(root).catch(() => null);
-				if (this.#disposed) return;
-				this.#setOffer(
-					resolveWindowUpdateOffer({
-						activeVersion,
-						fallbackFrom: this.#options.fallbackFrom,
-						ownVersion: this.#options.ownVersion,
-					}),
-				);
-			} while (this.#rereadRequested);
-		} finally {
-			// A read that failed leaves the next pointer change free to read again.
-			this.#reading = false;
-		}
+		do {
+			this.#rereadRequested = false;
+			const activeVersion = await this.#options.readPointer(root).catch(() => null);
+			if (this.#disposed) return;
+			this.#setOffer(
+				resolveWindowUpdateOffer({
+					activeVersion,
+					fallbackFrom: this.#options.fallbackFrom,
+					ownVersion: this.#options.ownVersion,
+				}),
+			);
+		} while (this.#rereadRequested);
 	}
 
 	#setOffer(offer: string | null): void {
@@ -163,6 +214,18 @@ export class DesktopWindowUpdate {
 		for (const served of this.#ports) {
 			served.port.postMessage({ type: 'desktop-window-update-offered', version: offer });
 		}
+	}
+
+	#recordWaiting(answer: ServerStartAnswer | null): void {
+		if (answer === null || answer.negotiatedCapabilities.length === 0) {
+			this.#options.recordEvent('info', 'window-update-waiting', {
+				reason: answer?.restore.kind === 'refused' ? 'start-refused' : 'no-capabilities',
+			});
+			return;
+		}
+		this.#options.recordEvent('info', 'window-update-waiting', {
+			reason: 'capability-missing',
+		});
 	}
 
 	/**
@@ -188,15 +251,7 @@ export class DesktopWindowUpdate {
 				}
 				return;
 			}
-			if (answer === null || answer.negotiatedCapabilities.length === 0) {
-				this.#options.recordEvent('info', 'window-update-waiting', {
-					reason: answer?.restore.kind === 'refused' ? 'start-refused' : 'no-capabilities',
-				});
-			} else {
-				this.#options.recordEvent('info', 'window-update-waiting', {
-					reason: 'capability-missing',
-				});
-			}
+			this.#recordWaiting(answer);
 			if (served.open) served.port.postMessage({ type: 'desktop-window-update-waiting' });
 		} finally {
 			this.#checking = false;

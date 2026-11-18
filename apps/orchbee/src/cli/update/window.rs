@@ -552,6 +552,26 @@ pub(super) fn make_store(root: &Path, context: &mut Context) -> Result<(), Error
     acquire(&root.join(FOLDER), context).map(drop)
 }
 
+/// `--tend-window-store-v1`: runs [`layout::tend`] on this build's store root outside development,
+/// writes nothing and exits 0. Desktop Main runs it shortly after startup so retired window
+/// versions and flat-layout leftovers whose process has exited leave disk without waiting for a
+/// later update.
+pub(crate) fn tend_store() -> Output {
+    if PLATFORM
+        && window_updates_live()
+        && environment_kind() != EnvironmentKind::Development
+        && let Ok(root) = platform::install_root()
+    {
+        layout::tend(&root);
+    }
+    Output {
+        status: 0,
+        stdout: Vec::new(),
+        stderr: String::new(),
+        finalization: None,
+    }
+}
+
 /// `--installer-window-v1`: installs the window directory the running Client is bundled in, as
 /// Setup or install.sh unpacked it, into the window store of this build's store root, creating the
 /// `desktop` folder when it is missing, and makes it the active window version; then, whatever the

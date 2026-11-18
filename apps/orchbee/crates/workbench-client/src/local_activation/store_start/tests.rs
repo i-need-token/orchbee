@@ -108,18 +108,19 @@ fn without_a_pointer_the_client_starts_its_own_cohort() {
     );
 }
 
-/// Only "no active version" installs; every store with one keeps its decision, and a build or
-/// folder that never hands a start on never installs.
+/// A store without an active version installs with the PATH step, and a store whose active version
+/// is lower than this Client upgrades without repeating the profile step; an equal or higher store,
+/// an unreadable pointer, and any build or folder that never hands a start on keep their decision.
 #[test]
-fn only_a_store_without_an_active_version_is_installed_into() {
+fn an_empty_or_lower_store_is_installed_into_when_allowed() {
     for kind in [EnvironmentKind::Release, EnvironmentKind::Test] {
         assert_eq!(
             decide_installing(kind, &outside(), true, |_| Ok(None)),
-            Decision::Install
+            Decision::Install { no_path: false }
         );
         assert_eq!(
             decide_installing(kind, &outside(), true, active("0.1.0-beta.2")),
-            Decision::Own(Own::StoreLower)
+            Decision::Install { no_path: true }
         );
         assert_eq!(
             decide_installing(kind, &outside(), true, |_| Err(
@@ -129,6 +130,10 @@ fn only_a_store_without_an_active_version_is_installed_into() {
         );
         assert!(matches!(
             decide_installing(kind, &outside(), true, active(OWN_VERSION)),
+            Decision::Store(_)
+        ));
+        assert!(matches!(
+            decide_installing(kind, &outside(), true, active("0.1.0-beta.4")),
             Decision::Store(_)
         ));
         assert_eq!(

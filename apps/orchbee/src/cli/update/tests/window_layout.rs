@@ -1,6 +1,7 @@
 //! The window step's arrangement on a scratch store (AU § Moving a flat layout, § Window cleanup): a
-//! flat window that runs keeps its entry and every flat file; once it quits, the entry becomes the
-//! active version's launcher and the flat files go, except a flat bundled release directory a
+//! running flat window's entry moves aside as `.remove-flat-*.exe` so the active version's launcher
+//! takes its path at once while the flat files stay intact until that window quits; once it quits,
+//! the moved-aside executable and the flat files go, except a flat bundled release directory a
 //! Session still runs from, which goes once that Session ends. Unused window versions, crashed runs'
 //! leftovers and an earlier Setup's `desktop.previous` go meanwhile.
 use super::super::{
@@ -118,10 +119,19 @@ fn a_flat_layout_moves_on_once_its_window_quits_and_its_session_ends() {
     assert!(found.iter().any(|process| process.pid == window.0.id()));
 
     layout::tend(&root);
-    assert_eq!(fs::read(&entry).unwrap(), flat_window);
+    assert_eq!(fs::read(&entry).unwrap(), launcher);
+    let current = names(&desktop);
+    let aside = current
+        .iter()
+        .find(|name| name.starts_with(".remove-flat-") && name.ends_with(".exe"))
+        .unwrap()
+        .clone();
+    assert_eq!(fs::read(desktop.join(&aside)).unwrap(), flat_window);
+    assert!(desktop.join(r"resources\app.asar").is_file());
     assert_eq!(
-        names(&desktop),
+        current,
         sorted(&[
+            aside.as_str(),
             entry_name.as_str(),
             "active.json",
             "ffmpeg.dll",
@@ -134,20 +144,16 @@ fn a_flat_layout_moves_on_once_its_window_quits_and_its_session_ends() {
     assert!(!root.join("desktop.previous").exists());
 
     drop(window);
-    tend_until(&root, || {
-        fs::read(&entry).is_ok_and(|bytes| bytes == launcher)
-    });
+    let window_quitted = sorted(&[
+        entry_name.as_str(),
+        "active.json",
+        "install.lock",
+        "resources",
+        "versions",
+    ]);
+    tend_until(&root, || names(&desktop) == window_quitted);
     assert_eq!(fs::read(&entry).unwrap(), launcher);
-    assert_eq!(
-        names(&desktop),
-        sorted(&[
-            entry_name.as_str(),
-            "active.json",
-            "install.lock",
-            "resources",
-            "versions"
-        ])
-    );
+    assert_eq!(names(&desktop), window_quitted);
     assert_eq!(names(&desktop.join("resources")), ["cohort"]);
 
     drop(session);

@@ -76,6 +76,11 @@ const SESSION_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_SESSION';
 const WINDOW_HIDDEN_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_WINDOW_HIDDEN';
 /** What the Windows taskbar's Save Diagnostic Bundle task starts Orchbee with. */
 const SAVE_DIAGNOSTIC_BUNDLE_SWITCH = '--save-diagnostic-bundle';
+/**
+ * How long after startup Main runs `--tend-window-store-v1` so any replaced window version or
+ * moved-aside flat executable has finished exiting and released its files.
+ */
+const WINDOW_STORE_TEND_DELAY_MILLISECONDS = 15_000;
 // Cross-runtime contract: search for `packaged-desktop-resources` before changing these values.
 const PACKAGED_COHORT_DIRECTORY = 'cohort';
 const PACKAGED_RENDERER_DIRECTORY = 'dist';
@@ -505,9 +510,32 @@ let background: DesktopBackgroundRuntime | undefined;
 let removePlatformActions: (() => void) | undefined;
 let windowUpdate: DesktopWindowUpdate | undefined;
 let saveDiagnosticBundle: (() => boolean) | undefined;
+let windowStoreTendTimer: ReturnType<typeof setTimeout> | undefined;
 /** A Save Diagnostic Bundle task that started Orchbee waits for the Action to be installed. */
 let diagnosticBundleRequested = process.argv.includes(SAVE_DIAGNOSTIC_BUNDLE_SWITCH);
 let windowStateSettled = false;
+
+/**
+ * Schedules one background `--tend-window-store-v1` run for a packaged window that uses a window
+ * store, so retired window versions and flat-layout leftovers leave disk once any replaced process
+ * has exited, without waiting for a future update.
+ */
+function scheduleWindowStoreTend(): void {
+	if (windowDesktopRoot === null) return;
+	const timer = setTimeout(() => {
+		windowStoreTendTimer = undefined;
+		const child = spawn(resolveClientExecutable(), ['--tend-window-store-v1'], {
+			cwd: app.getPath('home'),
+			env: resolveClientEnvironment(),
+			stdio: 'ignore',
+			windowsHide: true,
+		});
+		child.on('error', () => undefined);
+		child.unref();
+	}, WINDOW_STORE_TEND_DELAY_MILLISECONDS);
+	timer.unref();
+	windowStoreTendTimer = timer;
+}
 
 /** Brings the window forward, so the save dialog opens over it, then starts the save. */
 function requestDiagnosticBundle(): void {
@@ -580,14 +608,21 @@ async function start(): Promise<void> {
 		diagnosticBundleRequested = false;
 		requestDiagnosticBundle();
 	}
+	scheduleWindowStoreTend();
 }
 
 if (app.requestSingleInstanceLock()) {
-	// Starting Orchbee again brings this window forward, or opens one where macOS kept none; the
-	// taskbar's task also starts a diagnostic bundle save.
+	// Starting Orchbee again switches to a newer joinable window version when Setup or an update just
+	// placed one, and otherwise brings this window forward (or opens one where macOS kept none); the
+	// taskbar's task starts a diagnostic bundle save.
 	app.on('second-instance', (_event, argv) => {
-		if (argv.includes(SAVE_DIAGNOSTIC_BUNDLE_SWITCH)) requestDiagnosticBundle();
-		else void application?.openWindow().catch(() => undefined);
+		if (argv.includes(SAVE_DIAGNOSTIC_BUNDLE_SWITCH)) {
+			requestDiagnosticBundle();
+			return;
+		}
+		void (windowUpdate?.switchIfOffered() ?? Promise.resolve(false)).then((switched) => {
+			if (!switched) void application?.openWindow().catch(() => undefined);
+		});
 	});
 	recordEvent('info', 'started');
 	void app
@@ -630,6 +665,10 @@ if (!packaged && process.send !== undefined) {
 }
 
 app.once('will-quit', () => {
+	if (windowStoreTendTimer !== undefined) {
+		clearTimeout(windowStoreTendTimer);
+		windowStoreTendTimer = undefined;
+	}
 	removePlatformActions?.();
 	removePlatformActions = undefined;
 	background?.dispose();

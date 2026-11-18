@@ -176,4 +176,45 @@ fn update_installs_the_offered_window_after_the_runtime() {
     assert_eq!(again.code(), "complete", "{}", again.rendered);
     assert!(again.announced.is_empty());
     assert_eq!(again.rendered["result"]["desktop"]["upToDate"], true);
+
+    // A later release advances `desktop/versions/` while bounding disk: Windows keeps active +
+    // previous (`0.2.0`, `0.3.0`), and macOS keeps only active (`0.3.0`).
+    let (newest, newest_manifest) = release(&fixture, "newest", "0.3.0", "test");
+    let (newest_window_tree, newest_list) = window(&fixture, "0.3.0");
+    offer(
+        &fixture,
+        "0.3.0",
+        &newest_manifest,
+        runtime_archive,
+        |feed| {
+            feed["extensions"] = json!({"desktop": {
+                "version": "0.3.0", "manifest": {"sha256": sha(&newest_list)},
+                "archive": {"format": "zip", "url": WINDOW_ARCHIVE, "size": window_archive.len(),
+                    "sha256": sha(window_archive)},
+            }});
+        },
+    );
+    serve(&fixture, runtime_archive);
+    fs::write(fixture.0.join("feed").join(WINDOW_ARCHIVE), window_archive).unwrap();
+    let unpack_newest = |unpacked: &Path, _context: &mut Context| -> Result<(), Error> {
+        let fetched = fs::read(unpacked.parent().unwrap().join(archive::ARCHIVE)).unwrap();
+        let tree = if fetched == window_archive {
+            &newest_window_tree
+        } else {
+            &newest
+        };
+        copy_into(tree, unpacked);
+        Ok(())
+    };
+    let upgraded = update(&fixture, None, &unpack_newest);
+    assert_eq!(upgraded.code(), "complete", "{}", upgraded.rendered);
+    let mut stored_versions: Vec<String> = fs::read_dir(desktop.join("versions"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    stored_versions.sort();
+    #[cfg(target_os = "macos")]
+    assert_eq!(stored_versions, ["0.3.0"]);
+    #[cfg(not(target_os = "macos"))]
+    assert_eq!(stored_versions, ["0.2.0", "0.3.0"]);
 }

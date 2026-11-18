@@ -1,7 +1,7 @@
 //! Bounded disk on a scratch store: after a completion moves the pointer, only the versions that are
 //! neither active nor previous and from which nothing runs leave the store, and what cannot go now
 //! goes with a later completion.
-use super::super::{Error, complete, install::Completion, running_programs};
+use super::super::{Error, complete, install::Completion, retention, running_programs};
 use super::install_fixture::{Fixture, entry_for, pointer};
 use crate::release_store::ReleaseStore;
 use orchbee_release_records::Pointer;
@@ -171,4 +171,11 @@ fn completion_removes_only_unused_versions_and_retries_what_stayed() {
             "versions"
         ]
     );
+
+    // Without keeping `previous` (as macOS window-store cleanup runs), `0.5.0` goes too once unused.
+    let store = ReleaseStore::acquire(&root).unwrap();
+    let current = pointer(&root).unwrap();
+    retention::remove_unused_with(&store, &current, false, |_| Ok(true));
+    drop(store);
+    assert_eq!(names(&versions), ["0.6.0", "notes"]);
 }

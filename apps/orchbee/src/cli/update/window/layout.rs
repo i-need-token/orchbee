@@ -3,17 +3,16 @@
 //! `desktop/install.lock`, whatever that step did. On Windows it places the window entry
 //! `desktop\<stem>-desktop.exe`, the path the Start menu shortcut, the taskbar and the uninstall
 //! registration name, as a copy of the active window version's
-//! `resources\cohort\<stem>-desktop-launcher.exe`; once the entry is placed it removes what a flat
-//! layout, which a window before the window self-update release kept directly in `desktop\`, left
-//! there, and it removes a `desktop.previous` that an earlier Setup left. Everywhere it then removes
-//! window versions as runtime versions go: neither active nor previous, and no process runs from
-//! them. Each step is best effort: whatever runs, cannot be told, or is refused stays for the next
-//! run, and a lock another update holds skips the whole step. On macOS the application bundle the
-//! person opens is the entry, which the window launcher replaces with a copy of the active window
-//! version, so only the cleanup runs. No window runs from a stored version there: only Orchbee
-//! starts programs from one, each by absolute path (the launcher during a switch, the join check's
-//! Client, and a Session that Client started from its own cohort because the store's runtime could
-//! not take the start), so the process scan alone tells whether one is in use.
+//! `resources\cohort\<stem>-desktop-launcher.exe`, renaming a running flat-layout entry aside as
+//! `desktop\.remove-flat-<process>-<number>.exe` so the launcher takes its path at once; once the
+//! entry is placed it removes what a flat layout, which a window before the window self-update
+//! release kept directly in `desktop\`, left there once no process runs from it, and it removes a
+//! `desktop.previous` that an earlier Setup left. On Windows it then removes window versions as
+//! runtime versions go: neither active nor previous, and no process runs from them. On macOS the
+//! application bundle the person opens is the entry, which the window launcher backs up and replaces
+//! with a copy of `pointer.active`, so cleanup keeps only `pointer.active` plus any stored version a
+//! process still runs from. Each step is best effort: whatever runs, cannot be told, or is refused
+//! stays for the next run, and a lock another update holds skips the whole step.
 use super::super::retention;
 use crate::release_store::ReleaseStore;
 use orchbee_release_records::Pointer;
@@ -48,7 +47,7 @@ pub(in crate::cli::update) fn tend(root: &Path) {
     #[cfg(not(windows))]
     let _ = &root_store;
     #[cfg(target_os = "macos")]
-    retention::remove_unused_by(
+    retention::remove_non_active_by(
         &store,
         &pointer,
         super::super::running_programs::no_process_started_from,
@@ -62,7 +61,7 @@ mod windows {
     use super::super::super::running_programs::{
         no_process_runs_from, no_process_runs_from_except, same,
     };
-    use crate::release_store::{ReleaseStore, numbered_name, open_release_file};
+    use crate::release_store::{ReleaseStore, numbered_name, open_release_file, transient_name};
     use std::{
         fs::{self, File, OpenOptions},
         io::{self, Read, Write},
@@ -75,6 +74,8 @@ mod windows {
     const PREVIOUS_INSTALLATION: &str = "desktop.previous";
     /// The prefix of the entry copy a run writes before its rename.
     const COPY: &str = ".new-";
+    /// The prefix of a running flat-layout entry moved aside so the launcher can take its path.
+    const FLAT_ASIDE: &str = ".remove-flat-";
 
     /// Places the entry and, once it is placed, removes what a flat layout left; then removes the
     /// store root's leftover `desktop.previous` once nothing runs from it.
@@ -93,9 +94,11 @@ mod windows {
     }
 
     /// Makes the entry a byte copy of the active window version's launcher and says whether it is
-    /// one now. A different entry is replaced by one rename of a flushed `.new-*` copy, which
-    /// Windows refuses while the entry runs, as the flat window does until it quits; the copy then
-    /// goes and the next run tries again. A version without a launcher places nothing.
+    /// one now. A different entry is replaced by renaming a flushed `.new-*` copy over it; when
+    /// Windows refuses because a flat window runs from the entry, the running file moves aside to
+    /// `.remove-flat-<process>-<number>.exe` first (and moves back if the second rename fails) so
+    /// the launcher takes its path at once while the flat files stay until that window quits. A
+    /// version without a launcher places nothing.
     fn place_entry(desktop: &Path, active: &str, stem: &str, entry: &str) -> bool {
         let version = desktop.join("versions").join(active);
         let launcher = format!("resources/cohort/{stem}-desktop-launcher.exe");
@@ -115,8 +118,37 @@ mod windows {
         if fs::rename(&copy, &entry).is_ok() {
             return true;
         }
+        if fs::symlink_metadata(&entry).is_ok_and(|metadata| !metadata.is_dir())
+            && let Some(aside) = move_entry_aside(desktop, &entry)
+        {
+            if fs::rename(&copy, &entry).is_ok() {
+                let _ = fs::remove_file(&aside);
+                return true;
+            }
+            let _ = fs::rename(&aside, &entry);
+        }
         let _ = fs::remove_file(&copy);
         false
+    }
+
+    /// Renames a running `entry` to a fresh `desktop\.remove-flat-<process>-<number>.exe`, keeping
+    /// the `.exe` suffix so both the process scan and the write probe recognize it until it exits.
+    fn move_entry_aside(desktop: &Path, entry: &Path) -> Option<PathBuf> {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        for _ in 0..32 {
+            let aside = desktop.join(format!(
+                "{FLAT_ASIDE}{}-{}.exe",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            match fs::symlink_metadata(&aside) {
+                Ok(_) => continue,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(_) => return None,
+            }
+            return fs::rename(entry, &aside).ok().map(|()| aside);
+        }
+        None
     }
 
     /// Whether the regular file `path` holds exactly what `source` reads from its start.
@@ -217,7 +249,8 @@ mod windows {
     }
 
     /// The window store's own names, which no flat-layout step removes; no packaged window file
-    /// uses them.
+    /// uses them, while `.remove-flat-*` stays outside so its flat files wait until that process
+    /// ends and then go with it.
     fn layout_name(name: &str, entry: &str) -> bool {
         [
             "versions",
@@ -228,9 +261,8 @@ mod windows {
         ]
         .iter()
         .any(|own| name.eq_ignore_ascii_case(own))
-            || [".stage-", COPY, ".remove-"]
-                .iter()
-                .any(|prefix| name.starts_with(prefix))
+            || transient_name(name)
+            || numbered_name(name, COPY)
     }
 
     /// Deletes `path` file by file without following a link, keeping `keep` and the folders that

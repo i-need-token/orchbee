@@ -67,6 +67,14 @@ pub(crate) fn parse_selected_request(
             session: None,
         });
     }
+    if let Some(request) = tend_window_store(&tokens) {
+        return Ok(SelectedRequest {
+            availability: super::grammar::Availability::WindowsAndMacos,
+            format: None,
+            request,
+            session: None,
+        });
+    }
     machine_routing::parse(tokens)
 }
 
@@ -77,6 +85,14 @@ fn installer_window(tokens: &[String]) -> Option<super::Request> {
     let helper = orchbee_local_runtime::WINDOW_INSTALLER_HELPER;
     (orchbee_local_runtime::window_updates_live() && matches!(tokens, [only] if only == helper))
         .then_some(super::Request::InstallerWindow)
+}
+
+/// The window-store cleanup helper `--tend-window-store-v1`, alone, run by Desktop Main through its
+/// own bundled Client after startup.
+fn tend_window_store(tokens: &[String]) -> Option<super::Request> {
+    (orchbee_local_runtime::window_updates_live()
+        && matches!(tokens, [only] if only == "--tend-window-store-v1"))
+    .then_some(super::Request::TendWindowStore)
 }
 
 /// The automatic helper `--automatic-update-v1`, alone. A build that does not run automatic

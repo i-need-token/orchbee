@@ -30,6 +30,15 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 
 	readonly getSnapshot = (): string | null => this.#offer;
 
+	/** Asks Main to re-read `active.json` from disk once an update check settles. */
+	readonly refresh = (): void => {
+		if (this.#disposed) return;
+		const message: DesktopWindowUpdateRendererMessage = {
+			type: 'desktop-window-update-refresh',
+		};
+		this.#port.postMessage(message);
+	};
+
 	readonly request = (version: string): void => {
 		if (this.#disposed) return;
 		const message: DesktopWindowUpdateRendererMessage = {

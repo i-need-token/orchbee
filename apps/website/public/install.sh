@@ -12,8 +12,8 @@
 #    and its detached signature, https://orchbee.com/update/stable/<platform>/feed.json.sig, or
 #    with --version the feed pair of that GitHub release. A platform without a feed is told so in
 #    one sentence, and nothing is downloaded or installed. Verifies the Ed25519 signature over
-#    `orchbee-update-feed-v1\n` and the exact feed bytes against RELEASE_KEYS before reading the
-#    feed or downloading any archive.
+#    `orchbee-update-feed-v1\n` and the exact feed bytes against RELEASE_KEYS (with OpenSSL 3 or
+#    Node.js `node:crypto`) before reading the feed or downloading any archive.
 # 3. Downloads the .tar.gz the feed names, checks its size and SHA-256 against the feed, unpacks
 #    it into a temporary folder and runs its `orchbee install`, which verifies the signed
 #    release.json, activates the version under ~/.local/share/orchbee, links ~/.local/bin/orchbee,
@@ -25,10 +25,14 @@
 #    unpacks it, has the application's bundled Client add that window version to the store with
 #    --installer-window-v1, so the application can update itself, then copies the application
 #    into /Applications when that folder is writable and otherwise into ~/Applications, replacing an
-#    older copy there, and verifies its signature. A release whose window updates are not switched
-#    on yet does not know that word; its application is copied alone. A download through curl
-#    carries no quarantine attribute, so the application opens without the Gatekeeper prompt a
-#    browser download meets.
+#    older copy there, and verifies its signature. When the target bundle is already running the
+#    same release, nothing is stopped or replaced; when it runs an older release, the new bundle is
+#    staged and verified first, the open window is asked to quit gracefully (keeping terminals and
+#    Agents running), the bundle is swapped in place and reopened, or, if the window stays open past
+#    the wait, the staged version remains ready in the store for Update. A release whose window
+#    updates are not switched on yet does not know that word; its application is copied alone. A
+#    download through curl carries no quarantine attribute, so the application opens without the
+#    Gatekeeper prompt a browser download meets.
 # 5. Removes the temporary folder on every exit, interrupted or not.
 #
 # Both the feed signature (here) and the release directory's signed release.json (`orchbee install`)
@@ -66,6 +70,14 @@ ob_test_keys='
 
 ob_zh=0
 ob_openssl=''
+ob_node=''
+ob_openssl_paths='
+/opt/homebrew/opt/openssl@3/bin/openssl
+/usr/local/opt/openssl@3/bin/openssl
+/opt/homebrew/opt/openssl/bin/openssl
+/usr/local/opt/openssl/bin/openssl
+/opt/local/bin/openssl
+'
 ob_tmp=''
 ob_staged=''
 ob_previous=''
@@ -185,8 +197,10 @@ ob_sha256() {
 		sha256sum "$1" | cut -d ' ' -f 1
 	elif command -v shasum >/dev/null 2>&1; then
 		shasum -a 256 "$1" | cut -d ' ' -f 1
-	else
+	elif command -v openssl >/dev/null 2>&1; then
 		openssl dgst -sha256 -r "$1" | cut -d ' ' -f 1
+	else
+		"$ob_node" -e 'const c=require("node:crypto"),fs=require("node:fs");process.stdout.write(c.createHash("sha256").update(fs.readFileSync(0)).digest("hex")+"\n")' <"$1"
 	fi
 }
 
@@ -194,25 +208,28 @@ ob_size() {
 	wc -c <"$1" | tr -d ' '
 }
 
-# Selects an OpenSSL binary whose `pkeyutl` supports `-rawin` for Ed25519 verification; on macOS,
-# `/usr/bin/openssl` is LibreSSL without `-rawin`, while Homebrew installs keg-only OpenSSL 3.
-ob_find_openssl() {
+# Selects an Ed25519 verifier: first an OpenSSL binary whose `pkeyutl` supports `-rawin` (on macOS,
+# `/usr/bin/openssl` is LibreSSL without `-rawin`, while Homebrew installs keg-only OpenSSL 3), then
+# Node.js >= 18 through built-in `node:crypto`.
+ob_find_verifier() {
 	ob_openssl=''
-	for ob_candidate in \
-		"$(command -v openssl 2>/dev/null)" \
-		/opt/homebrew/opt/openssl@3/bin/openssl \
-		/usr/local/opt/openssl@3/bin/openssl \
-		/opt/homebrew/opt/openssl/bin/openssl \
-		/usr/local/opt/openssl/bin/openssl \
-		/opt/local/bin/openssl; do
+	ob_node=''
+	ob_path_openssl=$(command -v openssl 2>/dev/null || true)
+	for ob_candidate in "$ob_path_openssl" $ob_openssl_paths; do
 		[ -n "$ob_candidate" ] && [ -x "$ob_candidate" ] || continue
 		if [ -n "$("$ob_candidate" pkeyutl -help 2>&1 | sed -n '/-rawin/p')" ]; then
 			ob_openssl=$ob_candidate
 			return 0
 		fi
 	done
-	ob_fail 'This script needs OpenSSL with Ed25519 support (on macOS: brew install openssl@3, or install from the .dmg at https://orchbee.com). Nothing was installed.' \
-		'本脚本需要支持 Ed25519 的 OpenSSL（macOS 可运行 brew install openssl@3，或使用 https://orchbee.com 的 .dmg 安装包）。未安装任何内容。'
+	ob_path_node=$(command -v node 2>/dev/null || true)
+	if [ -n "$ob_path_node" ] && [ -x "$ob_path_node" ] &&
+		"$ob_path_node" -e 'const c=require("node:crypto");process.exit(typeof c.verify==="function"?0:1)' </dev/null >/dev/null 2>&1; then
+		ob_node=$ob_path_node
+		return 0
+	fi
+	ob_fail 'This script needs OpenSSL with Ed25519 support or Node.js >= 18 (on macOS: brew install openssl@3, or install from the .dmg at https://orchbee.com). Nothing was installed.' \
+		'本脚本需要支持 Ed25519 的 OpenSSL 或 Node.js >= 18（macOS 可运行 brew install openssl@3，或使用 https://orchbee.com 的 .dmg 安装包）。未安装任何内容。'
 }
 
 # Writes raw bytes from an even-length lowercase hexadecimal string $1 into file $2 without
@@ -239,7 +256,7 @@ ob_sig_malformed() {
 # RELEASE_KEYS (and TEST_KEYS only when ORCHBEE_INSTALL_SH_FEED is non-empty) before reading the
 # feed or downloading any archive.
 ob_verify_feed() {
-	[ -n "$ob_openssl" ] || ob_find_openssl
+	[ -n "$ob_openssl" ] || [ -n "$ob_node" ] || ob_find_verifier
 	ob_feed_bytes=$(ob_size "$ob_tmp/feed.json")
 	if [ -z "$ob_feed_bytes" ] || [ "$ob_feed_bytes" -le 0 ] || [ "$ob_feed_bytes" -gt "$ob_feed_limit" ]; then
 		ob_fail "The feed document at $ob_feed_url exceeds the size bound. Nothing was installed." \
@@ -307,15 +324,34 @@ $ob_test_keys"
 			ob_candidate_id=$(ob_sha256 "$ob_tmp/pub.raw" | cut -c 1-16)
 			[ "$ob_candidate_id" = "$ob_key_id" ] || continue
 			ob_named=1
-			# Ed25519 SubjectPublicKeyInfo DER: 12-byte header 302a300506032b6570032100 + 32-byte raw key.
-			ob_hex_to_raw "302a300506032b6570032100$ob_pub_hex" "$ob_tmp/pub.der"
-			ob_spki_b64=$("$ob_openssl" base64 -A <"$ob_tmp/pub.der" 2>/dev/null) || continue
-			[ -n "$ob_spki_b64" ] || continue
-			printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$ob_spki_b64" >"$ob_tmp/pub.pem"
-			printf '%s' "$ob_sig_b64" | "$ob_openssl" base64 -d -A >"$ob_tmp/sig.raw" 2>/dev/null || continue
-			[ "$(ob_size "$ob_tmp/sig.raw")" = 64 ] || continue
-			if "$ob_openssl" pkeyutl -verify -pubin -inkey "$ob_tmp/pub.pem" -rawin \
-				-in "$ob_tmp/feed.signed" -sigfile "$ob_tmp/sig.raw" </dev/null >/dev/null 2>&1; then
+			ob_verified=0
+			if [ -n "$ob_openssl" ]; then
+				# Ed25519 SubjectPublicKeyInfo DER: 12-byte header 302a300506032b6570032100 + 32-byte raw key.
+				ob_hex_to_raw "302a300506032b6570032100$ob_pub_hex" "$ob_tmp/pub.der"
+				ob_spki_b64=$("$ob_openssl" base64 -A <"$ob_tmp/pub.der" 2>/dev/null) || continue
+				[ -n "$ob_spki_b64" ] || continue
+				printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$ob_spki_b64" >"$ob_tmp/pub.pem"
+				printf '%s' "$ob_sig_b64" | "$ob_openssl" base64 -d -A >"$ob_tmp/sig.raw" 2>/dev/null || continue
+				[ "$(ob_size "$ob_tmp/sig.raw")" = 64 ] || continue
+				"$ob_openssl" pkeyutl -verify -pubin -inkey "$ob_tmp/pub.pem" -rawin \
+					-in "$ob_tmp/feed.signed" -sigfile "$ob_tmp/sig.raw" </dev/null >/dev/null 2>&1 && ob_verified=1
+			else
+				"$ob_node" -e '
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const pubHex = process.argv[1];
+const sigB64 = process.argv[2];
+const sig = Buffer.from(sigB64, "base64");
+if (sig.length !== 64 || sig.toString("base64") !== sigB64) process.exit(1);
+const key = crypto.createPublicKey({
+	key: Buffer.from("302a300506032b6570032100" + pubHex, "hex"),
+	format: "der",
+	type: "spki",
+});
+process.exit(crypto.verify(null, fs.readFileSync(0), key, sig) ? 0 : 1);
+' "$ob_pub_hex" "$ob_sig_b64" <"$ob_tmp/feed.signed" >/dev/null 2>&1 && ob_verified=1
+			fi
+			if [ "$ob_verified" = 1 ]; then
 				rm -f "$ob_tmp/feed.signed" "$ob_tmp/sig.entries" "$ob_tmp/sig.parsed" \
 					"$ob_tmp/pub.raw" "$ob_tmp/pub.der" "$ob_tmp/pub.pem" "$ob_tmp/sig.raw"
 				return 0
@@ -474,6 +510,38 @@ ob_applications() {
 			"无法创建 ${ob_destination}；命令行已安装，桌面应用未安装。"
 }
 
+# Whether any process of the current user runs from the application bundle $1.
+ob_bundle_running() {
+	ob_pattern=$(printf '%s/Contents/' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g')
+	ob_uid=$(id -u 2>/dev/null || true)
+	if [ -n "$ob_uid" ]; then
+		pgrep -u "$ob_uid" -f "^$ob_pattern" >/dev/null 2>&1
+		ob_pgrep=$?
+		case $ob_pgrep in
+		0) return 0 ;;
+		1) return 1 ;;
+		esac
+	fi
+	pgrep -f "^$ob_pattern" >/dev/null 2>&1
+}
+
+# Asks the application bundle $1 to quit gracefully, which settles window state and leaves the
+# Session's Server, Worker and terminals running. Passed through argv so no path character is parsed
+# as AppleScript.
+ob_quit_bundle() {
+	ob_osascript=$(command -v osascript 2>/dev/null || true)
+	[ -n "$ob_osascript" ] || ob_osascript=/usr/bin/osascript
+	[ -x "$ob_osascript" ] || return 0
+	"$ob_osascript" -e 'on run argv' -e 'tell application (item 1 of argv) to quit' -e 'end run' "$1" </dev/null >/dev/null 2>&1 || true
+}
+
+ob_open_bundle() {
+	ob_open=$(command -v open 2>/dev/null || true)
+	[ -n "$ob_open" ] || ob_open=/usr/bin/open
+	[ -x "$ob_open" ] || return 0
+	"$ob_open" "$1" </dev/null >/dev/null 2>&1 || true
+}
+
 ob_install_desktop() {
 	ob_partial='the command line is installed, the desktop app is not'
 	ob_partial_zh='命令行已安装，桌面应用未安装'
@@ -500,6 +568,7 @@ ob_install_desktop() {
 	# The store's copy of this window version, which the application switches to at Update. One
 	# orchbee.install document answers; a build without window updates refuses the word as a usage
 	# error (exit 2) and answers none.
+	ob_window_stored=0
 	ob_answer=$("$ob_helper" --installer-window-v1 </dev/null 2>"$ob_tmp/window.err")
 	ob_code=$?
 	case $ob_answer in
@@ -509,6 +578,7 @@ ob_install_desktop() {
 			ob_fail "Could not add $ob_name to the Orchbee store (${ob_error:-exit $ob_code}); $ob_partial." \
 				"无法把 $ob_name 加入 Orchbee 存储（${ob_error:-退出码 $ob_code}）；${ob_partial_zh}。"
 		fi
+		ob_window_stored=1
 		;;
 	*)
 		if [ "$ob_code" != 2 ]; then
@@ -520,9 +590,19 @@ ob_install_desktop() {
 	esac
 	ob_applications "$ob_name"
 	ob_target="$ob_destination/$ob_name"
-	if [ -e "$ob_target" ] && pgrep -f "$ob_target/Contents/" >/dev/null 2>&1; then
-		ob_fail "$ob_target is running. Quit Orchbee and run this again; $ob_partial." \
-			"$ob_target 正在运行。请退出 Orchbee 后重新运行；${ob_partial_zh}。"
+	ob_was_running=0
+	if [ -d "$ob_target" ] && ob_bundle_running "$ob_target"; then
+		ob_was_running=1
+	fi
+	if [ "$ob_was_running" = 1 ] &&
+		[ -f "$ob_target/Contents/Resources/cohort/release.json" ] &&
+		[ -f "$ob_application/Contents/Resources/cohort/release.json" ] &&
+		cmp -s "$ob_target/Contents/Resources/cohort/release.json" "$ob_application/Contents/Resources/cohort/release.json" &&
+		{ [ ! -f "$ob_application/Contents/Info.plist" ] || cmp -s "$ob_target/Contents/Info.plist" "$ob_application/Contents/Info.plist"; } &&
+		codesign --verify --deep --strict "$ob_target" </dev/null >/dev/null 2>&1; then
+		ob_say "$ob_name $ob_window_version is already running in $ob_destination." \
+			"$ob_destination 中的 $ob_name 已在运行 ${ob_window_version}。"
+		return 0
 	fi
 	ob_staged="$ob_destination/.$ob_name.install-$$"
 	rm -rf "$ob_staged"
@@ -530,6 +610,28 @@ ob_install_desktop() {
 		! codesign --verify --deep --strict "$ob_staged" </dev/null >/dev/null 2>&1; then
 		ob_fail "Could not copy $ob_name into $ob_destination with its signature intact; $ob_partial." \
 			"无法把 $ob_name 完整（含签名）复制到 ${ob_destination}；${ob_partial_zh}。"
+	fi
+	if [ "$ob_was_running" = 1 ] || ob_bundle_running "$ob_target"; then
+		ob_was_running=1
+		if ob_bundle_running "$ob_target"; then
+			ob_quit_bundle "$ob_target"
+			ob_tries=${ob_quit_polls:-150}
+			while [ "$ob_tries" -gt 0 ] && ob_bundle_running "$ob_target"; do
+				sleep "${ob_quit_poll_sleep:-0.1}" 2>/dev/null || sleep 1
+				ob_tries=$((ob_tries - 1))
+			done
+		fi
+		if ob_bundle_running "$ob_target"; then
+			rm -rf "$ob_staged"
+			ob_staged=''
+			if [ "$ob_window_stored" = 1 ]; then
+				ob_say "Staged $ob_name $ob_window_version in the Orchbee store; click Update in the open Orchbee window (or quit and reopen it) to finish switching." \
+					"已将 $ob_name $ob_window_version 准备到 Orchbee 存储中；请在已打开的 Orchbee 窗口中点击“更新”（或退出后重新打开）完成切换。"
+				return 0
+			fi
+			ob_fail "$ob_target is running. Quit Orchbee and run this again; $ob_partial." \
+				"$ob_target 正在运行。请退出 Orchbee 后重新运行；${ob_partial_zh}。"
+		fi
 	fi
 	if [ -e "$ob_target" ]; then
 		ob_previous="$ob_destination/.$ob_name.previous-$$"
@@ -544,6 +646,12 @@ ob_install_desktop() {
 			ob_say "Could not remove the older copy $ob_previous; delete it by hand." \
 				"无法删除旧副本 ${ob_previous}，请手动删除。" >&2
 		ob_previous=''
+	fi
+	if [ "$ob_was_running" = 1 ]; then
+		ob_open_bundle "$ob_target"
+		ob_say "Updated $ob_name to $ob_window_version and reopened it (terminals kept running)." \
+			"已将 $ob_name 更新到 $ob_window_version 并重新打开（终端继续运行）。"
+		return 0
 	fi
 	ob_say "Installed $ob_name in $ob_destination." "已将 $ob_name 安装到 ${ob_destination}。"
 }
@@ -583,11 +691,11 @@ ob_main() {
 		;;
 	esac
 
-	for ob_program in curl tar uname sed cut wc mktemp tr openssl; do
+	for ob_program in curl tar uname sed cut wc mktemp tr; do
 		command -v "$ob_program" >/dev/null 2>&1 ||
 			ob_fail "This script needs $ob_program. Nothing was installed." "本脚本需要 ${ob_program}。未安装任何内容。"
 	done
-	ob_find_openssl
+	ob_find_verifier
 	ob_detect_platform
 	if [ "$ob_desktop" = 1 ] && [ "$ob_os" != macos ]; then
 		ob_fail "--desktop is not available on $ob_platform yet. Nothing was installed." \

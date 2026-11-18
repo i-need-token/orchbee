@@ -245,9 +245,14 @@ async function run(
 	backgroundStatus.serveSessionStop((stopId) => stopServerSession(session, stopId));
 
 	// Check for updates asks this Session's Server to run its update job now; what it installs
-	// reaches the window as Main's offer, so About and the footer read one update state.
+	// reaches the window as Main's offer, refreshed directly from disk once the check settles so a
+	// coalesced filesystem watch event never delays it, and About and the footer read one state.
 	const updateCheck = new WorkbenchUpdateCheckModel({
-		ask: (action) => askServerUpdateCheck(session, action),
+		ask: async (action) => {
+			const answer = await askServerUpdateCheck(session, action);
+			if (answer === 'installed' || answer === 'up-to-date') windowUpdate.refresh();
+			return answer;
+		},
 		offer: windowUpdate,
 		unavailable: updateCheckUnavailable(bootstrap),
 	});

@@ -294,13 +294,12 @@ begin
     Result := ProgramInUse(Cohort + '-terminal-host.exe');
 end;
 
-// Setup never ends Orchbee. With window versions, it stops before changing anything only while a
-// flat layout's window runs: `resources\app.asar`, which only a flat layout has, lies beside the
-// entry, and the entry, then that window's executable, is in use. The helper removes no file a
-// process runs from, so a Session an earlier window started blocks nothing. Without window
-// versions, it stops while that window or such a Session runs from the installed copy and says
-// which of the two to quit; otherwise the previous window application moves aside, so no file of
-// it lingers beside the new one and a failed install can put it back.
+// Setup never ends Orchbee. With window versions, neither a running window nor a running Session
+// blocks it: a running flat layout's entry moves aside so the window launcher takes its path at
+// once, and the helper removes no file a process runs from. Without window versions, it stops
+// while that window or such a Session runs from the installed copy and says which of the two to
+// quit; otherwise the previous window application moves aside, so no file of it lingers beside the
+// new one and a failed install can put it back.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Desktop, Previous: String;
@@ -308,15 +307,8 @@ begin
   Result := '';
   Desktop := ExpandConstant('{app}\desktop');
   Previous := ExpandConstant('{app}\') + PreviousDesktop;
-  if not DirExists(Desktop) then
+  if not DirExists(Desktop) or WindowStore then
     Exit;
-  if WindowStore then
-  begin
-    if FileExists(Desktop + '\resources\app.asar')
-      and ProgramInUse(Desktop + '\{#DesktopExecutable}') then
-      Result := FmtMessage(CustomMessage('WindowInUse'), ['{#AppName}']);
-    Exit;
-  end;
   if ProgramRunsFrom(Desktop) then
   begin
     if SessionRunsFrom(Desktop) then

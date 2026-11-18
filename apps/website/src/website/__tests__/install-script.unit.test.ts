@@ -1,6 +1,15 @@
 import { spawnSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,16 +49,18 @@ function shellKeyTable(script: string, variable: 'ob_release_keys' | 'ob_test_ke
 		.filter((entry) => entry.length > 0);
 }
 
-interface PosixVerificationToolchain {
+interface PosixShellToolchain {
 	readonly sh: string;
 	readonly pathEnv: string;
+	readonly hasEd25519Openssl: boolean;
 }
 
 /**
- * Finds a native POSIX `sh` and Ed25519-capable `openssl` without ever invoking WSL. On Windows,
- * uses Git for Windows's `usr\bin\sh.exe` and `usr\bin\openssl.exe`.
+ * Finds a native POSIX `sh` without ever invoking WSL, and notes whether an Ed25519-capable
+ * `openssl` is available alongside it. On Windows, uses Git for Windows's `usr\bin\sh.exe`.
  */
-function findPosixVerificationToolchain(): PosixVerificationToolchain | undefined {
+function findPosixShellToolchain(): PosixShellToolchain | undefined {
+	const nodeDir = path.dirname(process.execPath);
 	if (process.platform === 'win32') {
 		const currentPath = process.env['Path'] ?? process.env['PATH'] ?? '';
 		const pathEntries = currentPath.split(';');
@@ -70,14 +81,16 @@ function findPosixVerificationToolchain(): PosixVerificationToolchain | undefine
 		for (const usrBin of candidates) {
 			const sh = path.join(usrBin, 'sh.exe');
 			const openssl = path.join(usrBin, 'openssl.exe');
-			if (!existsSync(sh) || !existsSync(openssl)) continue;
-			const help = spawnSync(openssl, ['pkeyutl', '-help'], {
-				encoding: 'utf8',
-				windowsHide: true,
-			});
-			if (`${help.stdout ?? ''}${help.stderr ?? ''}`.includes('-rawin')) {
-				return { sh, pathEnv: `${usrBin};${currentPath}` };
+			if (!existsSync(sh)) continue;
+			let hasEd25519Openssl = false;
+			if (existsSync(openssl)) {
+				const help = spawnSync(openssl, ['pkeyutl', '-help'], {
+					encoding: 'utf8',
+					windowsHide: true,
+				});
+				hasEd25519Openssl = `${help.stdout ?? ''}${help.stderr ?? ''}`.includes('-rawin');
 			}
+			return { sh, pathEnv: `${usrBin};${nodeDir};${currentPath}`, hasEd25519Openssl };
 		}
 		return undefined;
 	}
@@ -92,8 +105,12 @@ function findPosixVerificationToolchain(): PosixVerificationToolchain | undefine
 		],
 		{ encoding: 'utf8' },
 	);
-	if (probe.status !== 0) return undefined;
-	return { sh, pathEnv: process.env['PATH'] ?? '/usr/bin:/bin' };
+	const currentPath = process.env['PATH'] ?? '/usr/bin:/bin';
+	return {
+		sh,
+		pathEnv: `${nodeDir}:${currentPath}`,
+		hasEd25519Openssl: probe.status === 0,
+	};
 }
 
 function toPosixPath(filename: string): string {
@@ -103,6 +120,15 @@ function toPosixPath(filename: string): string {
 		return `/${drive[1].toLowerCase()}/${drive[2]}`;
 	}
 	return normalized;
+}
+
+function prependPath(binDir: string, pathEnv: string): string {
+	return process.platform === 'win32' ? `${binDir};${pathEnv}` : `${binDir}:${pathEnv}`;
+}
+
+function writeExecutableScript(filePath: string, body: string): void {
+	writeFileSync(filePath, body, { encoding: 'utf8' });
+	chmodSync(filePath, 0o755);
 }
 
 function signBytes(bytes: Buffer, domainPrefix: string) {
@@ -116,26 +142,40 @@ function signBytes(bytes: Buffer, domainPrefix: string) {
 }
 
 function runVerifyFeed(
-	toolchain: PosixVerificationToolchain,
+	toolchain: PosixShellToolchain,
 	{
 		feed,
 		signature,
 		testFeedEnv = 'file:///test/feed.json',
 		locale = 'en_US.UTF-8',
+		verifier = 'openssl',
 	}: {
 		readonly feed: Buffer;
 		readonly signature: Buffer;
 		readonly testFeedEnv?: string;
 		readonly locale?: string;
+		readonly verifier?: 'openssl' | 'node';
 	},
 ) {
 	const scratch = mkdtempSync(path.join(tmpdir(), 'orchbee-install-sh-test-'));
 	try {
 		writeFileSync(path.join(scratch, 'feed.json'), feed);
 		writeFileSync(path.join(scratch, 'feed.json.sig'), signature);
+		let pathEnv = toolchain.pathEnv;
+		if (verifier === 'node') {
+			const stubBin = path.join(scratch, 'stub-bin');
+			mkdirSync(stubBin, { recursive: true });
+			// Simulates macOS LibreSSL `/usr/bin/openssl` whose `pkeyutl -help` lacks `-rawin`.
+			writeExecutableScript(
+				path.join(stubBin, 'openssl'),
+				'#!/bin/sh\nif [ "${1:-}" = "pkeyutl" ]; then printf "Usage: pkeyutl [options]\\n"; exit 0; fi\nexit 1\n',
+			);
+			pathEnv = prependPath(stubBin, pathEnv);
+		}
 		const scriptSource = readFileSync(INSTALL_SCRIPT, 'utf8').replace(/\nob_main "\$@"\s*$/u, '\n');
 		const harness = `${scriptSource}
 ob_choose_locale
+${verifier === 'node' ? "ob_openssl_paths=''" : ''}
 ob_tmp=${JSON.stringify(toPosixPath(scratch))}
 ob_feed_url='https://orchbee.com/update/stable/macos-aarch64/feed.json'
 ob_verify_feed
@@ -144,8 +184,8 @@ ob_verify_feed
 			...process.env,
 			LC_ALL: locale,
 			ORCHBEE_INSTALL_SH_FEED: testFeedEnv,
-			PATH: toolchain.pathEnv,
-			...(process.platform === 'win32' ? { Path: toolchain.pathEnv } : {}),
+			PATH: pathEnv,
+			...(process.platform === 'win32' ? { Path: pathEnv } : {}),
 		};
 		const result = spawnSync(toolchain.sh, ['-s'], {
 			input: harness,
@@ -164,16 +204,26 @@ ob_verify_feed
 	}
 }
 
-const posixToolchain = findPosixVerificationToolchain();
-// Only a bare developer Mac without Homebrew openssl@3 may lack Ed25519 pkeyutl -rawin; CI runners
-// and Windows Git for Windows carry it.
-const skipPosixVerification = posixToolchain === undefined && process.platform === 'darwin';
+const posixToolchain = findPosixShellToolchain();
+// Only a bare developer Mac without Homebrew openssl@3 lacks Ed25519 pkeyutl -rawin; CI runners and
+// Windows Git for Windows carry it, while the Node fallback tests run everywhere POSIX sh exists.
+const skipOpensslVerification =
+	(posixToolchain === undefined || !posixToolchain.hasEd25519Openssl) &&
+	process.platform === 'darwin';
 
-function requirePosixToolchain(): PosixVerificationToolchain {
+function requirePosixShellToolchain(): PosixShellToolchain {
 	if (posixToolchain === undefined) {
-		throw new Error('Expected POSIX sh and Ed25519-capable openssl on this host.');
+		throw new Error('Expected POSIX sh on this host.');
 	}
 	return posixToolchain;
+}
+
+function requireOpensslToolchain(): PosixShellToolchain {
+	const toolchain = requirePosixShellToolchain();
+	if (!toolchain.hasEd25519Openssl) {
+		throw new Error('Expected Ed25519-capable openssl on this host.');
+	}
+	return toolchain;
 }
 
 describe('install.sh feed signature verification', () => {
@@ -188,10 +238,10 @@ describe('install.sh feed signature verification', () => {
 		expect(shellKeyTable(installScript, 'ob_test_keys')).toEqual(expectedTest);
 	});
 
-	it.skipIf(skipPosixVerification)(
+	it.skipIf(skipOpensslVerification)(
 		'admits valid release, test-mode and multi-key rotated signatures',
 		() => {
-			const toolchain = requirePosixToolchain();
+			const toolchain = requireOpensslToolchain();
 			const fixtureFeed = readFileSync(path.join(FIXTURES_DIRECTORY, 'feed.json.signed'));
 			const fixtureSig = readFileSync(path.join(FIXTURES_DIRECTORY, 'feed.json.sig'));
 
@@ -241,10 +291,10 @@ describe('install.sh feed signature verification', () => {
 		20_000,
 	);
 
-	it.skipIf(skipPosixVerification)(
+	it.skipIf(skipOpensslVerification)(
 		'fails closed on tampered feeds, untrusted keys, test keys in production, wrong domain or malformed documents',
 		() => {
-			const toolchain = requirePosixToolchain();
+			const toolchain = requireOpensslToolchain();
 			const fixtureFeed = readFileSync(path.join(FIXTURES_DIRECTORY, 'feed.json.signed'));
 			const fixtureSig = readFileSync(path.join(FIXTURES_DIRECTORY, 'feed.json.sig'));
 			const parsedFixture = JSON.parse(fixtureSig.toString('utf8')) as {
@@ -315,4 +365,305 @@ describe('install.sh feed signature verification', () => {
 		},
 		20_000,
 	);
+
+	it('falls back to Node.js Ed25519 verification when OpenSSL lacks pkeyutl -rawin', () => {
+		const toolchain = requirePosixShellToolchain();
+		const fixtureFeed = readFileSync(path.join(FIXTURES_DIRECTORY, 'feed.json.signed'));
+		const fixtureSig = readFileSync(path.join(FIXTURES_DIRECTORY, 'feed.json.sig'));
+		const prodFeed = readFileSync(TRACKED_MACOS_FEED);
+		const prodSig = readFileSync(TRACKED_MACOS_SIG);
+
+		const validProd = runVerifyFeed(toolchain, {
+			feed: prodFeed,
+			signature: prodSig,
+			testFeedEnv: '',
+			verifier: 'node',
+		});
+		expect({ status: validProd.status, stderr: validProd.stderr }).toEqual({
+			status: 0,
+			stderr: '',
+		});
+
+		const validTest = runVerifyFeed(toolchain, {
+			feed: fixtureFeed,
+			signature: fixtureSig,
+			verifier: 'node',
+		});
+		expect({ status: validTest.status, stderr: validTest.stderr }).toEqual({
+			status: 0,
+			stderr: '',
+		});
+
+		const tamperedFeed = Buffer.from(
+			fixtureFeed.toString('utf8').replace('"fixture.1"', '"fixture.2"'),
+			'utf8',
+		);
+		const tampered = runVerifyFeed(toolchain, {
+			feed: tamperedFeed,
+			signature: fixtureSig,
+			verifier: 'node',
+		});
+		expect(tampered.status).toBe(1);
+		expect(tampered.stderr).toContain('Nothing was installed.');
+
+		const untrustedSig = Buffer.from(
+			JSON.stringify({ signatures: [signBytes(fixtureFeed, 'orchbee-update-feed-v1')] }) + '\n',
+			'utf8',
+		);
+		const untrusted = runVerifyFeed(toolchain, {
+			feed: fixtureFeed,
+			signature: untrustedSig,
+			verifier: 'node',
+		});
+		expect(untrusted.status).toBe(1);
+		expect(untrusted.stderr).toContain('Nothing was installed.');
+
+		const testKeyInProd = runVerifyFeed(toolchain, {
+			feed: fixtureFeed,
+			signature: fixtureSig,
+			testFeedEnv: '',
+			verifier: 'node',
+		});
+		expect(testKeyInProd.status).toBe(1);
+		expect(testKeyInProd.stderr).toContain('Nothing was installed.');
+	}, 20_000);
+});
+
+function createFakeAppBundle(rootDir: string, version: string, helperSupported = true): void {
+	const cohortDir = path.join(rootDir, 'Orchbee.app', 'Contents', 'Resources', 'cohort');
+	mkdirSync(cohortDir, { recursive: true });
+	writeFileSync(
+		path.join(cohortDir, 'release.json'),
+		JSON.stringify({ version, buildId: `${version}.build` }) + '\n',
+		'utf8',
+	);
+	writeFileSync(
+		path.join(rootDir, 'Orchbee.app', 'Contents', 'Info.plist'),
+		`<plist><string>${version}</string></plist>\n`,
+		'utf8',
+	);
+	writeExecutableScript(
+		path.join(cohortDir, 'orchbee'),
+		helperSupported
+			? '#!/bin/sh\nprintf \'{"schema": "orchbee.install", "version": 1, "result": {"activated": true}}\\n\'\nexit 0\n'
+			: '#!/bin/sh\nexit 2\n',
+	);
+}
+
+function runInstallDesktop(
+	toolchain: PosixShellToolchain,
+	{
+		existingVersion,
+		newVersion = '0.2.0',
+		running,
+		quitBehavior = 'exits',
+		helperSupported = true,
+		locale = 'en_US.UTF-8',
+	}: {
+		readonly existingVersion: string | null;
+		readonly newVersion?: string;
+		readonly running: boolean;
+		readonly quitBehavior?: 'exits' | 'stays-running';
+		readonly helperSupported?: boolean;
+		readonly locale?: string;
+	},
+) {
+	const scratch = mkdtempSync(path.join(tmpdir(), 'orchbee-install-desktop-test-'));
+	try {
+		const stubBin = path.join(scratch, 'stub-bin');
+		const appsDir = path.join(scratch, 'Applications');
+		const workTmp = path.join(scratch, 'tmp');
+		const archiveBuild = path.join(scratch, 'archive-src');
+		const windowFolder = `orchbee-desktop-${newVersion}-macos-aarch64`;
+		const windowName = `${windowFolder}.zip`;
+		mkdirSync(stubBin, { recursive: true });
+		mkdirSync(appsDir, { recursive: true });
+		mkdirSync(workTmp, { recursive: true });
+		mkdirSync(path.join(archiveBuild, windowFolder), { recursive: true });
+
+		createFakeAppBundle(path.join(archiveBuild, windowFolder), newVersion, helperSupported);
+		if (existingVersion !== null) {
+			createFakeAppBundle(appsDir, existingVersion, true);
+		}
+		const runningMarkerPosix = toPosixPath(path.join(scratch, 'bundle-running'));
+		const osascriptLogPosix = toPosixPath(path.join(scratch, 'osascript.log'));
+		const openLogPosix = toPosixPath(path.join(scratch, 'open.log'));
+		const expectedTargetPosix = `${toPosixPath(appsDir)}/Orchbee.app`;
+		if (running) {
+			writeFileSync(
+				path.join(scratch, 'bundle-running'),
+				`${expectedTargetPosix}/Contents/MacOS/Orchbee\n`,
+			);
+		}
+
+		writeExecutableScript(
+			path.join(stubBin, 'ditto'),
+			'#!/bin/sh\nrm -rf "$2" && cp -R "$1" "$2"\n',
+		);
+		writeExecutableScript(
+			path.join(stubBin, 'codesign'),
+			'#!/bin/sh\n[ -d "$4" ] && [ -f "$4/Contents/Resources/cohort/release.json" ]\n',
+		);
+		writeExecutableScript(
+			path.join(stubBin, 'pgrep'),
+			`#!/bin/sh
+[ -f ${JSON.stringify(runningMarkerPosix)} ] || exit 1
+pattern=''
+while [ $# -gt 0 ]; do
+	case $1 in
+	-u) shift ;;
+	-f) shift; pattern=$1 ;;
+	*) pattern=$1 ;;
+	esac
+	shift
+done
+grep -E -- "$pattern" ${JSON.stringify(runningMarkerPosix)} >/dev/null 2>&1
+`,
+		);
+		writeExecutableScript(
+			path.join(stubBin, 'osascript'),
+			`#!/bin/sh
+target=''
+for arg in "$@"; do
+	target=$arg
+done
+printf '%s\\n' "$target" >>${JSON.stringify(osascriptLogPosix)}
+${quitBehavior === 'exits' ? `rm -f ${JSON.stringify(runningMarkerPosix)}` : ':'}
+exit 0
+`,
+		);
+		writeExecutableScript(
+			path.join(stubBin, 'open'),
+			`#!/bin/sh\nprintf '%s\\n' "$1" >>${JSON.stringify(openLogPosix)}\nexit 0\n`,
+		);
+
+		const scriptSource = readFileSync(INSTALL_SCRIPT, 'utf8').replace(/\nob_main "\$@"\s*$/u, '\n');
+		const harness = `${scriptSource}
+ob_choose_locale
+ob_tmp=${JSON.stringify(toPosixPath(workTmp))}
+ob_stem='orchbee'
+ob_window_version=${JSON.stringify(newVersion)}
+ob_window_folder=${JSON.stringify(windowFolder)}
+ob_window_name=${JSON.stringify(windowName)}
+ob_quit_polls=2
+ob_quit_poll_sleep=0.01
+tar -c -f "$ob_tmp/$ob_window_name" -C ${JSON.stringify(toPosixPath(archiveBuild))} "$ob_window_folder"
+ob_install_desktop
+`;
+		const pathEnv = prependPath(stubBin, toolchain.pathEnv);
+		const env: NodeJS.ProcessEnv = {
+			...process.env,
+			LC_ALL: locale,
+			ORCHBEE_INSTALL_SH_APPLICATIONS: toPosixPath(appsDir),
+			PATH: pathEnv,
+			...(process.platform === 'win32' ? { Path: pathEnv } : {}),
+		};
+		const result = spawnSync(toolchain.sh, ['-s'], {
+			input: harness,
+			encoding: 'utf8',
+			env,
+			timeout: 30_000,
+			windowsHide: true,
+		});
+		const installedRelease = JSON.parse(
+			readFileSync(
+				path.join(appsDir, 'Orchbee.app', 'Contents', 'Resources', 'cohort', 'release.json'),
+				'utf8',
+			),
+		) as { version: string };
+		const readLog = (name: string) =>
+			existsSync(path.join(scratch, name))
+				? readFileSync(path.join(scratch, name), 'utf8').trim().split('\n').filter(Boolean)
+				: [];
+		return {
+			status: result.status,
+			stdout: result.stdout ?? '',
+			stderr: result.stderr ?? '',
+			installedVersion: installedRelease.version,
+			appsEntries: readdirSync(appsDir).sort(),
+			osascriptTargets: readLog('osascript.log'),
+			openTargets: readLog('open.log'),
+			expectedTargetPosix,
+		};
+	} finally {
+		rmSync(scratch, { recursive: true, force: true });
+	}
+}
+
+describe('install.sh --desktop live hot-swap', () => {
+	it('leaves a running bundle untouched when it already runs the exact release', () => {
+		const toolchain = requirePosixShellToolchain();
+		const en = runInstallDesktop(toolchain, {
+			existingVersion: '0.2.0',
+			newVersion: '0.2.0',
+			running: true,
+		});
+		expect(en.status).toBe(0);
+		expect(en.stderr).toBe('');
+		expect(en.stdout.trim()).toBe(
+			`Orchbee.app 0.2.0 is already running in ${en.expectedTargetPosix.replace(/\/Orchbee\.app$/u, '')}.`,
+		);
+		expect(en.osascriptTargets).toEqual([]);
+		expect(en.openTargets).toEqual([]);
+		expect(en.installedVersion).toBe('0.2.0');
+
+		const zh = runInstallDesktop(toolchain, {
+			existingVersion: '0.2.0',
+			newVersion: '0.2.0',
+			running: true,
+			locale: 'zh_CN.UTF-8',
+		});
+		expect(zh.status).toBe(0);
+		expect(zh.stdout).toContain('中的 Orchbee.app 已在运行 0.2.0。');
+	});
+
+	it('stages first, quits an older running bundle gracefully, swaps it and reopens it', () => {
+		const toolchain = requirePosixShellToolchain();
+		const updated = runInstallDesktop(toolchain, {
+			existingVersion: '0.1.0',
+			newVersion: '0.2.0',
+			running: true,
+			quitBehavior: 'exits',
+		});
+		expect(updated.status).toBe(0);
+		expect(updated.stderr).toBe('');
+		expect(updated.osascriptTargets).toEqual([updated.expectedTargetPosix]);
+		expect(updated.openTargets).toEqual([updated.expectedTargetPosix]);
+		expect(updated.installedVersion).toBe('0.2.0');
+		expect(updated.appsEntries).toEqual(['Orchbee.app']);
+		expect(updated.stdout.trim()).toBe(
+			'Updated Orchbee.app to 0.2.0 and reopened it (terminals kept running).',
+		);
+	});
+
+	it('cleans up the stage and succeeds with store guidance when the open window refuses to quit', () => {
+		const toolchain = requirePosixShellToolchain();
+		const staged = runInstallDesktop(toolchain, {
+			existingVersion: '0.1.0',
+			newVersion: '0.2.0',
+			running: true,
+			quitBehavior: 'stays-running',
+			helperSupported: true,
+		});
+		expect(staged.status).toBe(0);
+		expect(staged.stderr).toBe('');
+		expect(staged.osascriptTargets).toEqual([staged.expectedTargetPosix]);
+		expect(staged.openTargets).toEqual([]);
+		expect(staged.installedVersion).toBe('0.1.0');
+		expect(staged.appsEntries).toEqual(['Orchbee.app']);
+		expect(staged.stdout.trim()).toBe(
+			'Staged Orchbee.app 0.2.0 in the Orchbee store; click Update in the open Orchbee window (or quit and reopen it) to finish switching.',
+		);
+
+		const legacyRefused = runInstallDesktop(toolchain, {
+			existingVersion: '0.1.0',
+			newVersion: '0.2.0',
+			running: true,
+			quitBehavior: 'stays-running',
+			helperSupported: false,
+		});
+		expect(legacyRefused.status).toBe(1);
+		expect(legacyRefused.stderr).toContain('is running. Quit Orchbee and run this again');
+		expect(legacyRefused.appsEntries).toEqual(['Orchbee.app']);
+	});
 });

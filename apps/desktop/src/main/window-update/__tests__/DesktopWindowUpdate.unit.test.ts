@@ -27,6 +27,7 @@ function fakePort() {
 	};
 	return {
 		port,
+		refresh: () => receive?.({ data: { type: 'desktop-window-update-refresh' } }),
 		request: (version: string, place: DesktopRelaunchPlace | null = null) =>
 			receive?.({ data: { place, type: 'desktop-window-update-requested', version } }),
 		sent,
@@ -221,5 +222,80 @@ describe('DesktopWindowUpdate', () => {
 			await settle();
 			expect(document.sent.at(-1)).toEqual({ type: 'desktop-window-update-failed' });
 		}
+	});
+
+	it('refreshes the pointer from disk when a document reports an update check settled', async () => {
+		let active: string | null = '0.2.0';
+		const update = new DesktopWindowUpdate({
+			desktopRoot: ROOT,
+			fallbackFrom: null,
+			onJoinable: () => Promise.resolve(),
+			ownVersion: '0.2.0',
+			readPointer: () => Promise.resolve(active),
+			recordEvent: () => undefined,
+			startVersionClient: () => Promise.resolve(started(['compatibility-window'])),
+			// Simulates OS `fs.watch` coalescing or missing the pointer rename.
+			watchPointer: () => () => undefined,
+		});
+		update.start();
+		await settle();
+		const document = fakePort();
+		update.serve(document.port);
+		expect(document.sent).toEqual([{ type: 'desktop-window-update-offered', version: null }]);
+
+		active = '0.3.0';
+		document.refresh();
+		await settle();
+		expect(document.sent.at(-1)).toEqual({
+			type: 'desktop-window-update-offered',
+			version: '0.3.0',
+		});
+	});
+
+	it('switches on switchIfOffered after refreshing from disk, and stays when not joinable or not offered', async () => {
+		let active: string | null = '0.2.0';
+		let joinable = false;
+		let launcherStarts = true;
+		const onJoinable = vi.fn<
+			(version: string, place: DesktopRelaunchPlace | null) => Promise<boolean>
+		>(() => Promise.resolve(launcherStarts));
+		const update = new DesktopWindowUpdate({
+			desktopRoot: ROOT,
+			fallbackFrom: '0.2.5',
+			onJoinable,
+			ownVersion: '0.2.0',
+			readPointer: () => Promise.resolve(active),
+			recordEvent: () => undefined,
+			startVersionClient: () =>
+				Promise.resolve(started(joinable ? ['compatibility-window'] : ['agent-input-area'])),
+			watchPointer: () => () => undefined,
+		});
+		update.start();
+		await settle();
+
+		// Up-to-date pointer: does not switch.
+		expect(await update.switchIfOffered()).toBe(false);
+		expect(onJoinable).not.toHaveBeenCalled();
+
+		// Fallback version: never offered or switched to.
+		active = '0.2.5';
+		expect(await update.switchIfOffered()).toBe(false);
+		expect(onJoinable).not.toHaveBeenCalled();
+
+		// Newer version on disk before fs.watch fires, but Session lacks compatibility-window: stays.
+		active = '0.3.0';
+		expect(await update.switchIfOffered()).toBe(false);
+		expect(onJoinable).not.toHaveBeenCalled();
+
+		// Joinable, but launcher failed to start: reports false so caller focuses existing window.
+		joinable = true;
+		launcherStarts = false;
+		expect(await update.switchIfOffered(() => PLACE)).toBe(false);
+		expect(onJoinable).toHaveBeenCalledWith('0.3.0', PLACE);
+
+		// Joinable and launcher starts: reports true.
+		launcherStarts = true;
+		expect(await update.switchIfOffered(() => PLACE)).toBe(true);
+		expect(onJoinable).toHaveBeenLastCalledWith('0.3.0', PLACE);
 	});
 });

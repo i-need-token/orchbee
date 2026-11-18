@@ -42,7 +42,7 @@ pub(crate) use automatic::run as automatic_update;
 pub(crate) use client_failure::run as record_client_failure;
 pub(crate) use complete::run as complete_install;
 pub(in crate::cli) use installed::{VerifiedRelease, observe as observe_installation};
-pub(crate) use window::installer as installer_window;
+pub(crate) use window::{installer as installer_window, tend_store as tend_window_store};
 
 /// The `client-server` generations the active release's manifest lists for its `client`
 /// component, for the TUI's join check before an Update switch.

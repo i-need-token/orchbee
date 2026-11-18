@@ -17,20 +17,37 @@ use std::{io, path::Path};
 /// neither active nor previous, and every leftover folder, when no process runs from it. Each
 /// failure keeps what it concerns and goes on to the next.
 pub(super) fn remove_unused(store: &ReleaseStore, pointer: &Pointer) {
-    remove_unused_by(store, pointer, no_process_runs_from);
+    remove_unused_with(store, pointer, true, no_process_runs_from);
 }
 
-/// [`remove_unused`] with `unused` as the process check: true when no process runs from a folder;
-/// false or an error keeps it.
-pub(super) fn remove_unused_by(
+/// Removes every version of `store` other than `pointer.active`, and every leftover folder, when
+/// `unused` finds no process running from it. Used for the macOS window store, whose launcher backs
+/// up the replaced application bundle outside the store and never reads `pointer.previous`.
+#[cfg(target_os = "macos")]
+pub(super) fn remove_non_active_by(
     store: &ReleaseStore,
     pointer: &Pointer,
     unused: fn(&Path) -> io::Result<bool>,
 ) {
+    remove_unused_with(store, pointer, false, unused);
+}
+
+/// [`remove_unused`] parameterized by whether `pointer.previous` stays alongside `pointer.active`
+/// and by `unused` as the process check (true when no process runs from a folder; false or an error
+/// keeps it).
+pub(in crate::cli::update) fn remove_unused_with(
+    store: &ReleaseStore,
+    pointer: &Pointer,
+    keep_previous: bool,
+    unused: fn(&Path) -> io::Result<bool>,
+) {
     let kept = |version: &str| {
-        std::iter::once(&pointer.active)
-            .chain(&pointer.previous)
-            .any(|entry| entry.product.eq_ignore_ascii_case(version))
+        pointer.active.product.eq_ignore_ascii_case(version)
+            || (keep_previous
+                && pointer
+                    .previous
+                    .as_ref()
+                    .is_some_and(|previous| previous.product.eq_ignore_ascii_case(version)))
     };
     // A store that cannot be listed keeps everything; the next completion lists it again.
     for leftover in store.leftovers().unwrap_or_default() {
