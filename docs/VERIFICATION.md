@@ -470,7 +470,7 @@ every self-updating platform and then rolls out and verifies the website update 
   after every `update-check` row passes. Checks `node scripts/website-release.mjs should-advance <version>`
   against `main` first (exiting 0 without requiring secrets when `<version>` is strictly below
   `main`'s `release.ts` version, or equal with the live edge already matching), validates
-  `WEBSITE_PUSH_TOKEN`, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` via
+  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` via
   `node scripts/website-release.mjs preconditions`, runs `pnpm website:release <version>`, enforces
   `node scripts/website-release.mjs assert-clean-diff` (`release.ts` and
   `apps/website/public/update/<channel>/<platform>/feed.json.{signed,sig}` only, with

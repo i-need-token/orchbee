@@ -34,10 +34,13 @@ repository>`. Print each public half with the command in
    - New environment `website`, used by `website-release` in `.github/workflows/update-check.yml`:
      - Required reviewers: none.
      - Deployment branches and tags: Selected branches and tags, branch `main` and tag `v*`.
-     - Environment secrets: `WEBSITE_PUSH_TOKEN`, a fine-grained personal access token scoped to
-       this repository with `Contents: Read and write` (so the job can push the website channel
-       commit to `main`), `CLOUDFLARE_API_TOKEN` (Workers Scripts edit permission for the website
-       Worker), and `CLOUDFLARE_ACCOUNT_ID`, each set with `gh secret set <NAME> --env website`.
+     - Environment secrets: `CLOUDFLARE_API_TOKEN`, a Cloudflare API token made from the "Edit
+       Cloudflare Workers" template and limited to this account and the `orchbee.com` zone (the
+       Worker serves custom domains), and `CLOUDFLARE_ACCOUNT_ID`, each set with
+       `gh secret set <NAME> --env website`, which asks for the value.
+     - The job pushes the website channel commit to `main` with its own `GITHUB_TOKEN`
+       (`contents: write`). That works while `main` has no branch protection; protecting `main`
+       later needs a push credential for this job.
    - On Cloudflare, keep Bot Fight Mode, Browser Integrity Check, and challenge rules off for
      `/update/*` and `/install.sh`, because CLI clients and `install.sh` fetch them anonymously with
      `curl` and fail closed on any 403 or HTML challenge page.

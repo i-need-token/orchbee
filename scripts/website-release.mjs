@@ -93,7 +93,7 @@ const signatureLimit = 4 * 1024;
 const installScriptLimit = 256 * 1024;
 const checksumsName = 'SHA256SUMS';
 const checksumsLimit = 64 * 1024;
-const websiteSecretNames = ['WEBSITE_PUSH_TOKEN', 'CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'];
+const websiteSecretNames = ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'];
 const usage =
 	'Usage: node scripts/website-release.mjs <version> [--from <absolute folder | http://127.0.0.1:<port>/<path>/>]\n' +
 	'       node scripts/website-release.mjs should-advance <version>\n' +

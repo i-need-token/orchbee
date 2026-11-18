@@ -74,6 +74,9 @@ jobs:
     needs: [update-check]
     if: ${{ !cancelled() && needs.update-check.result == 'success' }}
     environment: website
+    # The job's own token pushes the website channel commit to `main`, which has no branch protection.
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -134,17 +137,15 @@ jobs:
       - name: Check website deployment secrets
         if: steps.rollout.outputs.run == 'true'
         env:
-          WEBSITE_PUSH_TOKEN: ${{ secrets.WEBSITE_PUSH_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node scripts/website-release.mjs preconditions
 
-      - name: Check out main with push token
+      - name: Check out main with the job token
         if: steps.rollout.outputs.run == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: main
-          token: ${{ secrets.WEBSITE_PUSH_TOKEN }}
 
       - name: Set up pnpm
         if: steps.rollout.outputs.run == 'true'

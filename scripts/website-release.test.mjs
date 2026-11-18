@@ -260,8 +260,8 @@ test('monotonic channel guard follows SemVer 2.0.0 precedence and skips older or
 
 test('website deployment preconditions name missing secrets and never echo values', () => {
 	const missing = checkWebsitePreconditions({});
-	assert.equal(missing.problems.length, 3);
-	for (const name of ['WEBSITE_PUSH_TOKEN', 'CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']) {
+	assert.equal(missing.problems.length, 2);
+	for (const name of ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']) {
 		assert.match(
 			missing.problems.join('\n'),
 			new RegExp(`gh secret set ${name} --env website`, 'u'),
@@ -269,14 +269,12 @@ test('website deployment preconditions name missing secrets and never echo value
 	}
 	const secretValue = 'cf_super_secret_token_value_987654';
 	const ready = checkWebsitePreconditions({
-		WEBSITE_PUSH_TOKEN: 'ghp_push_secret_123',
 		CLOUDFLARE_API_TOKEN: secretValue,
 		CLOUDFLARE_ACCOUNT_ID: 'acct_456',
 	});
 	assert.deepEqual(ready.problems, []);
 	const combined = [...ready.problems, ...ready.notes, ...missing.problems].join('\n');
 	assert.ok(!combined.includes(secretValue));
-	assert.ok(!combined.includes('ghp_push_secret_123'));
 });
 
 test('the strict path whitelist admits only release.ts and update feed pairs', () => {
