@@ -202,7 +202,44 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
         write_ansi_command(&mut self.writer, &ResetColor)?;
         let mut style = PaintedStyle::default();
         let mut advanced_to: Option<Position> = None;
+        let mut ascii_run = [0_u8; 256];
+        let mut run_len = 0_usize;
         for (x, y, cell) in content {
+            let symbol_bytes = cell.symbol().as_bytes();
+            if let [ascii] = symbol_bytes
+                && (0x20..=0x7e).contains(ascii)
+            {
+                if let Some(base) = self.base_cells.cell_mut((x, y)) {
+                    *base = cell.clone();
+                }
+                let contiguous = advanced_to == Some(Position { x, y })
+                    && cell.fg == style.fg
+                    && cell.bg == style.bg
+                    && cell.modifier == style.modifier;
+                if (!contiguous || run_len == ascii_run.len()) && run_len != 0 {
+                    self.writer.write_all(&ascii_run[..run_len])?;
+                    run_len = 0;
+                }
+                emit_cell_prefix(
+                    &mut self.writer,
+                    Position { x, y },
+                    advanced_to,
+                    &mut style,
+                    cell,
+                )?;
+                ascii_run[run_len] = *ascii;
+                run_len += 1;
+                self.cursor_position = Position { x, y };
+                advanced_to = Some(Position {
+                    x: x.saturating_add(1),
+                    y,
+                });
+                continue;
+            }
+            if run_len != 0 {
+                self.writer.write_all(&ascii_run[..run_len])?;
+                run_len = 0;
+            }
             if let Some(base) = self.base_cells.cell_mut((x, y)) {
                 *base = cell.clone();
             }
@@ -212,21 +249,13 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
                     tail.set_style(cell.style());
                 }
             }
-            if advanced_to != Some(Position { x, y }) {
-                write_ansi_command(&mut self.writer, &MoveTo(x, y))?;
-            }
-            if cell.fg != style.fg {
-                colors::write_foreground(&mut self.writer, cell.fg)?;
-                style.fg = cell.fg;
-            }
-            if cell.bg != style.bg {
-                colors::write_background(&mut self.writer, cell.bg)?;
-                style.bg = cell.bg;
-            }
-            if cell.modifier != style.modifier {
-                write_modifier_transition(&mut self.writer, style.modifier, cell.modifier)?;
-                style.modifier = cell.modifier;
-            }
+            emit_cell_prefix(
+                &mut self.writer,
+                Position { x, y },
+                advanced_to,
+                &mut style,
+                cell,
+            )?;
             let symbol = sanitize_terminal_symbol(cell.symbol());
             let cell_width = cell.cell_width();
             let predictable = is_predictable_bmp_cell(symbol.as_ref(), cell_width);
@@ -242,6 +271,9 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
                 x: x.saturating_add(cell_width),
                 y,
             });
+        }
+        if run_len != 0 {
+            self.writer.write_all(&ascii_run[..run_len])?;
         }
         write_ansi_command(&mut self.writer, &SetAttribute(Attribute::Reset))?;
         write_ansi_command(&mut self.writer, &ResetColor)?;
@@ -452,6 +484,31 @@ struct PaintedStyle {
     fg: Color,
     bg: Color,
     modifier: Modifier,
+}
+
+fn emit_cell_prefix(
+    writer: &mut impl Write,
+    position: Position,
+    advanced_to: Option<Position>,
+    style: &mut PaintedStyle,
+    cell: &Cell,
+) -> io::Result<()> {
+    if advanced_to != Some(position) {
+        write_ansi_command(writer, &MoveTo(position.x, position.y))?;
+    }
+    if cell.fg != style.fg {
+        colors::write_foreground(writer, cell.fg)?;
+        style.fg = cell.fg;
+    }
+    if cell.bg != style.bg {
+        colors::write_background(writer, cell.bg)?;
+        style.bg = cell.bg;
+    }
+    if cell.modifier != style.modifier {
+        write_modifier_transition(writer, style.modifier, cell.modifier)?;
+        style.modifier = cell.modifier;
+    }
+    Ok(())
 }
 
 /// Write only the attribute delta between two modifier sets, mirroring the
