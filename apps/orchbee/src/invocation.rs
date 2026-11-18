@@ -634,6 +634,14 @@ pub(crate) struct AgentStartCommand {
     pub(crate) place: AgentStartPlace,
     /// `--panel`: the reference Panel; absent, the caller's own Panel.
     pub(crate) panel: Option<Target>,
+    /// `--cwd`: resolved for `--new-tab` and `--split` before creation; absent when omitted.
+    pub(crate) directory: CreationDirectory,
+    /// Explicit `--cwd <abs>` path; `None` for directory policies and omitted `--cwd`.
+    pub(crate) cwd: Option<WorkbenchDirectoryPath>,
+    /// `--focus`: switch an existing ready TUI Client to the newly created Tab or Panel.
+    pub(crate) focus: bool,
+    /// `--client`: the TUI Client that `--focus` switches. It is refused without `--focus`.
+    pub(crate) client: Option<WorkbenchClientId>,
     pub(crate) args: Vec<String>,
     pub(crate) timeout_ms: u32,
 }

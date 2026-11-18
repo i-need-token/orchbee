@@ -115,6 +115,9 @@
 						"place": {
 							"enum": ["new-tab", "here", "split-right", "split-down"]
 						},
+						"focus": {
+							"$ref": "#/$defs/focusMiss"
+						},
 						"createdPanelId": {
 							"oneOf": [
 								{
@@ -244,6 +247,40 @@
 		}
 	},
 	"$defs": {
+		"focusMiss": {
+			"type": "object",
+			"required": ["stage", "reason", "answer"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["focus-observation", "focus"]
+				},
+				"reason": {
+					"enum": [
+						"ambiguous",
+						"cancelled",
+						"check-failed",
+						"denied",
+						"incompatible",
+						"internal-failure",
+						"invalid-identifier",
+						"invalid-usage",
+						"not-found",
+						"outcome-unknown",
+						"output-too-large",
+						"protocol-invalid",
+						"rejected",
+						"service-unavailable",
+						"connection-capacity",
+						"timeout",
+						"transport-loss"
+					]
+				},
+				"answer": {
+					"type": ["object", "null"]
+				}
+			}
+		},
 		"hexId": {
 			"type": "string",
 			"pattern": "^[0-9a-f]{32}$",

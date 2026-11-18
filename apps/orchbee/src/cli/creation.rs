@@ -11,7 +11,7 @@ use orchbee_workbench_protocol::WorkbenchLabel;
 pub(super) mod directory;
 mod receipt;
 mod targeting;
-mod workflow;
+pub(in crate::cli) mod workflow;
 
 pub(super) use targeting::Created;
 pub(super) use workflow::observe;

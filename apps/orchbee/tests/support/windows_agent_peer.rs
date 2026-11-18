@@ -964,7 +964,13 @@ pub(super) fn configuration_reply(
 }
 pub(super) fn bound_snapshot(revision: u64) -> orchbee_workbench_protocol::Snapshot {
     use orchbee_workbench_protocol::parse_snapshot;
-    let document = json!({
+    let document = bound_document(revision);
+    parse_snapshot(&serde_json::to_vec(&document).unwrap()).unwrap()
+}
+
+/// The bound document the Workbench serves at `revision`: one Panel bound to one terminal.
+fn bound_document(revision: u64) -> Value {
+    json!({
         "kind":"workbench.snapshot", "protocolVersion":1, "revision":revision.to_string(), "sessionId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts":[{"terminalContextId":"00000000000000000000000000000001", "groups":[], "tabs":[{
@@ -976,13 +982,87 @@ pub(super) fn bound_snapshot(revision: u64) -> orchbee_workbench_protocol::Snaps
                     "binding":{"terminalId":"55555555555555555555555555555555", "workerId":"6f7263686265652d6c6f63616c2d7631"}}]
             }
         }]}]
+    })
+}
+
+/// The bound document after `new_panel` was split beside the original Panel, committed at
+/// `revision`. The confirmation reads the snapshot after the split, so the new Panel is in it,
+/// bound to its own terminal.
+#[allow(
+    dead_code,
+    reason = "Shared integration fixture helpers are consumed by separate test crate owners."
+)]
+fn bound_split_document(revision: u64, new_panel: &str, new_terminal: &str) -> Value {
+    let mut document = bound_document(revision);
+    let original = document["terminalContexts"][0]["tabs"][0]["root"].take();
+    document["terminalContexts"][0]["tabs"][0]["root"] = json!({
+        "kind": "split",
+        "splitId": "00000000000000000000000000000030",
+        "orientation": "horizontal",
+        "children": [
+            {"slotId": "00000000000000000000000000000031", "node": original},
+            {"slotId": "00000000000000000000000000000032", "node": {
+                "kind": "panel",
+                "panelId": new_panel,
+                "primaryPresentation": {
+                    "customLabel": null,
+                    "presentationId": "88888888888888888888888888888888",
+                    "label": "shell",
+                    "binding": {"terminalId": new_terminal, "workerId": "6f7263686265652d6c6f63616c2d7631"}
+                },
+                "childPresentations": []
+            }}
+        ]
     });
+    document
+}
+
+#[allow(
+    dead_code,
+    reason = "Shared integration fixture helpers are consumed by separate test crate owners."
+)]
+fn bound_split_snapshot(
+    revision: u64,
+    new_panel: &str,
+    new_terminal: &str,
+) -> orchbee_workbench_protocol::Snapshot {
+    use orchbee_workbench_protocol::parse_snapshot;
+    let document = bound_split_document(revision, new_panel, new_terminal);
     parse_snapshot(&serde_json::to_vec(&document).unwrap()).unwrap()
 }
+
 pub(super) fn bound_snapshot_at(stream: &mut LocalStream, revision: u64) {
+    answer_snapshot(stream, &bound_snapshot(9), bound_snapshot(revision));
+}
+
+/// Answers the snapshot read after the split committed at `revision`, with `new_panel` beside the
+/// original Panel and bound to `new_terminal`.
+#[allow(
+    dead_code,
+    reason = "Shared integration fixture helpers are consumed by separate test crate owners."
+)]
+pub(super) fn bound_split_snapshot_reply(
+    stream: &mut LocalStream,
+    revision: u64,
+    new_panel: &str,
+    new_terminal: &str,
+) {
+    answer_snapshot(
+        stream,
+        &bound_split_snapshot(revision, new_panel, new_terminal),
+        bound_split_snapshot(revision, new_panel, new_terminal),
+    );
+}
+
+/// Answers the snapshot read with `snapshot`. `metadata` answers the read's panel metadata, so it
+/// must hold every member the confirmation asks about.
+fn answer_snapshot(
+    stream: &mut LocalStream,
+    metadata: &orchbee_workbench_protocol::Snapshot,
+    snapshot: orchbee_workbench_protocol::Snapshot,
+) {
     use orchbee_workbench_protocol::*;
-    let snapshot = bound_snapshot(revision);
-    let intent = snapshot_after_metadata(stream, &bound_snapshot(9));
+    let intent = snapshot_after_metadata(stream, metadata);
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {

@@ -4,9 +4,11 @@
 //! is typed at the Panel's confirmed prompt. Without a name the start returns after the early
 //! check, and with one it also composes a name reservation and canonical or observed readiness.
 //! Every failure retains the independently known effects, including a Panel this invocation
-//! created, which stays.
+//! created, which stays. A focus that misses that Panel is reported beside the start, not as a
+//! failure.
 
 use super::Failure;
+use super::creation::workflow::FocusMiss;
 use super::output;
 use super::{FailureKind, Output, failure_output};
 use crate::cli_text::CliText;
@@ -42,13 +44,14 @@ const NEW_SHELL_SETTLE: Duration = Duration::from_secs(30);
 #[cfg(test)]
 mod tests;
 
-/// Where this start ran: the requested place, the Panel the Agent was started in once known, and
-/// whether this invocation created that Panel.
+/// Where this start ran: the requested place, the Panel the Agent was started in once known,
+/// whether this invocation created that Panel, and the focus that missed it, if any.
 #[derive(Debug)]
 struct Placed {
     place: AgentStartPlace,
     panel: Option<WorkbenchPanelId>,
     created: bool,
+    focus: Option<FocusMiss>,
 }
 
 /// The reference Panel, and for `--here` with an explicit Panel, the caller's own Panel, which
@@ -74,6 +77,7 @@ pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Loc
         place: command.place,
         panel: None,
         created: false,
+        focus: None,
     };
     if !crate::agent_start::command_valid(&request) {
         return project(
@@ -157,6 +161,9 @@ fn reference(
         (AgentStartPlace::Here, Some(_)) => {
             PanelTarget::prepare_optional(&environment).ok().flatten()
         }
+        // A new Tab or split focuses the Client that holds the caller's own Panel, as `tab create`
+        // does, so unreadable caller metadata refuses the start before any effect.
+        _ if command.focus => PanelTarget::prepare_optional(&environment)?,
         _ => None,
     };
     Ok(Reference { target, caller })
@@ -208,21 +215,35 @@ fn run_local(
         &mut snapshot,
         deadline,
         armed,
-        (&reference.target, placed.place),
-        selector,
+        place::Placement {
+            reference: &reference.target,
+            caller: reference.caller.as_ref(),
+            place: placed.place,
+            directory: command.directory,
+            cwd: command.cwd.as_ref(),
+            focus: command.focus,
+            client: command.client.as_ref(),
+            agent_start: selector,
+        },
     );
     drop(client);
-    let panel = match created {
-        Ok(panel) => panel,
+    let (panel, focus) = match created {
+        Ok(opened) => opened,
         Err(refusal) => {
-            let place::Refusal { failure, created } = *refusal;
+            let place::Refusal {
+                failure,
+                created,
+                focus,
+            } = *refusal;
             placed.created = created.is_some();
             placed.panel = created;
+            placed.focus = focus;
             return Report::place_failed(request, started, failure, place::operation(placed.place));
         }
     };
     placed.panel = Some(panel.clone());
     placed.created = true;
+    placed.focus = focus;
     let request = if selector.is_some() {
         request.started_as_command_unwatched()
     } else {
@@ -389,6 +410,15 @@ fn project(
         if let Some(session) = session {
             document["result"]["sessionId"] = json!(session);
         }
+        if let Some(miss) = &placed.focus {
+            document["result"]["focus"] = miss.document();
+        }
+        let rendered = match (&placed.focus, &format) {
+            (Some(_), OutputFormat::Text) => {
+                rendered + &text.cli_agent_focus_missed(&handle(panel))
+            }
+            _ => rendered,
+        };
         let bytes = match format {
             OutputFormat::Json => output::encode_document(&document),
             OutputFormat::Text => output::encode_text(&rendered),
@@ -448,6 +478,9 @@ fn project(
     ]));
     if let (Some(details), Some(state)) = (failure.details.as_mut(), prompt_state) {
         details.insert(report::PROMPT_STATE.into(), state);
+    }
+    if let (Some(details), Some(miss)) = (failure.details.as_mut(), placed.focus.as_ref()) {
+        details.insert("focus".into(), miss.document());
     }
     failure.source = None;
 

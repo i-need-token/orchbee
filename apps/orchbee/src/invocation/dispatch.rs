@@ -223,12 +223,57 @@ pub(super) fn resolve_words(
                 .as_deref()
                 .map(|value| target(value.to_owned(), Resource::Panel, envelope))
                 .transpose()?;
+            let (directory, launch_options) =
+                super::panel_terminal_creation::parse_directory(options, context, envelope)?;
+            if options.focus && options.no_focus {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first: "--focus",
+                        second: "--no-focus",
+                    },
+                    envelope,
+                ));
+            }
+            if place == AgentStartPlace::Here {
+                for (present, first) in [
+                    (options.cwd.is_some(), "--cwd"),
+                    (options.focus, "--focus"),
+                    (options.no_focus, "--no-focus"),
+                    (options.client.is_some(), "--client"),
+                ] {
+                    if present {
+                        return Err(usage_with(
+                            UsageReason::ConflictingOptions {
+                                context,
+                                first,
+                                second: "--here",
+                            },
+                            envelope,
+                        ));
+                    }
+                }
+            }
+            let client = client_control::client_id(options, context, envelope)?;
+            if client.is_some() && !options.focus {
+                return Err(usage_with(
+                    UsageReason::MissingRequired {
+                        context,
+                        requirement: "'--focus'",
+                    },
+                    envelope,
+                ));
+            }
             Ok(Request::AgentStart {
                 command: AgentStartCommand {
                     name,
                     provider: (*provider).to_owned(),
                     place,
                     panel,
+                    directory,
+                    cwd: launch_options.cwd,
+                    focus: options.focus,
+                    client,
                     args,
                     timeout_ms,
                 },

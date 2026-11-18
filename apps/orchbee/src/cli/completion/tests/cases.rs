@@ -902,6 +902,13 @@ pub(crate) const CASES: &[(&str, &str, bool)] = &[
     ("orchbee agent start codex --split ", "down", true),
     ("orchbee agent start codex --h", "--here", true),
     ("orchbee agent start codex --here --s", "--split", false),
+    ("orchbee agent start codex --here --c", "--cwd", false),
+    ("orchbee agent start codex --here --f", "--focus", false),
+    ("orchbee agent start codex --here --n", "--no-focus", false),
+    ("orchbee agent start codex --c", "--cwd", true),
+    ("orchbee agent start codex --f", "--focus", true),
+    ("orchbee agent start codex --no-f", "--no-focus", true),
+    ("orchbee agent start codex --focus --n", "--no-focus", false),
     (
         "orchbee agent start codex --split=right --n",
         "--new-tab",

@@ -46,7 +46,7 @@ commands! {
     AgentGet => ["agent", "get"], 1, Agent, Portable, true, true, false;
     AgentFocus => ["agent", "focus"], 1, Agent, Portable, true, true, false;
     AgentRead => ["agent", "read"], 1, Agent, Portable, true, true, false;
-    AgentStart => ["agent", "start"], super::super::MAXIMUM_ARGUMENT_BYTES, Operand, Portable, true, true, false;
+    AgentStart => ["agent", "start"], super::super::MAXIMUM_ARGUMENT_BYTES, Operand, Portable, true, true, true;
     AgentPrompt => ["agent", "prompt"], 2, Agent, Portable, true, true, false;
     AgentSendKeys => ["agent", "send-keys"], super::super::MAXIMUM_SEND_RECORDS + 1, Agent, Portable, true, true, false;
     AgentWait => ["agent", "wait"], 1, Agent, Portable, true, true, false;

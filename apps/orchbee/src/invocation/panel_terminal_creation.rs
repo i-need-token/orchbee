@@ -29,6 +29,32 @@ pub(crate) struct PanelTerminalCreationCommand<L = LaunchSelection> {
     pub(crate) directory: CreationDirectory,
     pub(crate) timeout_ms: u32,
 }
+pub(super) fn parse_directory(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<(CreationDirectory, LaunchOptions), ParseFailure> {
+    let directory = match options.cwd.as_deref() {
+        None => CreationDirectory::Default,
+        Some("follow") => CreationDirectory::Follow,
+        Some("home") => CreationDirectory::Home,
+        Some("current") => CreationDirectory::Current,
+        Some("workspace") => CreationDirectory::Workspace,
+        Some(_) => CreationDirectory::Explicit,
+    };
+    let launch_options = launch_options_with_directory(
+        options,
+        if directory == CreationDirectory::Explicit {
+            options.cwd.as_deref()
+        } else {
+            None
+        },
+        context,
+        envelope,
+    )?;
+    Ok((directory, launch_options))
+}
+
 pub(super) fn parse(
     operands: &[&str],
     options: &Options,
@@ -79,14 +105,7 @@ pub(super) fn parse(
     } else {
         report_target::parse(options, context, envelope)?.map_or(Member::Primary, Member::Existing)
     };
-    let directory = match options.cwd.as_deref() {
-        None => CreationDirectory::Default,
-        Some("follow") => CreationDirectory::Follow,
-        Some("home") => CreationDirectory::Home,
-        Some("current") => CreationDirectory::Current,
-        Some("workspace") => CreationDirectory::Workspace,
-        Some(_) => CreationDirectory::Explicit,
-    };
+    let (directory, launch_options) = parse_directory(options, context, envelope)?;
     Ok(Request::PanelTerminalCreation {
         command: PanelTerminalCreationCommand {
             panel: operands
@@ -104,16 +123,7 @@ pub(super) fn parse(
             geometry: geometry_option(options, context, envelope)?,
             launch: super::program::parse(options, context, envelope)?,
             profile: profile_option(options, context, envelope)?,
-            options: launch_options_with_directory(
-                options,
-                if directory == CreationDirectory::Explicit {
-                    options.cwd.as_deref()
-                } else {
-                    None
-                },
-                context,
-                envelope,
-            )?,
+            options: launch_options,
             directory,
             timeout_ms: if options.timeout.is_some() {
                 wait_timeout_option(options, context, envelope)?

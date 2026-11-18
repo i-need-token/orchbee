@@ -24,6 +24,19 @@ impl super::CliText {
         }
     }
 
+    /// A focus that did not switch the Client to the new Panel. The Agent runs there, so the start
+    /// stays a success, and the text names the command that focuses the Panel.
+    pub(crate) fn cli_agent_focus_missed(self, panel: &str) -> String {
+        match self.locale {
+            Locale::EnUs => format!(
+                "The Agent runs in the new Panel, but focus did not switch to it. To switch, run: orchbee agent focus --panel {panel}\n"
+            ),
+            Locale::ZhCn => format!(
+                "智能体在新面板中运行，但聚焦未切换到该面板。切换请运行：orchbee agent focus --panel {panel}\n"
+            ),
+        }
+    }
+
     /// The Agent was seen ready without an integration's Session, so `name` was not bound and the
     /// next step addresses its Panel.
     pub(crate) fn cli_agent_observed(

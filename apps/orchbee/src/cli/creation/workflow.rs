@@ -10,12 +10,12 @@ use crate::{
     cli::{
         Failure, FailureKind, Output,
         caller_context::PanelTarget,
-        client_control::{exchange as control, selection},
+        client_control::{Answer, exchange as control, selection},
         command_interrupt::{ArmedSignals, Finish},
         console_interrupt::SignalWatch,
         failure_output, mutation, query,
     },
-    invocation::{CreationCommand, CreationKind, OutputFormat},
+    invocation::{CreationCommand, CreationKind, OutputFormat, Target},
     local_client::LocalClient,
     localization::Locale,
 };
@@ -184,22 +184,12 @@ fn execute(
         .canonical
         .committed_revision()
         .ok_or_else(internal)?;
-    let get = |name| receipt.canonical.id_value(name).ok_or_else(internal);
-    let created = Created {
-        context: WorkbenchTerminalContextId::parse(get("terminalContextId")?)
-            .map_err(|_| internal())?,
-        tab: WorkbenchTabId::parse(get("tabId")?).map_err(|_| internal())?,
-        panel: WorkbenchPanelId::parse(get(
-            if matches!(command.kind, CreationKind::Split { .. }) {
-                "newPanelId"
-            } else {
-                "panelId"
-            },
-        )?)
-        .map_err(|_| internal())?,
-        split: matches!(command.kind, CreationKind::Split { .. }),
-    };
+    let created = created_from_receipt(
+        &receipt.canonical,
+        matches!(command.kind, CreationKind::Split { .. }),
+    )?;
     if let Some(ratio) = ratio {
+        let get = |name| receipt.canonical.id_value(name).ok_or_else(internal);
         let identity = ClientSplitIdentity {
             split_id: WorkbenchSplitId::parse(get("splitId")?).map_err(|_| internal())?,
             first_slot_id: WorkbenchPanelSlotId::parse(get("firstSlotId")?)
@@ -261,58 +251,29 @@ fn execute(
         }
     }
     if command.focus {
-        receipt.stage = "focus-observation";
-        let current = observe(
-            &mut client,
-            &snapshot.session_id,
-            selected,
-            &created,
-            revision,
-            deadline,
-            signals,
-        )?;
-        check(signals, deadline)?;
-        receipt.stage = "focus";
-        let overlay_intent = if let Some(return_to) = overlay_return {
-            let fresh = read_snapshot(
-                &mut client,
-                &snapshot.session_id,
-                revision,
-                deadline,
-                signals,
-            )?;
-            Some(overlay::intent(&fresh, &created, return_to, selected)?)
-        } else {
-            None
+        let focus = match overlay_return {
+            Some(return_to) => Focus::Overlay(return_to),
+            None if command.zoom => Focus::Zoom,
+            None => Focus::Panel,
         };
-        receipt.focus = Some(control::submit_control(
+        let answer = focus_created(
             &mut client,
             &snapshot.session_id,
-            ClientViewControl {
-                operation_id: query::request_id()?,
-                client_id: selected.client_id.clone(),
-                expected_view_revision: current.view_revision,
-                minimum_workbench_revision: revision,
-                intent: if let Some(intent) = overlay_intent {
-                    intent
-                } else if command.zoom {
-                    ClientViewIntent::Zoom {
-                        terminal_context_id: created.context,
-                        tab_id: created.tab,
-                        panel_id: created.panel,
-                        enabled: true,
-                    }
-                } else {
-                    ClientViewIntent::Panel {
-                        terminal_context_id: created.context,
-                        tab_id: created.tab,
-                        panel_id: created.panel,
-                    }
-                },
+            FocusAim {
+                selected,
+                created: &created,
+                revision,
+                focus,
             },
             deadline,
             signals,
-        )?);
+        )
+        .map_err(|stop| {
+            receipt.stage = stop.stage;
+            stop.failure
+        })?;
+        receipt.focus = Some(answer);
+        receipt.stage = "focus";
         if !receipt
             .focus
             .as_ref()
@@ -374,6 +335,263 @@ fn needs_client(command: &CreationCommand) -> bool {
         || matches!(command.kind, CreationKind::Split { ratio: Some(_), .. })
 }
 
+fn created_from_receipt(receipt: &mutation::Receipt, split: bool) -> Result<Created, Failure> {
+    let get = |name| receipt.id_value(name).ok_or_else(internal);
+    Ok(Created {
+        context: WorkbenchTerminalContextId::parse(get("terminalContextId")?)
+            .map_err(|_| internal())?,
+        tab: WorkbenchTabId::parse(get("tabId")?).map_err(|_| internal())?,
+        panel: WorkbenchPanelId::parse(get(if split { "newPanelId" } else { "panelId" })?)
+            .map_err(|_| internal())?,
+        split,
+    })
+}
+
+pub(in crate::cli) fn select_ready_client(
+    client: &mut LocalClient,
+    session: &SessionId,
+    explicit: Option<&orchbee_workbench_protocol::WorkbenchClientId>,
+    caller: Option<&Target>,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<ClientViewRecord, Failure> {
+    let reply = control::exchange(
+        client,
+        session,
+        ClientViewAction::List {},
+        deadline,
+        signals,
+    )?;
+    let clients = match reply.outcome {
+        ClientViewOutcome::Listed { clients } => clients,
+        ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
+        ClientViewOutcome::Unavailable { .. } => {
+            return Err(Failure::new(FailureKind::ServiceUnavailable));
+        }
+        ClientViewOutcome::Synchronized { .. }
+        | ClientViewOutcome::Found { .. }
+        | ClientViewOutcome::Operation { .. }
+        | ClientViewOutcome::NotFound { .. }
+        | ClientViewOutcome::Conflict { .. } => {
+            return Err(Failure::new(FailureKind::ProtocolInvalid));
+        }
+    };
+    let selected = selection::select(&clients, explicit, caller)?.clone();
+    if selected.view.phase != ClientViewPhase::Ready {
+        return Err(Failure::new(FailureKind::ServiceUnavailable));
+    }
+    Ok(selected)
+}
+
+/// The Client view a focus request asks for. An overlay return takes precedence over zoom.
+enum Focus {
+    Panel,
+    Zoom,
+    Overlay(orchbee_workbench_protocol::ClientOverlayMember),
+}
+
+/// A focus request that stopped before its answer: the stage it reached and the failure.
+struct FocusStop {
+    stage: &'static str,
+    failure: Failure,
+}
+
+/// What a focus request aims at: the Client that shows the view, the created Panel, the revision
+/// its creation committed, and the view to show.
+struct FocusAim<'a> {
+    selected: &'a ClientViewRecord,
+    created: &'a Created,
+    revision: WorkbenchRevision,
+    focus: Focus,
+}
+
+/// The focus request `execute` and `agent start` both make: observe the Client, then submit the
+/// intent for the created Panel. The answer comes back whether or not it applied, so each caller
+/// decides what a miss means.
+fn focus_created(
+    client: &mut LocalClient,
+    session: &SessionId,
+    aim: FocusAim<'_>,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Answer, FocusStop> {
+    let FocusAim {
+        selected,
+        created,
+        revision,
+        focus,
+    } = aim;
+    let current = observe(
+        client, session, selected, created, revision, deadline, signals,
+    )
+    .map_err(|failure| FocusStop {
+        stage: "focus-observation",
+        failure,
+    })?;
+    check(signals, deadline).map_err(|failure| FocusStop {
+        stage: "focus-observation",
+        failure,
+    })?;
+    let intent = match focus {
+        Focus::Overlay(return_to) => {
+            let fresh =
+                read_snapshot(client, session, revision, deadline, signals).map_err(|failure| {
+                    FocusStop {
+                        stage: "focus",
+                        failure,
+                    }
+                })?;
+            overlay::intent(&fresh, created, return_to, selected).map_err(|failure| FocusStop {
+                stage: "focus",
+                failure,
+            })?
+        }
+        Focus::Zoom => ClientViewIntent::Zoom {
+            terminal_context_id: created.context.clone(),
+            tab_id: created.tab.clone(),
+            panel_id: created.panel.clone(),
+            enabled: true,
+        },
+        Focus::Panel => ClientViewIntent::Panel {
+            terminal_context_id: created.context.clone(),
+            tab_id: created.tab.clone(),
+            panel_id: created.panel.clone(),
+        },
+    };
+    let operation_id = query::request_id().map_err(|failure| FocusStop {
+        stage: "focus",
+        failure,
+    })?;
+    control::submit_control(
+        client,
+        session,
+        ClientViewControl {
+            operation_id,
+            client_id: selected.client_id.clone(),
+            expected_view_revision: current.view_revision,
+            minimum_workbench_revision: revision,
+            intent,
+        },
+        deadline,
+        signals,
+    )
+    .map_err(|failure| FocusStop {
+        stage: "focus",
+        failure,
+    })
+}
+
+/// A focus that did not show the created Panel. The Agent still runs in that Panel, so `agent
+/// start` reports the miss beside its result; `answer` keeps the Client's own answer when one came
+/// back.
+#[derive(Debug)]
+pub(in crate::cli) struct FocusMiss {
+    stage: &'static str,
+    reason: FailureKind,
+    answer: Option<serde_json::Value>,
+}
+
+impl FocusMiss {
+    /// The miss as `result.focus` or `details.focus` names it.
+    pub(in crate::cli) fn document(&self) -> serde_json::Value {
+        serde_json::json!({
+            "stage": self.stage,
+            "reason": self.reason.as_str(),
+            "answer": self.answer,
+        })
+    }
+}
+
+/// A focus that halted the start: the failure, and the Client's answer when one came back first,
+/// so the failure can still name what the Client answered.
+pub(in crate::cli) struct FocusHalt {
+    pub(in crate::cli) failure: Failure,
+    pub(in crate::cli) miss: Option<FocusMiss>,
+}
+
+/// A [`FocusHalt`] with no Client answer, boxed so the `Result` it travels in stays small.
+fn halt(failure: Failure) -> Box<FocusHalt> {
+    Box::new(FocusHalt {
+        failure,
+        miss: None,
+    })
+}
+
+/// The typed reason a focus answer did not apply, read from the Client's own wait and observation
+/// labels. Exit codes are never mapped to kinds, since one code can name more than one fault.
+fn answer_reason(answer: &Answer) -> FailureKind {
+    let document = answer.document();
+    match document["result"]["wait"].as_str() {
+        Some("transport-lost") => FailureKind::TransportLoss,
+        Some("timed-out") => FailureKind::Timeout,
+        Some("cancelled") => FailureKind::Cancelled,
+        Some("observation-failed") => FailureKind::InternalFailure,
+        _ if document["result"]["observation"]["kind"] == "unknown" => FailureKind::OutcomeUnknown,
+        _ => FailureKind::Rejected,
+    }
+}
+
+/// Focus the Panel `agent start` created. A focus that does not show it is a [`FocusMiss`] and
+/// does not fail the start. A cancelled, expired or transport-lost focus halts it, as it stops
+/// everything else; the [`FocusHalt`] keeps the Panel the start created, so the receipt stays,
+/// and the Client's answer when it came back.
+pub(in crate::cli) fn focus_new_panel(
+    client: &mut LocalClient,
+    session: &SessionId,
+    selected: &ClientViewRecord,
+    receipt: &mutation::Receipt,
+    split: bool,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Option<FocusMiss>, Box<FocusHalt>> {
+    let created = created_from_receipt(receipt, split).map_err(halt)?;
+    let revision = receipt
+        .committed_revision()
+        .ok_or_else(internal)
+        .map_err(halt)?;
+    let miss = match focus_created(
+        client,
+        session,
+        FocusAim {
+            selected,
+            created: &created,
+            revision,
+            focus: Focus::Panel,
+        },
+        deadline,
+        signals,
+    ) {
+        Ok(answer) if applied(&answer, false) => return Ok(None),
+        Ok(answer) => FocusMiss {
+            stage: "focus",
+            reason: answer_reason(&answer),
+            answer: Some(answer.document()),
+        },
+        Err(stop) if fatal(stop.failure.kind) => return Err(halt(stop.failure)),
+        Err(stop) => FocusMiss {
+            stage: stop.stage,
+            reason: stop.failure.kind,
+            answer: None,
+        },
+    };
+    if fatal(miss.reason) {
+        return Err(Box::new(FocusHalt {
+            failure: Failure::new(miss.reason),
+            miss: Some(miss),
+        }));
+    }
+    Ok(Some(miss))
+}
+
+/// A focus that ends in one of these halts the start. Any other miss leaves the Agent running in
+/// the created Panel, so the start reports it instead of failing.
+fn fatal(kind: FailureKind) -> bool {
+    matches!(
+        kind,
+        FailureKind::Cancelled | FailureKind::Timeout | FailureKind::TransportLoss
+    )
+}
+
 /// Prepare the canonical creation and everything it takes from `snapshot`: the caller and Client
 /// targets, the label, the directory, the overlay return and the plugin context. A stale-view
 /// retry prepares all of it again from a fresh snapshot (ORC-413).
@@ -390,33 +608,14 @@ fn prepare(
     check(signals, deadline)?;
     let selected =
         if needs_client(command) || (targeting::needs_source(command) && caller.is_none()) {
-            let reply = control::exchange(
+            Some(select_ready_client(
                 client,
                 &snapshot.session_id,
-                ClientViewAction::List {},
+                command.client.as_ref(),
+                caller.as_ref(),
                 deadline,
                 signals,
-            )?;
-            let clients = match reply.outcome {
-                ClientViewOutcome::Listed { clients } => clients,
-                ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
-                ClientViewOutcome::Unavailable { .. } => {
-                    return Err(Failure::new(FailureKind::ServiceUnavailable));
-                }
-                ClientViewOutcome::Synchronized { .. }
-                | ClientViewOutcome::Found { .. }
-                | ClientViewOutcome::Operation { .. }
-                | ClientViewOutcome::NotFound { .. }
-                | ClientViewOutcome::Conflict { .. } => {
-                    return Err(Failure::new(FailureKind::ProtocolInvalid));
-                }
-            };
-            let selected =
-                selection::select(&clients, command.client.as_ref(), caller.as_ref())?.clone();
-            if selected.view.phase != ClientViewPhase::Ready {
-                return Err(Failure::new(FailureKind::ServiceUnavailable));
-            }
-            Some(selected)
+            )?)
         } else {
             None
         };

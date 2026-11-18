@@ -222,6 +222,58 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
     for provider in crate::agent_provider::CANONICAL_IDS {
         assert!(parse(&["agent", "start", provider]).is_ok(), "{provider}");
     }
+    for (flags, expected_dir, expected_cwd, expected_focus) in [
+        (&[][..], CreationDirectory::Default, None, false),
+        (
+            &["--cwd", "follow", "--focus"][..],
+            CreationDirectory::Follow,
+            None,
+            true,
+        ),
+        (
+            &["--split=down", "--cwd", "workspace", "--no-focus"][..],
+            CreationDirectory::Workspace,
+            None,
+            false,
+        ),
+        (
+            &["--cwd", r"C:\project dir", "--focus"][..],
+            CreationDirectory::Explicit,
+            Some(r"C:\project dir"),
+            true,
+        ),
+    ] {
+        let words = [&["agent", "start", "codex"][..], flags].concat();
+        let Request::AgentStart { command, .. } = parse(&words).unwrap() else {
+            panic!("{words:?}");
+        };
+        assert_eq!(command.directory, expected_dir, "{words:?}");
+        assert_eq!(
+            command.cwd.as_ref().map(WorkbenchDirectoryPath::as_str),
+            expected_cwd,
+            "{words:?}"
+        );
+        assert_eq!(command.focus, expected_focus, "{words:?}");
+    }
+    for words in [
+        vec!["agent", "start", "codex", "--here", "--cwd", "follow"],
+        vec!["agent", "start", "codex", "--cwd", "home", "--here"],
+        vec!["agent", "start", "codex", "--here", "--focus"],
+        vec!["agent", "start", "codex", "--here", "--no-focus"],
+        vec!["agent", "start", "codex", "--focus", "--no-focus"],
+        vec!["agent", "start", "codex", "--cwd", "relative"],
+        vec!["agent", "start", "codex", "--cwd", "Follow"],
+        vec!["agent", "start", "codex", "--client", ID],
+        vec!["agent", "start", "codex", "--here", "--client", ID],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    let Request::AgentStart { command, .. } =
+        parse(&["agent", "start", "codex", "--focus", "--client", ID]).unwrap()
+    else {
+        panic!("start with a client");
+    };
+    assert!(command.client.is_some());
     // The invalid-value diagnostic and the argument help both enumerate the
     // complete closed provider set from the provider registry.
     let failure = parse(&["agent", "start", "claude"]).unwrap_err();

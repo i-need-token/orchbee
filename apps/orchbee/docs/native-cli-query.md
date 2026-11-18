@@ -2646,7 +2646,7 @@ JSON carries the value verbatim.
 
 ## Windows Agent startup
 
-[Windows Agent startup](windows-agent-start.md) owns `agent start`, its places, first-command start, single submission, early check, reservation and readiness workflow, Windows quoting, budgets and recovery. `agent list` shows a pending reservation's name on its terminal row; names failures use v1 for launch-pending. The catalog exposes the current documents and command paths.
+[Windows Agent startup](windows-agent-start.md) owns `agent start`, its places (`--new-tab`, `--split`, `--here`), initial `--cwd` and Client `--focus`/`--no-focus`, first-command start, single submission, early check, reservation and readiness workflow, Windows quoting, budgets and recovery. `agent list` shows a pending reservation's name on its terminal row; names failures use v1 for launch-pending. The catalog exposes the current documents and command paths.
 
 ## Windows Session stop
 

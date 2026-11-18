@@ -16,7 +16,8 @@ inspect or require an Agent integration, or infer readiness from process creatio
 
 ```text
 orchbee agent start <provider> [--new-tab | --here | --split right|down] [--name <name>]
-    [--panel <id> | --current] [--timeout <ms>] [--format text|json] [-- <args>...]
+    [--panel <id> | --current] [--cwd <abs|follow|home|current|workspace>] [--focus | --no-focus]
+    [--client <id>] [--timeout <ms>] [--format text|json] [-- <args>...]
 ```
 
 The positional `<provider>` is a canonical provider ID from the runtime recognition registry, the
@@ -29,10 +30,17 @@ The place is relative to a reference Panel, named by `--panel`, by `--current`, 
 by valid caller context; `--panel` and `--current` conflict, and there is no Client-selection
 fallback. `--new-tab`, the default, opens a new Tab in the reference Panel's Workspace;
 `--split right|down` splits the reference Panel; `--here` types into the reference Panel's own idle
-shell. The place flags are mutually exclusive. `--here` aimed at the caller's own Panel, whose
+shell. The place flags are mutually exclusive, and `--here` rejects `--cwd`, `--focus`, `--no-focus`, and
+`--client` as usage errors. `--here` aimed at the caller's own Panel, whose
 shell is running the command, is refused with `own-panel` (exit 2) before any effect: from the
 caller context alone when `--panel` is absent, or once the Snapshot resolves an explicit `--panel`
-to the caller's Panel. The target is the chosen Panel's primary terminal.
+to the caller's Panel. The target is the chosen Panel's primary terminal. For `--new-tab` and
+`--split`, `--cwd` sets the initial working directory or directory policy (`follow`, `home`,
+`current`, `workspace`) before creation instead of the Workspace default, and `--focus` resolves one
+ready Client before creation so missing or ambiguous Clients refuse without leaving an orphan Panel,
+then focuses the created Panel afterward (`--no-focus` keeps the current selection and is the
+default). `--client <id>` names the Client explicitly, with the selection rules of `tab create`;
+it needs `--focus`, and without `--focus` the start is refused as a usage error.
 
 Agent arguments follow `--`. Repeated `--arg=<value>` is an alternative to trailing arguments;
 mixing both forms is refused. Empty arguments are retained, control characters are refused, and the
@@ -52,7 +60,11 @@ seconds before the deadline. A submission the [prompt gate](#prompt-gated-input)
 nothing and is this workflow's stale-base refusal: it is attempted again under a fresh request
 identity for up to 30 seconds, because a shell that still runs its profile redraws its prompt for
 seconds, and never past the deadline. A refused creation reports `place-failed` with the Server's reason;
-a Panel created before a later step fails stays open, and the outcome names it.
+a Panel created before a later step fails stays open, and the outcome names it. A focus that does
+not switch the Client does not fail the start: `result.focus`, or `details.focus` on failure, names
+the stage, the typed reason, and the Client's answer when one came back. Three focus failures do fail
+the start: a lost transport (exit 5), a cancelled focus, and an expired one. The outcome still names
+the Panel created before them, which stays open.
 
 Agent integrations are opt-in, so starting never inspects one and never refuses because one is
 missing: neither the CLI nor the TUI runs a provider command or reads provider configuration

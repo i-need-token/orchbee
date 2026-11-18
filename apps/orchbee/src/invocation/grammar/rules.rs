@@ -588,12 +588,27 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[CommandPath::AgentStart],
         flags: &["--here"],
-        incompatible: &["--new-tab", "--split"],
+        incompatible: &["--new-tab", "--split", "--cwd", "--focus", "--no-focus"],
     },
     Conflict {
         commands: &[CommandPath::AgentStart],
         flags: &["--split"],
         incompatible: &["--new-tab", "--here"],
+    },
+    Conflict {
+        commands: &[CommandPath::AgentStart],
+        flags: &["--cwd"],
+        incompatible: &["--here"],
+    },
+    Conflict {
+        commands: &[CommandPath::AgentStart],
+        flags: &["--focus"],
+        incompatible: &["--here", "--no-focus"],
+    },
+    Conflict {
+        commands: &[CommandPath::AgentStart],
+        flags: &["--no-focus"],
+        incompatible: &["--here", "--focus"],
     },
     Conflict {
         commands: &[
@@ -961,6 +976,11 @@ const REQUIREMENTS: &[Requirement] = &[
         commands: &[CommandPath::TerminalSend],
         flag: "--enter",
         any: &["--text", "--file", "--stdin"],
+    },
+    Requirement {
+        commands: &[CommandPath::AgentStart],
+        flag: "--client",
+        any: &["--focus"],
     },
 ];
 pub(super) fn requirements(command: &CommandSpec) -> impl Iterator<Item = &'static Requirement> {

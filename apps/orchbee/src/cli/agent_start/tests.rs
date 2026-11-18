@@ -21,6 +21,7 @@ fn here() -> Placed {
         place: AgentStartPlace::Here,
         panel: Some(panel_a()),
         created: false,
+        focus: None,
     }
 }
 
@@ -354,6 +355,10 @@ fn command(place: AgentStartPlace, name: Option<&str>, args: &[&str]) -> AgentSt
         provider: "codex".into(),
         place,
         panel: None,
+        directory: crate::invocation::CreationDirectory::Default,
+        cwd: None,
+        focus: false,
+        client: None,
         args: args.iter().map(|arg| (*arg).to_owned()).collect(),
         timeout_ms: 30000,
     }
@@ -440,6 +445,7 @@ fn new_panel_outcomes_name_their_place_under_both_locales() {
         place,
         panel: Some(panel_a()),
         created: true,
+        focus: None,
     };
     let unnamed = |submission: Option<Value>, verdict| Report {
         name: None,
@@ -542,6 +548,7 @@ fn new_panel_outcomes_name_their_place_under_both_locales() {
             place: AgentStartPlace::SplitRight,
             panel: None,
             created: false,
+            focus: None,
         };
         let answer = project(refused, &placed, OutputFormat::Json, locale, None);
         assert_eq!(answer.status, FailureKind::Rejected.exit_code());
@@ -572,6 +579,7 @@ fn new_panel_outcomes_name_their_place_under_both_locales() {
             place: AgentStartPlace::Here,
             panel: None,
             created: false,
+            focus: None,
         };
         let answer = project(own, &placed, OutputFormat::Json, locale, None);
         assert_eq!(answer.status, 2);
