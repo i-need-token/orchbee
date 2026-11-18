@@ -13,7 +13,7 @@ use std::{
     io::{self, Read, Write},
     num::NonZeroU64,
     sync::{
-        Arc, Mutex, OnceLock,
+        Arc, Condvar, Mutex, OnceLock,
         atomic::{AtomicBool, AtomicU8, AtomicU16, AtomicU64, AtomicUsize, Ordering},
     },
     thread::{self, JoinHandle},
@@ -98,32 +98,52 @@ impl std::fmt::Debug for ReadyListener {
 #[derive(Debug)]
 struct Delivery {
     state: Mutex<DeliveryState>,
-    ready: LocalStream,
-    notify: LocalStream,
+    waiter: Condvar,
+    pipe: OnceLock<(LocalStream, LocalStream)>,
+    pipe_init: Mutex<()>,
     listener: OnceLock<ReadyListener>,
     handoff: AtomicU8,
     generation: AtomicU64,
     cancelled: AtomicBool,
+    completed: AtomicBool,
     budget: Arc<AtomicUsize>,
 }
 impl Delivery {
     fn new(budget: Arc<AtomicUsize>) -> io::Result<Self> {
-        let (ready, notify) = LocalStream::pair()?;
-        ready.set_nonblocking(true)?;
-        notify.set_nonblocking(true)?;
         Ok(Self {
             state: Mutex::default(),
-            ready,
-            notify,
+            waiter: Condvar::new(),
+            pipe: OnceLock::new(),
+            pipe_init: Mutex::new(()),
             listener: OnceLock::new(),
             handoff: AtomicU8::new(QUEUED),
             generation: AtomicU64::new(0),
             cancelled: AtomicBool::new(false),
+            completed: AtomicBool::new(false),
             budget,
         })
     }
+    fn ensure_pipe(&self) -> io::Result<&(LocalStream, LocalStream)> {
+        if let Some(pair) = self.pipe.get() {
+            return Ok(pair);
+        }
+        let _guard = self
+            .pipe_init
+            .lock()
+            .map_err(|_| io::ErrorKind::BrokenPipe)?;
+        if let Some(pair) = self.pipe.get() {
+            return Ok(pair);
+        }
+        let (ready, notify) = LocalStream::pair()?;
+        ready.set_nonblocking(true)?;
+        notify.set_nonblocking(true)?;
+        Ok(self.pipe.get_or_init(|| (ready, notify)))
+    }
     fn signal(&self) {
-        let _notified = (&self.notify).write(&[1]);
+        self.waiter.notify_all();
+        if let Some((_, notify)) = self.pipe.get() {
+            let _notified = (&*notify).write(&[1]);
+        }
         if let Some(listener) = self.listener.get() {
             (listener.0)();
         }
@@ -199,12 +219,7 @@ impl Delivery {
         self.signal();
         Ok(overflow)
     }
-    fn take(&self) -> io::Result<Option<StreamEvent>> {
-        // Drain before checking state: a publication between checking and draining would lose
-        // its only readiness edge and strand a queued result.
-        let mut buffer = [0; 128];
-        while matches!((&self.ready).read(&mut buffer), Ok(count) if count > 0) {}
-        let mut state = self.state.lock().map_err(|_| io::ErrorKind::BrokenPipe)?;
+    fn take_locked(&self, state: &mut DeliveryState) -> io::Result<Option<StreamEvent>> {
         let result = state.events.pop_front();
         if let Some(StreamEvent::Record(bytes)) = &result {
             state.bytes -= bytes.len();
@@ -225,8 +240,17 @@ impl Delivery {
             }
             return Err(io::ErrorKind::BrokenPipe.into());
         }
-        drop(state);
         Ok(result)
+    }
+    fn take(&self) -> io::Result<Option<StreamEvent>> {
+        // Drain before checking state: a publication between checking and draining would lose
+        // its only readiness edge and strand a queued result.
+        if let Some((ready, _)) = self.pipe.get() {
+            let mut buffer = [0; 128];
+            while matches!((&*ready).read(&mut buffer), Ok(count) if count > 0) {}
+        }
+        let mut state = self.state.lock().map_err(|_| io::ErrorKind::BrokenPipe)?;
+        self.take_locked(&mut state)
     }
     fn close(&self) {
         if let Ok(mut state) = self.state.lock() {
@@ -262,6 +286,32 @@ impl Delivery {
         wake: Option<LocalIo<'_>>,
         cancel: Option<LocalIo<'_>>,
     ) -> io::Result<StreamEvent> {
+        if wake.is_none() && cancel.is_none() {
+            let mut state = self.state.lock().map_err(|_| io::ErrorKind::BrokenPipe)?;
+            loop {
+                if let Some(event) = self.take_locked(&mut state)? {
+                    return Ok(event);
+                }
+                state = match deadline {
+                    Some(deadline) => {
+                        let remaining = deadline
+                            .checked_duration_since(clock.now())
+                            .filter(|remaining| !remaining.is_zero())
+                            .ok_or(io::ErrorKind::TimedOut)?;
+                        let bounded = remaining.min(Duration::from_millis(i32::MAX as u64));
+                        self.waiter
+                            .wait_timeout(state, bounded)
+                            .map_err(|_| io::ErrorKind::BrokenPipe)?
+                            .0
+                    }
+                    None => self
+                        .waiter
+                        .wait(state)
+                        .map_err(|_| io::ErrorKind::BrokenPipe)?,
+                };
+            }
+        }
+        let (ready, _) = self.ensure_pipe()?;
         loop {
             if let Some(event) = self.take()? {
                 return Ok(event);
@@ -275,7 +325,7 @@ impl Delivery {
                 ),
                 None => PollTimeout::NONE,
             };
-            let mut fds = vec![PollFd::new(self.ready.as_local_io(), PollFlags::POLLIN)];
+            let mut fds = vec![PollFd::new(ready.as_local_io(), PollFlags::POLLIN)];
             if let Some(wake) = wake {
                 fds.push(PollFd::new(wake, PollFlags::POLLIN));
             }
@@ -691,7 +741,15 @@ impl Connection {
         frame: Vec<u8>,
         mode: StreamMode,
     ) -> io::Result<Subscription> {
-        self.open(MultiplexLaneId::ROOT, frame, mode)
+        let subscription = self.open(MultiplexLaneId::ROOT, frame, mode)?;
+        subscription.delivery.ensure_pipe()?;
+        Ok(subscription)
+    }
+    pub(crate) fn request_subscription(
+        self: &Arc<Self>,
+        frame: Vec<u8>,
+    ) -> io::Result<Subscription> {
+        self.open(MultiplexLaneId::ROOT, frame, StreamMode::Request)
     }
     pub(super) fn exchange(
         self: &Arc<Self>,
@@ -761,8 +819,8 @@ impl Subscription {
     pub fn poll(&self) -> io::Result<Option<StreamEvent>> {
         self.delivery.take()
     }
-    pub fn readiness(&self) -> LocalIo<'_> {
-        self.delivery.ready.as_local_io()
+    pub fn readiness(&self) -> io::Result<LocalIo<'_>> {
+        Ok(self.delivery.ensure_pipe()?.0.as_local_io())
     }
     /// For a reader that cannot wait on [`Self::readiness`]: calls `listener` after each event
     /// arrives and when the stream ends, on the connection actor or the thread cancelling the
@@ -776,7 +834,9 @@ impl Subscription {
 }
 impl Drop for Subscription {
     fn drop(&mut self) {
-        self.cancel();
+        if !self.delivery.completed.load(Ordering::Acquire) {
+            self.cancel();
+        }
     }
 }
 
@@ -1282,6 +1342,9 @@ fn deliver(
             }
             item.sequence = sequence.get();
             item.needs_snapshot = false;
+            if item.mode == StreamMode::Request {
+                item.delivery.completed.store(true, Ordering::Release);
+            }
             if item
                 .delivery
                 .publish(StreamEvent::Record(record), item.mode)?
@@ -1313,6 +1376,7 @@ fn deliver(
         }
         MultiplexMessage::StreamClose { stream_id, reason } => {
             if let Some(item) = active.remove(&stream_id) {
+                item.delivery.completed.store(true, Ordering::Release);
                 match reason {
                     StreamCloseReason::Stopping => item.delivery.refuse(),
                     StreamCloseReason::OutcomeUnknown => item.delivery.unknown(),

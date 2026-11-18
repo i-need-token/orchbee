@@ -44,7 +44,11 @@ impl LocalClientOrigin {
         if clock.now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());
         }
-        self.subscribe(request, StreamMode::Request)
+        let connection = self.multiplex.as_ref().ok_or(io::ErrorKind::NotConnected)?;
+        let mut bytes = Vec::new();
+        write_workbench_request(&mut bytes, request).map_err(io::Error::other)?;
+        connection
+            .request_subscription(bytes)
             .map(|stream| Request {
                 stream,
                 deadline,
@@ -139,7 +143,7 @@ impl ChangeSubscription {
                 return Ok(true);
             }
             let mut fds = [
-                PollFd::new(self.stream.readiness(), PollFlags::POLLIN),
+                PollFd::new(self.stream.readiness()?, PollFlags::POLLIN),
                 PollFd::new(wake.as_local_io(), PollFlags::POLLIN),
             ];
             poll(&mut fds, PollTimeout::NONE)?;
