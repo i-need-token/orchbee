@@ -455,9 +455,58 @@ pub(super) mod grammar {
         ..DEFAULT
     };
 
+    // Flag and command lists are taken from `agy --help`. Every entry appears there except `-v`
+    // and `-V`, which the help text does not list, so those two stay unverified.
     pub const ANTIGRAVITY: AgentModeGrammar = AgentModeGrammar {
-        interactive_options: &["--conversation"],
-        ..DEFAULT
+        noninteractive_options: &[
+            "-v",
+            "-V",
+            "-p",
+            "--print",
+            "--prompt",
+            "--disable-slash-commands",
+            "--input-format",
+            "--json-schema",
+            "--output-format",
+            "--print-timeout",
+        ],
+        noninteractive_commands: &[
+            "acp",
+            "agent",
+            "agents",
+            "changelog",
+            "help",
+            "install",
+            "mcp",
+            "mic-serve",
+            "models",
+            "plugin",
+            "plugins",
+            "remote-control",
+            "update",
+        ],
+        interactive_flags: &[
+            "-c",
+            "--continue",
+            "--dangerously-skip-permissions",
+            "--new-project",
+            "--remote-agent",
+            "--remote-control",
+            "--sandbox",
+        ],
+        interactive_optional_options: &["-i", "--prompt-interactive"],
+        interactive_options: &[
+            "--add-dir",
+            "--agent",
+            "--conversation",
+            "--effort",
+            "--log-file",
+            "--mode",
+            "--model",
+            "--project",
+            "--settings",
+        ],
+        ..base(M::Interactive)
     };
 
     pub const DEVIN: AgentModeGrammar = AgentModeGrammar {

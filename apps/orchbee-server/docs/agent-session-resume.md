@@ -305,7 +305,7 @@ ever read. A capture admits a conversation id from them only when all of these h
 | `opencode`, `kilo`, `mimo` | `--session`, `-s`                                | `-c`, `--continue`                   |
 | `cursor`, `droid`          | `--resume`                                       |                                      |
 | `qodercli`                 | `--resume`, `-r`                                 | `-c`, `--continue`                   |
-| `antigravity`              | `--conversation`                                 |                                      |
+| `antigravity`              | `--conversation`                                 | `-c`, `--continue`                   |
 | `kimi`                     | `--session`, `-S`                                |                                      |
 | `letta`                    | `--conversation`, `--conv`, `-C`                 |                                      |
 | `devin`, `hermes`          | `--resume`, `-r`                                 |                                      |
