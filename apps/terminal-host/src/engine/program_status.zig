@@ -50,10 +50,18 @@ pub const Scanner = struct {
     /// Consumes `bytes` up to and including the terminator of the first complete OSC 7501
     /// sequence, or all of them. Always consumes at least one byte of a nonempty input.
     pub fn scan(self: *Scanner, bytes: []const u8) Step {
-        for (bytes, 0..) |byte, index| {
-            if (self.next(byte)) |sequence| {
+        var index: usize = 0;
+        while (index < bytes.len) {
+            if (self.phase == .ground) {
+                const escape = std.mem.indexOfScalarPos(u8, bytes, index, 0x1b) orelse break;
+                self.phase = .escape;
+                index = escape + 1;
+                continue;
+            }
+            if (self.next(bytes[index])) |sequence| {
                 return .{ .consumed = index + 1, .sequence = sequence };
             }
+            index += 1;
         }
         return .{ .consumed = bytes.len };
     }

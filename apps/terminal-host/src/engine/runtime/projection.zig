@@ -76,6 +76,18 @@ pub fn setNextProjectionAt(self: *state.State, value: i128) void {
     self.next_projection_at_ns = value;
 }
 
+pub fn setWakeOnOutput(self: *state.State, value: bool) void {
+    self.wake_on_output.store(value, .seq_cst);
+}
+
+pub fn setHasActiveProjection(self: *state.State, value: bool) void {
+    self.has_active_projection.store(value, .release);
+}
+
+pub fn atomicRevision(self: *const state.State) u64 {
+    return self.revision.load(.seq_cst);
+}
+
 /// A new revision or generation costs a capture; another reader of the current one only an encode.
 pub fn projectionNeedsCapture(self: *state.State) bool {
     self.projection_mutex.lock();

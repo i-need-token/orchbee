@@ -92,6 +92,7 @@ pub const testing = if (builtin.is_test) struct {
     pub const closeClientInputFn = closeClientInput;
     pub const closeFailureFenceFn = closeFailureFence;
     pub const commitReaderBatchFn = commitReaderBatch;
+    pub const commitReaderBatchWakesFn = commitReaderBatchWakes;
     pub const publishInputFn = publishInput;
     pub const markNormalCompletionReadyFn = markNormalCompletionReady;
     pub const recordWorkerIntegrityFailureFn = recordWorkerIntegrityFailure;
@@ -137,6 +138,14 @@ pub const testing = if (builtin.is_test) struct {
         bytes: []const u8,
     ) contracts.ReaderBatchOutcome {
         return output_ops.commitReaderBatch(handle.stateFrom(self), bytes);
+    }
+
+    pub fn commitReaderBatchWakes(
+        self: *handle.TerminalRuntime,
+        bytes: []const u8,
+    ) bool {
+        const state_ref = handle.stateFrom(self);
+        return output_ops.batchWakes(state_ref, output_ops.commitObservedReaderBatch(state_ref, bytes));
     }
 
     pub fn publishInput(self: *handle.TerminalRuntime, reservation: contracts.InputReservation, bytes: []u8) !void {

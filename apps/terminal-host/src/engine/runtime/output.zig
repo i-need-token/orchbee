@@ -2,6 +2,7 @@ const std = @import("std");
 const target_builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
 const fatal_record = @import("terminal-host-platform").fatal_record;
+const monotonic = @import("terminal-host-platform").monotonic;
 const output_wake = @import("terminal-host-platform").output_wake;
 const pty_process = @import("terminal-host-platform").process;
 const terminal_stream = @import("../terminal_stream.zig");
@@ -159,29 +160,39 @@ pub fn commitReaderBatch(
     self: *state.State,
     bytes: []const u8,
 ) contracts.ReaderBatchOutcome {
-    return commitObservedReaderBatch(self, bytes);
+    return commitObservedReaderBatch(self, bytes).outcome;
 }
+
+const ObservedBatch = struct {
+    outcome: contracts.ReaderBatchOutcome,
+    urgent: bool = true,
+};
 
 /// Commits one PTY read. A Kitty graphics command whose medium must be read splits it: the
 /// output before the command commits first, the medium is read without the terminal lock, and
 /// the next batch applies the image and goes on with the rest.
-fn commitObservedReaderBatch(
+pub fn commitObservedReaderBatch(
     self: *state.State,
     bytes: []const u8,
-) contracts.ReaderBatchOutcome {
+) ObservedBatch {
     graphics_media.releaseFinishedRead(self);
     var rest = bytes;
     var media: ?graphics_media.Loaded = null;
+    var urgent = false;
     while (true) {
-        switch (commitReaderSlice(self, rest, &media)) {
-            .finished => |outcome| return outcome,
-            .stopped_at_media => |consumed| rest = rest[consumed..],
+        var slice_urgent = true;
+        switch (commitReaderSlice(self, rest, &media, &slice_urgent)) {
+            .finished => |outcome| return .{ .outcome = outcome, .urgent = urgent or slice_urgent },
+            .stopped_at_media => |consumed| {
+                urgent = urgent or slice_urgent;
+                rest = rest[consumed..];
+            },
         }
         // Publish the output before the image while its medium is read.
         output_wake.signal();
         media = graphics_media.load(self) orelse {
             notifyReaderBatchFinished(self, .output_aborted);
-            return .output_aborted;
+            return .{ .outcome = .output_aborted, .urgent = true };
         };
     }
 }
@@ -196,6 +207,7 @@ fn commitReaderSlice(
     self: *state.State,
     bytes: []const u8,
     media: *?graphics_media.Loaded,
+    urgent_wake: *bool,
 ) ReaderSlice {
     // A media read that this batch cannot apply is dropped with it.
     defer if (media.*) |*loaded| {
@@ -257,6 +269,14 @@ fn commitReaderSlice(
     const previous_clear = self.terminal.flags.dirty.clear;
     self.terminal.flags.dirty.clear = false;
     const cursor_was_visible = self.terminal.modes.get(.cursor_visible);
+    const cursor_paint_was_open = self.cursor_paint_deadline_ns != null;
+    const synchronized_output_was_active = self.terminal.modes.get(.synchronized_output);
+    const previous_bell = self.bell_sequence;
+    const previous_metadata = self.metadata_revision.load(.monotonic);
+    const previous_progress = self.progress;
+    const previous_command_sequence = self.command_sequence;
+    const previous_command_completion = self.command_completion != null;
+    const previous_clipboard = self.clipboard_write_pending != null;
     if (media.*) |*loaded| {
         graphics_media.applyLocked(self, loaded);
         media.* = null;
@@ -300,7 +320,7 @@ fn commitReaderSlice(
         previous_graphics_generation != self.terminal.screens.active.kitty_images.generation;
     if (screen_changed or geometry_changed) self.generation += 1;
     const revision = current_revision + 1;
-    self.revision.store(revision, .release);
+    self.revision.store(revision, .seq_cst);
     scrollback_compression_ops.noteInteractionLocked(self);
     metadata_ops.commitRevisionLocked(self, revision);
     if (screen_changed) {
@@ -328,6 +348,23 @@ fn commitReaderSlice(
         false;
     finishReaderCommitLocked(self);
     if (graphics_changed) animation_ops.requestWakeLocked(self);
+    urgent_wake.* = self.application_signal_pending_count > 0 or
+        (!previous_clipboard and self.clipboard_write_pending != null) or
+        (!previous_command_completion and self.command_completion != null) or
+        self.command_sequence != previous_command_sequence or
+        self.metadata_revision.load(.monotonic) != previous_metadata or
+        self.bell_sequence != previous_bell or
+        !std.meta.eql(self.progress, previous_progress) or
+        screen_changed or
+        geometry_changed or
+        graphics_changed or
+        (self.cursor_paint_deadline_ns != null and
+            cursor_was_visible != self.terminal.modes.get(.cursor_visible)) or
+        (cursor_paint_was_open and self.cursor_paint_deadline_ns == null) or
+        (synchronized_output_was_active and !self.terminal.modes.get(.synchronized_output)) or
+        bell_sequence_overflowed or
+        feedback_sequence_overflowed or
+        mouse_input_epoch_exhausted;
     self.terminal_mutex.unlock();
 
     const outcome: contracts.ReaderBatchOutcome = if (bell_sequence_overflowed or
@@ -370,6 +407,30 @@ pub fn publishPtyDrained(self: *state.State) bool {
     return true;
 }
 
+/// Without an active projection, a batch that is not urgent signals at most once per interval.
+const headless_wake_floor_ns = 8 * std.time.ns_per_ms;
+
+/// Whether the reader thread signals the output wake after a committed batch. An urgent batch
+/// always does. Any other batch does only while the scanner keeps wake-on-output set: with an
+/// active projection every such batch does, and without one they are coalesced to the floor.
+pub fn batchWakes(self: *state.State, batch: ObservedBatch) bool {
+    if (batch.urgent) return true;
+    if (!self.wake_on_output.load(.seq_cst)) return false;
+    if (self.has_active_projection.load(.acquire)) return true;
+    if (self.headless_wake_timer == null) {
+        self.headless_wake_timer = monotonic.Timer.start() catch null;
+        if (self.headless_wake_timer == null) return true;
+    }
+    const now_ns = self.headless_wake_timer.?.read();
+    if (self.last_headless_wake_ns == 0 or
+        now_ns -| self.last_headless_wake_ns >= headless_wake_floor_ns)
+    {
+        self.last_headless_wake_ns = now_ns;
+        return true;
+    }
+    return false;
+}
+
 pub fn readerThread(self: *state.State) void {
     fatal_record.markThread(.@"terminal-output");
     defer notifyReaderStopped(self);
@@ -391,8 +452,11 @@ pub fn readerThread(self: *state.State) void {
             },
             .paused => paused = true,
             .bytes => |length| {
-                if (commitObservedReaderBatch(self, buffer[0..length]) != .committed) return;
-                output_wake.signal();
+                const batch = commitObservedReaderBatch(self, buffer[0..length]);
+                if (batch.outcome != .committed) return;
+                if (batchWakes(self, batch)) {
+                    output_wake.signal();
+                }
             },
         }
         mode = .stop_at_pause;

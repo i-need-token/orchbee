@@ -28,6 +28,7 @@ pub const State = struct {
     // marker because Ghostty invokes bell synchronously while parsing output.
     bell_sequence: u64 = 0,
     bell_sequence_overflow_pending: bool = false,
+    application_signal_pending_available: std.atomic.Value(bool) = .init(false),
     application_signal_pending: [contracts.max_pending_application_signals]contracts.ApplicationSignal = undefined,
     application_signal_pending_count: usize = 0,
     application_signal_pending_head: usize = 0,
@@ -63,6 +64,7 @@ pub const State = struct {
     // Parser/state readers observe it while holding terminal_mutex; queue and
     // writer-start readers observe it while holding input_mutex.
     failure_fenced: bool = false,
+    failure_fenced_atomic: std.atomic.Value(bool) = .init(false),
     // A successful engine fence winner owns the first bounded containment
     // attempt. A Host-originated fence reserves that attempt for Host cleanup;
     // later Host retries wait for an engine_pending owner to publish done.
@@ -83,7 +85,11 @@ pub const State = struct {
     metadata_change_pending: bool = false,
     metadata_published_connection_id: ?u64 = null,
     metadata_published_revision: u64 = 0,
-    metadata_revision: u64 = 0,
+    metadata_revision: std.atomic.Value(u64) = .init(0),
+    has_active_projection: std.atomic.Value(bool) = .init(false),
+    wake_on_output: std.atomic.Value(bool) = .init(true),
+    last_headless_wake_ns: u64 = 0,
+    headless_wake_timer: ?monotonic.Timer = null,
     // terminal_mutex and input_mutex jointly protect this monotonic epoch and
     // its irreversible exhaustion marker. Mouse preparation reads it under
     // terminal_mutex, while final publication and writer start read it under

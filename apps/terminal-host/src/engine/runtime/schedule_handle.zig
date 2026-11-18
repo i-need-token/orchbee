@@ -21,6 +21,18 @@ pub fn Type(comptime Runtime: type) type {
             return projection_ops.setNextProjectionAt(stateFrom(self), value);
         }
 
+        pub fn setWakeOnOutput(self: *Runtime, value: bool) void {
+            return projection_ops.setWakeOnOutput(stateFrom(self), value);
+        }
+
+        pub fn setHasActiveProjection(self: *Runtime, value: bool) void {
+            return projection_ops.setHasActiveProjection(stateFrom(self), value);
+        }
+
+        pub fn atomicRevision(self: *const Runtime) u64 {
+            return projection_ops.atomicRevision(stateFromConst(self));
+        }
+
         fn stateFrom(runtime: *Runtime) *state.State {
             return @ptrCast(@alignCast(runtime));
         }

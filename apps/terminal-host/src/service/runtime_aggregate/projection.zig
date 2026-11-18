@@ -90,5 +90,9 @@ pub fn releaseProjectionIfIdle(
 ) void {
     if (self.core_state.hasActiveProjectionDemand(terminal_id)) return;
     if (target_builtin.is_test) self.testing_state.projection_release_decisions += 1;
-    if (self.runtimeFor(terminal_id)) |runtime| runtime.releaseProjectionResources();
+    if (self.runtimeFor(terminal_id)) |runtime| {
+        runtime.setHasActiveProjection(false);
+        runtime.setWakeOnOutput(true);
+        runtime.releaseProjectionResources();
+    }
 }

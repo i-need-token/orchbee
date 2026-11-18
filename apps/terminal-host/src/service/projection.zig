@@ -89,6 +89,12 @@ pub const Scheduler = struct {
         var used_terminal_ids: [max_scheduled_attachments_per_poll]core_module.TerminalId = undefined;
         var used_terminal_captures: [max_scheduled_attachments_per_poll]bool = undefined;
         var used_terminal_count: usize = 0;
+        const WakeDisposition = struct {
+            runtime: *terminal_runtime.TerminalRuntime,
+            allow_immediate: bool,
+        };
+        var wake_dispositions: [max_schedule_scan_per_poll]WakeDisposition = undefined;
+        var wake_disposition_count: usize = 0;
         const PendingMutation = union(enum) {
             block: core_module.ProjectionBlockCommit,
             frame: core_module.ProjectionFrameCommit,
@@ -117,28 +123,50 @@ pub const Scheduler = struct {
             // request.
             const attachment = core.findAttachment(attachment_id) orelse continue;
             if (!attachment.capabilities.read or
-                attachment.projectionDemand() != .active) continue;
+                attachment.projectionDemand() != .active)
+            {
+                if (aggregate.runtimeFor(attachment.terminal_id)) |inactive_runtime| {
+                    if (!core.hasActiveProjectionDemand(attachment.terminal_id)) {
+                        inactive_runtime.setHasActiveProjection(false);
+                        inactive_runtime.setWakeOnOutput(true);
+                    }
+                }
+                continue;
+            }
             const runtime = aggregate.runtimeFor(attachment.terminal_id) orelse continue;
             const terminal = core.findTerminal(attachment.terminal_id) orelse continue;
             if (!terminal.hasReadableRuntimeState() or !runtime.readableStateAvailable()) continue;
-            const ready = attachment.projectionReady() orelse continue;
+            runtime.setHasActiveProjection(true);
+            const ready = attachment.projectionReady() orelse {
+                noteWakeDisposition(&wake_dispositions, &wake_disposition_count, runtime, false);
+                continue;
+            };
             const ready_base = ready.base();
-            const revision_dirty = ready_base == null or
+            var revision_dirty = ready_base == null or
                 terminal.observedRevision() > ready_base.?.revision;
-            if (!ready.forceSnapshot() and !revision_dirty) continue;
+            if (!ready.forceSnapshot() and !revision_dirty) {
+                runtime.setWakeOnOutput(true);
+                if (runtime.atomicRevision() <= ready_base.?.revision) {
+                    noteWakeDisposition(&wake_dispositions, &wake_disposition_count, runtime, true);
+                    continue;
+                }
+                revision_dirty = true;
+            }
             // The cadence bounds captures. Another reader of the current capture must not
             // spend it, or a sampling viewer would delay the next echo.
             const captures = runtime.projectionNeedsCapture();
-            if (captures) if (runtime.projectionPaintRemaining()) |remaining| {
-                const paint_due = now + remaining;
-                next_due = if (next_due) |due| @min(due, paint_due) else paint_due;
-                continue;
-            };
             const projection_at = aggregate.nextProjectionAt(attachment.terminal_id).?;
             if (captures and now < projection_at) {
                 next_due = if (next_due) |due| @min(due, projection_at) else projection_at;
+                noteWakeDisposition(&wake_dispositions, &wake_disposition_count, runtime, false);
                 continue;
             }
+            if (captures) if (runtime.projectionPaintRemaining()) |remaining| {
+                const paint_due = now + remaining;
+                next_due = if (next_due) |due| @min(due, paint_due) else paint_due;
+                noteWakeDisposition(&wake_dispositions, &wake_disposition_count, runtime, false);
+                continue;
+            };
             var already_used = false;
             for (used_terminal_ids[0..used_terminal_count]) |used_terminal_id| {
                 already_used = already_used or used_terminal_id.eql(attachment.terminal_id);
@@ -157,13 +185,18 @@ pub const Scheduler = struct {
             const geometry = aggregate.observeRuntime(terminal.terminal_id, runtime) orelse {
                 used_terminal_count -= 1;
                 scheduled -= 1;
+                // Enable the wake first: a true registration alone does not re-enable it.
+                runtime.setWakeOnOutput(true);
+                noteWakeDisposition(&wake_dispositions, &wake_disposition_count, runtime, true);
                 continue :scan;
             };
             const force_snapshot = ready.forceSnapshot() or ready_base == null or
                 ready_base.?.generation != geometry.generation or
                 terminal.observedGeometryRevision() > ready_base.?.revision;
             if (!force_snapshot and ready_base.?.revision >= geometry.revision) {
+                runtime.setWakeOnOutput(true);
                 core.projectionCaughtUp(attachment.attachment_id) catch unreachable;
+                noteWakeDisposition(&wake_dispositions, &wake_disposition_count, runtime, true);
                 continue;
             }
             const encode_outcome = runtime.encodeProjectionFrameOwned(
@@ -182,6 +215,9 @@ pub const Scheduler = struct {
             ) catch {
                 used_terminal_count -= 1;
                 scheduled -= 1;
+                // Enable the wake first: a true registration alone does not re-enable it.
+                runtime.setWakeOnOutput(true);
+                noteWakeDisposition(&wake_dispositions, &wake_disposition_count, runtime, true);
                 continue :scan;
             };
             var encoded = switch (encode_outcome) {
@@ -193,6 +229,9 @@ pub const Scheduler = struct {
                     if (aggregate.observeRuntime(attachment.terminal_id, runtime) == null) {
                         used_terminal_count -= 1;
                         scheduled -= 1;
+                        // Enable the wake first: a true registration alone does not re-enable it.
+                        runtime.setWakeOnOutput(true);
+                        noteWakeDisposition(&wake_dispositions, &wake_disposition_count, runtime, true);
                         continue :scan;
                     }
                     const append_outcome = try appendProjectionBlocked(
@@ -224,6 +263,7 @@ pub const Scheduler = struct {
                     std.debug.assert(pending_mutation_count < pending_mutations.len);
                     pending_mutations[pending_mutation_count] = .{ .block = block_commit };
                     pending_mutation_count += 1;
+                    noteWakeDisposition(&wake_dispositions, &wake_disposition_count, runtime, false);
                     continue :scan;
                 },
                 .frame => |frame| frame,
@@ -242,6 +282,9 @@ pub const Scheduler = struct {
                 aggregate.noteRefusedObservation(attachment.terminal_id, err);
                 used_terminal_count -= 1;
                 scheduled -= 1;
+                // Enable the wake first: a true registration alone does not re-enable it.
+                runtime.setWakeOnOutput(true);
+                noteWakeDisposition(&wake_dispositions, &wake_disposition_count, runtime, true);
                 continue :scan;
             };
             const message_kind = switch (encoded.kind) {
@@ -260,6 +303,7 @@ pub const Scheduler = struct {
                     std.debug.assert(pending_mutation_count < pending_mutations.len);
                     pending_mutations[pending_mutation_count] = .{ .frame = commit };
                     pending_mutation_count += 1;
+                    noteWakeDisposition(&wake_dispositions, &wake_disposition_count, runtime, false);
                 },
                 .batch_full => {
                     scanned -= 1;
@@ -295,9 +339,31 @@ pub const Scheduler = struct {
         }
         // Dirty output inside its cadence must not wait out the whole poll interval.
         if (next_due) |due| output_wake.signalAfter(std.math.cast(u64, @max(due - now, 0)) orelse std.math.maxInt(u64));
+        for (wake_dispositions[0..wake_disposition_count]) |disposition| {
+            if (!disposition.allow_immediate) disposition.runtime.setWakeOnOutput(false);
+        }
         return outcome;
     }
 };
+
+fn noteWakeDisposition(
+    dispositions: anytype,
+    count: *usize,
+    runtime: *terminal_runtime.TerminalRuntime,
+    allow_immediate: bool,
+) void {
+    for (dispositions[0..count.*]) |*entry| {
+        if (entry.runtime == runtime) {
+            if (allow_immediate) entry.allow_immediate = true;
+            return;
+        }
+    }
+    dispositions[count.*] = .{
+        .runtime = runtime,
+        .allow_immediate = allow_immediate,
+    };
+    count.* += 1;
+}
 
 fn appendProjectionFrame(
     aggregate: *host_runtime_aggregate.HostRuntimeAggregate,

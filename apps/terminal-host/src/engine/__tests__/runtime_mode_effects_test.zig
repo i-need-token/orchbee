@@ -3,6 +3,7 @@ const std = harness.std;
 const subject = harness.subject;
 const cancelInput = harness.cancelInput;
 const commitReaderBatch = harness.commitReaderBatch;
+const commitReaderBatchWakes = harness.commitReaderBatchWakes;
 const createRuntimeWithHooks = harness.createRuntimeWithHooks;
 const expectNextQueuedTerminalBytes = harness.expectNextQueuedTerminalBytes;
 const expectNoQueuedTerminalBytes = harness.expectNoQueuedTerminalBytes;
@@ -322,4 +323,21 @@ fn inBandSizeReport(buffer: []u8, geometry: anytype) ![]const u8 {
         @as(u64, geometry.rows) * geometry.cell_pixel_height,
         @as(u64, geometry.columns) * geometry.cell_pixel_width,
     });
+}
+
+test "showing the cursor ends its paint hold and wakes the reader at once" {
+    var probe: GatedPtyProbe(TerminalDrivenResizeProbe) = .{ .probe = .{} };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        runtime.destroy();
+    }
+    probe.reader.wait();
+    // No projection is attached and the scanner has cleared wake-on-output, so only an urgent
+    // batch may wake the reader.
+    runtime.setWakeOnOutput(false);
+
+    try std.testing.expect(commitReaderBatchWakes(runtime, "\x1b[?25l"));
+    try std.testing.expect(commitReaderBatchWakes(runtime, "\x1b[?25h"));
 }

@@ -13,14 +13,14 @@ pub fn commitRevisionLocked(self: *state.State, revision: u64) void {
     if (!self.metadata_change_pending) return;
     std.debug.assert(revision > 0);
     self.metadata_change_pending = false;
-    self.metadata_revision = revision;
+    self.metadata_revision.store(revision, .release);
 }
 
 pub fn commitResetLocked(self: *state.State, revision: u64, had_metadata: bool) void {
     if (!had_metadata) return;
     std.debug.assert(revision > 0);
     self.metadata_change_pending = false;
-    self.metadata_revision = revision;
+    self.metadata_revision.store(revision, .release);
 }
 
 pub fn prepareEvent(
@@ -28,12 +28,20 @@ pub fn prepareEvent(
     allocator: std.mem.Allocator,
     connection_id: u64,
 ) !?contracts.MetadataEvent {
+    const initial_revision = self.metadata_revision.load(.acquire);
+    if (initial_revision == 0 or
+        (self.metadata_published_connection_id == connection_id and
+            self.metadata_published_revision >= initial_revision))
+    {
+        return null;
+    }
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
     failure_ops.waitForReaderCommitLocked(self);
-    if (self.metadata_revision == 0 or
+    const metadata_revision = self.metadata_revision.load(.monotonic);
+    if (metadata_revision == 0 or
         (self.metadata_published_connection_id == connection_id and
-            self.metadata_published_revision >= self.metadata_revision))
+            self.metadata_published_revision >= metadata_revision))
     {
         return null;
     }
@@ -46,7 +54,7 @@ pub fn prepareEvent(
         .allocator = allocator,
         .connection_id = connection_id,
         .current_directory = current_directory,
-        .revision = self.metadata_revision,
+        .revision = metadata_revision,
         .title = title,
     };
 }
@@ -55,7 +63,7 @@ pub fn commitEvent(self: *state.State, event: contracts.MetadataEvent) void {
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
     std.debug.assert(event.revision > 0);
-    std.debug.assert(event.revision <= self.metadata_revision);
+    std.debug.assert(event.revision <= self.metadata_revision.load(.monotonic));
     if (self.metadata_published_connection_id != event.connection_id) {
         self.metadata_published_connection_id = event.connection_id;
         self.metadata_published_revision = event.revision;

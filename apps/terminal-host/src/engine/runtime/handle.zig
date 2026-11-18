@@ -45,6 +45,9 @@ pub const TerminalRuntime = opaque {
     pub const projectionNeedsCapture = ScheduleHandle.projectionNeedsCapture;
     pub const nextProjectionAt = ScheduleHandle.nextProjectionAt;
     pub const setNextProjectionAt = ScheduleHandle.setNextProjectionAt;
+    pub const setWakeOnOutput = ScheduleHandle.setWakeOnOutput;
+    pub const setHasActiveProjection = ScheduleHandle.setHasActiveProjection;
+    pub const atomicRevision = ScheduleHandle.atomicRevision;
 
     pub fn create(
         allocator: std.mem.Allocator,

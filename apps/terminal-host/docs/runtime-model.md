@@ -234,12 +234,32 @@ byte returns to `idle`. Disconnect cancels and drains a pending operation before
 clearing its state or reusing the pipe, and destruction closes the event only
 after that drain, so bytes and completions cannot cross connections.
 
-`platform/output_wake.zig` keeps a frame from waiting out that timeout. Each committed PTY reader
-batch signals one process-wide wake, and the projection scheduler arms it for its next due time.
-On Windows these are an auto-reset event and a high-resolution waitable timer that the readiness wait
-includes; on POSIX they are a pipe in the service's `poll` set and a shorter `poll` timeout. A wake is
-only a hint: the service loop owns every delivery decision, and the 20-millisecond timeout stays the
-bound in a process without a wake.
+`platform/output_wake.zig` keeps a frame or urgent event from waiting out that timeout. A committed
+PTY reader batch always signals the process-wide wake when it is urgent. The urgent batches are
+those that:
+
+- deliver an application signal, a clipboard write, a command completion or sequence change, a
+  metadata change, a bell, or a progress change;
+- change the screen, its geometry, or its graphics;
+- open a cursor-paint hold (the cursor hides) or close one (the cursor shows);
+- end a synchronized-output frame (DEC 2026);
+- exhaust or overflow a counter (bell, feedback, or mouse input epoch), which fails the batch and
+  closes a failure fence.
+
+A batch that fails or is aborted does not commit, so the reader thread returns without signalling
+for it.
+
+Any other batch signals only while the scanner has wake-on-output set. With an active projection,
+every such batch signals; without one, they are coalesced to an 8-millisecond headless floor, which
+is shorter than the 20-millisecond maintenance timeout. The scanner clears wake-on-output while a
+projection is throttled, holding for a paint, blocked, or awaiting acknowledgment; restores it
+before rechecking revision when demand clears; restores it when a refused or failed frame must be
+retried, so the next batch signals at once; and arms `output_wake` for its next due time. A batch
+that the flag or the floor suppresses sends no wake, so it waits for the next signalled batch or the
+20-millisecond timeout, whichever comes first. On Windows these are an auto-reset event and a
+high-resolution waitable timer that the readiness wait includes; on POSIX they are a pipe in the
+service's `poll` set and a shorter `poll` timeout. A wake is only a hint: the service loop owns
+every delivery decision.
 
 `TerminalEngine` remains one semantic owner, but it is not one implementation file. Its runtime
 source is a directory of review units: one private state record, one narrow public handle, and

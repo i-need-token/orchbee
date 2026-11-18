@@ -21,6 +21,7 @@ pub fn closeFailureFenceLocked(
     std.debug.assert(self.read_commit_epoch == 0);
     self.read_commit_epoch = 1;
     self.failure_fenced = true;
+    self.failure_fenced_atomic.store(true, .release);
     self.writer_stop = true;
     if (failure) |classification| {
         self.completion_classification.markFailure(classification);

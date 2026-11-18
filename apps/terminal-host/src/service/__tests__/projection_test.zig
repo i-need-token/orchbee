@@ -13,6 +13,7 @@ const terminal_launch = engine_boundary.launch;
 const terminal_runtime = engine_boundary.runtime;
 
 const commitReaderBatch = terminal_runtime.testing.commitReaderBatchFn;
+const commitReaderBatchWakes = terminal_runtime.testing.commitReaderBatchWakesFn;
 const createWithOptionsUsingSpawner =
     terminal_runtime.testing.createWithOptionsUsingSpawnerFn;
 const ReadCommitCheckpoint = terminal_runtime.testing.ReadCommitCheckpointType;
@@ -910,6 +911,94 @@ test "scheduler preserves synchronized output and publishes the newest frame at 
     );
     const frame = try onlyProjectionFrame(&released);
     try std.testing.expectEqual(synchronized_revision + 1, frame.revision);
+    try std.testing.expectEqual(fixture.runtime.geometry().revision, frame.revision);
+}
+
+test "a synchronized frame that ends after a cursor-paint hold wakes the reader at once" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const Clock = struct {
+        now_ns: u64 = 0,
+
+        fn monotonicTimeNanoseconds(context: *anyopaque) u64 {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            return self.now_ns;
+        }
+
+        fn hooks(self: *@This()) RuntimeTestingHooks {
+            return .{
+                .context = self,
+                .monotonic_time_nanoseconds = monotonicTimeNanoseconds,
+            };
+        }
+    };
+
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    var clock: Clock = .{};
+    const fixture = try createHookedRuntime(&aggregate, connection_id, 0, clock.hooks());
+    const attachment_id = testId(core_module.AttachmentId, 0x5b, 0);
+    try activateAttachments(&aggregate, connection_id, fixture.terminal_id, &.{attachment_id});
+    var scheduler: subject.Scheduler = .{};
+
+    // Hiding the cursor opens a paint hold. The scanner holds the frame and clears
+    // wake-on-output, so ordinary output stays quiet until the hold ends.
+    try std.testing.expect(commitReaderBatchWakes(fixture.runtime, "\x1b[?25l"));
+    var held = Outgoing.init(std.testing.allocator);
+    defer held.deinit();
+    subject.testing.setClockSampleFn(&scheduler, 0, 0);
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.complete,
+        try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            protocol.Limits.frame_bytes,
+            &held,
+        ),
+    );
+    try std.testing.expectEqual(@as(usize, 0), held.records().len);
+    try std.testing.expect(!commitReaderBatchWakes(fixture.runtime, "held"));
+
+    // The hold has expired and a synchronized frame begins; the scanner refuses to publish it.
+    // The bound is well past the 2-millisecond paint hold.
+    const expired_ns = 10 * std.time.ns_per_ms;
+    clock.now_ns = expired_ns;
+    try std.testing.expectEqual(.committed, commitReaderBatch(fixture.runtime, "\x1b[?2026h"));
+    var refused = Outgoing.init(std.testing.allocator);
+    defer refused.deinit();
+    subject.testing.setClockSampleFn(&scheduler, 0, expired_ns);
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.complete,
+        try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            protocol.Limits.frame_bytes,
+            &refused,
+        ),
+    );
+    try std.testing.expectEqual(@as(usize, 0), refused.records().len);
+
+    // Ending the frame wakes the reader at once, well inside the 20-millisecond maintenance pass,
+    // and the next scan publishes the frame.
+    clock.now_ns = expired_ns + std.time.ns_per_ms;
+    try std.testing.expect(commitReaderBatchWakes(fixture.runtime, "\x1b[?2026l"));
+    var released = Outgoing.init(std.testing.allocator);
+    defer released.deinit();
+    subject.testing.setClockSampleFn(&scheduler, 0, expired_ns + std.time.ns_per_ms);
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.complete,
+        try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            protocol.Limits.frame_bytes,
+            &released,
+        ),
+    );
+    const frame = try onlyProjectionFrame(&released);
     try std.testing.expectEqual(fixture.runtime.geometry().revision, frame.revision);
 }
 

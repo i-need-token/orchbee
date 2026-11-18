@@ -218,6 +218,7 @@ pub fn commitReaderBatch(self: *state.State) void {
         }
         self.application_signal_staged_count = 0;
         self.application_signal_sequence = self.application_signal_sequence_staged;
+        self.application_signal_pending_available.store(self.application_signal_pending_count > 0, .release);
     }
 
     self.command_started_at_ns = self.command_started_at_ns_staged;
@@ -235,6 +236,13 @@ pub fn prepareApplicationSignal(
     self: *state.State,
     allocator: std.mem.Allocator,
 ) !?contracts.ApplicationSignalEvent {
+    if (!self.application_signal_pending_available.load(.acquire) and
+        !self.failure_fenced_atomic.load(.acquire) and
+        !self.resize_fenced.load(.acquire) and
+        self.completion_classification.load() != .failed)
+    {
+        return null;
+    }
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
     failure_ops.waitForReaderCommitLocked(self);
@@ -262,6 +270,7 @@ pub fn commitApplicationSignal(
         (self.application_signal_pending_head + 1) % contracts.max_pending_application_signals;
     self.application_signal_pending_count -= 1;
     if (self.application_signal_pending_count == 0) self.application_signal_pending_head = 0;
+    self.application_signal_pending_available.store(self.application_signal_pending_count > 0, .release);
 }
 
 pub fn prepareClipboardWriteRequest(
@@ -314,6 +323,7 @@ pub fn deinit(self: *state.State) void {
     }
     self.application_signal_pending_count = 0;
     self.application_signal_pending_head = 0;
+    self.application_signal_pending_available.store(false, .release);
     if (self.clipboard_write_pending) |pending| self.allocator.free(pending.text);
     self.clipboard_write_pending = null;
     self.clipboard_write_in_flight = false;

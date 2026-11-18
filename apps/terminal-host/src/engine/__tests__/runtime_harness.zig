@@ -20,6 +20,7 @@ pub const cancelInput = subject.testing.cancelInputFn;
 pub const clearTestingHooks = subject.testing.clearTestingHooks;
 pub const closeClientInput = subject.testing.closeClientInputFn;
 pub const commitReaderBatch = subject.testing.commitReaderBatchFn;
+pub const commitReaderBatchWakes = subject.testing.commitReaderBatchWakesFn;
 pub const completionClassificationLoad = subject.testing.completionClassificationLoadFn;
 pub const createWithOptionsUsingSpawner = subject.testing.createWithOptionsUsingSpawnerFn;
 pub const deinitOwnedProfile = subject.testing.deinitOwnedProfileFn;
