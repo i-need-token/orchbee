@@ -100,7 +100,8 @@ impl<'a> PollFd<'a> {
 pub fn poll(sources: &mut [PollFd<'_>], timeout: PollTimeout) -> io::Result<usize> {
     const CADENCE: Duration = Duration::from_millis(2);
     let started = Instant::now();
-    loop {
+    let mut rechecked = false;
+    'poll_loop: loop {
         let mut count = 0;
         for source in &mut *sources {
             source.events = PollFlags::empty();
@@ -159,11 +160,22 @@ pub fn poll(sources: &mut [PollFd<'_>], timeout: PollTimeout) -> io::Result<usiz
                 cadence |= source.interest.contains(PollFlags::POLLOUT);
                 match stream.read_wait() {
                     Ok(ReadWait::Event(event)) => events.push(event),
-                    // The next probe reports a failure as this source's own event.
+                    Ok(ReadWait::Changed) | Err(_) if !rechecked => {
+                        rechecked = true;
+                        continue 'poll_loop;
+                    }
+                    Ok(ReadWait::Unwatchable)
+                        if !rechecked && source.interest.contains(PollFlags::POLLIN) =>
+                    {
+                        rechecked = true;
+                        continue 'poll_loop;
+                    }
+                    // The next probe reports a failure or closure after the bounded cadence.
                     Ok(ReadWait::Changed | ReadWait::Unwatchable) | Err(_) => cadence = true,
                 }
             }
         }
+        rechecked = false;
         let remaining = timeout
             .0
             .map(|budget| budget.saturating_sub(started.elapsed()));
