@@ -971,7 +971,7 @@ fn sidebar_status_truncates_with_ellipsis_on_grapheme_boundaries() {
 }
 
 #[test]
-fn centered_notices_and_titles_follow_display_width_without_block_title_or_list() {
+fn centered_notices_and_titles_follow_display_width() {
     let theme = crate::tui_theme::Theme::rgb_test_dark();
     let lam_alef_six = "\u{644}\u{627}\u{644}\u{627}\u{644}\u{627}";
     let mut text = Locale::EnUs.shell();
@@ -980,8 +980,8 @@ fn centered_notices_and_titles_follow_display_width_without_block_title_or_list(
     text.panel_title = lam_alef_six;
     text.app_title = lam_alef_six;
 
-    // 1) Centered too-small notice on a 12-cell row starts at x = (12 - 6) / 2 = 3 (with bullet at x = 2 when fitted, here check unbulleted overflow fallback or 10-cell fit):
-    // For width 10 with 2-cell bullet prefix ("● "): notice + bullet = 8 cells, centered at x = (10 - 8) / 2 = 1.
+    // 1) The too-small notice and its 2-cell bullet ("● ") take 8 cells, so a 10-cell row centers
+    // them at x = (10 - 8) / 2 = 1.
     let mut terminal = infallible(Terminal::new(TestBackend::new(10, 3)));
     infallible(terminal.draw(|frame| {
         super::render_too_small_notice(frame, Rect::new(0, 0, 10, 3), text, &theme);
