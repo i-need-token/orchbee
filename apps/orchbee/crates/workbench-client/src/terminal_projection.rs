@@ -18,6 +18,8 @@ mod rejection;
 pub use rejection::ProjectionRejection;
 use rejection::{ProjectionOperation as Operation, ProjectionStage as Stage};
 
+const MAX_UNIQUE_TEXT_BYTES: usize = 36 * 1024 * 1024;
+
 #[derive(Clone)]
 pub struct TerminalProjection {
     end: Option<TerminalEnd>,
@@ -28,6 +30,8 @@ pub struct TerminalProjection {
     last_revision: u64,
     blocked_revision: Option<u64>,
     frame: Option<Arc<TerminalTextFrame>>,
+    row_raw_bytes: Vec<usize>,
+    total_raw_bytes: usize,
     /// Taken out of each applied frame, so retained frame images never hold pixels.
     graphics: Option<Arc<TerminalGraphics>>,
 }
@@ -58,6 +62,8 @@ impl TerminalProjection {
             last_revision: 0,
             blocked_revision: None,
             frame: None,
+            row_raw_bytes: Vec::new(),
+            total_raw_bytes: 0,
             graphics: None,
         }
     }
@@ -148,11 +154,15 @@ impl TerminalProjection {
     /// Hand the applied frame to a consumer that must outlive the
     /// projection — the CLI read path maps it after the session drops.
     pub fn take_frame(&mut self) -> Option<TerminalTextFrame> {
+        self.row_raw_bytes.clear();
+        self.total_raw_bytes = 0;
         self.frame.take().map(Arc::unwrap_or_clone)
     }
 
     pub(crate) fn clear_frame(&mut self) {
         self.frame = None;
+        self.row_raw_bytes.clear();
+        self.total_raw_bytes = 0;
         self.graphics = None;
     }
     #[cfg(test)]
@@ -169,6 +179,9 @@ impl TerminalProjection {
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) fn install_frame_for_test(&mut self, mut frame: TerminalTextFrame) {
         self.graphics = frame.graphics.take().map(Arc::new);
+        let (row_raw_bytes, total_raw_bytes) = measure_row_bytes(&frame.rows);
+        self.row_raw_bytes = row_raw_bytes;
+        self.total_raw_bytes = total_raw_bytes;
         self.frame = Some(Arc::new(frame));
     }
     /// Applies one terminal record and mints its exact feedback.
@@ -363,20 +376,90 @@ impl TerminalProjection {
             if next.geometry != previous.geometry {
                 return Err(Reason::DimensionsMismatch);
             }
-            let mut rows = previous.rows.clone();
+            if self.row_raw_bytes.len() != previous.rows.len() {
+                let (counts, total) = measure_row_bytes(&previous.rows);
+                self.row_raw_bytes = counts;
+                self.total_raw_bytes = total;
+            }
+            let row_count = previous.rows.len();
+            let mut merged_refs: Vec<&TerminalTextRow> = previous.rows.iter().collect();
+            let mut new_total_raw_bytes = self.total_raw_bytes;
+            let mut delta_counts = Vec::with_capacity(next.rows.len());
+            for row in &next.rows {
+                let index = usize::from(row.index);
+                let prev_slot = merged_refs.get_mut(index).ok_or(Reason::DecoderRejected)?;
+                let old_bytes = if std::ptr::eq(*prev_slot, &previous.rows[index]) {
+                    self.row_raw_bytes[index]
+                } else {
+                    row_text_bytes(prev_slot)
+                };
+                let new_bytes = row_text_bytes(row);
+                new_total_raw_bytes = new_total_raw_bytes - old_bytes + new_bytes;
+                *prev_slot = row;
+                delta_counts.push((index, new_bytes));
+            }
+            if new_total_raw_bytes > MAX_UNIQUE_TEXT_BYTES {
+                validate_unique_bytes(merged_refs.iter().copied())?;
+            }
+            if next.rows.len().saturating_mul(2) >= row_count {
+                for pair in merged_refs.windows(2) {
+                    let [first, second] = pair else {
+                        return Err(Reason::DecoderRejected);
+                    };
+                    validate_row_pair(first, second)?;
+                }
+            } else {
+                for &(index, _) in &delta_counts {
+                    if let Some(above) = index.checked_sub(1) {
+                        validate_row_pair(merged_refs[above], merged_refs[index])?;
+                    }
+                    if index + 1 < row_count {
+                        validate_row_pair(merged_refs[index], merged_refs[index + 1])?;
+                    }
+                }
+            }
+            let resolved = graphics::resolve(self.graphics.as_deref(), next.graphics.take(), true)?;
+            drop(merged_refs);
+            for (index, new_bytes) in delta_counts {
+                self.row_raw_bytes[index] = new_bytes;
+            }
+            self.total_raw_bytes = new_total_raw_bytes;
+            let prev_arc = self.frame.take().expect("checked previous frame");
+            let mut rows = match Arc::try_unwrap(prev_arc) {
+                Ok(prev_frame) => {
+                    next.graphics_present = next.graphics_present.or(prev_frame.graphics_present);
+                    prev_frame.rows
+                }
+                Err(shared) => {
+                    next.graphics_present = next.graphics_present.or(shared.graphics_present);
+                    shared.rows.clone()
+                }
+            };
             for row in next.rows {
                 let index = usize::from(row.index);
-                *rows.get_mut(index).ok_or(Reason::DecoderRejected)? = row;
+                rows[index] = row;
             }
             next.rows = rows;
-            next.graphics_present = next.graphics_present.or(previous.graphics_present);
+            self.last_revision = next.route.revision;
+            if let graphics::Resolved::Replaced(graphics) = resolved {
+                self.graphics = graphics;
+            }
+            self.frame = Some(Arc::new(next));
+            return Ok(());
         }
-        validate_rows(&next.rows)?;
-        let resolved = graphics::resolve(
-            self.graphics.as_deref(),
-            next.graphics.take(),
-            next.route.base_revision.is_some(),
-        )?;
+        let (row_raw_bytes, total_raw_bytes) = measure_row_bytes(&next.rows);
+        if total_raw_bytes > MAX_UNIQUE_TEXT_BYTES {
+            validate_unique_bytes(next.rows.iter())?;
+        }
+        for pair in next.rows.windows(2) {
+            let [first, second] = pair else {
+                return Err(Reason::DecoderRejected);
+            };
+            validate_row_pair(first, second)?;
+        }
+        let resolved = graphics::resolve(self.graphics.as_deref(), next.graphics.take(), false)?;
+        self.row_raw_bytes = row_raw_bytes;
+        self.total_raw_bytes = total_raw_bytes;
         self.last_revision = next.route.revision;
         if let graphics::Resolved::Replaced(graphics) = resolved {
             self.graphics = graphics;
@@ -388,7 +471,22 @@ impl TerminalProjection {
 const fn reject(operation: Operation, stage: Stage) -> ProjectionRejection {
     ProjectionRejection::new(operation, stage)
 }
-fn validate_rows(rows: &[TerminalTextRow]) -> Result<(), Reason> {
+fn row_text_bytes(row: &TerminalTextRow) -> usize {
+    row.cells.iter().map(|cell| cell.text.len()).sum()
+}
+fn measure_row_bytes(rows: &[TerminalTextRow]) -> (Vec<usize>, usize) {
+    let mut per_row = Vec::with_capacity(rows.len());
+    let mut total = 0_usize;
+    for row in rows {
+        let bytes = row_text_bytes(row);
+        total = total.saturating_add(bytes);
+        per_row.push(bytes);
+    }
+    (per_row, total)
+}
+fn validate_unique_bytes<'a>(
+    rows: impl Iterator<Item = &'a TerminalTextRow>,
+) -> Result<(), Reason> {
     let mut strings = HashSet::new();
     let mut text_bytes = 0_usize;
     for row in rows {
@@ -399,19 +497,17 @@ fn validate_rows(rows: &[TerminalTextRow]) -> Result<(), Reason> {
             }
         }
     }
-    if text_bytes > 36 * 1024 * 1024 {
+    if text_bytes > MAX_UNIQUE_TEXT_BYTES {
         return Err(Reason::DecoderRejected);
     }
-    for pair in rows.windows(2) {
-        let [first, second] = pair else {
-            return Err(Reason::DecoderRejected);
-        };
-        if (first.flags & 1 != 0) != (second.flags & 2 != 0)
-            || (first.cells.last().is_some_and(|c| c.width == 3)
-                && !second.cells.first().is_some_and(|c| c.width == 1))
-        {
-            return Err(Reason::DecoderRejected);
-        }
+    Ok(())
+}
+fn validate_row_pair(first: &TerminalTextRow, second: &TerminalTextRow) -> Result<(), Reason> {
+    if (first.flags & 1 != 0) != (second.flags & 2 != 0)
+        || (first.cells.last().is_some_and(|c| c.width == 3)
+            && !second.cells.first().is_some_and(|c| c.width == 1))
+    {
+        return Err(Reason::DecoderRejected);
     }
     Ok(())
 }
