@@ -1,4 +1,4 @@
-/* The preview sits in a card like the lists' and keeps a named group's distance from them. */
+/* The preview sits in a card and keeps a named group's distance from the groups below it. */
 .preview {
 	margin-block-end: var(--ob-ref-space-8);
 	padding: var(--ob-ref-space-3);
@@ -6,91 +6,21 @@
 	background: var(--ob-sys-color-surface-subtle);
 }
 
-.list {
-	display: flex;
-	flex-direction: column;
-	outline: none;
-}
-
-.option {
-	position: relative;
+/* The theme a group's slot holds, beside the button that opens the group's list. */
+.chooser {
 	display: flex;
 	min-height: calc(var(--ob-ref-space-10) + var(--ob-ref-space-1));
 	align-items: center;
-	gap: var(--ob-ref-space-2-5);
+	gap: var(--ob-ref-space-3);
 	padding: var(--ob-ref-space-0) var(--ob-ref-space-3);
-	color: var(--ob-sys-color-text-primary);
-	cursor: default;
-}
-
-/*
- * Hover and the keyboard highlight fill an inset rounded band, 4 px from the card's edges, so the
- * card's outline stays whole; the hairlines beside a filled line hide. Keyboard focus rings only
- * the highlighted line, not the whole list. The band comes first in paint order, so the line's
- * positioned content paints over it.
- */
-.option::before {
-	position: absolute;
-	inset: var(--ob-ref-space-0-5) var(--ob-ref-space-1);
-	border-radius: var(--ob-ref-radius-ui-md);
-	content: '';
-}
-
-.option > * {
-	position: relative;
-}
-
-.option:hover::before,
-.list:focus-visible .option[data-highlighted='true']::before {
-	background: var(--ob-sys-color-surface-hovered);
-}
-
-.list:focus-visible .option[data-highlighted='true']::before {
-	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
-}
-
-.option + .option::after {
-	position: absolute;
-	inset-block-start: var(--ob-ref-space-0);
-	inset-inline: var(--ob-ref-space-3);
-	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
-	content: '';
-}
-
-.option:hover::after,
-.option:hover + .option::after,
-.list:focus-visible .option[data-highlighted='true']::after,
-.list:focus-visible .option[data-highlighted='true'] + .option::after {
-	opacity: 0;
-}
-
-.swatch {
-	display: block;
-	width: calc(var(--ob-ref-space-16) - var(--ob-ref-space-1));
-	height: var(--ob-ref-space-4);
-	flex: none;
-	border-radius: var(--ob-ref-radius-sm);
-	box-shadow: 0 0 0 var(--ob-ref-border-width-default) var(--ob-sys-color-border-subtle);
 }
 
 .name {
 	min-width: var(--ob-ref-space-0);
 	flex: 1;
 	overflow: hidden;
+	color: var(--ob-sys-color-text-primary);
 	font: var(--ob-sys-typography-body-sm);
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.option[aria-selected='true'] .name {
-	font: var(--ob-sys-typography-label-md);
-}
-
-.check {
-	display: inline-flex;
-	width: var(--ob-ref-size-icon-md);
-	flex: none;
-	align-items: center;
-	justify-content: center;
-	color: var(--ob-sys-color-brand-accent);
 }

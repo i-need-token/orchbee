@@ -19,8 +19,6 @@ interface BuildColorThemePickerViewsOptions {
 	>;
 	/** Whether the operating system asks for dark appearance now. */
 	readonly systemDark: boolean;
-	readonly onCommit: (polarity: Polarity, themeId: string) => void;
-	readonly onPreview: (polarity: Polarity, themeId: string | null) => void;
 }
 
 const LIST_MESSAGES = {
@@ -35,8 +33,8 @@ const LIST_MESSAGES = {
 } as const;
 
 /**
- * The Light theme and Dark theme lists. Each lists the themes of its polarity and marks the slot's
- * effective theme, so an id this build does not ship shows the Orchbee theme it resolves to. The
+ * The Light theme and Dark theme lists, each of its polarity's themes. The slot's effective theme
+ * is marked selected, so an id this build does not ship shows the Orchbee theme it resolves to. The
  * list the app appearance shows now is in use; under a fixed appearance the other list explains
  * when it would apply.
  */
@@ -45,8 +43,6 @@ export function buildColorThemePickerViews({
 	formatMessage,
 	preferences,
 	systemDark,
-	onCommit,
-	onPreview,
 }: BuildColorThemePickerViewsOptions): readonly TerminalColorThemeListView[] {
 	const { applicationTheme } = preferences;
 	const activePolarity: Polarity =
@@ -67,8 +63,6 @@ export function buildColorThemePickerViews({
 			polarity,
 			selectedId: resolveTerminalColorTheme(polarity, slot, colorThemes).id,
 			settingId: polarity === 'dark' ? 'themes.dark' : 'themes.light',
-			onCommit: (themeId) => onCommit(polarity, themeId),
-			onPreview: (themeId) => onPreview(polarity, themeId),
 		};
 	});
 }
@@ -78,21 +72,5 @@ function colorThemeOption(
 	formatMessage: (descriptor: MessageDescriptor) => string,
 ): TerminalColorThemeOptionView {
 	const name = COLOR_THEME_NAME_MESSAGES.get(theme.id);
-	return {
-		id: theme.id,
-		name: name === undefined ? theme.id : formatMessage(name),
-		swatch: [
-			{ color: hexColor(theme.background), role: 'background' },
-			{ color: hexColor(theme.foreground), role: 'foreground' },
-			{ color: hexColor(theme.ansi.red), role: 'red' },
-			{ color: hexColor(theme.ansi.green), role: 'green' },
-			{ color: hexColor(theme.ansi.yellow), role: 'yellow' },
-			{ color: hexColor(theme.ansi.blue), role: 'blue' },
-			{ color: hexColor(theme.ansi.magenta), role: 'magenta' },
-		],
-	};
-}
-
-function hexColor(rgb: number): string {
-	return `#${rgb.toString(16).padStart(6, '0')}`;
+	return { id: theme.id, name: name === undefined ? theme.id : formatMessage(name) };
 }

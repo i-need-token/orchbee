@@ -24,7 +24,7 @@ import type {
 	TerminalDefaultSettingsClientSnapshot,
 	TerminalDefaultSettingsControl,
 } from '../../terminal-default-settings-control';
-import { colorThemesWithFixtures, fixtureDarkTheme } from '../../__tests__/color-theme-fixtures';
+import { colorThemesWithFixtures } from '../../__tests__/color-theme-fixtures';
 import { memoryUserSettings, type MemoryUserSettings } from '../../__tests__/memoryUserSettings';
 import { chooseSelectOption, selectedText, selectTrigger } from '../../__tests__/select-choice';
 
@@ -194,55 +194,6 @@ describe('TerminalSettingsSurface', () => {
 			);
 		});
 		expect(close).toHaveBeenCalledOnce();
-	});
-
-	it('previews a theme while moving through a list, restores it on Escape, and commits on Enter', async () => {
-		const themeTarget = document.createElement('div');
-		const userSettings = memoryUserSettings({ values: { 'appearance.mode': 'light' } });
-		const controller = trackDisposable(
-			new TerminalSettingsController({
-				colorThemes: colorThemesWithFixtures,
-				themeTarget,
-				userSettings,
-			}),
-		);
-		const { close, container, openCategory } = await renderSurface({ controller });
-		await openCategory('themes');
-		const darkThemes = requiredElement<HTMLElement>(
-			container.querySelector("[role='listbox'][aria-label='Dark theme']"),
-		);
-		const press = async (key: string): Promise<void> => {
-			await act(async () => {
-				darkThemes.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key }));
-			});
-		};
-		const savedValues = () => userSettings.getSnapshot().snapshot?.values;
-		await act(async () => darkThemes.focus());
-
-		await press('ArrowDown');
-		expect({ ...themeTarget.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
-		expect(savedValues()).toMatchObject({
-			'appearance.dark_theme': 'orchbee-dark',
-			'appearance.mode': 'light',
-		});
-
-		await press('Escape');
-		expect({ ...themeTarget.dataset }).toEqual({ theme: 'light' });
-		expect(close).not.toHaveBeenCalled();
-
-		await press('ArrowDown');
-		await press('Enter');
-		await vi.waitFor(() =>
-			expect(savedValues()).toMatchObject({
-				'appearance.dark_theme': fixtureDarkTheme.id,
-				'appearance.mode': 'dark',
-			}),
-		);
-		expect(
-			darkThemes
-				.querySelector("[role='option'][aria-selected='true']")
-				?.id.endsWith(fixtureDarkTheme.id),
-		).toBe(true);
 	});
 
 	it('switches the mounted Settings copy and persists an explicit display language', async () => {

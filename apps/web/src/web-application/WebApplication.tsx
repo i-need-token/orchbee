@@ -38,7 +38,11 @@ import type { TerminalSettingsController } from '../terminal-settings';
 import type { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
-import { TerminalSettingsSurface, type TerminalSettingsAbout } from '../terminal-settings-surface';
+import {
+	ColorThemeQuickPick,
+	TerminalSettingsSurface,
+	type TerminalSettingsAbout,
+} from '../terminal-settings-surface';
 import { isSettingsFileReadOnly } from '../user-settings';
 import type { TerminalLaunchProfileControl } from '../terminal-launch-profile-control';
 import type { TerminalDefaultSettingsControl } from '../terminal-default-settings-control';
@@ -258,6 +262,7 @@ export function WebApplication({
 				terminalLaunchProfileClient={terminalLaunchProfileClient}
 				terminalDefaultSettingsControl={terminalDefaultSettingsControl}
 			/>
+			<ColorThemeQuickPick controller={terminalSettingsController} />
 		</div>
 	);
 }

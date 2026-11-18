@@ -1,0 +1,4 @@
+/* The popup is as wide as the font picker's popup beside it in Settings. */
+.popup {
+	width: var(--ob-ref-container-3xs);
+}

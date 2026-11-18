@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the Settings dialog over the Workbench, closed by its close button, Escape or a press on its scrim: a navigation column with search and eight categories (General, Appearance, Themes, Terminal, Notifications, Keyboard, Agents, About) and a centered column of grouped cards whose rows each carry a name, an always-visible description and one immediately applied control. It covers System, English or Simplified-Chinese display language, application and terminal appearance, Light and Dark theme lists with in-place preview, copy-on-select, the new terminal folder, terminal history, macOS Option-as-Alt, shell launch profiles, notifications, keyboard shortcuts, restore-after-restart choices, local Agent integrations, and About with the window's version and Check for updates, with per-setting restore default, a per-row reason when the settings file refuses a change, a read-only page while the file cannot be parsed or read, dismissible page notices, global search and the settings file's real path for the options the page leaves out, without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the Settings dialog over the Workbench, closed by its close button, Escape or a press on its scrim: a navigation column with search and eight categories (General, Appearance, Themes, Terminal, Notifications, Keyboard, Agents, About) and a centered column of grouped cards whose rows each carry a name, an always-visible description and one immediately applied control. It covers System, English or Simplified-Chinese display language, application and terminal appearance, Light and Dark theme groups whose Choose theme button opens a quick pick over the window that previews the highlighted theme on the whole window, copy-on-select, the new terminal folder, terminal history, macOS Option-as-Alt, shell launch profiles, notifications, keyboard shortcuts, restore-after-restart choices, local Agent integrations, and About with the window's version and Check for updates, with per-setting restore default, a per-row reason when the settings file refuses a change, a read-only page while the file cannot be parsed or read, dismissible page notices, global search and the settings file's real path for the options the page leaves out, without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -40,6 +40,7 @@
 		"apps/web/src/terminal-settings/model/windowTerminalColors.ts",
 		"apps/web/src/browser-local-fonts/createBrowserLocalFontCatalog.ts",
 		"apps/web/src/terminal-settings-surface/components/theme-settings/ThemeSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/color-theme-quick-pick/ColorThemeQuickPick.tsx",
 		"apps/web/src/terminal-settings-surface/components/terminal-behavior-settings/TerminalBehaviorSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/notification-settings/NotificationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/agent-settings/AgentSettings.tsx",
@@ -103,7 +104,39 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-themes",
 			"states": [
-				"Inspect the Light theme and Dark theme cards: one line per theme with its swatch strip and a check on the chosen line, the In use now tag on the group in use, the one-line note on the other group when the app appearance is fixed, and the filter box above a list of more than eight themes. Arrow keys preview, and the terminal preview above the lists follows; Enter or a click commits, and Escape restores the committed theme."
+				"Inspect the Light theme and Dark theme groups: the theme each slot holds, the In use now tag on the group in use, the one-line note on the other group when the app appearance is fixed, and a Choose theme button on each. The terminal preview above the groups shows the committed theme."
+			]
+		},
+		{
+			"exportName": "EnglishColorThemeLight",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-color-theme-light",
+			"states": [
+				"The Themes page with the app appearance Light: each group names its theme beside a Choose theme button, and the window stays light while no list is open."
+			]
+		},
+		{
+			"exportName": "EnglishColorThemeDark",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-color-theme-dark",
+			"states": [
+				"The Themes page with the app appearance Dark: the window stays dark while no list is open, and each group names its theme beside a Choose theme button."
+			]
+		},
+		{
+			"exportName": "EnglishColorThemeLightList",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-color-theme-light-list",
+			"states": [
+				"The Light theme quick pick over the window with the current light theme highlighted and the search field ready; moving the highlight previews its theme on the whole window, Enter keeps it, and Escape or a press outside restores the previous presentation and reopens Settings at the Light theme button."
+			]
+		},
+		{
+			"exportName": "EnglishColorThemeDarkList",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-color-theme-dark-list",
+			"states": [
+				"The Dark theme quick pick over the window with the current dark theme highlighted; the same preview, keep, and restore behavior as the Light list."
 			]
 		},
 		{
@@ -207,7 +240,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-themes",
 			"states": [
-				"Inspect the localized theme lists with the dark group in use and the note on the light group."
+				"Inspect the localized theme groups with the dark group in use, the note on the light group, and the Choose theme buttons."
 			]
 		},
 		{
@@ -303,7 +336,7 @@
 		"Text and background color rows appear only while terminal colors is set to Custom.",
 		"A language the file does not set uses ordered system or Browser locale resolution without writing a default; either explicit language selection persists and immediately takes precedence for mounted product copy, while user data and existing shared titles remain unchanged.",
 		"Application theme, terminal display theme, overlays, cursor presentation, and every mounted projected terminal publish through one exact Host-theme-revision barrier; data-theme changes only after all participants synchronously commit.",
-		"Each theme list holds the themes of its polarity, one per line with a swatch strip and a check on the slot's effective theme; the group in use carries an In use now tag and, when the app appearance is fixed, the other group carries a one-line note. Moving through a list previews the theme on the application and every mounted terminal without saving; Enter or a click commits it to its slot, also switching an Appearance fixed to the other polarity; Escape, leaving the list, closing Settings, or a refused save restores the committed theme.",
+		"Choose theme closes Settings and shows one quick pick over the window that holds the themes of its polarity by name, with a search field always shown and a check on the slot's effective theme; the group in use carries an In use now tag and, when the app appearance is fixed, the other group carries a one-line note. Moving the highlight, by keys or pointer, previews the theme on the application and every mounted terminal without saving; Enter or a click stores it in its polarity's slot and leaves the app appearance alone, so the window shows the theme the app appearance selects; Escape or a press outside restores the committed theme and reopens Settings at the group's Choose theme button, and a refused save restores the committed theme. While the list is up the Workbench behind it stays inert, so a press over a Panel only closes the list.",
 		"Font family, size, and copy-on-select update mounted projected terminals without replacing their attachments.",
 		"The font row is a field that takes a font list, committed on Enter or when it loses focus; Escape takes back an uncommitted edit, an empty field restores the default, and a list that does not parse or is over 256 UTF-8 bytes shows the invalid notice and neither previews nor saves. Browse opens the searchable list of installed families from the composition's font catalog, fixed-width families first and alone until Show all fonts is on, each named in its own face except picture fonts; a search looks through every family and also offers the typed text. Picking a family moves it to the front of the field's list and keeps the rest, and the built-in entry restores the default. Without a catalog the list holds the built-in entry and the typed text. Font size is a minus, value, plus stepper that applies each step at once.",
 		"Font size precedes Font, whose row carries a terminal preview across its width, and the Themes page starts with the same preview: a prompt, a listing and the sixteen ANSI colors in the candidate font, size and colors, meaning the highlighted font, a valid typed font list, a valid typed size and the presented theme, else the committed values, resolved as the window paints its terminals. A preview never writes, and search hides it.",

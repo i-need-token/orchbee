@@ -1,5 +1,5 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { ProductIcon, Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
+import { Button } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import {
@@ -13,9 +13,6 @@ import type { TerminalColorThemeListView } from '../../types/terminal-settings-s
 import { buildColorThemePickerViews } from '../../utils/buildColorThemePickerViews';
 import { matchesSettingsQuery } from '../../utils/matchesSettingsQuery';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
-import { SETTINGS_LIST_FILTER_THRESHOLD } from '../../constants/settings-list-filter';
-import { SettingsListFilter } from '../settings-list-filter/SettingsListFilter';
-import { SettingsListFilterEmpty } from '../settings-list-filter-empty/SettingsListFilterEmpty';
 import { TerminalPreview } from '../terminal-preview/TerminalPreview';
 import styles from './ThemeSettings.module.css';
 
@@ -25,9 +22,9 @@ interface ThemeSettingsProps {
 }
 
 /**
- * A terminal preview of the theme shown now, then the light and dark theme lists; the list the app
- * appearance shows now is tagged in use. Moving through a list previews its theme everywhere,
- * the preview included.
+ * A terminal preview of the theme shown now, then one group per polarity. Each group names the
+ * theme its slot holds and opens that polarity's list as a quick pick over the window; the group
+ * the app appearance shows now is tagged in use.
  */
 export function ThemeSettings({ controller, query }: ThemeSettingsProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
@@ -41,16 +38,21 @@ export function ThemeSettings({ controller, query }: ThemeSettingsProps): React.
 		formatMessage: (descriptor) => intl.formatMessage(descriptor),
 		preferences: snapshot.preferences,
 		systemDark,
-		onCommit: (polarity, themeId) => {
-			if (!readOnly) controller.selectColorTheme(polarity, themeId);
-		},
-		onPreview: (polarity, themeId) =>
-			controller.previewColorTheme(themeId === null ? null : { polarity, themeId }),
 	});
 	const { presented } = snapshot;
-	const groups = lists.map((list) => {
+	const groups = lists.flatMap((list) => {
+		if (
+			query.trim() !== '' &&
+			!matchesSettingsQuery(
+				query,
+				[list.label, ...list.options.map((option) => option.name)],
+				intl.locale,
+			)
+		) {
+			return [];
+		}
 		const slot = list.polarity === 'dark' ? dark : light;
-		return (
+		return [
 			<SettingsGroup
 				description={slot.failureMessage ?? list.note}
 				key={list.settingId}
@@ -59,9 +61,13 @@ export function ThemeSettings({ controller, query }: ThemeSettingsProps): React.
 				tag={list.inUse ? intl.formatMessage(terminalSettingsMessages.pageThemesInUse) : null}
 				onRestore={readOnly ? undefined : slot.restore}
 			>
-				<ColorThemeList list={list} query={query} />
-			</SettingsGroup>
-		);
+				<ColorThemeChooser
+					disabled={readOnly}
+					list={list}
+					onOpen={() => controller.openColorThemePicker(list.polarity)}
+				/>
+			</SettingsGroup>,
+		];
 	});
 	return (
 		<>
@@ -81,182 +87,33 @@ export function ThemeSettings({ controller, query }: ThemeSettingsProps): React.
 	);
 }
 
-const SWATCH_CELL = { gap: 2, height: 10, insetBlock: 3, insetInline: 4, width: 7 } as const;
-
-/** A strip of the theme's background holding its foreground and five ANSI colors. */
-function ThemeSwatch({
-	swatch,
-}: {
-	readonly swatch: TerminalColorThemeListView['options'][number]['swatch'];
-}): React.ReactNode {
-	const [background, ...cells] = swatch;
-	const width =
-		SWATCH_CELL.insetInline * 2 +
-		cells.length * SWATCH_CELL.width +
-		(cells.length - 1) * SWATCH_CELL.gap;
-	const height = SWATCH_CELL.insetBlock * 2 + SWATCH_CELL.height;
-	return (
-		<svg aria-hidden='true' className={styles['swatch']} viewBox={`0 0 ${width} ${height}`}>
-			<rect fill={background?.color} height={height} rx={4} width={width} />
-			{cells.map((cell, index) => (
-				<rect
-					fill={cell.color}
-					height={SWATCH_CELL.height}
-					key={cell.role}
-					rx={2}
-					width={SWATCH_CELL.width}
-					x={SWATCH_CELL.insetInline + index * (SWATCH_CELL.width + SWATCH_CELL.gap)}
-					y={SWATCH_CELL.insetBlock}
-				/>
-			))}
-		</svg>
-	);
-}
-
-interface ColorThemeListProps {
+interface ColorThemeChooserProps {
+	readonly disabled: boolean;
 	readonly list: TerminalColorThemeListView;
-	readonly query: string;
+	readonly onOpen: () => void;
 }
 
-/**
- * One list's themes, one per line. Moving through the list previews the highlighted theme; Enter,
- * Space, or a click commits it; Escape or leaving the list restores the committed theme.
- */
-function ColorThemeList({ list, query }: ColorThemeListProps): React.ReactNode {
+/** The theme a group's slot holds, beside the button that opens the group's list. */
+function ColorThemeChooser({ disabled, list, onOpen }: ColorThemeChooserProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
-	const { label, selectedId, settingId, onCommit, onPreview } = list;
-	const [activeId, setActiveId] = React.useState<string | null>(null);
-	const [filter, setFilter] = React.useState('');
-	const searching = query.trim() !== '';
-	const filterVisible = !searching && list.options.length > SETTINGS_LIST_FILTER_THRESHOLD;
-	const options = list.options.filter((option) => {
-		if (searching) {
-			return (
-				matchesSettingsQuery(query, [option.name], intl.locale) ||
-				(option.id === selectedId && matchesSettingsQuery(query, [label], intl.locale))
-			);
-		}
-		return !filterVisible || matchesSettingsQuery(filter, [option.name], intl.locale);
-	});
-	const highlightedId = activeId ?? selectedId;
-	const optionElementId = (themeId: string): string => `${settingId}-option-${themeId}`;
-
-	const restore = (): void => {
-		setActiveId(null);
-		onPreview(null);
-	};
-	const commit = (themeId: string): void => {
-		setActiveId(null);
-		if (themeId === selectedId) onPreview(null);
-		else onCommit(themeId);
-	};
-	const highlight = (index: number): void => {
-		const option = options[Math.min(Math.max(index, 0), options.length - 1)];
-		if (option === undefined) return;
-		setActiveId(option.id);
-		onPreview(option.id === selectedId ? null : option.id);
-		document.getElementById(optionElementId(option.id))?.scrollIntoView({ block: 'nearest' });
-	};
-	const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
-		const index = options.findIndex((option) => option.id === highlightedId);
-		switch (event.key) {
-			case 'ArrowDown':
-				event.preventDefault();
-				highlight(index + 1);
-				return;
-			case 'ArrowUp':
-				event.preventDefault();
-				highlight(index - 1);
-				return;
-			case 'Home':
-				event.preventDefault();
-				highlight(0);
-				return;
-			case 'End':
-				event.preventDefault();
-				highlight(options.length - 1);
-				return;
-			case 'Enter':
-			case ' ':
-				event.preventDefault();
-				commit(highlightedId);
-				return;
-			case 'Escape':
-				// Without a preview to restore, Escape belongs to Settings.
-				if (activeId === null || activeId === selectedId) return;
-				event.preventDefault();
-				restore();
-		}
-	};
-	const highlightedVisible = options.some((option) => option.id === highlightedId);
-
+	const nameId = React.useId();
+	const selected = list.options.find((option) => option.id === list.selectedId);
 	return (
-		<>
-			{filterVisible ? (
-				<SettingsListFilter
-					placeholder={intl.formatMessage(
-						list.polarity === 'dark'
-							? terminalSettingsMessages.pageFilterDarkThemes
-							: terminalSettingsMessages.pageFilterLightThemes,
-					)}
-					shown={options.length}
-					total={list.options.length}
-					value={filter}
-					onChange={setFilter}
-				/>
-			) : null}
-			{filterVisible && options.length === 0 ? <SettingsListFilterEmpty /> : null}
-			{options.length === 0 ? null : (
-				<div
-					aria-activedescendant={highlightedVisible ? optionElementId(highlightedId) : undefined}
-					aria-label={label}
-					className={styles['list']}
-					id={settingId}
-					role='listbox'
-					tabIndex={0}
-					onBlur={() => {
-						if (activeId !== null) restore();
-					}}
-					onKeyDown={onKeyDown}
-				>
-					{options.map((option) => {
-						const selected = option.id === selectedId;
-						return (
-							<div
-								aria-selected={selected}
-								className={styles['option']}
-								data-highlighted={option.id === highlightedId}
-								data-settings-row
-								id={optionElementId(option.id)}
-								key={option.id}
-								role='option'
-								onClick={() => commit(option.id)}
-							>
-								<ThemeSwatch swatch={option.swatch} />
-								<span className={styles['name']}>
-									{searching ? `${label}: ${option.name}` : option.name}
-								</span>
-								{selected ? (
-									<Tooltip>
-										<TooltipTrigger
-											render={
-												<span className={styles['check']}>
-													<ProductIcon name='check' />
-												</span>
-											}
-										/>
-										<TooltipContent side='top'>
-											{intl.formatMessage(terminalSettingsMessages.pageSelected)}
-										</TooltipContent>
-									</Tooltip>
-								) : (
-									<span className={styles['check']} />
-								)}
-							</div>
-						);
-					})}
-				</div>
-			)}
-		</>
+		<div className={styles['chooser']} data-settings-row>
+			<span className={styles['name']} id={nameId}>
+				{selected?.name ?? list.selectedId}
+			</span>
+			<Button
+				aria-describedby={nameId}
+				aria-haspopup='dialog'
+				data-color-theme-trigger={list.polarity}
+				disabled={disabled}
+				size='sm'
+				variant='outline'
+				onClick={onOpen}
+			>
+				{intl.formatMessage(terminalSettingsMessages.pageThemeChoose)}
+			</Button>
+		</div>
 	);
 }

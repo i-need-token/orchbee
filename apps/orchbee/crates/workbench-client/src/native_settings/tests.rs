@@ -384,7 +384,7 @@ fn a_narrow_page_shows_one_column_and_escape_steps_back_one_column() {
 }
 
 #[test]
-fn a_theme_line_sets_its_slot_and_the_appearance_that_shows_it_in_one_edit() {
+fn a_theme_line_stores_its_slot_and_leaves_appearance_alone() {
     for (appearance, slot, shown) in [
         (
             ApplicationAppearance::Light,
@@ -416,11 +416,15 @@ fn a_theme_line_sets_its_slot_and_the_appearance_that_shows_it_in_one_edit() {
                 .is_some_and(|preview| preview.application_theme == shown),
             "a focused theme line previews at its own polarity"
         );
+        // Enter on a theme of the polarity that is not showing stores its slot and nothing else.
         let submission = editor.edit(Edit::Activate).unwrap();
         let (written, restored) = keys(&submission);
         assert!(restored.is_empty());
-        assert!(written.contains(&key(setting_for_row(slot).unwrap().key)));
-        assert!(written.contains(&key(UserSettingsField::ApplicationTheme)));
+        assert_eq!(
+            written,
+            [key(setting_for_row(slot).unwrap().key)],
+            "only the slot is written"
+        );
     }
 }
 

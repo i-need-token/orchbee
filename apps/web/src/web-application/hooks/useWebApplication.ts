@@ -35,17 +35,20 @@ export function useWebApplication({
 	const applicationReference = useRef<HTMLDivElement>(null);
 	const workbenchReference = useRef<HTMLDivElement>(null);
 	const returnFocusReference = useRef<HTMLElement | null>(null);
+	// The Color Theme list stands outside the Workbench. While it is up, the Workbench stays inert, so a
+	// press outside the list only dismisses it and reaches no Panel or Workbench control.
+	const workbenchCovered = settings.open || settings.colorThemePicker !== null;
 	useLayoutEffect(() => {
 		const workbench = workbenchReference.current;
 		if (workbench === null) return;
-		workbench.inert = settings.open;
-		if (settings.open) workbench.setAttribute('aria-hidden', 'true');
+		workbench.inert = workbenchCovered;
+		if (workbenchCovered) workbench.setAttribute('aria-hidden', 'true');
 		else workbench.removeAttribute('aria-hidden');
 		return () => {
 			workbench.inert = false;
 			workbench.removeAttribute('aria-hidden');
 		};
-	}, [settings.open]);
+	}, [workbenchCovered]);
 
 	const restoreWorkbenchFocus = useMemoizedFn((): void => {
 		const application = applicationReference.current;
@@ -89,7 +92,9 @@ export function useWebApplication({
 		landing: TerminalSettingsLanding | null,
 	): ReturnType<WorkbenchHostActionCallback> => {
 		if (context.signal.aborted) return { kind: 'cancelled' };
-		if (terminalSettingsController.getSnapshot().open) return { kind: 'unchanged' };
+		// Settings does not open over a Color Theme list that is still up; the list closes first.
+		const snapshot = terminalSettingsController.getSnapshot();
+		if (snapshot.open || snapshot.colorThemePicker !== null) return { kind: 'unchanged' };
 		const activeElement = applicationReference.current?.ownerDocument.activeElement;
 		returnFocusReference.current =
 			activeElement instanceof HTMLElement && activeElement.isConnected ? activeElement : null;

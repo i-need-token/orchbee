@@ -109,8 +109,6 @@ export interface TerminalSettingsSurfaceProps {
 export interface TerminalColorThemeOptionView {
 	readonly id: string;
 	readonly name: string;
-	/** The theme's background, foreground, and five ANSI colors, left to right. */
-	readonly swatch: readonly { readonly color: string; readonly role: string }[];
 }
 
 export interface TerminalColorThemeListView {
@@ -123,6 +121,4 @@ export interface TerminalColorThemeListView {
 	readonly polarity: 'dark' | 'light';
 	readonly selectedId: string;
 	readonly settingId: string;
-	readonly onCommit: (themeId: string) => void;
-	readonly onPreview: (themeId: string | null) => void;
 }

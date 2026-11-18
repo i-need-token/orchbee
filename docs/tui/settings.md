@@ -156,6 +156,9 @@ to the persistence boundary, naming only that setting.
 - A toggle or a picker choice commits when activated. A text or number row edits in place and commits
   on Enter; Esc keeps the confirmed value. Navigation, filtering, scrolling, resize, and focus changes
   never commit.
+- A theme line stores its theme in its polarity's slot and leaves Appearance as it is, so choosing
+  the dark theme while the window shows light keeps the window light. The window then shows what
+  Appearance selects.
 - A coherent multi-value task, such as a collection child page, commits as one change when it is
   accepted or left, and an invalid result is corrected or discarded rather than sent.
 - One change is in flight at a time. Its row shows the pending state while every other row, the
@@ -163,7 +166,8 @@ to the persistence boundary, naming only that setting.
   Repeated keys, clicks, or redraws cannot resubmit it.
 - A preview is admitted only when it is local, reversible, and safe to apply repeatedly. Moving the
   cursor in an open picker or over an uncommitted option may update it; Esc or return restores the
-  confirmed projection. Acceptance ends the preview and commits.
+  confirmed projection. A theme line not in use previews at its own polarity. Acceptance ends the
+  preview and commits.
 - Settings whose change sends a request beyond the settings file, changes authorization, drains work,
   affects privacy, or may fail externally do not preview through navigation.
 - Validation runs through the value owner. Invalid input keeps the confirmed value and explains the

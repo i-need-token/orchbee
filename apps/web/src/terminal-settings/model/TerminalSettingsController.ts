@@ -33,13 +33,17 @@ import type {
 	TerminalThemePresentationSource,
 } from './isTerminalThemePresentationSource';
 
-/** A Settings section that an opening asks to show first. */
-export type TerminalSettingsLanding = 'keyboard-shortcuts';
+/** A Settings section that an opening asks to show first; a theme landing returns to that theme's control. */
+export type TerminalSettingsLanding =
+	| 'keyboard-shortcuts'
+	| { readonly colorTheme: TerminalColorTheme['polarity'] };
 
 export interface TerminalSettingsSnapshot {
 	/** The section the latest opening asked for; null shows the surface's own choice. */
 	readonly landing: TerminalSettingsLanding | null;
 	readonly open: boolean;
+	/** The polarity whose theme list the quick pick shows now; null while no list is shown. */
+	readonly colorThemePicker: TerminalColorTheme['polarity'] | null;
 	/** The committed preferences, as the settings file holds them. */
 	readonly preferences: TerminalAppearancePreferences;
 	/**
@@ -152,7 +156,7 @@ export class TerminalSettingsController
 		this.#themeTarget = themeTarget;
 		const preferences = appearanceFromSettings(userSettings.getSnapshot().snapshot);
 		this.#presentationConfiguration = terminalPresentationConfigurationFromPreferences(preferences);
-		this.#snapshot = snapshot(false, null, preferences, preferences);
+		this.#snapshot = snapshot(false, null, null, preferences, preferences);
 		this.#applyTheme(preferences);
 		this.#removeUserSettings = userSettings.subscribe(() => this.#syncUserSettings());
 		systemTheme?.addEventListener('change', this.#handleSystemTheme);
@@ -186,7 +190,9 @@ export class TerminalSettingsController
 
 	open(landing: TerminalSettingsLanding | null = null): TerminalSettingsVisibilityResult {
 		if (this.#disposed) return { kind: 'disposed' };
-		if (this.#snapshot.open) return { kind: 'unchanged' };
+		if (this.#snapshot.open || this.#snapshot.colorThemePicker !== null) {
+			return { kind: 'unchanged' };
+		}
 		this.#snapshot = Object.freeze({ ...this.#snapshot, landing, open: true });
 		this.#emitSnapshot();
 		return { kind: 'changed' };
@@ -197,6 +203,43 @@ export class TerminalSettingsController
 		if (!this.#snapshot.open) return { kind: 'unchanged' };
 		if (this.#themePreview?.committing === false) this.previewColorTheme(null);
 		this.#snapshot = Object.freeze({ ...this.#snapshot, landing: null, open: false });
+		this.#emitSnapshot();
+		return { kind: 'changed' };
+	}
+
+	/**
+	 * Closes Settings and shows one polarity's theme list in its place. The committed presentation
+	 * holds until a theme in the list is highlighted.
+	 */
+	openColorThemePicker(polarity: TerminalColorTheme['polarity']): TerminalSettingsVisibilityResult {
+		if (this.#disposed) return { kind: 'disposed' };
+		if (this.#snapshot.colorThemePicker === polarity) return { kind: 'unchanged' };
+		if (this.#themePreview?.committing === false) this.previewColorTheme(null);
+		this.#snapshot = Object.freeze({
+			...this.#snapshot,
+			colorThemePicker: polarity,
+			landing: null,
+			open: false,
+		});
+		this.#emitSnapshot();
+		return { kind: 'changed' };
+	}
+
+	/**
+	 * Ends the theme list: a highlight's preview is dropped, a pick still being written keeps its
+	 * preview until the write settles, and Settings reopens at the control that opened the list.
+	 */
+	closeColorThemePicker(): TerminalSettingsVisibilityResult {
+		if (this.#disposed) return { kind: 'disposed' };
+		const polarity = this.#snapshot.colorThemePicker;
+		if (polarity === null) return { kind: 'unchanged' };
+		if (this.#themePreview?.committing === false) this.previewColorTheme(null);
+		this.#snapshot = Object.freeze({
+			...this.#snapshot,
+			colorThemePicker: null,
+			landing: { colorTheme: polarity },
+			open: true,
+		});
 		this.#emitSnapshot();
 		return { kind: 'changed' };
 	}
@@ -220,41 +263,33 @@ export class TerminalSettingsController
 	previewColorTheme(preview: TerminalColorThemePreview | null): void {
 		if (this.#disposed) return;
 		const current = this.#themePreview;
+		// A pick being written keeps its presentation until the write settles, so no highlight cancels it.
+		if (current?.committing === true) return;
 		if (preview === null ? current === null : sameColorThemePreview(current, preview)) return;
-		const before = this.#presented(this.#snapshot.preferences);
-		this.#themePreview =
+		this.#setThemePreview(
 			preview === null
 				? null
-				: { committing: false, polarity: preview.polarity, themeId: preview.themeId };
-		this.#presentIfChanged(before);
-		this.#refreshPresented();
+				: { committing: false, polarity: preview.polarity, themeId: preview.themeId },
+		);
 	}
 
 	/**
-	 * Picking a theme sets the slot of its polarity. When Appearance is fixed to the other polarity,
-	 * the pick switches Appearance too, so it shows at once; under System it applies when the system
-	 * matches.
+	 * Stores a theme in the slot of its polarity and leaves the app appearance alone, so the window
+	 * then shows whatever the appearance selects.
 	 */
 	selectColorTheme(polarity: TerminalColorTheme['polarity'], themeId: string): void {
 		if (this.#disposed) return;
-		const { applicationTheme } = this.#snapshot.preferences;
 		const changes: SettingChange[] = [
 			{
 				key: polarity === 'dark' ? APPEARANCE_KEYS.darkTheme : APPEARANCE_KEYS.lightTheme,
 				value: themeId,
 			},
 		];
-		if (applicationTheme !== 'system' && applicationTheme !== polarity) {
-			changes.push({ key: APPEARANCE_KEYS.applicationTheme, value: polarity });
-		}
-		const before = this.#presented(this.#snapshot.preferences);
 		const preview: ActiveColorThemePreview = { committing: true, polarity, themeId };
-		this.#themePreview = preview;
-		this.#presentIfChanged(before);
-		this.#refreshPresented();
+		this.#setThemePreview(preview);
 		const settle = (): void => {
 			if (this.#disposed || this.#themePreview !== preview) return;
-			this.previewColorTheme(null);
+			this.#setThemePreview(null);
 		};
 		void this.userSettings.edit(changes).then(settle, settle);
 	}
@@ -313,15 +348,27 @@ export class TerminalSettingsController
 		);
 	}
 
-	/** The preferences presented now: the committed ones with any previewed theme in its slot. */
+	/**
+	 * The preferences presented now: the committed ones with any previewed theme in its slot. A
+	 * highlight also takes its polarity, so a theme of the other polarity repaints the window; a pick
+	 * being written only fills its slot, so the window keeps the polarity the app appearance selects.
+	 */
 	#presented(preferences: TerminalAppearancePreferences): TerminalAppearancePreferences {
 		const preview = this.#themePreview;
 		if (preview === null) return preferences;
 		return {
 			...preferences,
-			applicationTheme: preview.polarity,
+			...(preview.committing ? {} : { applicationTheme: preview.polarity }),
 			[preview.polarity === 'dark' ? 'darkTheme' : 'lightTheme']: preview.themeId,
 		};
+	}
+
+	/** Puts a preview in place of the current one, or takes it away, and presents what changes. */
+	#setThemePreview(next: ActiveColorThemePreview | null): void {
+		const before = this.#presented(this.#snapshot.preferences);
+		this.#themePreview = next;
+		this.#presentIfChanged(before);
+		this.#refreshPresented();
 	}
 
 	/** A preview changed what the window shows: the snapshot carries it to its readers. */
@@ -370,6 +417,7 @@ export class TerminalSettingsController
 		this.#snapshot = snapshot(
 			this.#snapshot.open,
 			this.#snapshot.landing,
+			this.#snapshot.colorThemePicker,
 			preferences,
 			this.#presented(preferences),
 		);
@@ -477,10 +525,11 @@ function sameColorThemePreview(
 function snapshot(
 	open: boolean,
 	landing: TerminalSettingsLanding | null,
+	colorThemePicker: TerminalColorTheme['polarity'] | null,
 	preferences: TerminalAppearancePreferences,
 	presented: TerminalAppearancePreferences,
 ): TerminalSettingsSnapshot {
-	return Object.freeze({ landing, open, preferences, presented });
+	return Object.freeze({ colorThemePicker, landing, open, preferences, presented });
 }
 
 function fontWeight(value: number): TerminalAppearancePreferences['fontWeight'] | null {

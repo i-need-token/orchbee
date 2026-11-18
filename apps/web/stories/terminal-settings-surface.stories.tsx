@@ -2,7 +2,7 @@ import {
 	UserLaunchProfileIdSchema,
 	type UserLaunchProfileCatalog,
 } from '@orchbee/workbench-client-protocol';
-import type * as React from 'react';
+import * as React from 'react';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 import { TerminalSettingsController } from '../src/terminal-settings';
@@ -10,6 +10,7 @@ import { KeyboardShortcutSettingsController } from '../src/keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../src/macos-terminal-input-settings';
 import { TerminalFeedbackSettingsController } from '../src/terminal-feedback-settings';
 import {
+	ColorThemeQuickPick,
 	TerminalSettingsSurface,
 	type TerminalSettingsAbout,
 } from '../src/terminal-settings-surface';
@@ -177,6 +178,77 @@ function chineseDark(initialCategory: TerminalSettingsCategory): Story {
 		],
 	};
 }
+
+function colorThemeStory(mode: 'dark' | 'light', picker: 'dark' | 'light' | null): Story {
+	return {
+		args: { ...englishArgs, initialCategory: 'themes' },
+		play: async ({ canvasElement }) => {
+			if (picker === null) return;
+			const view = canvasElement.ownerDocument.defaultView;
+			if (view === null) throw new Error('Expected the Story to render in a window.');
+			await new Promise((resolve) => view.requestAnimationFrame(resolve));
+			// Open the list through its Choose theme button, as a person does, so it mounts closed.
+			canvasElement.ownerDocument
+				.querySelector<HTMLButtonElement>(`[data-color-theme-trigger='${picker}']`)
+				?.click();
+		},
+		render: () => <ColorThemeStory mode={mode} />,
+	};
+}
+
+/**
+ * The Themes page over a window whose theme the controller drives, with the quick pick a Themes
+ * button opens. The document element carries the theme, so a preview repaints the whole page.
+ */
+function ColorThemeStory({ mode }: { readonly mode: 'dark' | 'light' }): React.ReactNode {
+	const [story] = React.useState(() => createColorThemeStory(mode));
+	React.useEffect(() => story.release, [story]);
+	return (
+		<ApplicationLocaleProvider source={englishApplicationLocaleController}>
+			<TerminalSettingsSurface
+				{...englishArgs}
+				controller={story.controller}
+				initialCategory='themes'
+				onRequestClose={() => story.controller.close()}
+			/>
+			<ColorThemeQuickPick controller={story.controller} />
+		</ApplicationLocaleProvider>
+	);
+}
+
+interface ColorThemeStoryState {
+	readonly controller: TerminalSettingsController;
+	/** Disposes the controller and puts back the document's theme attributes it changed. */
+	readonly release: () => void;
+}
+
+function createColorThemeStory(mode: 'dark' | 'light'): ColorThemeStoryState {
+	const { dataset } = document.documentElement;
+	const saved = { colorTheme: dataset['colorTheme'], theme: dataset['theme'] };
+	const controller = new TerminalSettingsController({
+		themeTarget: document.documentElement,
+		userSettings: memoryUserSettings({
+			filePath: '/Users/person/.orchbee/config.toml',
+			values: { 'appearance.mode': mode, 'general.language': 'en-US' },
+		}),
+	});
+	controller.open();
+	return {
+		controller,
+		release: () => {
+			controller.dispose();
+			if (saved.colorTheme === undefined) delete dataset['colorTheme'];
+			else dataset['colorTheme'] = saved.colorTheme;
+			if (saved.theme === undefined) delete dataset['theme'];
+			else dataset['theme'] = saved.theme;
+		},
+	};
+}
+
+export const EnglishColorThemeLight: Story = colorThemeStory('light', null);
+export const EnglishColorThemeDark: Story = colorThemeStory('dark', null);
+export const EnglishColorThemeLightList: Story = colorThemeStory('light', 'light');
+export const EnglishColorThemeDarkList: Story = colorThemeStory('dark', 'dark');
 
 export const EnglishGeneral: Story = {
 	...englishLight('general'),

@@ -141,8 +141,8 @@ implemented with Orchbee's semantic tokens and shared primitives.
   list previews a value holds it above that list. A preview is local and reversible, as in the
   terminal interface's [commit and preview](../tui/settings.md#commit-and-preview) rule, and never
   sends a request. The terminal interface previews by repainting its whole frame, workspace
-  included; the window's dialog covers most of the workspace, so the window also draws the preview
-  in place.
+  included; the window shows the candidate over its whole area in a theme quick pick instead, and
+  Enter stores it in its polarity's slot, so the window shows what the app appearance selects.
 - A long list is one card with one entry per line. When it holds more than eight entries, its first
   line is a filter box with the shown count.
 - A page-wide notice, such as a persistence failure or a missing permission, is a dismissible banner

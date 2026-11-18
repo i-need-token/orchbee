@@ -156,9 +156,9 @@ impl Choice {
         }
     }
 
-    /// Picking a theme sets its slot and shows it: Appearance fixed to the other polarity
-    /// switches, and Terminal colors give way to Theme. Under System it shows when the host
-    /// matches. Re-picking the slot's effective theme leaves an unshipped stored id untouched.
+    /// Picking a theme stores it in the slot of its polarity and leaves Appearance alone, so the
+    /// window shows what Appearance selects. Under System it shows when the host matches.
+    /// Re-picking the slot's effective theme leaves an unshipped stored id untouched.
     pub(super) fn apply(self, values: &mut UserSettingsValues) {
         match self {
             Self::Locale(value) => values.locale = value,
@@ -172,15 +172,6 @@ impl Choice {
                 };
                 if ColorTheme::effective(polarity, slot) != choice {
                     theme.id().clone_into(slot);
-                }
-                match (values.application_theme, polarity) {
-                    (ApplicationAppearance::Light, Polarity::Dark) => {
-                        values.application_theme = ApplicationAppearance::Dark;
-                    }
-                    (ApplicationAppearance::Dark, Polarity::Light) => {
-                        values.application_theme = ApplicationAppearance::Light;
-                    }
-                    _ => {}
                 }
             }
             Self::TerminalTheme(value) => values.terminal_display_theme = value,

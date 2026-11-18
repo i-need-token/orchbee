@@ -326,20 +326,21 @@ theme's id on the theme target; the Orchbee pair sets no `data-color-theme`. Bot
 with the terminal publication transaction above.
 
 The Themes category holds a Light theme group and a Dark theme group. Each group is one card that
-lists the themes of its polarity, one per line, each with its localized name (the id for a theme
-without a name, such as a test fixture), a swatch strip of canvas, foreground, and ANSI 1–5, and a
-check on the slot's effective theme, so an unknown stored id shows the Orchbee theme it resolves
-to. Hover and the keyboard highlight fill a rounded band inset from the card's edges, the hairlines
-beside it hide, and keyboard focus rings only the highlighted theme, never the whole list. The group whose slot is in use carries a muted In use now tag; when Appearance is fixed, the
-other group carries a one-line note saying when it would apply. A list of more than eight themes
-starts with a filter box.
+names the theme its slot holds beside a Choose theme button. The group whose slot is in use carries
+a muted In use now tag; when Appearance is fixed, the other group carries a one-line note saying
+when it would apply. Choose theme closes Settings and opens that polarity's list over the window: a
+search field, always shown, and the themes of the polarity by name, with a check on the slot's
+effective theme, so an unknown stored id shows the Orchbee theme it resolves to.
+The list is a step inside the admitted Settings modal session, so it needs no admission of its own:
+it opens from Settings, always returns to Settings, and keeps the Workbench behind it inert, so
+a press over a Panel only closes the list.
 
-| Interaction                               | Result                                                                                                                    |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Arrow keys, Home, End                     | Highlight a theme and preview it at its own polarity on the application and every mounted terminal; nothing is saved      |
-| Enter, Space, or a click                  | Commit the theme to its slot; when Appearance is fixed to the other polarity, also set Appearance to the theme's polarity |
-| Escape with a preview                     | Restore the committed theme and keep Settings open; without a preview, Escape leaves Settings as usual                    |
-| Focus leaves the list, or Settings closes | Restore the committed theme                                                                                               |
+| Interaction                        | Result                                                                                                                                                |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arrow keys, Home, End, or hover    | Highlight a theme and preview it at its own polarity on the application and every mounted terminal; nothing is saved                                  |
+| Enter or a click                   | Store the theme in its polarity's slot and close the list; the app appearance is left alone, so the window shows the theme the app appearance selects |
+| Escape or a press outside the list | Restore the committed theme, close the list, and reopen Settings at its Choose theme button                                                           |
+| Focus leaves the list              | The same as a press outside                                                                                                                           |
 
 The controller's snapshot carries `presented`, the committed preferences with any previewed theme in
 its slot, so a preview reaches every reader without a write: the Desktop window's terminals repaint
@@ -640,11 +641,12 @@ fully disconnected SSH delivery remains out of scope.
 ## Named theme pickers
 
 Appearance selects System, Light or Dark; Light theme and Dark theme store separate catalog ids.
-System follows this GUI Client's OS appearance and switches slots without restart. Picking a
-theme while fixed to the other polarity switches Appearance too; under System, inactive-slot
-choices identify when they apply. Pickers filter by polarity and show localized names with
-canvas/foreground/ANSI swatches. Focus previews locally, Enter/click commits, and Escape restores
-the confirmed selection. Each slot's Restore default restores its Orchbee theme. Preview never publishes controlling
-query colors. Unknown/wrong-polarity ids resolve to that slot's Orchbee theme without rewriting
-the stored id. The [settings file owner](../../../crates/local-runtime/README.md#user-settings)
-owns syntax/persistence; the [theme crate](../../../crates/color-themes/README.md) owns data.
+System follows this GUI Client's OS appearance and switches slots without restart.
+Each theme list opens over the window from its Choose theme button and filters by polarity, showing
+localized names. The highlight previews locally, and Enter stores the theme in its polarity's slot
+without changing Appearance; under System, inactive-slot choices identify when they apply. Escape or
+a press outside restores the confirmed selection and reopens Settings. Each slot's Restore default
+restores its Orchbee theme. Preview never publishes controlling query colors. Unknown/wrong-polarity
+ids resolve to that slot's Orchbee theme without rewriting the stored id. The [settings file
+owner](../../../crates/local-runtime/README.md#user-settings) owns syntax/persistence; the [theme
+crate](../../../crates/color-themes/README.md) owns data.

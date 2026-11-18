@@ -116,6 +116,19 @@ export function useTerminalSettingsSurface({
 
 	React.useEffect(() => {
 		if (!snapshot.open) return;
+		// A theme list returns to the Themes button that opened it, keeping the category and search.
+		const landing = snapshot.landing;
+		if (landing !== null && landing !== 'keyboard-shortcuts') {
+			const control = contentReference.current?.querySelector<HTMLElement>(
+				`[data-color-theme-trigger='${landing.colorTheme}']`,
+			);
+			if (control) {
+				// A press outside the list moves focus after this Effect, so the button takes focus
+				// once that press has finished.
+				const timer = setTimeout(() => control.focus(), 0);
+				return () => clearTimeout(timer);
+			}
+		}
 		if (snapshot.landing === 'keyboard-shortcuts') setCategory('keyboard');
 		setQuery('');
 		searchReference.current?.focus();

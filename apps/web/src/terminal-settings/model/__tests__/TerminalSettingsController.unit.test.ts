@@ -31,6 +31,7 @@ describe('TerminalSettingsController', () => {
 		});
 
 		expect(controller.getSnapshot()).toEqual({
+			colorThemePicker: null,
 			landing: null,
 			open: false,
 			preferences: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
@@ -176,37 +177,47 @@ describe('TerminalSettingsController', () => {
 		controller.dispose();
 	});
 
-	it('commits a pick to its polarity slot, switching only a fixed Appearance of the other polarity', async () => {
+	it('opens a theme list over the window: a highlight previews, closing restores, a pick is stored once', async () => {
 		const target = document.createElement('div');
 		const preferences = memoryUserSettings({ values: { 'appearance.mode': 'light' } });
+		const edit = vi.spyOn(preferences, 'edit');
 		const controller = new TerminalSettingsController({
 			colorThemes: colorThemesWithFixtures,
 			themeTarget: target,
 			userSettings: preferences,
 		});
 
-		controller.selectColorTheme('dark', fixtureDarkTheme.id);
-		// The pick shows at once and stays shown through the save.
+		controller.open();
+		controller.openColorThemePicker('dark');
+		expect(controller.getSnapshot()).toMatchObject({ colorThemePicker: 'dark', open: false });
+		expect(controller.open()).toEqual({ kind: 'unchanged' });
+
+		// A highlight shows its theme over the window at its own polarity, and saves nothing.
+		controller.previewColorTheme({ polarity: 'dark', themeId: fixtureDarkTheme.id });
 		expect({ ...target.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
+		expect(edit).not.toHaveBeenCalled();
+
+		// Closing the list drops the highlight and reopens Settings at the button that opened it.
+		controller.closeColorThemePicker();
+		expect(controller.getSnapshot()).toMatchObject({
+			colorThemePicker: null,
+			landing: { colorTheme: 'dark' },
+			open: true,
+		});
+		expect({ ...target.dataset }).toEqual({ theme: 'light' });
+
+		// A pick stores its theme in the slot of its polarity once and leaves the appearance alone.
+		controller.openColorThemePicker('dark');
+		controller.selectColorTheme('dark', fixtureDarkTheme.id);
+		expect(edit).toHaveBeenCalledOnce();
+		expect(controller.getSnapshot().presented.darkTheme).toBe(fixtureDarkTheme.id);
+		expect({ ...target.dataset }).toEqual({ theme: 'light' });
 		await vi.waitFor(() =>
 			expect(preferences.getSnapshot().snapshot?.values).toMatchObject({
 				'appearance.dark_theme': fixtureDarkTheme.id,
-				'appearance.mode': 'dark',
+				'appearance.mode': 'light',
 			}),
 		);
-		expect({ ...target.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
-
-		// Under System, a pick for the inactive polarity waits for the system to match.
-		controller.update({ applicationTheme: 'system' });
-		await vi.waitFor(() => expect(target.dataset['theme']).toBe('light'));
-		controller.selectColorTheme('dark', orchbeeTerminalColorTheme('dark').id);
-		await vi.waitFor(() =>
-			expect(preferences.getSnapshot().snapshot?.values).toMatchObject({
-				'appearance.dark_theme': 'orchbee-dark',
-				'appearance.mode': 'system',
-			}),
-		);
-		await vi.waitFor(() => expect({ ...target.dataset }).toEqual({ theme: 'light' }));
 		controller.dispose();
 	});
 
