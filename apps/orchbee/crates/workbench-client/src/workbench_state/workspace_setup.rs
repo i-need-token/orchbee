@@ -117,6 +117,7 @@ pub(crate) enum SetupWorkerEvidence {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SetupResult {
     NotApplied,
+    OutcomeUnknown,
     /// A definite Server refusal of the submitted directory, with the field error naming why.
     DirectoryRefused(crate::localization::FieldError),
     LaunchRequestTooLarge,
@@ -511,6 +512,29 @@ impl WorkbenchClientState {
         }
         true
     }
+    /// Settles a request-scoped unknown setup outcome on a live carrier without locking the
+    /// session: keeps unread publication demand pending so publications catch up canonical
+    /// state and retains the non-transient unknown notice until the next user keypress.
+    pub(crate) fn settle_setup_unknown(&mut self, operation: &SetupOperation) -> bool {
+        if self.setup.pending.as_ref() != Some(operation) {
+            return false;
+        }
+        self.cancel_project_quick_entry();
+        self.setup.pending = None;
+        self.setup.known = None;
+        self.setup.submitted = None;
+        self.setup.deadlines = None;
+        self.setup.status = Some(operation.status(
+            LocationLabelStatus::OutcomeUnknown,
+            SetupStatus::OutcomeUnknown,
+        ));
+        if self.pending_refresh_generation() == Some(operation.generation) {
+            self.release_unread_publication_debt(true);
+        } else {
+            self.owe_publication_read();
+        }
+        true
+    }
     pub(crate) fn setup_launch_too_large(&mut self) {
         self.setup.status = Some(SetupStatus::LaunchRequestTooLarge);
     }
@@ -660,7 +684,16 @@ impl WorkbenchClientState {
                     SetupStatus::EmptyProjectDissolved
                 }
             }
-            WorkbenchSetupCommit::WorkspaceLaunched(_) => SetupStatus::WorkspaceCreated,
+            WorkbenchSetupCommit::WorkspaceLaunched(commit) => {
+                if matches!(
+                    commit.terminal_outcome,
+                    Some(orchbee_workbench_protocol::WorkbenchTerminalOutcome::OutcomeUnknown {})
+                ) {
+                    SetupStatus::OutcomeUnknown
+                } else {
+                    SetupStatus::WorkspaceCreated
+                }
+            }
             WorkbenchSetupCommit::WorkspaceOrder { .. } => return None,
             WorkbenchSetupCommit::TabsConfigured { .. } => SetupStatus::TabsConfigured,
             WorkbenchSetupCommit::NavigationConfigured { .. } => SetupStatus::NavigationConfigured,
@@ -708,6 +741,22 @@ impl WorkbenchClientState {
     }
     pub(crate) fn reset_setup_recovery_deadlines(&mut self, deadlines: OperationDeadlines) {
         self.setup.deadlines = Some(deadlines);
+    }
+
+    pub(super) fn clear_unknown_setup_status(&mut self) {
+        if matches!(
+            self.setup.status,
+            Some(
+                SetupStatus::OutcomeUnknown
+                    | SetupStatus::TabsOutcomeUnknown
+                    | SetupStatus::LocationLabel {
+                        status: LocationLabelStatus::OutcomeUnknown,
+                        ..
+                    }
+            )
+        ) {
+            self.setup.status = None;
+        }
     }
 }
 

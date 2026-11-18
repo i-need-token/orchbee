@@ -471,11 +471,13 @@ impl WorkbenchClientUi {
                 }
                 changed
             }
-            result @ (SetupResult::NotApplied
+            result @ (SetupResult::OutcomeUnknown
+            | SetupResult::NotApplied
             | SetupResult::DirectoryRefused(_)
             | SetupResult::LaunchRequestTooLarge
             | SetupResult::Stale
             | SetupResult::ConfirmationRequired) => {
+                let unknown = matches!(result, SetupResult::OutcomeUnknown);
                 let stale = matches!(result, SetupResult::Stale);
                 let too_large = matches!(result, SetupResult::LaunchRequestTooLarge);
                 let refused = match result {
@@ -483,7 +485,12 @@ impl WorkbenchClientUi {
                     _ => None,
                 };
                 let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |transaction| {
-                    if !state.settle_setup_refusal(&operation, stale) {
+                    let settled = if unknown {
+                        state.settle_setup_unknown(&operation)
+                    } else {
+                        state.settle_setup_refusal(&operation, stale)
+                    };
+                    if !settled {
                         return Err(CarrierFailure::Protocol);
                     }
                     if too_large {

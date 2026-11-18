@@ -200,9 +200,15 @@ struct CloseRecord {
     uncertain: bool,
     uncertain_exchange: Option<CloseOperation>,
     unavailable: bool,
+    /// Set when an exchange ends in a request-scoped unknown outcome: an Ambiguous Close
+    /// submission, conditional or not (a lost worker synthesizes one too), or an observation that
+    /// failed as the Client saw it. The shown Tab stays interactive until keypress. Typed Server
+    /// answers never set it.
+    request_scoped_unknown: bool,
     disposed_auto_admissions: u8,
     status_token: Option<CloseStatusToken>,
     displayed: bool,
+    report_dismissed: bool,
     submitted_at: Instant,
     /// The pending delay passed, or this record already reached the status line. It stays there,
     /// so a recovered read never turns a reported close silent again.
@@ -224,9 +230,11 @@ impl CloseRecord {
             uncertain: false,
             uncertain_exchange: None,
             unavailable: false,
+            request_scoped_unknown: false,
             disposed_auto_admissions: 0,
             status_token: None,
             displayed: false,
+            report_dismissed: false,
             submitted_at,
             announced: false,
             initial_read_pending: false,
@@ -239,7 +247,7 @@ impl CloseRecord {
     /// again waits for its first read as a new one does: its Tab stays, and its report returns only
     /// should that read find it still stopped.
     fn announced(&self) -> bool {
-        self.announced || (!self.initial_read_pending && self.stopped())
+        (self.announced || (!self.initial_read_pending && self.stopped())) && !self.report_dismissed
     }
 
     /// Whether the close is on its ordinary way out: submitted, accepted, closing or closed, with
@@ -275,6 +283,8 @@ impl CloseRecord {
         self.announced = false;
         self.initial_read_pending = true;
         self.displayed = false;
+        self.report_dismissed = false;
+        self.request_scoped_unknown = false;
     }
 
     /// Whether this is a stopped close closed again that waits for its first read.
@@ -426,10 +436,12 @@ impl CloseState {
     /// each follows its own leaf, which a membership that no longer draws that leaf ends, so none
     /// holds navigation or structure.
     pub(super) fn permits_retired_membership(&self) -> bool {
-        self.records
-            .iter()
-            .all(|record| record.selection.target.panel_id.is_some())
-            && self.confirmation.is_none()
+        self.records.iter().all(|record| {
+            record.selection.target.panel_id.is_some()
+                || (record.reconciliation.is_none()
+                    && record.closed_revision.is_none()
+                    && (record.uncertain || record.request_scoped_unknown))
+        }) && self.confirmation.is_none()
             && self.pending.is_none()
             && self.completed_handoff.is_none()
             && self.manual_pass.is_empty()
@@ -674,8 +686,10 @@ impl CloseState {
         record.accepted_revision = Some(accepted.accepted_revision);
         record.uncertain = false;
         record.uncertain_exchange = None;
+        record.request_scoped_unknown = false;
         record.status_token = token;
         record.displayed = false;
+        record.report_dismissed = false;
         Ok(())
     }
 
@@ -749,8 +763,10 @@ impl CloseState {
         record.uncertain = false;
         record.uncertain_exchange = None;
         record.unavailable = false;
+        record.request_scoped_unknown = false;
         record.status_token = token;
         record.displayed = false;
+        record.report_dismissed = false;
         Ok(())
     }
 
@@ -791,11 +807,20 @@ impl CloseState {
         Ok(())
     }
 
+    /// An observation the Server could not make, as the Client saw it: its report shows again.
+    pub(crate) fn live_observation_failed(&mut self, target: &CloseTarget) {
+        if let Some(index) = self.record_index(target) {
+            self.records[index].request_scoped_unknown = true;
+        }
+        self.observation_failed(target);
+    }
+
     pub(crate) fn observation_failed(&mut self, target: &CloseTarget) {
         if let Some(index) = self.record_index(target) {
             let record = &mut self.records[index];
             record.unavailable = true;
             record.displayed = false;
+            record.report_dismissed = false;
         }
         if self
             .confirmation
@@ -1270,12 +1295,56 @@ impl<'a> super::WorkbenchClientView<'a> {
                 .state
                 .close
                 .status(&target)
-                .filter(|status| admit(status.record))
+                .filter(|status| !status.record.report_dismissed && admit(status.record))
             {
                 return Some(status);
             }
         }
-        self.state.close.latest_status(admit)
+        self.state
+            .close
+            .latest_status(|record| !record.report_dismissed && admit(record))
+    }
+}
+
+impl super::WorkbenchClientState {
+    pub(super) fn dismiss_unknown_outcome_closes(&mut self) {
+        if matches!(self.phase, super::ClientPhase::Retired(_))
+            || !matches!(self.close.carrier, CloseCarrier::Client)
+        {
+            return;
+        }
+        let pending = self
+            .close
+            .pending
+            .as_ref()
+            .map(|operation| operation.key().target().clone());
+        let handed = self
+            .close
+            .completed_handoff
+            .as_ref()
+            .map(|receipt| receipt.operation().key().target().clone());
+        let confirmation = self
+            .close
+            .confirmation
+            .as_ref()
+            .map(|prompt| prompt.intent.selection().target().clone());
+        self.close.records.retain(|record| {
+            let target = &record.selection.target;
+            let settled_ambiguous = record.operation.is_none()
+                && record.uncertain
+                && record.reconciliation.is_none()
+                && pending.as_ref() != Some(target)
+                && handed.as_ref() != Some(target)
+                && confirmation.as_ref() != Some(target)
+                && !self.close.manual_pass.contains(target);
+            !settled_ambiguous
+        });
+        for record in &mut self.close.records {
+            if record.request_scoped_unknown && record.stopped() {
+                record.report_dismissed = true;
+            }
+        }
+        self.dismiss_lost_close_set_summary();
     }
 }
 

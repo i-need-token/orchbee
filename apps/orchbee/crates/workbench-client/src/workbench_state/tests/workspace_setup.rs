@@ -518,3 +518,31 @@ fn a_setup_in_flight_completes_beside_a_focus_parked_mid_flight() {
     assert!(state.focused_viewer_lost());
     assert!(state.invariant_holds());
 }
+
+#[test]
+fn unknown_setup_unblocks_structure_owes_publication_and_clears_on_key() {
+    let mut state = ready(1);
+    state
+        .open_setup_draft(group_intent(&state, "MaybeGroup"))
+        .unwrap();
+    let operation = label_operation(&mut state, "MaybeGroup", 1);
+    assert!(state.setup_blocks_structure());
+    assert!(state.settle_setup_unknown(&operation));
+    assert_eq!(
+        state.apply_prepared_refresh(
+            PreparedRefresh::DefiniteFailure {
+                generation: operation.generation,
+                baseline_revision: state.cache().revision(),
+            },
+            Instant::now(),
+        ),
+        RefreshDecision::Continue
+    );
+    assert!(!state.setup_blocks_structure());
+    assert!(!state.mutation_blocks_structure());
+    assert!(state.publication_debt_pending());
+    assert_eq!(state.setup_status(), Some(Status::TabsOutcomeUnknown));
+    state.dismiss_unknown_outcome_notices();
+    assert_eq!(state.setup_status(), None);
+    assert!(state.invariant_holds());
+}

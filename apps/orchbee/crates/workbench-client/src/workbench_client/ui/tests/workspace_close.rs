@@ -78,6 +78,7 @@ pub(in crate::workbench_client) fn ready_after_guard_refusal() -> (
                 outcome: Box::new(WorkbenchSnapshotOutcome::Available {
                     snapshot: snapshot.clone(),
                 }),
+                request_unknown: false,
             },
             super::super::super::mailbox::EventDeadline::PlacementOnly(
                 operation.deadlines.forward_cutoff(),
@@ -496,6 +497,7 @@ fn background_workspace_close_ui_keeps_the_live_origin_through_cancel_and_canoni
                         WorkerEvent::WorkspaceCloseResult {
                             evidence: mailbox.workspace_close_worker_loss().unwrap(),
                             outcome: Box::new(WorkbenchSnapshotOutcome::Available { snapshot }),
+                            request_unknown: false,
                         },
                         super::super::super::mailbox::EventDeadline::PlacementOnly(
                             operation.deadlines.forward_cutoff(),
@@ -1141,6 +1143,7 @@ fn reply_conditional(
             WorkerEvent::WorkspaceCloseResult {
                 evidence: mailbox.workspace_close_worker_loss().unwrap(),
                 outcome: Box::new(WorkbenchSnapshotOutcome::Available { snapshot }),
+                request_unknown: false,
             },
             super::super::super::mailbox::EventDeadline::PlacementOnly(
                 operation.deadlines.forward_cutoff(),

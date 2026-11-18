@@ -229,6 +229,7 @@ impl WorkbenchClientState {
             })
         {
             self.workspace_close.evidence = None;
+            self.workspace_close.live_settled = false;
         }
         self.set_notice(ClientNotice::WorkspaceChanged);
     }

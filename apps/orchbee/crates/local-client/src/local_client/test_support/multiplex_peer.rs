@@ -137,6 +137,18 @@ impl Peer {
     pub fn answer_probes(&mut self) {
         self.probes = true;
     }
+    /// Closes the active opened request stream with `StreamCloseReason::OutcomeUnknown` while
+    /// keeping the multiplexed carrier alive.
+    pub fn outcome_unknown(&mut self) -> io::Result<()> {
+        let open = self.reply.take().ok_or(io::ErrorKind::InvalidData)?;
+        tolerate_closed_carrier(write_multiplex_message(
+            &mut self.stream,
+            &MultiplexMessage::StreamClose {
+                stream_id: open.id,
+                reason: orchbee_workbench_protocol::StreamCloseReason::OutcomeUnknown,
+            },
+        ))
+    }
     pub fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
         self.stream.set_read_timeout(timeout)
     }

@@ -23,28 +23,29 @@ impl ClientExecutor {
             .mailbox
             .allocate_workbench_request_id()
             .map_err(closed)?;
-        let result = self
-            .client
-            .current_directory(
-                CurrentDirectoryRequest {
-                    protocol_version: ProtocolVersion,
-                    request_id,
-                    session_id: session_id.clone(),
-                    workspace_id: workspace_id.clone(),
-                    panel,
-                },
-                deadline,
-                None,
-            )
-            .map_err(|error| match error {
-                CurrentDirectoryError::Unavailable | CurrentDirectoryError::Transport => {
-                    CarrierFailure::Transport
-                }
-                CurrentDirectoryError::Encoding | CurrentDirectoryError::Protocol => {
-                    CarrierFailure::Protocol
-                }
-                CurrentDirectoryError::Timeout => CarrierFailure::Deadline,
-            })?;
+        let result = match self.client.current_directory(
+            CurrentDirectoryRequest {
+                protocol_version: ProtocolVersion,
+                request_id,
+                session_id: session_id.clone(),
+                workspace_id: workspace_id.clone(),
+                panel,
+            },
+            deadline,
+            None,
+        ) {
+            Ok(result) => result,
+            Err(CurrentDirectoryError::Transport) if self.client.generation().is_some() => {
+                return Ok(None);
+            }
+            Err(CurrentDirectoryError::Unavailable | CurrentDirectoryError::Transport) => {
+                return Err(CarrierFailure::Transport);
+            }
+            Err(CurrentDirectoryError::Encoding | CurrentDirectoryError::Protocol) => {
+                return Err(CarrierFailure::Protocol);
+            }
+            Err(CurrentDirectoryError::Timeout) => return Err(CarrierFailure::Deadline),
+        };
         Ok(match result.outcome {
             CurrentDirectoryOutcome::Observed { directory } => Some(directory),
             CurrentDirectoryOutcome::Failed { .. } => None,

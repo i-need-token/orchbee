@@ -4,8 +4,8 @@ use crate::local_client::workbench::WorkbenchWorkspaceCloseAccepted;
 use crate::tui_presentation::GeometrySettlement;
 use crate::workbench_projection::{ClientContextLocation, project_native_context_tabs};
 use crate::workbench_state::workspace_close::{
-    WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult, WorkspaceCloseTarget,
-    WorkspaceCloseToken, retains_close_result,
+    WorkspaceCloseEvidence, WorkspaceCloseObservation, WorkspaceCloseOperation,
+    WorkspaceCloseResult, WorkspaceCloseTarget, WorkspaceCloseToken, retains_close_result,
 };
 use orchbee_workbench_protocol::{
     Project, WorkbenchAction, WorkbenchProjectId, WorkbenchTabCloseAttemptGeneration,
@@ -1155,7 +1155,7 @@ fn accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it() {
         result: WorkspaceCloseResult::WorkspaceAccepted(accepted(&operation)),
     };
     let sampled = operation.deadlines.total() - OPERATION_TOTAL;
-    assert!(state.accept_workspace_close_event(&admitted, sampled));
+    assert!(state.accept_workspace_close_event(&admitted, sampled, false));
     // Hidden but present: the canonical cache still names the Workspace until publication.
     assert_eq!(state.leaving_workspace_ids(), vec![workspace_id(1)]);
     assert_eq!(state.display_navigation().len(), 3);
@@ -1187,7 +1187,11 @@ fn accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it() {
         },
     };
     assert_eq!(
-        state.observe_workspace_close(operation.generation, Some(failed.result), sampled),
+        state.observe_workspace_close(
+            operation.generation,
+            WorkspaceCloseObservation::Answered(failed.result),
+            sampled
+        ),
         Some(true)
     );
     assert!(state.leaving_workspace_ids().is_empty());
@@ -1210,7 +1214,7 @@ fn accepted_current_close_marks_the_neighbour_and_lands_on_it() {
         result: WorkspaceCloseResult::WorkspaceAccepted(accepted(&operation)),
     };
     let sampled = operation.deadlines.total() - OPERATION_TOTAL;
-    assert!(state.accept_workspace_close_event(&admitted, sampled));
+    assert!(state.accept_workspace_close_event(&admitted, sampled, false));
 
     // The next shown Workspace in navigation order is marked at once, while the cache keeps the
     // closing row until its landing.
@@ -1257,7 +1261,7 @@ fn closing_the_only_shown_workspace_announces_closed_with_its_landing_not_before
         operation: operation.clone(),
         result: WorkspaceCloseResult::WorkspaceAccepted(accepted(&operation)),
     };
-    assert!(state.accept_workspace_close_event(&admitted, sampled));
+    assert!(state.accept_workspace_close_event(&admitted, sampled, false));
     let status = |state: &WorkbenchClientState| state.workspace_close_status().unwrap().status();
 
     // No other Workspace is shown to land on: no row is marked and the closing Workspace stays
@@ -1268,7 +1272,7 @@ fn closing_the_only_shown_workspace_announces_closed_with_its_landing_not_before
     assert_eq!(
         state.observe_workspace_close(
             operation.generation,
-            Some(observed(&operation, true)),
+            WorkspaceCloseObservation::Answered(observed(&operation, true)),
             sampled
         ),
         Some(true)
@@ -1338,5 +1342,70 @@ fn a_workspace_close_in_flight_completes_beside_a_focus_parked_mid_flight() {
     assert_eq!(state.active(), Some(&selection));
     assert_eq!(state.focus_pane_ref(), Some(focus));
     assert!(state.focused_viewer_lost());
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn live_settled_unknown_workspace_close_permits_refresh_and_dismisses_on_key() {
+    let mut state = background_state(false);
+    let token = state.open_workspace_close_at(&workspace_id(2)).unwrap();
+    state.acknowledge_workspace_close_draw(Some(token));
+    let operation = plan(&state, token).unwrap();
+    assert!(state.begin_workspace_close(operation.clone()));
+    let evidence = WorkspaceCloseEvidence {
+        operation: operation.clone(),
+        result: WorkspaceCloseResult::Unknown,
+    };
+    assert!(state.accept_workspace_close_event(&evidence, Instant::now(), true));
+    assert_eq!(
+        finish_refresh(
+            &mut state,
+            operation.generation,
+            WorkbenchSnapshotOutcome::Unavailable {
+                reason: orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+            },
+            None,
+        ),
+        RefreshDecision::Continue
+    );
+    assert!(!state.workspace_close_blocks_refresh());
+    assert!(!state.workspace_close_blocks_structure());
+    assert!(state.close_scope_available());
+    assert!(state.publication_debt_pending());
+    assert_eq!(
+        state.workspace_close_status().unwrap().status(),
+        crate::workbench_state::workspace_close::WorkspaceCloseStatus::Unknown
+    );
+    state.dismiss_unknown_outcome_notices();
+    assert!(state.workspace_close_status().is_none());
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn a_server_unanswered_read_keeps_an_accepted_close_fenced_with_its_evidence() {
+    let mut state = background_state(false);
+    let token = state.open_workspace_close_at(&workspace_id(2)).unwrap();
+    state.acknowledge_workspace_close_draw(Some(token));
+    let operation = plan(&state, token).unwrap();
+    assert!(state.begin_workspace_close(operation.clone()));
+    let admitted = WorkspaceCloseEvidence {
+        operation: operation.clone(),
+        result: WorkspaceCloseResult::WorkspaceAccepted(accepted(&operation)),
+    };
+    let sampled = operation.deadlines.total() - OPERATION_TOTAL;
+    assert!(state.accept_workspace_close_event(&admitted, sampled, false));
+    // The Server stops answering for the close mid-follow, as on a typed Unavailable.
+    assert_eq!(
+        state.observe_workspace_close(
+            operation.generation,
+            WorkspaceCloseObservation::Unanswered,
+            sampled
+        ),
+        Some(true)
+    );
+    assert!(state.workspace_close_blocks_refresh());
+    assert!(state.workspace_close_blocks_structure());
+    assert!(!state.close_scope_available());
+    assert!(state.workspace_close_status().is_some());
     assert!(state.invariant_holds());
 }

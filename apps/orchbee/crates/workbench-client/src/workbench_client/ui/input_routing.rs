@@ -18,6 +18,12 @@ impl WorkbenchClientUi {
         &mut self,
         input: PaneInput<'_>,
     ) -> PaneAdmission {
+        if matches!(input, PaneInput::HistoryKey(_) | PaneInput::CopySelection)
+            && self.retirement_failure.is_none()
+            && let Some(state) = self.state.as_mut()
+        {
+            state.dismiss_unknown_outcome_notices();
+        }
         let consumed = match input {
             PaneInput::Selection { pane, intent } => return self.pointer_selection(pane, intent),
             PaneInput::Link { source, cell } => return self.pointer_link(*source, cell),
@@ -73,6 +79,18 @@ impl WorkbenchClientUi {
     /// Delivers one local input to the surface that holds input. Popup program input always
     /// reports consumed because the popup lane owns its outcome.
     pub(in crate::workbench_client) fn surface_input(&mut self, input: SurfaceInput<'_>) -> bool {
+        if !matches!(
+            input,
+            SurfaceInput::ActionMenuHover { .. }
+                | SurfaceInput::CopyModeCell { .. }
+                | SurfaceInput::TabStripPage { .. }
+                | SurfaceInput::TabStripFollow { .. }
+                | SurfaceInput::PopupPointer { .. }
+        ) && self.retirement_failure.is_none()
+            && let Some(state) = self.state.as_mut()
+        {
+            state.dismiss_unknown_outcome_notices();
+        }
         match input {
             SurfaceInput::Settings {
                 expected,

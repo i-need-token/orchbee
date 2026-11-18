@@ -283,14 +283,19 @@ impl CloseState {
                     self.observation_failed(target);
                 }
             },
-            (
-                CloseOperationKind::Read { .. },
-                CloseResult::NotSubmitted | CloseResult::ObservationUnavailable,
-            ) => {
+            (CloseOperationKind::Read { .. }, CloseResult::NotSubmitted) => {
                 self.records[index].initial_read_pending = false;
                 self.observation_failed(target);
             }
+            (CloseOperationKind::Read { .. }, CloseResult::ObservationUnavailable) => {
+                self.records[index].initial_read_pending = false;
+                self.live_observation_failed(target);
+            }
             (CloseOperationKind::Close, CloseResult::Ambiguous) => {
+                // An Ambiguous Close submission is a request-scoped unknown outcome; the exchange
+                // may have reached the Server. apply_close_if_idle sets the same flag for a
+                // conditional close.
+                self.records[index].request_scoped_unknown = true;
                 self.retain_uncertain(index, operation);
             }
             _ => return Err(CloseStateError::OperationMismatch),
@@ -308,6 +313,7 @@ impl CloseState {
         record.unavailable = true;
         record.initial_read_pending = false;
         record.displayed = false;
+        record.report_dismissed = false;
         record.status_token = token;
     }
 
@@ -345,6 +351,8 @@ impl CloseState {
                 let index = self
                     .record_index(target)
                     .ok_or(CloseStateError::UnknownTarget)?;
+                // Set after retain_submission, which clears the flag of a stopped follow it restarts.
+                self.records[index].request_scoped_unknown = true;
                 self.retain_uncertain(index, operation);
             }
             CloseResult::Read(_) | CloseResult::TabSet(_) | CloseResult::ObservationUnavailable => {
@@ -689,8 +697,18 @@ impl WorkbenchClientState {
                 CloseResult::NotSubmitted | CloseResult::Precommit(_)
             ) && !confirmation_required(operation, result)
         };
-        if refused_start {
+        let tab_set_ambiguous = matches!(result, CloseResult::Ambiguous)
+            && matches!(operation.kind(), CloseOperationKind::TabSet(_));
+        if tab_set_ambiguous {
+            self.notice = Some(ClientNotice::ChangeOutcomeUnknown);
+        } else if refused_start {
             self.notice = Some(ClientNotice::CloseRequestNotApplied);
+        }
+        if matches!(
+            result,
+            CloseResult::Ambiguous | CloseResult::ObservationUnavailable
+        ) {
+            self.owe_publication_read();
         }
         Ok(())
     }
@@ -791,6 +809,7 @@ impl WorkbenchClientState {
                 record.selection.target.panel_id().is_none()
                     && record.selection.target.tab_id() == key.tab_id()
                     && (record.operation.is_some() || record.uncertain)
+                    && (record.reconciliation.is_some() || !record.request_scoped_unknown)
             })
     }
 }

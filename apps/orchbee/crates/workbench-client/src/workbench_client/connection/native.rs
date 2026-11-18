@@ -680,7 +680,8 @@ impl ClientExecutor {
             }
             | TerminalControlOutcome::Unavailable {
                 reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
-            } => ControllerMode::ReadOnly,
+            }
+            | TerminalControlOutcome::OutcomeUnknown {} => ControllerMode::ReadOnly,
             TerminalControlOutcome::Rejected { .. }
             | TerminalControlOutcome::Unavailable { .. } => return Err(CarrierFailure::Deadline),
             TerminalControlOutcome::InputAccepted {}
@@ -689,9 +690,6 @@ impl ClientExecutor {
             | TerminalControlOutcome::HostColorsAccepted {}
             | TerminalControlOutcome::Cleared { .. }
             | TerminalControlOutcome::ResetAccepted { .. } => return Err(CarrierFailure::Protocol),
-            TerminalControlOutcome::OutcomeUnknown {} => {
-                return Err(CarrierFailure::OutcomeUnknown);
-            }
         };
         if !self.setup_is_current(owner, &target.key)? {
             return Err(CarrierFailure::Deadline);
@@ -703,24 +701,25 @@ impl ClientExecutor {
             // so a later focus here claims the terminal instead of trusting a lost grant.
             self.attached_mut(&target.key)?.control_observation_due =
                 Some(self.clock.now() + control_takeover::CONTROL_OBSERVATION_INTERVAL);
-            self.report_host_colors_for_setup(
+            if self.report_host_colors_for_setup(
                 owner,
                 &target.key,
                 controller_id.clone(),
-                forward_cutoff,
-            )?;
-            let geometry = match target.geometry {
-                Some(geometry) => geometry,
-                None => self.mailbox.latest_geometry().map_err(closed)?,
-            };
-            if !self.resize_for_setup(
-                owner,
-                &target.key,
-                controller_id.clone(),
-                geometry,
                 forward_cutoff,
             )? {
-                return Err(CarrierFailure::Deadline);
+                let geometry = match target.geometry {
+                    Some(geometry) => geometry,
+                    None => self.mailbox.latest_geometry().map_err(closed)?,
+                };
+                if !self.resize_for_setup(
+                    owner,
+                    &target.key,
+                    controller_id.clone(),
+                    geometry,
+                    forward_cutoff,
+                )? {
+                    return Err(CarrierFailure::Deadline);
+                }
             }
         } else {
             self.publish_setup_configuration(&target.key, forward_cutoff)?;
@@ -2024,32 +2023,48 @@ impl ClientExecutor {
         deadline: Instant,
     ) -> Result<WorkbenchSnapshotOutcome> {
         let Some(baseline) = self.workbench_baseline.clone() else {
-            let result = self
-                .client
-                .submit_workbench_snapshot_read_before(
-                    SnapshotReadIntent {
-                        protocol_version: ProtocolVersion,
-                        request_id,
-                    },
-                    deadline,
-                )
-                .map_err(snapshot)?;
+            let result = match self.client.submit_workbench_snapshot_read_before(
+                SnapshotReadIntent {
+                    protocol_version: ProtocolVersion,
+                    request_id,
+                },
+                deadline,
+            ) {
+                Ok(result) => result,
+                Err(SnapshotReadError::Failed {
+                    reason: SnapshotReadFailure::Write(_),
+                    ..
+                }) if self.client.generation().is_some() => {
+                    return Ok(WorkbenchSnapshotOutcome::Unavailable {
+                        reason: orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+                    });
+                }
+                Err(error) => return Err(snapshot(error)),
+            };
             if let WorkbenchSnapshotOutcome::Available { snapshot: accepted } = &result.outcome {
                 self.workbench_baseline = Some(accepted.clone());
             }
             return Ok(result.outcome);
         };
-        let result = self
-            .client
-            .submit_workbench_publication_read_before(
-                PublicationReadIntent {
-                    protocol_version: ProtocolVersion,
-                    request_id,
-                    known_revision: baseline.revision,
-                },
-                deadline,
-            )
-            .map_err(publication)?;
+        let result = match self.client.submit_workbench_publication_read_before(
+            PublicationReadIntent {
+                protocol_version: ProtocolVersion,
+                request_id,
+                known_revision: baseline.revision,
+            },
+            deadline,
+        ) {
+            Ok(result) => result,
+            Err(PublicationReadError::Failed {
+                reason: PublicationReadFailure::Write(_),
+                ..
+            }) if self.client.generation().is_some() => {
+                return Ok(WorkbenchSnapshotOutcome::Unavailable {
+                    reason: orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+                });
+            }
+            Err(error) => return Err(publication(error)),
+        };
         match result.outcome {
             WorkbenchPublicationOutcome::Current { .. } => {
                 Ok(WorkbenchSnapshotOutcome::Available { snapshot: baseline })
@@ -2092,17 +2107,25 @@ impl ClientExecutor {
             .mailbox
             .allocate_workbench_request_id()
             .map_err(|error| ReadyFlowError::Carrier(closed(error)))?;
-        let result = self
-            .client
-            .submit_workbench_publication_read_before(
-                PublicationReadIntent {
-                    protocol_version: ProtocolVersion,
-                    request_id,
-                    known_revision: baseline.revision,
-                },
-                deadline,
-            )
-            .map_err(|error| ReadyFlowError::Carrier(publication(error)))?;
+        let result = match self.client.submit_workbench_publication_read_before(
+            PublicationReadIntent {
+                protocol_version: ProtocolVersion,
+                request_id,
+                known_revision: baseline.revision,
+            },
+            deadline,
+        ) {
+            Ok(result) => result,
+            Err(PublicationReadError::Failed {
+                reason: PublicationReadFailure::Write(_),
+                ..
+            }) if self.client.generation().is_some() => {
+                // Consume-then-stream-unknown on the live carrier still indicates a pending
+                // publication that the ordinary refresh path should read without retiring.
+                return Ok(true);
+            }
+            Err(error) => return Err(ReadyFlowError::Carrier(publication(error))),
+        };
         match result.outcome {
             WorkbenchPublicationOutcome::Published { publications } => {
                 let accepted = apply_workbench_publication(&baseline, &publications)
@@ -2491,7 +2514,11 @@ impl ClientExecutor {
             }
             | TerminalControlOutcome::Unavailable {
                 reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
-            } => {
+            }
+            | TerminalControlOutcome::OutcomeUnknown {} => {
+                if matches!(outcome, TerminalControlOutcome::OutcomeUnknown {}) {
+                    diagnostic_events::fault_contained(ContainedCommand::Resize, &outcome);
+                }
                 self.set_attached_mode(key, ControllerMode::ReadOnly)?;
                 self.attached_mut(key)?.accepted_geometry = None;
                 self.publish_setup_configuration(key, cutoff)?;
@@ -2507,9 +2534,6 @@ impl ClientExecutor {
             | TerminalControlOutcome::Cleared { .. }
             | TerminalControlOutcome::ResetAccepted { .. } => {
                 return Err(CarrierFailure::Protocol);
-            }
-            TerminalControlOutcome::OutcomeUnknown {} => {
-                return Err(CarrierFailure::OutcomeUnknown);
             }
         }
         if !self.setup_is_current(owner, key)? {
@@ -3132,21 +3156,46 @@ impl ClientExecutor {
         )))
     }
 
-    /// Best effort: only an unknown outcome is a carrier fact. Any settled outcome marks the
-    /// colors reported so a refused report is not retried on every command.
+    /// Best effort: an unknown outcome on a live carrier releases the Client's control grant
+    /// without retiring the session, matching ready-state host color synchronization. Any settled
+    /// outcome marks the colors reported so a refused report is not retried on every command.
     fn report_host_colors_for_setup(
         &mut self,
         owner: SetupOwner<'_>,
         key: &PaneRef,
         controller_id: orchbee_client_server_protocol::ControllerId,
         cutoff: Instant,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let Some((action, colors)) = self.host_colors_action(key, controller_id)? else {
-            return Ok(());
+            return Ok(true);
         };
         match self.control_for_setup(owner, key, action, cutoff)? {
             Some(TerminalControlOutcome::Observed { .. }) => Err(CarrierFailure::Protocol),
-            Some(TerminalControlOutcome::OutcomeUnknown {}) => Err(CarrierFailure::OutcomeUnknown),
+            Some(outcome @ TerminalControlOutcome::OutcomeUnknown {}) => {
+                diagnostic_events::fault_contained(ContainedCommand::HostColors, &outcome);
+                if let Ok(attached) = self.attached_mut(key) {
+                    attached.reported_host_colors = Some(colors);
+                }
+                if !self.setup_is_current(owner, key)? {
+                    return Err(CarrierFailure::Deadline);
+                }
+                self.set_attached_mode(key, ControllerMode::ReadOnly)?;
+                self.attached_mut(key)?.accepted_geometry = None;
+                // As on the ready path: the Server may have released the grant, so the pane
+                // shows that control was lost.
+                self.mailbox
+                    .publish_notice_before(
+                        WorkerEvent::PaneFailed {
+                            key: key.clone(),
+                            fault: PaneFault::ControlLost,
+                        },
+                        cutoff,
+                        &self.clock,
+                    )
+                    .map_err(event)?;
+                self.publish_setup_configuration(key, cutoff)?;
+                Ok(false)
+            }
             Some(
                 TerminalControlOutcome::Acquired { .. }
                 | TerminalControlOutcome::InputAccepted {}
@@ -3159,9 +3208,9 @@ impl ClientExecutor {
                 | TerminalControlOutcome::Unavailable { .. },
             ) => {
                 self.attached_mut(key)?.reported_host_colors = Some(colors);
-                Ok(())
+                Ok(true)
             }
-            None => Ok(()),
+            None => Ok(true),
         }
     }
 

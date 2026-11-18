@@ -276,7 +276,9 @@ impl CommandMailbox {
                 | RenameResult::Precommit(_)
                 | RenameResult::Unchanged(_),
             ) => None,
-            None => Some(RenameWorkerEvidence::Unknown(flight.operation.clone())),
+            Some(RenameResult::OutcomeUnknown) | None => {
+                Some(RenameWorkerEvidence::Unknown(flight.operation.clone()))
+            }
         }
     }
 }

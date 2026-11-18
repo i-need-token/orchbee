@@ -4,6 +4,7 @@ mod close_recovery;
 mod close_retirement;
 mod move_refinements;
 mod rename_interaction;
+mod request_scoped_unknown;
 mod retired_membership;
 mod retirement_redraw;
 use super::test_support::*;

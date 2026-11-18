@@ -156,6 +156,18 @@ pub(crate) struct WorkspaceCloseOperation {
     label: String,
 }
 
+/// What one settlement read of an accepted close observed.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum WorkspaceCloseObservation {
+    /// The Server answered for the close with this result.
+    Answered(WorkspaceCloseResult),
+    /// The Server no longer answers for the close (a typed refusal or unavailability).
+    Unanswered,
+    /// The read request was closed as unknown on a live carrier, a stream-scoped outcome. The
+    /// carrier stays healthy, so this alone settles the close without a Server answer.
+    RequestUnknown,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkspaceCloseResult {
     NotSubmitted,
@@ -340,6 +352,9 @@ pub(super) struct WorkspaceCloseState {
     show_pending: bool,
     /// The Closed result is a one-shot notice; retiring it keeps the evidence.
     closed_notice_retired: bool,
+    /// Settled without follow on a live multiplexed carrier: status stays visible until keypress
+    /// without blocking refresh, structure, or a subsequent close.
+    live_settled: bool,
 }
 
 /// Paces the settlement reads of one accepted close, one at a time, each in its own lease.
@@ -580,6 +595,7 @@ impl WorkbenchClientState {
                 .workspace_close
                 .evidence
                 .as_ref()
+                .filter(|_| !self.workspace_close.live_settled)
                 .is_some_and(|evidence| {
                     evidence.result.unresolved() && !self.reads_closed(&evidence.result)
                 })
@@ -624,6 +640,7 @@ impl WorkbenchClientState {
                 .workspace_close
                 .evidence
                 .as_ref()
+                .filter(|_| !self.workspace_close.live_settled)
                 .is_some_and(|evidence| evidence.result.unresolved())
             && self.invariant_holds()
     }
@@ -947,6 +964,7 @@ impl WorkbenchClientState {
         self.workspace_close.automatic_landing = None;
         self.workspace_close.show_pending = false;
         self.workspace_close.closed_notice_retired = false;
+        self.workspace_close.live_settled = false;
         self.adopt_publication_debt();
     }
     pub(crate) fn tick_workspace_close_pending(&mut self, sampled: Instant) -> bool {
@@ -1016,17 +1034,30 @@ impl WorkbenchClientState {
         &mut self,
         evidence: &WorkspaceCloseEvidence,
         sampled: Instant,
+        request_unknown: bool,
     ) -> bool {
         if !self.finish_workspace_close(evidence) {
             return false;
         }
         if evidence.result.is_pending() && self.workspace_close.evidence.as_ref() == Some(evidence)
         {
+            self.workspace_close.live_settled = false;
             self.workspace_close.follow = Some(CloseFollow {
                 due: sampled,
                 until: evidence.operation.deadlines.forward_cutoff(),
                 settled: false,
             });
+        } else if request_unknown
+            && self.workspace_close.evidence.as_ref() == Some(evidence)
+            && evidence.result.status() == WorkspaceCloseStatus::Unknown
+        {
+            // Only this request's own stream-scoped unknown settles the close without an answer.
+            self.workspace_close.live_settled = true;
+            if self.pending_refresh_generation() == Some(evidence.operation.generation) {
+                self.release_unread_publication_debt(true);
+            } else {
+                self.owe_publication_read();
+            }
         }
         true
     }
@@ -1098,7 +1129,7 @@ impl WorkbenchClientState {
     pub(crate) fn observe_workspace_close(
         &mut self,
         generation: u64,
-        observation: Option<WorkspaceCloseResult>,
+        observation: WorkspaceCloseObservation,
         sampled: Instant,
     ) -> Option<bool> {
         let followed = self.workspace_close.follow.is_some()
@@ -1111,9 +1142,18 @@ impl WorkbenchClientState {
             // The follow this read answered already ended; its outcome no longer waits for it.
             return Some(false);
         }
-        let Some(result) = observation else {
-            self.workspace_close.follow = None;
-            return Some(true);
+        let result = match observation {
+            WorkspaceCloseObservation::Answered(result) => result,
+            WorkspaceCloseObservation::Unanswered => {
+                self.workspace_close.follow = None;
+                return Some(true);
+            }
+            WorkspaceCloseObservation::RequestUnknown => {
+                self.workspace_close.follow = None;
+                self.workspace_close.live_settled = true;
+                self.owe_publication_read();
+                return Some(true);
+            }
         };
         let evidence = self.workspace_close.evidence.as_mut()?;
         if !evidence.operation.admits(&result) || !retains_close_result(&evidence.result, &result) {
@@ -1329,6 +1369,21 @@ impl WorkbenchClientState {
         });
         if self.workspace_close.automatic_landing.is_none() {
             self.retire_closed_workspace_close_notice();
+        }
+    }
+
+    pub(super) fn clear_settled_unknown_workspace_close(&mut self) {
+        if self.workspace_close.live_settled
+            && self.workspace_close.pending.is_none()
+            && self.workspace_close.follow.is_none()
+            && self
+                .workspace_close
+                .evidence
+                .as_ref()
+                .is_some_and(|evidence| !self.reads_closed(&evidence.result))
+        {
+            self.workspace_close.evidence = None;
+            self.workspace_close.live_settled = false;
         }
     }
 }

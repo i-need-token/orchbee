@@ -730,8 +730,8 @@ pub(crate) enum ClientNotice {
     DuplicatePending,
     DuplicateNotStarted,
     DuplicateOutcomeUnknown,
-    /// A Tab create or move, or a Panel split, move or close, ran on the Server and its outcome is
-    /// unknown. The layout is read again; the notice stays until the next Client action.
+    /// A Tab create, rename or move, or a Panel split, move or close, ran on the Server and its
+    /// outcome is unknown. The layout is read again; the notice stays until the next keypress.
     ChangeOutcomeUnknown,
     MoveNotMoved,
     MoveOrderConflict,
@@ -1959,6 +1959,28 @@ impl WorkbenchClientState {
         if matches!(self.notice, Some(ClientNotice::RecordUnusable(..))) {
             self.notice = None;
         }
+    }
+
+    /// Clears persistent request-scoped unknown-outcome notices on the next live keypress.
+    pub(crate) fn dismiss_unknown_outcome_notices(&mut self) {
+        if matches!(self.phase, ClientPhase::Retired(_)) {
+            return;
+        }
+        if matches!(
+            self.notice,
+            Some(
+                ClientNotice::ChangeOutcomeUnknown
+                    | ClientNotice::DuplicateOutcomeUnknown
+                    | ClientNotice::CopyUnknown
+                    | ClientNotice::BellUnknown
+                    | ClientNotice::AgentStart(AgentStartNotice::Unknown)
+            )
+        ) {
+            self.notice = None;
+        }
+        self.clear_unknown_setup_status();
+        self.clear_settled_unknown_workspace_close();
+        self.dismiss_unknown_outcome_closes();
     }
 
     pub(crate) fn observe_geometry(&mut self, geometry: Geometry) {

@@ -452,3 +452,25 @@ fn an_uncertain_rename_stays_retained_beside_a_parked_focus() {
     assert!(pending.is_some() && uncertain.is_some());
     assert!(state.invariant_holds());
 }
+
+#[test]
+fn unknown_rename_settles_without_fence_owes_publication_and_clears_on_key() {
+    let mut state = ready(2);
+    let operation = rename_operation(&mut state, "Maybe");
+    assert!(state.begin_rename(operation.clone()));
+    let prepared = operation.prepare(RenameResult::OutcomeUnknown);
+    assert_eq!(prepared.result(), &RenamePreparation::OutcomeUnknown);
+    state
+        .settle_rename_without_membership(&operation, RenamePreparation::OutcomeUnknown)
+        .unwrap();
+    assert!(state.pending_rename().is_none());
+    assert_eq!(state.rename_receipts_for_test(), (None, None, None));
+    assert_eq!(state.notice, Some(ClientNotice::ChangeOutcomeUnknown));
+    assert!(!state.notice.unwrap().transient());
+    assert!(state.publication_debt_pending());
+    assert!(state.open_rename_draft().is_some());
+    state.cancel_rename_draft();
+    state.dismiss_unknown_outcome_notices();
+    assert_eq!(state.notice, None);
+    assert!(state.invariant_holds());
+}

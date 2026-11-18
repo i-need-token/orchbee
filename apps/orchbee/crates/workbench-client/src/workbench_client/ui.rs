@@ -2374,6 +2374,11 @@ impl WorkbenchClientUi {
         // Windows Terminal can route keys before its FocusIn bytes. A later identical report
         // must preserve this activation and its unsent keys.
         self.observe_foreground(true);
+        if self.retirement_failure.is_none()
+            && let Some(state) = self.state.as_mut()
+        {
+            state.dismiss_unknown_outcome_notices();
+        }
     }
     pub(super) fn observe_pointer_press(&mut self) {
         self.observe_foreground(true);
@@ -2626,6 +2631,11 @@ impl WorkbenchClientUi {
         }
         if self.retirement_failure.is_some() || self.navigation_pending() {
             return false;
+        }
+        if !input.is_empty()
+            && let Some(state) = self.state.as_mut()
+        {
+            state.dismiss_unknown_outcome_notices();
         }
         let Some(state) = self.state.as_ref() else {
             return false;
@@ -3261,6 +3271,7 @@ impl WorkbenchClientUi {
             state.dismiss_close_set_summary();
             state.clear_settled_setup_status();
             state.dismiss_record_notice();
+            state.dismiss_unknown_outcome_notices();
         }
         // The picker and every other surface are mutually exclusive: any
         // action that is not the picker's own key closes it first —
@@ -4278,8 +4289,18 @@ impl WorkbenchClientUi {
             WorkerEvent::WorkspaceSetupResult { operation, outcome } => {
                 return self.apply_workspace_setup_event(mailbox, wait_key, operation, outcome);
             }
-            WorkerEvent::WorkspaceCloseResult { evidence, outcome } => {
-                return self.apply_workspace_close_event(mailbox, wait_key, evidence, *outcome);
+            WorkerEvent::WorkspaceCloseResult {
+                evidence,
+                outcome,
+                request_unknown,
+            } => {
+                return self.apply_workspace_close_event(
+                    mailbox,
+                    wait_key,
+                    evidence,
+                    *outcome,
+                    request_unknown,
+                );
             }
             WorkerEvent::ControlTakeoverResult { evidence } => {
                 return self.apply_takeover_event(mailbox, wait_key, evidence);

@@ -126,14 +126,7 @@ fn submit_changes(
     deadline: Instant,
     wake: orchbee_local_ipc::LocalIo<'_>,
 ) -> Result<AgentChangesResult, LaneFailure> {
-    if slot.is_none() {
-        *slot = Some(
-            origin
-                .lane_before_cancellable(deadline, clock.clone(), Some(wake))
-                .map_err(|_| LaneFailure::Transport)?,
-        );
-    }
-    let client = slot.as_mut().ok_or(LaneFailure::Transport)?;
+    let client = super::ensure_live_lane(origin, clock, slot, deadline, wake)?;
     let result = client.submit_agent_changes_before_cancellable(
         AgentChangesRequest::Read {
             request_id: mint_request_id()?,
@@ -146,7 +139,7 @@ fn submit_changes(
     match result {
         Ok(result) => Ok(result),
         Err(_) => {
-            *slot = None;
+            super::drop_disconnected_lane(slot);
             Err(LaneFailure::Transport)
         }
     }

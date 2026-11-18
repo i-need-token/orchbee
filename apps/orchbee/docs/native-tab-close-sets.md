@@ -165,11 +165,15 @@ attempt generation: the Client follows a generation that rises by itself and kee
 a falling one is a regression. Any other status is final. A close that finally fails, as blocked,
 unknown, disposed without publication, unavailable or uncertain, shows its Tab or Panel again and
 reports at once, on the status line, one sentence with no reason: `Couldn't close {label}.`,
-`没能关闭 {label}。`. A later validated `Closed` clears the report. A close that finishes says
+`没能关闭 {label}。`. A later validated `Closed` clears the report. A stream-scoped unknown submission or
+unavailable observation on a live carrier leaves the shown Tab interactive until the next keypress, which
+clears its notice, and owes a publication read without wedging structural work; a typed Server answer keeps
+the Tab's input suppressed. A close that finishes says
 nothing, because its Tab or Panel leaving the screen reports it; only while the Tab list is
 unavailable does the status line read `{label} · Closed`, the fact the navigator's refresh restores
 the list from. A refusal keeps the Tab and reports
-only its notice. `close_status` stays unfiltered because Client control uses it as a busy gate;
+only its notice. `close_status` stays unfiltered (except for keypress-dismissed reports on a live
+Session) because Client control uses it as a busy gate;
 rendering reads `announced_close_status`.
 
 Closing a Tab whose close stopped takes the ordinary close path and asks again: the key, its `[x]`
@@ -217,10 +221,14 @@ its status reads and its report continue it, closing its Tab again takes the ord
 confirmed closure joins the count.
 A stopped set whose members were all later confirmed closed stops reporting. A Client that loses its
 connection while following a set stops following it and reports the set as stopped, while the
-Server may still close the remaining members; their publications remove them.
+Server may still close the remaining members; their publications remove them. On a live multiplexed
+carrier, a stream-scoped unknown `Start` marks the set lost without retiring, owes a publication read,
+and keeps the persistent unknown-outcome notice until keypress, while an unavailable `Read` keeps the
+stopped report (`Phase::Lost`) visible until keypress without expiring on the five-second timer.
 
-The final report expires after five seconds or the next action or notice, using the existing
-bounded-notice convention. A report is final once nothing is left in flight: the set finished, or it
+The final report of a finished or failed set expires after five seconds or the next action or notice,
+using the existing bounded-notice convention; a `Lost` set stays until keypress or notice dismissal.
+A report is final once nothing is left in flight: the set finished, or it
 stopped and the member it left, if any, reached a known outcome. A close in doubt keeps the report
 on the status line through any idle time, because its outcome is still to come. This
 retires only display state; retained counts and Close recovery facts survive, and current notices

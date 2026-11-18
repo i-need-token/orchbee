@@ -22,15 +22,9 @@ pub(super) fn read_round(
     wake: LocalIo<'_>,
     shutdown: &Arc<AtomicBool>,
 ) -> Result<PhysicalRound, LaneFailure> {
-    if slot.is_none() {
-        *slot = Some(
-            origin
-                .lane_before_cancellable(deadline, clock.clone(), Some(wake))
-                .map_err(|_| LaneFailure::Transport)?,
-        );
-    }
+    let client = super::ensure_live_lane(origin, clock, slot, deadline, wake)?;
     let result = Reader {
-        client: slot.as_mut().ok_or(LaneFailure::Transport)?,
+        client,
         clock,
         deadline,
         wake,
@@ -38,7 +32,7 @@ pub(super) fn read_round(
     }
     .read();
     if result.is_err() {
-        *slot = None;
+        super::drop_disconnected_lane(slot);
     }
     result
 }

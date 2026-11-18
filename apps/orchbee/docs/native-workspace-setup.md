@@ -74,8 +74,11 @@ before the next input event; live pane probes, selection and history admission r
 source while the provisional content is current. Typing cannot reach it, and gesture cancellation
 still cleans up its original owner. Newer focus or surface intent, including during
 preparation, lets creation continue in the background and permanently revokes automatic landing.
-Definite refusal removes the provisional display. Unknown or committed-but-unreconciled outcomes
-retain their existing request/resource recovery facts without replay or replacement.
+Definite refusal removes the provisional display. On a live multiplexed carrier, a stream-scoped
+unknown setup or launch outcome settles without retiring or blocking subsequent structure, owes a
+publication read so publications install canonical state, and keeps its persistent unknown-outcome
+notice until the next keypress (or lands into the created Workspace when `WorkspaceLaunched`
+committed with an unknown initial terminal outcome). Unknown or committed-but-unreconciled outcomes on a lost carrier retain their existing request/resource recovery facts without replay or replacement.
 Carrier retirement immediately hides creation feedback while preserving those recovery facts.
 
 When the initiating Client enters the created Workspace, its Project or Recents group expands and

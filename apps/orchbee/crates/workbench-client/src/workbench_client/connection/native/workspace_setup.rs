@@ -89,11 +89,14 @@ impl ClientExecutor {
                 }
             }
             WorkbenchSetupSubmission::OutcomeUnknown { request_id, .. } => {
-                return Err(if request_id == operation.command.request_id {
-                    CarrierFailure::OutcomeUnknown
-                } else {
-                    CarrierFailure::Protocol
-                });
+                if request_id != operation.command.request_id {
+                    return Err(CarrierFailure::Protocol);
+                }
+                self.ensure_unknown_is_request_scoped()?;
+                if !self.mailbox.retain_setup_outcome_unknown(&operation) {
+                    return Err(CarrierFailure::Protocol);
+                }
+                SetupResult::OutcomeUnknown
             }
             WorkbenchSetupSubmission::Committed(commit) => {
                 let known = operation
@@ -109,14 +112,14 @@ impl ClientExecutor {
                         Some(orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. })
                     )
                 {
-                    return Err(if matches!(
+                    if matches!(
                         commit.terminal_outcome,
                         Some(orchbee_workbench_protocol::WorkbenchTerminalOutcome::OutcomeUnknown { .. })
                     ) {
-                        CarrierFailure::OutcomeUnknown
+                        self.ensure_unknown_is_request_scoped()?;
                     } else {
-                        CarrierFailure::Transport
-                    });
+                        return Err(CarrierFailure::Transport);
+                    }
                 }
                 self.ensure_before(cutoff)?;
                 let request_id = self

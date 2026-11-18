@@ -20,6 +20,7 @@ pub(super) struct SetupFlight {
     operation: SetupOperation,
     stage: PendingRefreshStage,
     not_applied: bool,
+    outcome_unknown: bool,
     confirmation_required: bool,
     known: Option<crate::workbench_state::workspace_setup::SetupKnownCommit>,
 }
@@ -270,6 +271,7 @@ impl CommandMailbox {
             operation: operation.clone(),
             stage: PendingRefreshStage::Queued,
             not_applied: false,
+            outcome_unknown: false,
             confirmation_required: false,
             known: None,
         });
@@ -347,6 +349,26 @@ impl CommandMailbox {
             return false;
         }
         flight.not_applied = true;
+        true
+    }
+    pub(in crate::workbench_client) fn retain_setup_outcome_unknown(
+        &self,
+        operation: &SetupOperation,
+    ) -> bool {
+        let mut state = self.lock();
+        let Some(StructuralMutationFlight::Setup(flight)) =
+            state.structural_mutation_pending.as_mut()
+        else {
+            return false;
+        };
+        if flight.operation != *operation
+            || flight.stage != PendingRefreshStage::InFlight
+            || flight.not_applied
+            || flight.known.is_some()
+        {
+            return false;
+        }
+        flight.outcome_unknown = true;
         true
     }
     pub(in crate::workbench_client) fn retain_setup_known(
@@ -458,6 +480,9 @@ impl MailboxState {
         }
         let valid_result = match outcome {
             SetupResult::Committed { known, .. } => flight.known.as_ref() == Some(known.as_ref()),
+            SetupResult::OutcomeUnknown => {
+                flight.outcome_unknown && flight.known.is_none() && !flight.not_applied
+            }
             SetupResult::NotApplied
             | SetupResult::DirectoryRefused(_)
             | SetupResult::LaunchRequestTooLarge

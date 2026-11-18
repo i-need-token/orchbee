@@ -181,6 +181,10 @@ impl super::WorkbenchClientState {
                 self.rename_recovery = Some(known);
                 self.notice = None;
             }
+            RenamePreparation::OutcomeUnknown => {
+                self.notice = Some(super::ClientNotice::ChangeOutcomeUnknown);
+                self.owe_publication_read();
+            }
             RenamePreparation::Divergent { known } => {
                 if let Some(known) = known {
                     self.retain_pending_rename(known);
@@ -307,6 +311,7 @@ impl RenameOperation {
                     RenamePreparation::Divergent { known: None }
                 }
             }
+            RenameResult::OutcomeUnknown => RenamePreparation::OutcomeUnknown,
             RenameResult::Committed { revision, outcome } => match self.known_commit(revision) {
                 None => RenamePreparation::Divergent { known: None },
                 Some(known) => match outcome {
@@ -400,6 +405,7 @@ pub(crate) enum RenameResult {
     NotSubmitted,
     Precommit(WorkbenchLabelRenamePrecommit),
     Unchanged(WorkbenchRevision),
+    OutcomeUnknown,
     Committed {
         revision: WorkbenchRevision,
         outcome: WorkbenchSnapshotOutcome,
@@ -411,6 +417,7 @@ pub(crate) enum RenamePreparation {
     NotSubmitted,
     Precommit(WorkbenchLabelRenamePrecommit),
     Unchanged,
+    OutcomeUnknown,
     Committed {
         known: PendingRenameCommit,
         projection: Option<ValidatedRenamedProjection>,

@@ -26,14 +26,7 @@ pub(super) fn read_round(
     wake: orchbee_local_ipc::LocalIo<'_>,
     shutdown: &Arc<AtomicBool>,
 ) -> Result<Round, LaneFailure> {
-    if client_slot.is_none() {
-        *client_slot = Some(
-            origin
-                .lane_before_cancellable(deadline, clock.clone(), Some(wake))
-                .map_err(|_| LaneFailure::Transport)?,
-        );
-    }
-    let client = client_slot.as_mut().ok_or(LaneFailure::Transport)?;
+    let client = super::ensure_live_lane(origin, clock, client_slot, deadline, wake)?;
     let result = Reader {
         client,
         clock,
@@ -44,7 +37,7 @@ pub(super) fn read_round(
     }
     .read();
     if result.is_err() {
-        *client_slot = None;
+        super::drop_disconnected_lane(client_slot);
     }
     result.map(|rows| Round { scope, rows })
 }

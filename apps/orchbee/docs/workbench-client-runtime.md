@@ -1012,17 +1012,19 @@ that the resync count stays bounded; and that a running pane always answers the 
 waits on. Its mutation controls remove the stop on an unreadable record and the bound. The
 classification and containment are tested at the UI owner.
 
-[`RequestScopedUnknownOutcome`](../formal/tla/RequestScopedUnknownOutcome.tla) models request-scoped
-unknown outcomes across the remaining multiplexed client families — terminal initialization controls
-(`Acquire`, `HostColors`, `SetupResize` / `CatchUpResize`), label and setup renames, workspace setup/launch,
-workspace and Project close/follow reads, ambiguous Tab/Panel/set closes, startup directory pre-bootstrap,
-Agent and launch-profile reads/mutations, and shared `local-client` helpers. While the multiplexed
-connection remains live, stream-scoped unknown outcomes settle at the request without replaying effects or
-leaving structural/recovery fences wedged: initialization degrades to `ReadOnly` rather than assuming a
-controller grant, shown Tabs remain interactive, a persistent unknown-outcome notice stays until a
-Client keypress while publications synchronize canonical structure, and pre-bootstrap startup directory
-creation still stops without follow-up reads or replay. Real transport disconnects, timeouts, and
-protocol/correlation violations still retire the Session cleanly.
+[`RequestScopedUnknownOutcome`](../formal/tla/RequestScopedUnknownOutcome.tla) models the request-scoped
+unknown outcome of workspace close, tab close and tab rename on one live multiplexed carrier, with two
+requests in flight, a competing close, a retry after an unknown outcome, a typed Server answer, a
+stream-scoped unknown, a timer, a Client keypress, a publication, a transport loss and a protocol
+violation. Each design flag has one mutant that TLC rejects. The model checks that a stream-scoped unknown
+never replays its request identity and never retires a live carrier; that a typed Server answer
+(`Unavailable`, `Denied` or an unknown status) keeps the close fence and its evidence held; that at most one
+close is in flight; that only a Client keypress clears an unknown notice; and that an owed publication read
+on a live carrier is eventually performed. Only a stream-scoped unknown releases the close fence and leaves
+a shown Tab interactive; transport loss and protocol violations still retire the Session. Other request
+families are covered by unit tests at their owners rather than by this model. A startup-directory
+launch whose outcome is unknown retires the carrier, because the client has no surface yet to settle
+it before bootstrap; this model does not cover startup.
 
 ## Client state and bounded mailbox
 
@@ -1929,9 +1931,11 @@ still submitted once for Server authority. Pure Rename preserves attachment and 
 `Renamed` requires changed text and the checked successor; retain the exact operation and known
 revision before one same-budget SnapshotRead. The result has no target echo. Exact revision
 requires the label-only projection; later strict membership may overwrite or remove the target.
-Definite command precommit clears the exact flight after UI settlement. Only postcommit projection
-unavailability retains a recovery fence and historical cache, while same-target effects may remain
-usable. Explicit Refresh gets its own fixed budget and never replays Rename.
+Definite command precommit clears the exact flight after UI settlement. A request-scoped unknown
+rename outcome on a live multiplexed carrier settles without a recovery fence, owes a publication
+read so canonical publications synchronize the label, and shows the persistent unknown-outcome notice
+until the next keypress without replaying Rename. Only a disconnected ambiguous exchange or postcommit
+snapshot unavailability retains a recovery fence/historical cache (`Explicit Refresh` never replays Rename).
 
 Timely exact typed placement ends its transport budget; UI consumption is untimed. Distinguish
 placement, UI consumption, executor acknowledgment, worker return and join. Known commits and

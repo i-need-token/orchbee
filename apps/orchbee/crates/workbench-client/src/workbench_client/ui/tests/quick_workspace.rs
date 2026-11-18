@@ -261,6 +261,7 @@ fn after_last_workspace_close() -> (
                 outcome: Box::new(WorkbenchSnapshotOutcome::Available {
                     snapshot: snapshot.clone(),
                 }),
+                request_unknown: false,
             },
             EventDeadline::PlacementOnly(operation.deadlines.forward_cutoff()),
             &clock,

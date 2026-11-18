@@ -710,15 +710,18 @@ pub(super) enum WorkerEvent {
     ControlTakeoverResult {
         evidence: crate::workbench_state::control_takeover::TakeoverEvidence,
     },
+    /// `request_unknown` is set only when the close's own submission was closed as unknown on a
+    /// live carrier; only then does its retained Unknown evidence settle without a Server answer.
     WorkspaceCloseResult {
         evidence: crate::workbench_state::workspace_close::WorkspaceCloseEvidence,
         outcome: Box<WorkbenchSnapshotOutcome>,
+        request_unknown: bool,
     },
-    /// What one settlement read of the close with refresh `generation` observed; `None` when the
-    /// Server no longer answers for it. The read has no effect, so the UI drops a stale one.
+    /// What one settlement read of the close with refresh `generation` observed. The read has no
+    /// effect, so the UI drops a stale one.
     WorkspaceCloseObserved {
         generation: u64,
-        observation: Option<crate::workbench_state::workspace_close::WorkspaceCloseResult>,
+        observation: crate::workbench_state::workspace_close::WorkspaceCloseObservation,
     },
     WorktreePrepared {
         preparation: Box<crate::workbench_state::worktree_launch::Preparation>,

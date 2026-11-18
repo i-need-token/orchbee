@@ -562,7 +562,7 @@ controller authority and performs no terminal presentation decoding. Controller 
 exact grant acquisition, input acknowledgement, and complete resize geometry against its action.
 Server-reported unknown control outcome is returned without retry; mismatched outcomes retire the
 transport. The Workbench Client reads a control request the Server closed alone as `outcome-unknown`
-as that unknown answer, so input, resize and clear settle it at their pane. The caller owns fresh request identities, increasing grant-scoped sequences, and any
+as that unknown answer, so initialization controls (`acquire`, `host-colors`, setup/catch-up `resize`) degrade to view-only without retiring and ready `input`, `resize` and `clear` settle at their pane; shared `LocalClient` workbench/agent helpers likewise preserve a multiplexed carrier when only one request's stream closes as `outcome-unknown`. The caller owns fresh request identities, increasing grant-scoped sequences, and any
 explicit later acquisition. Cleanup after Client Connection loss may outlive a submission deadline.
 
 All existing-viewer actions and all controller actions carry the exact Server-issued `attachmentId`.

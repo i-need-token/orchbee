@@ -708,3 +708,76 @@ fn close_carrier_retirement_drops_the_armed_confirmation() {
     assert!(state.view().close_confirmation().is_none());
     assert!(state.invariant_holds());
 }
+
+#[test]
+fn ambiguous_and_unavailable_tab_close_leave_shown_tab_interactive_until_keypress() {
+    for result in [CloseResult::Ambiguous, CloseResult::ObservationUnavailable] {
+        let mut state = ready(2);
+        let now = Instant::now();
+        let tab = state.active().unwrap().key().anchor().tab_id().clone();
+        let operation = if matches!(result, CloseResult::Ambiguous) {
+            admit_close(&mut state, 831, now)
+        } else {
+            let first = admit_close(&mut state, 832, now);
+            let accepted = WorkbenchTabCloseAccepted {
+                close_request_id: first.key().request_id().clone(),
+                terminal_context_id: first.key().target().terminal_context_id().clone(),
+                tab_id: tab.clone(),
+                accepted_revision: first.selection().base_revision(),
+            };
+            state
+                .settle_close_exchange(&first, &CloseResult::Accepted(accepted))
+                .unwrap();
+            let read = state
+                .plan_close_read(
+                    workbench_request_id(833),
+                    now + Duration::from_secs(50),
+                    now,
+                )
+                .unwrap();
+            state.begin_close_exchange(&read, now).unwrap();
+            read
+        };
+        state.settle_close_exchange(&operation, &result).unwrap();
+        assert!(!state.tab_leaving(&tab));
+        assert!(!state.close_suppresses_attachment(state.desired().unwrap().anchor()));
+        assert!(state.publication_debt_pending());
+        assert!(state.view().announced_close_status().is_some());
+        assert!(state.ready().is_some());
+        assert!(state.open_close_confirmation().is_ok());
+        state.cancel_close_confirmation();
+        state.dismiss_unknown_outcome_notices();
+        assert!(state.view().announced_close_status().is_none());
+        assert!(state.view().close_status().is_none());
+        assert!(state.invariant_holds());
+    }
+}
+
+#[test]
+fn ambiguous_conditional_tab_close_leaves_shown_tab_interactive_until_keypress() {
+    let mut state = ready(2);
+    let now = Instant::now();
+    let tab = state.active().unwrap().key().anchor().tab_id().clone();
+    state.open_close_confirmation().unwrap();
+    let token = state.view().close_confirmation().unwrap().token();
+    state.acknowledge_close_draw(Some(token), None);
+    let operation = state
+        .plan_close_if_idle(
+            token,
+            workbench_request_id(834),
+            now + Duration::from_secs(50),
+            now,
+        )
+        .unwrap();
+    state.begin_close_exchange(&operation, now).unwrap();
+    state
+        .settle_close_exchange(&operation, &CloseResult::Ambiguous)
+        .unwrap();
+    assert!(!state.tab_leaving(&tab));
+    assert!(!state.close_suppresses_attachment(state.desired().unwrap().anchor()));
+    assert!(state.view().announced_close_status().is_some());
+    state.dismiss_unknown_outcome_notices();
+    assert!(state.view().announced_close_status().is_none());
+    assert!(state.view().close_status().is_none());
+    assert!(state.invariant_holds());
+}

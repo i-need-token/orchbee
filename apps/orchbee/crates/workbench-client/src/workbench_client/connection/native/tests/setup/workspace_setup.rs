@@ -93,13 +93,19 @@ impl UiDriver {
                         );
                         self.state().prepare_refresh(operation.generation, *outcome)
                     }
-                    result @ (SetupResult::NotApplied
+                    result @ (SetupResult::OutcomeUnknown
+                    | SetupResult::NotApplied
                     | SetupResult::DirectoryRefused(_)
                     | SetupResult::LaunchRequestTooLarge
                     | SetupResult::Stale
                     | SetupResult::ConfirmationRequired) => {
+                        let unknown = matches!(result, SetupResult::OutcomeUnknown);
                         let stale = matches!(result, SetupResult::Stale);
-                        assert!(self.state_mut().settle_setup_refusal(&operation, stale));
+                        assert!(if unknown {
+                            self.state_mut().settle_setup_unknown(&operation)
+                        } else {
+                            self.state_mut().settle_setup_refusal(&operation, stale)
+                        });
                         if matches!(result, SetupResult::LaunchRequestTooLarge) {
                             self.state_mut().setup_launch_too_large();
                         }

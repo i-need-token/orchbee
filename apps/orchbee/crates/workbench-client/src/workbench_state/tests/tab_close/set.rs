@@ -654,6 +654,36 @@ fn a_stopped_set_reports_while_a_close_may_finish_and_then_clears_like_any_notic
     }
 }
 
+#[test]
+fn a_keypress_leaves_a_set_the_server_stopped_to_its_delay() {
+    use crate::localization::Locale;
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let now = Instant::now();
+        let mut state = ready(4);
+        let start = open(&mut state, &[1, 2, 3], now);
+        settle(
+            &mut state,
+            &start,
+            &available(&start, TabSetCloseStatus::Pending {}, report(&start)),
+        );
+        let read = read_set(&mut state, 9100, now + Duration::from_millis(250));
+        let mut members = report(&start);
+        members[0].close = child(61000, closed_status(&state));
+        let failed = TabSetCloseStatus::Failed {
+            reason: TabSetCloseFailure::SourceChanged,
+        };
+        settle(&mut state, &read, &available(&start, failed, members));
+        let stopped = told(&state, locale);
+        assert!(state.settle_close_set(now));
+        state.dismiss_unknown_outcome_notices();
+        assert!(state.view().close_set_status().is_some());
+        assert!(screen(&state, locale).contains(&stopped));
+        assert!(state.settle_close_set(now + Duration::from_secs(5)));
+        assert!(state.view().close_set_status().is_none());
+        assert!(!screen(&state, locale).contains(&stopped));
+    }
+}
+
 /// Every member leaves the strip as the Server accepts the set, and a selected member hands the
 /// selection to the next Tab outside it; with no Tab left, the last removal empties the Client.
 /// Nothing leaves or moves before.
@@ -1051,4 +1081,54 @@ fn close_set_unseen_cancelled_resized_and_stale_prompts_never_admit() {
         assert!(!state.has_retained_close_records());
         assert!(state.close_set_status().is_none());
     }
+}
+
+#[test]
+fn lost_tab_set_start_and_read_persist_until_keypress_and_owe_publication() {
+    let now = Instant::now();
+    let mut state = ready(3);
+    let close = open(&mut state, &[1, 2], now);
+    state
+        .settle_close_exchange(&close, &CloseResult::Ambiguous)
+        .unwrap();
+    assert_eq!(state.notice, Some(ClientNotice::ChangeOutcomeUnknown));
+    assert!(!state.notice.unwrap().transient());
+    assert!(state.publication_debt_pending());
+    assert!(
+        !state
+            .view()
+            .tab_leaving(&state.cache().tabs()[1].tab_id().clone())
+    );
+    assert!(state.open_close_confirmation().is_ok());
+    state.cancel_close_confirmation();
+    state.dismiss_unknown_outcome_notices();
+    assert_eq!(state.notice, None);
+
+    let mut state = ready(3);
+    let start = open(&mut state, &[1, 2], now);
+    settle(
+        &mut state,
+        &start,
+        &available(&start, TabSetCloseStatus::Pending {}, report(&start)),
+    );
+    let read = state
+        .plan_tab_set_read(
+            workbench_request_id(8021),
+            now + Duration::from_secs(50),
+            now + Duration::from_secs(1),
+        )
+        .unwrap();
+    state
+        .begin_close_exchange(&read, now + Duration::from_secs(1))
+        .unwrap();
+    state
+        .settle_close_exchange(&read, &CloseResult::ObservationUnavailable)
+        .unwrap();
+    assert!(state.publication_debt_pending());
+    assert!(state.view().close_set_status().is_some());
+    assert!(!state.settle_close_set(now + Duration::from_secs(10)));
+    assert!(state.view().close_set_status().is_some());
+    state.dismiss_unknown_outcome_notices();
+    assert!(state.view().close_set_status().is_none());
+    assert!(state.invariant_holds());
 }

@@ -240,6 +240,7 @@ fn workspace_delete_menu_reviews_only_a_known_resumable_guard_refusal() {
             true,
             false,
         ),
+        // The Server gave no answer for the close: its evidence stays unknown and not recoverable.
         (None, true, false),
         (
             Some(Status::CleanupBlocked {
@@ -292,6 +293,7 @@ fn workspace_delete_menu_reviews_only_a_known_resumable_guard_refusal() {
                 WorkerEvent::WorkspaceCloseResult {
                     evidence: mailbox.workspace_close_worker_loss().unwrap(),
                     outcome: Box::new(WorkbenchSnapshotOutcome::Available { snapshot }),
+                    request_unknown: false,
                 },
                 crate::workbench_client::mailbox::EventDeadline::PlacementOnly(
                     operation.deadlines.forward_cutoff(),

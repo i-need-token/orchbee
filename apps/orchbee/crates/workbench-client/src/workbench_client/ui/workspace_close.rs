@@ -10,8 +10,8 @@ use crate::workbench_client::mailbox::{AdmissionError, CommandMailbox, UiWaitKey
 pub(crate) use crate::workbench_state::workspace_close::WorkspaceCloseStatus;
 pub use crate::workbench_state::workspace_close::WorkspaceCloseToken;
 use crate::workbench_state::workspace_close::{
-    SidebarDeleteReview, StaleCloseReview, WorkspaceCloseEvidence, WorkspaceCloseOperation,
-    WorkspaceCloseResult, WorkspaceDeleteRequest,
+    SidebarDeleteReview, StaleCloseReview, WorkspaceCloseEvidence, WorkspaceCloseObservation,
+    WorkspaceCloseOperation, WorkspaceDeleteRequest,
 };
 pub(crate) use crate::workbench_state::workspace_close::{
     WorkspaceCloseConfirmationView, WorkspaceCloseStatusView,
@@ -307,13 +307,12 @@ impl WorkbenchClientUi {
         wait: UiWaitKey,
         evidence: WorkspaceCloseEvidence,
         outcome: WorkbenchSnapshotOutcome,
+        request_unknown: bool,
     ) -> bool {
         let sampled = self.clock.now();
-        if !self
-            .state
-            .as_mut()
-            .is_some_and(|state| state.accept_workspace_close_event(&evidence, sampled))
-        {
+        if !self.state.as_mut().is_some_and(|state| {
+            state.accept_workspace_close_event(&evidence, sampled, request_unknown)
+        }) {
             self.retire(CarrierFailure::Protocol);
             return true;
         }
@@ -394,7 +393,7 @@ impl WorkbenchClientUi {
     pub(super) fn apply_workspace_close_observation(
         &mut self,
         generation: u64,
-        observation: Option<WorkspaceCloseResult>,
+        observation: WorkspaceCloseObservation,
     ) -> bool {
         self.workspace_close_read = None;
         let sampled = self.clock.now();

@@ -398,9 +398,38 @@ fn list_round(
 }
 
 /// One exchange on the shared carrier, acquiring a logical scope when its handle
-/// is empty (startup, or after a failure retired it). Any submit error —
-/// pre-handoff or the ambiguous post-submission kind — drops the handle
-/// so the next request re-admits cleanly.
+/// is empty (startup) or its connection has gone. A submit error drops the handle
+/// only once that connection is gone (see `drop_disconnected_lane`). A stream-scoped
+/// unknown on a live connection keeps the handle, and the next request reuses it.
+pub(super) fn ensure_live_lane<'a>(
+    origin: &LocalClientOrigin,
+    clock: &LocalOperationClock,
+    client_slot: &'a mut Option<LocalClient>,
+    deadline: Instant,
+    wake: orchbee_local_ipc::LocalIo<'_>,
+) -> Result<&'a mut LocalClient, LaneFailure> {
+    if client_slot
+        .as_ref()
+        .is_none_or(|client| client.generation().is_none())
+    {
+        *client_slot = Some(
+            origin
+                .lane_before_cancellable(deadline, clock.clone(), Some(wake))
+                .map_err(|_| LaneFailure::Transport)?,
+        );
+    }
+    client_slot.as_mut().ok_or(LaneFailure::Transport)
+}
+
+pub(super) fn drop_disconnected_lane(client_slot: &mut Option<LocalClient>) {
+    if client_slot
+        .as_ref()
+        .is_some_and(|client| client.generation().is_none())
+    {
+        *client_slot = None;
+    }
+}
+
 fn submit(
     origin: &LocalClientOrigin,
     clock: &LocalOperationClock,
@@ -409,14 +438,7 @@ fn submit(
     deadline: Instant,
     wake: orchbee_local_ipc::LocalIo<'_>,
 ) -> Result<AgentReadResult, LaneFailure> {
-    if client_slot.is_none() {
-        *client_slot = Some(
-            origin
-                .lane_before_cancellable(deadline, clock.clone(), Some(wake))
-                .map_err(|_| LaneFailure::Transport)?,
-        );
-    }
-    let client = client_slot.as_mut().ok_or(LaneFailure::Transport)?;
+    let client = ensure_live_lane(origin, clock, client_slot, deadline, wake)?;
     match client.submit_agent_read_before_cancellable(request, deadline, Some(wake)) {
         Ok(result) => Ok(result),
         Err(
@@ -425,7 +447,7 @@ fn submit(
             | AgentExchangeError::RequestNotSubmitted(_)
             | AgentExchangeError::Failed { .. },
         ) => {
-            *client_slot = None;
+            drop_disconnected_lane(client_slot);
             Err(LaneFailure::Transport)
         }
     }

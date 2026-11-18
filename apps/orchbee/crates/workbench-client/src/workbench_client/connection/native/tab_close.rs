@@ -113,7 +113,9 @@ impl ClientExecutor {
                         CloseResult::Accepted(accepted)
                     }
                     WorkbenchTabCloseSubmission::OutcomeUnknown { .. } => {
-                        return Ok((CloseResult::Ambiguous, Some(CarrierFailure::OutcomeUnknown)));
+                        let failure = (self.ensure_unknown_is_request_scoped().is_err())
+                            .then_some(CarrierFailure::OutcomeUnknown);
+                        return Ok((CloseResult::Ambiguous, failure));
                     }
                 }
             }
@@ -156,9 +158,12 @@ impl ClientExecutor {
                         ));
                     }
                     Err(MetadataExchangeError { reason, .. }) => {
+                        let failure = close_operation_read_failure(reason);
+                        let live = failure == CarrierFailure::Transport
+                            && self.ensure_unknown_is_request_scoped().is_ok();
                         return Ok((
                             CloseResult::ObservationUnavailable,
-                            Some(close_operation_read_failure(reason)),
+                            (!live).then_some(failure),
                         ));
                     }
                 }
@@ -183,9 +188,12 @@ impl ClientExecutor {
                         return Ok(self.close_not_submitted(reason));
                     }
                     Err(WorkbenchTabCloseReadError::Failed { reason, .. }) => {
+                        let failure = close_read_failure(reason);
+                        let live = failure == CarrierFailure::Transport
+                            && self.ensure_unknown_is_request_scoped().is_ok();
                         return Ok((
                             CloseResult::ObservationUnavailable,
-                            Some(close_read_failure(reason)),
+                            (!live).then_some(failure),
                         ));
                     }
                 }
@@ -217,13 +225,17 @@ impl ClientExecutor {
                         } else {
                             CarrierFailure::Transport
                         };
+                        let live = failure == CarrierFailure::Transport
+                            && self.ensure_unknown_is_request_scoped().is_ok();
                         return Ok(match action {
-                            TabSetCloseAction::Start { .. } => {
-                                (CloseResult::Ambiguous, Some(CarrierFailure::OutcomeUnknown))
-                            }
-                            TabSetCloseAction::Read { .. } => {
-                                (CloseResult::ObservationUnavailable, Some(failure))
-                            }
+                            TabSetCloseAction::Start { .. } => (
+                                CloseResult::Ambiguous,
+                                (!live).then_some(CarrierFailure::OutcomeUnknown),
+                            ),
+                            TabSetCloseAction::Read { .. } => (
+                                CloseResult::ObservationUnavailable,
+                                (!live).then_some(failure),
+                            ),
                         });
                     }
                 }

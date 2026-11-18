@@ -63,11 +63,12 @@ impl ClientExecutor {
                 RenameResult::Unchanged(revision)
             }
             WorkbenchLabelRenameSubmission::OutcomeUnknown { request_id, .. } => {
-                return Err(if &request_id == operation.request_id() {
-                    CarrierFailure::OutcomeUnknown
-                } else {
-                    CarrierFailure::Protocol
-                });
+                if &request_id != operation.request_id() {
+                    return Err(CarrierFailure::Protocol);
+                }
+                self.ensure_unknown_is_request_scoped()?;
+                self.pending_rename = None;
+                RenameResult::OutcomeUnknown
             }
             WorkbenchLabelRenameSubmission::Committed { revision } => {
                 let known = operation

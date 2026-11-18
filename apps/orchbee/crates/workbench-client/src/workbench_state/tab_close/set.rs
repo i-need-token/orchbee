@@ -874,7 +874,7 @@ impl WorkbenchClientState {
         let Some(set) = &mut self.close.set else {
             return false;
         };
-        if !settled {
+        if !settled || set.phase == Phase::Lost {
             return false;
         }
         match set.summary {
@@ -977,11 +977,21 @@ impl WorkbenchClientState {
 
     /// Display retirement is independent of retained counts and CloseRecord recovery facts.
     pub(crate) fn dismiss_close_set_summary(&mut self) {
+        self.dismiss_settled_close_set_summary(|_| true);
+    }
+
+    /// A keypress retires only the report of a Lost set, which no timer clears. A set the Server
+    /// stopped keeps its report for the normal delay.
+    pub(crate) fn dismiss_lost_close_set_summary(&mut self) {
+        self.dismiss_settled_close_set_summary(|set| set.phase == Phase::Lost);
+    }
+
+    fn dismiss_settled_close_set_summary(&mut self, retire: impl FnOnce(&TabSetFollow) -> bool) {
         let settled = self
             .close
             .set
             .as_ref()
-            .is_some_and(|set| self.close.set_settled(set));
+            .is_some_and(|set| self.close.set_settled(set) && retire(set));
         if let Some(set) = &mut self.close.set
             && settled
         {

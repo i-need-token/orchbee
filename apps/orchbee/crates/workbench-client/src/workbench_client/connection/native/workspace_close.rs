@@ -10,8 +10,8 @@ use crate::workbench_client::mailbox::{
 };
 use crate::workbench_state::CarrierFailure;
 use crate::workbench_state::workspace_close::{
-    WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult,
-    WorkspaceCloseSettlementRead, retains_close_result,
+    WorkspaceCloseEvidence, WorkspaceCloseObservation, WorkspaceCloseOperation,
+    WorkspaceCloseResult, WorkspaceCloseSettlementRead, retains_close_result,
 };
 use orchbee_workbench_protocol::{WorkbenchSnapshotOutcome, WorkspaceGroupCloseOutcome};
 use std::time::Instant;
@@ -38,6 +38,7 @@ impl ClientExecutor {
             .mailbox
             .allocate_workbench_request_id()
             .map_err(closed)?;
+        let mut request_unknown = false;
         let mut outcome = self.read_workbench_before(request_id, cutoff)?;
         let source_current = matches!(&outcome, WorkbenchSnapshotOutcome::Available { snapshot }
             if operation.baseline.project_snapshot(snapshot).ok().as_ref() == Some(&operation.baseline));
@@ -55,11 +56,11 @@ impl ClientExecutor {
             // A missing result is ambiguous as soon as a handoff can occur. Admission replaces
             // this evidence synchronously before the first read, allocation, or UI wait.
             self.retain_workspace_close(&operation, WorkspaceCloseResult::Unknown)?;
-            if operation.workspace_command().is_some() {
-                self.submit_single_workspace_close(&operation, cutoff)?;
+            request_unknown = if operation.workspace_command().is_some() {
+                self.submit_single_workspace_close(&operation, cutoff)?
             } else {
-                self.submit_project_close_all(&operation, cutoff)?;
-            }
+                self.submit_project_close_all(&operation, cutoff)?
+            };
             self.ensure_before(cutoff)?;
             let request_id = self
                 .mailbox
@@ -77,6 +78,7 @@ impl ClientExecutor {
                 WorkerEvent::WorkspaceCloseResult {
                     evidence,
                     outcome: Box::new(outcome),
+                    request_unknown,
                 },
                 EventDeadline::PlacementOnly(cutoff),
                 &self.clock,
@@ -89,11 +91,13 @@ impl ClientExecutor {
         result
     }
 
+    /// Submits the single-Workspace close. Returns whether the submission ended as a stream-scoped
+    /// unknown, which leaves the retained Unknown evidence in place for the UI to settle.
     fn submit_single_workspace_close(
         &mut self,
         operation: &WorkspaceCloseOperation,
         cutoff: Instant,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let command = operation
             .workspace_command()
             .ok_or(CarrierFailure::Protocol)?;
@@ -130,22 +134,26 @@ impl ClientExecutor {
                         WorkspaceCloseResult::Refused
                     },
                 )?;
-                return Ok(());
+                return Ok(false);
             }
             WorkbenchWorkspaceCloseSubmission::OutcomeUnknown { .. } => {
-                return Err(CarrierFailure::OutcomeUnknown);
+                self.ensure_unknown_is_request_scoped()?;
+                return Ok(true);
             }
             WorkbenchWorkspaceCloseSubmission::Accepted(accepted) => accepted,
         };
         // Admission ends this lease's part: settlement reads follow in their own leases.
-        self.retain_workspace_close(operation, WorkspaceCloseResult::WorkspaceAccepted(accepted))
+        self.retain_workspace_close(operation, WorkspaceCloseResult::WorkspaceAccepted(accepted))?;
+        Ok(false)
     }
 
+    /// Submits the whole-project close. Returns whether the submission ended as a stream-scoped
+    /// unknown, as `submit_single_workspace_close` does.
     fn submit_project_close_all(
         &mut self,
         operation: &WorkspaceCloseOperation,
         cutoff: Instant,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let request = operation
             .project_request()
             .ok_or(CarrierFailure::Protocol)?;
@@ -157,22 +165,25 @@ impl ClientExecutor {
             Err(error) => {
                 if !error.submitted {
                     self.retain_workspace_close(operation, WorkspaceCloseResult::NotSubmitted)?;
+                    return Err(CarrierFailure::Transport);
                 }
-                return Err(if error.submitted {
-                    CarrierFailure::OutcomeUnknown
-                } else {
-                    CarrierFailure::Transport
-                });
+                if error.reason == "response-correlation" {
+                    return Err(CarrierFailure::Protocol);
+                }
+                self.ensure_unknown_is_request_scoped()?;
+                return Ok(true);
             }
         };
         if !matches!(first.outcome, WorkspaceGroupCloseOutcome::Available { .. }) {
-            return self.retain_workspace_close(operation, WorkspaceCloseResult::Refused);
+            self.retain_workspace_close(operation, WorkspaceCloseResult::Refused)?;
+            return Ok(false);
         }
         // The group receipt is admission; settlement reads follow in their own leases.
         self.retain_workspace_close(
             operation,
             WorkspaceCloseResult::ProjectObserved(Box::new(first)),
-        )
+        )?;
+        Ok(false)
     }
 
     /// One settlement read of an accepted close, in its own lease. It sends only a status read
@@ -190,23 +201,46 @@ impl ClientExecutor {
             .mailbox
             .allocate_workbench_request_id()
             .map_err(closed)?;
-        let observation =
-            if let Some((request, close_request_id)) = read.workspace_request(request_id.clone()) {
-                let outcome = self
-                    .client
-                    .submit_workbench_workspace_close_read(request, Some(close_request_id), cutoff)
-                    .map_err(|_| CarrierFailure::Transport)?;
-                read.workspace_observation(outcome)
-            } else {
-                let request = read
-                    .project_request(request_id)
-                    .ok_or(CarrierFailure::Protocol)?;
-                let reply = self
-                    .client
-                    .submit_workspace_group_close(request, cutoff, None)
-                    .map_err(|_| CarrierFailure::Transport)?;
-                WorkspaceCloseSettlementRead::project_observation(reply)
-            };
+        let observation = if let Some((request, close_request_id)) =
+            read.workspace_request(request_id.clone())
+        {
+            match self.client.submit_workbench_workspace_close_read(
+                request,
+                Some(close_request_id),
+                cutoff,
+            ) {
+                Ok(outcome) => read.workspace_observation(outcome).map_or(
+                    WorkspaceCloseObservation::Unanswered,
+                    WorkspaceCloseObservation::Answered,
+                ),
+                Err(crate::local_client::workbench::WorkbenchWorkspaceCloseReadError::Failed {
+                    reason: crate::local_client::workbench::WorkbenchWorkspaceCloseFailure::Write(_),
+                    ..
+                }) if self.client.generation().is_some() => {
+                    WorkspaceCloseObservation::RequestUnknown
+                }
+                Err(_) => return Err(CarrierFailure::Transport),
+            }
+        } else {
+            let request = read
+                .project_request(request_id)
+                .ok_or(CarrierFailure::Protocol)?;
+            match self
+                .client
+                .submit_workspace_group_close(request, cutoff, None)
+            {
+                Ok(reply) => WorkspaceCloseSettlementRead::project_observation(reply).map_or(
+                    WorkspaceCloseObservation::Unanswered,
+                    WorkspaceCloseObservation::Answered,
+                ),
+                Err(error)
+                    if error.reason == "request-write" && self.client.generation().is_some() =>
+                {
+                    WorkspaceCloseObservation::RequestUnknown
+                }
+                Err(_) => return Err(CarrierFailure::Transport),
+            }
+        };
         self.mailbox
             .publish_notice_before(
                 WorkerEvent::WorkspaceCloseObserved {
