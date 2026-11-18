@@ -141,6 +141,66 @@ fn an_agent_that_may_hold_this_environments_entry_still_stops_the_uninstall() {
     assert!(scratch.data().join(r"internal\integrations").is_dir());
 }
 
+/// A user's own `orchbee/SKILL.md` is an accessory this environment does not own: uninstall
+/// neither stops on it nor touches it.
+#[test]
+fn foreign_skill_does_not_stop_uninstall_and_stays_untouched() {
+    let scratch = Scratch::new();
+    let skill = scratch
+        .root
+        .join(r"home\.gemini\config\skills\orchbee\SKILL.md");
+    fs::create_dir_all(skill.parent().unwrap()).unwrap();
+    let custom = b"# user-authored skill\n";
+    fs::write(&skill, custom).unwrap();
+    let (output, document) = scratch.uninstall();
+    assert!(output.status.success(), "{}", describe(&output));
+    assert_ne!(document["result"]["error"], "integrations", "{document}");
+    assert_ne!(
+        integration(&document, "antigravity")["result"],
+        "failed",
+        "{document}"
+    );
+    assert_eq!(fs::read(&skill).unwrap(), custom);
+}
+
+/// An owned skill is removed when its provider program is gone: deleting a file needs no program,
+/// so uninstall removes it and goes on rather than stopping on the missing program.
+#[test]
+fn owned_skill_is_removed_when_the_provider_program_is_missing() {
+    use base64::Engine as _;
+    let scratch = Scratch::new();
+    let skill = scratch
+        .root
+        .join(r"home\.gemini\config\skills\orchbee\SKILL.md");
+    fs::create_dir_all(skill.parent().unwrap()).unwrap();
+    // The marker names this environment's Capsule root, which a fresh profile puts under the
+    // bundled version, so the file is owned. No Agent program is on PATH.
+    let capsule = scratch
+        .data()
+        .join(r"internal\integrations\agent-observation")
+        .join(bundled_version());
+    let marker = base64::engine::general_purpose::STANDARD.encode(capsule.to_str().unwrap());
+    fs::write(
+        &skill,
+        format!("<!-- orchbee-agent-integration-skill:v1:{marker} -->\n# stale\n"),
+    )
+    .unwrap();
+    let (output, document) = scratch.uninstall();
+    assert!(output.status.success(), "{}", describe(&output));
+    assert_ne!(document["result"]["error"], "integrations", "{document}");
+    assert!(!skill.exists(), "{document}");
+    assert!(!skill.parent().unwrap().exists(), "{document}");
+}
+
+/// The bundled Capsule version, which names the Capsule root of a fresh profile.
+fn bundled_version() -> String {
+    let manifest: Value = serde_json::from_str(include_str!(
+        "../../../crates/agent-integration-writer/agent-observation-adapters/bundle/package.json"
+    ))
+    .unwrap();
+    manifest["version"].as_str().unwrap().to_owned()
+}
+
 /// A plain test build's uninstall in a scratch profile: no store, a data root whose Capsule folder
 /// shows an integration was enabled, and a `PATH` holding only the stub Agent programs and the
 /// system folder.
@@ -192,10 +252,15 @@ impl Scratch {
     }
 
     fn uninstall(&self) -> (Output, Value) {
+        self.run(&["uninstall", "--confirm", "--format", "json"])
+    }
+
+    /// Runs this environment's Orchbee binary with `arguments` in the scratch profile.
+    fn run(&self, arguments: &[&str]) -> (Output, Value) {
         let mut command =
             crate::inherited_environment::orchbee_command(env!("CARGO_BIN_EXE_orchbee"));
         command
-            .args(["uninstall", "--confirm", "--format", "json"])
+            .args(arguments)
             .env(
                 "PATH",
                 format!(
@@ -286,6 +351,11 @@ impl Profile {
 
     fn agent_file(&self) -> PathBuf {
         self.root.join(r"home\.gemini\config\hooks.json")
+    }
+
+    fn agent_skill(&self) -> PathBuf {
+        self.root
+            .join(r"home\.gemini\config\skills\orchbee\SKILL.md")
     }
 
     fn shortcut(&self) -> PathBuf {
@@ -448,6 +518,7 @@ impl Profile {
         assert_eq!(output.status.code(), Some(0), "{}", describe(&output));
         assert_eq!(enable["result"]["outcome"], "completed", "{enable}");
         assert_ne!(fs::read_to_string(self.agent_file()).unwrap(), AGENT_FILE);
+        assert!(self.agent_skill().is_file());
         let (output, _) = self.run(&launcher, &["server", "start", "--format", "json"]);
         assert_eq!(output.status.code(), Some(0), "{}", describe(&output));
         fs::write(self.data().join("config.toml"), b"# kept\n").unwrap();
@@ -527,6 +598,7 @@ impl Profile {
             std::thread::sleep(Duration::from_millis(100));
         }
         assert_eq!(fs::read_to_string(self.agent_file()).unwrap(), AGENT_FILE);
+        assert!(!self.agent_skill().parent().unwrap().exists());
         assert_eq!(
             self.path_value(),
             Some(("REG_EXPAND_SZ".to_owned(), OTHER_ENTRIES.join(";")))

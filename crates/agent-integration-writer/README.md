@@ -112,6 +112,65 @@ Because only an installed Capsule lets an entry name an environment, the local r
 presence of these two folders without running provider commands or reading provider
 configuration, and implicit callers skip inspection when it is `false`.
 
+### Global skill discovery entries
+
+Supported harnesses with an established global `SKILL.md` directory (`claude-code`, `codex`,
+`antigravity-cli`, `gemini`, `qwen-code`, `opencode`, `kilo`, `cursor`, `github-copilot`,
+`qoder-cli`, `droid`, `pi`, `omp`, `kimi`, and `hermes`) also manage
+`<skills_root>/orchbee/SKILL.md` when enabled. Each file tells the Agent to run `orchbee --skill`
+when `ORCHBEE_TERMINAL_ID` is set. It carries the marker
+`<!-- orchbee-agent-integration-skill:v1:<base64(capsule_root)> -->`; the base64 encoding keeps a
+root path that contains `-->` from ending the marker early. The file holds no guide text beyond
+that instruction: `orchbee --skill` prints the guide of the CLI version that is running, so the
+pointer never goes stale when the CLI updates.
+
+Ownership is decided by the marker alone: the recorded capsule root decides it, not the file's other
+bytes. A file whose marker names this environment's root stays owned after a body edit. It reads
+`outdated` until enable rewrites it, and `disable` removes it. A file whose marker names another
+environment's root is skipped by enable and disable, and `uninstall` leaves it in place. A
+user-authored file, a file with more than one marker, a symbolic link, or a reparse point is foreign
+and is skipped the same way.
+
+The skill is an accessory. A skipped skill never changes the integration's state, its ownership, or
+whether enable and disable proceed; the mutation report does not record the skip. An
+outdated or missing owned file is written by enable. An owned file is removed by `disable` even when
+the provider program is missing or cannot be inspected, because removing a file needs no program.
+`disable` deletes the `orchbee/` folder only when it is empty.
+
+The skill body is English in every locale. Enable rewrites any body that differs from the canonical
+text, so a localized body would be overwritten on every enable.
+
+Known limitation: a skill that another environment left behind, for example one from a development
+cohort removed without `disable`, is skipped by every other environment and removed by none of them.
+Only that environment's own `disable` removes it.
+
+Where a provider's hook or extension path reads the same override, its skill root reads it through
+the same `provider_roots` helpers, so each formula has one source. An unset or empty override falls
+back to the default. Any other value must be absolute: a relative, unexpanded, or whitespace-only
+value refuses without fallback. Hermes alone trims `HERMES_HOME`, so a blank value counts as unset
+there, as its hook path already did.
+
+| Harness           | Global skill folder (default)                                              | Override                                                                                                             | Official source   |
+| ----------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `claude-code`     | `~/.claude/skills`                                                         | `CLAUDE_CONFIG_DIR` replaces `~/.claude`                                                                             | none verified yet |
+| `codex`           | `~/.codex/skills`                                                          | `CODEX_HOME` replaces `~/.codex`                                                                                     | none verified yet |
+| `antigravity-cli` | `~/.gemini/config/skills`                                                  | none                                                                                                                 | none verified yet |
+| `gemini`          | `~/.gemini/skills`                                                         | `GEMINI_CLI_HOME` replaces `~`, so the folder is `$GEMINI_CLI_HOME/.gemini/skills`                                   | none verified yet |
+| `qwen-code`       | `~/.qwen/skills`                                                           | `QWEN_HOME` replaces `~/.qwen`                                                                                       | none verified yet |
+| `opencode`        | `~/.config/opencode/skills`                                                | `XDG_CONFIG_HOME` replaces `~/.config`                                                                               | none verified yet |
+| `kilo`            | `~/.config/kilo/skills`                                                    | `KILO_CONFIG_DIR` replaces `~/.config/kilo`; else `$XDG_CONFIG_HOME/kilo/skills`                                     | none verified yet |
+| `cursor`          | `~/.cursor/skills`                                                         | `CURSOR_CONFIG_DIR` replaces `~/.cursor`                                                                             | none verified yet |
+| `github-copilot`  | `~/.copilot/skills`                                                        | `COPILOT_HOME` replaces `~/.copilot`                                                                                 | none verified yet |
+| `qoder-cli`       | `~/.qoder/skills`                                                          | `QODER_CONFIG_DIR` replaces `~/.qoder`                                                                               | none verified yet |
+| `droid`           | `~/.factory/skills`                                                        | none                                                                                                                 | none verified yet |
+| `pi`              | `~/.pi/agent/skills`                                                       | `PI_CODING_AGENT_DIR` replaces `~/.pi/agent`                                                                         | none verified yet |
+| `omp`             | `~/.omp/agent/skills`                                                      | none                                                                                                                 | none verified yet |
+| `kimi`            | `~/.kimi-code/skills`                                                      | `KIMI_CODE_HOME` replaces `~/.kimi-code`                                                                             | none verified yet |
+| `hermes`          | `~/.hermes<suffix>/skills`; Windows `%LOCALAPPDATA%\hermes<suffix>\skills` | `HERMES_HOME` replaces the profile folder; `HERMES_DATA_DIR_SUFFIX` sets `<suffix>` (letters, digits, `.`, `_`, `-`) | none verified yet |
+
+None of these roots has been checked against provider documentation yet. Until a source is recorded
+here for a harness, its root is an assumption made by Orchbee, not a documented provider location.
+
 ## Conformance fixtures
 
 `tests/fixtures/` holds the corpora replayed by this crate's harnesses. The `test-support`

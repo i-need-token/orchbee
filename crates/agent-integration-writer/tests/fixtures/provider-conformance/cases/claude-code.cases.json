@@ -34,6 +34,13 @@
 							"stdoutJson": "@claude.marketplace.current"
 						}
 					}
+				],
+				"fs": [
+					{
+						"path": ".claude/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
+					}
 				]
 			},
 			"expect": {
@@ -760,6 +767,13 @@
 							"kind": "completed",
 							"stdoutJson": "@claude.marketplace.current"
 						}
+					}
+				],
+				"fs": [
+					{
+						"path": ".claude/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				]
 			},
@@ -1548,6 +1562,13 @@
 							"stdout": ""
 						}
 					}
+				],
+				"fs": [
+					{
+						"path": ".claude/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
+					}
 				]
 			},
 			"expect": {
@@ -1928,7 +1949,13 @@
 					"exit": 0,
 					"frontier": "post-effect",
 					"observedProvenance": "post-effect",
-					"attemptedSteps": ["publish-capsule (conflict)", "plugin enable"],
+					"attemptedSteps": [
+						"publish-capsule (conflict)",
+						"plugin enable",
+						"stage-configuration",
+						"publish-configuration",
+						"verify-configuration"
+					],
 					"note": "root97-C: the publish conflicted but the concurrent occupant verifies as ours — the run completes; the retained stage's cleanup FAILED so the residue must stay named, not be silently dropped."
 				},
 				"residue": [
@@ -2020,6 +2047,225 @@
 				}
 			},
 			"notes": "The marketplace and its plugin belong to another environment: disable issues no command and completes, so uninstall is not stopped. The row still reads conflict."
+		},
+		{
+			"id": "claude-code.inspect.skill-missing",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["update-required", "skill"],
+			"dims": {
+				"marketplace": "current",
+				"pluginPresent": true,
+				"enabled": true,
+				"skill": "missing"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": ["plugin", "marketplace", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": [
+					["plugin", "list", "--json"],
+					["plugin", "marketplace", "list", "--json"]
+				]
+			}
+		},
+		{
+			"id": "claude-code.enable.repairs-missing-skill-without-reinstalling",
+			"operation": "enable",
+			"class": "shared",
+			"covers": ["enable", "repair", "skill"],
+			"dims": {
+				"state": "update-required",
+				"skill": "missing"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": ["plugin", "marketplace", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [
+					["plugin", "list", "--json"],
+					["plugin", "marketplace", "list", "--json"]
+				],
+				"planCommands": [],
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect",
+					"observedProvenance": "post-effect",
+					"attemptedSteps": ["stage-configuration", "publish-configuration", "verify-configuration"]
+				}
+			}
+		},
+		{
+			"id": "claude-code.enable.skill-foreign-skipped",
+			"operation": "enable",
+			"class": "shared",
+			"covers": ["enable", "accessory", "foreign", "skill"],
+			"dims": {
+				"state": "not-installed",
+				"marketplace": "absent",
+				"skill": "foreign"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"fs": [
+					{
+						"path": ".claude/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.foreign"
+					}
+				],
+				"commands": [
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.empty"
+						}
+					},
+					{
+						"argv": ["plugin", "marketplace", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.absent"
+						}
+					},
+					{
+						"argv": ["plugin", "marketplace", "add", "${CAPSULE_ROOT}", "--scope", "user"],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": ["plugin", "install", "${PLUGIN_ID}", "--scope", "user"],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": ["plugin", "enable", "${PLUGIN_ID}", "--scope", "user"],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [
+					["plugin", "list", "--json"],
+					["plugin", "marketplace", "list", "--json"],
+					["plugin", "marketplace", "add", "${CAPSULE_ROOT}", "--scope", "user"],
+					["plugin", "install", "${PLUGIN_ID}", "--scope", "user"],
+					["plugin", "enable", "${PLUGIN_ID}", "--scope", "user"]
+				],
+				"planCommands": [
+					["plugin", "marketplace", "add", "${CAPSULE_ROOT}", "--scope", "user"],
+					["plugin", "install", "${PLUGIN_ID}", "--scope", "user"],
+					["plugin", "enable", "${PLUGIN_ID}", "--scope", "user"]
+				],
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
+			}
+		},
+		{
+			"id": "claude-code.disable.skill-elsewhere-noop",
+			"operation": "disable",
+			"class": "shared",
+			"covers": ["noop", "disable", "other-environment", "no-else-uninstall", "skill"],
+			"dims": {
+				"skill": "another environment"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"fs": [
+					{
+						"path": ".claude/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.otherEnvironment"
+					}
+				],
+				"commands": [
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.empty"
+						}
+					},
+					{
+						"argv": ["plugin", "marketplace", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.absent"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [
+					["plugin", "list", "--json"],
+					["plugin", "marketplace", "list", "--json"]
+				],
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
+			}
 		}
 	]
 }

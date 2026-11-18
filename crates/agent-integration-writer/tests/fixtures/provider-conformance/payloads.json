@@ -371,6 +371,10 @@
 			"orchbeeAgentObservation": {
 				"contractVersion": 3
 			}
-		}
+		},
+		"orchbee.skill.current": "---\nname: orchbee\ndescription: Use when running inside an Orchbee terminal (ORCHBEE_TERMINAL_ID is set) to discover current Orchbee CLI orchestration commands and safe cursor rules.\n---\n<!-- orchbee-agent-integration-skill:v1:${CAPSULE_ROOT_B64} -->\n\nWhen `ORCHBEE_TERMINAL_ID` is set in your environment, you are running inside an Orchbee-managed terminal.\n\nBefore orchestrating panels, terminals, or nested agents, run `orchbee --skill` to read the current quickstart recipes and safety rules.\n",
+		"orchbee.skill.outdated": "---\nname: orchbee\ndescription: Use when running inside an Orchbee terminal (ORCHBEE_TERMINAL_ID is set) to discover current Orchbee CLI orchestration commands and safe cursor rules.\n---\n<!-- orchbee-agent-integration-skill:v1:${OUTDATED_ROOT_B64} -->\n\nWhen `ORCHBEE_TERMINAL_ID` is set in your environment, you are running inside an Orchbee-managed terminal.\n\nBefore orchestrating panels, terminals, or nested agents, run `orchbee --skill` to read the current quickstart recipes and safety rules.\n",
+		"orchbee.skill.otherEnvironment": "---\nname: orchbee\ndescription: Use when running inside an Orchbee terminal (ORCHBEE_TERMINAL_ID is set) to discover current Orchbee CLI orchestration commands and safe cursor rules.\n---\n<!-- orchbee-agent-integration-skill:v1:${OTHER_CAPSULE_ROOT_B64} -->\n\nWhen `ORCHBEE_TERMINAL_ID` is set in your environment, you are running inside an Orchbee-managed terminal.\n\nBefore orchestrating panels, terminals, or nested agents, run `orchbee --skill` to read the current quickstart recipes and safety rules.\n",
+		"orchbee.skill.foreign": "---\nname: orchbee\ndescription: Custom user skill\n---\n\nUser-authored skill instructions.\n"
 	}
 }

@@ -16,11 +16,12 @@ use std::path::{Path, PathBuf};
 use super::capsule::{self, CapsuleValidity};
 use super::copilot::Command as CopilotCommand;
 use super::exec::{self, CommandResult, SLOT};
-use super::exec_budget::now;
+pub(super) use super::exec_budget::now;
 use super::files::{self, FsStep};
 use super::inspect::{self, BootstrapKind, ClinePackage, Marketplace, TargetState};
-use super::model::{Availability, IntegrationId, ManagementMode, Provenance, SnapshotItem, State};
+use super::model::{Availability, IntegrationId, ManagementMode, Provenance, State};
 use super::providers::{self, ProviderContext};
+use super::skills::SkillState;
 
 pub use orchbee_agent_integration::{
     AttemptedStep, Direction, FailureCode, MutationReport, PlannedStep, Refusal, StepKind,
@@ -34,13 +35,14 @@ mod file_publication;
 mod grok_windows;
 mod hermes;
 mod hook_configuration;
+mod skills;
 
 /// One invocation's effect journal; vectors borrow its records and frontier
 /// together instead of growing independent mutation-output argument lists.
-struct EffectTrace<'a> {
-    attempted: &'a mut Vec<AttemptedStep>,
-    residuals: &'a mut Vec<PathBuf>,
-    begun: &'a mut bool,
+pub(super) struct EffectTrace<'a> {
+    pub(super) attempted: &'a mut Vec<AttemptedStep>,
+    pub(super) residuals: &'a mut Vec<PathBuf>,
+    pub(super) begun: &'a mut bool,
 }
 
 /// The canonical `AgentIntegrationMutationAttempt` vocabulary — every
@@ -48,7 +50,7 @@ struct EffectTrace<'a> {
 /// code so a timed-out or leaked step never collapses into the generic
 /// failure the verdict would then misreport.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Attempt {
+pub(super) enum Attempt {
     Attempted,
     Conflict,
     /// The termination signal fired mid-frontier — exit 130, never a
@@ -187,6 +189,9 @@ pub(crate) fn mutate(
     let providers::Inspection {
         item: initial,
         detail,
+        primary_state,
+        primary_own,
+        skill_state,
         ..
     } = inspection;
     // Whether the capsule publish step already ran decides what `initial`
@@ -244,6 +249,45 @@ pub(crate) fn mutate(
         _ => None,
     };
     if let Some(refusal) = refused {
+        // An owned skill file needs no provider program, so disable removes it even when the
+        // primary integration cannot be inspected. The primary keeps its own refusal, and a failed
+        // removal of our own file is reported as the failure it is.
+        if refusal == Refusal::InspectionFailed
+            && direction == Direction::Disable
+            && matches!(skill_state, SkillState::Current | SkillState::Outdated)
+        {
+            let options = providers::resource_options(context);
+            // The accessory removal does not move the primary's frontier: the refusal stays named
+            // after its pre-effect class, and the removal is still recorded in `attempted`.
+            let mut accessory_begun = false;
+            let removal = skills::disable(
+                id,
+                context,
+                &options,
+                EffectTrace {
+                    attempted: &mut attempted,
+                    residuals: &mut residuals,
+                    begun: &mut accessory_begun,
+                },
+            );
+            let verdict = match removal {
+                Attempt::Attempted => Verdict::Refused(refusal),
+                Attempt::Refused(inner) => Verdict::Refused(inner),
+                Attempt::Cancelled => Verdict::Cancelled,
+                Attempt::Conflict => Verdict::Failed(FailureCode::Conflict),
+                Attempt::Failed(code) => Verdict::Failed(code),
+            };
+            return MutationReport {
+                integration_id: id,
+                direction,
+                attempted,
+                residuals,
+                observed: Some(initial),
+                provenance: initial_provenance,
+                effect_begun,
+                verdict,
+            };
+        }
         return MutationReport {
             integration_id: id,
             direction,
@@ -290,8 +334,8 @@ pub(crate) fn mutate(
         Direction::Enable => enable_vector(
             id,
             context,
-            &initial,
             &detail,
+            primary_state,
             EffectTrace {
                 attempted: &mut attempted,
                 residuals: &mut residuals,
@@ -301,8 +345,8 @@ pub(crate) fn mutate(
         Direction::Disable => disable_vector(
             id,
             context,
-            &initial,
             &detail,
+            primary_own,
             EffectTrace {
                 attempted: &mut attempted,
                 residuals: &mut residuals,
@@ -717,7 +761,7 @@ pub(crate) fn publish_capsule(source: &Path, target: &Path) -> PublishResult {
 /// The termination source check shared by every frontier boundary — absent
 /// in contexts that cannot be cancelled (tests, `--adapter-source` drives
 /// without an armed signal owner).
-fn cancelled(context: &ProviderContext) -> bool {
+pub(super) fn cancelled(context: &ProviderContext) -> bool {
     context
         .cancel
         .map(|source| source.requested())
@@ -938,8 +982,8 @@ fn vector_inspection(
 fn enable_vector(
     id: IntegrationId,
     context: &ProviderContext,
-    initial: &SnapshotItem,
     detail: &providers::InspectionDetail,
+    primary_state: State,
     trace: EffectTrace,
 ) -> Attempt {
     let EffectTrace {
@@ -948,12 +992,60 @@ fn enable_vector(
         begun: effect,
     } = trace;
     let options = providers::resource_options(context);
+    if primary_state != State::Enabled {
+        let primary = enable_primary_vector(
+            id,
+            context,
+            detail,
+            primary_state,
+            &options,
+            EffectTrace {
+                attempted,
+                residuals,
+                begun: effect,
+            },
+        );
+        if primary != Attempt::Attempted {
+            return primary;
+        }
+        #[cfg(windows)]
+        if id == IntegrationId::Codex
+            && inspect::inspect_codex(context.home, &options).state != State::Enabled
+        {
+            return Attempt::Attempted;
+        }
+    }
+    skills::enable(
+        id,
+        context,
+        &options,
+        EffectTrace {
+            attempted,
+            residuals,
+            begun: effect,
+        },
+    )
+}
+
+fn enable_primary_vector(
+    id: IntegrationId,
+    context: &ProviderContext,
+    detail: &providers::InspectionDetail,
+    primary_state: State,
+    options: &inspect::ResourceOptions,
+    trace: EffectTrace,
+) -> Attempt {
+    let EffectTrace {
+        attempted,
+        residuals,
+        begun: effect,
+    } = trace;
     let resource_root = context.capsule_root.to_string_lossy().into_owned();
     let reserve = providers::inspect_slots(id);
     match id {
         IntegrationId::Hermes => hermes::update(
             context,
-            &options,
+            options,
             true,
             EffectTrace {
                 attempted,
@@ -971,14 +1063,14 @@ fn enable_vector(
         | IntegrationId::Devin => hook_configuration::update(
             id.as_str(),
             context,
-            &options,
+            options,
             true,
             attempted,
             residuals,
             effect,
         ),
         IntegrationId::ClaudeCode => {
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
+            let Some(inspection) = vector_inspection(primary_state, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
             match inspection.state {
@@ -1060,7 +1152,7 @@ fn enable_vector(
             let Some(exe) = exec::resolve_executable("codex", context.path_env) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
+            let Some(inspection) = vector_inspection(primary_state, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
             match inspection.state {
@@ -1106,7 +1198,7 @@ fn enable_vector(
             }
         }
         IntegrationId::Grok => {
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
+            let Some(inspection) = vector_inspection(primary_state, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
             let bundle_root = context.capsule_root.join("bundle");
@@ -1151,7 +1243,7 @@ fn enable_vector(
             }
         }
         IntegrationId::GitHubCopilot => {
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
+            let Some(inspection) = vector_inspection(primary_state, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
             match inspection.state {
@@ -1200,7 +1292,7 @@ fn enable_vector(
             ) {
                 return Attempt::Failed(FailureCode::OperationFailed);
             }
-            let state = initial.state;
+            let state = primary_state;
             match state {
                 State::Enabled => return Attempt::Attempted,
                 State::NotInstalled | State::UpdateRequired => {}
@@ -1236,21 +1328,19 @@ fn enable_vector(
             let Some(spec) = providers::guarded_spec(id) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
-            let outcome = guarded_enable(
-                id, spec, context, &options, initial, attempted, residuals, effect,
-            );
+            let outcome = guarded_enable(id, spec, context, options, attempted, residuals, effect);
             if !matches!(outcome, Attempt::Attempted) {
                 return outcome;
             }
             let outcome = companion_guarded(id, context, |companion| {
                 guarded_enable(
-                    id, companion, context, &options, initial, attempted, residuals, effect,
+                    id, companion, context, options, attempted, residuals, effect,
                 )
             });
             if !matches!(outcome, Attempt::Attempted) {
                 return outcome;
             }
-            remove_obsolete_guarded(id, context, &options, attempted, effect)
+            remove_obsolete_guarded(id, context, options, attempted, effect)
         }
     }
 }
@@ -1258,8 +1348,8 @@ fn enable_vector(
 fn disable_vector(
     id: IntegrationId,
     context: &ProviderContext,
-    initial: &SnapshotItem,
     detail: &providers::InspectionDetail,
+    primary_own: State,
     trace: EffectTrace,
 ) -> Attempt {
     let EffectTrace {
@@ -1268,11 +1358,55 @@ fn disable_vector(
         begun: effect,
     } = trace;
     let options = providers::resource_options(context);
+    let primary_absent = matches!(primary_own, State::NotInstalled)
+        || (id == IntegrationId::ClaudeCode && primary_own == State::Disabled);
+    if !primary_absent {
+        let primary = disable_primary_vector(
+            id,
+            context,
+            detail,
+            primary_own,
+            &options,
+            EffectTrace {
+                attempted,
+                residuals,
+                begun: effect,
+            },
+        );
+        if primary != Attempt::Attempted {
+            return primary;
+        }
+    }
+    skills::disable(
+        id,
+        context,
+        &options,
+        EffectTrace {
+            attempted,
+            residuals,
+            begun: effect,
+        },
+    )
+}
+
+fn disable_primary_vector(
+    id: IntegrationId,
+    context: &ProviderContext,
+    detail: &providers::InspectionDetail,
+    primary_own: State,
+    options: &inspect::ResourceOptions,
+    trace: EffectTrace,
+) -> Attempt {
+    let EffectTrace {
+        attempted,
+        residuals,
+        begun: effect,
+    } = trace;
     let reserve = providers::inspect_slots(id);
     match id {
         IntegrationId::Hermes => hermes::update(
             context,
-            &options,
+            options,
             false,
             EffectTrace {
                 attempted,
@@ -1290,14 +1424,14 @@ fn disable_vector(
         | IntegrationId::Devin => hook_configuration::update(
             id.as_str(),
             context,
-            &options,
+            options,
             false,
             attempted,
             residuals,
             effect,
         ),
         IntegrationId::ClaudeCode => {
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
+            let Some(inspection) = vector_inspection(primary_own, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
             match inspection.state {
@@ -1359,7 +1493,7 @@ fn disable_vector(
             let Some(exe) = exec::resolve_executable("codex", context.path_env) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
+            let Some(inspection) = vector_inspection(primary_own, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
             match inspection.state {
@@ -1405,7 +1539,7 @@ fn disable_vector(
             }
         }
         IntegrationId::Grok => {
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
+            let Some(inspection) = vector_inspection(primary_own, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
             match inspection.state {
@@ -1445,7 +1579,7 @@ fn disable_vector(
             }
         }
         IntegrationId::GitHubCopilot => {
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
+            let Some(inspection) = vector_inspection(primary_own, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
             match inspection.state {
@@ -1485,7 +1619,7 @@ fn disable_vector(
             }
         }
         IntegrationId::Cline => {
-            match initial.state {
+            match primary_own {
                 State::NotInstalled => return Attempt::Attempted,
                 State::Enabled | State::UpdateRequired => {}
                 State::Conflict => return Attempt::Conflict,
@@ -1512,17 +1646,17 @@ fn disable_vector(
             let Some(spec) = providers::guarded_spec(id) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
-            let outcome = guarded_disable(id, spec, context, &options, attempted, effect);
+            let outcome = guarded_disable(id, spec, context, options, attempted, effect);
             if !matches!(outcome, Attempt::Attempted) {
                 return outcome;
             }
             let outcome = companion_guarded(id, context, |companion| {
-                guarded_disable(id, companion, context, &options, attempted, effect)
+                guarded_disable(id, companion, context, options, attempted, effect)
             });
             if !matches!(outcome, Attempt::Attempted) {
                 return outcome;
             }
-            remove_obsolete_guarded(id, context, &options, attempted, effect)
+            remove_obsolete_guarded(id, context, options, attempted, effect)
         }
     }
 }
@@ -1532,13 +1666,11 @@ fn disable_vector(
 /// Canonical guarded `enable`: source-ready → inspect → stage → re-inspect
 /// (state must not have moved) → remove owned → publish — strengthened to
 /// move-aside + no-replace publish + publish verification + backup restore.
-#[expect(clippy::too_many_arguments)]
 fn guarded_enable(
     id: IntegrationId,
     spec: providers::GuardedSpec,
     context: &ProviderContext,
     options: &inspect::ResourceOptions,
-    _initial: &SnapshotItem,
     attempted: &mut Vec<AttemptedStep>,
     residuals: &mut Vec<PathBuf>,
     effect: &mut bool,
@@ -1994,7 +2126,7 @@ fn guarded_disable(
     }
 }
 
-fn step_outcome(step: FsStep) -> StepOutcome {
+pub(super) fn step_outcome(step: FsStep) -> StepOutcome {
     match step {
         FsStep::Done => StepOutcome::Completed,
         FsStep::Conflict => StepOutcome::Conflict,
@@ -2010,9 +2142,12 @@ fn step_outcome(step: FsStep) -> StepOutcome {
 pub(crate) fn plan_enable(
     id: IntegrationId,
     context: &ProviderContext,
-    initial: &SnapshotItem,
-    detail: &providers::InspectionDetail,
+    inspection: &providers::Inspection,
 ) -> Vec<PlannedStep> {
+    let initial = &inspection.item;
+    let detail = &inspection.detail;
+    let primary_state = inspection.primary_state;
+    let skill_state = inspection.skill_state;
     // The same pre-gates as `mutate` — a refused vector emits no plan.
     if matches!(
         initial.state,
@@ -2022,7 +2157,6 @@ pub(crate) fn plan_enable(
     {
         return Vec::new();
     }
-    let resource_root = context.capsule_root.to_string_lossy().into_owned();
     let mut steps = Vec::new();
     if context.adapter_source.is_some()
         && !capsule::is_ready(context.capsule_root, context.adapter_source)
@@ -2031,6 +2165,30 @@ pub(crate) fn plan_enable(
             target: context.capsule_root.to_path_buf(),
         });
     }
+    if primary_state != State::Enabled {
+        plan_primary_enable(id, context, primary_state, detail, &mut steps);
+    }
+    // A skill this environment does not own is skipped, not written, so the plan omits it.
+    if crate::skills::supported(id)
+        && !matches!(
+            skill_state,
+            SkillState::Current | SkillState::Foreign | SkillState::Elsewhere
+        )
+        && let Some(target) = crate::skills::skill_target(id, context.home, context.variables)
+    {
+        steps.push(PlannedStep::GuardedWrite { target });
+    }
+    steps
+}
+
+fn plan_primary_enable(
+    id: IntegrationId,
+    context: &ProviderContext,
+    primary_state: State,
+    detail: &providers::InspectionDetail,
+    steps: &mut Vec<PlannedStep>,
+) {
+    let resource_root = context.capsule_root.to_string_lossy().into_owned();
     let command = |name: &'static str, argv: &[&str]| PlannedStep::Command {
         executable: exec::resolve_executable(name, context.path_env)
             .map(|path| path.to_string_lossy().into_owned())
@@ -2040,7 +2198,7 @@ pub(crate) fn plan_enable(
     match id {
         IntegrationId::Hermes => {
             if let Some(profile) = crate::configuration::hermes_home(context.home) {
-                if initial.state != State::Disabled {
+                if primary_state != State::Disabled {
                     for name in ["__init__.py", "plugin.yaml"] {
                         steps.push(PlannedStep::GuardedWrite {
                             target: profile.join("plugins/orchbee-agent-observation").join(name),
@@ -2071,8 +2229,8 @@ pub(crate) fn plan_enable(
             }
         }
         IntegrationId::ClaudeCode => {
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
-                return steps;
+            let Some(inspection) = vector_inspection(primary_state, detail) else {
+                return;
             };
             match inspection.state {
                 State::Disabled => steps.push(command(
@@ -2150,10 +2308,10 @@ pub(crate) fn plan_enable(
         }
         IntegrationId::Codex => {
             if exec::resolve_executable("codex", context.path_env).is_none() {
-                return steps;
+                return;
             }
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
-                return steps;
+            let Some(inspection) = vector_inspection(primary_state, detail) else {
+                return;
             };
             match inspection.state {
                 State::Enabled | State::Conflict | State::Unknown => {}
@@ -2194,8 +2352,8 @@ pub(crate) fn plan_enable(
             }
         }
         IntegrationId::Grok => {
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
-                return steps;
+            let Some(inspection) = vector_inspection(primary_state, detail) else {
+                return;
             };
             let bundle_root = context.capsule_root.join("bundle");
             match inspection.state {
@@ -2229,8 +2387,8 @@ pub(crate) fn plan_enable(
             }
         }
         IntegrationId::GitHubCopilot => {
-            let Some(inspection) = vector_inspection(initial.state, detail) else {
-                return steps;
+            let Some(inspection) = vector_inspection(primary_state, detail) else {
+                return;
             };
             match inspection.state {
                 State::Disabled => {
@@ -2263,9 +2421,9 @@ pub(crate) fn plan_enable(
                 inspect::cline_package_state(&bundle_root),
                 ClinePackage::Current
             ) {
-                return steps;
+                return;
             }
-            match initial.state {
+            match primary_state {
                 State::Enabled | State::Conflict | State::Unknown => {}
                 state => {
                     if state == State::UpdateRequired {
@@ -2293,10 +2451,10 @@ pub(crate) fn plan_enable(
         | IntegrationId::Gemini
         | IntegrationId::QwenCode => {
             let Some(spec) = providers::guarded_spec(id) else {
-                return steps;
+                return;
             };
             let Some(target) = providers::guarded_target(id, spec, context) else {
-                return steps;
+                return;
             };
             if providers::obsolete_guarded_spec(id).is_none()
                 || !matches!(
@@ -2328,5 +2486,4 @@ pub(crate) fn plan_enable(
             }
         }
     }
-    steps
 }

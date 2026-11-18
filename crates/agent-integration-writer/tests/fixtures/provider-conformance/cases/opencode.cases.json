@@ -25,6 +25,11 @@
 						"kind": "file",
 						"content": "@guarded.bootstrap.opencode",
 						"mode": "0600"
+					},
+					{
+						"path": ".config/opencode/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				],
 				"commands": []
@@ -244,6 +249,11 @@
 						"kind": "file",
 						"content": "@guarded.bootstrap.opencode",
 						"mode": "0600"
+					},
+					{
+						"path": ".config/opencode/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				],
 				"commands": []
@@ -313,6 +323,11 @@
 						"kind": "file",
 						"content": "@guarded.bootstrap.opencode",
 						"mode": "0600"
+					},
+					{
+						"path": ".config/opencode/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				],
 				"commands": []
@@ -489,6 +504,11 @@
 						"kind": "file",
 						"content": "@guarded.bootstrap.opencode",
 						"mode": "0600"
+					},
+					{
+						"path": ".config/opencode/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				],
 				"commands": []
@@ -673,6 +693,138 @@
 			},
 			"anchors": ["guarded-adapter:189"],
 			"notes": "Disable leaves another environment's bootstrap byte for byte and completes, so uninstall is not stopped by it."
+		},
+		{
+			"id": "opencode.inspect.skill-missing",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["update-required", "skill"],
+			"dims": {
+				"target": "exact-owned current bootstrap",
+				"skill": "missing"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/opencode",
+				"capsule": "ready",
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "file",
+						"content": "@guarded.bootstrap.opencode",
+						"mode": "0600"
+					}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": []
+			}
+		},
+		{
+			"id": "opencode.inspect.skill-foreign-accessory",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["accessory", "foreign", "skill"],
+			"dims": {
+				"skill": "foreign"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/opencode",
+				"capsule": "ready",
+				"fs": [
+					{
+						"path": ".config/opencode/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.foreign"
+					}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {
+					"state": "not-installed",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": []
+			}
+		},
+		{
+			"id": "opencode.disable.skill-foreign-skipped",
+			"operation": "disable",
+			"class": "shared",
+			"covers": ["noop", "disable", "foreign", "no-else-uninstall", "skill"],
+			"dims": {
+				"skill": "foreign"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/opencode",
+				"capsule": "ready",
+				"fs": [
+					{
+						"path": ".config/opencode/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.foreign"
+					}
+				],
+				"commands": []
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [],
+				"mustNotMutate": true,
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
+			}
+		},
+		{
+			"id": "opencode.disable.skill-elsewhere-noop",
+			"operation": "disable",
+			"class": "shared",
+			"covers": ["noop", "disable", "other-environment", "no-else-uninstall", "skill"],
+			"dims": {
+				"skill": "another environment"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/opencode",
+				"capsule": "ready",
+				"fs": [
+					{
+						"path": ".config/opencode/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.otherEnvironment"
+					}
+				],
+				"commands": []
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [],
+				"mustNotMutate": true,
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
+			}
 		}
 	]
 }

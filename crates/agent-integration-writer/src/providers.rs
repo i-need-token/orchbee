@@ -513,6 +513,13 @@ pub(crate) struct Inspection {
     /// The row's state with every whole-file entry of another environment read as absent, which
     /// is what disable acts on; it equals `item.state` when no such entry was found.
     pub(crate) own: State,
+    /// Primary integration row state before folding the global `SKILL.md` companion state.
+    pub(crate) primary_state: State,
+    /// Primary integration disable-ownership state before folding the global `SKILL.md` companion
+    /// state.
+    pub(crate) primary_own: State,
+    /// Classification of the global `<skills_root>/orchbee/SKILL.md` entry for this provider.
+    pub(crate) skill_state: crate::skills::SkillState,
 }
 
 /// The single read pass every consumer shares: one scripted queue slot per
@@ -534,16 +541,29 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
     };
     let options = resource_options(context);
     let bundle_root = context.capsule_root.join("bundle");
+    let skill_state = if management_mode != ManagementMode::ManualOnly {
+        crate::skills::inspect(id, context.home, context.variables, &options)
+    } else {
+        crate::skills::SkillState::NotSupported
+    };
 
     // CLI-command adapters skip inspection entirely when the executable is
-    // absent — state unknown; the platform issue still reports manual-only.
+    // absent — state unknown; the platform issue still reports manual-only. The skill is an
+    // accessory here too: no skill state makes a missing program look installed, and an owned
+    // skill file is still removed by disable.
     if matches!(spec.kind, Kind::Cli(_)) && executable.is_none() {
+        let skill_issue =
+            (skill_state == crate::skills::SkillState::Unknown).then_some(Issue::InspectionFailed);
+        let issue = if management_mode == ManagementMode::ManualOnly {
+            Some(Issue::UnsupportedPlatform)
+        } else {
+            skill_issue
+        };
         return Inspection {
             item: SnapshotItem {
                 availability,
                 integration_id: id,
-                issue: (management_mode == ManagementMode::ManualOnly)
-                    .then_some(Issue::UnsupportedPlatform),
+                issue,
                 management_mode,
                 state: State::Unknown,
                 timed_out: false,
@@ -553,6 +573,9 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
                 plugin_present: None,
             },
             own: State::Unknown,
+            primary_state: State::Unknown,
+            primary_own: State::Unknown,
+            skill_state,
         };
     }
 
@@ -560,12 +583,14 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
         && id.read_by_starting_agent()
         && management_mode == ManagementMode::ManagedLocal
     {
-        let (state, own) = unread_state(id, context, &options);
+        let (primary_state, primary_own) = unread_state(id, context, &options);
+        let (state, own) = crate::skills::combine_unread(primary_state, primary_own, skill_state);
         return Inspection {
             item: SnapshotItem {
                 availability,
                 integration_id: id,
-                issue: None,
+                issue: (skill_state == crate::skills::SkillState::Unknown)
+                    .then_some(Issue::InspectionFailed),
                 management_mode,
                 state,
                 timed_out: false,
@@ -578,6 +603,9 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
                 },
             },
             own,
+            primary_state,
+            primary_own,
+            skill_state,
         };
     }
 
@@ -814,13 +842,16 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
             state
         }
     };
-    let own = own.unwrap_or(state);
-    let (state, own) = if own == state {
+    let primary_own_raw = own.unwrap_or(state);
+    let (primary_state, primary_own) = if primary_own_raw == state {
         let folded = fold(state);
         (folded, folded)
     } else {
-        (fold(state), fold(own))
+        (fold(state), fold(primary_own_raw))
     };
+    let state = crate::skills::combine_state(primary_state, skill_state);
+    let own = crate::skills::combine_state(primary_own, skill_state);
+    let inspection_failed = inspection_failed || skill_state == crate::skills::SkillState::Unknown;
 
     // Issue precedence (canonical): the platform slot wins, then the
     // inspection failure.
@@ -843,6 +874,9 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
         },
         detail,
         own,
+        primary_state,
+        primary_own,
+        skill_state,
     }
 }
 
@@ -895,14 +929,3 @@ pub(crate) fn list_snapshot(context: &ProviderContext) -> Vec<SnapshotItem> {
 }
 
 pub use orchbee_agent_integration::InspectionDetail;
-
-/// The richer inspection for `explain` — same verdict, same single read
-/// pass, with the guard dimensions attached where the provider exposes
-/// them.
-pub(crate) fn inspect_provider_detail(
-    id: IntegrationId,
-    context: &ProviderContext,
-) -> (SnapshotItem, InspectionDetail) {
-    let Inspection { item, detail, .. } = inspect_full(id, context);
-    (item, detail)
-}

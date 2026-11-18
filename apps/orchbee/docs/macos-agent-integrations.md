@@ -82,10 +82,29 @@ original is removed only once the published bytes verify, and restored otherwise
 - Reads are bounded to 512 KiB, and a FIFO never blocks the read.
 
 Hook documents keep other environments' entries beside this environment's, as on Windows. Whole-file
-entries, Hermes's two entry files included, follow the same rule: another environment's files read
+entries and Hermes's two entry files follow the same rule: another environment's files read
 `conflict` and enable refuses them, while disable leaves them as they are and does not stop, as on
 Windows; see the writer's
 [whole-file rule](../../../crates/agent-integration-writer/README.md#whole-file-entries).
+
+Global `<skills_root>/orchbee/SKILL.md` files are accessory and follow a different rule. Enable and
+disable skip a file that another environment, the user, or a link owns, report it as `skipped`, and
+never let it block the integration; see the writer's
+[skill discovery rule](../../../crates/agent-integration-writer/README.md#global-skill-discovery-entries).
+
+For global skill discovery, the 15 supported harnesses (`claude-code`, `codex`, `antigravity-cli`,
+`gemini`, `qwen-code`, `opencode`, `kilo`, `cursor`, `github-copilot`, `qoder-cli`, `droid`,
+`pi`, `omp`, `kimi`, `hermes`) install `<skills_root>/orchbee/SKILL.md` under their global home
+folders (`~/.claude/skills`, `~/.codex/skills`, `~/.gemini/config/skills`, `~/.gemini/skills`,
+`~/.qwen/skills`, `~/.config/opencode/skills`, `~/.config/kilo/skills`, `~/.cursor/skills`,
+`~/.copilot/skills`, `~/.qoder/skills`, `~/.factory/skills`, `~/.pi/agent/skills`,
+`~/.omp/agent/skills`, `~/.kimi-code/skills`, `~/.hermes/skills`) or admitted overrides
+(`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GEMINI_CLI_HOME`, `QWEN_HOME`, `XDG_CONFIG_HOME`,
+`KILO_CONFIG_DIR`, `CURSOR_CONFIG_DIR`, `COPILOT_HOME`, `QODER_CONFIG_DIR`, `PI_CODING_AGENT_DIR`,
+`KIMI_CODE_HOME`, `HERMES_HOME`, `HERMES_DATA_DIR_SUFFIX`). Unexpanded or relative overrides refuse
+without fallback. `disable` and `uninstall` delete this environment's `SKILL.md` even when the
+provider program is missing, then remove the `orchbee/` folder only when it is empty, so sibling
+user files stay.
 
 ## Finding Agent programs
 

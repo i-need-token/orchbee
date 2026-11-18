@@ -1203,6 +1203,33 @@ fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
         // completes without touching it.
         let record = target.join("scripts/environment.json");
         let original_record = fs::read(&record).unwrap();
+        let skill_path = target
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("skills/orchbee/SKILL.md");
+        let original_skill = fs::read_to_string(&skill_path).unwrap();
+        let marker_here = original_skill
+            .lines()
+            .find(|line| line.starts_with("<!-- orchbee-agent-integration-skill:v1:"))
+            .unwrap()
+            .strip_prefix("<!-- orchbee-agent-integration-skill:v1:")
+            .unwrap()
+            .strip_suffix(" -->")
+            .unwrap();
+        let other_capsule = fixture
+            .home()
+            .join(".ob-dev-0123456789abcdef/internal/integrations/agent-observation")
+            .join(fixture.capsule_version());
+        let encoded_other = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            other_capsule.to_str().unwrap().as_bytes(),
+        );
+        let theirs_skill = original_skill.replace(marker_here, &encoded_other);
+        assert_ne!(theirs_skill, original_skill);
+        fs::write(&skill_path, &theirs_skill).unwrap();
+
         let theirs = json!({"environment": "ob-dev-0123456789abcdef", "version": 1}).to_string();
         fs::write(&record, &theirs).unwrap();
         let mut marker: Value = serde_json::from_slice(&original_marker).unwrap();
@@ -1231,10 +1258,13 @@ fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
         assert_eq!(fs::read_to_string(&record).unwrap(), theirs);
         assert_eq!(fs::read_to_string(&marker_path).unwrap(), marker);
         assert_eq!(fs::read(&manifest_path).unwrap(), original_manifest);
+        assert_eq!(fs::read_to_string(&skill_path).unwrap(), theirs_skill);
         fs::write(&record, &original_record).unwrap();
         fs::write(&marker_path, &original_marker).unwrap();
+        fs::write(&skill_path, &original_skill).unwrap();
         inspect("disable");
         assert!(!target.exists());
+        assert!(!skill_path.parent().unwrap().exists());
         let configured = fixture.0.join(format!("{provider} config & 数据"));
         let output = fixture
             .command("enable", provider, &fixture.config_home(), &[])
@@ -1724,6 +1754,9 @@ impl Fixture {
             ])
             .arg(self.assets())
             .args(extra)
+            .env_remove("CLAUDE_CONFIG_DIR")
+            .env_remove("COPILOT_HOME")
+            .env_remove("PI_CODING_AGENT_DIR")
             .env_remove("XDG_CONFIG_HOME")
             .env_remove("KILO_CONFIG_DIR")
             .env_remove("GEMINI_CLI_HOME")
@@ -2220,6 +2253,12 @@ fn onboarding_is_idempotent_and_disable_preserves_user_configuration() {
     assert!(!fixture.capsule().exists(), "inspection must not install");
     fixture.document("enable", 0);
     assert!(fixture.capsule().join("capsule.json").is_file());
+    assert!(
+        fixture
+            .config_home()
+            .join("skills/orchbee/SKILL.md")
+            .is_file()
+    );
     assert_eq!(
         fixture.document("list", 0)["result"]["integrations"][0]["state"],
         "enabled"
@@ -2242,6 +2281,7 @@ fn onboarding_is_idempotent_and_disable_preserves_user_configuration() {
         fixture.document("list", 0)["result"]["integrations"][0]["state"],
         "not-installed"
     );
+    assert!(!fixture.config_home().join("skills/orchbee").exists());
     // Disable removes everything enable added: the marketplace as well as the
     // plugin, and the empty cache folder Codex keeps under the marketplace name.
     let configuration = fs::read_to_string(fixture.config_home().join("config.toml")).unwrap();
@@ -2497,4 +2537,199 @@ fn droid_uses_the_effective_configuration_without_shadowing_fallback_hooks() {
             assert!(removed.contains("echo user"));
         }
     }
+}
+
+#[test]
+fn global_skills_lifecycle_ownership_overrides_and_clean_uninstall() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+    let fixture = Fixture::without_provider_commands();
+    for stub in ["agy", "opencode", "grok"] {
+        fs::write(
+            fixture.0.join(format!("bin/{stub}.cmd")),
+            b"@exit /b 99\r\n",
+        )
+        .unwrap();
+    }
+
+    let skill_path = fixture
+        .home()
+        .join(".gemini/config/skills/orchbee/SKILL.md");
+    let orchbee_dir = skill_path.parent().unwrap().to_path_buf();
+
+    // 1. Enable creates SKILL.md instructing the Agent to run `orchbee --skill` under
+    //    ORCHBEE_TERMINAL_ID and stamps the environment ownership marker.
+    fixture.provider_document("enable", "antigravity", 0);
+    let installed = fs::read_to_string(&skill_path).unwrap();
+    assert!(installed.contains("ORCHBEE_TERMINAL_ID"), "{installed}");
+    assert!(installed.contains("orchbee --skill"), "{installed}");
+    assert!(
+        installed.contains("<!-- orchbee-agent-integration-skill:v1:"),
+        "{installed}"
+    );
+
+    // 2. Removing only SKILL.md degrades state to update-required, and enable repairs it.
+    fs::remove_file(&skill_path).unwrap();
+    assert_eq!(
+        fixture.provider_document("explain", "antigravity", 0)["result"]["state"],
+        "update-required"
+    );
+    fixture.provider_document("enable", "antigravity", 0);
+    assert_eq!(fs::read_to_string(&skill_path).unwrap(), installed);
+
+    // 3. A user edit keeps the marker, so the skill stays Orchbee's: it reads outdated, and enable
+    //    rewrites it to the current template.
+    let edited = format!("{installed}\n# local user instructions\n");
+    fs::write(&skill_path, &edited).unwrap();
+    assert_eq!(
+        fixture.provider_document("explain", "antigravity", 0)["result"]["state"],
+        "update-required"
+    );
+    fixture.provider_document("enable", "antigravity", 0);
+    assert_eq!(fs::read_to_string(&skill_path).unwrap(), installed);
+
+    // 4. Sibling user files inside `orchbee/` survive disable, while an empty folder is removed.
+    fs::write(&skill_path, &installed).unwrap();
+    let user_note = orchbee_dir.join("notes.txt");
+    fs::write(&user_note, b"keep sibling file\n").unwrap();
+    fixture.provider_document("disable", "antigravity", 0);
+    assert!(!skill_path.exists());
+    assert_eq!(fs::read(&user_note).unwrap(), b"keep sibling file\n");
+
+    fs::remove_file(&user_note).unwrap();
+    fs::remove_dir(&orchbee_dir).unwrap();
+    fixture.provider_document("enable", "antigravity", 0);
+    assert!(skill_path.is_file());
+    fixture.provider_document("disable", "antigravity", 0);
+    assert!(!orchbee_dir.exists());
+
+    // 5. Env overrides (XDG_CONFIG_HOME) direct OpenCode skill placement; invalid overrides refuse
+    //    without falling back to `~/.config`.
+    let custom_xdg = fixture.0.join("xdg custom config");
+    let custom_xdg_skill = custom_xdg.join("opencode/skills/orchbee/SKILL.md");
+    let default_xdg_skill = fixture
+        .home()
+        .join(".config/opencode/skills/orchbee/SKILL.md");
+    let enable_xdg = fixture
+        .command("enable", "opencode", &fixture.config_home(), &[])
+        .env("XDG_CONFIG_HOME", &custom_xdg)
+        .output()
+        .unwrap();
+    assert_eq!(enable_xdg.status.code(), Some(0));
+    assert!(custom_xdg_skill.is_file());
+    assert!(!default_xdg_skill.exists());
+
+    let invalid_xdg = fixture
+        .command("enable", "opencode", &fixture.config_home(), &[])
+        .env("XDG_CONFIG_HOME", "relative/xdg")
+        .output()
+        .unwrap();
+    assert_ne!(invalid_xdg.status.code(), Some(0));
+    assert!(!default_xdg_skill.exists());
+
+    let disable_xdg = fixture
+        .command("disable", "opencode", &fixture.config_home(), &[])
+        .env("XDG_CONFIG_HOME", &custom_xdg)
+        .output()
+        .unwrap();
+    assert_eq!(disable_xdg.status.code(), Some(0));
+    assert!(!custom_xdg_skill.parent().unwrap().exists());
+
+    // 6. Another environment's SKILL.md is skipped by enable and disable and stays untouched by
+    //    both and by uninstall, while Antigravity's own SKILL.md + empty `orchbee/` dir are removed.
+    let marker_line = installed
+        .lines()
+        .find(|line| line.starts_with("<!-- orchbee-agent-integration-skill:v1:"))
+        .unwrap();
+    let encoded_here = marker_line
+        .strip_prefix("<!-- orchbee-agent-integration-skill:v1:")
+        .unwrap()
+        .strip_suffix(" -->")
+        .unwrap();
+    let other_capsule = fixture
+        .home()
+        .join(".ob-dev-other/internal/integrations/agent-observation")
+        .join(fixture.capsule_version());
+    let encoded_other = STANDARD.encode(other_capsule.to_str().unwrap().as_bytes());
+    let other_skill = installed.replace(encoded_here, &encoded_other);
+    assert_ne!(other_skill, installed);
+    let opencode_skill = fixture
+        .home()
+        .join(".config/opencode/skills/orchbee/SKILL.md");
+    fs::create_dir_all(opencode_skill.parent().unwrap()).unwrap();
+    fs::write(&opencode_skill, &other_skill).unwrap();
+
+    assert_eq!(
+        fixture.provider_document("explain", "opencode", 0)["result"]["state"],
+        "not-installed"
+    );
+    fixture.provider_document("enable", "opencode", 0);
+    fixture.provider_document("disable", "opencode", 0);
+    assert_eq!(fs::read_to_string(&opencode_skill).unwrap(), other_skill);
+
+    // Unsupported provider creates no skill folder when inspected or enabled.
+    let grok_skill_root = fixture.home().join(".grok/skills");
+    assert!(!grok_skill_root.exists());
+
+    // Re-enable Antigravity, stop the active Session, and run `uninstall --confirm` from a
+    // clean copy of the Client binary (keeping the same environment stem without the test
+    // cohort's inert Host/adapter manifest entries).
+    fixture.provider_document("enable", "antigravity", 0);
+    assert!(skill_path.is_file());
+    fixture.stop(true);
+    let system =
+        PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into()))
+            .join("System32");
+    let uninstall_dir = fixture.0.join("uninstall-bin");
+    fs::create_dir_all(&uninstall_dir).unwrap();
+    let uninstall_client = uninstall_dir.join(CohortArtifact::Client.file_name());
+    fs::copy(
+        fixture.1.0.join(CohortArtifact::Client.file_name()),
+        &uninstall_client,
+    )
+    .unwrap();
+    let uninstall_key = format!(
+        r"Software\ob-test-scratch\skills-uninstall-{}",
+        orchbee_local_runtime::environment_stem()
+    );
+    let mut uninstall_command = crate::staged_client::orchbee_command(&uninstall_client);
+    uninstall_command
+        .args(["uninstall", "--confirm", "--format", "json"])
+        .env("ORCHBEE_RUNTIME_BASE", fixture.0.join("runtime"))
+        .env_remove("ORCHBEE_RUNTIME_SCOPE")
+        .env_remove("ORCHBEE_SESSION")
+        .env_remove("ORCHBEE_CONFIG_FILE")
+        .env_remove("ORCHBEE_TERMINAL_ID")
+        .env_remove("ORCHBEE_WORKER_ID")
+        .env_remove("ORCHBEE_HOME")
+        .env_remove("ORCHBEE_ENVIRONMENT")
+        .env("USERPROFILE", fixture.home())
+        .env("APPDATA", fixture.0.join("roaming"))
+        .env("LOCALAPPDATA", fixture.0.join("local"))
+        .env("HOME", fixture.0.join("wrong-posix-home"))
+        .env("LC_ALL", "en-US")
+        .env("PATH", system)
+        .env("ORCHBEE_INSTALL_DIR", fixture.0.join("install-root"))
+        .env("ORCHBEE_TEST_REGISTRY_KEY", &uninstall_key)
+        .env_remove("HERMES_HOME")
+        .env_remove("HERMES_DATA_DIR_SUFFIX")
+        .current_dir(&fixture.0)
+        .stdin(Stdio::null());
+    let uninstall_out = uninstall_command.output().unwrap();
+    assert_eq!(
+        uninstall_out.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&uninstall_out.stdout),
+        String::from_utf8_lossy(&uninstall_out.stderr)
+    );
+    assert!(
+        !orchbee_dir.exists(),
+        "uninstall must remove empty orchbee skill dir"
+    );
+    assert_eq!(
+        fs::read_to_string(&opencode_skill).unwrap(),
+        other_skill,
+        "uninstall must preserve another environment's skill"
+    );
 }

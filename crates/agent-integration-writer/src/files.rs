@@ -377,6 +377,41 @@ pub(crate) fn entry_digest(path: &Path) -> Option<String> {
     None
 }
 
+/// Remove an empty directory owned by this environment, returning `false` when it is already
+/// absent and `DirectoryNotEmpty` when foreign or sibling entries stand inside it.
+pub(crate) fn remove_empty_directory(path: &Path) -> io::Result<bool> {
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::Mode;
+    use nix::unistd::{UnlinkatFlags, unlinkat};
+
+    if !path_admitted(path) {
+        return Err(denied());
+    }
+    match fs::symlink_metadata(path) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+        Ok(metadata) if !metadata.file_type().is_dir() => return Err(denied()),
+        Ok(_) => {}
+    }
+    let parent = path.parent().ok_or_else(denied)?;
+    let name = path.file_name().ok_or_else(denied)?;
+    let parent_fd = match openat(
+        nix::fcntl::AT_FDCWD,
+        parent,
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    ) {
+        Ok(fd) => fd,
+        Err(nix::errno::Errno::ENOENT) => return Ok(false),
+        Err(errno) => return Err(io::Error::from(errno)),
+    };
+    match unlinkat(&parent_fd, name, UnlinkatFlags::RemoveDir) {
+        Ok(()) => Ok(true),
+        Err(nix::errno::Errno::ENOENT) => Ok(false),
+        Err(errno) => Err(io::Error::from(errno)),
+    }
+}
+
 /// Remove one verified-owned target: a file/symlink unlinks; a directory is
 /// removed through an `O_NOFOLLOW` recursive walk so a swapped symlink can
 /// never redirect the removal. Mid-walk type changes are typed conflicts.

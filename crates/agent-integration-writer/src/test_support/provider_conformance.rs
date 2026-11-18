@@ -233,6 +233,31 @@ fn substitutions(dirs: &Dirs, id: IntegrationId) -> Vec<(String, String)> {
         ),
         ("${PLUGIN_NAME}".into(), "orchbee-agent-observation".into()),
         ("${INTEGRATION_ID}".into(), id.as_str().to_owned()),
+        (
+            "${CAPSULE_ROOT_B64}".into(),
+            base64::Engine::encode(
+                &base64::engine::general_purpose::STANDARD,
+                dirs.capsule_root.to_str().unwrap().as_bytes(),
+            ),
+        ),
+        (
+            "${OUTDATED_ROOT_B64}".into(),
+            base64::Engine::encode(
+                &base64::engine::general_purpose::STANDARD,
+                capsule_parent.join("0.4.0").to_str().unwrap().as_bytes(),
+            ),
+        ),
+        (
+            "${OTHER_CAPSULE_ROOT_B64}".into(),
+            base64::Engine::encode(
+                &base64::engine::general_purpose::STANDARD,
+                dirs.home
+                    .join(".ob-dev-0123456789abcdef/internal/integrations/agent-observation/0.5.0")
+                    .to_str()
+                    .unwrap()
+                    .as_bytes(),
+            ),
+        ),
     ]
 }
 

@@ -25,6 +25,11 @@
 						"kind": "file",
 						"content": "@guarded.bootstrap.omp",
 						"mode": "0600"
+					},
+					{
+						"path": ".omp/agent/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				],
 				"commands": []
@@ -210,6 +215,11 @@
 						"kind": "file",
 						"content": "@guarded.bootstrap.omp",
 						"mode": "0600"
+					},
+					{
+						"path": ".omp/agent/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				],
 				"commands": []
@@ -281,6 +291,11 @@
 						"kind": "file",
 						"content": "@guarded.bootstrap.omp",
 						"mode": "0600"
+					},
+					{
+						"path": ".omp/agent/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				],
 				"commands": []

@@ -659,7 +659,15 @@ fn disable_integrations(report: &mut Report, signals: &mut ArmedSignals) -> Resu
             id,
             orchbee_agent_integration_writer::Direction::Disable,
         );
-        if mutation.effect_begun {
+        // A removed owned skill changed this environment even when the primary did not begin its
+        // effect, so the run still reports a change.
+        let removed_accessory = mutation.attempted.iter().any(|step| {
+            matches!(
+                step.outcome,
+                orchbee_agent_integration::StepOutcome::Completed
+            )
+        });
+        if mutation.effect_begun || removed_accessory {
             report.changed = true;
         }
         let program_missing = mutation
@@ -675,6 +683,9 @@ fn disable_integrations(report: &mut Report, signals: &mut ArmedSignals) -> Resu
             Verdict::Refused(Refusal::InspectionFailed) if program_missing => {
                 (IntegrationOutcome::ProgramNotFound, "")
             }
+            // A refusal that began no effect leaves the provider unchecked and does not stop
+            // the run. A refused inspection begins none: its only work is removing an owned
+            // accessory skill, which is tracked apart from the provider's own effects.
             Verdict::Refused(refusal)
                 if !report.integrations[index].listed && !mutation.effect_begun =>
             {

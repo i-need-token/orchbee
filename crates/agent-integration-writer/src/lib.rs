@@ -46,6 +46,8 @@ mod mutation;
 mod provider_roots;
 #[cfg(any(unix, windows))]
 mod providers;
+#[cfg(any(unix, windows))]
+mod skills;
 
 #[cfg(all(any(test, feature = "test-support"), unix))]
 pub(crate) mod test_support;
@@ -335,9 +337,14 @@ mod imp {
         Vec<PlannedStep>,
     ) {
         let provider_context = context.provider_context();
-        let (item, detail) = providers::inspect_provider_detail(id, &provider_context);
-        let plan = mutation::plan_enable(id, &provider_context, &item, &detail);
-        (item, detail, capsule_status(context), plan)
+        let inspection = providers::inspect_full(id, &provider_context);
+        let plan = mutation::plan_enable(id, &provider_context, &inspection);
+        (
+            inspection.item,
+            inspection.detail,
+            capsule_status(context),
+            plan,
+        )
     }
 
     /// `agent integration enable|disable --provider <id>` — the guarded

@@ -64,18 +64,23 @@ fn single_hook_configuration(id: &str, home: &Path) -> Option<PathBuf> {
         "qodercli" => ("QODER_CONFIG_DIR", ".qoder", "settings.json"),
         _ => return None,
     };
-    let root = std::env::var_os(variable)
-        .filter(|v| !v.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| home.join(directory));
-    root.is_absolute().then(|| root.join(file))
+    crate::provider_roots::directory(crate::provider_roots::process, variable, home, directory)
+        .map(|root| root.join(file))
 }
 
 /// Pin the same literal profile root for filesystem admission and provider commands: a trimmed
 /// absolute HERMES_HOME, otherwise `~/.hermes` with a safe HERMES_DATA_DIR_SUFFIX. Hermes expands
 /// `~` and `$NAME` in HERMES_HOME itself; such a value refuses rather than being guessed.
 pub(crate) fn hermes_home(home: &Path) -> Option<PathBuf> {
-    let override_root = std::env::var_os("HERMES_HOME")
+    hermes_home_with(home, crate::provider_roots::process)
+}
+
+/// Variant of `hermes_home` parameterized over environment lookup.
+pub(crate) fn hermes_home_with(
+    home: &Path,
+    variables: crate::provider_roots::Variables,
+) -> Option<PathBuf> {
+    let override_root = variables("HERMES_HOME")
         .map(|v| v.into_string())
         .transpose()
         .ok()?;
@@ -86,7 +91,7 @@ pub(crate) fn hermes_home(home: &Path) -> Option<PathBuf> {
     let root = if let Some(value) = explicit {
         PathBuf::from(value)
     } else {
-        let suffix = std::env::var_os("HERMES_DATA_DIR_SUFFIX")
+        let suffix = variables("HERMES_DATA_DIR_SUFFIX")
             .unwrap_or_default()
             .into_string()
             .ok()?;

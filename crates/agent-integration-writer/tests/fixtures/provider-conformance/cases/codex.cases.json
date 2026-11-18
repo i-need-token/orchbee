@@ -23,6 +23,11 @@
 						"path": ".codex/config.toml",
 						"kind": "file",
 						"content": "@codex.toml.enabled"
+					},
+					{
+						"path": ".codex/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				],
 				"commands": []
@@ -530,6 +535,11 @@
 						"path": ".codex/config.toml",
 						"kind": "file",
 						"content": "@codex.toml.enabled"
+					},
+					{
+						"path": ".codex/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				],
 				"commands": []
@@ -594,6 +604,11 @@
 						"path": ".codex/config.toml",
 						"kind": "file",
 						"content": "@codex.toml.enabled"
+					},
+					{
+						"path": ".codex/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				],
 				"commands": []
@@ -943,6 +958,11 @@
 						"path": ".codex/config.toml",
 						"kind": "file",
 						"content": "@codex.toml.enabled"
+					},
+					{
+						"path": ".codex/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				],
 				"commands": [

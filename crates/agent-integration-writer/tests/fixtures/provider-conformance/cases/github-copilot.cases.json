@@ -34,6 +34,13 @@
 							"stdoutJson": "@copilot.marketplace.current"
 						}
 					}
+				],
+				"fs": [
+					{
+						"path": ".copilot/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
+					}
 				]
 			},
 			"expect": {
@@ -659,6 +666,13 @@
 							"stdoutJson": "@copilot.marketplace.current"
 						}
 					}
+				],
+				"fs": [
+					{
+						"path": ".copilot/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
+					}
 				]
 			},
 			"expect": {
@@ -1024,6 +1038,13 @@
 							"kind": "completed",
 							"stdout": ""
 						}
+					}
+				],
+				"fs": [
+					{
+						"path": ".copilot/skills/orchbee/SKILL.md",
+						"kind": "file",
+						"content": "@orchbee.skill.current"
 					}
 				]
 			},
