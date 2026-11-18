@@ -19,12 +19,13 @@ use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey, Panel
 use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
 use crate::workbench_state::workspace_close::{WorkspaceCloseToken, WorkspaceDeleteRequest};
 use crate::workbench_state::{
-    ClientNotice, CloseConfirmationToken, PanelCloseConfirmationToken, PanelRequestKind,
-    WorkbenchClientState,
+    ClientNotice, CloseConfirmationToken, MAXIMUM_CLOSE_RECORDS, PanelCloseConfirmationToken,
+    PanelRequestKind, WorkbenchClientState,
 };
 use orchbee_workbench_protocol::{
-    WorkbenchPanelId, WorkbenchTabMoveDirection, WorkbenchWorkspaceId,
+    WorkbenchPanelId, WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchWorkspaceId,
 };
+use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 /// A background read settles within one read round trip, and a switch within its terminal's
@@ -68,6 +69,28 @@ pub(super) enum ConfirmedClose {
     Panel(PanelCloseConfirmationToken),
 }
 
+/// A deferred Tab or Panel close initiation revalidated against the settled projection.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) enum CloseRequestIntent {
+    DrawnTabClose {
+        location: ClientContextLocation,
+        tab: WorkbenchTabId,
+    },
+    TabMenuClose {
+        location: ClientContextLocation,
+        action: crate::action_menu::MenuAction,
+        tab: WorkbenchTabId,
+        expected_ids: Vec<WorkbenchTabId>,
+    },
+    CloseSelectedTab,
+    CloseFocusedPanel,
+}
+
+struct HeldCloseRequest {
+    request: CloseRequestIntent,
+    until: Instant,
+}
+
 /// What became of one submission of a confirmed close.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum CloseSubmission {
@@ -107,6 +130,9 @@ struct Hold {
 #[derive(Default)]
 pub(super) struct HeldIntents {
     held: Option<Hold>,
+    /// Queued close initiations held per target/intent behind transient settling so sequential
+    /// clicks or shortcuts never overwrite each other or get dropped by a held navigation.
+    close_requests: VecDeque<HeldCloseRequest>,
     /// A user navigation retries behind the read in flight; no further read may overtake it.
     navigation_until: Option<Instant>,
     /// A replayed action changed the drawn panes since the Shell last re-observed them.
@@ -215,10 +241,49 @@ impl WorkbenchClientUi {
         self.held_intents.held = Some(Hold { intent, until });
     }
 
+    /// Queues a close request behind transient settling up to `MAXIMUM_CLOSE_RECORDS`, keeping
+    /// distinct targets in FIFO order without colliding with `hold_intent`.
+    pub(super) fn hold_close_request(&mut self, request: CloseRequestIntent) -> bool {
+        if self
+            .held_intents
+            .close_requests
+            .iter()
+            .any(|held| held.request == request)
+        {
+            return true;
+        }
+        if self.held_intents.close_requests.len() >= MAXIMUM_CLOSE_RECORDS {
+            return false;
+        }
+        self.held_intents
+            .close_requests
+            .push_back(HeldCloseRequest {
+                request,
+                until: self.clock.now() + HOLD,
+            });
+        true
+    }
+
+    /// Drops held close requests when the Client carrier retires so dead deadlines never wake it.
+    pub(super) fn clear_held_close_requests(&mut self) {
+        self.held_intents.close_requests.clear();
+    }
+
     /// When the held invocation's bound ends, so that its refusal shows even when nothing else
     /// wakes the Client meanwhile.
     pub(super) fn held_intent_wake(&self) -> Option<Instant> {
-        self.held_intents.held.as_ref().map(|held| held.until)
+        self.held_intents
+            .held
+            .as_ref()
+            .map(|held| held.until)
+            .into_iter()
+            .chain(
+                self.held_intents
+                    .close_requests
+                    .iter()
+                    .map(|held| held.until),
+            )
+            .min()
     }
 
     /// Escape on the confirmation also withdraws its held confirmation.
@@ -305,6 +370,7 @@ impl WorkbenchClientUi {
     /// needs the slot.
     pub(super) fn background_reads_yield(&self) -> bool {
         self.held_intents.held.is_some()
+            || !self.held_intents.close_requests.is_empty()
             || self.action_menu_awaits_refresh_slot()
             || self
                 .held_intents
@@ -384,94 +450,136 @@ impl WorkbenchClientUi {
         std::mem::take(&mut self.held_intents.layout_replayed)
     }
 
-    /// Replays the held invocation through its ordinary entry point once the background read
-    /// or the landing switch settled. Replay revalidates everything; it never reuses an earlier
-    /// admission.
+    /// Replays held invocations through their ordinary entry points once settling completes.
+    /// Replay revalidates everything; it never reuses an earlier admission.
     pub(super) fn replay_held_intent(&mut self) -> bool {
         self.lapse_destination_uncertainty();
-        let Some((until, close)) = self.held_intents.held.as_ref().map(|held| {
+        let mut changed = false;
+        if let Some((until, close)) = self.held_intents.held.as_ref().map(|held| {
             let close = match held.intent {
                 HeldIntent::Close(close) => Some(close),
                 _ => None,
             };
             (held.until, close)
-        }) else {
-            return false;
-        };
-        // A confirmed close also waits for a slot that is merely taken, so it ends at its bound
-        // even when nothing settles meanwhile.
-        if self.settling_for_user_action() || (close.is_some() && self.clock.now() >= until) {
-            if self.clock.now() < until {
-                return false;
+        }) {
+            // A confirmed close waits for its busy slot up to its bound; any other held action
+            // waits while the background read or landing switch settles.
+            if self.settling_for_user_action() || (close.is_some() && self.clock.now() >= until) {
+                if self.clock.now() >= until {
+                    self.held_intents.held = None;
+                    // A confirmation that already ended said why; the close it held goes with it.
+                    if close.is_none_or(|close| self.close_confirmation_armed(close))
+                        && let Some(state) = self.state.as_mut()
+                    {
+                        state.set_notice(ClientNotice::LocalBusy);
+                    }
+                    changed = true;
+                }
+            } else if let Some(Hold { intent, .. }) = self.held_intents.held.take() {
+                match intent {
+                    HeldIntent::WorkspaceClose(token) => {
+                        self.capture_workspace_close_key(token, ClientKey::Enter);
+                        changed = true;
+                    }
+                    HeldIntent::WorkspaceDelete(request) => {
+                        let _disposition = self.request_sidebar_workspace_delete(&request);
+                        changed = true;
+                    }
+                    HeldIntent::WorkspaceCloseAt(workspace_id) => {
+                        let _disposition = self.request_workspace_close_at(&workspace_id);
+                        changed = true;
+                    }
+                    HeldIntent::CurrentWorkspaceClose(destination) => {
+                        if self
+                            .state
+                            .as_ref()
+                            .is_some_and(|state| state.cache().location() == &destination)
+                        {
+                            // An uncertain destination is refused there, like a key pressed now.
+                            let _disposition = self.request_workspace_close();
+                        } else if let Some(state) = self.state.as_mut() {
+                            // The switch the key aimed at landed elsewhere or not at all, or the
+                            // user pressed on a frame the Client could not resolve meanwhile; the
+                            // Workspace shown now is not certainly the one the key named.
+                            state.set_notice(ClientNotice::WorkspaceChanged);
+                        }
+                        changed = true;
+                    }
+                    HeldIntent::Worktree(mode, agent) => {
+                        let _disposition = self.request_worktree_starting(mode, agent);
+                        changed = true;
+                    }
+                    HeldIntent::Context { next } => {
+                        let _disposition = self.select_context(next);
+                        changed = true;
+                    }
+                    HeldIntent::Structure(action) => {
+                        let disposition = self.apply_structure_action(action);
+                        self.held_intents.layout_replayed |= disposition.changes_layout();
+                        changed = true;
+                    }
+                    HeldIntent::Close(close) => {
+                        if self.submit_confirmed_close(close) == CloseSubmission::Waiting {
+                            // The slot is still taken: the close keeps waiting under its first
+                            // bound, and nothing on screen changed.
+                            self.held_intents.held = Some(Hold {
+                                intent: HeldIntent::Close(close),
+                                until,
+                            });
+                        } else {
+                            changed = true;
+                        }
+                    }
+                    HeldIntent::LastPanel => {
+                        let disposition = self.focus_last_panel();
+                        self.held_intents.layout_replayed |= disposition.changes_layout();
+                        changed = true;
+                    }
+                    HeldIntent::AgentTarget(target) => {
+                        let opening = self.open_notification_target(&target);
+                        self.held_intents.layout_replayed |=
+                            opening == crate::client_view::notifications::TargetOpening::Opened;
+                        changed = true;
+                    }
+                }
             }
-            self.held_intents.held = None;
-            // A confirmation that already ended said why; the close it held goes with it.
-            if close.is_none_or(|close| self.close_confirmation_armed(close))
-                && let Some(state) = self.state.as_mut()
+        }
+        if self.retirement_failure.is_some() {
+            if !self.held_intents.close_requests.is_empty() {
+                self.clear_held_close_requests();
+                changed = true;
+            }
+            return changed;
+        }
+        let now = self.clock.now();
+        if self.close_initiation_settling() || self.surface_blocks_close_initiation() {
+            let before = self.held_intents.close_requests.len();
+            self.held_intents
+                .close_requests
+                .retain(|entry| now < entry.until);
+            if self.held_intents.close_requests.len() < before {
+                self.set_close_busy_notice();
+                changed = true;
+            }
+        } else {
+            while !self.close_initiation_settling()
+                && !self.surface_blocks_close_initiation()
+                && let Some(entry) = self.held_intents.close_requests.pop_front()
             {
-                state.set_notice(ClientNotice::LocalBusy);
-            }
-            return true;
-        }
-        let Some(Hold { intent, .. }) = self.held_intents.held.take() else {
-            return false;
-        };
-        match intent {
-            HeldIntent::WorkspaceClose(token) => {
-                self.capture_workspace_close_key(token, ClientKey::Enter);
-            }
-            HeldIntent::WorkspaceDelete(request) => {
-                let _disposition = self.request_sidebar_workspace_delete(&request);
-            }
-            HeldIntent::WorkspaceCloseAt(workspace_id) => {
-                let _disposition = self.request_workspace_close_at(&workspace_id);
-            }
-            HeldIntent::CurrentWorkspaceClose(destination) => {
-                if self
-                    .state
-                    .as_ref()
-                    .is_some_and(|state| state.cache().location() == &destination)
-                {
-                    // An uncertain destination is refused there, like a key pressed now.
-                    let _disposition = self.request_workspace_close();
-                } else if let Some(state) = self.state.as_mut() {
-                    // The switch the key aimed at landed elsewhere or not at all, or the user
-                    // pressed on a frame the Client could not resolve meanwhile; the Workspace
-                    // shown now is not certainly the one the key named.
-                    state.set_notice(ClientNotice::WorkspaceChanged);
+                match self.replay_close_request_intent(entry.request) {
+                    super::tab_close::CloseRequestOutcome::Opened => {
+                        self.held_intents.layout_replayed = true;
+                        changed = true;
+                        break;
+                    }
+                    super::tab_close::CloseRequestOutcome::Refused => {
+                        changed = true;
+                    }
+                    super::tab_close::CloseRequestOutcome::Held
+                    | super::tab_close::CloseRequestOutcome::NotApplicable => {}
                 }
             }
-            HeldIntent::Worktree(mode, agent) => {
-                let _disposition = self.request_worktree_starting(mode, agent);
-            }
-            HeldIntent::Context { next } => {
-                let _disposition = self.select_context(next);
-            }
-            HeldIntent::Structure(action) => {
-                let disposition = self.apply_structure_action(action);
-                self.held_intents.layout_replayed |= disposition.changes_layout();
-            }
-            HeldIntent::Close(close) => {
-                if self.submit_confirmed_close(close) == CloseSubmission::Waiting {
-                    // The slot is still taken: the close keeps waiting under its first bound, and
-                    // nothing on screen changed.
-                    self.held_intents.held = Some(Hold {
-                        intent: HeldIntent::Close(close),
-                        until,
-                    });
-                    return false;
-                }
-            }
-            HeldIntent::LastPanel => {
-                let disposition = self.focus_last_panel();
-                self.held_intents.layout_replayed |= disposition.changes_layout();
-            }
-            HeldIntent::AgentTarget(target) => {
-                let opening = self.open_notification_target(&target);
-                self.held_intents.layout_replayed |=
-                    opening == crate::client_view::notifications::TargetOpening::Opened;
-            }
         }
-        true
+        changed
     }
 }

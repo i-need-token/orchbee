@@ -348,8 +348,11 @@ in one draw. When the retained Panel shows a Tab that is leaving with its accept
 first draw of the wait instead paints the shell around the Panel area and keeps that area as it
 was, images included, so the strip leaves the Tab out and shows the new selection at once; later
 draws of the wait keep the whole shell, and a changed sidebar or a gesture preview keeps it from
-the start. The retained Panel loses only its cursor. The previous hit map is invalidated and the
-existing first-frame input gate remains in force. Non-frame poll replies continue settling during
+the start. The retained Panel loses only its cursor. The first `Panel` hold draw publishes the
+updated Chrome, Strip and overlay hit map (shielding only the retained Panel interior), and later
+`Frame` hold draws during that wait retain that `panel_held` hit map so Strip controls remain
+clickable; full-frame holds without a painted `panel_held` map still invalidate the previous hit
+map, and the existing first-frame terminal input gate remains in force. Non-frame poll replies continue settling during
 this hold, without acknowledging any unpainted frame. Resize, capturing surfaces, notifications,
 one-shot notices, stable unavailability and failures render normally; the existing attachment
 deadline bounds the wait. The gate keeps no type-ahead buffer: a later frame cannot become the

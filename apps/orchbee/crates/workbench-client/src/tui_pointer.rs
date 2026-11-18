@@ -1560,6 +1560,18 @@ impl PointerState {
         self.invalidate_map();
     }
 
+    /// Keeps an already published `panel_held` Chrome/Strip map active while a deferred frame hold
+    /// leaves the painted pixels unchanged; otherwise drops the map as usual.
+    pub(crate) fn invalidate_map_preserving_panel_held(
+        &mut self,
+        port: &mut (impl TerminalInputPort + ?Sized),
+    ) {
+        if self.map.as_ref().is_some_and(FrameHitMap::panel_held) {
+            return;
+        }
+        self.invalidate_map_with_port(port);
+    }
+
     /// A Client control step changed what the next frame paints: as `invalidate_map_with_port`,
     /// except that an admitted divider drag is left for that frame to keep or end. The Client's
     /// own earlier resize settling meanwhile does not end it; `publish` does once the frame no
@@ -2032,6 +2044,16 @@ impl PointerState {
                 | HitTarget::Presentation(_)
                 | HitTarget::HeldRestore(_),
             ) => PointerOutcome::Ignored,
+            HitResolution::Region(HitTarget::HeldPanel) => {
+                if event.action == MouseAction::Press
+                    && (view.machines.direct_selection_pending() || port.navigation_pending())
+                {
+                    view.report_input_held_for_navigation();
+                    PointerOutcome::Handled
+                } else {
+                    PointerOutcome::Ignored
+                }
+            }
             HitResolution::Region(HitTarget::SettingsRow { .. }) => PointerOutcome::Ignored,
             HitResolution::Region(HitTarget::Divider(target)) => {
                 if event.action != MouseAction::Press
@@ -2992,6 +3014,10 @@ pub trait PointerStateTestAccess {
     fn set_capture(&mut self, enabled: bool);
     fn publish(&mut self, map: FrameHitMap);
     fn invalidate_map_with_port<Port: TerminalInputPort + ?Sized>(&mut self, port: &mut Port);
+    fn invalidate_map_preserving_panel_held<Port: TerminalInputPort + ?Sized>(
+        &mut self,
+        port: &mut Port,
+    );
     fn event<Port: TerminalInputPort + ?Sized>(
         &mut self,
         view: &mut ClientView,
@@ -3020,6 +3046,12 @@ impl PointerStateTestAccess for PointerState {
     }
     fn invalidate_map_with_port<Port: TerminalInputPort + ?Sized>(&mut self, port: &mut Port) {
         PointerState::invalidate_map_with_port(self, port);
+    }
+    fn invalidate_map_preserving_panel_held<Port: TerminalInputPort + ?Sized>(
+        &mut self,
+        port: &mut Port,
+    ) {
+        PointerState::invalidate_map_preserving_panel_held(self, port);
     }
     fn event<Port: TerminalInputPort + ?Sized>(
         &mut self,

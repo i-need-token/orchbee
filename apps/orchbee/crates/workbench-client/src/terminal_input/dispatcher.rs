@@ -515,6 +515,15 @@ impl InputDispatcher {
         self.pointer.invalidate_map_with_port(port);
     }
 
+    /// Keeps an already published `panel_held` Chrome/Strip map active while a deferred
+    /// `NavigationHold::Frame` tick leaves the painted pixels unchanged; otherwise drops the map.
+    pub fn invalidate_hit_map_preserving_panel_held(
+        &mut self,
+        port: &mut (impl TerminalInputPort + ?Sized),
+    ) {
+        self.pointer.invalidate_map_preserving_panel_held(port);
+    }
+
     /// A Client control step changed what the next frame paints: the recorded regions drop as
     /// for any layout change, while an admitted divider drag waits for that frame to keep or
     /// end it.

@@ -591,6 +591,14 @@ impl WorkbenchClientState {
         if self.close.pending.is_some() {
             return Err(CloseStateError::Busy);
         }
+        let user_initiated = match operation.kind() {
+            CloseOperationKind::Close | CloseOperationKind::CloseIfIdle { .. } => true,
+            CloseOperationKind::Read { mode, .. } => *mode == CloseReadMode::Manual,
+            CloseOperationKind::TabSet(TabSetCloseAction::Start { .. }) => {
+                !self.close.set_resending()
+            }
+            CloseOperationKind::TabSet(TabSetCloseAction::Read { .. }) => false,
+        };
         match operation.kind() {
             CloseOperationKind::Close => {
                 if self.plan_close_confirmation(
@@ -649,7 +657,9 @@ impl WorkbenchClientState {
             }
         }
         self.close.pending = Some(operation.clone());
-        self.notice = None;
+        if user_initiated {
+            self.notice = None;
+        }
         Ok(())
     }
 

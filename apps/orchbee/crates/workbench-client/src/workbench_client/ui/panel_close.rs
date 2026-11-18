@@ -5,7 +5,7 @@
 
 use super::held_intent::{CloseSubmission, ConfirmedClose};
 use super::{ActionBuildError, ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
-use crate::workbench_state::{self, OPERATION_TOTAL, WorkbenchClientState};
+use crate::workbench_state::{self, OPERATION_TOTAL};
 use crate::{
     client_view::{ClientActionDisposition, ClientKey},
     workbench_client::mailbox::MoveAdmissionError,
@@ -115,24 +115,14 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn request_panel_close_confirmation(
         &mut self,
     ) -> ClientActionDisposition {
-        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
-            return ClientActionDisposition::KeepNavigator;
-        };
-        if mailbox
-            .apply_local_for(state, WorkbenchClientState::open_panel_close_confirmation)
-            .is_err()
+        if self
+            .request_close_from_intent(super::held_intent::CloseRequestIntent::CloseFocusedPanel)
+            .accepted()
         {
-            return ClientActionDisposition::KeepNavigator;
+            ClientActionDisposition::DismissNavigator
+        } else {
+            ClientActionDisposition::KeepNavigator
         }
-        // The Server decides whether closing the Panel asks first.
-        if let Some(token) = state
-            .view()
-            .panel_close_confirmation()
-            .map(|confirmation| confirmation.token())
-        {
-            self.begin_idle_close(super::idle_close::Target::Panel(token));
-        }
-        ClientActionDisposition::DismissNavigator
     }
 
     pub(in crate::workbench_client) fn cancel_panel_close(&mut self) -> ClientActionDisposition {

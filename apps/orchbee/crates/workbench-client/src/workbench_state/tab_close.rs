@@ -33,7 +33,7 @@ pub(crate) use set::CloseSetCapture;
 pub(crate) use set::CloseSetStatus;
 pub(crate) use set::{CloseSetKind, close_set_targets};
 
-const MAXIMUM_CLOSE_RECORDS: usize = 256;
+pub(crate) const MAXIMUM_CLOSE_RECORDS: usize = 256;
 const DISPOSED_AUTO_ADMISSIONS: u8 = 32;
 /// The Tab leaving its strip reports an ordinary close, so a progressing close stays off the status
 /// line this long after its submission. A real PowerShell Tab closes within about 0.15 s; this
@@ -434,6 +434,28 @@ impl CloseState {
             && self.completed_handoff.is_none()
             && self.manual_pass.is_empty()
             && matches!(self.carrier, CloseCarrier::Client)
+    }
+
+    /// Whether a Tab close or set for `ids` may open now without waiting on unrelated Tabs
+    /// whose closes continue concurrently on the Server.
+    pub(super) fn permits_tab_close_set(&self, ids: &[WorkbenchTabId]) -> bool {
+        let overlaps_active = self.records.iter().any(|record| {
+            !record.stopped()
+                && record.selection.target.panel_id.is_none()
+                && ids.contains(&record.selection.target.tab_id)
+        });
+        if overlaps_active {
+            return false;
+        }
+        if let [single] = ids {
+            let reuses_stopped_slot = self.records.iter().any(|record| {
+                &record.selection.target.tab_id == single
+                    && record.selection.target.panel_id.is_none()
+                    && record.stopped()
+            });
+            return reuses_stopped_slot || self.records.len() < MAXIMUM_CLOSE_RECORDS;
+        }
+        true
     }
 
     fn token(&mut self) -> Option<u64> {
@@ -899,7 +921,7 @@ impl super::WorkbenchClientState {
             .is_some_and(|tab| self.close.tab_close_accepted(tab.tab_id()))
     }
 
-    fn close_confirmation_scope_available(&self) -> bool {
+    pub(super) fn close_confirmation_scope_available(&self) -> bool {
         matches!(self.close.carrier, CloseCarrier::Client)
             && self.pending_refresh.is_none()
             && self.pending_membership.is_none()
@@ -911,6 +933,119 @@ impl super::WorkbenchClientState {
                 super::ClientPhase::Ready(_)
                     | super::ClientPhase::SelectedWithoutAttachment(_)
                     | super::ClientPhase::RetryableAttachUnavailable(_)
+            )
+    }
+
+    fn close_confirmation_deciding(&self) -> bool {
+        self.close.set_deciding()
+            || self.close.pending.as_ref().is_some_and(|operation| {
+                matches!(operation.kind(), CloseOperationKind::CloseIfIdle { .. })
+            })
+    }
+
+    fn panel_close_confirmation_deciding(&self) -> bool {
+        self.pending_panel()
+            .is_some_and(|operation| matches!(operation.intent(), super::PanelIntent::CloseIfIdle))
+    }
+
+    pub(crate) fn permits_held_close_scope(&self) -> bool {
+        matches!(self.close.carrier, CloseCarrier::Client)
+            && (self.close.confirmation.is_none() || self.close_confirmation_deciding())
+            && (self.panel_close.confirmation().is_none()
+                || self.panel_close_confirmation_deciding())
+            && self.pending_membership.is_none()
+            && !self.rename_draft_blocks_structure()
+            && !self.setup_blocks_structure()
+            && !self.workspace_close_blocks_structure()
+            && !self.takeover_pending()
+            && (self.pending_mutation.is_none() || self.panel_close_confirmation_deciding())
+            && matches!(
+                self.phase,
+                super::ClientPhase::Ready(_)
+                    | super::ClientPhase::Switching(_)
+                    | super::ClientPhase::SelectedWithoutAttachment(_)
+                    | super::ClientPhase::RetryableAttachUnavailable(_)
+            )
+    }
+
+    /// Whether a close initiation only waits for an active close set, refresh, recovery fence,
+    /// leaving selection, or (when idle-close needs the worker slot) an in-flight close exchange.
+    pub(crate) fn close_wait_pending(&self, wait_for_close_slot: bool) -> bool {
+        self.permits_held_close_scope()
+            && (self.pending_refresh.is_some()
+                || self.leaving_selection_successor().is_some()
+                || self.recovery_fences(super::recovery_fence::RecoveryFence::Mutation)
+                || self.close.set_active()
+                || self.panel_close_confirmation_deciding()
+                || (wait_for_close_slot
+                    && (self.close.pending.is_some() || self.close_confirmation_deciding())))
+    }
+
+    /// Whether `ids` may open now or wait behind transient settling instead of failing immediately.
+    pub(crate) fn can_hold_close_set(&self, ids: &[WorkbenchTabId]) -> bool {
+        !ids.is_empty() && self.permits_held_close_scope() && self.close.permits_tab_close_set(ids)
+    }
+
+    /// Whether a Tab close for the focused Tab may open or wait behind transient settling.
+    pub(crate) fn can_hold_tab_close_confirmation(&self) -> bool {
+        if !self.permits_held_close_scope() {
+            return false;
+        }
+        if matches!(self.phase, super::ClientPhase::Switching(_)) {
+            return true;
+        }
+        let Some(selected) = self.active() else {
+            return false;
+        };
+        let Some(tab) = self.cache.tabs().get(selected.index()) else {
+            return false;
+        };
+        self.close
+            .permits_tab_close_set(std::slice::from_ref(tab.tab_id()))
+    }
+
+    /// Whether a Panel close for the focused Panel may open or wait behind transient settling.
+    pub(crate) fn can_hold_panel_close_confirmation(&self) -> bool {
+        if !self.permits_held_close_scope() {
+            return false;
+        }
+        if matches!(self.phase, super::ClientPhase::Switching(_)) {
+            return true;
+        }
+        let Some(selected) = self.active() else {
+            return false;
+        };
+        let Some(terminal_context_id) = self.cache.terminal_context_id() else {
+            return false;
+        };
+        let Some(tab) = self.cache.tabs().get(selected.index()) else {
+            return false;
+        };
+        let Some(panel_id) = tab
+            .panel(selected.panel_index())
+            .map(crate::workbench_projection::ClientPanel::panel_id)
+        else {
+            return false;
+        };
+        let target = CloseTarget::panel(
+            self.cache.session_id().clone(),
+            terminal_context_id.clone(),
+            tab.tab_id().clone(),
+            panel_id.clone(),
+        );
+        let stopped = self.close.panel_close_stopped(&target);
+        stopped != Some(false)
+            && (stopped == Some(true) || self.close.records.len() < MAXIMUM_CLOSE_RECORDS)
+    }
+
+    /// Whether a refused close initiation belongs to an active Client and should report `LocalBusy`.
+    pub(crate) fn reports_close_busy_notice(&self) -> bool {
+        matches!(self.close.carrier, CloseCarrier::Client)
+            && !matches!(
+                self.phase,
+                super::ClientPhase::Retired(_)
+                    | super::ClientPhase::Empty
+                    | super::ClientPhase::Starting(_)
             )
     }
 

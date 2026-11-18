@@ -136,12 +136,11 @@ impl WorkbenchClientUi {
             || self.setup_input_context().is_some()
             || self.panel_close_confirmation_armed()
             || self.view().workspace_close_confirmation().is_some()
+            || self.view().close_confirmation().is_some()
         {
             return true;
         }
-        self.state
-            .as_ref()
-            .is_some_and(|state| state.view().close_confirmation().is_some())
+        false
     }
 
     #[cfg(test)]

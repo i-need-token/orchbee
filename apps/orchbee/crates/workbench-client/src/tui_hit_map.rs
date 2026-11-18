@@ -247,6 +247,9 @@ pub enum HitTarget {
     Presentation(crate::tui_hit_map::DrawnPresentationTarget),
     /// One action of a held restore's placeholder.
     HeldRestore(crate::tui_hit_map::HeldRestoreTarget),
+    /// A Panel whose previous pixels stay held on screen during a switch;
+    /// chrome and Strip regions around it stay current, while its interior holds input.
+    HeldPanel,
     /// Empty members carry exact structural identity and no runtime incarnation.
     Unbound {
         selected: crate::tui_hit_map::PointerUnboundPane,
@@ -281,6 +284,26 @@ pub enum HitTarget {
         window: crate::machine_picker::SidebarWindow,
     },
     SearchButton,
+}
+
+impl HitTarget {
+    pub(super) const fn held_panel_target(&self) -> bool {
+        matches!(
+            self,
+            Self::Pane { .. }
+                | Self::Scrollbar { .. }
+                | Self::Presentation(_)
+                | Self::HeldRestore(_)
+                | Self::Unbound { .. }
+                | Self::Divider(_)
+                | Self::FindControl { .. }
+                | Self::FindSurface(_)
+                | Self::FindContent(_)
+                | Self::CopyControl { .. }
+                | Self::CopySurface { .. }
+                | Self::HeldPanel
+        )
+    }
 }
 
 /// Stable Client-owned actions painted in the root chrome. Their live
@@ -414,9 +437,14 @@ pub struct FrameHitMap {
     /// Interactions this frame projected the pointer onto in the exposure that pointer recorded,
     /// before it painted the children that pointer reveals. See `revealed_for_pointer`.
     pub(super) pointer_reveals: Vec<interaction::Fingerprint>,
+    pub(super) panel_held: bool,
 }
 
 impl FrameHitMap {
+    pub(crate) const fn panel_held(&self) -> bool {
+        self.panel_held
+    }
+
     pub(crate) fn navigator_paint(&self) -> Option<&crate::client_view::navigator::Paint> {
         self.navigator.as_ref()
     }
@@ -804,6 +832,7 @@ impl HitMapBuilder {
                 tab_list: None,
                 tooltips: Vec::new(),
                 pointer_reveals: Vec::new(),
+                panel_held: false,
             },
             projection: PointerProjection::empty(),
             covered_sidebar_rows: Vec::new(),
@@ -1261,6 +1290,20 @@ impl HitMapBuilder {
     }
 
     pub fn finish(self) -> FrameHitMap {
+        self.map
+    }
+
+    /// Publishes freshly painted Chrome, Strip, and overlay regions while shielding Panel-interior
+    /// targets whose previous pixels stay held on screen during a switch.
+    pub fn finish_panel_held(mut self) -> FrameHitMap {
+        self.map.panel_held = true;
+        self.map.link_sources.clear();
+        for region in &mut self.map.regions {
+            if region.target.held_panel_target() {
+                region.target = HitTarget::HeldPanel;
+                region.interaction = None;
+            }
+        }
         self.map
     }
 

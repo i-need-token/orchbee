@@ -153,6 +153,12 @@ impl CommandMailbox {
         mailbox
     }
 
+    /// Whether the worker close or refresh slot currently holds an earlier exchange.
+    pub(in crate::workbench_client) fn close_slot_busy(&self) -> bool {
+        let state = self.lock();
+        state.close_pending() || state.refresh_flight.is_some()
+    }
+
     pub(in crate::workbench_client) fn try_enqueue_close_for<Canonical, BuildError>(
         &self,
         canonical: &mut Canonical,

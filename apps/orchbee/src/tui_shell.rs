@@ -1138,9 +1138,10 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         allow_defer,
     );
     if hold == NavigationHold::Frame {
-        // Pixels remain from the last successful frame, but its targets cannot authorize
-        // actions against the newly selected terminal. No draw receipt is minted here.
-        dispatcher.invalidate_hit_map(surface);
+        // Pixels remain from the last successful frame: retain a `panel_held` Chrome/Strip map
+        // across repeated wait ticks so Strip clicks keep working, while invalidating full-frame
+        // holds whose targets cannot authorize actions against the newly selected terminal.
+        dispatcher.invalidate_hit_map_preserving_panel_held(surface);
         return Ok(false);
     }
     dispatcher.show_sidebar_reorder(view);
@@ -1269,9 +1270,9 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         mode(request).map_err(LoopFailure::Input)
     })?;
     if panel_held {
-        // As for a held frame: the Panel's targets would act on a terminal it does not show yet,
-        // and no draw receipt is minted until that terminal's first frame.
-        dispatcher.invalidate_hit_map(surface);
+        // Keep Panel targets held while the previous pane stays visible; freshly drawn
+        // Strip and Chrome targets around it stay clickable without minting a panel draw receipt.
+        dispatcher.publish_hit_map(hits.finish_panel_held());
         return Ok(false);
     }
     if notification_painted {

@@ -268,16 +268,21 @@ pub(super) fn close_tab_ids(
 }
 
 impl WorkbenchClientUi {
-    pub(in crate::workbench_client) fn tab_drag_source(
-        &mut self,
-    ) -> Option<crate::workbench_client::input::TabDragSource> {
-        if self.retirement_failure.is_some()
+    /// Whether an active modal, menu, capture mode, or retirement currently owns input and blocks
+    /// initiating or replaying drawn Tab closes.
+    pub(super) fn surface_blocks_close_initiation(&mut self) -> bool {
+        self.retirement_failure.is_some()
             || self.action_menu_active()
             || self.modal_owns_input()
             || self.copy_mode_active()
             || self.popup.captured()
             || self.board.is_open()
-        {
+    }
+
+    pub(in crate::workbench_client) fn tab_drag_source(
+        &mut self,
+    ) -> Option<crate::workbench_client::input::TabDragSource> {
+        if self.surface_blocks_close_initiation() {
             return None;
         }
         let state = self.state.as_ref()?;
@@ -323,11 +328,19 @@ impl WorkbenchClientUi {
         source: &crate::action_menu::DrawnTabCreate,
         tab: &WorkbenchTabId,
     ) {
-        if self.tab_drag_source().is_some_and(|current| {
-            current.drawn == *source && current.tabs.iter().any(|item| &item.id == tab)
-        }) {
-            let _admitted = self.request_close_set(std::slice::from_ref(tab));
+        if self.surface_blocks_close_initiation()
+            || self
+                .state
+                .as_ref()
+                .is_none_or(|state| state.cache().session_id() != &source.source.session)
+        {
+            return;
         }
+        let _outcome =
+            self.request_close_from_intent(super::held_intent::CloseRequestIntent::DrawnTabClose {
+                location: source.location.clone(),
+                tab: tab.clone(),
+            });
     }
 
     pub(in crate::workbench_client) fn page_drawn_tab_strip(
@@ -482,9 +495,22 @@ impl WorkbenchClientUi {
             None => state.active()?.index(),
         };
         let tab = state.cache().tabs().get(index)?;
+        let location = state.cache().location().clone();
         let tab_id = tab.tab_id().clone();
-        if let Some(ids) = close_tab_ids(state, &tab_id, action.clone()) {
-            return self.request_close_set(&ids);
+        if matches!(
+            action,
+            CloseSelectedTabs | CloseOtherTabs | CloseTrailingTabs | CloseGroup
+        ) && let Some(expected_ids) = close_tab_ids(state, &tab_id, action.clone())
+        {
+            return self
+                .request_close_from_intent(super::held_intent::CloseRequestIntent::TabMenuClose {
+                    location,
+                    action,
+                    tab: tab_id,
+                    expected_ids,
+                })
+                .accepted()
+                .then_some(());
         }
         let selection_change = match action {
             SelectTab => Some(crate::workbench_state::TabSelectionChange::Toggle),

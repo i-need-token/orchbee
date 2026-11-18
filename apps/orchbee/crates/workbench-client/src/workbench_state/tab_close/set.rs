@@ -276,6 +276,12 @@ impl CloseState {
         self.set.as_ref().is_some_and(TabSetFollow::active)
     }
 
+    pub(super) fn set_resending(&self) -> bool {
+        self.set
+            .as_ref()
+            .is_some_and(|set| matches!(set.phase, Phase::Resend { .. }))
+    }
+
     /// Whether the Server decides an if-idle set: its armed confirmation stays hidden until then.
     pub(super) fn set_deciding(&self) -> bool {
         self.set.as_ref().is_some_and(|set| {
@@ -620,11 +626,11 @@ impl WorkbenchClientState {
     }
 
     pub(crate) fn open_close_set(&mut self, ids: &[WorkbenchTabId]) -> Result<(), CloseStateError> {
-        if !self.setup_authority_available()
-            || self.setup_blocks_structure()
+        if !self.close_confirmation_scope_available()
             || ids.is_empty()
             || self.close.set_active()
             || self.close.confirmation.is_some()
+            || !self.close.permits_tab_close_set(ids)
         {
             return Err(CloseStateError::Busy);
         }
@@ -763,11 +769,7 @@ impl WorkbenchClientState {
         };
         let request = operation.key().request_id().clone();
         let deadline = operation.deadline();
-        let resending = self
-            .close
-            .set
-            .as_ref()
-            .is_some_and(|set| matches!(set.phase, Phase::Resend { .. }));
+        let resending = self.close.set_resending();
         match action {
             TabSetCloseAction::Read { .. } => {
                 if self.plan_tab_set_read(request, deadline, admitted_at)? != *operation {

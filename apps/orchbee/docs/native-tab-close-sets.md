@@ -103,9 +103,13 @@ typing into the focused pane loses nothing; a close of the focused pane's own Ta
 naming it, refuses them with the input-unavailable notice, as it does through the rest of that
 close. A Panel close queues them
 behind its exchange: an accepted close ends the pane before they arrive, and `confirmation-required`
-delivers them to the terminal before the prompt draws. A close the Client cannot send at once, because
-another close exchange is in flight or the mailbox refuses it, presents the confirmation instead.
-Harnesses that script every Server exchange build the UI with `confirming_every_close`. The [real
+delivers them to the terminal before the prompt draws. When another close exchange, active set,
+refresh, recovery fence, leaving selection, or landing switch holds the Client within its hold
+bound, a close initiation holds in bounded per-target FIFO order (and revalidates a menu set against
+its click-time Tab set) instead of opening a surprise confirmation or dropping later clicks, and a
+Tab `[x]` or close still opens while only a single Panel of that Tab has a close running. Otherwise,
+if the Client cannot send the conditional close at once (for instance, a ReadOnly session or an
+unblocked refusal), the confirmation presents instead. Harnesses that script every Server exchange build the UI with `confirming_every_close`. The [real
 process witness](../tests/cli_windows_idle_close.rs) drives a real PowerShell through each route,
 under the system ConHost by default and the product's ConPTY with `ORCHBEE_TEST_CONPTY_DIR`, and the
 [route witness](../crates/workbench-client/src/workbench_client/ui/tests/idle_close.rs) covers which

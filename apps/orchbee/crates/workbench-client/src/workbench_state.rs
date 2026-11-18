@@ -73,7 +73,8 @@ pub use tab_close::CloseConfirmationToken;
 pub(crate) use tab_close::{
     CloseConfirmationView, CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation,
     CloseOperationKind, CloseReconciliationMarker, CloseResult, CloseState, CloseStateError,
-    CloseStatusView, CloseWorkerReturn, DefinitiveClosedAttachment, PendingCloseResult,
+    CloseStatusView, CloseWorkerReturn, DefinitiveClosedAttachment, MAXIMUM_CLOSE_RECORDS,
+    PendingCloseResult,
 };
 #[cfg(test)]
 pub(crate) use tab_close::{CloseIntent, CloseReadMode, CloseSelection, CloseTarget};

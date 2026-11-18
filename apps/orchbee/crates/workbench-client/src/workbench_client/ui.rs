@@ -5235,6 +5235,7 @@ impl WorkbenchClientUi {
         self.popup.shutdown();
         self.duplication.interrupt(self.clock.now());
         self.workspace_close_read = None;
+        self.clear_held_close_requests();
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
             state.cancel_panel_close_confirmation();

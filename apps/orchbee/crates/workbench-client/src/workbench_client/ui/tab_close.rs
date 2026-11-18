@@ -537,24 +537,174 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn request_close_confirmation(&mut self) -> ClientActionDisposition {
-        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
-            return ClientActionDisposition::KeepNavigator;
+        if self
+            .request_close_from_intent(super::held_intent::CloseRequestIntent::CloseSelectedTab)
+            .accepted()
+        {
+            ClientActionDisposition::DismissNavigator
+        } else {
+            ClientActionDisposition::KeepNavigator
+        }
+    }
+
+    pub(super) fn set_close_busy_notice(&mut self) {
+        if let Some(state) = self.state.as_mut()
+            && state.reports_close_busy_notice()
+        {
+            state.set_notice(crate::workbench_state::ClientNotice::LocalBusy);
+        }
+    }
+
+    pub(super) fn close_initiation_settling(&self) -> bool {
+        if self.settling_for_user_action() {
+            return true;
+        }
+        let Some(state) = self.state.as_ref() else {
+            return false;
         };
-        if mailbox
-            .apply_local_for(state, WorkbenchClientState::open_close_confirmation)
-            .is_err()
-        {
-            return ClientActionDisposition::KeepNavigator;
+        state.close_wait_pending(self.idle_close)
+            || (self.idle_close
+                && state.permits_held_close_scope()
+                && self
+                    .mailbox
+                    .as_ref()
+                    .is_some_and(|mailbox| mailbox.close_slot_busy()))
+    }
+
+    pub(super) fn replay_close_request_intent(
+        &mut self,
+        request: super::held_intent::CloseRequestIntent,
+    ) -> CloseRequestOutcome {
+        self.admit_close_request_intent(request, true)
+    }
+
+    pub(super) fn request_close_from_intent(
+        &mut self,
+        request: super::held_intent::CloseRequestIntent,
+    ) -> CloseRequestOutcome {
+        self.admit_close_request_intent(request, false)
+    }
+
+    fn open_current_close_confirmation(&mut self, panel: bool) -> bool {
+        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+            return false;
+        };
+        let target =
+            if panel {
+                mailbox
+                    .apply_local_for(state, WorkbenchClientState::open_panel_close_confirmation)
+                    .ok()
+                    .map(|()| {
+                        state.view().panel_close_confirmation().map(|confirmation| {
+                            super::idle_close::Target::Panel(confirmation.token())
+                        })
+                    })
+            } else {
+                mailbox
+                    .apply_local_for(state, WorkbenchClientState::open_close_confirmation)
+                    .ok()
+                    .map(|()| {
+                        state.view().close_confirmation().map(|confirmation| {
+                            super::idle_close::Target::Tab(confirmation.token())
+                        })
+                    })
+            };
+        let Some(target) = target else {
+            return false;
+        };
+        if let Some(target) = target {
+            self.begin_idle_close(target);
         }
-        // The Server decides whether closing the Tab asks first.
-        if let Some(token) = state
-            .view()
-            .close_confirmation()
-            .map(|confirmation| confirmation.token())
-        {
-            self.begin_idle_close(super::idle_close::Target::Tab(token));
+        true
+    }
+
+    fn admit_close_request_intent(
+        &mut self,
+        request: super::held_intent::CloseRequestIntent,
+        from_hold: bool,
+    ) -> CloseRequestOutcome {
+        use super::held_intent::CloseRequestIntent;
+        let uncertain = from_hold
+            && matches!(
+                request,
+                CloseRequestIntent::CloseSelectedTab | CloseRequestIntent::CloseFocusedPanel
+            )
+            && self.take_destination_uncertainty();
+        if self.state.is_none() {
+            return CloseRequestOutcome::Refused;
         }
-        ClientActionDisposition::DismissNavigator
+        if uncertain
+            || self.mailbox.is_none()
+            || (from_hold && self.surface_blocks_close_initiation())
+        {
+            if self.retirement_failure.is_none() {
+                self.set_close_busy_notice();
+            }
+            return CloseRequestOutcome::Refused;
+        }
+        let Some(state) = self.state.as_ref() else {
+            return CloseRequestOutcome::Refused;
+        };
+        let (holdable, menu_ids) = match &request {
+            CloseRequestIntent::DrawnTabClose { location, tab } => {
+                if state.cache().location() != location
+                    || state.cache().tab_index(tab).is_none()
+                    || state.view().tab_leaving(tab)
+                {
+                    return CloseRequestOutcome::NotApplicable;
+                }
+                (state.can_hold_close_set(std::slice::from_ref(tab)), None)
+            }
+            CloseRequestIntent::TabMenuClose {
+                location,
+                action,
+                tab,
+                expected_ids,
+            } => {
+                let current_ids = (state.cache().location() == location)
+                    .then(|| super::tab_groups::close_tab_ids(state, tab, action.clone()))
+                    .flatten();
+                if current_ids.as_ref() != Some(expected_ids) {
+                    if from_hold {
+                        if let Some(state) = self.state.as_mut() {
+                            state
+                                .set_notice(crate::workbench_state::ClientNotice::WorkspaceChanged);
+                        }
+                        return CloseRequestOutcome::Refused;
+                    }
+                    return CloseRequestOutcome::NotApplicable;
+                }
+                let ids = current_ids.unwrap_or_default();
+                (state.can_hold_close_set(&ids), Some(ids))
+            }
+            CloseRequestIntent::CloseSelectedTab => (state.can_hold_tab_close_confirmation(), None),
+            CloseRequestIntent::CloseFocusedPanel => {
+                (state.can_hold_panel_close_confirmation(), None)
+            }
+        };
+        if !from_hold && holdable && self.close_initiation_settling() {
+            if self.hold_close_request(request) {
+                return CloseRequestOutcome::Held;
+            }
+            self.set_close_busy_notice();
+            return CloseRequestOutcome::Refused;
+        }
+        let opened = match &request {
+            CloseRequestIntent::DrawnTabClose { tab, .. } => {
+                self.request_close_set(std::slice::from_ref(tab)).is_some()
+            }
+            CloseRequestIntent::TabMenuClose { .. } => menu_ids
+                .as_deref()
+                .is_some_and(|ids| self.request_close_set(ids).is_some()),
+            CloseRequestIntent::CloseSelectedTab => self.open_current_close_confirmation(false),
+            CloseRequestIntent::CloseFocusedPanel => self.open_current_close_confirmation(true),
+        };
+        if opened {
+            CloseRequestOutcome::Opened
+        } else {
+            self.set_close_busy_notice();
+            CloseRequestOutcome::Refused
+        }
     }
 
     pub(super) fn cancel_close(&mut self) -> ClientActionDisposition {
@@ -751,5 +901,19 @@ impl WorkbenchClientUi {
             state.acknowledge_workspace_close_draw(None);
         }
         self.invalidate_panel_close_display();
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum CloseRequestOutcome {
+    Opened,
+    Held,
+    NotApplicable,
+    Refused,
+}
+
+impl CloseRequestOutcome {
+    pub(super) const fn accepted(self) -> bool {
+        matches!(self, Self::Opened | Self::Held)
     }
 }
