@@ -81,7 +81,11 @@ pub fn createWithOptionsUsingSpawner(
             .colors = colors,
             .default_cursor_blink = profile.default_cursor_blinking,
             .default_cursor_style = profile.cursorStyle(),
-            .default_modes = .{ .cursor_blinking = profile.default_cursor_blinking },
+            // Grapheme clustering is on by default, matching Ghostty's grapheme-width-method = unicode.
+            .default_modes = .{
+                .cursor_blinking = profile.default_cursor_blinking,
+                .grapheme_cluster = true,
+            },
             .kitty_image_loading_limits = kitty_loading_limits,
             .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
             .max_scrollback_bytes = resolved_options.scrollback_bytes,
