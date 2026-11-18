@@ -27,9 +27,13 @@ impl CloseTestServer {
 
 pub(crate) fn peer_disconnected(error: &(dyn std::error::Error + 'static)) -> bool {
     error.downcast_ref::<io::Error>().is_some_and(|error| {
+        // A read or write that fails after the peer closed reports BrokenPipe or ConnectionReset,
+        // and NotConnected (ENOTCONN) on macOS.
         matches!(
             error.kind(),
-            io::ErrorKind::BrokenPipe | io::ErrorKind::ConnectionReset
+            io::ErrorKind::BrokenPipe
+                | io::ErrorKind::ConnectionReset
+                | io::ErrorKind::NotConnected
         )
     }) || error.source().is_some_and(peer_disconnected)
 }
