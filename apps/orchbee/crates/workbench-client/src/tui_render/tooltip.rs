@@ -14,7 +14,7 @@ use ratatui::{
 use crate::{
     client_view::{ClientAction, ClientView, PrefixAction},
     localization::Locale,
-    terminal_text::{display_width, truncate_display, truncate_display_middle},
+    terminal_text::{display_width, line_display_width, truncate_display, truncate_display_middle},
     tui_hit_map::{LegendItem, OpenTooltip, RosterItem, TooltipContent, TooltipText},
     tui_theme::{Role, Theme},
 };
@@ -158,7 +158,7 @@ pub(super) fn paint(
         return None;
     }
     let lines = lines(tooltip.content, room, theme);
-    let width = lines.iter().map(Line::width).max()? + FRAME_COLUMNS;
+    let width = lines.iter().map(line_display_width).max()? + FRAME_COLUMNS;
     let size = (
         u16::try_from(width).ok()?,
         u16::try_from(lines.len() + FRAME_ROWS).ok()?,
@@ -355,7 +355,7 @@ fn roster_row(item: &RosterItem, room: usize, theme: &Theme) -> Line<'static> {
             on_box(Role::TextPrimary, theme.style(Role::TextPrimary)),
         ),
     ];
-    let state_width: usize = spans.iter().map(Span::width).sum();
+    let state_width = spans_display_width(&spans);
     let identity_room = room.saturating_sub(state_width + display_width(LEGEND_GAP));
     let identity = truncate_display(&item.identity, identity_room, ellipsis);
     if !identity.is_empty() && identity != ellipsis {
@@ -435,12 +435,16 @@ fn legend_lines(
         }
         spans
     };
-    let width = |spans: &[Span<'_>]| spans.iter().map(Span::width).sum::<usize>();
     let mut packed: Vec<Vec<Vec<Span<'static>>>> = Vec::new();
     for item in items {
         let next = group(item);
         match packed.last_mut() {
-            Some(last) if width(&join(last)) + display_width(LEGEND_GAP) + width(&next) <= room => {
+            Some(last)
+                if spans_display_width(&join(last))
+                    + display_width(LEGEND_GAP)
+                    + spans_display_width(&next)
+                    <= room =>
+            {
                 last.push(next);
             }
             _ => packed.push(vec![next]),
@@ -453,7 +457,9 @@ fn legend_lines(
         on_box(Role::TextSecondary, theme.style(Role::TextSecondary)),
     );
     if cut && let Some(last) = packed.last_mut() {
-        while last.len() > 1 && width(&join(last)) + more.width() > room {
+        while last.len() > 1
+            && spans_display_width(&join(last)) + display_width(&more.content) > room
+        {
             last.pop();
         }
     }
@@ -471,9 +477,14 @@ fn legend_lines(
         .collect()
 }
 
+/// Computes the summed `display_width` across styled spans in `spans`.
+fn spans_display_width(spans: &[Span<'_>]) -> usize {
+    spans.iter().map(|span| display_width(&span.content)).sum()
+}
+
 /// Cuts styled spans to `room` cells with a trailing ellipsis, never splitting a glyph span.
 fn truncate_spans(spans: Vec<Span<'static>>, room: usize, theme: &Theme) -> Vec<Span<'static>> {
-    if spans.iter().map(Span::width).sum::<usize>() <= room {
+    if spans_display_width(&spans) <= room {
         return spans;
     }
     let ellipsis = theme.glyphs.ellipsis;
@@ -482,7 +493,7 @@ fn truncate_spans(spans: Vec<Span<'static>>, room: usize, theme: &Theme) -> Vec<
     let mut used = 0;
     let mut style = Style::default();
     for span in spans {
-        let width = span.width();
+        let width = display_width(&span.content);
         style = span.style;
         if used + width <= budget {
             used += width;

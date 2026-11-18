@@ -194,3 +194,40 @@ fn a_roster_lists_one_agent_per_line_and_counts_the_ones_it_cuts() {
     assert_eq!(cut[7], "+3");
     assert!(cut[6].ends_with("agent 6"), "{cut:?}");
 }
+
+#[test]
+fn tooltip_sizes_to_display_width_of_cross_cluster_ligatures() {
+    use ratatui::{Terminal, backend::TestBackend};
+
+    let theme = Theme::rgb_test_dark().with_glyphs(GlyphSet::ASCII);
+    let lam_alefs = "\u{644}\u{627}".repeat(4);
+    let content = TooltipContent::Describe {
+        text: Some(TooltipText {
+            text: lam_alefs,
+            middle: false,
+        }),
+        legend: Vec::new(),
+    };
+    let target = Rect::new(2, 2, 10, 1);
+    let mut terminal = Terminal::new(TestBackend::new(40, 10)).unwrap();
+    let mut drawn = None;
+    terminal
+        .draw(|frame| {
+            drawn = paint(
+                frame,
+                OpenTooltip {
+                    content: &content,
+                    target,
+                    pointer: (2, 2),
+                },
+                &[],
+                &theme,
+            );
+        })
+        .unwrap();
+    let box_rect = drawn.expect("tooltip box painted");
+    // Four Lam-Alef pairs occupy 8 cells plus 4 frame/padding columns, not 4 + 4.
+    assert_eq!(box_rect.width, 8 + FRAME_COLUMNS as u16);
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer[(box_rect.right() - 1, box_rect.y + 1)].symbol(), "│");
+}

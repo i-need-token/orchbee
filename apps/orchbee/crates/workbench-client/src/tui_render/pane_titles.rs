@@ -6,7 +6,7 @@ use super::{
 };
 
 use crate::{
-    terminal_text::{display_width, truncate_display},
+    terminal_text::{display_width, line_display_width, truncate_display},
     tui_hit_map::TooltipText,
     tui_layout::LeafArea,
 };
@@ -137,7 +137,7 @@ pub(super) fn paint(
     // cells; the rest of the title gives only a cut name, in full. Neither records a target, so a
     // press there still reaches the divider beneath.
     if let Some(pane) = panel.and_then(|panel| native.pane_ref_for_panel(panel.panel_id())) {
-        let width = u16::try_from(left.width())
+        let width = u16::try_from(line_display_width(&left))
             .unwrap_or(u16::MAX)
             .min(line.width);
         let text = Rect::new(line.x, line.y, width, 1);

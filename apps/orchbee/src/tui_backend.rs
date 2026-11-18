@@ -228,18 +228,18 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
                 style.modifier = cell.modifier;
             }
             let symbol = sanitize_terminal_symbol(cell.symbol());
-            write_ansi_command(&mut self.writer, &Print(symbol.as_ref()))?;
+            let cell_width = cell.cell_width();
+            let predictable = is_predictable_bmp_cell(symbol.as_ref(), cell_width);
+            write_cell_symbol(
+                &mut self.writer,
+                Position { x, y },
+                symbol.as_ref(),
+                cell_width,
+                !predictable && cell_width > 1,
+            )?;
             self.cursor_position = Position { x, y };
-            // ConPTY and Unicode width tables disagree on some supplementary
-            // scalars and clusters. Only continue a run after a single BMP
-            // scalar with an agreed width; otherwise position the next write
-            // explicitly, so a complex glyph cannot shift the rest of a row.
-            let mut scalars = symbol.chars();
-            let predictable = scalars.next().is_some_and(|value| value <= '\u{ffff}')
-                && scalars.next().is_none()
-                && symbol.as_ref().cell_width() == cell.cell_width();
             advanced_to = predictable.then_some(Position {
-                x: x.saturating_add(cell.cell_width()),
+                x: x.saturating_add(cell_width),
                 y,
             });
         }
@@ -379,6 +379,51 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
     }
 }
 
+/// Returns whether `symbol` is a single BMP scalar whose host cursor advance matches `cell_width`.
+fn is_predictable_bmp_cell(symbol: &str, cell_width: u16) -> bool {
+    if symbol.cell_width() != cell_width {
+        return false;
+    }
+    // ConPTY/Windows Terminal, Ghostty VT, and unicode-width disagree on multi-scalar clusters,
+    // supplementary scalars, and several BMP scalars; keep explicit positioning for those so host
+    // cursor drift cannot shift the rest of a row.
+    let mut scalars = symbol.chars();
+    let Some(value) = scalars.next() else {
+        return false;
+    };
+    scalars.next().is_none()
+        && value <= '\u{ffff}'
+        && !matches!(
+            value,
+            '\u{00ad}'
+                | '\u{115f}'
+                | '\u{17a4}'
+                | '\u{17d8}'
+                | '\u{20e3}'
+                | '\u{2d7f}'
+                | '\u{2e3a}'
+                | '\u{2e3b}'
+                | '\u{ff9e}'
+                | '\u{ff9f}'
+        )
+}
+
+/// Writes one cell symbol, clearing its multi-cell footprint first when host width may fall short.
+fn write_cell_symbol(
+    writer: &mut impl Write,
+    position: Position,
+    symbol: &str,
+    cell_width: u16,
+    clear_footprint: bool,
+) -> io::Result<()> {
+    if clear_footprint || symbol.cell_width() < cell_width {
+        // Captured grids and disputed BMP scalars can reserve more cells than the host advances.
+        write_ansi_command(writer, &Print(" ".repeat(usize::from(cell_width))))?;
+        write_ansi_command(writer, &MoveTo(position.x, position.y))?;
+    }
+    write_ansi_command(writer, &Print(symbol))
+}
+
 fn write_cell(writer: &mut impl Write, position: Position, cell: &Cell) -> io::Result<()> {
     write_ansi_command(writer, &MoveTo(position.x, position.y))?;
     write_ansi_command(writer, &SetAttribute(Attribute::Reset))?;
@@ -386,12 +431,15 @@ fn write_cell(writer: &mut impl Write, position: Position, cell: &Cell) -> io::R
     colors::write_background(writer, cell.bg)?;
     write_modifier_transition(writer, Modifier::empty(), cell.modifier)?;
     let symbol = sanitize_terminal_symbol(cell.symbol());
-    if symbol.as_ref().cell_width() < cell.cell_width() {
-        // Captured grids can reserve two cells for a cluster this host measures as one.
-        write_ansi_command(writer, &Print(" ".repeat(usize::from(cell.cell_width()))))?;
-        write_ansi_command(writer, &MoveTo(position.x, position.y))?;
-    }
-    write_ansi_command(writer, &Print(symbol.as_ref()))?;
+    let cell_width = cell.cell_width();
+    let clear_footprint = !is_predictable_bmp_cell(symbol.as_ref(), cell_width) && cell_width > 1;
+    write_cell_symbol(
+        writer,
+        position,
+        symbol.as_ref(),
+        cell_width,
+        clear_footprint,
+    )?;
     write_ansi_command(writer, &SetAttribute(Attribute::Reset))?;
     write_ansi_command(writer, &ResetColor)
 }

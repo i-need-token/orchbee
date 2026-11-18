@@ -971,6 +971,84 @@ fn sidebar_status_truncates_with_ellipsis_on_grapheme_boundaries() {
 }
 
 #[test]
+fn centered_notices_and_titles_follow_display_width_without_block_title_or_list() {
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let lam_alef_six = "\u{644}\u{627}\u{644}\u{627}\u{644}\u{627}";
+    let mut text = Locale::EnUs.shell();
+    text.too_small_notice = lam_alef_six;
+    text.terminal_unavailable = lam_alef_six;
+    text.panel_title = lam_alef_six;
+    text.app_title = lam_alef_six;
+
+    // 1) Centered too-small notice on a 12-cell row starts at x = (12 - 6) / 2 = 3 (with bullet at x = 2 when fitted, here check unbulleted overflow fallback or 10-cell fit):
+    // For width 10 with 2-cell bullet prefix ("● "): notice + bullet = 8 cells, centered at x = (10 - 8) / 2 = 1.
+    let mut terminal = infallible(Terminal::new(TestBackend::new(10, 3)));
+    infallible(terminal.draw(|frame| {
+        super::render_too_small_notice(frame, Rect::new(0, 0, 10, 3), text, &theme);
+    }));
+    let buf = terminal.backend().buffer();
+    assert_eq!(buf[(1, 1)].symbol(), theme.glyphs.status_bullet);
+    assert_eq!(buf[(3, 1)].symbol(), "\u{644}");
+    assert_eq!(buf[(8, 1)].symbol(), "\u{627}");
+
+    // 2) Framed unavailable workbench uses OverlayFrame title + display-width centered body
+    let areas = crate::tui_layout::ShellAreas {
+        tabs: Rect::new(0, 0, 20, 1),
+        sidebar: None,
+        panel: Rect::new(0, 1, 20, 8),
+        body: Rect::new(0, 1, 20, 8),
+        status: Rect::new(0, 9, 20, 1),
+        tier: crate::tui_layout::ViewportTier::Compact,
+        workbench: Rect::new(0, 1, 20, 8),
+    };
+    let mut unavailable = infallible(Terminal::new(TestBackend::new(20, 10)));
+    infallible(unavailable.draw(|frame| {
+        super::render_unavailable_workbench(
+            frame,
+            &areas,
+            text,
+            "connecting",
+            crate::tui_layout::ViewportTier::Compact,
+            &theme,
+        );
+    }));
+    let ub = unavailable.backend().buffer();
+    // Title " <6 cells> " starts at (1, 1) and keeps the top-right corner intact at (19, 1).
+    assert_eq!(ub[(2, 1)].symbol(), "\u{644}");
+    assert_eq!(ub[(7, 1)].symbol(), "\u{627}");
+    assert_eq!(
+        ub[(19, 1)].symbol(),
+        theme.corners.to_border_set().top_right
+    );
+    // Centered warning line inside 18-col inner box starts at x = 1 + (18 - 6) / 2 = 7.
+    assert_eq!(ub[(7, 4)].symbol(), "\u{644}");
+    assert_eq!(ub[(12, 4)].symbol(), "\u{627}");
+
+    // 3) Degraded sidebar heading renders " <6 cells> " on row 0 clear of right divider at col 11.
+    let mut sidebar_term = infallible(Terminal::new(TestBackend::new(12, 12)));
+    let sidebar = super::SidebarArea {
+        area: Rect::new(0, 0, 12, 12),
+        layer: super::SidebarLayer::Docked,
+    };
+    infallible(sidebar_term.draw(|frame| {
+        super::render_sidebar(
+            frame,
+            sidebar,
+            text,
+            super::SessionStatus {
+                text: "Ready",
+                role: crate::tui_theme::Role::StatusSuccess,
+            },
+            &theme,
+        );
+    }));
+    let sb = sidebar_term.backend().buffer();
+    assert_eq!(sb[(1, 0)].symbol(), "\u{644}");
+    assert_eq!(sb[(6, 0)].symbol(), "\u{627}");
+    assert_eq!(sb[(11, 0)].symbol(), "│");
+}
+
+#[test]
 fn zoom_context_and_restore_hint_are_projected_separately_in_both_locales() {
     // Expectations come from the locale catalog, so the copy can change without editing this test.
     for locale in [Locale::EnUs, Locale::ZhCn] {

@@ -1516,7 +1516,7 @@ pub(super) fn render(
             let line = u16::try_from(part.line)
                 .ok()
                 .filter(|line| *line < content_height)?;
-            let end = (part.start + part.width).min(row_lines.get(part.line)?.width());
+            let end = (part.start + part.width).min(line_display_width(row_lines.get(part.line)?));
             let start = part.start.min(end);
             Some((
                 Rect::new(
@@ -1529,7 +1529,7 @@ pub(super) fn render(
             ))
         });
         let tracks = if has_disclosure {
-            tracks.with_disclosure_after(row_lines.first().map_or(0, Line::width))
+            tracks.with_disclosure_after(row_lines.first().map_or(0, line_display_width))
         } else {
             tracks
         };

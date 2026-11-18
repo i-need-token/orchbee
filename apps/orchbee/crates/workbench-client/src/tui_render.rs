@@ -4,10 +4,10 @@
 
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Layout, Position, Rect},
+    layout::{Constraint, Layout, Position, Rect},
     style::Modifier,
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph},
+    widgets::{Block, Borders, Clear, Padding, Paragraph},
 };
 mod action_menu;
 #[cfg(test)]
@@ -49,7 +49,9 @@ use crate::localization::{
     ClientProjectionStatus, DisplayController, DisplayPhase, Locale, RecoveryVerb, RefreshStatus,
     ShellText,
 };
-use crate::terminal_text::{display_width, truncate_display, wrap_text};
+use crate::terminal_text::{
+    display_width, line_display_width, sanitize_terminal_text, truncate_display, wrap_text,
+};
 use crate::tui_composition::{
     CaptureClaims, CaptureOwner, ClientCaptureClaims, WorkbenchCaptureOwner,
     client_chrome_overlay_allowed, project_capture,
@@ -1308,7 +1310,34 @@ fn render_too_small_notice(frame: &mut Frame<'_>, body: Rect, text: ShellText, t
             theme.style(Role::TextPrimary),
         )
     };
-    frame.render_widget(Paragraph::new(line).alignment(Alignment::Center), row);
+    render_centered_line(frame, row, &line);
+}
+
+/// Paints a single line centered within `row` using unified `line_display_width`.
+fn render_centered_line(frame: &mut Frame<'_>, row: Rect, line: &Line<'_>) {
+    if row.is_empty() {
+        return;
+    }
+    let width = line_display_width(line);
+    let offset = u16::try_from(usize::from(row.width).saturating_sub(width) / 2).unwrap_or(0);
+    frame.buffer_mut().set_line(
+        row.x.saturating_add(offset),
+        row.y,
+        line,
+        row.width.saturating_sub(offset),
+    );
+}
+
+/// Wraps `text` cleanly via `wrap_text` and centers each visible row inside `area`.
+fn render_centered_wrapped_text(frame: &mut Frame<'_>, area: Rect, text: &Text<'_>) {
+    if area.is_empty() {
+        return;
+    }
+    let wrapped = wrap_text(text, area.width);
+    for (offset, line) in (0..area.height).zip(&wrapped.lines) {
+        let row = Rect::new(area.x, area.y.saturating_add(offset), area.width, 1);
+        render_centered_line(frame, row, line);
+    }
 }
 
 fn render_unavailable_workbench(
@@ -1351,31 +1380,24 @@ fn render_unavailable_workbench(
     ];
     let content_area = terminal_area(panel, tier.shows_panel_frame());
     if tier.shows_panel_frame() {
-        frame.render_widget(
-            Paragraph::new(wrap_text(
-                &Text::from(content),
-                panel.width.saturating_sub(2),
-            ))
-            .alignment(Alignment::Center)
-            .block(
-                Block::new()
-                    .borders(Borders::ALL)
-                    .border_style(theme.style(Role::FrameFocused))
-                    .border_type(theme.corners)
-                    .padding(Padding::vertical(1))
-                    .title(Span::styled(
-                        format!(" {} ", text.panel_title),
-                        theme.style(Role::TextSecondary),
-                    )),
-            ),
-            panel,
+        let surface = Block::new()
+            .borders(Borders::ALL)
+            .border_style(theme.style(Role::FrameFocused))
+            .border_type(theme.corners)
+            .padding(Padding::vertical(1))
+            .style(theme.style(Role::SurfaceCanvas));
+        let title = truncate_display(
+            &format!(" {} ", sanitize_terminal_text(text.panel_title)),
+            usize::from(panel.width.saturating_sub(2)),
+            theme.glyphs.ellipsis,
         );
+        let framed = OverlayFrame::new(surface)
+            .heading(Line::styled(title, theme.style(Role::TextSecondary)));
+        let inner = framed.inner(panel);
+        frame.render_widget(framed, panel);
+        render_centered_wrapped_text(frame, inner, &Text::from(content));
     } else {
-        frame.render_widget(
-            Paragraph::new(wrap_text(&Text::from(content), content_area.width))
-                .alignment(Alignment::Center),
-            content_area,
-        );
+        render_centered_wrapped_text(frame, content_area, &Text::from(content));
     }
 }
 
@@ -2712,57 +2734,85 @@ fn render_sidebar(
     let inner_width = usize::from(sidebar.area.width.saturating_sub(4));
     let fit = |label: String| truncate_display(&label, inner_width, theme.glyphs.ellipsis);
     let items = [
-        ListItem::new(Line::styled(
+        Line::styled(
             fit(text.session_section.to_owned()),
             theme
                 .style(Role::TextSecondary)
                 .add_modifier(Modifier::BOLD),
-        )),
-        ListItem::new(backend_status.line(inner_width, theme)),
-        ListItem::new(""),
-        ListItem::new(Line::styled(
+        ),
+        backend_status.line(inner_width, theme),
+        Line::default(),
+        Line::styled(
             fit(text.business_section.to_owned()),
             theme
                 .style(Role::TextSecondary)
                 .add_modifier(Modifier::BOLD),
-        )),
-        ListItem::new(Line::styled(
+        ),
+        Line::styled(
             fit(format!("  {}", text.projects)),
             theme.style(Role::TextSecondary),
-        )),
-        ListItem::new(Line::styled(
+        ),
+        Line::styled(
             fit(format!("  {}", text.workspaces)),
             theme.style(Role::TextSecondary),
-        )),
-        ListItem::new(Line::styled(
+        ),
+        Line::styled(
             fit(format!("  {}", text.agents)),
             theme.style(Role::TextSecondary),
-        )),
-        ListItem::new(""),
-        ListItem::new(Line::styled(
+        ),
+        Line::default(),
+        Line::styled(
             fit(text.sidebar_hint.to_owned()),
             theme.style(Role::HintLabel),
-        )),
-    ];
-    frame.render_widget(
-        List::new(items).block(
-            Block::new()
-                // The mobile list fills the window, so it has no divider beside other content.
-                .borders(if sidebar.layer == SidebarLayer::Screen {
-                    Borders::NONE
-                } else {
-                    Borders::RIGHT
-                })
-                .border_style(theme.style(Role::FrameDivider))
-                .padding(Padding::new(2, 1, 1, 0))
-                .style(theme.style(Role::SurfaceChrome))
-                .title(Span::styled(
-                    format!(" {} ", text.app_title),
-                    theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
-                )),
         ),
-        sidebar.area,
+    ];
+    let block = Block::new()
+        // The mobile list fills the window, so it has no divider beside other content.
+        .borders(if sidebar.layer == SidebarLayer::Screen {
+            Borders::NONE
+        } else {
+            Borders::RIGHT
+        })
+        .border_style(theme.style(Role::FrameDivider))
+        .padding(Padding::new(2, 1, 1, 0))
+        .style(theme.style(Role::SurfaceChrome));
+    let inner = block.inner(sidebar.area);
+    frame.render_widget(block, sidebar.area);
+    let title_width = sidebar
+        .area
+        .width
+        .saturating_sub(u16::from(sidebar.layer != SidebarLayer::Screen));
+    if !sidebar.area.is_empty() && title_width > 0 {
+        let title = truncate_display(
+            &format!(" {} ", sanitize_terminal_text(text.app_title)),
+            usize::from(title_width),
+            theme.glyphs.ellipsis,
+        );
+        frame.buffer_mut().set_line(
+            sidebar.area.x,
+            sidebar.area.y,
+            &Line::styled(
+                title,
+                theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
+            ),
+            title_width,
+        );
+    }
+    // Keep the heading row clear above Block's top padding before painting item rows.
+    let content = Rect::new(
+        inner.x,
+        inner.y.saturating_add(1),
+        inner.width,
+        inner.height.saturating_sub(1),
     );
+    for (offset, line) in (0..content.height).zip(&items) {
+        frame.buffer_mut().set_line(
+            content.x,
+            content.y.saturating_add(offset),
+            line,
+            content.width,
+        );
+    }
 }
 
 /// Style only the already-drawn shared and outer boundaries around one leaf.

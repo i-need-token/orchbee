@@ -300,6 +300,44 @@ fn captured_width_and_complex_symbols_never_guess_the_next_host_cursor_position(
     Ok(())
 }
 
+#[test]
+fn disputed_bmp_scalars_reposition_explicitly_and_clear_multi_cell_footprints() -> io::Result<()> {
+    let dimensions = WindowDimensions {
+        columns: 12,
+        rows: 1,
+        pixel_width: 0,
+        pixel_height: 0,
+    };
+    for (symbol, width) in [
+        ("\u{115f}", 2_u16),
+        ("\u{17a4}", 2),
+        ("\u{17d8}", 3),
+        ("\u{2d7f}", 1),
+        ("\u{ff9e}", 1),
+    ] {
+        let mut glyph = Cell::default();
+        glyph.set_symbol(symbol);
+        let mut suffix = Cell::default();
+        suffix.set_symbol("|");
+        let mut backend = new_test_backend(Vec::new(), dimensions);
+        backend.draw([(0, 0, &glyph), (width, 0, &suffix)].into_iter())?;
+        let output = std::str::from_utf8(&backend.writer).unwrap();
+        let next_col = width + 1;
+        assert!(
+            output.contains(&format!("{symbol}\x1b[1;{next_col}H|")),
+            "expected explicit MoveTo after {symbol:?}: {output:?}"
+        );
+        if width > 1 {
+            let clear_spaces = " ".repeat(usize::from(width));
+            assert!(
+                output.contains(&format!("{clear_spaces}\x1b[1;1H{symbol}")),
+                "expected multi-cell clear before {symbol:?}: {output:?}"
+            );
+        }
+    }
+    Ok(())
+}
+
 fn attribute_bytes(attribute: Attribute) -> Vec<u8> {
     let mut bytes = Vec::new();
     write_ansi_command(&mut bytes, &SetAttribute(attribute)).unwrap();
