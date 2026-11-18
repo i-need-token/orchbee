@@ -1,12 +1,14 @@
 //! The crate's sole Win32 FFI: one exact namespace lookup, pipe counters, one zero-byte read
-//! watch per connection, and one wait over the resulting events.
+//! watch per connection, one wait over the resulting events, direct overlapped I/O on client
+//! pipe handles without reopening them, and one bounded wait for a busy endpoint instance.
+//! Test builds add one impersonation probe that reverts before returning.
 
 use std::{
     cell::{RefCell, UnsafeCell},
-    ffi::c_void,
+    ffi::{OsStr, c_void},
     fmt, io,
     marker::PhantomPinned,
-    os::windows::io::{AsRawHandle, BorrowedHandle, FromRawHandle, OwnedHandle},
+    os::windows::io::{AsHandle, AsRawHandle, BorrowedHandle, FromRawHandle, OwnedHandle},
     pin::Pin,
     ptr,
     sync::Arc,
@@ -17,6 +19,10 @@ use winsafe::{HFINDFILE, WIN32_FIND_DATA, co, guard::FindCloseGuard, prelude::Ha
 
 const ERROR_IO_PENDING: i32 = 997;
 const ERROR_IO_INCOMPLETE: i32 = 996;
+const ERROR_HANDLE_EOF: i32 = 38;
+const ERROR_BROKEN_PIPE: i32 = 109;
+const ERROR_PIPE_NOT_CONNECTED: i32 = 233;
+const PIPE_NOWAIT: u32 = 0x0000_0001;
 const INFINITE: u32 = u32::MAX;
 const WAIT_FAILED: u32 = u32::MAX;
 const MAXIMUM_WAIT_OBJECTS: usize = 64;
@@ -84,6 +90,23 @@ unsafe extern "system" {
         read: *mut u32,
         overlapped: *mut Overlapped,
     ) -> i32;
+    #[link_name = "WriteFile"]
+    fn write_file(
+        file: *mut c_void,
+        buffer: *const u8,
+        length: u32,
+        written: *mut u32,
+        overlapped: *mut Overlapped,
+    ) -> i32;
+    #[link_name = "SetNamedPipeHandleState"]
+    fn set_named_pipe_handle_state(
+        pipe: *mut c_void,
+        mode: *mut u32,
+        max_collection_count: *mut u32,
+        collect_data_timeout: *mut u32,
+    ) -> i32;
+    #[link_name = "GetNamedPipeServerProcessId"]
+    fn get_named_pipe_server_process_id(pipe: *mut c_void, server_process_id: *mut u32) -> i32;
     #[link_name = "GetOverlappedResult"]
     fn get_overlapped_result(
         file: *mut c_void,
@@ -116,6 +139,8 @@ unsafe extern "system" {
         argument: *const c_void,
         resume: i32,
     ) -> i32;
+    #[link_name = "WaitNamedPipeW"]
+    fn wait_named_pipe(name: *const u16, timeout: u32) -> i32;
 }
 
 #[link(name = "ntdll")]
@@ -195,7 +220,7 @@ pub(super) fn pipe_counters(pipe: BorrowedHandle<'_>) -> io::Result<PipeCounters
     }
 }
 
-fn new_event() -> io::Result<OwnedHandle> {
+pub(super) fn new_event() -> io::Result<OwnedHandle> {
     // SAFETY: Null attributes and name are documented inputs; the call retains no pointer.
     let event = unsafe { create_event(ptr::null(), 1, 0, ptr::null()) };
     if event.is_null() {
@@ -413,6 +438,265 @@ pub(super) fn wait_any(events: &[Arc<OwnedHandle>], timeout: Option<Duration>) -
         return Err(io::Error::last_os_error());
     }
     Ok(())
+}
+
+/// Blocks for at most `timeout` until a server instance of `name` has no connected client. The
+/// wake is advisory: the caller reopens the pipe, which may find the instance taken again.
+pub(super) fn wait_for_instance(name: &OsStr, timeout: Duration) -> io::Result<()> {
+    let name = U16CString::from_os_str(name).map_err(io::Error::other)?;
+    // Zero selects the system default wait and `u32::MAX` waits forever, so clamp finite nonzero
+    // milliseconds into `1..=u32::MAX - 1`.
+    let milliseconds = u32::try_from(timeout.as_millis())
+        .unwrap_or(u32::MAX - 1)
+        .clamp(1, u32::MAX - 1);
+    // SAFETY: `name` is a NUL-terminated UTF-16 string that outlives the call, and the call keeps
+    // no pointer to it.
+    if unsafe { wait_named_pipe(name.as_ptr(), milliseconds) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// Cancels and drains an in-flight overlapped read or write before the caller's slice buffer is
+/// released, even across an unwind.
+struct OverlappedGuard<'a> {
+    pipe: BorrowedHandle<'a>,
+    overlapped: Box<Overlapped>,
+    pending: bool,
+}
+
+impl<'a> OverlappedGuard<'a> {
+    fn new(pipe: BorrowedHandle<'a>, event: BorrowedHandle<'a>) -> Self {
+        Self {
+            pipe,
+            overlapped: Box::new(Overlapped {
+                event: event.as_raw_handle() as usize,
+                ..Overlapped::default()
+            }),
+            pending: false,
+        }
+    }
+
+    fn finish(mut self, started: i32) -> io::Result<usize> {
+        if started == 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() != Some(ERROR_IO_PENDING) {
+                return Err(error);
+            }
+            self.pending = true;
+        }
+        let mut transferred = 0;
+        // SAFETY: `self.pipe` and boxed `self.overlapped` stay valid and fixed in memory until
+        // `GetOverlappedResult` completes; `event` is a dedicated manual-reset event so other
+        // operations on the same file object (such as `ReadWatch`) cannot wake this wait early.
+        let completed = unsafe {
+            get_overlapped_result(
+                self.pipe.as_raw_handle(),
+                self.overlapped.as_mut(),
+                &mut transferred,
+                1,
+            )
+        };
+        self.pending = false;
+        if completed == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(transferred as usize)
+    }
+}
+
+impl Drop for OverlappedGuard<'_> {
+    fn drop(&mut self) {
+        if self.pending {
+            let mut transferred = 0;
+            // SAFETY: `self.pipe` and boxed `self.overlapped` remain live until the kernel
+            // releases `self.overlapped` after `GetOverlappedResult`.
+            unsafe {
+                cancel_io_ex(self.pipe.as_raw_handle(), self.overlapped.as_mut());
+                get_overlapped_result(
+                    self.pipe.as_raw_handle(),
+                    self.overlapped.as_mut(),
+                    &mut transferred,
+                    1,
+                );
+            }
+        }
+    }
+}
+
+/// Client-side overlapped named-pipe handle kept directly without `ReOpenFile`.
+#[derive(Debug)]
+pub(super) struct ClientPipe {
+    handle: OwnedHandle,
+    event: OwnedHandle,
+}
+
+impl ClientPipe {
+    /// Wraps a just-opened handle with its own event, which the caller creates before the open.
+    pub(super) fn new(handle: OwnedHandle, event: OwnedHandle) -> Self {
+        Self { handle, event }
+    }
+
+    pub(super) fn as_handle(&self) -> BorrowedHandle<'_> {
+        self.handle.as_handle()
+    }
+
+    pub(super) fn into_owned_handle(self) -> OwnedHandle {
+        self.handle
+    }
+
+    pub(super) fn server_process_id(&self) -> io::Result<u32> {
+        let mut pid = 0;
+        // SAFETY: `self.handle` is live and `pid` is a writable stack `u32`; the call retains no
+        // pointer.
+        if unsafe { get_named_pipe_server_process_id(self.handle.as_raw_handle(), &mut pid) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(pid)
+    }
+
+    pub(super) fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+        let mut mode = if nonblocking { PIPE_NOWAIT } else { 0 };
+        // SAFETY: `self.handle` is live and `mode` outlives the call; null collection parameters
+        // leave them unchanged.
+        if unsafe {
+            set_named_pipe_handle_state(
+                self.handle.as_raw_handle(),
+                &mut mode,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        } == 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    pub(super) fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        let result = self.transfer_read(buffer);
+        match result {
+            Err(error)
+                if error.kind() == io::ErrorKind::BrokenPipe
+                    || matches!(
+                        error.raw_os_error(),
+                        Some(ERROR_BROKEN_PIPE | ERROR_PIPE_NOT_CONNECTED | ERROR_HANDLE_EOF)
+                    ) =>
+            {
+                Ok(0)
+            }
+            other => other,
+        }
+    }
+
+    pub(super) fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        match self.transfer_write(buffer) {
+            Err(error) if error.raw_os_error() == Some(ERROR_PIPE_NOT_CONNECTED) => {
+                Err(io::Error::from(io::ErrorKind::BrokenPipe))
+            }
+            other => other,
+        }
+    }
+
+    fn reset_io_event(&self) -> io::Result<()> {
+        // SAFETY: `self.event` is a live manual-reset event owned solely by `self`, and `&mut self`
+        // guarantees no transfer on this `ClientPipe` is concurrently using it.
+        if unsafe { reset_event(self.event.as_raw_handle()) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    fn transfer_read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        self.reset_io_event()?;
+        let length = u32::try_from(buffer.len()).unwrap_or(u32::MAX);
+        let mut guard = OverlappedGuard::new(self.handle.as_handle(), self.event.as_handle());
+        // SAFETY: `self.handle` is overlapped, `buffer` is valid for `length` writable bytes, and
+        // `guard` ensures `ReadFile` completes or is cancelled and drained before `buffer` or
+        // `guard.overlapped` is released.
+        let started = unsafe {
+            read_file(
+                self.handle.as_raw_handle(),
+                buffer.as_mut_ptr(),
+                length,
+                ptr::null_mut(),
+                guard.overlapped.as_mut(),
+            )
+        };
+        guard.finish(started)
+    }
+
+    fn transfer_write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        self.reset_io_event()?;
+        let length = u32::try_from(buffer.len()).unwrap_or(u32::MAX);
+        let mut guard = OverlappedGuard::new(self.handle.as_handle(), self.event.as_handle());
+        // SAFETY: `self.handle` is overlapped, `buffer` is valid for `length` readable bytes, and
+        // `guard` ensures `WriteFile` completes or is cancelled and drained before `buffer` or
+        // `guard.overlapped` is released.
+        let started = unsafe {
+            write_file(
+                self.handle.as_raw_handle(),
+                buffer.as_ptr(),
+                length,
+                ptr::null_mut(),
+                guard.overlapped.as_mut(),
+            )
+        };
+        guard.finish(started)
+    }
+}
+
+// Test probe: impersonates the client of a connected server-side pipe, reads the impersonation
+// level of that thread token, and reverts. Production code never impersonates a peer.
+#[cfg(test)]
+#[link(name = "advapi32")]
+unsafe extern "system" {
+    #[link_name = "ImpersonateNamedPipeClient"]
+    fn impersonate_named_pipe_client(pipe: *mut c_void) -> i32;
+    #[link_name = "RevertToSelf"]
+    fn revert_to_self() -> i32;
+}
+
+/// The raw `SECURITY_IMPERSONATION_LEVEL` a server thread gets when it impersonates the client of
+/// `pipe`: `1` is identification and `2` is impersonation.
+#[cfg(test)]
+pub(super) fn impersonated_client_level(pipe: BorrowedHandle<'_>) -> io::Result<u32> {
+    // SAFETY: `pipe` is a live server-side pipe handle borrowed for the call; the call retains nothing.
+    if unsafe { impersonate_named_pipe_client(pipe.as_raw_handle()) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let level = thread_impersonation_level();
+    // SAFETY: reverting takes no arguments. A thread left impersonating would act as the client,
+    // so a failed revert stops the probe instead of returning.
+    assert_ne!(
+        unsafe { revert_to_self() },
+        0,
+        "RevertToSelf failed after impersonation"
+    );
+    level
+}
+
+#[cfg(test)]
+fn thread_impersonation_level() -> io::Result<u32> {
+    let token = winsafe::HTHREAD::GetCurrentThread()
+        .OpenThreadToken(co::TOKEN::QUERY, true)
+        .map_err(|error| io::Error::from_raw_os_error(error.raw() as i32))?;
+    let info = token
+        .GetTokenInformation(co::TOKEN_INFORMATION_CLASS::ImpersonationLevel)
+        .map_err(|error| io::Error::from_raw_os_error(error.raw() as i32))?;
+    let winsafe::TokenInfo::ImpersonationLevel(level) = info else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "token impersonation level missing",
+        ));
+    };
+    Ok(level.raw())
 }
 
 #[cfg(test)]

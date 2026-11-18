@@ -20,6 +20,8 @@ pub const GENERIC_WRITE: DWORD = 0x4000_0000;
 pub const ERROR_ACCESS_DENIED: DWORD = 5;
 const OPEN_EXISTING: DWORD = 3;
 const FILE_FLAG_OVERLAPPED: DWORD = 0x4000_0000;
+const SECURITY_SQOS_PRESENT: DWORD = 0x0010_0000;
+const SECURITY_IDENTIFICATION: DWORD = 0x0001_0000;
 const ERROR_PIPE_BUSY: DWORD = 231;
 const ERROR_IO_PENDING: DWORD = 997;
 pub const WAIT_OBJECT_0: DWORD = 0;
@@ -198,13 +200,15 @@ pub fn pipeName(buffer: *[96]u16, endpoint: []const u8) [:0]const u16 {
 
 pub const Opened = union(enum) { handle: HANDLE, failed: DWORD };
 
-/// Opens the client end of a Keeper's endpoint as the calling thread's identity.
+/// Opens the client end of a Keeper's endpoint as the calling thread's identity, at the
+/// identification-only level the production client opens at.
 pub fn openEndpoint(endpoint: []const u8, access: DWORD, overlapped: bool) Opened {
     var name_buffer: [96]u16 = undefined;
     const name = pipeName(&name_buffer, endpoint);
     var attempts: u32 = 0;
     while (true) : (attempts += 1) {
-        const handle = CreateFileW(name.ptr, access, 0, null, OPEN_EXISTING, if (overlapped) FILE_FLAG_OVERLAPPED else 0, null);
+        const flags = (if (overlapped) FILE_FLAG_OVERLAPPED else 0) | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION;
+        const handle = CreateFileW(name.ptr, access, 0, null, OPEN_EXISTING, flags, null);
         if (handle != windows.INVALID_HANDLE_VALUE) return .{ .handle = handle };
         const code = lastError();
         if (code != ERROR_PIPE_BUSY or attempts >= 50) return .{ .failed = code };

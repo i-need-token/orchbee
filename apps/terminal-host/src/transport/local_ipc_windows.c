@@ -1042,13 +1042,15 @@ void *ob_windows_local_test_client_connect(const wchar_t *endpoint_id, int *stat
         *status = ob_connection_status(GetLastError());
         return NULL;
     }
+    /* Identification-only, the level the Rust client opens at, so the server's same-user check
+       runs at the level production clients get. */
     HANDLE client = CreateFileW(
         pipe_name,
         GENERIC_READ | GENERIC_WRITE,
         0,
         NULL,
         OPEN_EXISTING,
-        0,
+        SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION,
         NULL
     );
     if (client == INVALID_HANDLE_VALUE) {

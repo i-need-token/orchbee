@@ -23,17 +23,17 @@ system's default label for its own level. `runs_at_high_integrity` reads the tok
 level through `winsafe`, so a Client can tell that the refusal it met came from a Session
 started as administrator.
 
-| Field        | Contract                                                                                                                                                                                                                                            |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs       | Validated local pipe name, current token user and integrity level, nonblocking pipe results, optional monotonic deadline, explicit shutdown                                                                                                         |
-| State        | One shared connection owner, at most one zero-byte read watch, closed flag, caller-selected read/write timeout                                                                                                                                      |
-| Output       | Exact ordered bytes, would-block, EOF, timeout, or typed OS error; no protocol retry                                                                                                                                                                |
-| Ownership    | Clones share one connection; shutdown closes every clone's transport and signals its read watch, which wakes any poller; final drop closes the handle                                                                                               |
-| Invariants   | Readiness consumes no bytes; no pipe call waits on the peer, because reads and writes stay within counted bytes and quota and a zero quota is tested in nonblocking mode; no detached I/O thread; no application bytes before identity verification |
-| Transitions  | Connect/accept → identity proof → admission; readiness waits on a zero-byte read; shutdown/final drop → closed                                                                                                                                      |
-| Deadline     | A timeout bounds each transport call; protocol owners retain their existing absolute whole-operation deadline across calls                                                                                                                          |
-| Dependencies | `interprocess` supplies safe named-pipe bindings, `winsafe` supplies safe process-token inspection and search-handle RAII, and `widestring` encodes descriptors and query names as UTF-16; Windows-only, no async runtime                           |
-| Evidence     | Native two-process round trip, first-instance/name rejection, exact byte ordering across readiness probes, wake on peer bytes and closure, full-buffer timeout, shutdown, and handle release                                                        |
+| Field        | Contract                                                                                                                                                                                                                                                                                                    |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs       | Validated local pipe name, current token user and integrity level, nonblocking pipe results, optional monotonic deadline, explicit shutdown                                                                                                                                                                 |
+| State        | One shared connection owner, at most one zero-byte read watch, closed flag, caller-selected read/write timeout                                                                                                                                                                                              |
+| Output       | Exact ordered bytes, would-block, EOF, timeout, or typed OS error; no protocol retry                                                                                                                                                                                                                        |
+| Ownership    | Clones share one connection; shutdown closes every clone's transport and signals its read watch, which wakes any poller; final drop closes the handle                                                                                                                                                       |
+| Invariants   | Readiness consumes no bytes; no pipe call waits on the peer, because reads and writes stay within counted bytes and quota and a zero quota is tested in nonblocking mode; no detached I/O thread; no application bytes before identity verification                                                         |
+| Transitions  | Connect/accept → identity proof → admission; readiness waits on a zero-byte read; shutdown/final drop → closed                                                                                                                                                                                              |
+| Deadline     | A timeout bounds each transport call; protocol owners retain their existing absolute whole-operation deadline across calls                                                                                                                                                                                  |
+| Dependencies | `interprocess` supplies Windows named-pipe listener binding, accepts, and `SecurityDescriptor`; the client end owns its overlapped `OwnedHandle` directly via `std` + `windows_native`; `winsafe` supplies process-token and search-handle RAII; `widestring` encodes descriptors and query names as UTF-16 |
+| Evidence     | Native two-process round trip, first-instance/name rejection, exact byte ordering across readiness probes, wake on peer bytes and closure, full-buffer timeout, shutdown, and handle release                                                                                                                |
 
 Readiness is advisory: writable notification permits a bounded nonblocking attempt,
 not a promise that the complete record fits. Pipe writes never count as protocol ACKs.
@@ -41,6 +41,23 @@ Close abandons unacknowledged bytes and does not spawn a flush thread; each prot
 owner must retain its existing unknown-outcome behavior. Kernel scheduling is outside
 the monotonic budget's real-time guarantee. The existing local submission/relay models
 continue to own request identity, at-most-once submission, and feedback semantics.
+
+Every Rust and native client open passes `SECURITY_SQOS_PRESENT` with `SECURITY_IDENTIFICATION`, so a
+server that squats the endpoint's name receives a thread token at identification level: it can read
+the client's token user, as the Terminal Host's same-user check does, but it cannot impersonate the
+client. Anonymous would stop that token query, so identification is the lowest level that keeps
+every server check working. The Node observation adapter opens through `node:net`, which sets no
+SQOS flag, so this guarantee does not cover it yet. `interprocess`'s built-in connect offers no SQOS
+flag parameter and its `PipeStream::try_from(OwnedHandle)` reopens the pipe via `ReOpenFile`
+(opening a second client connection whenever the listener already holds its next idle instance), so
+`open_identified` opens with `std`'s `OpenOptions` and
+`FILE_FLAG_OVERLAPPED` and wraps the handle directly in `windows_native::ClientPipe` for
+overlapped I/O without reopening. The native test `client_open_limits_a_server_impersonation_to_identification`
+confirms the identification level, and `parallel_client_connections_while_listener_holds_next_instance_never_break`
+proves concurrent clients never trigger phantom connections or broken pipes. A busy endpoint waits
+in `WaitNamedPipeW` through `windows_native::wait_for_instance` within the caller's budget. The
+same-user proof still runs after the open, and the reader that `ChildInputWriter::pipe` gives a
+child is opened with the same SQOS flags.
 
 `LocalStream::connect_before_with_wait_limit` separates one kernel connection wait from
 the caller's absolute admission deadline. `None` means only busy/wait exhaustion before
@@ -111,6 +128,26 @@ The same adapter owns pipe readiness, so `poll` blocks on kernel events instead 
   high-resolution waitable timer owned by the waiting thread, because every other timed wait rounds up to
   the system tick. A thread without that timer falls back to a timed wait. Nothing retains a pointer,
   and callers reprobe after every return: a wake is advisory.
+
+The same adapter also owns client-side pipe I/O, the busy-endpoint wait, and a test-only impersonation
+probe:
+
+- **Client pipe I/O.** `open_identified` opens the client handle once, with `FILE_FLAG_OVERLAPPED`, and
+  `ClientPipe` keeps that handle; it is never reopened. Each `ClientPipe` owns one manual-reset event that
+  no other operation shares, and the event is created before the pipe opens. `&mut self` under the
+  connection lock admits one transfer at a time. Each transfer's `OVERLAPPED` is boxed and owned by its
+  `OverlappedGuard`, which is bound to the pipe and event borrows and lives within the caller's buffer
+  borrow. A pending operation is waited to completion before `finish` returns; if the transfer unwinds
+  first, the guard cancels it with `CancelIoEx` and then waits again. A start that fails with any error
+  other than `ERROR_IO_PENDING` leaves `pending` clear, so the kernel holds no `OVERLAPPED` and nothing is
+  waited for.
+- **Busy wait.** `wait_for_instance` passes a NUL-terminated UTF-16 name, which outlives the call, to
+  `WaitNamedPipeW` and keeps no pointer. The timeout is clamped to `1..=u32::MAX - 1` milliseconds, so the
+  system default (zero) and an infinite wait are never requested. The wake is advisory, and the caller
+  reopens the pipe.
+- **Impersonation probe.** Test builds only. `impersonated_client_level` impersonates the client of a
+  borrowed, live server-side pipe, reads the thread token's impersonation level, and always reverts. A
+  failed `RevertToSelf` panics rather than returning. No production path impersonates a peer.
 
 A zero write quota cannot refuse a write by itself, so `write_once` cancels this end's read watch and
 tests the write in `PIPE_NOWAIT` mode. `ERROR_PIPE_BUSY` from that mode change proves queued bytes and

@@ -1,5 +1,5 @@
 //! One bounded kernel wait followed by same-user admission under the caller's whole deadline.
-use super::{ConnectWaitMode, LocalStream, Pipe, pipe_name};
+use super::{LocalStream, connect_identified, pipe_name};
 use std::{
     io,
     path::Path,
@@ -39,12 +39,7 @@ impl LocalStream {
             deadline,
             wait_limit,
             Instant::now,
-            |wait| {
-                Pipe::connect_by_path_with_wait_mode(
-                    pipe_name(path)?,
-                    ConnectWaitMode::Timeout(wait),
-                )
-            },
+            |wait| connect_identified(pipe_name(path)?, wait),
             Self::admit,
         )
     }
@@ -68,7 +63,7 @@ fn attempt<Candidate, Admitted>(
         .ok_or_else(|| ConnectAttemptError::Dial(io::ErrorKind::TimedOut.into()))?;
     let candidate = match dial(remaining.min(wait_limit)) {
         Ok(candidate) => candidate,
-        // interprocess can also synthesize a raw-code-free timeout before opening the pipe.
+        // connect_identified synthesizes a raw-code-free timeout before opening the pipe.
         Err(error)
             if matches!(error.raw_os_error(), Some(121 | 231))
                 || error.kind() == io::ErrorKind::TimedOut =>

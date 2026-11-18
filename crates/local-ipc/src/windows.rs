@@ -2,9 +2,13 @@
 //! writes consult the kernel's pipe counters first, so a blocking-mode pipe never blocks a caller;
 //! that mode is what lets one zero-byte read wait for the peer's next byte.
 use std::{
+    ffi::OsStr,
     io::{self, Read, Write},
     net::Shutdown,
-    os::windows::io::{AsHandle, OwnedHandle},
+    os::windows::{
+        fs::OpenOptionsExt,
+        io::{AsHandle, BorrowedHandle, OwnedHandle},
+    },
     path::Path,
     sync::{
         Arc, Mutex, MutexGuard,
@@ -14,23 +18,97 @@ use std::{
     time::{Duration, Instant},
 };
 
-use interprocess::{
-    ConnectWaitMode,
-    os::windows::{
-        named_pipe::{PipeListener, PipeListenerOptions, PipeStream, pipe_mode::Bytes},
-        security_descriptor::SecurityDescriptor,
-    },
+use interprocess::os::windows::{
+    named_pipe::{PipeListener, PipeListenerOptions, PipeStream, pipe_mode::Bytes},
+    security_descriptor::SecurityDescriptor,
 };
 use widestring::U16CString;
 use winsafe::{HPROCESS, TokenInfo, co};
 
-use crate::windows_native::{ReadWatch, WatchArm, pipe_counters};
+use crate::windows_native::{
+    ClientPipe, ReadWatch, WatchArm, new_event, pipe_counters, wait_for_instance,
+};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(2);
 const UNBOUNDED_WAIT_SLICE: Duration = Duration::from_secs(1);
 const NONBLOCKING_WRITE_LIMIT: usize = 4096;
 const ERROR_PIPE_BUSY: i32 = 231;
-type Pipe = PipeStream<Bytes, Bytes>;
+const FILE_SHARE_READ_WRITE: u32 = 0x3;
+const FILE_FLAG_OVERLAPPED: u32 = 0x4000_0000;
+// Security Quality of Service for every client open: the server may identify this client by
+// reading its token, but it cannot impersonate the client.
+const SECURITY_SQOS_PRESENT: u32 = 0x0010_0000;
+const SECURITY_IDENTIFICATION: u32 = 0x0001_0000;
+
+#[derive(Debug)]
+enum Pipe {
+    Server(PipeStream<Bytes, Bytes>),
+    Client(ClientPipe),
+}
+
+impl Pipe {
+    fn as_handle(&self) -> BorrowedHandle<'_> {
+        match self {
+            Self::Server(pipe) => pipe.as_handle(),
+            Self::Client(pipe) => pipe.as_handle(),
+        }
+    }
+
+    fn peer_process_id(&self) -> io::Result<u32> {
+        match self {
+            Self::Server(pipe) => pipe.peer_process_id(),
+            Self::Client(pipe) => pipe.server_process_id(),
+        }
+    }
+
+    fn server_process_id(&self) -> io::Result<u32> {
+        match self {
+            Self::Server(pipe) => pipe.server_process_id(),
+            Self::Client(pipe) => pipe.server_process_id(),
+        }
+    }
+
+    fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+        match self {
+            Self::Server(pipe) => pipe.set_nonblocking(nonblocking),
+            Self::Client(pipe) => pipe.set_nonblocking(nonblocking),
+        }
+    }
+
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Self::Server(pipe) => (&*pipe).read(buffer),
+            Self::Client(pipe) => pipe.read(buffer),
+        }
+    }
+
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        match self {
+            Self::Server(pipe) => (&*pipe).write(buffer),
+            Self::Client(pipe) => pipe.write(buffer),
+        }
+    }
+
+    fn assume_flushed(&self) {
+        if let Self::Server(pipe) = self {
+            pipe.assume_flushed();
+        }
+    }
+
+    fn evade_limbo(self) {
+        if let Self::Server(pipe) = self {
+            pipe.evade_limbo();
+        }
+    }
+
+    fn into_owned_handle(self) -> io::Result<OwnedHandle> {
+        match self {
+            Self::Server(pipe) => OwnedHandle::try_from(pipe)
+                .map_err(|_| io::Error::other("child pipe ownership unavailable")),
+            Self::Client(pipe) => Ok(pipe.into_owned_handle()),
+        }
+    }
+}
 
 mod connection;
 pub use connection::ConnectAttemptError;
@@ -141,6 +219,45 @@ fn pipe_name(path: &Path) -> io::Result<&std::ffi::OsStr> {
     Ok(path.as_os_str())
 }
 
+/// Opens the endpoint for this client, waiting within `wait` while every server instance is busy.
+/// The open limits the server to identifying this client, so a server that squats the name cannot
+/// impersonate it; the same-user proof still runs after the open.
+fn connect_identified(name: &OsStr, wait: Duration) -> io::Result<Pipe> {
+    let deadline = Instant::now()
+        .checked_add(wait)
+        .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+    loop {
+        match open_identified(name) {
+            Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY) => {
+                let remaining = deadline
+                    .checked_duration_since(Instant::now())
+                    .filter(|remaining| !remaining.is_zero())
+                    .ok_or_else(|| io::Error::from(io::ErrorKind::TimedOut))?;
+                wait_for_instance(name, remaining)?;
+            }
+            result => return result,
+        }
+    }
+}
+
+/// One identifying open of the endpoint, keeping the returned handle directly without reopening.
+fn open_identified(name: &OsStr) -> io::Result<Pipe> {
+    // Create the event before opening the pipe: a failure here never leaves an open server
+    // connection that nothing will serve.
+    let event = new_event()?;
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .share_mode(FILE_SHARE_READ_WRITE)
+        .custom_flags(FILE_FLAG_OVERLAPPED)
+        .security_qos_flags(SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION)
+        .open(name)?;
+    Ok(Pipe::Client(ClientPipe::new(
+        OwnedHandle::from(file),
+        event,
+    )))
+}
+
 /// Advisory byte-read readiness; probing never consumes a byte.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Readiness {
@@ -241,10 +358,7 @@ impl LocalStream {
         let remaining = deadline
             .checked_duration_since(Instant::now())
             .ok_or_else(|| io::Error::from(io::ErrorKind::TimedOut))?;
-        let pipe = Pipe::connect_by_path_with_wait_mode(
-            pipe_name(path)?,
-            ConnectWaitMode::Timeout(remaining),
-        )?;
+        let pipe = connect_identified(pipe_name(path)?, remaining)?;
         let stream = Self::admit(pipe)?;
         if Instant::now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());
@@ -351,7 +465,10 @@ impl LocalStream {
             return Ok(0);
         }
         let mut connection = self.lock()?;
-        let Some(pipe) = connection.live_pipe() else {
+        if connection.eof {
+            return Ok(0);
+        }
+        let Some(pipe) = connection.pipe.as_mut() else {
             return Ok(0);
         };
         let counters = pipe_counters(pipe.as_handle())?;
@@ -364,7 +481,7 @@ impl LocalStream {
         }
         // Bytes already counted complete this read at once; only the lock owner consumes them.
         let length = buffer.len().min(counters.read_available as usize);
-        let read = (&*pipe).read(&mut buffer[..length])?;
+        let read = pipe.read(&mut buffer[..length])?;
         if read == 0 {
             connection.eof = true;
         }
@@ -376,53 +493,58 @@ impl LocalStream {
             return Ok(0);
         }
         let mut connection = self.lock()?;
-        let pipe = connection
-            .pipe
-            .as_ref()
-            .ok_or_else(|| io::Error::from(io::ErrorKind::BrokenPipe))?;
-        let counters = pipe_counters(pipe.as_handle())?;
-        if !counters.connected {
-            return Err(io::ErrorKind::BrokenPipe.into());
-        }
-        let result = if counters.write_quota > 0 {
-            // Only the lock owner writes and the peer only frees quota, so a write within the
-            // counted quota lands in the pipe's buffer without waiting for the peer.
-            let length = buffer.len().min(counters.write_quota as usize);
-            (&*pipe).write(&buffer[..length])
-        } else {
+        let write_quota = {
+            let pipe = connection
+                .pipe
+                .as_ref()
+                .ok_or_else(|| io::Error::from(io::ErrorKind::BrokenPipe))?;
+            let counters = pipe_counters(pipe.as_handle())?;
+            if !counters.connected {
+                return Err(io::ErrorKind::BrokenPipe.into());
+            }
+            counters.write_quota
+        };
+        if write_quota == 0 {
             // The count alone cannot refuse a write: a peer's pending read of a large buffer
             // reduces it while the pipe is empty. Leaving blocking mode tells the two apart: the
             // kernel refuses it only for this end's pending read, which is cancelled here, or for
             // queued bytes, which prove the count right.
             connection.watch.take();
+        }
+        let result = {
             let pipe = connection
                 .pipe
-                .as_ref()
+                .as_mut()
                 .ok_or_else(|| io::Error::from(io::ErrorKind::BrokenPipe))?;
-            match pipe.set_nonblocking(true) {
-                Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY) => {
-                    Err(io::ErrorKind::WouldBlock.into())
-                }
-                Err(error) => Err(error),
-                Ok(()) => {
-                    // PIPE_NOWAIT may accept zero bytes when one write exceeds the available quota,
-                    // so this stays below the buffer size for a large record to keep progressing.
-                    let attempt =
-                        (&*pipe).write(&buffer[..buffer.len().min(NONBLOCKING_WRITE_LIMIT)]);
-                    pipe.set_nonblocking(false)?;
-                    match attempt {
-                        Ok(0) => Err(io::ErrorKind::WouldBlock.into()),
-                        other => other,
+            let result = if write_quota > 0 {
+                // Only the lock owner writes and the peer only frees quota, so a write within the
+                // counted quota lands in the pipe's buffer without waiting for the peer.
+                let length = buffer.len().min(write_quota as usize);
+                pipe.write(&buffer[..length])
+            } else {
+                match pipe.set_nonblocking(true) {
+                    Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY) => {
+                        Err(io::ErrorKind::WouldBlock.into())
+                    }
+                    Err(error) => Err(error),
+                    Ok(()) => {
+                        // PIPE_NOWAIT may accept zero bytes when one write exceeds the available
+                        // quota, so this stays below the buffer size for a large record to keep
+                        // progressing.
+                        let attempt =
+                            pipe.write(&buffer[..buffer.len().min(NONBLOCKING_WRITE_LIMIT)]);
+                        pipe.set_nonblocking(false)?;
+                        match attempt {
+                            Ok(0) => Err(io::ErrorKind::WouldBlock.into()),
+                            other => other,
+                        }
                     }
                 }
-            }
+            };
+            // Protocol receipts, never FlushFileBuffers, decide known delivery.
+            pipe.assume_flushed();
+            result
         };
-        let pipe = connection
-            .pipe
-            .as_ref()
-            .ok_or_else(|| io::Error::from(io::ErrorKind::BrokenPipe))?;
-        // Protocol receipts, never FlushFileBuffers, decide known delivery.
-        pipe.assume_flushed();
         connection.write_blocked_at = result
             .as_ref()
             .err()
@@ -496,8 +618,7 @@ impl ChildOutputReader {
         reader.set_nonblocking(true)?;
         let mut connection = writer.lock()?;
         let pipe = connection.pipe.take().ok_or(io::ErrorKind::BrokenPipe)?;
-        let handle = std::os::windows::io::OwnedHandle::try_from(pipe)
-            .map_err(|_| io::Error::other("child pipe ownership unavailable"))?;
+        let handle = pipe.into_owned_handle()?;
         Ok((Self(reader), std::process::Stdio::from(handle)))
     }
 }
@@ -531,6 +652,7 @@ impl ChildInputWriter {
         let reader = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
+            .security_qos_flags(SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION)
             .open(&path)?;
         let (writer, ()) = listener.accept()?;
         writer.set_nonblocking(true)?;
@@ -635,7 +757,9 @@ impl LocalListener {
         }
         loop {
             match self.pipe.accept() {
-                Ok(pipe) => return LocalStream::admit(pipe).map(|stream| (stream, ())),
+                Ok(pipe) => {
+                    return LocalStream::admit(Pipe::Server(pipe)).map(|stream| (stream, ()));
+                }
                 Err(error)
                     if error.kind() == io::ErrorKind::WouldBlock
                         && !self.nonblocking.load(Ordering::Acquire) =>
@@ -657,7 +781,7 @@ impl LocalListener {
         }
         match self.pipe.accept() {
             Ok(pipe) => {
-                *pending = Some(LocalStream::admit(pipe)?);
+                *pending = Some(LocalStream::admit(Pipe::Server(pipe))?);
                 Ok(Readiness::Readable)
             }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => Ok(Readiness::Pending),

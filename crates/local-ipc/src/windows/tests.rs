@@ -66,6 +66,126 @@ fn short_kernel_wait_limit_retains_a_real_same_user_connection() {
     assert_eq!(&bytes, b"authenticated");
 }
 
+// SecurityIdentification: the server may read the client's token but cannot act as the client.
+const IDENTIFICATION_LEVEL: u32 = 1;
+
+#[test]
+fn client_open_limits_a_server_impersonation_to_identification() {
+    let path = endpoint();
+    let listener = LocalListener::bind(&path).unwrap();
+    let mut client = LocalStream::connect(&path).unwrap();
+    let (mut server, ()) = listener.accept().unwrap();
+    client.write_all(b"x").unwrap();
+    let mut byte = [0u8];
+    server.read_exact(&mut byte).unwrap();
+    let connection = server.lock().unwrap();
+    let pipe = connection.pipe.as_ref().expect("accepted pipe");
+    assert_eq!(
+        crate::windows_native::impersonated_client_level(pipe.as_handle()).unwrap(),
+        IDENTIFICATION_LEVEL
+    );
+}
+
+#[test]
+fn parallel_client_connections_while_listener_holds_next_instance_never_break() {
+    const WORKERS: usize = 8;
+    const ROUNDS_PER_WORKER: usize = 20;
+    const TOTAL: usize = WORKERS * ROUNDS_PER_WORKER;
+
+    let path = endpoint();
+    let listener = LocalListener::bind(&path).unwrap();
+    let listener_path = path.clone();
+    let server = thread::spawn(move || {
+        let mut active = Vec::with_capacity(WORKERS);
+        for _ in 0..TOTAL {
+            // `PipeListener::accept` replaces its stored instance before returning, so the next
+            // listening instance is always live while concurrently admitted streams serve I/O.
+            let (mut stream, ()) = listener.accept().expect("listener accepts client");
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            stream
+                .set_write_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut tag = [0u8; 4];
+            stream
+                .read_exact(&mut tag)
+                .expect("admitted server reads client tag without BrokenPipe");
+            let reply = [tag[0] ^ 0x5A, tag[1] ^ 0xA5, tag[2], tag[3]];
+            stream
+                .write_all(&reply)
+                .expect("admitted server writes reply without BrokenPipe");
+            active.push(stream);
+            if active.len() >= WORKERS {
+                // Keep multiple concurrent streams alive across accept rounds, then close cleanly.
+                let oldest = active.remove(0);
+                drop(oldest);
+            }
+        }
+        // Every expected connection has been accepted and exchanged on this side, so the next
+        // instance must have no pending client. Clients are not synchronized here; the held
+        // streams close only after the check.
+        listener
+            .set_nonblocking(true)
+            .expect("nonblocking switch after expected accepts");
+        let extra = listener.accept();
+        assert!(
+            matches!(extra, Err(ref error) if error.kind() == io::ErrorKind::WouldBlock),
+            "unexpected extra pipe connection opened on next listening instance: {extra:?}"
+        );
+        drop(active);
+    });
+
+    thread::scope(|scope| {
+        for worker in 0..WORKERS {
+            let endpoint_path = &listener_path;
+            scope.spawn(move || {
+                for round in 0..ROUNDS_PER_WORKER {
+                    let deadline = Instant::now() + Duration::from_secs(10);
+                    let mut stream = if round % 2 == 0 {
+                        LocalStream::connect_before(endpoint_path, deadline)
+                            .expect("direct connect succeeds under parallel load")
+                    } else {
+                        loop {
+                            match LocalStream::connect_before_with_wait_limit(
+                                endpoint_path,
+                                deadline,
+                                Duration::from_millis(25),
+                            ) {
+                                Ok(Some(stream)) => break stream,
+                                Ok(None) => continue,
+                                Err(error) => {
+                                    panic!("sliced connect failed under parallel load: {error}")
+                                }
+                            }
+                        }
+                    };
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(5)))
+                        .unwrap();
+                    stream
+                        .set_write_timeout(Some(Duration::from_secs(5)))
+                        .unwrap();
+                    assert_eq!(stream.server_process_id().unwrap(), std::process::id());
+                    let tag = [worker as u8, round as u8, 0xCA, 0xFE];
+                    stream
+                        .write_all(&tag)
+                        .expect("client writes tag without BrokenPipe");
+                    let mut reply = [0u8; 4];
+                    stream
+                        .read_exact(&mut reply)
+                        .expect("client reads reply without BrokenPipe");
+                    assert_eq!(reply, [tag[0] ^ 0x5A, tag[1] ^ 0xA5, tag[2], tag[3]]);
+                }
+            });
+        }
+    });
+
+    server
+        .join()
+        .expect("server stress thread finishes cleanly");
+}
+
 #[test]
 fn bounded_namespace_observation_never_connects_or_invents_absence() {
     let path = endpoint();
