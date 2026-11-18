@@ -2,13 +2,19 @@
 //! signature domain against the manifest's, the document bound, and the reader rules of each
 //! member. Every case is signed with the test key, so a refusal comes from the rule under test.
 use super::super::{
-    feed::{ARCHIVE_LIMIT, Feed},
+    feed::{ARCHIVE_LIMIT, Feed, WindowOffer},
+    install::COMPLETION_HELPER,
     signature::{FEED_LIMIT, Refusal, TEST_TABLE, verify, verify_feed},
+    window_files::{Rules, WindowFiles},
 };
 use super::{sign, sign_feed};
-use orchbee_local_runtime::UpdateChannel;
+use crate::invocation::{OutputFormat, Request, parse_selected_request};
+use orchbee_local_runtime::{
+    AUTOMATIC_UPDATE_HELPER, CLIENT_FAILURE_HELPER, UpdateChannel, WINDOW_INSTALLER_HELPER,
+};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use std::ffi::OsString;
 
 /// The release tooling writes this pair and its tests rebuild it byte for byte; it names the
 /// manifest fixture beside it. `.signed` keeps the formatter from rewriting the signed bytes.
@@ -211,4 +217,162 @@ fn feed_members_follow_the_version_1_reader_rules() {
     // The same members spelled with other white space are the same feed.
     let spelled = serde_json::to_vec_pretty(&base).unwrap();
     assert_eq!(admit(&spelled).unwrap().version, "0.2.0");
+}
+
+#[test]
+fn forward_compatible_extensions_in_feed_and_window_file_lists_are_admitted() {
+    let mut feed_value = json!({
+        "schemaVersion": 1,
+        "product": "orchbee",
+        "channel": "stable",
+        "platform": PLATFORM,
+        "version": "0.3.0",
+        "buildId": "build.9",
+        "manifest": {"sha256": "a".repeat(64)},
+        "archive": {
+            "format": "zip",
+            "url": "https://releases.example.test/stable/orchbee.zip",
+            "size": 27_000_000,
+            "sha256": "b".repeat(64),
+        },
+        "extensions": {
+            "futureField": {"nested": [1, "two", {"enabled": true}]},
+            "desktop": {
+                "version": "0.3.0",
+                "manifest": {"sha256": "c".repeat(64)},
+                "archive": {
+                    "format": "zip",
+                    "url": "https://releases.example.test/stable/orchbee-window.zip",
+                    "size": 45_000_000,
+                    "sha256": "d".repeat(64),
+                },
+                "extensions": {
+                    "futureField": {"minOs": "11.0", "notes": ["bridge-safe"]},
+                },
+            },
+        },
+    });
+    let parsed = admit(&serde_json::to_vec(&feed_value).unwrap()).unwrap();
+    let WindowOffer::Offered(window) = parsed.window else {
+        panic!("expected extensions.desktop with nested extensions.futureField to be offered");
+    };
+    assert_eq!(window.version, "0.3.0");
+    assert_eq!(window.list, "c".repeat(64));
+    assert_eq!(window.archive.size, 45_000_000);
+
+    // An unknown field directly inside `extensions.desktop` outside `extensions` invalidates only
+    // the window offer and never breaks runtime feed admission.
+    feed_value["extensions"]["desktop"]["unexpectedField"] = json!(true);
+    let runtime_only = admit(&serde_json::to_vec(&feed_value).unwrap()).unwrap();
+    assert!(matches!(runtime_only.window, WindowOffer::Invalid));
+
+    let windows_list = json!({
+        "schemaVersion": 1,
+        "version": "0.3.0",
+        "files": [{"path": "orchbee-desktop.exe", "size": 10, "sha256": "e".repeat(64)}],
+        "extensions": {"futureField": {"channel": "stable", "flags": [1, 2]}},
+    });
+    assert!(
+        WindowFiles::parse(&serde_json::to_vec(&windows_list).unwrap(), Rules::Windows).is_some()
+    );
+
+    let macos_list = json!({
+        "schemaVersion": 1,
+        "version": "0.3.0",
+        "files": [{
+            "path": "Orchbee.app/Contents/MacOS/Orchbee",
+            "size": 10,
+            "sha256": "f".repeat(64),
+            "executable": true,
+        }],
+        "links": [],
+        "extensions": {"futureField": {"notarized": true}},
+    });
+    assert!(WindowFiles::parse(&serde_json::to_vec(&macos_list).unwrap(), Rules::Macos).is_some());
+
+    let mut invalid_extensions = windows_list;
+    invalid_extensions["extensions"] = json!([]);
+    assert!(
+        WindowFiles::parse(
+            &serde_json::to_vec(&invalid_extensions).unwrap(),
+            Rules::Windows,
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn cross_build_helper_flags_keep_their_frozen_v1_spelling() {
+    const FROZEN_MESSAGE: &str = "cross-build *-v1 helper CLI flags are permanently frozen contracts invoked across older and newer Orchbee binaries and installers; introduce a new *-v2 flag instead of renaming";
+    assert_eq!(
+        COMPLETION_HELPER, "--complete-install-v1",
+        "{FROZEN_MESSAGE}"
+    );
+    assert_eq!(
+        AUTOMATIC_UPDATE_HELPER, "--automatic-update-v1",
+        "{FROZEN_MESSAGE}"
+    );
+    assert_eq!(
+        CLIENT_FAILURE_HELPER, "--record-client-failure-v1",
+        "{FROZEN_MESSAGE}"
+    );
+    assert_eq!(
+        WINDOW_INSTALLER_HELPER, "--installer-window-v1",
+        "{FROZEN_MESSAGE}"
+    );
+
+    let cases: [(&[&str], Request, Option<OutputFormat>); 7] = [
+        (
+            &["--complete-install-v1"],
+            Request::CompleteInstall {
+                no_path: false,
+                allow_downgrade: false,
+            },
+            None,
+        ),
+        (
+            &["--complete-install-v1", "--no-path", "--allow-downgrade"],
+            Request::CompleteInstall {
+                no_path: true,
+                allow_downgrade: true,
+            },
+            None,
+        ),
+        (
+            &["--installer-uninstall-v1"],
+            Request::InstallerUninstall { delete_data: false },
+            None,
+        ),
+        (
+            &["--installer-uninstall-v1", "--delete-data"],
+            Request::InstallerUninstall { delete_data: true },
+            None,
+        ),
+        (
+            &["--automatic-update-v1"],
+            Request::AutomaticUpdate,
+            Some(OutputFormat::Json),
+        ),
+        (
+            &["--record-client-failure-v1", "0.2.0"],
+            Request::RecordClientFailure {
+                version: "0.2.0".into(),
+            },
+            None,
+        ),
+        (
+            &["--installer-window-v1"],
+            Request::InstallerWindow,
+            Some(OutputFormat::Json),
+        ),
+    ];
+    for (argv, expected_request, expected_format) in cases {
+        let selected = parse_selected_request(argv.iter().map(OsString::from))
+            .unwrap_or_else(|_| panic!("{FROZEN_MESSAGE}: {argv:?}"));
+        assert_eq!(
+            (selected.request, selected.format),
+            (expected_request, expected_format),
+            "{FROZEN_MESSAGE}: {argv:?}"
+        );
+    }
 }

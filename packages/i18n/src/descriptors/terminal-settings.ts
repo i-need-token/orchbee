@@ -125,6 +125,7 @@ export const terminalSettingsMessages = defineMessages({
 	pageAboutUpdatesLabel: message('terminal.settings.page.about.updates.label'),
 	pageAboutUpdatesCheck: message('terminal.settings.page.about.updates.check'),
 	pageAboutUpdatesChecking: message('terminal.settings.page.about.updates.checking'),
+	pageAboutUpdatesDownload: message('terminal.settings.page.about.updates.download'),
 	pageAboutUpdatesSchedule: message('terminal.settings.page.about.updates.schedule'),
 	pageAboutUpdatesUpToDate: message('terminal.settings.page.about.updates.upToDate'),
 	pageAboutUpdatesFailed: message('terminal.settings.page.about.updates.failed'),

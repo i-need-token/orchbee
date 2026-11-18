@@ -443,11 +443,15 @@ in the TUI's words:
 
 - **Version** shows the version the window runs, which Main states in the document's bootstrap, and
   the build (Release build, Test build, Development build) as its description.
-- **Updates** has one control. While Main offers a newer window version it is the sidebar footer's
+- **Updates** has one control, except on a failed check where Get installer sits beside Check for
+  updates. While Main offers a newer window version it is the sidebar footer's
   Update: the same `workbench.client.update` Action, registered in a `WebApplication` scope above
   the Workbench's so both surfaces reach it, with the footer's tooltip sentence as the
   description and the same waiting notice. Otherwise it is Check for updates, which reads
-  “Checking…” and is disabled, without a spinner, while a run is queued or running.
+  “Checking…” and is disabled, without a spinner, while a run is queued or running. When a check
+  fails, the danger description notes that installing the latest version from `orchbee.com` keeps
+  terminals and Agents running, and, where the composition supplies `openExternal`, Get installer
+  opens `https://orchbee.com/#install` in the person's browser.
 
 Check for updates asks the Session Server to run its scheduled automatic-update job now, through the
 `workbench.update-check` request; the client never starts `orchbee update` itself.
@@ -622,7 +626,10 @@ fully disconnected SSH delivery remains out of scope.
   explicit permission requests, and disposal. Settings has no notification component test.
 - Agent-integration protocol and Settings tests cover canonical ordering, read-only startup, one
   pending mutation, explicit user actions, and switches that move only with the inspected state.
-- No composition or Desktop window test covers Settings on the Server path.
+- Application composition tests cover the shared `ActionRuntime` wiring between the sidebar footer's
+  Update button and Settings › About, plus Check for updates transitioning through Checking… to the
+  failed escape hatch (`https://orchbee.com/#install`) and to the offered Update action. No
+  real-window Desktop test covers Settings on the Server path.
 
 ## Named theme pickers
 

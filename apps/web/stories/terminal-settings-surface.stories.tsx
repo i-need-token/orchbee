@@ -293,6 +293,7 @@ function createAboutStorySource(
 				return () => listeners.delete(listener);
 			},
 		},
+		downloadInstaller: () => undefined,
 		offer: { getSnapshot: () => offer, subscribe: () => () => undefined },
 		update: () => undefined,
 		version: '1.3.0',

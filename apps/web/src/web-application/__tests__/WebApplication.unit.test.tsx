@@ -12,6 +12,11 @@ import { TerminalSettingsController } from '../../terminal-settings';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { ApplicationLocaleController } from '../../application-locale';
 import {
+	WorkbenchUpdateCheckModel,
+	type WorkbenchClientUpdate,
+	type WorkbenchUpdateCheckAnswer,
+} from '../../workbench';
+import {
 	createSnapshotRuntime,
 	workbenchSnapshot,
 } from '../../__tests__/server-workbench-snapshot';
@@ -166,5 +171,182 @@ it.each(['en-US', 'zh-CN'] as const)(
 		);
 
 		expect(container.querySelector('[data-slot="workbench-status-notice"] button')).toBeNull();
+	},
+);
+
+// Regression for 0.1.0-beta.15/beta.16: drives the real WebApplication + Workbench + Settings ›
+// About composition through one unmocked ActionRuntime, verifying manual check failure recovery and
+// Update execution from both surfaces.
+it.each(['en-US', 'zh-CN'] as const)(
+	'wires Check for updates, the failed-check installer escape hatch, and both Update buttons through the root ActionRuntime in %s',
+	async (locale) => {
+		class TestResizeObserver {
+			public disconnect(): void {}
+			public observe(_target: Element): void {}
+			public unobserve(_target: Element): void {}
+		}
+		vi.stubGlobal('ResizeObserver', TestResizeObserver);
+		Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+			configurable: true,
+			value: true,
+		});
+		Object.defineProperty(Element.prototype, 'scrollIntoView', {
+			configurable: true,
+			value: vi.fn<Element['scrollIntoView']>(),
+		});
+
+		let offeredVersion: string | null = null;
+		const offerListeners = new Set<() => void>();
+		const setOffer = (next: string | null): void => {
+			offeredVersion = next;
+			for (const listener of offerListeners) listener();
+		};
+		const offer = {
+			getSnapshot: () => offeredVersion,
+			subscribe: (listener: () => void) => {
+				offerListeners.add(listener);
+				return () => offerListeners.delete(listener);
+			},
+		};
+
+		let resolveStart: ((answer: WorkbenchUpdateCheckAnswer) => void) | undefined;
+		const ask = vi.fn<(action: 'read' | 'start') => Promise<WorkbenchUpdateCheckAnswer>>(
+			(action) => {
+				if (action === 'read') return Promise.resolve('idle');
+				return new Promise((resolve) => {
+					resolveStart = resolve;
+				});
+			},
+		);
+		const updateCheck = new WorkbenchUpdateCheckModel({
+			ask,
+			offer,
+			unavailable: null,
+		});
+		const request = vi.fn<(version: string) => void>();
+		const clientUpdate: WorkbenchClientUpdate = {
+			check: updateCheck,
+			getSnapshot: offer.getSnapshot,
+			request,
+			subscribe: offer.subscribe,
+			subscribeWaiting: () => () => undefined,
+		};
+		const openExternal = vi.fn<(target: string) => void>();
+
+		const actionRuntime = new ActionRuntime();
+		const terminalSettingsController = new TerminalSettingsController({
+			themeTarget: { dataset: {} },
+			userSettings: memoryUserSettings(),
+		});
+		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
+			platform: 'standard',
+			storage: { getItem: () => null, setItem: () => undefined },
+		});
+		const applicationLocaleController = createApplicationLocaleController();
+		const container = document.createElement('div');
+		document.body.append(container);
+		const root = createRoot(container);
+		onTestFinished(async () => {
+			await React.act(async () => root.unmount());
+			container.remove();
+			updateCheck.dispose();
+			actionRuntime.dispose();
+			terminalSettingsController.dispose();
+			keyboardShortcutSettingsController.dispose();
+			applicationLocaleController.dispose();
+			vi.unstubAllGlobals();
+			Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+				configurable: true,
+				value: false,
+			});
+		});
+
+		await React.act(async () =>
+			root.render(
+				<OrchbeeI18nProvider locale={locale}>
+					<TooltipProvider>
+						<WebApplication
+							actionRuntime={actionRuntime}
+							applicationLocaleController={applicationLocaleController}
+							authority={inertAuthority}
+							clientBuild={{ distribution: 'release', version: '0.1.0-beta.16' }}
+							clientUpdate={clientUpdate}
+							keyboardShortcutSettingsController={keyboardShortcutSettingsController}
+							openExternal={openExternal}
+							projectWorkspaceRuntime={createSnapshotRuntime(
+								workbenchSnapshot(1, { workspaces: [] }, []),
+							)}
+							shortcutPlatform='standard'
+							terminalSettingsController={terminalSettingsController}
+						/>
+					</TooltipProvider>
+				</OrchbeeI18nProvider>,
+			),
+		);
+
+		expect(container.querySelector('[data-slot="workbench-sidebar-update"]')).toBeNull();
+
+		// Open Settings -> About while no update is offered.
+		await React.act(async () =>
+			container
+				.querySelector<HTMLButtonElement>('[data-slot="workbench-sidebar-settings"]')
+				?.click(),
+		);
+		await React.act(async () =>
+			container.querySelector<HTMLButtonElement>("button[data-settings-category='about']")?.click(),
+		);
+		expect(container.querySelector('[data-about-version]')?.textContent).toBe('0.1.0-beta.16');
+		expect(ask).toHaveBeenCalledWith('read');
+		expect(container.querySelector('[data-about-download]')).toBeNull();
+
+		const checkButton = container.querySelector<HTMLButtonElement>('[data-about-check]');
+		expect(checkButton).not.toBeNull();
+		expect(checkButton?.disabled).toBe(false);
+
+		// Press Check for updates -> transitions to Checking…, then fails and exposes the escape hatch.
+		await React.act(async () => checkButton?.click());
+		expect(ask).toHaveBeenCalledWith('start');
+		expect(checkButton?.disabled).toBe(true);
+		expect(checkButton?.textContent).toBe(locale === 'en-US' ? 'Checking…' : '正在检查…');
+		expect(container.querySelector('[data-about-download]')).toBeNull();
+
+		await React.act(async () => {
+			resolveStart?.('run-failed');
+			await Promise.resolve();
+		});
+		expect(checkButton?.disabled).toBe(false);
+		expect(container.querySelector('[data-settings-content="about"]')?.textContent).toContain(
+			'orchbee.com',
+		);
+		const downloadButton = container.querySelector<HTMLButtonElement>('[data-about-download]');
+		expect(downloadButton).not.toBeNull();
+		await React.act(async () => downloadButton?.click());
+		expect(openExternal).toHaveBeenCalledWith('https://orchbee.com/#install');
+
+		// Offer an update -> About's Update button invokes clientUpdate.request through ActionRuntime.
+		await React.act(async () => setOffer('0.1.0-beta.17'));
+		expect(container.querySelector('[data-about-check]')).toBeNull();
+		expect(container.querySelector('[data-about-download]')).toBeNull();
+		const aboutUpdateButton = container.querySelector<HTMLButtonElement>('[data-about-update]');
+		expect(aboutUpdateButton).not.toBeNull();
+		await React.act(async () => {
+			aboutUpdateButton?.click();
+			await Promise.resolve();
+		});
+		expect(request.mock.calls).toEqual([['0.1.0-beta.17']]);
+
+		// Close Settings -> sidebar footer's primary Update button invokes the same ActionRuntime registration.
+		await React.act(async () =>
+			container.querySelector<HTMLButtonElement>('[data-settings-close]')?.click(),
+		);
+		const sidebarUpdateButton = container.querySelector<HTMLButtonElement>(
+			'[data-slot="workbench-sidebar-update"]',
+		);
+		expect(sidebarUpdateButton).not.toBeNull();
+		await React.act(async () => {
+			sidebarUpdateButton?.click();
+			await Promise.resolve();
+		});
+		expect(request.mock.calls).toEqual([['0.1.0-beta.17'], ['0.1.0-beta.17']]);
 	},
 );

@@ -7,6 +7,15 @@
 	white-space: nowrap;
 }
 
+/* Escape-hatch download action beside Check for updates when a check fails. */
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--ob-ref-space-2);
+}
+
 /* Spoken result of a check, which the description already shows. */
 .announcement {
 	position: absolute;

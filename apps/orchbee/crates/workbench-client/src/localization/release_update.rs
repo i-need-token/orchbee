@@ -60,8 +60,8 @@ impl Locale {
             ),
             UpdateCheck::UpToDate => ("Orchbee is up to date.", "Orchbee 已是最新版本。"),
             UpdateCheck::Failed => (
-                "Couldn't check for updates. Try again later.",
-                "无法检查更新，请稍后再试。",
+                "Couldn't check: orchbee update or orchbee.com; terminals/Agents stay.",
+                "无法检查。运行 orchbee update 或去 orchbee.com，终端和 Agent 不断。",
             ),
             UpdateCheck::Unavailable(CheckUnavailable::Development) => {
                 ("Development builds don't update.", "开发版不会更新。")

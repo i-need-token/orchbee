@@ -78,20 +78,33 @@ export function AboutSettings({ about }: AboutSettingsProps): React.ReactNode {
 		tone = statusTone(status);
 		const checking = status.kind === 'checking';
 		control = (
-			<Button
-				data-about-check
-				disabled={checking || status.kind === 'unavailable' || check === undefined}
-				size='sm'
-				type='button'
-				variant='outline'
-				onClick={check?.start}
-			>
-				{intl.formatMessage(
-					checking
-						? terminalSettingsMessages.pageAboutUpdatesChecking
-						: terminalSettingsMessages.pageAboutUpdatesCheck,
-				)}
-			</Button>
+			<div className={styles['actions']}>
+				{status.kind === 'failed' && about.downloadInstaller !== undefined ? (
+					<Button
+						data-about-download
+						size='sm'
+						type='button'
+						variant='outline'
+						onClick={about.downloadInstaller}
+					>
+						{intl.formatMessage(terminalSettingsMessages.pageAboutUpdatesDownload)}
+					</Button>
+				) : null}
+				<Button
+					data-about-check
+					disabled={checking || status.kind === 'unavailable' || check === undefined}
+					size='sm'
+					type='button'
+					variant='outline'
+					onClick={check?.start}
+				>
+					{intl.formatMessage(
+						checking
+							? terminalSettingsMessages.pageAboutUpdatesChecking
+							: terminalSettingsMessages.pageAboutUpdatesCheck,
+					)}
+				</Button>
+			</div>
 		);
 	}
 	return (

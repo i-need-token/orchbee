@@ -120,10 +120,12 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.about.updates.label': 'Updates',
 	'terminal.settings.page.about.updates.check': 'Check for updates',
 	'terminal.settings.page.about.updates.checking': 'Checking…',
+	'terminal.settings.page.about.updates.download': 'Get installer',
 	'terminal.settings.page.about.updates.schedule':
 		'Orchbee also checks every hour while automatic updates are on.',
 	'terminal.settings.page.about.updates.upToDate': 'Orchbee is up to date.',
-	'terminal.settings.page.about.updates.failed': "Couldn't check for updates. Try again later.",
+	'terminal.settings.page.about.updates.failed':
+		"Couldn't check for updates. Try again, or install from orchbee.com—terminals and Agents keep running.",
 	'terminal.settings.page.about.updates.unavailableDevelopment': "Development builds don't update.",
 	'terminal.settings.page.about.updates.unavailableSession': 'Available once the Session updates.',
 	'terminal.settings.page.about.updates.unavailableInstallation':

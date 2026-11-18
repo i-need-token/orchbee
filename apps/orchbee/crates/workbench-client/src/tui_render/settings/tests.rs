@@ -249,6 +249,41 @@ fn every_description_fits_its_row_at_the_reference_width_in_both_locales() {
                 }
             }
         }
+        for (update, check) in [
+            (None, crate::release_update::UpdateCheck::Idle),
+            (None, crate::release_update::UpdateCheck::Checking),
+            (None, crate::release_update::UpdateCheck::UpToDate),
+            (None, crate::release_update::UpdateCheck::Failed),
+            (
+                None,
+                crate::release_update::UpdateCheck::Unavailable(
+                    crate::release_update::CheckUnavailable::Development,
+                ),
+            ),
+            (
+                None,
+                crate::release_update::UpdateCheck::Unavailable(
+                    crate::release_update::CheckUnavailable::Session,
+                ),
+            ),
+            (
+                None,
+                crate::release_update::UpdateCheck::Unavailable(
+                    crate::release_update::CheckUnavailable::Installation,
+                ),
+            ),
+            (
+                Some("0.1.0-beta.16"),
+                crate::release_update::UpdateCheck::Idle,
+            ),
+        ] {
+            let description = locale.about_updates(update, check);
+            assert!(
+                crate::terminal_text::display_width(&description) <= budget,
+                "{locale:?} {update:?} {check:?} needs {} of {budget} cells: {description}",
+                crate::terminal_text::display_width(&description)
+            );
+        }
     }
 }
 

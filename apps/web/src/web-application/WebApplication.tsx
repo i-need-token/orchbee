@@ -48,6 +48,7 @@ import styles from './WebApplication.module.css';
 
 /** Desktop and capable browsers list installed fonts the same way; others type a family. */
 const BROWSER_LOCAL_FONT_CATALOG = createBrowserLocalFontCatalog();
+const ORCHBEE_INSTALL_URL = 'https://orchbee.com/#install';
 
 export interface WebApplicationProps {
 	readonly actionRuntime: ActionRuntime;
@@ -69,6 +70,8 @@ export interface WebApplicationProps {
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
+	/** Opens an external HTTPS link in the person's browser; absent where no external browser port is wired. */
+	readonly openExternal?: ((target: string) => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	/** Whether the window offers Search, which the Workbench follows. Search defaults to withheld. */
@@ -107,6 +110,7 @@ export function WebApplication({
 	layoutStorage,
 	macosTerminalInputSettingsController,
 	navigation,
+	openExternal,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	searchOffered,
@@ -133,11 +137,13 @@ export function WebApplication({
 		() => ({
 			build: clientBuild?.distribution ?? null,
 			check: clientUpdate?.check,
+			downloadInstaller:
+				openExternal === undefined ? undefined : () => openExternal(ORCHBEE_INSTALL_URL),
 			offer: clientUpdate,
 			update: () => invokeWorkbenchClientUpdate(actionRuntime, hostActionScope),
 			version: clientBuild?.version ?? null,
 		}),
-		[actionRuntime, clientBuild, clientUpdate, hostActionScope],
+		[actionRuntime, clientBuild, clientUpdate, hostActionScope, openExternal],
 	);
 	const settingsFile = React.useSyncExternalStore(
 		terminalSettingsController.userSettings.subscribe,

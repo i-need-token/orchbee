@@ -167,7 +167,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-about-failed",
 			"states": [
-				"Inspect the failure sentence in the danger tone with Check for updates available to try again."
+				"Inspect the failure sentence in the danger tone with Get installer beside Check for updates to install from orchbee.com or try again."
 			]
 		},
 		{
@@ -260,7 +260,7 @@
 			"exportName": "ChineseAboutFailed",
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-about-failed",
-			"states": ["Inspect the localized failure sentence."]
+			"states": ["Inspect the localized failure sentence with 下载安装包 beside 检查更新."]
 		},
 		{
 			"exportName": "ChineseAboutUnavailable",
@@ -318,7 +318,7 @@
 		"The surface never reads or edits a shell startup file, executes a source command, or requests notification permission except from the notification banner's Allow button.",
 		"The config.toml row shows the path of the settings file the Session reads, from its snapshot, with a copy action; the page opens no file and adds no native capability.",
 		"No current composition runs a Host-owned terminal-theme transaction: a Desktop window, as a Server Client, paints default-coded cells through defaultColorOverride, with the selected color theme's canvas for Theme and Host and the custom pair for Custom. Explicit colors, palette projection, cursor, VT, and OSC state retain their Host authority.",
-		"About is the last category and holds no setting: no settings-file line, and search never lists it. Version shows the version the window runs with its build; Updates shows Check for updates, a disabled spinner-free Checking… while a run is queued or running, or, while a newer version is offered, the footer's Update Action with its tooltip sentence. Check sends workbench.update-check only when the build is not a development build, Main can offer the window a newer version, and the Session's negotiated capabilities list update-check; otherwise it is disabled with that reason. A finished result shows only for a check this window started; an installed version shows as the offer and never as Up to date; a refused, lost, or late answer, or one of another kind or for another request, fails the check and is never repeated.",
+		"About is the last category and holds no setting: no settings-file line, and search never lists it. Version shows the version the window runs with its build; Updates shows Check for updates, a disabled spinner-free Checking… while a run is queued or running, Get installer beside Check for updates when a check fails and the composition supplies an external browser port, or, while a newer version is offered, the footer's Update Action with its tooltip sentence. Check sends workbench.update-check only when the build is not a development build, Main can offer the window a newer version, and the Session's negotiated capabilities list update-check; otherwise it is disabled with that reason. A finished result shows only for a check this window started; an installed version shows as the offer and never as Up to date; a refused, lost, or late answer, or one of another kind or for another request, fails the check and is never repeated.",
 		"All product copy ships in English and Simplified Chinese.",
 		"Navigation and search project only categories and settings whose required composition capabilities are present; roadmap-only categories and controls remain absent."
 	],

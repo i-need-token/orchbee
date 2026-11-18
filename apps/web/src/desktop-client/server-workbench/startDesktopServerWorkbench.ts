@@ -139,15 +139,20 @@ function updateCheckUnavailable(
 	return null;
 }
 
+/** Main hands a window's address to the person's browser, as the TUI opens a link itself. */
+function openExternalBrowserUrl(targetWindow: Window, target: string): boolean {
+	const url = normalizePermittedExternalTerminalUrl(target);
+	if (url === null) return false;
+	targetWindow.open(url, '_blank', 'noopener,noreferrer');
+	return true;
+}
+
 function browserPlatformEffects(targetWindow: Window): ProjectedTerminalPlatformEffects {
 	return {
-		// Main hands a window's address to the person's browser, as the TUI opens a link itself.
-		openExternal: (target) => {
-			const url = normalizePermittedExternalTerminalUrl(target);
-			if (url === null) return { code: 'link-policy-blocked', kind: 'failed', retryable: false };
-			targetWindow.open(url, '_blank', 'noopener,noreferrer');
-			return { kind: 'completed' };
-		},
+		openExternal: (target) =>
+			openExternalBrowserUrl(targetWindow, target)
+				? { kind: 'completed' }
+				: { code: 'link-policy-blocked', kind: 'failed', retryable: false },
 		readClipboardText: async () => {
 			try {
 				return { kind: 'completed', text: await targetWindow.navigator.clipboard.readText() };
@@ -402,6 +407,9 @@ async function run(
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,
 			macosTerminalInputSettingsController,
+			openExternal: (target) => {
+				openExternalBrowserUrl(targetWindow, target);
+			},
 			projectFolderAcquisition,
 			projectWorkspaceRuntime: runtime.projectWorkspaceRuntime,
 			searchOffered,

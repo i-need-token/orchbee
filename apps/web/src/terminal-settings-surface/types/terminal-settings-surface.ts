@@ -44,6 +44,8 @@ export interface TerminalSettingsAbout {
 	readonly build: 'development' | 'release' | 'test' | null;
 	/** Check for updates; absent where the host has no update at all, which About says. */
 	readonly check: TerminalSettingsUpdateCheck | undefined;
+	/** Opens orchbee.com's install section in the browser when a check fails; absent where no external browser port is wired. */
+	readonly downloadInstaller?: (() => void) | undefined;
 	/** The newer version the window can switch to now, which puts Update in Check's place. */
 	readonly offer:
 		| {
