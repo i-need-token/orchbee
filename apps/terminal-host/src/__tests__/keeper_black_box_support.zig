@@ -131,7 +131,6 @@ pub extern "kernel32" fn GetProcessId(process: HANDLE) callconv(.winapi) DWORD;
 extern "kernel32" fn GetProcessTimes(process: HANDLE, creation: *FileTime, exit: *FileTime, kernel: *FileTime, user: *FileTime) callconv(.winapi) BOOL;
 extern "kernel32" fn OpenProcess(access: DWORD, inherit: BOOL, process_id: DWORD) callconv(.winapi) ?HANDLE;
 pub extern "kernel32" fn GetExitCodeProcess(process: HANDLE, code: *DWORD) callconv(.winapi) BOOL;
-extern "kernel32" fn GetSystemTimePreciseAsFileTime(time: *FileTime) callconv(.winapi) void;
 extern "kernel32" fn CreateProcessW(
     application: ?[*:0]const u16,
     command_line: ?[*:0]u16,
@@ -189,12 +188,6 @@ pub fn fileTimeValue(time: FileTime) u64 {
     return (@as(u64, time.high) << 32) | time.low;
 }
 
-pub fn now() u64 {
-    var time: FileTime = undefined;
-    GetSystemTimePreciseAsFileTime(&time);
-    return fileTimeValue(time);
-}
-
 pub fn pipeName(buffer: *[96]u16, endpoint: []const u8) [:0]const u16 {
     const prefix = std.unicode.utf8ToUtf16LeStringLiteral("\\\\.\\pipe\\orchbee-terminal-host-");
     @memcpy(buffer[0..prefix.len], prefix);
@@ -250,17 +243,6 @@ pub fn processOf(handle: HANDLE) !message.Process {
 
 pub fn selfProcess() !message.Process {
     return processOf(GetCurrentProcess());
-}
-
-/// The process's exit time, or null while it runs.
-pub fn exitTime(handle: HANDLE) ?u64 {
-    if (WaitForSingleObject(handle, 0) != WAIT_OBJECT_0) return null;
-    var creation: FileTime = undefined;
-    var exit: FileTime = undefined;
-    var kernel: FileTime = undefined;
-    var user: FileTime = undefined;
-    if (!GetProcessTimes(handle, &creation, &exit, &kernel, &user).toBool()) return null;
-    return fileTimeValue(exit);
 }
 
 /// Whether the process with this identity still runs.

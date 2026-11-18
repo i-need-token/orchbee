@@ -127,8 +127,9 @@ const Listener = struct {
     /// Ends the Keeper once it is drained and holds nothing, or after it has been empty for 30
     /// seconds; a control reply still in flight is let finish first.
     fn checkLife(self: *Listener) void {
-        const now = self.clock.read();
         self.table.lock();
+        // Read under the lock, or the start could precede a change this pass observes.
+        const now = self.clock.read();
         const lifecycle = self.table.lifecycle;
         const empty = self.table.idle();
         const drained = lifecycle == .draining and self.table.holdingCount() == 0;

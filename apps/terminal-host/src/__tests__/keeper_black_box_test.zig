@@ -244,8 +244,41 @@ fn statusAll(arena: std.mem.Allocator, worker: *Session) !Snapshot {
 
 const Watch = struct {
     keeper: Keeper,
-    /// The `FILETIME` the Keeper became empty at.
-    empty_since: u64,
+    exit: *ExitRecord,
+};
+
+/// The monotonic reading at which a Keeper process ends, on the clock the Keeper counts its 30 s
+/// with, so no FILETIME conversion can add skew. A thread blocked on the process handle takes the
+/// reading: it is never earlier than the end, and later only by that thread's wake-up.
+const ExitRecord = struct {
+    clock: monotonic.Timer,
+    process: HANDLE,
+    ended: bool = false,
+    ended_ns: u64 = 0,
+    thread: std.Thread = undefined,
+
+    /// Starts the thread that records the end on `clock`; `finish` joins it and frees the record.
+    fn start(allocator: std.mem.Allocator, clock: monotonic.Timer, process: HANDLE) !*ExitRecord {
+        const record = try allocator.create(ExitRecord);
+        errdefer allocator.destroy(record);
+        record.* = .{ .clock = clock, .process = process };
+        record.thread = try std.Thread.spawn(.{ .stack_size = 256 * 1024 }, wait, .{record});
+        return record;
+    }
+
+    /// Bounded past the 45 s the test allows, so the thread ends even when the Keeper never does.
+    fn wait(self: *ExitRecord) void {
+        if (support.WaitForSingleObject(self.process, 60_000) != support.WAIT_OBJECT_0) return;
+        self.ended_ns = self.clock.read();
+        self.ended = true;
+    }
+
+    /// Joins the thread and frees the record; the reading of the end, or null when there was none.
+    fn finish(self: *ExitRecord, allocator: std.mem.Allocator) ?u64 {
+        self.thread.join();
+        defer allocator.destroy(self);
+        return if (self.ended) self.ended_ns else null;
+    }
 };
 
 const Driver = struct {
@@ -915,9 +948,12 @@ const Driver = struct {
 
     // --- The empty exit ---
 
+    /// The clock starts before the Keeper process exists, so the span holds its whole 30 s.
     fn watchEmptyFromStart(self: *Driver) !Watch {
-        const keeper = try self.startKeeper();
-        return .{ .keeper = keeper, .empty_since = (try support.processOf(keeper.process)).created };
+        const clock = try monotonic.Timer.start();
+        var keeper = try self.startKeeper();
+        errdefer keeper.stop();
+        return .{ .keeper = keeper, .exit = try ExitRecord.start(self.allocator, clock, keeper.process) };
     }
 
     fn watchEmptyAfterUse(self: *Driver) !Watch {
@@ -930,17 +966,24 @@ const Driver = struct {
         const driver_process = try support.selfProcess();
         try expectTag("register-host", try worker.call(arena, .{ .register_host = driver_process }), .register_host);
         try expectTag("unregister-host", try worker.call(arena, .{ .unregister_host = driver_process }), .unregister_host);
+        // The clock starts before the close that makes the Worker leave. The Keeper's 30 s begins only
+        // after that departure, so the span measured from here contains all of it.
+        const clock = try monotonic.Timer.start();
+        const record = try ExitRecord.start(self.allocator, clock, keeper.process);
         worker.close();
-        return .{ .keeper = keeper, .empty_since = support.now() };
+        return .{ .keeper = keeper, .exit = record };
     }
 
     fn finishEmpty(self: *Driver, watch: *Watch, label: []const u8) !void {
-        _ = self;
-        defer watch.keeper.stop();
-        if (!watch.keeper.ended(45_000)) return fail("an empty Keeper still runs 45 s {s}", .{label});
-        const exit_time = support.exitTime(watch.keeper.process) orelse return fail("the empty Keeper's exit time is unknown", .{});
-        if (support.exitCode(watch.keeper.process) != 0) return fail("the empty Keeper's exit code is not 0", .{});
-        const elapsed_ms = (exit_time -| watch.empty_since) / 10_000;
+        // The exit code is read, and the record joined, before `stop` releases the process handle.
+        const ended = watch.keeper.ended(45_000);
+        const exit_code = support.exitCode(watch.keeper.process);
+        const ended_ns = watch.exit.finish(self.allocator);
+        watch.keeper.stop();
+        if (!ended) return fail("an empty Keeper still runs 45 s {s}", .{label});
+        if (exit_code != 0) return fail("the empty Keeper's exit code is not 0", .{});
+        const end = ended_ns orelse return fail("the empty Keeper's end was not recorded", .{});
+        const elapsed_ms = end / std.time.ns_per_ms;
         if (elapsed_ms < 30_000 or elapsed_ms > 32_000) return fail("an empty Keeper ended {d} ms {s}", .{ elapsed_ms, label });
         report("an empty Keeper ended {d} ms {s}", .{ elapsed_ms, label });
     }
