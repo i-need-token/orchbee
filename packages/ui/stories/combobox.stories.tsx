@@ -8,7 +8,6 @@ import {
 	ComboboxList,
 	ComboboxSearch,
 	ComboboxTrigger,
-	ComboboxValue,
 } from '@orchbee/ui/components';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
@@ -30,7 +29,7 @@ function SearchableChoice({ open }: { readonly open: boolean }) {
 	return (
 		<Combobox defaultOpen={open} defaultValue='PowerShell' items={GROUPS}>
 			<ComboboxTrigger aria-label='Profile' size='sm'>
-				<ComboboxValue />
+				PowerShell
 			</ComboboxTrigger>
 			<ComboboxContent align='end'>
 				<ComboboxSearch aria-label='Search profiles' placeholder='Search profiles' />

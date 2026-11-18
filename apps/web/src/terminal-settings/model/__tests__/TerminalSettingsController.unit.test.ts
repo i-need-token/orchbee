@@ -58,7 +58,7 @@ describe('TerminalSettingsController', () => {
 					'appearance.mode': 'dark',
 					'appearance.terminal_colors': 'custom',
 					'terminal.background_opacity': 65,
-					'terminal.font_family': '  Example Mono, monospace  ',
+					'terminal.font_family': '  "Example Mono", "Example Symbols", monospace  ',
 					'terminal.font_size': 19,
 				},
 			}),
@@ -70,7 +70,7 @@ describe('TerminalSettingsController', () => {
 			backgroundOpacityPercent: 65,
 			customBackground: '#abcdef',
 			customForeground: '#0123ab',
-			fontFamily: 'Example Mono, monospace',
+			fontFamily: '"Example Mono", "Example Symbols", monospace',
 			fontSize: 19,
 			terminalDisplayTheme: 'custom',
 		});
@@ -78,7 +78,7 @@ describe('TerminalSettingsController', () => {
 			allowTransparency: true,
 			backgroundOpacity: 0.65,
 			defaultColorOverride: null,
-			fontFamily: 'Example Mono, monospace',
+			fontFamily: '"Example Mono", "Example Symbols", monospace',
 			fontSize: 19,
 		});
 		expect(target.dataset['theme']).toBe('dark');

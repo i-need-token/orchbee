@@ -5,10 +5,6 @@ import { ChevronDownIcon, CheckIcon } from 'lucide-react';
 
 const Combobox = ComboboxPrimitive.Root;
 
-function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
-	return <ComboboxPrimitive.Value data-slot='combobox-value' {...props} />;
-}
-
 /*
  * Orchbee adaptation: a trigger that stands alone, with the search field inside the list, wears the
  * select trigger's filled neutral control so a searchable choice reads like any other choice.
@@ -161,5 +157,4 @@ export {
 	ComboboxCollection,
 	ComboboxSearch,
 	ComboboxTrigger,
-	ComboboxValue,
 };

@@ -1,3 +1,11 @@
+/* Wide enough for a long font list to be read without scrolling; Browse sits after it in the row. */
+.input {
+	width: var(--ob-ref-container-3xs);
+	min-width: var(--ob-ref-space-0);
+	margin-inline-end: var(--ob-ref-space-2);
+	font: var(--ob-sys-typography-code-sm);
+}
+
 /* Wide enough for a long family name in its own face, like the reference's font list. */
 .popup {
 	width: var(--ob-ref-container-3xs);

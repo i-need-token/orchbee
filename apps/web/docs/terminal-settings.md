@@ -40,29 +40,31 @@ snapshot, and an update sends one edit of every key it changes. The former brows
 read or written; a value left in a browser is ignored and never migrated.
 
 The page sends only values it admits; the settings file owner decides what it stores. The font
-family is trimmed and contains 1–256 characters. Font size is an integer from 8 through 48.
+family is trimmed, parses as a CSS font-family list, and is at most 256 UTF-8 bytes. Font size is an integer from 8 through 48.
 Both weights are integer hundreds from 100 through 900. Terminal padding is an integer from 0
 through 32 CSS pixels. Custom colors are exactly `#RRGGBB` and are normalized to lowercase.
 Background opacity is an integer percentage from 10 through 100.
 
-The Font row lists installed families through the composition's font catalog. The Web application
+The Font row takes a font list in a field, and its Browse button lists installed families through the composition's font catalog. The Web application
 supplies the browser's Local Font Access (`queryLocalFonts`) wherever the browser offers it; Desktop's
 Chromium offers it and its permission is granted, and a browser asks the person the first time the
 list opens, which is why the list asks only then. Fixed-width families come first and alone until
 Show all fonts is on; a search looks through every family. Each entry draws its name in its own
-face, except families that put pictures where letters belong. A picked family stores
-`"<family>", "Orchbee Symbols Nerd Font", monospace`, so prompt glyphs keep drawing where the family
-lacks them; the built-in entry restores the default. Text the list lacks is stored as typed, and
-terminals and the preview draw any list naming no generic family with Orchbee's symbols and a
-monospace font after it. Without Local Font Access, or after a refusal, the list holds the
-built-in entry and the typed text. Font
+face, except families that put pictures where letters belong. The field takes a font list as typed:
+Enter or leaving the field commits it, Escape takes back an uncommitted edit, and an empty field
+restores the default. A list that does not parse or is over 256 UTF-8 bytes shows the invalid notice
+and neither previews nor saves. Browse opens the installed families; a picked family moves to the
+front of the field's list and keeps the rest, so prompt glyphs keep drawing where it lacks them, and
+the built-in entry restores the default. Terminals and the preview draw any list naming no generic
+family with Orchbee's symbols and a monospace font after it. Without Local Font Access, or after a
+refusal, the list holds the built-in entry and the typed text. Font
 size is a stepper of one pixel per press or Up and Down arrow; a typed size applies on Enter or when
 the field loses focus. The page has no Zoom row because the application has no window zoom command.
 
 Font size comes before Font, as in the reference, because the Font row carries a terminal preview
 across its width: a prompt, a listing in the usual ANSI colors and the sixteen colors as cells,
 drawn in the candidate font, size and colors. The candidate is the highlighted entry of the open
-font list, a valid typed size, and the colors the window shows now, a previewed theme included;
+font list, a valid typed font list, a valid typed size, and the colors the window shows now, a previewed theme included;
 otherwise the committed values. A growing preview therefore never moves the stepper. The colors
 follow `windowTerminalColors`, the same resolution the Desktop window paints with: the active
 slot's theme, with the custom pair as default text and background under Custom, and the theme's

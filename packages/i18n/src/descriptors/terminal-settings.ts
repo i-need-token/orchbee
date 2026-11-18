@@ -190,6 +190,7 @@ export const terminalSettingsMessages = defineMessages({
 	pageFontDescription: message('terminal.settings.page.font.description'),
 	pageFontBuiltIn: message('terminal.settings.page.font.builtIn'),
 	pageFontSearch: message('terminal.settings.page.font.search'),
+	pageFontBrowse: message('terminal.settings.page.font.browse'),
 	pageFontUse: message('terminal.settings.page.font.use'),
 	pageFontShowAll: message('terminal.settings.page.font.showAll'),
 	pageFontGroupFixedWidth: message('terminal.settings.page.font.group.fixedWidth'),

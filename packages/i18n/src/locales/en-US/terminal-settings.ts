@@ -87,7 +87,7 @@ export const enUSTerminalSettingsMessages = {
 		'Scrollback settings are unavailable until the Desktop control connection is restored.',
 	'terminal.settings.title': 'Settings',
 	'terminal.settings.typography.fontFamily.invalid':
-		'Enter a font family between 1 and 256 characters.',
+		'Separate font names with commas, and quote a name that starts with a digit. The list can be up to 256 bytes.',
 	'terminal.settings.typography.fontSize.invalid':
 		'Enter a whole number from {minimum, number} to {maximum, number}.',
 	'terminal.settings.typography.fontSize.label': 'Terminal font size',
@@ -182,6 +182,7 @@ export const enUSTerminalSettingsMessages = {
 		'Font for terminal text; another font fills in when it is missing.',
 	'terminal.settings.page.font.builtIn': 'JetBrains Mono (built in)',
 	'terminal.settings.page.font.search': 'Search or type a font',
+	'terminal.settings.page.font.browse': 'Browse fonts',
 	'terminal.settings.page.font.use': 'Use "{family}"',
 	'terminal.settings.page.font.showAll': 'Show all fonts',
 	'terminal.settings.page.font.group.fixedWidth': 'Fixed width',

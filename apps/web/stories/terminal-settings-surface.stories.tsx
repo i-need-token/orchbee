@@ -41,6 +41,9 @@ const englishApplicationLocaleController = createStoryApplicationLocaleControlle
 	englishSettings,
 );
 const englishController = createStoryController(englishSettings);
+const fontListController = createStoryController(
+	memoryUserSettings({ values: { 'terminal.font_family': '"Fira Code", Menlo, monospace' } }),
+);
 const englishKeyboardController = createKeyboardStoryController('apple');
 const englishMacosInputController = new MacosTerminalInputSettingsController(englishSettings);
 const englishFeedbackController = createFeedbackStoryController(englishSettings);
@@ -187,6 +190,16 @@ export const EnglishGeneral: Story = {
 	},
 };
 export const EnglishAppearance: Story = englishLight('appearance');
+/** A font list of several families in the Font field: the first is drawn and the rest are fallbacks. */
+export const EnglishAppearanceFontList: Story = {
+	...englishLight('appearance'),
+	args: {
+		...englishArgs,
+		controller: fontListController,
+		initialCategory: 'appearance',
+		onRequestClose: () => fontListController.close(),
+	},
+};
 export const EnglishThemes: Story = englishLight('themes');
 export const EnglishTerminal: Story = englishLight('terminal');
 export const EnglishNotifications: Story = englishLight('notifications');

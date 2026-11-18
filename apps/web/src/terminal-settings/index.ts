@@ -1,10 +1,12 @@
 export { useTerminalSettings } from './hooks';
 export {
 	BUILT_IN_TERMINAL_FONT_FAMILY,
+	BUILT_IN_TERMINAL_FONT_LIST,
 	isTerminalThemePresentationSource,
 	leadingTerminalFontFamily,
 	normalizeTerminalHexColor,
-	terminalFontFamilyList,
+	terminalFontListFromText,
+	terminalFontListWithFamilyFirst,
 	terminalFontListWithFallback,
 	TerminalSettingsController,
 	windowTerminalColors,

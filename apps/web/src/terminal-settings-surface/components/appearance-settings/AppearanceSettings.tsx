@@ -55,7 +55,7 @@ export function AppearanceSettings({
 		query.trim() === '' ? (
 			<TerminalPreview
 				colors={windowTerminalColors(view.presented, systemDark, controller.colorThemes)}
-				fontFamily={fontPreview ?? preferences.fontFamily}
+				fontFamily={fontPreview ?? view.fontFamily.draftPreview ?? preferences.fontFamily}
 				fontSize={previewSize}
 				fontWeight={preferences.fontWeight}
 				label={intl.formatMessage(terminalSettingsMessages.pagePreviewLabel)}
@@ -187,10 +187,12 @@ export function AppearanceSettings({
 						catalog={fontCatalog}
 						invalid={view.fontFamily.error !== null}
 						label={fontLabel}
-						modified={view.fontFamily.modified}
 						readOnly={view.fontFamily.readOnly}
-						value={view.fontFamily.value}
+						value={view.fontFamily.draft}
+						onBlur={view.fontFamily.onBlur}
+						onChange={view.fontFamily.onChange}
 						onChoose={view.fontFamily.onChoose}
+						onKeyDown={view.fontFamily.onKeyDown}
 						onPreview={setFontPreview}
 						onRestore={view.fontFamily.onChooseBuiltIn}
 					/>

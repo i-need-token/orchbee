@@ -81,7 +81,8 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
 		'Desktop 控制连接恢复前，无法更改回滚缓冲区设置。',
 	'terminal.settings.title': '设置',
-	'terminal.settings.typography.fontFamily.invalid': '请输入 1 到 256 个字符的字体族。',
+	'terminal.settings.typography.fontFamily.invalid':
+		'字体名称之间用逗号分隔，以数字开头的名称要加引号。整个列表不能超过 256 字节。',
 	'terminal.settings.typography.fontSize.invalid':
 		'请输入 {minimum, number} 到 {maximum, number} 之间的整数。',
 	'terminal.settings.typography.fontSize.label': '终端字号',
@@ -173,6 +174,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.font.description': '终端文字的字体；缺少时用其他字体代替。',
 	'terminal.settings.page.font.builtIn': 'JetBrains Mono（内置）',
 	'terminal.settings.page.font.search': '搜索或输入字体',
+	'terminal.settings.page.font.browse': '浏览字体',
 	'terminal.settings.page.font.use': '使用“{family}”',
 	'terminal.settings.page.font.showAll': '显示所有字体',
 	'terminal.settings.page.font.group.fixedWidth': '等宽字体',

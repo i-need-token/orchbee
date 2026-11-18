@@ -1,8 +1,10 @@
 export { normalizeTerminalHexColor } from './terminal-appearance-preferences';
 export {
 	BUILT_IN_TERMINAL_FONT_FAMILY,
+	BUILT_IN_TERMINAL_FONT_LIST,
 	leadingTerminalFontFamily,
-	terminalFontFamilyList,
+	terminalFontListFromText,
+	terminalFontListWithFamilyFirst,
 	terminalFontListWithFallback,
 } from './terminal-font-family';
 export type { TerminalAppearancePreferences } from './terminal-appearance-preferences';

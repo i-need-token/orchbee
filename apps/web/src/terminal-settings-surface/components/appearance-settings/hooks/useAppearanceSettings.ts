@@ -3,7 +3,9 @@ import type { SettingKey } from '@orchbee/workbench-client-protocol';
 import * as React from 'react';
 
 import {
+	BUILT_IN_TERMINAL_FONT_LIST,
 	normalizeTerminalHexColor,
+	terminalFontListFromText,
 	useTerminalSettings,
 	type TerminalAppearancePreferences,
 	type TerminalSettingsController,
@@ -25,18 +27,13 @@ interface TextDraftView {
 	readonly readOnly: boolean;
 }
 
-interface FontFamilyView {
-	/** A typed list that was not admitted, or why the file did not take the last change. */
-	readonly error: string | null;
-	readonly modified: boolean;
-	readonly onChoose: (fontList: string) => void;
+interface FontFamilyView extends TextDraftView {
+	/** The list the draft stores while it is admitted, for the preview; null while it is not. */
+	readonly draftPreview: string | null;
+	/** Picking an entry stores its list; null when that list is not admitted, which shows the notice. */
+	readonly onChoose: (fontList: string | null) => void;
 	/** Choosing the built-in font restores the default. */
 	readonly onChooseBuiltIn: () => void;
-	/** Undefined while the file is read-only, which hides the row's Restore default. */
-	readonly onRestore: (() => void) | undefined;
-	readonly readOnly: boolean;
-	/** The stored CSS font list. */
-	readonly value: string;
 }
 
 interface FontSizeView extends TextDraftView {
@@ -83,6 +80,7 @@ export function useAppearanceSettings(
 	const fontSizeDraft = useSettingDraft(String(preferences.fontSize), fontSize.failure);
 	const foregroundDraft = useSettingDraft(preferences.customForeground, foreground.failure);
 	const backgroundDraft = useSettingDraft(preferences.customBackground, background.failure);
+	const fontFamilyDraft = useSettingDraft(preferences.fontFamily, fontFamily.failure);
 	const [invalid, setInvalid] = React.useState<ReadonlySet<string>>(new Set());
 
 	React.useEffect(() => {
@@ -145,6 +143,40 @@ export function useAppearanceSettings(
 			controller.update({ fontSize: Number(draft) }).kind === 'invalid',
 		);
 	};
+	const commitFontList = (fontList: string): void => {
+		// A blur or Enter that changes nothing writes nothing.
+		if (fontList === preferences.fontFamily) {
+			markInvalid('terminal.font_family', false);
+			return;
+		}
+		const result = controller.update({ fontFamily: fontList });
+		markInvalid('terminal.font_family', result.kind === 'invalid');
+		if (result.kind !== 'invalid') fontFamilyDraft.change(fontList);
+	};
+	const resetFontFamily = (): void => {
+		markInvalid('terminal.font_family', false);
+		fontFamilyDraft.change(BUILT_IN_TERMINAL_FONT_LIST);
+		fontFamily.restore();
+	};
+	const commitFontFamily = (text: string): void => {
+		const fontList = terminalFontListFromText(text);
+		if (fontList === null) markInvalid('terminal.font_family', true);
+		else if (fontList === '') resetFontFamily();
+		else commitFontList(fontList);
+	};
+	const fontFamilyKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+		// Escape takes back an edit the setting does not hold; with no edit it is left to close Settings.
+		if (event.key === 'Escape' && fontFamilyDraft.draft !== preferences.fontFamily) {
+			event.preventDefault();
+			event.stopPropagation();
+			markInvalid('terminal.font_family', false);
+			fontFamilyDraft.change(preferences.fontFamily);
+			return;
+		}
+		commitOnEnter(() => {
+			commitFontFamily(fontFamilyDraft.draft);
+		})(event);
+	};
 
 	return {
 		background: colorDraft(
@@ -154,20 +186,26 @@ export function useAppearanceSettings(
 			intl.formatMessage(terminalSettingsMessages.backgroundInvalid),
 		),
 		fontFamily: {
+			draft: fontFamilyDraft.draft,
+			draftPreview: fontFamilyPreview(fontFamilyDraft.draft),
 			error: invalid.has('terminal.font_family')
 				? intl.formatMessage(terminalSettingsMessages.fontFamilyInvalid)
 				: fontFamily.failureMessage,
 			modified: fontFamily.modified,
-			onChoose: (fontList) => {
-				markInvalid(
-					'terminal.font_family',
-					controller.update({ fontFamily: fontList }).kind === 'invalid',
-				);
+			onBlur: () => {
+				commitFontFamily(fontFamilyDraft.draft);
 			},
-			onChooseBuiltIn: fontFamily.restore,
-			onRestore: fontFamily.readOnly ? undefined : fontFamily.restore,
+			onChange: (event) => {
+				fontFamilyDraft.change(event.currentTarget.value);
+			},
+			onChoose: (fontList) => {
+				if (fontList === null) markInvalid('terminal.font_family', true);
+				else commitFontList(fontList);
+			},
+			onChooseBuiltIn: resetFontFamily,
+			onKeyDown: fontFamilyKeyDown,
+			onRestore: fontFamily.readOnly ? undefined : resetFontFamily,
 			readOnly: fontFamily.readOnly,
-			value: preferences.fontFamily,
 		},
 		fontSize: {
 			...textDraft(fontSize, 'terminal.font_size', fontSizeDraft, fontSizeInvalid, commitFontSize),
@@ -186,6 +224,12 @@ export function useAppearanceSettings(
 		preferences,
 		presented,
 	};
+}
+
+/** The list a font draft previews while it is admitted: the default for a blank draft; null otherwise. */
+function fontFamilyPreview(text: string): string | null {
+	const fontList = terminalFontListFromText(text);
+	return fontList === '' ? BUILT_IN_TERMINAL_FONT_LIST : fontList;
 }
 
 function commitOnEnter(commit: () => void): React.KeyboardEventHandler<HTMLInputElement> {

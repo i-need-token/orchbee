@@ -9,15 +9,17 @@ import {
 	ComboboxList,
 	ComboboxSearch,
 	ComboboxTrigger,
-	ComboboxValue,
+	Input,
 	Switch,
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import {
 	BUILT_IN_TERMINAL_FONT_FAMILY,
+	BUILT_IN_TERMINAL_FONT_LIST,
 	leadingTerminalFontFamily,
-	terminalFontFamilyList,
+	terminalFontListFromText,
+	terminalFontListWithFamilyFirst,
 } from '../../../terminal-settings';
 import type { TerminalSettingsFontCatalog } from '../../types/terminal-settings-surface';
 import { useInstalledFontFamilies } from './hooks/useInstalledFontFamilies';
@@ -28,13 +30,15 @@ interface FontFamilyPickerProps {
 	readonly catalog: TerminalSettingsFontCatalog | undefined;
 	readonly invalid: boolean;
 	readonly label: string;
-	/** False while the setting holds its built-in default. */
-	readonly modified: boolean;
 	readonly readOnly: boolean;
-	/** The stored CSS font list. */
+	/** The font list the field shows, which the person may still be editing. */
 	readonly value: string;
-	readonly onChoose: (fontList: string) => void;
-	/** The font list the highlighted entry would store, while the list is open; null once it closes. */
+	readonly onBlur: () => void;
+	readonly onChange: React.ChangeEventHandler<HTMLInputElement>;
+	/** The font list a picked entry stores; null when that list does not parse or is too long. */
+	readonly onChoose: (fontList: string | null) => void;
+	readonly onKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
+	/** The font list the highlighted entry would store while the list is open; null once it closes or when that list is not admitted. */
 	readonly onPreview: (fontList: string | null) => void;
 	readonly onRestore: () => void;
 }
@@ -57,19 +61,21 @@ interface FontGroup {
 }
 
 /**
- * The terminal font as a searchable list of installed families, each named in its own face.
- * Fixed-width families come first and alone until the person shows all fonts; a search looks
- * through every family and also takes a family or a CSS font list the list lacks, and the built-in
- * font restores the default.
+ * The terminal font as a field that takes a font list, with a Browse button that opens the installed
+ * families beside it. The list is searchable, fixed-width families come first and alone until the person
+ * shows all fonts, a search also takes a family or a CSS font list the list lacks, and the built-in font
+ * restores the default. A picked family moves to the front of the field's list.
  */
 export function FontFamilyPicker({
 	catalog,
 	invalid,
 	label,
-	modified,
 	readOnly,
 	value,
+	onBlur,
+	onChange,
 	onChoose,
+	onKeyDown,
 	onPreview,
 	onRestore,
 }: FontFamilyPickerProps): React.ReactNode {
@@ -90,7 +96,7 @@ export function FontFamilyPicker({
 				kind: 'family',
 				label: family.family,
 				sample: !family.symbol,
-				value: terminalFontFamilyList(family.family),
+				value: family.family,
 			}));
 	const typed = query.trim();
 	const typedIsListed = installed.families.some(
@@ -132,13 +138,17 @@ export function FontFamilyPicker({
 					},
 				]),
 	];
-	const selected: FontEntry = !modified
-		? builtIn
-		: (groups.flatMap((group) => group.items).find((entry) => entry.value === value) ?? {
-				kind: 'typed',
-				label: value,
-				value,
-			});
+	// A blank field is the default, so the built-in entry is the one its list leads with.
+	const leading =
+		value.trim() === '' ? BUILT_IN_TERMINAL_FONT_FAMILY : leadingTerminalFontFamily(value);
+	const selected: FontEntry =
+		leading === BUILT_IN_TERMINAL_FONT_FAMILY
+			? builtIn
+			: (groups.flatMap((group) => group.items).find((entry) => entry.value === leading) ?? {
+					kind: 'typed',
+					label: leading,
+					value: leading,
+				});
 
 	return (
 		<Combobox
@@ -153,7 +163,7 @@ export function FontFamilyPicker({
 			value={selected}
 			onInputValueChange={setQuery}
 			onItemHighlighted={(entry: FontEntry | undefined) => {
-				onPreview(entry === undefined ? null : storedFontList(entry));
+				onPreview(entry === undefined ? null : storedFontList(entry, value));
 			}}
 			onOpenChange={(open) => {
 				if (open) {
@@ -168,13 +178,22 @@ export function FontFamilyPicker({
 					return;
 				}
 				if (entry.kind === 'built-in') onRestore();
-				else onChoose(entry.value);
+				else onChoose(storedFontList(entry, value));
 			}}
 		>
-			<ComboboxTrigger aria-invalid={invalid || undefined} aria-label={label} size='sm'>
-				<ComboboxValue>
-					{modified ? leadingTerminalFontFamily(value) || value : builtIn.label}
-				</ComboboxValue>
+			<Input
+				aria-invalid={invalid || undefined}
+				aria-label={label}
+				className={styles['input']}
+				readOnly={readOnly}
+				spellCheck={false}
+				value={value}
+				onBlur={onBlur}
+				onChange={onChange}
+				onKeyDown={onKeyDown}
+			/>
+			<ComboboxTrigger size='sm'>
+				{intl.formatMessage(terminalSettingsMessages.pageFontBrowse)}
 			</ComboboxTrigger>
 			<ComboboxContent align='end' className={styles['popup']}>
 				<ComboboxSearch
@@ -243,11 +262,17 @@ function FontEntryName({ entry }: { readonly entry: FontEntry }): React.ReactNod
 	);
 }
 
-/** The font list choosing the entry stores; the built-in entry restores the default list. */
-function storedFontList(entry: FontEntry): string {
-	return entry.kind === 'built-in'
-		? terminalFontFamilyList(BUILT_IN_TERMINAL_FONT_FAMILY)
-		: entry.value;
+/**
+ * The font list an entry stores over the field's list, or null when that list does not parse or does
+ * not fit the setting. A typed name with a comma is a font list the person means as it stands.
+ */
+function storedFontList(entry: FontEntry, fieldText: string): string | null {
+	if (entry.kind === 'built-in') return BUILT_IN_TERMINAL_FONT_LIST;
+	const list =
+		entry.kind === 'typed' && entry.value.includes(',')
+			? entry.value
+			: terminalFontListWithFamilyFirst(fieldText, entry.value);
+	return list === null ? null : terminalFontListFromText(list);
 }
 
 function sampleFamily(entry: FontEntry): string | null {

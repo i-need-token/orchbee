@@ -23,7 +23,6 @@ export {
 	ComboboxList,
 	ComboboxSearch,
 	ComboboxTrigger,
-	ComboboxValue,
 } from './combobox';
 
 export {
