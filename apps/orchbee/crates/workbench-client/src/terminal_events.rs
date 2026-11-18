@@ -16,6 +16,16 @@ pub use mouse::{
 };
 pub(crate) use mouse::{PanePointerRoute, route_pane_pointer};
 
+/// The five values defined by DECRPM for one DEC private mode, shared by every DECRQM probe.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ModeReportState {
+    Unsupported,
+    Set,
+    Reset,
+    PermanentlySet,
+    PermanentlyReset,
+}
+
 /// Metadata replies produced by the outer terminal. These are consumed before
 /// any keyboard, modal-editor or pane-input owner can observe their bytes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -23,6 +33,7 @@ pub enum HostReply {
     Graphics(graphics::Reply),
     Pointer(pointer::HostReply),
     Appearance(appearance::ColorReply),
+    Grapheme(ModeReportState),
 }
 
 /// Crate-internal `DecodedItem` facts the application's tests read.

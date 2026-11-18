@@ -57,6 +57,7 @@ mod terminal_copy_query;
 mod terminal_device;
 mod terminal_events;
 mod terminal_find;
+mod terminal_grapheme_admission;
 mod terminal_graphics;
 mod terminal_host_appearance;
 mod terminal_input;

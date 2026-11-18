@@ -2,12 +2,13 @@
 //! The base-cell cache excludes the cursor; host cursor colors and shape are never changed.
 
 use std::{
+    borrow::Cow,
     io::{self, Write},
     sync::Arc,
 };
 
 use crossterm::{
-    cursor::{Hide, MoveTo},
+    cursor::{Hide, MoveTo, MoveToColumn},
     style::{Attribute, Print, ResetColor, SetAttribute},
     terminal::{Clear, ClearType as CrosstermClearType},
 };
@@ -37,6 +38,11 @@ pub(crate) trait ResizableBackend: Backend {
     fn set_window_dimensions(&mut self, dimensions: WindowDimensions);
     fn graphics_probe_id(&self) -> Option<u32> {
         None
+    }
+    /// Opens the synchronized frame that the next draw writes into and its flush closes, so a clear
+    /// issued before that draw joins the same update. A backend without synchronized frames has none.
+    fn begin_frame(&mut self) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
 
@@ -78,8 +84,9 @@ impl<W: Write> FixedViewportBackend<W> {
     }
 
     fn erase_cursor(&mut self) -> io::Result<()> {
-        if let Some((position, cell)) = &self.painted_cursor {
-            write_cell(&mut self.writer, *position, cell)?;
+        if let Some((position, cell)) = self.painted_cursor.clone() {
+            write_cell(&mut self.writer, self.base_cells.area, position, &cell)?;
+            self.repair_isolated_cluster(position, &cell)?;
             write_ansi_command(
                 &mut self.writer,
                 &MoveTo(self.cursor_position.x, self.cursor_position.y),
@@ -121,11 +128,118 @@ impl<W: Write> FixedViewportBackend<W> {
         }
         // Record before writing: even a partially written cursor is owned until restoration.
         self.painted_cursor = Some((position, base));
-        write_cell(&mut self.writer, position, &cursor)?;
+        write_cell(&mut self.writer, self.base_cells.area, position, &cursor)?;
+        self.repair_isolated_cluster(position, &cursor)?;
         write_ansi_command(
             &mut self.writer,
             &MoveTo(self.cursor_position.x, self.cursor_position.y),
         )
+    }
+    /// Paints one cell at `position`, moving the outer cursor only when `advanced_to` does not
+    /// already name it.
+    fn paint_cell(
+        &mut self,
+        position: Position,
+        cell: &Cell,
+        style: &mut PaintedStyle,
+        advanced_to: &mut Option<Position>,
+    ) -> io::Result<()> {
+        emit_cell_prefix(&mut self.writer, position, *advanced_to, style, cell)?;
+        let symbol = painted_symbol(self.base_cells.area, position, cell);
+        let cell_width = cell.cell_width();
+        let predictable = is_predictable_bmp_cell(symbol.as_ref(), cell_width);
+        write_cell_symbol(
+            &mut self.writer,
+            position,
+            symbol.as_ref(),
+            cell_width,
+            !predictable && cell_width > 1,
+        )?;
+        self.cursor_position = position;
+        *advanced_to = predictable.then_some(Position {
+            x: position.x.saturating_add(cell_width),
+            y: position.y,
+        });
+        Ok(())
+    }
+
+    /// Repairs the outer terminal after a multi-code-point cluster at `position`.
+    ///
+    /// A terminal without grapheme clustering advances once per code point, so the cluster's overflow
+    /// covers cells that the frame paints as the next grid cells. Re-sync the cursor to the next cell's
+    /// column with CHA, which cannot follow an overflow that wraps, so the paint below moves with CUP
+    /// instead. Then rewrite from the mirror every cell the overflow may cover, blanks included. The run is
+    /// linear across rows, and a cluster inside it extends it by its own overflow. A terminal that already
+    /// clusters receives the same cells again, which show the same content.
+    fn repair_cluster_overflow(
+        &mut self,
+        position: Position,
+        cell_width: u16,
+        columns: u16,
+        style: &mut PaintedStyle,
+        advanced_to: &mut Option<Position>,
+    ) -> io::Result<()> {
+        let area = self.base_cells.area;
+        let row_width = u32::from(area.width);
+        if row_width == 0 {
+            return Ok(());
+        }
+        let next_x = position.x.saturating_add(cell_width);
+        let overflow_end = u32::from(position.x) + u32::from(columns);
+        if u32::from(next_x) < row_width && overflow_end <= row_width {
+            write_ansi_command(&mut self.writer, &MoveToColumn(next_x))?;
+            *advanced_to = Some(Position {
+                x: next_x,
+                y: position.y,
+            });
+        }
+        let row_start = u32::from(position.y) * row_width;
+        let mut linear = row_start + u32::from(next_x);
+        let mut end = row_start + overflow_end;
+        while linear < end {
+            let (Ok(row), Ok(column)) = (
+                u16::try_from(linear / row_width),
+                u16::try_from(linear % row_width),
+            ) else {
+                break;
+            };
+            if row >= area.bottom() {
+                break;
+            }
+            let at = Position { x: column, y: row };
+            let Some(cell) = self.base_cells.cell(at).cloned() else {
+                break;
+            };
+            self.paint_cell(at, &cell, style, advanced_to)?;
+            if let Some(nested) = repair_span(area, at, &cell) {
+                end = end.max(linear + u32::from(nested));
+            }
+            linear += u32::from(cell.cell_width().max(1));
+        }
+        Ok(())
+    }
+
+    /// Repairs a cluster that a cursor path wrote outside `draw`, from the same mirror `draw` repairs
+    /// from. `write_cell` ends in the default style, which the repair starts from, and `paint_cell`
+    /// moves the logical cursor, so it is restored before the caller's final move.
+    fn repair_isolated_cluster(&mut self, position: Position, cell: &Cell) -> io::Result<()> {
+        let Some(columns) = repair_span(self.base_cells.area, position, cell) else {
+            return Ok(());
+        };
+        let logical = self.cursor_position;
+        let mut style = PaintedStyle::default();
+        let mut advanced_to = None;
+        let repaired = self.repair_cluster_overflow(
+            position,
+            cell.cell_width(),
+            columns,
+            &mut style,
+            &mut advanced_to,
+        );
+        self.cursor_position = logical;
+        repaired?;
+        write_ansi_command(&mut self.writer, &SetAttribute(Attribute::Reset))?;
+        write_ansi_command(&mut self.writer, &ResetColor)
     }
 }
 
@@ -176,6 +290,13 @@ impl<W: Write> ResizableBackend for FixedViewportBackend<W> {
             self.pending_cursor = None;
         }
     }
+    fn begin_frame(&mut self) -> io::Result<()> {
+        if !self.synchronized_update.frame_open() {
+            self.synchronized_update.open_frame();
+            self.writer.write_all(SYNCHRONIZED_UPDATE_BEGIN)?;
+        }
+        Ok(())
+    }
 }
 
 impl<W: Write> Backend for FixedViewportBackend<W> {
@@ -185,10 +306,7 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
     where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
     {
-        if !self.synchronized_update.frame_open() {
-            self.synchronized_update.open_frame();
-            self.writer.write_all(SYNCHRONIZED_UPDATE_BEGIN)?;
-        }
+        self.begin_frame()?;
         // A backend frame can contain more than one draw call, and a failed
         // draw can leave the synchronized pair open. Establish the style
         // baseline on every call rather than assuming that opening the pair
@@ -240,7 +358,8 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
                 self.writer.write_all(&ascii_run[..run_len])?;
                 run_len = 0;
             }
-            if let Some(base) = self.base_cells.cell_mut((x, y)) {
+            let position = Position { x, y };
+            if let Some(base) = self.base_cells.cell_mut(position) {
                 *base = cell.clone();
             }
             for offset in 1..cell.cell_width() {
@@ -249,28 +368,16 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
                     tail.set_style(cell.style());
                 }
             }
-            emit_cell_prefix(
-                &mut self.writer,
-                Position { x, y },
-                advanced_to,
-                &mut style,
-                cell,
-            )?;
-            let symbol = sanitize_terminal_symbol(cell.symbol());
-            let cell_width = cell.cell_width();
-            let predictable = is_predictable_bmp_cell(symbol.as_ref(), cell_width);
-            write_cell_symbol(
-                &mut self.writer,
-                Position { x, y },
-                symbol.as_ref(),
-                cell_width,
-                !predictable && cell_width > 1,
-            )?;
-            self.cursor_position = Position { x, y };
-            advanced_to = predictable.then_some(Position {
-                x: x.saturating_add(cell_width),
-                y,
-            });
+            self.paint_cell(position, cell, &mut style, &mut advanced_to)?;
+            if let Some(columns) = repair_span(self.base_cells.area, position, cell) {
+                self.repair_cluster_overflow(
+                    position,
+                    cell.cell_width(),
+                    columns,
+                    &mut style,
+                    &mut advanced_to,
+                )?;
+            }
         }
         if run_len != 0 {
             self.writer.write_all(&ascii_run[..run_len])?;
@@ -440,6 +547,43 @@ fn is_predictable_bmp_cell(symbol: &str, cell_width: u16) -> bool {
         )
 }
 
+/// Columns a terminal without grapheme clustering advances for a multi-code-point `symbol`, each code
+/// point counted on its own. `None` for a single code point, which needs no re-sync.
+fn unclustered_columns(symbol: &str) -> Option<u16> {
+    symbol.chars().nth(1)?;
+    Some(symbol.chars().fold(0, |columns, scalar| {
+        let mut utf8 = [0_u8; 4];
+        columns.saturating_add(scalar.encode_utf8(&mut utf8).cell_width())
+    }))
+}
+
+/// Whether a cluster spanning `columns` unclustered columns at `position` runs past the end of the
+/// bottom row, where the outer terminal would wrap and scroll.
+fn overflows_bottom_row(area: Rect, position: Position, columns: u16) -> bool {
+    u32::from(position.y) + 1 == u32::from(area.bottom())
+        && u32::from(position.x) + u32::from(columns) > u32::from(area.width)
+}
+
+/// The symbol a cell paints at `position`. A cluster that overflows the bottom row paints as blanks of
+/// its cell width instead, so the outer terminal never wraps and scrolls.
+fn painted_symbol(area: Rect, position: Position, cell: &Cell) -> Cow<'_, str> {
+    let symbol = sanitize_terminal_symbol(cell.symbol());
+    match unclustered_columns(symbol.as_ref()) {
+        Some(columns) if overflows_bottom_row(area, position, columns) => {
+            Cow::Owned(" ".repeat(usize::from(cell.cell_width())))
+        }
+        _ => symbol,
+    }
+}
+
+/// The unclustered column span of a multi-code-point cluster at `position`, which the repair rewrites.
+/// `None` when there is nothing to repair: a single code point, or a cluster painted as blanks.
+fn repair_span(area: Rect, position: Position, cell: &Cell) -> Option<u16> {
+    let symbol = sanitize_terminal_symbol(cell.symbol());
+    let columns = unclustered_columns(symbol.as_ref())?;
+    (!overflows_bottom_row(area, position, columns)).then_some(columns)
+}
+
 /// Writes one cell symbol, clearing its multi-cell footprint first when host width may fall short.
 fn write_cell_symbol(
     writer: &mut impl Write,
@@ -456,13 +600,18 @@ fn write_cell_symbol(
     write_ansi_command(writer, &Print(symbol))
 }
 
-fn write_cell(writer: &mut impl Write, position: Position, cell: &Cell) -> io::Result<()> {
+fn write_cell(
+    writer: &mut impl Write,
+    area: Rect,
+    position: Position,
+    cell: &Cell,
+) -> io::Result<()> {
     write_ansi_command(writer, &MoveTo(position.x, position.y))?;
     write_ansi_command(writer, &SetAttribute(Attribute::Reset))?;
     colors::write_foreground(writer, cell.fg)?;
     colors::write_background(writer, cell.bg)?;
     write_modifier_transition(writer, Modifier::empty(), cell.modifier)?;
-    let symbol = sanitize_terminal_symbol(cell.symbol());
+    let symbol = painted_symbol(area, position, cell);
     let cell_width = cell.cell_width();
     let clear_footprint = !is_predictable_bmp_cell(symbol.as_ref(), cell_width) && cell_width > 1;
     write_cell_symbol(

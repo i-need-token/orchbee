@@ -1227,24 +1227,35 @@ fn csi_prefix_len(raw: &[u8]) -> usize {
 }
 
 /// Parses the bounded outer-terminal metadata that input owns. Pointer
-/// admission is intentionally strict: only mode 1003 and a syntactically
+/// admission is intentionally strict: only modes 1003 and 2027 and a syntactically
 /// complete primary device-attributes reply are admitted as typed replies.
 pub(crate) fn csi_host_reply(body: &[u8]) -> Option<super::HostReply> {
     if let Some(reply) = crate::terminal_events::graphics::cell_reply(body) {
         return Some(super::HostReply::Graphics(reply));
     }
     let pointer = match body {
-        b"?1003;0$y" => Some(crate::terminal_events::pointer::ModeReportState::Unsupported),
-        b"?1003;1$y" => Some(crate::terminal_events::pointer::ModeReportState::Set),
-        b"?1003;2$y" => Some(crate::terminal_events::pointer::ModeReportState::Reset),
-        b"?1003;3$y" => Some(crate::terminal_events::pointer::ModeReportState::PermanentlySet),
-        b"?1003;4$y" => Some(crate::terminal_events::pointer::ModeReportState::PermanentlyReset),
+        b"?1003;0$y" => Some(crate::terminal_events::ModeReportState::Unsupported),
+        b"?1003;1$y" => Some(crate::terminal_events::ModeReportState::Set),
+        b"?1003;2$y" => Some(crate::terminal_events::ModeReportState::Reset),
+        b"?1003;3$y" => Some(crate::terminal_events::ModeReportState::PermanentlySet),
+        b"?1003;4$y" => Some(crate::terminal_events::ModeReportState::PermanentlyReset),
         _ => None,
     };
     if let Some(state) = pointer {
         return Some(super::HostReply::Pointer(
             crate::terminal_events::pointer::HostReply::Mode1003(state),
         ));
+    }
+    let grapheme = match body {
+        b"?2027;0$y" => Some(crate::terminal_events::ModeReportState::Unsupported),
+        b"?2027;1$y" => Some(crate::terminal_events::ModeReportState::Set),
+        b"?2027;2$y" => Some(crate::terminal_events::ModeReportState::Reset),
+        b"?2027;3$y" => Some(crate::terminal_events::ModeReportState::PermanentlySet),
+        b"?2027;4$y" => Some(crate::terminal_events::ModeReportState::PermanentlyReset),
+        _ => None,
+    };
+    if let Some(state) = grapheme {
+        return Some(super::HostReply::Grapheme(state));
     }
     primary_device_attributes(body).then_some(super::HostReply::Pointer(
         crate::terminal_events::pointer::HostReply::PrimaryDeviceAttributes,

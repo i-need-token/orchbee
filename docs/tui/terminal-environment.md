@@ -49,6 +49,7 @@ enabling.
 | Focus reporting            | DEC `1004`                                                                                  | Disable                              | When a surface changes behavior on focus loss         |
 | Synchronized output        | DEC `2026` around each frame                                                                | End the update                       | Every frame; harmless when unsupported                |
 | Color-scheme notifications | DEC `2031`                                                                                  | Disable                              | When the host answers the appearance query            |
+| Grapheme clustering        | DEC `2027` only after a startup DECRQM reply of Reset (`2`)                                 | Disable                              | Once at startup, inside the pointer reply window      |
 
 - A named-theme canvas may temporarily align non-cell host padding with `surface-canvas` using
   OSC `11` only under an explicitly admitted host adapter contract. Record restoration before
@@ -118,6 +119,7 @@ enabling.
 | Appearance changes   | DEC `2031` reports, accepted only after a successful appearance query                                                                                                                               | No live theme switching                           |
 | Keyboard enhancement | The keyboard-protocol capability query with a bounded reply deadline                                                                                                                                | Legacy decoding only                              |
 | Pointer any-motion   | Explicit host or adapter capability result, a product-owned platform contract with maintained conformance evidence, or an explicit supported user choice                                            | DEC `1002` + `1006` outside scoped menus          |
+| Grapheme clustering  | Startup DECRQM `2027` in the pointer reply window; only Reset (`2`) admits the enable                                                                                                               | Enable withheld; cluster overflow repainted       |
 | UTF-8                | `LC_ALL`, `LC_CTYPE`, `LANG` in that precedence                                                                                                                                                     | ASCII glyph fallbacks                             |
 | Multiplexer          | `TMUX`, `ZELLIJ`, and `STY` presence                                                                                                                                                                | Not inside a multiplexer                          |
 | Terminal name        | `TERM_PROGRAM` and vendor variables                                                                                                                                                                 | No vendor-specific workaround applied             |

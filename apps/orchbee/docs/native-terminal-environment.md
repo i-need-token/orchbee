@@ -254,6 +254,27 @@ that same lease. Gesture routing, hit testing, state clearing on downgrade or re
 passthrough live in [native mouse input](native-mouse-input.md); this section owns capability
 settlement and the mode lifecycle.
 
+## Grapheme clustering lifecycle
+
+Grapheme clustering (DEC `2027`) lets the outer terminal lay out extended grapheme clusters, such
+as ZWJ families and emoji variation sequences, in the cell widths `display_width` measures.
+Startup issues one DECRQM `?2027$p` after the first frame, next to pointer admission, and it uses
+the same 300 ms reply window as the pointer query. Only a `Reset (2)` reply inside that window
+admits `?2027h`, and the mode lease restores `?2027l` on exit. `Set (1)`, `Permanently set (3)`,
+`Permanently reset (4)`, `Unsupported (0)`, a reply after the window, and no reply leave the
+terminal's mode untouched. The first 2027 report inside the window settles the probe, so a later
+report never reopens admission. The frame after an accepted enable repaints every cell, so clusters
+drawn before the outer terminal had 2027 on are corrected.
+
+A terminal without clustering advances once per code point, so a cluster covers more columns there
+than the grid holds. The backend therefore follows every multi-code-point cluster it writes, the
+software cursor's included, with a cursor re-sync to the next grid column, then rewrites the cells
+the overflow may cover from the frame, blanks included. The degraded look is confined to the
+cluster: the outer terminal may show `👩` where the grid holds `👩‍💻`, while every other column
+stays aligned with the frame. A cluster on the last row whose overflow would run past that row's
+end is painted as blanks of its cell width on every terminal, including one that clusters, so the
+outer terminal never wraps and scrolls. There the cluster reads as blank.
+
 ## Synchronized frame output
 
 Each drawn frame — the complete cell diff plus its cursor placement — is wrapped in exactly one

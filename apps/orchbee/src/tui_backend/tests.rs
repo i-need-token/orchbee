@@ -167,8 +167,10 @@ fn backend_implementation_never_delegates_dimension_or_cursor_queries() {
 #[test]
 fn sanitizes_untrusted_cell_symbols_at_the_final_print_boundary()
 -> Result<(), Box<dyn std::error::Error>> {
+    // The frame holds the sanitized payload on its only row, so the cell is printed rather than
+    // blanked as a bottom-row overflow.
     let dimensions = WindowDimensions {
-        columns: 1,
+        columns: 8,
         pixel_height: 16,
         pixel_width: 8,
         rows: 1,
@@ -266,37 +268,188 @@ fn cursor_run_tracks_emitted_wide_symbols_and_real_gaps() -> io::Result<()> {
     Ok(())
 }
 
+/// Output of a terminal without grapheme clustering: each code point advances the cursor by its own
+/// width, and a glyph that does not fit wraps to the next row, as autowrap does.
+struct UnclusteredRows {
+    columns: usize,
+    rows: Vec<Vec<String>>,
+    row: usize,
+    column: usize,
+    last: (usize, usize),
+}
+
+impl UnclusteredRows {
+    fn new(columns: usize, rows: usize) -> Self {
+        Self {
+            columns,
+            rows: vec![vec![" ".to_owned(); columns]; rows],
+            row: 0,
+            column: 0,
+            last: (0, 0),
+        }
+    }
+
+    fn cell(&self, column: usize, row: usize) -> &str {
+        &self.rows[row][column]
+    }
+
+    /// Applies one backend output. Only CHA and CUP move the cursor; other CSI sequences set
+    /// renditions or modes, which do not change what a glyph covers.
+    fn apply(&mut self, output: &str) {
+        let mut characters = output.chars();
+        while let Some(character) = characters.next() {
+            if character != '\u{1b}' {
+                self.print(character);
+                continue;
+            }
+            assert_eq!(
+                characters.next(),
+                Some('['),
+                "the backend writes only CSI sequences"
+            );
+            let mut parameters = String::new();
+            let final_byte = loop {
+                let next = characters.next().expect("a CSI sequence ends");
+                if ('\u{40}'..='\u{7e}').contains(&next) {
+                    break next;
+                }
+                parameters.push(next);
+            };
+            let numbers = parameters
+                .split(';')
+                .map(|number| number.parse::<usize>().unwrap_or(1).max(1))
+                .collect::<Vec<_>>();
+            match final_byte {
+                'G' => self.column = numbers[0] - 1,
+                'H' => {
+                    self.row = numbers[0] - 1;
+                    self.column = numbers.get(1).copied().unwrap_or(1) - 1;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn print(&mut self, character: char) {
+        // Only the code points this test writes: a zero-width joiner and two wide emoji.
+        let width = match character {
+            '\u{200d}' => 0,
+            '\u{1f469}' | '\u{1f4bb}' => 2,
+            _ => 1,
+        };
+        if width == 0 {
+            let (row, column) = self.last;
+            self.rows[row][column].push(character);
+            return;
+        }
+        if self.column + width > self.columns {
+            self.column = 0;
+            self.row += 1;
+        }
+        assert!(self.row < self.rows.len(), "the test output never scrolls");
+        let (row, column) = (self.row, self.column);
+        self.rows[row][column] = character.to_string();
+        if width == 2 {
+            self.rows[row][column + 1].clear();
+        }
+        self.last = (row, column);
+        self.column += width;
+    }
+}
+
+fn take_output(backend: &mut FixedViewportBackend<Vec<u8>>) -> String {
+    String::from_utf8(std::mem::take(&mut backend.writer)).expect("the backend writes UTF-8")
+}
+
 #[test]
-fn captured_width_and_complex_symbols_never_guess_the_next_host_cursor_position() -> io::Result<()>
-{
+fn a_multi_code_point_cluster_keeps_the_cells_after_it_aligned_with_the_frame() -> io::Result<()> {
     use ratatui::buffer::CellDiffOption;
     use std::num::NonZeroU16;
+    // The frame gives the cluster two columns, while a terminal without grapheme clustering draws it
+    // in four. The cells under its last two columns must be repainted from the frame.
     let dimensions = WindowDimensions {
-        columns: 12,
+        columns: 6,
         rows: 2,
         pixel_width: 0,
         pixel_height: 0,
     };
-    for symbol in [
-        "\u{1f1e8}",
-        "\u{1f1e8}\u{1f1f3}",
-        "\u{1f469}\u{200d}\u{1f4bb}",
-        "e\u{301}",
-    ] {
-        let mut glyph = Cell::default();
-        glyph
-            .set_symbol(symbol)
-            .set_diff_option(CellDiffOption::ForcedWidth(NonZeroU16::new(2).unwrap()));
-        let mut suffix = Cell::default();
-        suffix.set_symbol("|");
-        let mut backend = new_test_backend(Vec::new(), dimensions);
-        backend.draw([(0, 0, &glyph), (2, 0, &suffix)].into_iter())?;
-        let output = std::str::from_utf8(&backend.writer).unwrap();
-        assert!(
-            output.contains(&format!("{symbol}\x1b[1;3H|")),
-            "{output:?}"
-        );
-    }
+    let text = |symbol: &str| {
+        let mut cell = Cell::default();
+        cell.set_symbol(symbol);
+        cell
+    };
+    let (x, a, b) = (text("x"), text("a"), text("b"));
+    let mut glyph = text("\u{1f469}\u{200d}\u{1f4bb}");
+    glyph.set_diff_option(CellDiffOption::ForcedWidth(NonZeroU16::new(2).unwrap()));
+    let mut backend = new_test_backend(Vec::<u8>::new(), dimensions);
+    let mut outer = UnclusteredRows::new(6, 2);
+
+    backend.draw([(2, 0, &x), (0, 1, &a), (1, 1, &b)].into_iter())?;
+    outer.apply(&take_output(&mut backend));
+
+    // The cluster covers `x` and the blank after it on row 0.
+    backend.draw([(0, 0, &glyph)].into_iter())?;
+    outer.apply(&take_output(&mut backend));
+    assert_eq!(outer.cell(2, 0), "x");
+    assert_eq!(outer.cell(3, 0), " ");
+
+    // A cluster at the end of row 0 overflows onto row 1, which holds `a` and `b`.
+    backend.draw([(4, 0, &glyph)].into_iter())?;
+    outer.apply(&take_output(&mut backend));
+    assert_eq!(outer.cell(0, 1), "a");
+    assert_eq!(outer.cell(1, 1), "b");
+    assert_eq!(outer.cell(2, 0), "x");
+    Ok(())
+}
+
+#[test]
+fn a_software_cursor_on_a_cluster_keeps_the_cells_after_it_aligned_as_it_moves() -> io::Result<()> {
+    use ratatui::buffer::CellDiffOption;
+    use std::num::NonZeroU16;
+    // The cursor paints the cluster itself, so its overflow is repainted from the frame while the
+    // cursor rests there and again once the cursor moves away.
+    let dimensions = WindowDimensions {
+        columns: 6,
+        rows: 2,
+        pixel_width: 0,
+        pixel_height: 0,
+    };
+    let text = |symbol: &str| {
+        let mut cell = Cell::default();
+        cell.set_symbol(symbol);
+        cell
+    };
+    let (x, a, b) = (text("x"), text("a"), text("b"));
+    let mut glyph = text("\u{1f469}\u{200d}\u{1f4bb}");
+    glyph.set_diff_option(CellDiffOption::ForcedWidth(NonZeroU16::new(2).unwrap()));
+    let mut backend = new_test_backend(Vec::<u8>::new(), dimensions);
+    let mut outer = UnclusteredRows::new(6, 2);
+    let assert_cells_after_cluster = |outer: &UnclusteredRows| {
+        assert_eq!(outer.cell(2, 0), "x");
+        assert_eq!(outer.cell(3, 0), " ");
+    };
+
+    backend.draw([(2, 0, &x), (0, 1, &a), (1, 1, &b)].into_iter())?;
+    backend.flush()?;
+    outer.apply(&take_output(&mut backend));
+    backend.draw([(0, 0, &glyph)].into_iter())?;
+    backend.flush()?;
+    outer.apply(&take_output(&mut backend));
+    assert_cells_after_cluster(&outer);
+
+    backend.set_cursor_position((0, 0))?;
+    backend.show_cursor()?;
+    backend.draw(std::iter::empty::<(u16, u16, &Cell)>())?;
+    backend.flush()?;
+    outer.apply(&take_output(&mut backend));
+    assert_cells_after_cluster(&outer);
+
+    backend.set_cursor_position((4, 1))?;
+    backend.show_cursor()?;
+    backend.draw(std::iter::empty::<(u16, u16, &Cell)>())?;
+    backend.flush()?;
+    outer.apply(&take_output(&mut backend));
+    assert_cells_after_cluster(&outer);
     Ok(())
 }
 

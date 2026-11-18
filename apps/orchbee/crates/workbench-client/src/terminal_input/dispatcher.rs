@@ -50,6 +50,9 @@ pub struct InputDispatcher {
     navigator: navigator::Capture,
     graphics: crate::terminal_graphics::Probe,
     pointer_admission: crate::terminal_pointer_admission::Probe,
+    grapheme_clustering: crate::terminal_grapheme_admission::Probe,
+    /// Set once an enable reached the outer terminal; the next frame repaints every cell.
+    full_repaint_pending: bool,
     host_appearance: crate::terminal_host_appearance::Probe,
     host_background: Option<u32>,
     pointer_capture: PointerCaptureRequest,
@@ -306,6 +309,10 @@ impl InputDispatcher {
                 self.pointer_admission.observe(reply, now);
                 None
             }
+            HostReply::Grapheme(reply) => {
+                self.grapheme_clustering.observe(reply, now);
+                None
+            }
             HostReply::Appearance(reply) => self.host_appearance.observe(reply, now),
         }
     }
@@ -359,6 +366,44 @@ impl InputDispatcher {
             mode(ModeRequest::PointerAdmissionQuery(query))?;
         }
         Ok(())
+    }
+
+    /// Starts the endpoint's sole grapheme-clustering query at startup, inside the same
+    /// reply window as the pointer query.
+    pub fn begin_grapheme_clustering<Error>(
+        &mut self,
+        now: Instant,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        if let Some(query) = self.grapheme_clustering.begin(now) {
+            mode(ModeRequest::GraphemeQuery(query))?;
+        }
+        Ok(())
+    }
+
+    /// Enables grapheme clustering once an admitting Reset report has arrived. Returns whether
+    /// the enable was sent, so the frame it changes is redrawn.
+    fn synchronize_grapheme_clustering<Error>(
+        &mut self,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<bool, Error> {
+        if self.grapheme_clustering.take_enable() {
+            mode(ModeRequest::EnableGraphemeClustering)?;
+            // Frames drawn before the outer terminal had 2027 on may hold stale clusters.
+            self.full_repaint_pending = true;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    /// Whether the next frame must repaint every cell, once per admitted enable.
+    pub fn full_repaint_pending(&self) -> bool {
+        self.full_repaint_pending
+    }
+
+    /// Clears the pending full repaint once the frame that repainted every cell is painted.
+    pub fn clear_full_repaint(&mut self) {
+        self.full_repaint_pending = false;
     }
 
     fn admitted_pointer_capture(&self) -> PointerCaptureRequest {
@@ -690,7 +735,9 @@ impl InputDispatcher {
     ) -> Result<bool, Error> {
         self.graphics.tick(now);
         self.pointer_admission.tick(now);
+        self.grapheme_clustering.tick(now);
         self.synchronize_pointer_admission(view, port, mode)?;
+        let grapheme_enabled = self.synchronize_grapheme_clustering(mode)?;
         let appearance_changed = if self.host_appearance.timeout(now).is_some() {
             let fallback = crate::terminal_host_appearance::system_fallback();
 
@@ -713,7 +760,7 @@ impl InputDispatcher {
         // even when no further bytes ever arrive. A release produced by
         // this call's own reconcile still guards the current packet tail.
         self.decoder.end_released(now);
-        let mut changed = appearance_changed | self.reconcile(view, port, now);
+        let mut changed = appearance_changed | grapheme_enabled | self.reconcile(view, port, now);
         if idle {
             let events = self.decoder.tick(now);
             changed |= !events.is_empty();

@@ -207,6 +207,8 @@ where
                         }
                         crate::terminal_input::ModeRequest::GraphicsQuery(_)
                         | crate::terminal_input::ModeRequest::PointerAdmissionQuery(_)
+                        | crate::terminal_input::ModeRequest::GraphemeQuery(_)
+                        | crate::terminal_input::ModeRequest::EnableGraphemeClustering
                         | crate::terminal_input::ModeRequest::Bell
                         | crate::terminal_input::ModeRequest::Clipboard(_) => {
                             Err(io::ErrorKind::Unsupported.into())

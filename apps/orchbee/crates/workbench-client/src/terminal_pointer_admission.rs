@@ -11,9 +11,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub use crate::terminal_events::pointer::{HostReply, ModeReportState};
+pub use crate::terminal_events::ModeReportState;
+pub use crate::terminal_events::pointer::HostReply;
 
-const QUERY_DEADLINE: Duration = Duration::from_millis(300);
+/// Reply window of the endpoint's DECRQM probes; the grapheme-clustering probe shares it.
+pub(crate) const QUERY_DEADLINE: Duration = Duration::from_millis(300);
 
 /// The one query issued after button-event tracking has established the host
 /// baseline. DA1 is an ordered completion sentinel for hosts that ignore

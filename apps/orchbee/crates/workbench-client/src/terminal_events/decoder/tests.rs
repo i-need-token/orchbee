@@ -790,7 +790,7 @@ fn focus_reports_decode_in_both_forms_and_paste_keeps_them_as_data() {
 #[test]
 fn pointer_admission_replies_decode_strictly_in_escape_and_c1_forms() {
     use crate::terminal_events::HostReply;
-    use crate::terminal_events::pointer::{HostReply as PointerReply, ModeReportState};
+    use crate::terminal_events::{ModeReportState, pointer::HostReply as PointerReply};
 
     for (status, state) in [
         (b'0', ModeReportState::Unsupported),

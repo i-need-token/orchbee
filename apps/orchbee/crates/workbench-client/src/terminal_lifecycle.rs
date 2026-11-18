@@ -107,6 +107,23 @@ impl crossterm::Command for BracketedPaste {
     }
 }
 
+struct GraphemeClustering(bool);
+
+impl crossterm::Command for GraphemeClustering {
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    #[cfg(windows)]
+    fn is_ansi_code_supported(&self) -> bool {
+        true
+    }
+
+    fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
+        output.write_str(if self.0 { "\x1b[?2027h" } else { "\x1b[?2027l" })
+    }
+}
+
 /// The one outer-terminal tracking level selected inside the pointer lease.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum PointerTrackingLevel {
@@ -227,6 +244,18 @@ pub trait TerminalModes: Send + Sync + 'static {
     ) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
+    fn query_grapheme_clustering(
+        &self,
+        _query: crate::terminal_grapheme_admission::Query,
+    ) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    fn enable_grapheme_clustering(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    fn disable_grapheme_clustering(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
     fn notify_terminal(
         &self,
         _message: &orchbee_workbench_protocol::Notification,
@@ -267,6 +296,7 @@ enum RestorationStep {
     CleanupGraphics,
     RestoreWindowTitle,
     RestoreHostBackground,
+    DisableGraphemeClustering,
     DisableBracketedPaste,
     DisablePointerCapture,
     DisableFocusReporting,
@@ -282,6 +312,7 @@ impl fmt::Display for RestorationStep {
             Self::CleanupGraphics => formatter.write_str("clean up owned graphics"),
             Self::RestoreHostBackground => formatter.write_str("restore host background"),
             Self::RestoreWindowTitle => formatter.write_str("restore window title"),
+            Self::DisableGraphemeClustering => formatter.write_str("disable grapheme clustering"),
             Self::DisableBracketedPaste => formatter.write_str("disable bracketed paste"),
             Self::DisableFocusReporting => formatter.write_str("disable focus reporting"),
             Self::DisablePointerCapture => formatter.write_str("disable pointer capture"),
@@ -415,6 +446,7 @@ struct TerminalModeState {
     host_background: ModeLease,
     window_title: ModeLease,
     bracketed_paste: ModeLease,
+    grapheme_clustering: ModeLease,
     pointer_capture: ModeLease,
     focus_reporting: ModeLease,
     alternate_screen: ModeLease,
@@ -429,6 +461,7 @@ impl TerminalModeState {
             host_background: ModeLease::new(),
             window_title: ModeLease::new(),
             bracketed_paste: ModeLease::new(),
+            grapheme_clustering: ModeLease::new(),
             pointer_capture: ModeLease::new(),
             focus_reporting: ModeLease::new(),
             alternate_screen: ModeLease::new(),
@@ -639,6 +672,32 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         self.state.window_title.mark_operation_started();
         self.control.set_window_title(title)
     }
+    pub fn query_grapheme_clustering(
+        &self,
+        query: crate::terminal_grapheme_admission::Query,
+    ) -> io::Result<()> {
+        if !self.state.raw_mode.restoration_required()
+            || self.state.synchronized_update.frame_output_blocked()
+        {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        self.control.query_grapheme_clustering(query)
+    }
+
+    /// Enables grapheme clustering; exit turns it off again, even after a failed write.
+    pub fn enable_grapheme_clustering(&mut self) -> io::Result<()> {
+        if !self.state.raw_mode.restoration_required()
+            || self.state.synchronized_update.frame_output_blocked()
+        {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        if self.state.grapheme_clustering.restoration_required() {
+            return Ok(());
+        }
+        self.state.grapheme_clustering.mark_operation_started();
+        self.control.enable_grapheme_clustering()
+    }
+
     pub fn set_bracketed_paste(&mut self, enabled: bool) -> io::Result<()> {
         if enabled {
             if self.bracketed_paste_enabled {
@@ -827,6 +886,12 @@ fn restore_modes<C: TerminalModes>(
         &state.window_title,
         RestorationStep::RestoreWindowTitle,
         || control.restore_window_title(),
+        &mut failures,
+    );
+    restore_mode(
+        &state.grapheme_clustering,
+        RestorationStep::DisableGraphemeClustering,
+        || control.disable_grapheme_clustering(),
         &mut failures,
     );
     restore_mode(
@@ -1226,6 +1291,18 @@ impl TerminalModes for InheritedTerminalModes {
 
     fn enable_bracketed_paste(&self) -> io::Result<()> {
         self.write_command(BracketedPaste(true))
+    }
+    fn query_grapheme_clustering(
+        &self,
+        query: crate::terminal_grapheme_admission::Query,
+    ) -> io::Result<()> {
+        self.write_command(query)
+    }
+    fn enable_grapheme_clustering(&self) -> io::Result<()> {
+        self.write_command(GraphemeClustering(true))
+    }
+    fn disable_grapheme_clustering(&self) -> io::Result<()> {
+        self.write_command(GraphemeClustering(false))
     }
 
     fn disable_pointer_capture(&self) -> io::Result<()> {

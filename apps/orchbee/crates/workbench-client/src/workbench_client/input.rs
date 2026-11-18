@@ -57,6 +57,10 @@ pub enum ModeRequest {
     GraphicsQuery(crate::terminal_graphics::Query),
     /// The endpoint's sole any-motion capability query, after ButtonOnly is active.
     PointerAdmissionQuery(crate::terminal_pointer_admission::Query),
+    /// The endpoint's one DECRQM query for grapheme clustering (DEC mode 2027), at startup.
+    GraphemeQuery(crate::terminal_grapheme_admission::Query),
+    /// Turns grapheme clustering on after an admitting Reset report; restored on exit.
+    EnableGraphemeClustering,
     /// One bounded OSC 10/11 host-default color query at terminal admission.
     AppearanceQuery(crate::terminal_host_appearance::Query),
     WindowTitle(Option<orchbee_workbench_protocol::WindowTitle>),

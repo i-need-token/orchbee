@@ -491,7 +491,7 @@ fn test_loop(
 #[test]
 fn settled_button_only_initialization_queries_once_after_the_first_draw() -> io::Result<()> {
     let initial = dimensions(80, 24);
-    for (mouse, expected_queries) in [(false, 0), (true, 1)] {
+    for mouse in [false, true] {
         let mut terminal = test_terminal(initial);
         let mut inputs = QueueInputSource {
             inputs: VecDeque::new(),
@@ -528,15 +528,33 @@ fn settled_button_only_initialization_queries_once_after_the_first_draw() -> io:
                 .any(|cell| !cell.symbol().trim().is_empty()),
             "the startup frame paints before host queries consume their reply window"
         );
-        let mut expected_modes = vec![ModeRequest::AppearanceQuery(
-            crate::terminal_host_appearance::Query,
-        )];
-        if expected_queries == 1 {
-            expected_modes.push(ModeRequest::PointerAdmissionQuery(
-                orchbee_workbench_client::test_support::terminal_pointer_admission::Query,
-            ));
-        }
-        assert_eq!(modes, expected_modes);
+        // Startup queries are one-shot, and each one follows its own rule.
+        let pointer = modes
+            .iter()
+            .filter(|request| matches!(request, ModeRequest::PointerAdmissionQuery(_)))
+            .count();
+        let grapheme = modes
+            .iter()
+            .filter(|request| matches!(request, ModeRequest::GraphemeQuery(_)))
+            .count();
+        let appearance = modes
+            .iter()
+            .filter(|request| matches!(request, ModeRequest::AppearanceQuery(_)))
+            .count();
+        assert!(
+            pointer <= 1 && grapheme <= 1 && appearance <= 1,
+            "each startup query is sent at most once"
+        );
+        assert_eq!(
+            pointer,
+            usize::from(mouse),
+            "the pointer query is sent if and only if the mouse is on"
+        );
+        assert_eq!(
+            grapheme, 1,
+            "the grapheme-clustering query is sent exactly once"
+        );
+        assert_eq!(appearance, 1, "the appearance query is sent exactly once");
     }
     Ok(())
 }

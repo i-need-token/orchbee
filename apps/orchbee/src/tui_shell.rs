@@ -459,6 +459,8 @@ fn run_prepared_surface(
                 }
                 ModeRequest::GraphicsQuery(query) => modes.query_graphics(query),
                 ModeRequest::PointerAdmissionQuery(query) => modes.query_pointer_admission(query),
+                ModeRequest::GraphemeQuery(query) => modes.query_grapheme_clustering(query),
+                ModeRequest::EnableGraphemeClustering => modes.enable_grapheme_clustering(),
                 ModeRequest::AppearanceQuery(query) => modes.query_host_appearance(query),
                 ModeRequest::Notification(effect) => {
                     use orchbee_local_runtime::NotificationDelivery as Delivery;
@@ -788,6 +790,9 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             mode(request).map_err(LoopFailure::Input)
         })?;
         dispatcher.begin_pointer_admission(inputs.sample_time(), &mut |request| {
+            mode(request).map_err(LoopFailure::Input)
+        })?;
+        dispatcher.begin_grapheme_clustering(inputs.sample_time(), &mut |request| {
             mode(request).map_err(LoopFailure::Input)
         })?;
         loop {
@@ -1193,6 +1198,18 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     if let Some(measurement) = &mut frame_measurement {
         measurement.buffer_started();
     }
+    if dispatcher.full_repaint_pending() {
+        // The clear joins the synchronized update the repaint draws into, so a host that honours
+        // synchronized updates never shows the blank between the two.
+        let cleared = terminal
+            .backend_mut()
+            .begin_frame()
+            .and_then(|()| terminal.clear());
+        if let Err(error) = cleared {
+            dispatcher.invalidate_hit_map(surface);
+            return Err(LoopFailure::Terminal(error));
+        }
+    }
     let drawn = terminal.draw(|frame| {
         {
             (receipt, preview_painted) = divider::render(
@@ -1266,6 +1283,8 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         dispatcher.invalidate_hit_map(surface);
         return Err(LoopFailure::Terminal(error));
     }
+    // The frame that repainted every cell is painted, so later frames repaint only what changed.
+    dispatcher.clear_full_repaint();
     dispatcher.synchronize_host_background(&theme, &mut |request| {
         mode(request).map_err(LoopFailure::Input)
     })?;
