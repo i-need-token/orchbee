@@ -102,6 +102,40 @@
 			]
 		},
 		{
+			"id": "native-request-scoped-unknown-outcome",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/RequestScopedUnknownOutcome.tla",
+			"config": "apps/orchbee/formal/tla/RequestScopedUnknownOutcome.cfg",
+			"claims": ["apps/orchbee/docs/workbench-client-runtime.md"],
+			"triggers": [
+				"apps/orchbee/crates/local-client/src/local_client.rs",
+				"apps/orchbee/crates/local-client/src/local_client/agent.rs",
+				"apps/orchbee/crates/local-client/src/local_client/workbench.rs",
+				"apps/orchbee/crates/local-client/src/local_client/workbench/**",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/connection/native.rs",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/connection/native/**",
+				"apps/orchbee/crates/workbench-client/src/workbench_state.rs",
+				"apps/orchbee/crates/workbench-client/src/workbench_state/**",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/mailbox.rs",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/ui.rs",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/input_routing.rs",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/workspace_close.rs"
+			],
+			"requiredCoverage": [
+				"Submit",
+				"Retry",
+				"Ok",
+				"TypedAnswer",
+				"StreamUnknown",
+				"Publish",
+				"KeyDismiss",
+				"TimerTick",
+				"RealDisconnect",
+				"ProtocolViolation"
+			]
+		},
+		{
 			"id": "native-settings-save",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",

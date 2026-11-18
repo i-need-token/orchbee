@@ -258,6 +258,53 @@ const cases = [
 		'IF worker.origin = "ready" THEN IF worker.viewer THEN "viewer" ELSE "protocol"',
 		/Invariant NeverRetired is violated/u,
 	],
+	[
+		'native-request-scoped-unknown-outcome',
+		'a retry of an unknown identity reuses that identity',
+		'ReplayGuard = TRUE',
+		'ReplayGuard = FALSE',
+		/Invariant NoReplayOfUnknownId is violated/u,
+		'config',
+	],
+	[
+		'native-request-scoped-unknown-outcome',
+		'a stream-scoped unknown retires the live carrier',
+		'KeepCarrierOnStreamUnknown = TRUE',
+		'KeepCarrierOnStreamUnknown = FALSE',
+		/Invariant StreamUnknownNeverRetires is violated/u,
+		'config',
+	],
+	[
+		'native-request-scoped-unknown-outcome',
+		'a typed Server answer releases the close fence',
+		'ReleaseOnlyOnStreamUnknown = TRUE',
+		'ReleaseOnlyOnStreamUnknown = FALSE',
+		/Invariant TypedHoldKeepsFence is violated/u,
+		'config',
+	],
+	[
+		'native-request-scoped-unknown-outcome',
+		'a second close is admitted beside one in flight',
+		'BlockCompetingClose = TRUE',
+		'BlockCompetingClose = FALSE',
+		/Invariant CloseSerialized is violated/u,
+		'config',
+	],
+	[
+		'native-request-scoped-unknown-outcome',
+		'a timer clears the unknown notice',
+		'TimerKeepsUnknown = TRUE',
+		'TimerKeepsUnknown = FALSE',
+		/Action property UnknownNoticeKeptUntilKey is violated/u,
+		'config',
+	],
+	[
+		'native-request-scoped-unknown-outcome',
+		'an owed publication read has no fairness',
+		' /\\ WF_vars(Publish)\n',
+		'\n',
+		/Temporal properties were violated/u,
+	],
 ];
 
 describe('protocol mutation counterexamples', { concurrency: 3 }, () => {

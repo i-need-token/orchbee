@@ -1012,6 +1012,18 @@ that the resync count stays bounded; and that a running pane always answers the 
 waits on. Its mutation controls remove the stop on an unreadable record and the bound. The
 classification and containment are tested at the UI owner.
 
+[`RequestScopedUnknownOutcome`](../formal/tla/RequestScopedUnknownOutcome.tla) models request-scoped
+unknown outcomes across the remaining multiplexed client families — terminal initialization controls
+(`Acquire`, `HostColors`, `SetupResize` / `CatchUpResize`), label and setup renames, workspace setup/launch,
+workspace and Project close/follow reads, ambiguous Tab/Panel/set closes, startup directory pre-bootstrap,
+Agent and launch-profile reads/mutations, and shared `local-client` helpers. While the multiplexed
+connection remains live, stream-scoped unknown outcomes settle at the request without replaying effects or
+leaving structural/recovery fences wedged: initialization degrades to `ReadOnly` rather than assuming a
+controller grant, shown Tabs remain interactive, a persistent unknown-outcome notice stays until a
+Client keypress while publications synchronize canonical structure, and pre-bootstrap startup directory
+creation still stops without follow-up reads or replay. Real transport disconnects, timeouts, and
+protocol/correlation violations still retire the Session cleanly.
+
 ## Client state and bounded mailbox
 
 `WorkbenchClient` owns the typed state shared by the native Windows and Unix shells. Platform
