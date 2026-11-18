@@ -638,6 +638,11 @@ function expectRunning(root, stem, version, env) {
 	log(`${link} names the Client of ${version}.`);
 }
 
+// One word for a POSIX shell command line, in single quotes.
+function shellQuote(text) {
+	return `'${text.replaceAll("'", "'\\''")}'`;
+}
+
 // The probe the gate's terminal runs: a numbered line every 100 ms on the terminal and, with its
 // process id, in the record file, until the stop file appears or the bound passes.
 const macosProbeScript = `import os, sys, time
@@ -720,24 +725,12 @@ const updatePort = {
 	startProbe({ olderClient, olderEnv, work, record, stop, limit, terminalDeadline, terminalPoll }) {
 		const scriptFile = path.join(work, 'probe.py');
 		writeFileSync(scriptFile, macosProbeScript, { flag: 'wx' });
+		// The probe runs in an interactive shell, as on Windows: the Server closes the Panel of an
+		// interactive Shell that exits with code 0, but keeps the settled Panel, and its terminal, of an
+		// explicit command such as `--exec python3`, so the Session would never count 0 terminals.
 		const created = runDocument(
 			olderClient,
-			[
-				'workspace',
-				'create',
-				'--exec',
-				'/usr/bin/python3',
-				'--arg',
-				scriptFile,
-				'--arg',
-				record,
-				'--arg',
-				stop,
-				'--arg',
-				String(limit),
-				'--cwd',
-				work,
-			],
+			['workspace', 'create', '--exec', '/bin/sh', '--arg', '-i', '--cwd', work],
 			olderEnv,
 			{ deadline: commandDeadline },
 		);
@@ -752,7 +745,21 @@ const updatePort = {
 			const terminal = (listed.document?.result?.terminals ?? []).find(
 				(each) => each.boundTo?.panelId === workspace.panelId,
 			)?.terminalId;
-			if (typeof terminal === 'string') return terminal;
+			if (typeof terminal === 'string') {
+				const send = (argv, what) => {
+					const sent = runDocument(olderClient, ['terminal', ...argv], olderEnv, {
+						deadline: commandDeadline,
+					});
+					if (sent.status !== 0) throw new StepFailure(`${what} exited ${sent.status}, expected 0`);
+				};
+				send(
+					['wait-output', terminal, '--regex', '\\S', '--timeout', String(terminalDeadline)],
+					'terminal wait-output for the shell',
+				);
+				const line = `/usr/bin/python3 ${[scriptFile, record, stop].map(shellQuote).join(' ')} ${limit}; exit 0`;
+				send(['send', terminal, '--text', line, '--enter'], 'terminal send');
+				return terminal;
+			}
 			if (Date.now() - opened >= terminalDeadline)
 				throw new StepFailure(
 					`Panel ${workspace.panelId} has no terminal after ${terminalDeadline} ms`,
