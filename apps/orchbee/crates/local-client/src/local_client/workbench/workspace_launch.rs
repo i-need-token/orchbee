@@ -149,7 +149,11 @@ impl LocalClient {
         request_id: WorkbenchRequestId,
         reason: Unknown,
     ) -> WorkspaceLaunchSubmission {
-        self.connection.take();
+        let write_error = match &reason {
+            Unknown::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         WorkspaceLaunchSubmission::OutcomeUnknown { request_id, reason }
     }
 }

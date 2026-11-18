@@ -473,7 +473,11 @@ impl LocalClient {
         request_id: WorkbenchRequestId,
         reason: SnapshotReadFailure,
     ) -> Result<Value, SnapshotReadError> {
-        self.connection.take();
+        let write_error = match &reason {
+            SnapshotReadFailure::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         Err(SnapshotReadError::Failed { request_id, reason })
     }
 
@@ -482,7 +486,11 @@ impl LocalClient {
         request_id: WorkbenchRequestId,
         reason: PublicationReadFailure,
     ) -> Result<Value, PublicationReadError> {
-        self.connection.take();
+        let write_error = match &reason {
+            PublicationReadFailure::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         Err(PublicationReadError::Failed { request_id, reason })
     }
 
@@ -491,7 +499,11 @@ impl LocalClient {
         request_id: WorkbenchRequestId,
         reason: WorktreeListReadFailure,
     ) -> Result<Value, WorktreeListReadError> {
-        self.connection.take();
+        let write_error = match &reason {
+            WorktreeListReadFailure::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         Err(WorktreeListReadError::Failed { request_id, reason })
     }
 

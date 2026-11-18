@@ -62,9 +62,13 @@ impl LocalClient {
                 ClientViewExchangeError::Timeout
             }
             ExchangeAttempt::NotSubmitted(_)
-            | ExchangeAttempt::WriteFailed(_)
             | ExchangeAttempt::ReadFailed(WorkbenchWireError::Io(_)) => {
+                self.connection = None;
                 ClientViewExchangeError::Transport
+            }
+            ExchangeAttempt::WriteFailed(error) => {
+                self.forget_connection_after_unknown(Some(&error));
+                return Err(ClientViewExchangeError::Transport);
             }
         };
         self.connection = None;

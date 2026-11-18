@@ -57,6 +57,7 @@ impl LocalClient {
             &frame,
             |io| read_workbench_response(io),
         );
+        let keep_connection = LocalClient::keep_connection_after_attempt(&attempt);
         match attempt {
             ExchangeAttempt::Result(WorkbenchResponse::Command(result))
                 if result.request_id == command.request_id =>
@@ -113,7 +114,9 @@ impl LocalClient {
             // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => {}
         }
-        self.connection = None;
+        if !keep_connection {
+            self.connection = None;
+        }
         Err(SplitRatioFailure {
             may_have_committed: true,
             reason: Reason::ProjectionUnavailable,

@@ -108,7 +108,11 @@ impl LocalClient {
         request_id: WorkbenchRequestId,
         reason: WorkbenchLabelRenameOutcomeUnknownReason,
     ) -> WorkbenchLabelRenameSubmission {
-        self.connection.take();
+        let write_error = match &reason {
+            WorkbenchLabelRenameOutcomeUnknownReason::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         WorkbenchLabelRenameSubmission::OutcomeUnknown { request_id, reason }
     }
 }

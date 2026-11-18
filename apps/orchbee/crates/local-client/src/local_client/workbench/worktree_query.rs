@@ -58,9 +58,12 @@ impl LocalClient {
             ) => WorktreeQueryError::Protocol,
             ExchangeAttempt::ReadDeadline(_) => WorktreeQueryError::Timeout,
             ExchangeAttempt::NotSubmitted(_)
-            | ExchangeAttempt::WriteFailed(_)
             | ExchangeAttempt::ReadFailed(WorkbenchWireError::Io(_)) => {
                 WorktreeQueryError::Transport
+            }
+            ExchangeAttempt::WriteFailed(error) => {
+                self.forget_connection_after_unknown(Some(&error));
+                return Err(WorktreeQueryError::Transport);
             }
         };
         self.connection = None;

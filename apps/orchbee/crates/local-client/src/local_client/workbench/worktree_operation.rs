@@ -60,7 +60,13 @@ impl LocalClient {
             }
             ExchangeAttempt::Result(_) => "response-correlation",
             ExchangeAttempt::NotSubmitted(_) => return Err(not_submitted("request-not-submitted")),
-            ExchangeAttempt::WriteFailed(_) => "request-write",
+            ExchangeAttempt::WriteFailed(error) => {
+                self.forget_connection_after_unknown(Some(&error));
+                return Err(WorktreeExchangeError {
+                    submitted: true,
+                    reason: "request-write",
+                });
+            }
             ExchangeAttempt::ReadFailed(_) => "response-read",
             ExchangeAttempt::ReadDeadline(_) => "response-deadline",
         };

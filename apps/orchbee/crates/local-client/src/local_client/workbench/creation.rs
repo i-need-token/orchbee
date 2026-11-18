@@ -63,6 +63,7 @@ impl LocalClient {
             &frame,
             |io| read_workbench_response(io),
         );
+        let keep_connection = LocalClient::keep_connection_after_attempt(&attempt);
         let reason = match attempt {
             ExchangeAttempt::NotSubmitted(error) => {
                 return not_submitted(error.kind(), "request-not-submitted");
@@ -81,7 +82,9 @@ impl LocalClient {
                 _ => "response-mismatch",
             },
         };
-        self.connection.take();
+        if !keep_connection {
+            self.connection.take();
+        }
         CreationSubmission::Unknown { reason }
     }
 }

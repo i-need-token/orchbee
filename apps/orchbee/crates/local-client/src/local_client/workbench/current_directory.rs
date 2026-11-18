@@ -57,9 +57,12 @@ impl LocalClient {
             ) => CurrentDirectoryError::Protocol,
             ExchangeAttempt::ReadDeadline(_) => CurrentDirectoryError::Timeout,
             ExchangeAttempt::NotSubmitted(_)
-            | ExchangeAttempt::WriteFailed(_)
             | ExchangeAttempt::ReadFailed(WorkbenchWireError::Io(_)) => {
                 CurrentDirectoryError::Transport
+            }
+            ExchangeAttempt::WriteFailed(error) => {
+                self.forget_connection_after_unknown(Some(&error));
+                return Err(CurrentDirectoryError::Transport);
             }
         };
         self.connection = None;

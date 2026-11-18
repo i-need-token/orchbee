@@ -54,9 +54,12 @@ impl LocalClient {
             ) => WorkspaceGitError::Protocol,
             ExchangeAttempt::ReadDeadline(_) => WorkspaceGitError::Timeout,
             ExchangeAttempt::NotSubmitted(_)
-            | ExchangeAttempt::WriteFailed(_)
             | ExchangeAttempt::ReadFailed(WorkbenchWireError::Io(_)) => {
                 WorkspaceGitError::Transport
+            }
+            ExchangeAttempt::WriteFailed(error) => {
+                self.forget_connection_after_unknown(Some(&error));
+                return Err(WorkspaceGitError::Transport);
             }
         };
         self.connection = None;

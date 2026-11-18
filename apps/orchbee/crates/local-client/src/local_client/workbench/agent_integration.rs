@@ -2,7 +2,7 @@
 //! report under one deadline, registering cooperative cancellation when the caller is interrupted
 //! or only the settlement remains. It neither inspects provider configuration nor renders reports.
 use super::metadata_exchange::{MetadataExchangeError, MetadataExchangeReason};
-use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
+use crate::local_client::{LocalClient, exchange_once};
 use orchbee_agent_integration::{IntegrationReport, IntegrationRequest};
 use orchbee_local_ipc::LocalIo;
 use orchbee_workbench_protocol::{
@@ -80,33 +80,9 @@ impl LocalClient {
             &frame,
             |io| read_workbench_response(io),
         );
-        let reason = match attempt {
-            ExchangeAttempt::Result(WorkbenchResponse::AgentIntegration(result))
-                if result.answers(&request) =>
-            {
-                return Ok(result);
-            }
-            ExchangeAttempt::Result(_) => MetadataExchangeReason::Correlation,
-            ExchangeAttempt::NotSubmitted(_) => {
-                return Err(before(MetadataExchangeReason::NotSubmitted));
-            }
-            ExchangeAttempt::WriteFailed(_) => MetadataExchangeReason::Write,
-            ExchangeAttempt::ReadFailed(
-                orchbee_workbench_protocol::WorkbenchWireError::Contract(_)
-                | orchbee_workbench_protocol::WorkbenchWireError::InvalidHeader,
-            ) => MetadataExchangeReason::Protocol,
-            ExchangeAttempt::ReadFailed(orchbee_workbench_protocol::WorkbenchWireError::Io(
-                error,
-            )) if error.kind() == std::io::ErrorKind::TimedOut => {
-                MetadataExchangeReason::ResponseDeadline
-            }
-            ExchangeAttempt::ReadFailed(_) => MetadataExchangeReason::Read,
-            ExchangeAttempt::ReadDeadline(_) => MetadataExchangeReason::ResponseDeadline,
-        };
-        self.connection = None;
-        Err(MetadataExchangeError {
-            submitted: true,
-            reason,
+        self.finish_metadata_exchange(attempt, |response| match response {
+            WorkbenchResponse::AgentIntegration(result) if result.answers(&request) => Some(result),
+            _ => None,
         })
     }
 

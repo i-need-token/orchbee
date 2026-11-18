@@ -712,6 +712,12 @@ impl LocalClient {
             self.connection.take();
         }
     }
+
+    pub(in crate::local_client) fn keep_connection_after_attempt<ResultType, ReadError>(
+        attempt: &ExchangeAttempt<ResultType, ReadError>,
+    ) -> bool {
+        matches!(attempt, ExchangeAttempt::WriteFailed(error) if multiplex::outcome_unknown(error))
+    }
 }
 
 #[derive(Debug)]

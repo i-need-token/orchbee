@@ -58,9 +58,12 @@ impl LocalClient {
             ) => TerminalRuntimeReadError::Protocol,
             ExchangeAttempt::ReadDeadline(_) => TerminalRuntimeReadError::Timeout,
             ExchangeAttempt::NotSubmitted(_)
-            | ExchangeAttempt::WriteFailed(_)
             | ExchangeAttempt::ReadFailed(WorkbenchWireError::Io(_)) => {
                 TerminalRuntimeReadError::Transport
+            }
+            ExchangeAttempt::WriteFailed(error) => {
+                self.forget_connection_after_unknown(Some(&error));
+                return Err(TerminalRuntimeReadError::Transport);
             }
         };
         self.connection = None;

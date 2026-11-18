@@ -1,6 +1,6 @@
 //! One correlated graphics exchange; submitted uncertainty closes the connection and is never replayed.
 use super::metadata_exchange::{MetadataExchangeError, MetadataExchangeReason};
-use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
+use crate::local_client::{LocalClient, exchange_once};
 use orchbee_local_ipc::LocalIo;
 use orchbee_workbench_protocol::{
     PaneGraphicsRequest, PaneGraphicsResult, WorkbenchRequest, WorkbenchResponse,
@@ -40,33 +40,9 @@ impl LocalClient {
             &frame,
             |io| read_workbench_response(io),
         );
-        let reason = match attempt {
-            ExchangeAttempt::Result(WorkbenchResponse::PaneGraphics(result))
-                if result.answers(request) =>
-            {
-                return Ok(result);
-            }
-            ExchangeAttempt::Result(_) => MetadataExchangeReason::Correlation,
-            ExchangeAttempt::NotSubmitted(_) => {
-                return Err(before(MetadataExchangeReason::NotSubmitted));
-            }
-            ExchangeAttempt::WriteFailed(_) => MetadataExchangeReason::Write,
-            ExchangeAttempt::ReadFailed(
-                orchbee_workbench_protocol::WorkbenchWireError::Contract(_)
-                | orchbee_workbench_protocol::WorkbenchWireError::InvalidHeader,
-            ) => MetadataExchangeReason::Protocol,
-            ExchangeAttempt::ReadFailed(orchbee_workbench_protocol::WorkbenchWireError::Io(
-                error,
-            )) if error.kind() == std::io::ErrorKind::TimedOut => {
-                MetadataExchangeReason::ResponseDeadline
-            }
-            ExchangeAttempt::ReadFailed(_) => MetadataExchangeReason::Read,
-            ExchangeAttempt::ReadDeadline(_) => MetadataExchangeReason::ResponseDeadline,
-        };
-        self.connection = None;
-        Err(MetadataExchangeError {
-            submitted: true,
-            reason,
+        self.finish_metadata_exchange(attempt, |response| match response {
+            WorkbenchResponse::PaneGraphics(result) if result.answers(request) => Some(result),
+            _ => None,
         })
     }
 }

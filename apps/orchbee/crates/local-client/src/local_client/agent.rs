@@ -192,7 +192,11 @@ impl LocalClient {
         request_id: ObapRequestId,
         reason: AgentExchangeFailure,
     ) -> Result<Value, AgentExchangeError> {
-        self.connection.take();
+        let write_error = match &reason {
+            AgentExchangeFailure::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         Err(AgentExchangeError::Failed { request_id, reason })
     }
 }

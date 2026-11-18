@@ -102,7 +102,11 @@ impl LocalClient {
         request_id: WorkbenchRequestId,
         reason: LaunchProfileCatalogReadFailure,
     ) -> Result<Value, LaunchProfileCatalogReadError> {
-        self.connection.take();
+        let write_error = match &reason {
+            LaunchProfileCatalogReadFailure::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         Err(LaunchProfileCatalogReadError::Failed { request_id, reason })
     }
 
@@ -221,7 +225,11 @@ impl LocalClient {
         request_id: WorkbenchRequestId,
         reason: LaunchProfileOutcomeUnknownReason,
     ) -> WorkbenchLaunchProfileMutationSubmission {
-        self.connection.take();
+        let write_error = match &reason {
+            LaunchProfileOutcomeUnknownReason::Write(error) => Some(error),
+            _ => None,
+        };
+        self.forget_connection_after_unknown(write_error);
         WorkbenchLaunchProfileMutationSubmission::OutcomeUnknown { request_id, reason }
     }
 }
