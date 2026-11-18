@@ -106,6 +106,7 @@ pub(super) fn render_rows_at(
     frame
         .buffer_mut()
         .set_style(area, Style::new().fg(foreground).bg(background));
+    let mut cached_style: Option<(TerminalTextStyle, Style)> = None;
     for row in rows {
         let Some(local_row) = row
             .index
@@ -130,7 +131,15 @@ pub(super) fn render_rows_at(
             else {
                 continue;
             };
-            output.set_style(style(cell.style, foreground, background, theme));
+            let cell_style = match cached_style {
+                Some((key, resolved)) if key == cell.style => resolved,
+                _ => {
+                    let resolved = style(cell.style, foreground, background, theme);
+                    cached_style = Some((cell.style, resolved));
+                    resolved
+                }
+            };
+            output.set_style(cell_style);
             if cell.width == 2 {
                 // A crop beginning on a wide tail must paint a blank, rather than
                 // leaving a skipped cell whose previous glyph could survive.
@@ -143,6 +152,13 @@ pub(super) fn render_rows_at(
             }
             if cell.width == 3 || cell.text.is_empty() {
                 output.set_symbol(" ");
+                continue;
+            }
+            if cell.width == 0
+                && let [byte] = cell.text.as_bytes()
+                && (0x20..=0x7e).contains(byte)
+            {
+                output.set_symbol(&cell.text);
                 continue;
             }
             let width = if cell.width == 1 { 2 } else { 1 };
