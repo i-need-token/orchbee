@@ -30,7 +30,11 @@ struct TempRoot(PathBuf);
 impl TempRoot {
     fn new(name: &str) -> Self {
         static COUNTER: AtomicU64 = AtomicU64::new(1);
-        let dir = std::env::temp_dir().join(format!(
+        // Admission refuses any path through a link, and macOS's temp folder sits under `/var`.
+        let temporary = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temporary folder");
+        let dir = temporary.join(format!(
             "orchbee-owner-{name}-{}-{}",
             std::process::id(),
             COUNTER.fetch_add(1, Ordering::Relaxed)
