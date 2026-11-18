@@ -277,7 +277,7 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 		desktopRoot,
 		fallbackFrom: readFallbackFromVersion(process.argv),
 		onJoinable: async (version, place) => {
-			if (desktopRoot === null) return;
+			if (desktopRoot === null) return false;
 			const started = await relaunchWindow({
 				desktopRoot,
 				executablePath: process.execPath,
@@ -293,6 +293,7 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 			});
 			if (started) recordEvent('info', 'window-relaunch-started');
 			else recordEvent('error', 'window-relaunch-failed');
+			return started;
 		},
 		ownVersion: app.getVersion(),
 		readPointer: readWindowPointer,

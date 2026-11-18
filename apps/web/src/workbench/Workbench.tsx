@@ -110,6 +110,8 @@ interface WorkbenchProps {
 	readonly searchOffered?: boolean | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
+	/** Suppresses the window-level Update failure toast while another surface presents it. */
+	readonly suppressClientUpdateFailureNotice?: boolean | undefined;
 	readonly terminalActionShortcutLabels?: WorkbenchTerminalActionShortcutLabels | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 	/** Where each Workspace stands; without it the sidebar names Workspaces alone. */
@@ -139,6 +141,7 @@ export function Workbench({
 	searchOffered = false,
 	shortcutBindings,
 	shortcutPlatform,
+	suppressClientUpdateFailureNotice = false,
 	terminalActionShortcutLabels,
 	terminalSurface,
 	workspaceLocationSource,
@@ -172,6 +175,7 @@ export function Workbench({
 		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,
 		storage: layoutStorage,
+		suppressClientUpdateFailureNotice,
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
 	const terminalContext = view.terminalContext;

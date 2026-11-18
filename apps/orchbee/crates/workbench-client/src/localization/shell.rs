@@ -452,8 +452,12 @@ impl Locale {
                 "This update applies when no terminal is running."
             }
             (Self::ZhCn, Some(Notice::UpdateWaiting)) => "此更新将在没有终端运行时生效。",
-            (Self::EnUs, Some(Notice::UpdateUnavailable)) => "No update to switch to.",
-            (Self::ZhCn, Some(Notice::UpdateUnavailable)) => "没有可切换的更新。",
+            (Self::EnUs, Some(Notice::UpdateUnavailable)) => {
+                "Couldn't update here. Quit Orchbee and open it again, or run orchbee update."
+            }
+            (Self::ZhCn, Some(Notice::UpdateUnavailable)) => {
+                "无法在此更新。请退出 Orchbee 后重新打开，或运行 orchbee update。"
+            }
             (Self::EnUs, Some(Notice::PointerInputDropped)) => "Couldn't handle the click.",
             (Self::ZhCn, Some(Notice::PointerInputDropped)) => "没能处理这次点击。",
             (Self::EnUs, Some(Notice::NavigatorChanged)) => "Couldn't go there.",
@@ -511,6 +515,10 @@ impl Locale {
                 "Couldn't switch: another installation.",
                 "没能切换：另一个安装。",
             ),
+            Notice::UpdateUnavailable => (
+                "Quit Orchbee and open it again, or run orchbee update.",
+                "退出 Orchbee 并重新打开，或运行 orchbee update。",
+            ),
             Notice::ResizeUnknown
             | Notice::NotificationUnavailable
             | Notice::PointerInputDropped
@@ -541,7 +549,6 @@ impl Locale {
             | Notice::PasswordNotSaved
             | Notice::NoNotificationTarget
             | Notice::UpdateWaiting
-            | Notice::UpdateUnavailable
             | Notice::NavigatorChanged
             | Notice::ResizeBusy
             | Notice::ResizeFailed

@@ -197,4 +197,29 @@ describe('DesktopWindowUpdate', () => {
 		expect(readPointer).not.toHaveBeenCalled();
 		expect(document.sent).toEqual([{ type: 'desktop-window-update-offered', version: null }]);
 	});
+
+	it('tells the asking document when launching the newer window fails or rejects', async () => {
+		for (const onJoinable of [
+			() => Promise.resolve(false),
+			() => Promise.reject(new Error('spawn-enoent')),
+		]) {
+			const update = new DesktopWindowUpdate({
+				desktopRoot: ROOT,
+				fallbackFrom: null,
+				onJoinable,
+				ownVersion: '0.2.0',
+				readPointer: () => Promise.resolve('0.3.0'),
+				recordEvent: () => undefined,
+				startVersionClient: () => Promise.resolve(started(['compatibility-window'])),
+				watchPointer: () => () => undefined,
+			});
+			update.start();
+			await settle();
+			const document = fakePort();
+			update.serve(document.port);
+			document.request('0.3.0', PLACE);
+			await settle();
+			expect(document.sent.at(-1)).toEqual({ type: 'desktop-window-update-failed' });
+		}
+	});
 });

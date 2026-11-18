@@ -11,6 +11,7 @@ import type {
 	TerminalSettingsAbout,
 	TerminalSettingsUpdateCheckStatus,
 } from '../../types/terminal-settings-surface';
+import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
 import styles from './AboutSettings.module.css';
@@ -61,6 +62,23 @@ export function AboutSettings({ about }: AboutSettingsProps): React.ReactNode {
 	);
 	// Showing About clears a finished result and reads where the Session's job stands.
 	React.useEffect(() => check?.show(), [check]);
+	const [offerFailure, setOfferFailure] = React.useState(() => ({
+		count: 0,
+		source: offerSource,
+	}));
+	if (offerFailure.source !== offerSource) {
+		setOfferFailure({ count: 0, source: offerSource });
+	}
+	React.useEffect(
+		() =>
+			offerSource?.subscribeFailed?.(() =>
+				setOfferFailure((current) => ({ count: current.count + 1, source: offerSource })),
+			),
+		[offerSource],
+	);
+	const failureCount =
+		(offerFailure.source === offerSource ? offerFailure.count : 0) +
+		(about.updateFailureCount ?? 0);
 
 	const updatesLabel = intl.formatMessage(terminalSettingsMessages.pageAboutUpdatesLabel);
 	let description: string;
@@ -108,32 +126,42 @@ export function AboutSettings({ about }: AboutSettingsProps): React.ReactNode {
 		);
 	}
 	return (
-		<SettingsGroup>
-			{about.version === null ? null : (
+		<>
+			{failureCount > 0 ? (
+				<SettingFailure
+					key={failureCount}
+					message={intl.formatMessage(workbenchMessages.updateUnavailable)}
+				/>
+			) : null}
+			<SettingsGroup>
+				{about.version === null ? null : (
+					<SettingsRow
+						description={
+							about.build === null ? null : intl.formatMessage(BUILD_LABELS[about.build])
+						}
+						label={intl.formatMessage(terminalSettingsMessages.pageAboutVersionLabel)}
+						query=''
+					>
+						<span className={styles['value']} data-about-version>
+							{about.version}
+						</span>
+					</SettingsRow>
+				)}
 				<SettingsRow
-					description={about.build === null ? null : intl.formatMessage(BUILD_LABELS[about.build])}
-					label={intl.formatMessage(terminalSettingsMessages.pageAboutVersionLabel)}
+					description={description}
+					descriptionTone={tone}
+					label={updatesLabel}
 					query=''
+					status={
+						<span aria-live='polite' className={styles['announcement']} role='status'>
+							{offer === null && tone !== undefined ? description : ''}
+						</span>
+					}
 				>
-					<span className={styles['value']} data-about-version>
-						{about.version}
-					</span>
+					{control}
 				</SettingsRow>
-			)}
-			<SettingsRow
-				description={description}
-				descriptionTone={tone}
-				label={updatesLabel}
-				query=''
-				status={
-					<span aria-live='polite' className={styles['announcement']} role='status'>
-						{offer === null && tone !== undefined ? description : ''}
-					</span>
-				}
-			>
-				{control}
-			</SettingsRow>
-		</SettingsGroup>
+			</SettingsGroup>
+		</>
 	);
 }
 

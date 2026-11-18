@@ -29,7 +29,8 @@ export interface DesktopWindowUpdateOptions {
 	readonly fallbackFrom: string | null;
 	/**
 	 * The new version's Client joins the Session; the window now switches to that version at the place
-	 * the asking document shows. Further requests wait until it settles.
+	 * the asking document shows, returning false when launching it fails. Further requests wait until
+	 * it settles.
 	 */
 	readonly onJoinable: (version: string, place: DesktopRelaunchPlace | null) => Promise<unknown>;
 	readonly ownVersion: string;
@@ -181,7 +182,10 @@ export class DesktopWindowUpdate {
 			if (this.#disposed) return;
 			if (answer?.negotiatedCapabilities.includes(COMPATIBILITY_WINDOW) === true) {
 				this.#options.recordEvent('info', 'window-update-joinable');
-				await this.#options.onJoinable(version, place).catch(() => undefined);
+				const started = await this.#options.onJoinable(version, place).catch(() => false);
+				if (started === false && served.open) {
+					served.port.postMessage({ type: 'desktop-window-update-failed' });
+				}
 				return;
 			}
 			if (answer === null || answer.negotiatedCapabilities.length === 0) {

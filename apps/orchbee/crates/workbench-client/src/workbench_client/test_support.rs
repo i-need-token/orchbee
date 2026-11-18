@@ -4,6 +4,8 @@
 mod close;
 mod rename;
 
+#[cfg(test)]
+pub(crate) use super::ui::test_support::open_settings_for_test;
 pub use super::ui::test_support::{
     SettingsFrameSource, a_candidate_previews_on_the_whole_page_without_runtime_effects,
     a_change_made_elsewhere_shows_on_the_open_page_at_once,

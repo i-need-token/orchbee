@@ -133,6 +133,12 @@ export function WebApplication({
 		() => actionRuntime.createScope('web-application'),
 		[actionRuntime],
 	);
+	const [aboutUpdateFailureCount, setAboutUpdateFailureCount] = React.useState(0);
+	const [wasSettingsOpen, setWasSettingsOpen] = React.useState(view.settingsOpen);
+	if (wasSettingsOpen !== view.settingsOpen) {
+		setWasSettingsOpen(view.settingsOpen);
+		if (view.settingsOpen) setAboutUpdateFailureCount(0);
+	}
 	const about = React.useMemo<TerminalSettingsAbout>(
 		() => ({
 			build: clientBuild?.distribution ?? null,
@@ -140,10 +146,21 @@ export function WebApplication({
 			downloadInstaller:
 				openExternal === undefined ? undefined : () => openExternal(ORCHBEE_INSTALL_URL),
 			offer: clientUpdate,
-			update: () => invokeWorkbenchClientUpdate(actionRuntime, hostActionScope),
+			update: () =>
+				invokeWorkbenchClientUpdate(actionRuntime, hostActionScope, {
+					onUnavailable: () => setAboutUpdateFailureCount((count) => count + 1),
+				}),
+			updateFailureCount: aboutUpdateFailureCount,
 			version: clientBuild?.version ?? null,
 		}),
-		[actionRuntime, clientBuild, clientUpdate, hostActionScope, openExternal],
+		[
+			aboutUpdateFailureCount,
+			actionRuntime,
+			clientBuild,
+			clientUpdate,
+			hostActionScope,
+			openExternal,
+		],
 	);
 	const settingsFile = React.useSyncExternalStore(
 		terminalSettingsController.userSettings.subscribe,
@@ -218,6 +235,7 @@ export function WebApplication({
 					searchOffered={searchOffered}
 					shortcutBindings={keyboardShortcuts.bindings}
 					shortcutPlatform={shortcutPlatform}
+					suppressClientUpdateFailureNotice={view.settingsOpen}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}
 					terminalSurface={terminalSurface}
 					workspaceLocationSource={workspaceLocationSource}

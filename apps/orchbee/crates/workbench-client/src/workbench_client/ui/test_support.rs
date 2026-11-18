@@ -2,6 +2,8 @@
 //! application's whole-frame tests.
 
 pub use super::pane_graphics::test_support::actual_native_shell_places_confirmed_pixels_inside_one_frame_and_clears_under_a_board;
+#[cfg(test)]
+pub use super::settings::test_support::open_settings_for_test;
 pub use super::settings::test_support::{
     SettingsFrameSource, a_candidate_previews_on_the_whole_page_without_runtime_effects,
     a_change_made_elsewhere_shows_on_the_open_page_at_once,

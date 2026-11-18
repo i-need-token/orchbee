@@ -19,7 +19,8 @@ export const DesktopRelaunchPlaceSchema = z.discriminatedUnion('kind', [
 /**
  * What Main sends the page over the window-update port: the newer window version the window offers
  * to switch to, or null while it offers none, whenever that changes and once when the port opens;
- * and, after a request it could not carry out, that the update waits until no terminal runs.
+ * and, after a request it could not carry out, either that the update waits until no terminal runs
+ * or that launching the newer window failed.
  */
 export const DesktopWindowUpdateMainMessageSchema = z.discriminatedUnion('type', [
 	z.strictObject({
@@ -27,6 +28,7 @@ export const DesktopWindowUpdateMainMessageSchema = z.discriminatedUnion('type',
 		version: DesktopWindowVersionSchema.nullable(),
 	}),
 	z.strictObject({ type: z.literal('desktop-window-update-waiting') }),
+	z.strictObject({ type: z.literal('desktop-window-update-failed') }),
 ]);
 
 /**

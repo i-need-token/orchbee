@@ -256,6 +256,7 @@ async function run(
 		getSnapshot: windowUpdate.getSnapshot,
 		request: windowUpdate.request,
 		subscribe: windowUpdate.subscribe,
+		subscribeFailed: windowUpdate.subscribeFailed,
 		subscribeWaiting: windowUpdate.subscribeWaiting,
 	};
 

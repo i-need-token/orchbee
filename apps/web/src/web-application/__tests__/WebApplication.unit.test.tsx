@@ -350,3 +350,217 @@ it.each(['en-US', 'zh-CN'] as const)(
 		expect(request.mock.calls).toEqual([['0.1.0-beta.17'], ['0.1.0-beta.17']]);
 	},
 );
+
+function createFakeClientUpdate(initialOffer: string | null) {
+	let offer = initialOffer;
+	const listeners = new Set<() => void>();
+	const waitingListeners = new Set<() => void>();
+	const failedListeners = new Set<() => void>();
+	const request = vi.fn<(version: string) => void>();
+	const clientUpdate: WorkbenchClientUpdate = {
+		getSnapshot: () => offer,
+		request,
+		subscribe: (listener) => {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+		subscribeFailed: (listener) => {
+			failedListeners.add(listener);
+			return () => failedListeners.delete(listener);
+		},
+		subscribeWaiting: (listener) => {
+			waitingListeners.add(listener);
+			return () => waitingListeners.delete(listener);
+		},
+	};
+	return {
+		clientUpdate,
+		emitFailed: () => {
+			for (const listener of failedListeners) listener();
+		},
+		emitWaiting: () => {
+			for (const listener of waitingListeners) listener();
+		},
+		request,
+		setOfferSilently: (next: string | null) => {
+			offer = next;
+		},
+	};
+}
+
+async function mountWebApplication({
+	clientBuild,
+	clientUpdate,
+	locale,
+}: {
+	readonly clientBuild?: {
+		readonly distribution: 'development' | 'release' | 'test';
+		readonly version: string | null;
+	};
+	readonly clientUpdate: WorkbenchClientUpdate;
+	readonly locale: 'en-US' | 'zh-CN';
+}) {
+	class TestResizeObserver {
+		public disconnect(): void {}
+		public observe(_target: Element): void {}
+		public unobserve(_target: Element): void {}
+	}
+	vi.stubGlobal('ResizeObserver', TestResizeObserver);
+	Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+		configurable: true,
+		value: true,
+	});
+	const actionRuntime = new ActionRuntime();
+	const terminalSettingsController = new TerminalSettingsController({
+		themeTarget: { dataset: {} },
+		userSettings: memoryUserSettings(),
+	});
+	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
+		platform: 'standard',
+		storage: { getItem: () => null, setItem: () => undefined },
+	});
+	const applicationLocaleController = createApplicationLocaleController();
+	const container = document.createElement('div');
+	document.body.append(container);
+	const root = createRoot(container);
+	onTestFinished(async () => {
+		await React.act(async () => root.unmount());
+		container.remove();
+		actionRuntime.dispose();
+		terminalSettingsController.dispose();
+		keyboardShortcutSettingsController.dispose();
+		applicationLocaleController.dispose();
+		vi.unstubAllGlobals();
+		Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+			configurable: true,
+			value: false,
+		});
+	});
+	await React.act(async () =>
+		root.render(
+			<OrchbeeI18nProvider locale={locale}>
+				<TooltipProvider>
+					<WebApplication
+						actionRuntime={actionRuntime}
+						applicationLocaleController={applicationLocaleController}
+						authority={inertAuthority}
+						clientBuild={clientBuild}
+						clientUpdate={clientUpdate}
+						keyboardShortcutSettingsController={keyboardShortcutSettingsController}
+						projectWorkspaceRuntime={createSnapshotRuntime(
+							workbenchSnapshot(1, { workspaces: [] }, []),
+						)}
+						shortcutPlatform='standard'
+						terminalSettingsController={terminalSettingsController}
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		),
+	);
+	return { container };
+}
+
+const EXPECTED_UPDATE_UNAVAILABLE = {
+	'en-US': "Couldn't update here. Quit Orchbee and open it again, or run orchbee update.",
+	'zh-CN': '无法在此更新。请退出 Orchbee 后重新打开，或运行 orchbee update。',
+} as const;
+
+describe('WebApplication update wiring and refusals', () => {
+	it.each(['en-US', 'zh-CN'] as const)(
+		'routes pressing Update from both sidebar footer and About to clientUpdate.request and reports failed launches in %s',
+		async (locale) => {
+			const updatePort = createFakeClientUpdate('0.3.0');
+			const { container } = await mountWebApplication({
+				clientBuild: { distribution: 'release', version: '0.2.0' },
+				clientUpdate: updatePort.clientUpdate,
+				locale,
+			});
+
+			const sidebarUpdate = container.querySelector<HTMLButtonElement>(
+				'[data-slot="workbench-sidebar-update"]',
+			);
+			expect(sidebarUpdate).not.toBeNull();
+			await React.act(async () => sidebarUpdate?.click());
+			expect(updatePort.request).toHaveBeenNthCalledWith(1, '0.3.0');
+
+			await React.act(async () => updatePort.emitFailed());
+			expect(
+				container.querySelector('[data-slot="workbench-status-notice"] span')?.textContent,
+			).toBe(EXPECTED_UPDATE_UNAVAILABLE[locale]);
+
+			await React.act(async () =>
+				container
+					.querySelector<HTMLButtonElement>('[data-slot="workbench-sidebar-settings"]')
+					?.click(),
+			);
+			await React.act(async () =>
+				container.querySelector<HTMLButtonElement>('[data-settings-category="about"]')?.click(),
+			);
+
+			const aboutUpdate = container.querySelector<HTMLButtonElement>('[data-about-update]');
+			expect(aboutUpdate).not.toBeNull();
+			await React.act(async () => aboutUpdate?.click());
+			expect(updatePort.request).toHaveBeenNthCalledWith(2, '0.3.0');
+
+			await React.act(async () => updatePort.emitFailed());
+			expect(container.querySelector('[data-slot="settings-notice"]')?.textContent).toBe(
+				EXPECTED_UPDATE_UNAVAILABLE[locale],
+			);
+
+			await React.act(async () =>
+				container.querySelector<HTMLButtonElement>('[data-slot="settings-notice"] button')?.click(),
+			);
+			expect(container.querySelector('[data-slot="settings-notice"]')).toBeNull();
+
+			await React.act(async () => aboutUpdate?.click());
+			await React.act(async () => updatePort.emitFailed());
+			expect(container.querySelector('[data-slot="settings-notice"]')?.textContent).toBe(
+				EXPECTED_UPDATE_UNAVAILABLE[locale],
+			);
+		},
+	);
+
+	it.each(['en-US', 'zh-CN'] as const)(
+		'reports a refused Update on sidebar footer and Settings About when offer vanishes before invoke in %s',
+		async (locale) => {
+			const updatePort = createFakeClientUpdate('0.3.0');
+			const { container } = await mountWebApplication({
+				clientBuild: { distribution: 'release', version: '0.2.0' },
+				clientUpdate: updatePort.clientUpdate,
+				locale,
+			});
+
+			// Drop the offered version right before pressing Update so the Action refuses with client-update-unavailable.
+			updatePort.setOfferSilently(null);
+			await React.act(async () =>
+				container
+					.querySelector<HTMLButtonElement>('[data-slot="workbench-sidebar-update"]')
+					?.click(),
+			);
+			expect(updatePort.request).not.toHaveBeenCalled();
+			expect(
+				container.querySelector('[data-slot="workbench-status-notice"] span')?.textContent,
+			).toBe(EXPECTED_UPDATE_UNAVAILABLE[locale]);
+
+			// Restore the offer so About mounts its Update button, then drop the offer before clicking it.
+			updatePort.setOfferSilently('0.3.0');
+			await React.act(async () =>
+				container
+					.querySelector<HTMLButtonElement>('[data-slot="workbench-sidebar-settings"]')
+					?.click(),
+			);
+			await React.act(async () =>
+				container.querySelector<HTMLButtonElement>('[data-settings-category="about"]')?.click(),
+			);
+
+			const aboutUpdate = container.querySelector<HTMLButtonElement>('[data-about-update]');
+			expect(aboutUpdate).not.toBeNull();
+			updatePort.setOfferSilently(null);
+			await React.act(async () => aboutUpdate?.click());
+			expect(updatePort.request).not.toHaveBeenCalled();
+			expect(container.querySelector('[data-slot="settings-notice"]')?.textContent).toBe(
+				EXPECTED_UPDATE_UNAVAILABLE[locale],
+			);
+		},
+	);
+});

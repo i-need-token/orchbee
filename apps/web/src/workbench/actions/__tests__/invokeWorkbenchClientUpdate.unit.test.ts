@@ -31,3 +31,49 @@ it('runs Update from the scope it was registered in and from one below it', asyn
 
 	expect(request.mock.calls).toEqual([['0.3.0'], ['0.3.0']]);
 });
+
+it('calls onUnavailable when Update is unregistered, refused, throws, or invoked from a foreign scope', async () => {
+	const runtime = new ActionRuntime();
+	const host = runtime.createScope('web-application');
+	const foreign = runtime.createScope('foreign');
+	const onUnavailable = vi.fn<() => void>();
+
+	// Unregistered -> unsupported
+	invokeWorkbenchClientUpdate(runtime, host, { onUnavailable });
+	expect(onUnavailable).toHaveBeenCalledTimes(1);
+
+	// Registered, but offer disappeared before click -> blocked ('client-update-unavailable')
+	let offered: string | null = null;
+	registerWorkbenchClientUpdateAction({
+		clientUpdate: {
+			getSnapshot: () => offered,
+			request: () => {
+				throw new Error('boom');
+			},
+			subscribe: () => () => undefined,
+			subscribeWaiting: () => () => undefined,
+		},
+		scope: host,
+		typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(runtime),
+	});
+	invokeWorkbenchClientUpdate(runtime, host, { onUnavailable });
+	await Promise.resolve();
+	expect(onUnavailable).toHaveBeenCalledTimes(2);
+
+	// Handler throws -> failed
+	offered = '0.3.0';
+	invokeWorkbenchClientUpdate(runtime, host, { onUnavailable });
+	await Promise.resolve();
+	expect(onUnavailable).toHaveBeenCalledTimes(3);
+
+	// Foreign scope inside same runtime without registration -> unsupported
+	invokeWorkbenchClientUpdate(runtime, foreign, { onUnavailable });
+	expect(onUnavailable).toHaveBeenCalledTimes(4);
+
+	// Scope owned by another runtime -> sync throw caught
+	const otherRuntime = new ActionRuntime();
+	invokeWorkbenchClientUpdate(runtime, otherRuntime.createScope('other'), { onUnavailable });
+	expect(onUnavailable).toHaveBeenCalledTimes(5);
+	otherRuntime.dispose();
+	runtime.dispose();
+});

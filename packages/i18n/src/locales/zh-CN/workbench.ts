@@ -67,6 +67,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.sidebar.items.shortcuts': '快捷键',
 	'workbench.sidebar.items.update': '更新',
 	'workbench.sidebar.items.updateTooltip': '切换到 Orchbee {version}，终端继续运行。',
+	'workbench.update.unavailable':
+		'无法在此更新。请退出 Orchbee 后重新打开，或运行 orchbee update。',
 	'workbench.update.waiting': '此更新将在没有终端运行时生效。',
 	'workbench.sidebar.environment.development': '开发版',
 	'workbench.sidebar.environment.test': '测试版',

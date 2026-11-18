@@ -370,6 +370,7 @@ interface UseWorkbenchOptions {
 	readonly shortcutBindings: WorkbenchShortcutBindings;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
+	readonly suppressClientUpdateFailureNotice?: boolean | undefined;
 	readonly terminalSurfaceAvailable: boolean;
 }
 
@@ -392,6 +393,7 @@ export function useWorkbench({
 	shortcutBindings,
 	shortcutPlatform,
 	storage,
+	suppressClientUpdateFailureNotice = false,
 	terminalSurfaceAvailable,
 }: UseWorkbenchOptions): WorkbenchView {
 	const intl = useOrchbeeIntl();
@@ -701,9 +703,11 @@ export function useWorkbench({
 	const update = useWorkbenchClientUpdate({
 		clientUpdate,
 		registrationScope: hostActionScope ?? actions.scope,
+		reportUnavailable: authorityNotice.reportUpdateUnavailable,
 		reportWaiting: authorityNotice.reportUpdateWaiting,
 		runtime: actionRuntime,
 		scope: actions.scope,
+		suppressFailureNotice: suppressClientUpdateFailureNotice,
 	});
 	const startAgent = useMemoizedFn((input: WorkbenchAgentStartInput) => {
 		// No stacked dialogs: New Worktree… closes Start Agent and its form opens in its place.

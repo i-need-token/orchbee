@@ -1150,6 +1150,12 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Tooltip of the Update button; version is the installed Orchbee version the window switches to. Terminals keep running through the switch.',
 	},
+	updateUnavailable: {
+		id: 'workbench.update.unavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.unavailable'],
+		description:
+			'Notice after Update when switching could not start or was refused; advises quitting and reopening Orchbee or running orchbee update.',
+	},
 	updateWaiting: {
 		id: 'workbench.update.waiting',
 		defaultMessage: enUSWorkbenchMessages['workbench.update.waiting'],

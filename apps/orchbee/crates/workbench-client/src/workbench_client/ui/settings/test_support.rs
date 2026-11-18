@@ -81,6 +81,21 @@ fn light() -> UserSettingsValues {
     }
 }
 
+#[cfg(test)]
+pub struct OpenSettingsTestUi(WorkbenchClientUi);
+
+#[cfg(test)]
+impl OpenSettingsTestUi {
+    pub(crate) fn view(&self) -> WorkbenchClientView<'_> {
+        self.0.view()
+    }
+}
+
+#[cfg(test)]
+pub fn open_settings_for_test() -> OpenSettingsTestUi {
+    OpenSettingsTestUi(ready_with(&UserSettingsValues::default()))
+}
+
 fn ready_with(values: &UserSettingsValues) -> WorkbenchClientUi {
     let (mut ui, _, _, _) = super::super::test_support::ready(true);
     let token = ui.settings.editor.open().unwrap();

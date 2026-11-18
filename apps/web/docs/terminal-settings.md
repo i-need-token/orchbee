@@ -447,7 +447,9 @@ in the TUI's words:
   updates. While Main offers a newer window version it is the sidebar footer's
   Update: the same `workbench.client.update` Action, registered in a `WebApplication` scope above
   the Workbench's so both surfaces reach it, with the footer's tooltip sentence as the
-  description and the same waiting notice. Otherwise it is Check for updates, which reads
+  description and the same waiting notice; when switching fails or is refused, About shows the same
+  failure notice on Settings' notice line, advising to quit and reopen Orchbee or run
+  `orchbee update`. Otherwise it is Check for updates, which reads
   “Checking…” and is disabled, without a spinner, while a run is queued or running. When a check
   fails, the danger description notes that installing the latest version from `orchbee.com` keeps
   terminals and Agents running, and, where the composition supplies `openExternal`, Get installer

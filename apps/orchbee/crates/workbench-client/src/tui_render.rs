@@ -1064,8 +1064,16 @@ pub fn render_terminal_shell_with_resize<'a>(
             .map(|hint| locale.settings_hint_label(hint.label()));
         let retained = native.settings_presentation()
             != Some(crate::tui_presentation::PresentationPhase::Pending);
-        // A command's login notice waits while the page holds the keyboard; the page's status
-        // line names the Machine, as a notice, while no notice of its own leads.
+        // A command's login notice waits while the page holds the keyboard; an update notice from
+        // About surfaces on the dialog's status row instead of behind the overlay, and otherwise a
+        // deferred machine login notice leads while no Settings notice of its own leads.
+        let update_notice = view.notice().filter(|notice| {
+            matches!(
+                notice,
+                crate::client_view::Notice::UpdateWaiting
+                    | crate::client_view::Notice::UpdateUnavailable
+            )
+        });
         let deferred = login_deferred(view, locale);
         let draw = if tier == ViewportTier::TooSmall {
             ModalPresentation::NotPresented
@@ -1077,7 +1085,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                 area,
                 settings,
                 native.settings_pending(),
-                native.settings_notice().is_some() || deferred.is_some(),
+                native.settings_notice().is_some() || update_notice.is_some() || deferred.is_some(),
                 locale,
                 theme,
                 hits,
@@ -1121,11 +1129,23 @@ pub fn render_terminal_shell_with_resize<'a>(
             let shorter = Vec::from_iter(locale.settings_notice_shorter(notice).map(str::to_owned));
             (locale.settings_notice(notice), shorter, role)
         });
-        let line = line.or_else(|| {
-            deferred
-                .as_deref()
-                .map(|sign| (sign, Vec::new(), Role::StatusWarning))
-        });
+        let line = line
+            .or_else(|| {
+                update_notice.map(|notice| {
+                    let role = match notice {
+                        crate::client_view::Notice::UpdateUnavailable => Role::StatusError,
+                        _ => Role::StatusWarning,
+                    };
+                    let shorter =
+                        Vec::from_iter(locale.shell_notice_shorter(notice).map(str::to_owned));
+                    (locale.shell_notice(Some(notice)), shorter, role)
+                })
+            })
+            .or_else(|| {
+                deferred
+                    .as_deref()
+                    .map(|sign| (sign, Vec::new(), Role::StatusWarning))
+            });
         let surface = if matches!(draw, ModalPresentation::NotPresented) {
             recovery::render(
                 frame,

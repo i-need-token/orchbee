@@ -40,6 +40,8 @@ export interface WorkbenchAuthorityNoticeView {
 	/** An Agent destination failed revalidation, so nothing moved; the TUI says the same. */
 	readonly reportAgentNavigationUnavailable: () => void;
 	readonly reportDuplicationStopped: (stop: WorkbenchTabDuplicationStop) => void;
+	/** Update could not switch or launch; the TUI says the same. */
+	readonly reportUpdateUnavailable: () => void;
 	/** Update could not switch yet; the TUI says the same. */
 	readonly reportUpdateWaiting: () => void;
 	/** A folder field now shows why its folder was refused, so the status line no longer says it. */
@@ -347,6 +349,9 @@ export function useWorkbenchAuthorityNotice(
 			lifetime: 'timed',
 		});
 	});
+	const reportUpdateUnavailable = useMemoizedFn(() => {
+		setNotice({ descriptor: workbenchMessages.updateUnavailable, lifetime: 'until-press' });
+	});
 	const reportUpdateWaiting = useMemoizedFn(() => {
 		setNotice({ descriptor: workbenchMessages.updateWaiting, lifetime: 'timed' });
 	});
@@ -405,6 +410,7 @@ export function useWorkbenchAuthorityNotice(
 					},
 		reportAgentNavigationUnavailable,
 		reportDuplicationStopped,
+		reportUpdateUnavailable,
 		reportUpdateWaiting,
 		withdrawDirectoryRefusal,
 	};

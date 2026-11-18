@@ -51,10 +51,14 @@ export interface TerminalSettingsAbout {
 		| {
 				readonly getSnapshot: () => string | null;
 				readonly subscribe: (listener: () => void) => () => void;
+				/** Calls back each time a requested switch fails to launch the newer window. */
+				readonly subscribeFailed?: ((listener: () => void) => () => void) | undefined;
 		  }
 		| undefined;
 	/** Runs Update, the same Action as the sidebar footer's control. */
 	readonly update: () => void;
+	/** Increments each time Update refuses synchronously or before launch; About re-shows its notice. */
+	readonly updateFailureCount?: number | undefined;
 	/** The version this window runs; null leaves the Version row out. */
 	readonly version: string | null;
 }

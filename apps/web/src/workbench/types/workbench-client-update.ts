@@ -13,6 +13,8 @@ export interface WorkbenchClientUpdate {
 	/** Asks the host to switch to `version`, the version it offered. */
 	readonly request: (version: string) => void;
 	readonly subscribe: (listener: () => void) => () => void;
+	/** Calls back each time a requested switch fails to launch the newer window. */
+	readonly subscribeFailed?: ((listener: () => void) => () => void) | undefined;
 	/** Calls back each time a requested switch waits until no terminal runs. */
 	readonly subscribeWaiting: (listener: () => void) => () => void;
 }

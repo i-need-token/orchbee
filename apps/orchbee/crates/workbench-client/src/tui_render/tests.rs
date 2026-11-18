@@ -1897,3 +1897,52 @@ fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_
     let pressed = paint(&pointer);
     assert_projection(&pressed);
 }
+
+#[test]
+fn update_notice_shows_on_settings_status_line_in_both_locales() {
+    use crate::release_update::UpdateSwitch;
+    use crate::tui_hit_map::HitMapBuilder;
+    use crate::tui_layout::ResizeProjection;
+    use crate::tui_theme::Theme;
+    use ratatui::layout::Rect;
+
+    let area = Rect::new(0, 0, 120, 40);
+    let status_row = super::settings::status_area(area);
+    let ui = crate::workbench_client::test_support::open_settings_for_test();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (switch, notice) in [
+            (
+                UpdateSwitch::Leave,
+                crate::client_view::Notice::UpdateUnavailable,
+            ),
+            (
+                UpdateSwitch::Waiting,
+                crate::client_view::Notice::UpdateWaiting,
+            ),
+        ] {
+            let mut view = ClientView::new(120);
+            view.update_refused(switch);
+            let mut terminal = infallible(Terminal::new(TestBackend::new(120, 40)));
+            let mut hits = HitMapBuilder::default();
+            infallible(terminal.draw(|frame| {
+                super::render_terminal_shell_with_resize(
+                    frame,
+                    &view,
+                    locale,
+                    Some(ui.view()),
+                    &Theme::rgb_test_dark(),
+                    &mut hits,
+                    &ResizeProjection::Canonical,
+                );
+            }));
+            let status_text = (status_row.x..status_row.right())
+                .map(|x| terminal.backend().buffer()[(x, status_row.y)].symbol())
+                .collect::<String>();
+            assert!(
+                without_cell_padding(&status_text)
+                    .contains(&without_cell_padding(locale.shell_notice(Some(notice)))),
+                "{locale:?} {notice:?}: {status_text:?}"
+            );
+        }
+    }
+}

@@ -68,6 +68,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.sidebar.items.shortcuts': 'Shortcuts',
 	'workbench.sidebar.items.update': 'Update',
 	'workbench.sidebar.items.updateTooltip': 'Switch to Orchbee {version}. Terminals keep running.',
+	'workbench.update.unavailable':
+		"Couldn't update here. Quit Orchbee and open it again, or run orchbee update.",
 	'workbench.update.waiting': 'This update applies when no terminal is running.',
 	'workbench.sidebar.environment.development': 'Dev',
 	'workbench.sidebar.environment.test': 'Test',

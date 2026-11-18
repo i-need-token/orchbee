@@ -14,6 +14,7 @@ import type { WorkbenchClientUpdate } from '../../workbench';
 export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 	#disposed = false;
 	#offer: string | null = null;
+	readonly #failedListeners = new Set<() => void>();
 	readonly #listeners = new Set<() => void>();
 	readonly #port: MessagePort;
 	readonly #readPlace: () => DesktopRelaunchPlace | null;
@@ -44,6 +45,11 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 		return () => this.#listeners.delete(listener);
 	};
 
+	readonly subscribeFailed = (listener: () => void): (() => void) => {
+		this.#failedListeners.add(listener);
+		return () => this.#failedListeners.delete(listener);
+	};
+
 	readonly subscribeWaiting = (listener: () => void): (() => void) => {
 		this.#waitingListeners.add(listener);
 		return () => this.#waitingListeners.delete(listener);
@@ -52,6 +58,7 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#failedListeners.clear();
 		this.#listeners.clear();
 		this.#waitingListeners.clear();
 		this.#port.close();
@@ -60,6 +67,10 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 	#receive(data: unknown): void {
 		const message = DesktopWindowUpdateMainMessageSchema.safeParse(data);
 		if (this.#disposed || !message.success) return;
+		if (message.data.type === 'desktop-window-update-failed') {
+			for (const listener of this.#failedListeners) listener();
+			return;
+		}
 		if (message.data.type === 'desktop-window-update-waiting') {
 			for (const listener of this.#waitingListeners) listener();
 			return;
