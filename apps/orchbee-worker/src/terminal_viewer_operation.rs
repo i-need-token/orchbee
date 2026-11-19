@@ -81,7 +81,7 @@ pub(crate) fn execute(
 /// The answer to a viewer request whose first Host exchange had no room in the request. A
 /// request's first exchange starts within the record budget of its arrival, well inside the start
 /// limit, so this answers only a Worker that stalled for seconds; nothing reached the Host and the
-/// viewer stays as it was.
+/// viewer stays as it was, so every Client may send the request again.
 const fn not_started(action: TerminalViewerAction) -> TerminalViewerOutcome {
     match action {
         // The Server answers this one as busy, and both Clients attach again.
@@ -91,7 +91,7 @@ const fn not_started(action: TerminalViewerAction) -> TerminalViewerOutcome {
         TerminalViewerAction::ReadRows { .. } | TerminalViewerAction::ReadViewportRows { .. } => {
             TerminalViewerOutcome::RowsRejected(ViewerRowsRejectedReason::ResourceExhausted)
         }
-        _ => TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected),
+        _ => TerminalViewerOutcome::Rejected(ViewerRejection::HostBusy),
     }
 }
 
@@ -504,16 +504,26 @@ fn apply(
                     }
                 }
             }
-            // A slow controller answer can leave the viewer's own change no room: nothing of the
-            // viewer changes, the request is refused for the Client to send again, and a later
-            // cleanup brings the controller back in line with its viewer.
-            let Some(DemandAnswer::Accepted) =
-                NotStarted::optional(set_attachment_demand(host, server, correlation, id, demand))?
-            else {
-                return Ok(TerminalViewerOutcome::Rejected(
-                    ViewerRejection::HostRejected,
-                ));
-            };
+            match NotStarted::optional(set_attachment_demand(
+                host,
+                server,
+                correlation,
+                id,
+                demand,
+            ))? {
+                Some(DemandAnswer::Accepted) => {}
+                // A slow controller answer can leave the viewer's own change no room: nothing of
+                // the viewer changes, the request is busy for the Client to send again, and a
+                // later cleanup brings the controller back in line with its viewer.
+                None => {
+                    return Ok(TerminalViewerOutcome::Rejected(ViewerRejection::HostBusy));
+                }
+                Some(DemandAnswer::Refused(_)) => {
+                    return Ok(TerminalViewerOutcome::Rejected(
+                        ViewerRejection::HostRejected,
+                    ));
+                }
+            }
             host.viewers
                 .borrow_mut()
                 .set_demand(request.attachment_id, demand);

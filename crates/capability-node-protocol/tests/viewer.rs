@@ -213,6 +213,7 @@ fn viewer_controls_round_trip_every_closed_action_and_outcome() -> TestResult {
             ViewerRejection::AttachmentAlreadyExists,
             ViewerRejection::FeedbackMismatch,
             ViewerRejection::HostRejected,
+            ViewerRejection::HostBusy,
         ]
         .map(TerminalViewerOutcome::Rejected),
     )

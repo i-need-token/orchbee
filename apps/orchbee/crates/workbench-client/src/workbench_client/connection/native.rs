@@ -164,6 +164,30 @@ struct ClientExecutor {
 /// spent off the lease so queued live work runs first.
 const RECONCILE_BUSY_RETRY: Duration = Duration::from_millis(10);
 
+/// The pauses before a viewer request answered `ServerBusy` is sent again, as the window client
+/// paces it. A busy answer took nothing, the viewer included; past the last pause the request
+/// settles as refused, so one busy pane holds the lease, and the panes queued behind it, for about
+/// half a second rather than until the operation deadline.
+const VIEWER_BUSY_RETRY_PAUSES: [Duration; 7] = [
+    Duration::from_millis(4),
+    Duration::from_millis(8),
+    Duration::from_millis(16),
+    Duration::from_millis(32),
+    Duration::from_millis(64),
+    Duration::from_millis(128),
+    Duration::from_millis(256),
+];
+
+/// How a ready-lease viewer request answers `ServerBusy`.
+#[derive(Clone, Copy)]
+enum BusyRetry {
+    /// Asks again after each of [`VIEWER_BUSY_RETRY_PAUSES`], then answers the busy outcome.
+    Bounded,
+    /// Asks again within the operation deadline: a Detach that releases a refused viewer has no
+    /// gentler settlement than the deadline's.
+    UntilDeadline,
+}
+
 fn settled_record(record: &[u8]) -> bool {
     orchbee_terminal_protocol::decode_transport_envelope(record)
         .is_ok_and(|envelope| matches!(envelope.kind, 15 | 19))
@@ -1129,7 +1153,15 @@ impl ClientExecutor {
                             rejection: ViewportReadRejection::Typed(reason),
                         }
                     }
-                    TerminalViewerOutcome::Rejected { .. } => ViewportOutcome::ReadRejected {
+                    // The Server released the viewer whose read the Host answered this way.
+                    TerminalViewerOutcome::Rejected {
+                        reason: ViewerRejectedReason::HostRejected,
+                    } => return self.dispose_lost_viewer(lease, &key, deadline),
+                    // A read still busy past its retries took nothing; the viewer is as it was.
+                    TerminalViewerOutcome::Rejected { .. }
+                    | TerminalViewerOutcome::Unavailable {
+                        reason: ViewerUnavailableReason::ServerBusy,
+                    } => ViewportOutcome::ReadRejected {
                         request_sequence,
                         rejection: ViewportReadRejection::Host,
                     },
@@ -1172,7 +1204,10 @@ impl ClientExecutor {
                         accepted: true,
                     },
                     TerminalViewerOutcome::RowsRejected { .. }
-                    | TerminalViewerOutcome::Rejected { .. } => ViewportOutcome::Ack {
+                    | TerminalViewerOutcome::Rejected { .. }
+                    | TerminalViewerOutcome::Unavailable {
+                        reason: ViewerUnavailableReason::ServerBusy,
+                    } => ViewportOutcome::Ack {
                         request_sequence,
                         accepted: false,
                     },
@@ -1276,7 +1311,14 @@ impl ClientExecutor {
         ) {
             return self.dispose_lost_viewer(lease, &key, deadline);
         }
-        if matches!(outcome, TerminalViewerOutcome::Unavailable { .. }) {
+        // A selection still busy past its retries took nothing and is published below, where the
+        // pane hears it failed.
+        if matches!(
+            outcome,
+            TerminalViewerOutcome::Unavailable {
+                reason: ViewerUnavailableReason::WorkbenchUnavailable,
+            }
+        ) {
             return self.settle_pane_viewer_lost(lease, &key, deadline);
         }
         let cutoff = self.effective_lease_cutoff(lease, deadline)?;
@@ -1429,13 +1471,14 @@ impl ClientExecutor {
         key: &PaneRef,
         deadline: Instant,
     ) -> ReadyResult<()> {
-        let Some((_, outcome)) = self.viewer_for_ready_lease(
+        let Some((_, outcome)) = self.paced_viewer_for_ready_lease(
             lease,
             key,
             TerminalViewerAction::Detach {
                 attachment_id: self.viewer_id_for(key)?,
             },
             deadline,
+            BusyRetry::UntilDeadline,
         )?
         else {
             return Ok(());
@@ -1459,8 +1502,9 @@ impl ClientExecutor {
     }
 
     /// Polls run per pane incarnation: any exact member of the reconciled set
-    /// polls continuously, focused or not; a busy Server is asked again within
-    /// the lease. A viewer the Server holds no slot for is lost, and any other
+    /// polls continuously, focused or not. A Poll still busy past its retries
+    /// took nothing and reads as empty. A viewer the Server holds no slot for,
+    /// or one it released after a Host-rejected answer, is lost, and any other
     /// refusal releases the viewer first; either way the state owner decides
     /// whether the focus may park or must retire an active structural operation.
     fn run_poll(&mut self, lease: &CommandLease, deadline: Instant) -> ReadyResult<()> {
@@ -1515,8 +1559,12 @@ impl ClientExecutor {
                 reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
             }
             | TerminalViewerOutcome::Rejected {
-                reason: ViewerRejectedReason::TerminalUnavailable,
+                reason:
+                    ViewerRejectedReason::TerminalUnavailable | ViewerRejectedReason::HostRejected,
             } => return self.dispose_lost_viewer(lease, &key, deadline),
+            TerminalViewerOutcome::Unavailable {
+                reason: ViewerUnavailableReason::ServerBusy,
+            } => None,
             refused @ (TerminalViewerOutcome::Rejected { .. }
             | TerminalViewerOutcome::Unavailable { .. }) => {
                 diagnostic_events::viewer_fault_contained(ContainedCommand::Poll, &refused);
@@ -1580,12 +1628,14 @@ impl ClientExecutor {
                 reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
             }
             | TerminalViewerOutcome::Rejected {
-                reason: ViewerRejectedReason::TerminalUnavailable,
+                reason:
+                    ViewerRejectedReason::TerminalUnavailable | ViewerRejectedReason::HostRejected,
             } => {
                 self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
                 return self.dispose_lost_viewer(lease, &key, deadline);
             }
-            // Refused feedback leaves the frame flight waiting for it.
+            // Refused feedback, a busy one past its retries included, leaves the frame flight
+            // waiting for it.
             refused @ (TerminalViewerOutcome::Rejected { .. }
             | TerminalViewerOutcome::Unavailable { .. }) => {
                 diagnostic_events::viewer_fault_contained(
@@ -2616,7 +2666,9 @@ impl ClientExecutor {
 
     /// Viewer work for a live pane: admitted while the pane stays in the
     /// reconciled set — focus is irrelevant here, so background viewers keep
-    /// polling and applying frames.
+    /// polling and applying frames. A busy Server is asked again after each of
+    /// [`VIEWER_BUSY_RETRY_PAUSES`]; past the last the busy outcome is the
+    /// answer, which its caller settles like a refusal.
     fn viewer_for_ready_lease(
         &mut self,
         lease: &CommandLease,
@@ -2629,6 +2681,23 @@ impl ClientExecutor {
             TerminalViewerOutcome,
         )>,
     > {
+        self.paced_viewer_for_ready_lease(lease, key, action, deadline, BusyRetry::Bounded)
+    }
+
+    fn paced_viewer_for_ready_lease(
+        &mut self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        action: TerminalViewerAction,
+        deadline: Instant,
+        busy: BusyRetry,
+    ) -> ReadyResult<
+        Option<(
+            orchbee_client_server_protocol::RequestId,
+            TerminalViewerOutcome,
+        )>,
+    > {
+        let mut pauses = VIEWER_BUSY_RETRY_PAUSES.into_iter();
         loop {
             if !self.pane_admitted(lease, key)? {
                 return Ok(None);
@@ -2648,18 +2717,30 @@ impl ClientExecutor {
             ) {
                 return Ok(Some((request_id, outcome)));
             }
+            let resume = match busy {
+                BusyRetry::UntilDeadline => None,
+                BusyRetry::Bounded => match pauses.next() {
+                    Some(pause) => Some((self.clock.now() + pause).min(cutoff)),
+                    None => return Ok(Some((request_id, outcome))),
+                },
+            };
             if !self.pane_admitted(lease, key)? {
                 return Ok(None);
             }
-            let fence = self
-                .mailbox
-                .await_execution_change_before(lease, cutoff, &self.clock)
-                .map_err(closed)?;
-            if !fence.lease_current() {
-                return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
-            }
-            if !fence.desired().admits(key) {
-                return Ok(None);
+            loop {
+                let fence = self
+                    .mailbox
+                    .await_execution_change_before(lease, resume.unwrap_or(cutoff), &self.clock)
+                    .map_err(closed)?;
+                if !fence.lease_current() {
+                    return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
+                }
+                if !fence.desired().admits(key) {
+                    return Ok(None);
+                }
+                if resume.is_none_or(|resume| self.clock.now() >= resume) {
+                    break;
+                }
             }
         }
     }

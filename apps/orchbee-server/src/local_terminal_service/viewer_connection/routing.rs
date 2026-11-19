@@ -383,6 +383,13 @@ impl LocalTerminalConnection<'_> {
                 WorkerOutcome::Rejected(ViewerRejection::FeedbackMismatch) => {
                     rejected(Rejected::FeedbackMismatch)
                 }
+                // Nothing reached the Host and the viewer stays as it was, so the Client may send
+                // the request again; a Detach still releases its slot.
+                WorkerOutcome::Rejected(ViewerRejection::HostBusy)
+                    if !matches!(request.action(), Action::Detach { .. }) =>
+                {
+                    unavailable(Unavailable::ServerBusy)
+                }
                 WorkerOutcome::Rejected(ViewerRejection::HostRejected)
                     if matches!(
                         request.action(),
@@ -397,6 +404,14 @@ impl LocalTerminalConnection<'_> {
                             | Action::SelectionExportCancel { .. }
                     ) =>
                 {
+                    rejected(Rejected::HostRejected)
+                }
+                // The Worker may have closed this viewer while containing the Host's answer, so the
+                // slot goes with it; the Client hears the Host's refusal and attaches again.
+                WorkerOutcome::Rejected(ViewerRejection::HostRejected)
+                    if !matches!(request.action(), Action::Detach { .. }) =>
+                {
+                    self.viewers[index].take();
                     rejected(Rejected::HostRejected)
                 }
                 WorkerOutcome::Rejected(_)

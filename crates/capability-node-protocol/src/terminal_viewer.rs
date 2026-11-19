@@ -302,6 +302,9 @@ pub enum ViewerRejection {
     AttachmentAlreadyExists,
     FeedbackMismatch,
     HostRejected,
+    /// The Worker had no room to start the request: nothing reached the Host and the viewer
+    /// stays as it was, so the request may be sent again.
+    HostBusy,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

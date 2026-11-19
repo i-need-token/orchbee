@@ -139,12 +139,15 @@ responsibilities. Existing action JSON stays byte-for-byte canonical, and the sc
 all four gesture branches, all four commands, the three export controls, hard bounds, closed enums,
 and extra-field rejection. Matching Client/Server/Worker cohorts ship and roll back together.
 
-`ViewerRejectedReason::HostRejected` (`"host-rejected"`) is a closed viewer-level reason shared by
-the four history control-acknowledgement actions and the five selection/export controls above when
-Host returns an explicit typed failure. It is distinct from the controller-plane
-`ControlRejectedReason::HostRejected` and does not apply to older actions. `read-viewport-rows`
-failures ride the existing `RowsRejected` nine-reason vocabulary; `read-rows` is unchanged
-byte-for-byte.
+`ViewerRejectedReason::HostRejected` (`"host-rejected"`) is a closed viewer-level reason: the Host
+returned an explicit typed failure, or an answer the Worker could not accept. It is distinct from
+the controller-plane `ControlRejectedReason::HostRejected`. After the four history
+control-acknowledgement actions and the five selection/export controls above the viewer stays
+attached; after `frame-applied`, `need-snapshot`, `poll` or a read the Server has released the
+viewer, and the Client attaches again. Any of these actions except a row read that the Worker had
+no room to start answers `unavailable` with `server-busy`: the viewer stays attached and the Client
+may send the request again. `read-viewport-rows` failures, a row read with no room included, ride
+the existing `RowsRejected` nine-reason vocabulary; `read-rows` is unchanged byte-for-byte.
 
 ## Controller binding
 

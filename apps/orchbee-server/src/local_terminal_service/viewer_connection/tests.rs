@@ -663,6 +663,86 @@ fn history_observed_acknowledgement_leaves_the_frame_flight_untouched() {
     peer.join().unwrap();
 }
 
+fn frame_applied() -> Action {
+    Action::FrameApplied {
+        attachment_id: poll().attachment_id().unwrap().clone(),
+        sequence: NonZeroU64::MIN,
+        generation: NonZeroU64::MIN,
+        revision: 1,
+    }
+}
+
+#[test]
+fn a_busy_worker_keeps_the_viewer_and_serves_the_request_sent_again() {
+    let (service, handle, owner, peer, stop) = scripted_connection(VecDeque::from([
+        WorkerOutcome::Record(frame_record(1)),
+        WorkerOutcome::Rejected(ViewerRejection::HostBusy),
+        WorkerOutcome::FeedbackAccepted,
+    ]));
+    let mut connection = service.client_connection();
+    let candidate = viewer(&service, handle);
+    assert!(matches!(
+        connection.publish_attach(candidate, attached_result()),
+        Outcome::Attached { .. }
+    ));
+    execute_viewer(&mut connection, "88888888888888888888888888888891", poll());
+    let busy = execute_viewer(
+        &mut connection,
+        "88888888888888888888888888888892",
+        frame_applied(),
+    );
+    assert_eq!(busy.outcome(), &unavailable(Unavailable::ServerBusy));
+    assert!(connection.viewers.iter().any(Option::is_some));
+    // The busy answer left the frame flight waiting for this same feedback.
+    let again = execute_viewer(
+        &mut connection,
+        "88888888888888888888888888888893",
+        frame_applied(),
+    );
+    assert_eq!(again.outcome(), &Outcome::FeedbackAccepted {});
+    drop(connection);
+    let _ = stop.shutdown(std::net::Shutdown::Both);
+    let _ = owner.join();
+    peer.join().unwrap();
+}
+
+#[test]
+fn a_host_rejected_frame_feedback_keeps_its_category_and_releases_the_viewer() {
+    let (service, handle, owner, peer, stop) = scripted_connection(VecDeque::from([
+        WorkerOutcome::Record(frame_record(1)),
+        WorkerOutcome::Rejected(ViewerRejection::HostRejected),
+    ]));
+    let mut connection = service.client_connection();
+    let candidate = viewer(&service, handle);
+    assert!(matches!(
+        connection.publish_attach(candidate, attached_result()),
+        Outcome::Attached { .. }
+    ));
+    execute_viewer(&mut connection, "88888888888888888888888888888894", poll());
+    let refused = execute_viewer(
+        &mut connection,
+        "88888888888888888888888888888895",
+        frame_applied(),
+    );
+    assert_eq!(
+        refused.outcome(),
+        &Outcome::Rejected {
+            reason: Rejected::HostRejected
+        }
+    );
+    assert!(connection.viewers.iter().all(Option::is_none));
+    assert_eq!(
+        execute_viewer(&mut connection, "88888888888888888888888888888896", poll()).outcome(),
+        &Outcome::Rejected {
+            reason: Rejected::TerminalUnavailable
+        }
+    );
+    drop(connection);
+    let _ = stop.shutdown(std::net::Shutdown::Both);
+    let _ = owner.join();
+    peer.join().unwrap();
+}
+
 #[test]
 fn read_rows_record_one_byte_over_budget_is_rejected_before_delivery() {
     let (service, handle, _received, owner, peer, stop) = rows_connection(4096 + 1, None);

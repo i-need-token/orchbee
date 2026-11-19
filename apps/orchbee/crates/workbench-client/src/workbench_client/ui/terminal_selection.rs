@@ -6,7 +6,7 @@ use crate::workbench_client::terminal_selection::{
     self as selection, Command, Driver, Event, Failure, Reply,
 };
 use crate::workbench_state::{CarrierFailure, ClientNotice, PaneRef};
-use orchbee_client_server_protocol::TerminalViewerOutcome;
+use orchbee_client_server_protocol::{TerminalViewerOutcome, ViewerUnavailableReason};
 use std::{num::NonZeroU64, sync::Arc};
 
 impl WorkbenchClientUi {
@@ -368,11 +368,13 @@ impl WorkbenchClientUi {
                 *projection.value.epoch(),
             ),
             TerminalViewerOutcome::FeedbackAccepted {} => Ok(Reply::Ack),
-            TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::RowsRejected { .. } => {
-                Ok(Reply::Failed {
-                    stale_generation: false,
-                })
-            }
+            TerminalViewerOutcome::Rejected { .. }
+            | TerminalViewerOutcome::RowsRejected { .. }
+            | TerminalViewerOutcome::Unavailable {
+                reason: ViewerUnavailableReason::ServerBusy,
+            } => Ok(Reply::Failed {
+                stale_generation: false,
+            }),
             TerminalViewerOutcome::Attached { .. }
             | TerminalViewerOutcome::Empty { .. }
             | TerminalViewerOutcome::Detached { .. }

@@ -64,6 +64,9 @@ class ScriptedServer implements ServerCarrier {
 	/** Scripts a selection action's answer, which a test may hold back with a promise. */
 	answerSelection: (request: ControlRequest) => Uint8Array | Promise<Uint8Array> = (request) =>
 		encodeViewerResult(request.requestId, { kind: 'feedback-accepted' });
+	/** Scripts the answer to frame feedback; Poll and the rest keep their healthy answers. */
+	answerFeedback: (request: ControlRequest) => Outcome = () => ({ kind: 'feedback-accepted' });
+	readonly feedbackRequests: ControlRequest[] = [];
 	polls = 0;
 	readonly selectionRequests: ControlRequest[] = [];
 	#receive: ((chunk: Uint8Array) => void) | null = null;
@@ -161,6 +164,10 @@ class ScriptedServer implements ServerCarrier {
 				},
 				requestId,
 			});
+		}
+		if (request.action.kind === 'frame-applied' || request.action.kind === 'need-snapshot') {
+			this.feedbackRequests.push(request);
+			return encodeViewerResult(requestId, this.answerFeedback(request));
 		}
 		if (request.action.kind === 'poll') this.polls += 1;
 		const record = request.action.kind === 'poll' ? this.#pollRecords.shift() : undefined;
@@ -308,6 +315,18 @@ function textInput(projection: ServerTerminalProjection, text: string): Projecte
 			attachmentId: projection.bootstrap.attachmentId,
 			capabilityRevision: projection.bootstrap.capabilityRevision,
 			text,
+		},
+	};
+}
+
+function frameApplied(projection: ServerTerminalProjection): ProjectedTerminalCommand {
+	return {
+		kind: 'frame-applied',
+		payload: {
+			attachmentId: projection.bootstrap.attachmentId,
+			generation: CanonicalUint64TextSchema.parse('1'),
+			revision: CanonicalUint64TextSchema.parse('1'),
+			sequence: CanonicalUint64TextSchema.parse('1'),
 		},
 	};
 }
@@ -645,22 +664,12 @@ describe('openServerTerminalProjection', () => {
 			},
 			() => events.push({ kind: 'unavailable' }),
 		);
-		const frameApplied = (): void =>
-			projection.transport.send({
-				kind: 'frame-applied',
-				payload: {
-					attachmentId: projection.bootstrap.attachmentId,
-					generation: CanonicalUint64TextSchema.parse('1'),
-					revision: CanonicalUint64TextSchema.parse('1'),
-					sequence: CanonicalUint64TextSchema.parse('1'),
-				},
-			});
 
 		server.deliverPollRecord(SNAPSHOT);
 		server.deliverPollRecord(SNAPSHOT);
 		await settled(() => refused === 2);
 		// An applied frame is progress, so the count starts again.
-		frameApplied();
+		projection.transport.send(frameApplied(projection));
 		server.deliverPollRecord(SNAPSHOT);
 		server.deliverPollRecord(SNAPSHOT);
 		await settled(() => refused === 4);
@@ -681,6 +690,52 @@ describe('openServerTerminalProjection', () => {
 			setTimeout(resolve, 20);
 		});
 		expect(server.polls).toBe(polls);
+	});
+
+	it('sends busy frame feedback again on the same viewer until the Server takes it', async () => {
+		vi.useFakeTimers();
+		try {
+			const server = new ScriptedServer(accepted);
+			let busyReplies = 2;
+			server.answerFeedback = () => {
+				if (busyReplies === 0) return { kind: 'feedback-accepted' };
+				busyReplies -= 1;
+				return { kind: 'unavailable', reason: 'server-busy' };
+			};
+			const { events, projection } = await open(server);
+			projection.transport.send(frameApplied(projection));
+			await vi.advanceTimersByTimeAsync(1_000);
+
+			expect(new Set(server.feedbackRequests.map((r) => r.requestId)).size).toBe(3);
+			expect(
+				events.filter((event) => event.kind === 'failure' || event.kind === 'unavailable'),
+			).toEqual([]);
+			expect(server.lanesClosed).toBe(0);
+			projection.transport.close();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it.each([
+		['the Server released the viewer', { kind: 'rejected', reason: 'host-rejected' }],
+		['the Server stays busy past every retry', { kind: 'unavailable', reason: 'server-busy' }],
+	])('reopens the pane when frame feedback finds %s', async (_, answer) => {
+		vi.useFakeTimers();
+		try {
+			const server = new ScriptedServer(accepted);
+			server.answerFeedback = () => answer;
+			const { events, projection } = await open(server);
+			projection.transport.send(frameApplied(projection));
+			await vi.advanceTimersByTimeAsync(1_000);
+
+			// A lost viewer, which the surface attaches again, rather than a lasting failure.
+			expect(events.filter((event) => event.kind === 'unavailable')).toHaveLength(1);
+			expect(events.some((event) => event.kind === 'failure')).toBe(false);
+			expect(server.lanesClosed).toBe(1);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('takes no record before anyone is subscribed, because Poll would lose it', async () => {

@@ -215,6 +215,23 @@ function failureContext(
 	}
 }
 
+/**
+ * Whether frame feedback left this projection without a viewer it can use. After `host-rejected`
+ * the Server has released the viewer. Feedback still busy after every retry stays unacknowledged,
+ * and the viewer delivers no frame past an unacknowledged one, so the pane would stay frozen on a
+ * viewer the Server keeps. Either way the projection retires and its surface attaches again.
+ */
+function feedbackLostViewer(
+	command: ProjectedTerminalCommand,
+	outcome: ClientServerViewerOutcome,
+): boolean {
+	if (command.kind !== 'frame-applied' && command.kind !== 'need-snapshot') return false;
+	return (
+		(outcome.kind === 'rejected' && outcome.reason === 'host-rejected') ||
+		(outcome.kind === 'unavailable' && outcome.reason === 'server-busy')
+	);
+}
+
 class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	readonly projectionBufferTrust = 'external' as const;
 	readonly #bootstrap: ProjectedAttachmentBootstrap;
@@ -635,6 +652,10 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 			if (this.#closed) return;
 			try {
 				const outcome = await this.#viewerWithRetry(action);
+				if (feedbackLostViewer(command, outcome)) {
+					this.#retire(true);
+					return;
+				}
 				if (outcome.kind === 'rejected' || outcome.kind === 'rows-rejected') {
 					this.#fail(command, outcome.reason, `The Server refused: ${outcome.reason}.`, false);
 				} else if (outcome.kind === 'unavailable') {
@@ -739,14 +760,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		this.#viewerSteps.push(async () => {
 			if (this.#closed) return;
 			try {
-				this.#settleRows(
-					command,
-					await this.#exchange({
-						action,
-						kind: 'terminal.viewer',
-						requestId: createClientServerRequestId(),
-					}),
-				);
+				this.#settleRows(command, await this.#viewerResponseWithRetry(action));
 			} catch (error) {
 				this.#report(command, error);
 			}
@@ -762,6 +776,11 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 			}
 		} else if (response.kind === 'terminal.viewer.result' && 'reason' in response.outcome) {
 			const { reason } = response.outcome;
+			// The Server released the viewer whose read the Host answered this way.
+			if (response.outcome.kind === 'rejected' && reason === 'host-rejected') {
+				this.#retire(true);
+				return;
+			}
 			this.#fail(command, reason, `Terminal rows are unavailable: ${reason}.`, false);
 			return;
 		}

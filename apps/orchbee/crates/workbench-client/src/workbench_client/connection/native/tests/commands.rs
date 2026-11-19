@@ -4252,9 +4252,9 @@ fn identity(value: u128) -> String {
     format!("{value:032x}")
 }
 
-/// A focus poll the Server refuses settles on that pane: a viewer the Server holds no slot for is
-/// lost at once, and any other refusal releases the viewer first. A quiescent focus parks and the
-/// connection stays.
+/// A focus poll the Server refuses settles on that pane: a viewer the Server holds no slot for, or
+/// released after a Host-rejected Poll, is lost at once, and any other refusal releases the viewer
+/// first. A quiescent focus parks and the connection stays.
 #[test]
 fn refused_focus_poll_stays_with_the_pane() -> TestResult {
     use crate::workbench_client::mailbox::WorkerEvent;
@@ -4263,6 +4263,12 @@ fn refused_focus_poll_stays_with_the_pane() -> TestResult {
         (
             TerminalViewerOutcome::Rejected {
                 reason: ViewerRejectedReason::TerminalUnavailable,
+            },
+            false,
+        ),
+        (
+            TerminalViewerOutcome::Rejected {
+                reason: ViewerRejectedReason::HostRejected,
             },
             false,
         ),
@@ -4334,4 +4340,49 @@ fn refused_focus_poll_stays_with_the_pane() -> TestResult {
         harness.finish()?;
     }
     Ok(())
+}
+
+/// A Poll a busy Server answers took nothing: it is asked again on the same viewer, and the answer
+/// that follows serves it.
+#[test]
+fn busy_focus_poll_is_asked_again_on_the_same_viewer() -> TestResult {
+    use crate::workbench_client::mailbox::WorkerEvent;
+    use orchbee_client_server_protocol::ViewerUnavailableReason;
+    let geometry = fixture_geometry()?;
+    let mut kinds = vec![WireKind::Workbench];
+    kinds.extend([WireKind::Obcs; 8]);
+    let mut harness = Harness::start(kinds, geometry)?;
+    let (active, _controller) = drive_controlling_ready(&mut harness, geometry)?;
+    harness
+        .mailbox
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&active)?,
+            (),
+        )))
+        .map_err(|error| test_error(&format!("focus Poll admission: {error:?}")))?;
+    let busy = TerminalViewerOutcome::Unavailable {
+        reason: ViewerUnavailableReason::ServerBusy,
+    };
+    let mut request_ids = Vec::new();
+    for outcome in [busy.clone(), busy, TerminalViewerOutcome::Empty {}] {
+        let ClientMessage::TerminalViewer(poll) = harness.take_obcs_with_advancing_clock()? else {
+            return Err(test_error("the busy Poll must be asked again"));
+        };
+        assert!(matches!(poll.action(), TerminalViewerAction::Poll { .. }));
+        request_ids.push(poll.request_id().clone());
+        harness
+            .carrier
+            .respond_obcs(ServerMessage::TerminalViewerResult(
+                TerminalViewerResult::new(poll.request_id().clone(), outcome),
+            ))?;
+    }
+    assert_ne!(request_ids[0], request_ids[1]);
+    assert_ne!(request_ids[1], request_ids[2]);
+    let taken = harness.ui.take_next()?;
+    assert!(matches!(
+        taken.event(),
+        WorkerEvent::PollResult { record: None, .. }
+    ));
+    assert_eq!(harness.mailbox.is_closed(), None);
+    harness.finish()
 }

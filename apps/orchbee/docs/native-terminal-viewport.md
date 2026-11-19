@@ -157,10 +157,13 @@ and recovery on reaching the live tail. Entry refusal leaves the pane Live witho
   reach the UI row decoder. Both interactive consumers request render detail; text responses
   are rejected rather than silently dropping styles. CLI history uses the same app-local decoder. Malformed/foreign responses fail
   before row installation; `RowsRejected{reason}` publishes
-  `ViewportOutcome::ReadRejected` with the typed reason; an opaque host rejection publishes the
-  host-shaped variant of the same outcome; `Unavailable` faults the pane.
+  `ViewportOutcome::ReadRejected` with the typed reason; any other rejection, or a read the Server
+  stayed busy for past its retries, publishes the host-shaped variant of the same outcome, except
+  that after `Rejected{HostRejected}` the Server has released the viewer, which takes the typed
+  `ViewerLost` path; other `Unavailable` faults the pane.
 - `Ack{request_sequence,generation,revision}` — `RowsApplied`. An accepted outcome publishes
-  `ViewportOutcome::Ack{request_sequence,accepted:true}`; a rejection publishes `accepted:false`.
+  `ViewportOutcome::Ack{request_sequence,accepted:true}`; a rejection, or a busy answer past its
+  retries, publishes `accepted:false`.
 - `Recover` — `SetHistoryDemand(FollowingBottom)` then `SetProjectionDemand(Active)`. A failed
   leg is a refused exit leg. Success publishes `ViewportOutcome::Recovered`.
 

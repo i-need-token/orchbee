@@ -177,11 +177,18 @@ shared HostViewers capacity of 8 applies across all visible panes, and read-only
 acquire control or resize.
 
 A typed viewer `TerminalRuntimeUnavailable` response for an exact live pane disposes that viewer
-locally, as does `Rejected{TerminalUnavailable}`, which says the Server holds no slot for it; a
-busy Server is asked again within the command's lease. Any other refusal of a poll, of frame
-feedback, of the fresh-frame demand after a takeover or of a viewport exit leg leaves the Server
-slot under a state the Client can no longer name, so the worker sends `Detach` first and disposes
-the viewer once the Server proves the slot released
+locally, as does `Rejected{TerminalUnavailable}`, which says the Server holds no slot for it, and
+`Rejected{HostRejected}` to a poll, frame feedback or viewport read, after which the Server has
+released the slot. A busy Server took nothing: the request is sent again after each pause of
+`VIEWER_BUSY_RETRY_PAUSES`, which follows the window client's schedule, within the command's lease,
+so one busy pane holds the lease about half a second rather than until its deadline. A poll still
+busy past them reads as empty and the next poll asks again; a viewport read, a rows acknowledgement
+or a demand leg still busy settles as refused, and a selection request as failed. Any other refusal
+of a poll, of frame feedback — a feedback still busy past its retries included, because the frame
+flight still waits for it — of the fresh-frame demand after a takeover or of a viewport exit leg
+leaves the Server slot under a state the Client can no longer name, so the worker sends `Detach`
+first, sent again while the Server stays busy until the command's deadline, and disposes the viewer
+once the Server proves the slot released
 ([native-terminal-viewport.md](native-terminal-viewport.md#commands-and-demand-legs)); each such
 refusal writes a throttled `client-fault-contained` record.
 For the focused pane this is allowed in `Ready` beside every owner. Close work (a Tab, Panel

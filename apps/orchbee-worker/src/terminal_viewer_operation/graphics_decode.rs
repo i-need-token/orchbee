@@ -65,9 +65,9 @@ fn read(
         protocol: CURRENT_PROTOCOL_VERSION,
         role: MessageRole::Request,
     })?;
-    // A decode the request has no room for fails only this image, like a refused one.
+    // A decode the request has no room for fails only this image, and the viewer stays as it was.
     let Ok(mut exchange) = HostExchange::open(host, server) else {
-        return Ok(Outcome::Rejected(ViewerRejection::HostRejected));
+        return Ok(Outcome::Rejected(ViewerRejection::HostBusy));
     };
     exchange.prepare().map_err(|class| exchange.error(class))?;
     let record = exchange

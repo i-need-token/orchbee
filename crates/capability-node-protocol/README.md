@@ -325,8 +325,13 @@ attachment stays on the request envelope and is not repeated. Tags 1 through 5 a
 byte-for-byte.
 All integers are unsigned big-endian. Kind 6 contains request and attachment IDs followed by
 `Attached`, `Empty`, `FeedbackAccepted`, `Detached`, `Rejected`, or `RowsRejected` tags 1 through 6.
-Rejection tags 1 through 8 are wrong Worker, stale Worker generation, stale Host epoch, capacity
-exceeded, attachment unavailable, attachment already exists, feedback mismatch, and Host rejected.
+Rejection tags 1 through 9 are wrong Worker, stale Worker generation, stale Host epoch, capacity
+exceeded, attachment unavailable, attachment already exists, feedback mismatch, Host rejected, and
+Host busy. Host rejected means the Host refused the request, or answered it in a way the Worker
+could not accept and closed the viewer for. Host busy means the Worker had no room to start the
+request: nothing reached the Host, the viewer stays as it was, and the request may be sent again.
+Tag 9 is added in place; old tags and framing remain unchanged, an older decoder rejects it, and
+same-cohort deployment is required.
 `RowsRejected` adds one reason tag 1 through 9: `StaleRevision`, `StaleGeneration`,
 `HistoryEvicted`, `MissingResource`, `InvalidField`, `InvalidAcknowledgement`, `LimitExceeded`,
 `ResourceExhausted`, and `InvalidPhase`; it answers only `ReadRows`, and a `ReadRows` request
@@ -370,7 +375,8 @@ all reject.
   `revision` (`u64`).
 
 The four control acknowledgement actions answer with `FeedbackAccepted`, or `Rejected` carrying
-the existing Host-rejected reason tag 8 when the Host returns a typed failure. `read-viewport-rows`
+the Host-rejected reason tag 8 when the Host returns a typed failure, or the Host-busy tag 9 when
+the Worker had no room to start them. `read-viewport-rows`
 answers with a `Record` holding the correlated kind-46 row-window response, or `RowsRejected` with
 the existing nine-reason vocabulary. Any other outcome pairing stays a protocol violation.
 

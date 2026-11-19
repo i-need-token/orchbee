@@ -797,7 +797,11 @@ Attach commits before Client publication. Explicit detach releases only the sele
 controller; Connection disconnect or failed publication cleans all its viewers. Once Server releases
 a viewer's slot, whether for exact disposal, a changed Worker generation or a failed Worker exchange,
 a Detach of it answers Detached, because a retry would find it absent; any other action on that slot
-answers TerminalRuntimeUnavailable, and the released slot owns its remaining Worker cleanup. These operations never
+answers TerminalRuntimeUnavailable, and the released slot owns its remaining Worker cleanup. A
+Worker `HostRejected` answer to FrameApplied, NeedSnapshot, Poll or a read also releases the slot,
+because the Worker may have closed that viewer while containing the Host's answer; that request
+answers `host-rejected`, and the Client attaches again. After demand, history, rows-applied and
+selection actions the slot stays and the request answers `host-rejected`. These operations never
 terminate or retarget retained terminals. Unknown exchanges are not replayed. Reattachment receives
 a fresh attachment identity and requires a snapshot.
 
@@ -817,7 +821,9 @@ lease. Client record reads are idle until their first byte, then use a total two
 Client writes also have a total two-second deadline and retire only that Connection on expiry.
 
 An exact viewer/control ServerBusy response establishes known-unchanged terminal, viewer and
-controller effects. Carrier queue rejection precedes dispatch; an Attach Worker capacity rejection
+controller effects. Carrier queue rejection precedes dispatch; a Worker `HostBusy` answer, a viewer
+request the Worker had no room to start, keeps the viewer slot and answers ServerBusy, except that a
+Detach still releases the slot. An Attach Worker capacity rejection
 may follow an OBCN exchange but inserts no viewer and leaves no Host attachment: an Attach whose
 inventory walk could not finish detaches before it answers. Input/Resize
 may already have consumed the Client sequence, so admitted Client backpressure handling must use

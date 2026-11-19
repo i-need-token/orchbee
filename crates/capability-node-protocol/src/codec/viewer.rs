@@ -587,6 +587,7 @@ pub(super) fn encode_result(value: &TerminalViewerResult) -> Vec<u8> {
                 ViewerRejection::AttachmentAlreadyExists => 6,
                 ViewerRejection::FeedbackMismatch => 7,
                 ViewerRejection::HostRejected => 8,
+                ViewerRejection::HostBusy => 9,
             });
         }
         TerminalViewerOutcome::RowsRejected(reason) => {
@@ -654,6 +655,7 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalViewerResult, Protoc
             6 => ViewerRejection::AttachmentAlreadyExists,
             7 => ViewerRejection::FeedbackMismatch,
             8 => ViewerRejection::HostRejected,
+            9 => ViewerRejection::HostBusy,
             _ => return Err(ProtocolError::InvalidPayload),
         }),
         6 => TerminalViewerOutcome::RowsRejected(rows_rejected_reason(reader.read_u8()?)?),

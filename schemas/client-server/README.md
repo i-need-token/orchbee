@@ -240,13 +240,17 @@ already absent viewer; a binary
 record or RowsRejected answers ReadRows or ReadViewportRows, which never answer Empty. RowsRejected
 answers only ReadRows or ReadViewportRows — on any other action it is a protocol violation — and a
 legal RowsRejected does not
-retire the viewer. `host-rejected` reports the Host's typed failure for one of the four control
-acknowledgement actions only; the healthy viewer stays attached and usable after it. The new reason
-widens the closed enum — it does not widen the set of pairings a consumer may produce. Rejected and
-Unavailable can answer any action. Wrong kind or correlation retires the Client carrier. Only a
-correlated `server-busy` result known to have committed no effect may use the existing bounded retry
-policy: the Client retains identical action values, uses a fresh `requestId`, and stays within the
-same logical deadline. Ambiguous failure never authorizes replay, fallback, or retargeting.
+retire the viewer. `host-rejected` reports the Host's typed failure, or a Host answer the Worker
+could not accept. After one of the four control acknowledgement actions or a selection control the
+viewer stays attached and usable; after `frame-applied`, `need-snapshot`, `poll`, `read-rows`,
+`read-viewport-rows` or `read-process-info` the Server has released the viewer, so the Client
+attaches again. The reason widens the closed enum — it does not widen the set of pairings a
+consumer may produce. Rejected and Unavailable can answer any action. Wrong kind or correlation
+retires the Client carrier. Only a correlated `server-busy` result known to have committed no
+effect may use the existing bounded retry policy: the Client retains identical action values, uses
+a fresh `requestId`, and stays within the same logical deadline. A Worker that had no room to start
+a viewer request answers `server-busy` this way and keeps the viewer. Ambiguous failure never
+authorizes replay, fallback, or retargeting.
 
 A record result uses binary `OBSR`, not JSON: four magic bytes, big-endian u16 version 1, two zero
 reserved bytes, then big-endian u32 payload length. The payload is the exact request ID as 16

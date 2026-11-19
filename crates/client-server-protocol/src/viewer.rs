@@ -665,9 +665,10 @@ pub enum ViewerRejectedReason {
     AlreadyAttached,
     TerminalUnavailable,
     FeedbackMismatch,
-    /// Reserved for the four control-acknowledgement actions' explicit Host
-    /// typed failures; distinct from the controller-plane reason of the same
-    /// name and never applied to older actions.
+    /// The Host's explicit typed failure or an unexpected Host answer; distinct from the
+    /// controller-plane reason of the same name. After the control acknowledgement and selection
+    /// actions the viewer stays attached; after frame feedback, Poll or a read the Server has
+    /// released it.
     HostRejected,
 }
 
