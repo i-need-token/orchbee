@@ -155,6 +155,7 @@ import type { ILink, RendererOptions, SurfacePadding } from '../types';
 import { TerminalHintSession } from './TerminalHintSession';
 import {
 	PackedTerminalStore,
+	PackedTerminalTailComposition,
 	PackedTerminalViewport,
 	projectedCellDisplayWidth,
 	type ProjectedTerminalMetadata,
@@ -703,6 +704,30 @@ interface TailPresentationRowFlight {
 type RowFlight = BufferRowFlight | TailPresentationRowFlight | ViewportRowFlight;
 type RowFlightLane = RowFlight['lane'];
 
+type ProjectedVisibleSource =
+	| PackedTerminalStore
+	| PackedTerminalTailComposition
+	| PackedTerminalViewport;
+
+/** Live metadata seen through a tail window that starts at `startRow`, cursor included. */
+function tailPresentationMetadata(
+	live: ProjectedTerminalMetadata,
+	startRow: bigint,
+	visibleRowCount: number,
+): ProjectedTerminalMetadata {
+	const cursorRow = Number(live.scrollbackRows + BigInt(live.cursor.row) - startRow);
+	return {
+		...live,
+		cursor: {
+			...live.cursor,
+			row: cursorRow,
+			visible: live.cursor.visible && cursorRow >= 0 && cursorRow < visibleRowCount,
+		},
+		rows: visibleRowCount,
+		scrollbackRows: startRow,
+	};
+}
+
 type PendingHistoryTransition = 'awaiting-change' | 'recover' | 'refresh';
 
 type SelectionGestureIdentity = 'attachmentId';
@@ -971,7 +996,10 @@ export class ProjectedTerminal {
 	#tailPresentationHistoryDemand = false;
 	#tailPresentationRowsBefore = 0;
 	#tailPresentationStartRow = 0n;
-	#tailPresentationStore: PackedTerminalViewport | undefined;
+	/** The last exact Host tail window; it owns the retained rows a composition repaints over. */
+	#tailPresentationWindow: PackedTerminalViewport | undefined;
+	/** The visible tail: the exact window, or its retained rows above the current live rows. */
+	#tailPresentationStore: PackedTerminalViewport | PackedTerminalTailComposition | undefined;
 	#inputEnabled: boolean;
 	#optionAsAltMode: TerminalOptionAsAltMode;
 	#inputHelper: HTMLDivElement | undefined;
@@ -996,7 +1024,7 @@ export class ProjectedTerminal {
 	#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
 	#lastPresentedMetadata: ProjectedTerminalMetadata | undefined;
 	#lastPresentedSnapshot: ProjectedTerminalPresentationSnapshot | undefined;
-	#lastPresentedSource: PackedTerminalStore | PackedTerminalViewport | undefined;
+	#lastPresentedSource: ProjectedVisibleSource | undefined;
 	#liveCrop: LiveCrop | undefined;
 	/** The canvas transform and clip last applied for `#liveCrop`, so unchanged frames skip them. */
 	#liveCropStyle = '';
@@ -1050,7 +1078,7 @@ export class ProjectedTerminal {
 	#renderer: WebGPURenderer | undefined;
 	#resizeObserver: ResizeObserver | undefined;
 	#renderingLiveMetadata: ProjectedTerminalMetadata | undefined;
-	#renderingLiveSource: PackedTerminalStore | PackedTerminalViewport | undefined;
+	#renderingLiveSource: ProjectedVisibleSource | undefined;
 	#root: HTMLElement | undefined;
 	#rowFlights = new Map<RowFlightLane, RowFlight>();
 	#rowRequestSequence = 1n;
@@ -1803,8 +1831,7 @@ export class ProjectedTerminal {
 			(flight.kind === 'buffer' && window.revision !== this.#historyRevision) ||
 			(flight.kind === 'viewport' &&
 				flight.revisionPolicy === 'exact' &&
-				window.revision !== this.#historyRevision) ||
-			(flight.kind === 'tail-presentation' && window.revision !== flight.revision)
+				window.revision !== this.#historyRevision)
 		) {
 			if (flight.kind === 'buffer') {
 				if (!flight.aborted) {
@@ -1925,12 +1952,23 @@ export class ProjectedTerminal {
 	): ProjectedRowsResult {
 		const liveMetadata = this.#store.metadata;
 		if (
+			window.detail === 'render' &&
+			liveMetadata !== null &&
+			liveMetadata.generation === window.generation &&
+			liveMetadata.revision !== window.revision
+		) {
+			// The Host answers with its current view, so the answer can belong to another frame. Once it
+			// is acknowledged the Host accepts another read: an answer older than the live frame requests
+			// the live revision, and a newer one waits for its frame, whose commit requests it.
+			if (window.revision < liveMetadata.revision) this.#reconcileTailPresentation();
+			return 'ignored';
+		}
+		if (
 			window.detail !== 'render' ||
 			liveMetadata === null ||
 			this.#historyPhase !== ProjectedHistoryPhase.followingBottom ||
 			!this.#trimTrailingBlankRows ||
 			liveMetadata.generation !== window.generation ||
-			liveMetadata.revision !== window.revision ||
 			window.totalRows !== this.#historyTotalRows ||
 			window.startRow !== flight.expectedStartRow ||
 			window.frame.rows < flight.visibleRowCount ||
@@ -1966,23 +2004,14 @@ export class ProjectedTerminal {
 			return 'rejected';
 		}
 
-		const absoluteCursorRow = liveMetadata.scrollbackRows + BigInt(liveMetadata.cursor.row);
-		const projectedCursorRow = Number(absoluteCursorRow - window.startRow);
-		const visibleMetadata: ProjectedTerminalMetadata = {
-			...liveMetadata,
-			cursor: {
-				...liveMetadata.cursor,
-				row: projectedCursorRow,
-				visible:
-					liveMetadata.cursor.visible &&
-					projectedCursorRow >= 0 &&
-					projectedCursorRow < flight.visibleRowCount,
-			},
-			rows: flight.visibleRowCount,
-			scrollbackRows: window.startRow,
-		};
+		const visibleMetadata = tailPresentationMetadata(
+			liveMetadata,
+			window.startRow,
+			flight.visibleRowCount,
+		);
 		const viewport = new PackedTerminalViewport(staged, 0, flight.visibleRowCount, visibleMetadata);
-		this.#tailPresentationStore?.dispose();
+		this.#tailPresentationWindow?.dispose();
+		this.#tailPresentationWindow = viewport;
 		this.#tailPresentationStore = viewport;
 		this.#tailPresentationStartRow = window.startRow;
 		this.#tailPresentationRowsBefore = flight.rowsBefore;
@@ -2294,6 +2323,7 @@ export class ProjectedTerminal {
 		const nextGeneration = BigInt(event.generation);
 		const generationChanged = nextGeneration !== this.#historyGeneration;
 		const changed = generationChanged || BigInt(event.revision) !== this.#historyRevision;
+		const totalRowsChanged = BigInt(event.totalRows) !== this.#historyTotalRows;
 		this.#historyGeneration = nextGeneration;
 		this.#historyRevision = BigInt(event.revision);
 		this.#historyTotalRows = BigInt(event.totalRows);
@@ -2315,7 +2345,11 @@ export class ProjectedTerminal {
 			this.#historyPhase === ProjectedHistoryPhase.followingBottom ||
 			this.#historyPhase === ProjectedHistoryPhase.disposed
 		) {
-			if (changed && this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
+			// A revision-only event leaves the retained rows in place; the next live frame recomposes.
+			if (
+				(generationChanged || totalRowsChanged) &&
+				this.#historyPhase === ProjectedHistoryPhase.followingBottom
+			) {
 				this.#clearTailPresentation(true);
 			}
 			return;
@@ -2402,7 +2436,12 @@ export class ProjectedTerminal {
 				}
 				handledHistoryFailure = true;
 			} else if (flight.kind === 'tail-presentation') {
-				this.#clearTailPresentation(true);
+				// After a stale revision the presented rows still match the live frame, so they stay.
+				if (failure.code !== 'stale-revision' || this.#tailPresentationWindow === undefined) {
+					this.#clearTailPresentation(true);
+				}
+				// Live frames that arrived while the read was outstanding still need their own window.
+				if (this.#store.metadata?.revision !== flight.revision) this.#reconcileTailPresentation();
 				handledHistoryFailure = true;
 			} else if (
 				this.#pendingHistoryTransition === 'recover' ||
@@ -3416,7 +3455,8 @@ export class ProjectedTerminal {
 		this.#store.dispose();
 		this.#historyStore?.dispose();
 		this.#historyStore = undefined;
-		this.#tailPresentationStore?.dispose();
+		this.#tailPresentationWindow?.dispose();
+		this.#tailPresentationWindow = undefined;
 		this.#tailPresentationStore = undefined;
 		this.#lastPresentedMetadata = undefined;
 		this.#lastPresentedSnapshot = undefined;
@@ -3664,7 +3704,7 @@ export class ProjectedTerminal {
 			this.#historyRevision = metadata.revision;
 			this.#historyTotalRows = metadata.scrollbackRows + BigInt(metadata.rows);
 			if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
-				this.#clearTailPresentation(false, false, true);
+				this.#composeTailPresentation(metadata);
 			}
 			if (metadata.generation !== previousGeneration || metadata.revision !== previousRevision) {
 				this.#invalidateLinkCache();
@@ -3676,8 +3716,9 @@ export class ProjectedTerminal {
 			) {
 				this.#finishHistoryRecovery();
 			} else if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
-				this.#metadataEmitter.fire(metadata);
-				this.#updateAccessibility(metadata);
+				const visibleMetadata = this.#tailPresentationStore?.metadata ?? metadata;
+				this.#metadataEmitter.fire(visibleMetadata);
+				this.#updateAccessibility(visibleMetadata);
 			}
 			this.#syncPreeditPresentation();
 			this.#updateSurfaceMouseCursor();
@@ -3695,11 +3736,51 @@ export class ProjectedTerminal {
 		}
 	}
 
-	#visibleStore(): PackedTerminalStore | PackedTerminalViewport {
+	#visibleStore(): ProjectedVisibleSource {
 		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
 			return this.#tailPresentationStore ?? this.#store;
 		}
 		return this.#historyStore ?? this.#store;
+	}
+
+	/**
+	 * Repaint a live frame inside the committed tail window at once while its retained rows still
+	 * describe the same history: same generation, geometry, theme, rows before and scrollback count,
+	 * and no graphics placement crossing the seam. The exact read that follows still replaces it.
+	 */
+	#composeTailPresentation(live: ProjectedTerminalMetadata): void {
+		const window = this.#tailPresentationWindow;
+		const windowMetadata = window?.metadata;
+		const rowsBefore = this.#tailPresentationRowsBefore;
+		if (
+			window === undefined ||
+			windowMetadata === null ||
+			windowMetadata === undefined ||
+			windowMetadata.generation !== live.generation ||
+			windowMetadata.rows !== live.rows ||
+			windowMetadata.columns !== live.columns ||
+			windowMetadata.themeRevision !== live.themeRevision ||
+			this.#tailPresentationStartRow + BigInt(rowsBefore) !== live.scrollbackRows ||
+			trailingBlankRowsToTrim({
+				enabled: this.#trimTrailingBlankRows,
+				metadata: live,
+				placements: this.#store.graphics.placements,
+				rows: this.#store.rows,
+			}) !== rowsBefore ||
+			window.graphics.placements.some((placement) => placement.row < rowsBefore) ||
+			this.#store.graphics.placements.some((placement) => placement.row < 0)
+		) {
+			this.#clearTailPresentation(false, false, true);
+			return;
+		}
+		const previous = this.#tailPresentationStore;
+		this.#tailPresentationStore = new PackedTerminalTailComposition(
+			window,
+			rowsBefore,
+			this.#store,
+			tailPresentationMetadata(live, this.#tailPresentationStartRow, live.rows),
+			!(previous instanceof PackedTerminalTailComposition) || previous.needsFullRedraw,
+		);
 	}
 
 	#reconcileTailPresentation(): void {
@@ -3731,26 +3812,18 @@ export class ProjectedTerminal {
 			return;
 		}
 
-		const activeMetadata = this.#tailPresentationStore?.metadata;
+		const committedMetadata = this.#tailPresentationWindow?.metadata;
 		if (
-			activeMetadata?.generation === metadata.generation &&
-			activeMetadata.revision === metadata.revision &&
+			committedMetadata?.generation === metadata.generation &&
+			committedMetadata.revision === metadata.revision &&
 			this.#tailPresentationRowsBefore === rowsBefore
 		) {
 			return;
 		}
-		const existingFlight = this.#rowFlights.get('viewport');
-		if (existingFlight?.kind === 'tail-presentation') {
-			if (
-				existingFlight.revision === metadata.revision &&
-				existingFlight.rowsBefore === rowsBefore
-			) {
-				return;
-			}
-			this.#clearTailPresentation(false, false, true);
-		} else if (existingFlight !== undefined) {
-			return;
-		}
+		// The Host serves one viewport read at a time: its window stays pending until acknowledged and
+		// rejects any read sent before then. The answer to the outstanding read requests the newer
+		// revision, and the composition covers the frames in between.
+		if (this.#rowFlights.has('viewport')) return;
 
 		const visibleRowCount = metadata.rows;
 		const expectedStartRow = this.#historyTotalRows - BigInt(visibleRowCount) - BigInt(rowsBefore);
@@ -3800,19 +3873,23 @@ export class ProjectedTerminal {
 		}
 	}
 
-	#clearTailPresentation(
-		restoreHistoryDemand: boolean,
-		refresh = true,
-		preserveHistoryDemand = false,
-	): void {
+	/**
+	 * Drop the presented tail. `continuing` keeps the history demand and any outstanding read for a
+	 * tail that still applies to later frames; that read's answer requests the current revision.
+	 */
+	#clearTailPresentation(restoreHistoryDemand: boolean, refresh = true, continuing = false): void {
 		const flight = this.#rowFlights.get('viewport');
-		if (flight?.kind === 'tail-presentation') this.#retireRowFlight(flight);
+		if (flight?.kind === 'tail-presentation' && !continuing) this.#retireRowFlight(flight);
 		const changed = this.#tailPresentationStore !== undefined;
-		this.#tailPresentationStore?.dispose();
+		// Leaving a tail moves every visible row; live dirty flags describe only the live store's own
+		// last paint, and a painted composition marked its live rows clean at shifted positions.
+		if (changed) this.#scheduledRenderForceAll = true;
+		this.#tailPresentationWindow?.dispose();
+		this.#tailPresentationWindow = undefined;
 		this.#tailPresentationStore = undefined;
 		this.#tailPresentationRowsBefore = 0;
 		this.#tailPresentationStartRow = 0n;
-		if (this.#tailPresentationHistoryDemand && !preserveHistoryDemand) {
+		if (this.#tailPresentationHistoryDemand && !continuing) {
 			if (
 				restoreHistoryDemand &&
 				this.#historyPhase === ProjectedHistoryPhase.followingBottom &&

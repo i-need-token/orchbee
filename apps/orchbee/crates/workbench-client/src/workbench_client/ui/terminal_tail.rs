@@ -4,7 +4,7 @@ use super::{
     PaneRef, QueuedCommand, Tagged, TerminalViewport, ViewportNav, ViewportStep, ViewportWindow,
     WorkbenchClientUi, WorkbenchClientView, WorkbenchPanelId,
 };
-use crate::workbench_client::terminal_tail::Target;
+use crate::workbench_client::terminal_tail::{RetainedTail, TailPresentation, Target};
 
 impl KeyedProjection {
     pub(super) fn tail_window(&self) -> Option<(&ViewportWindow, u32)> {
@@ -17,6 +17,45 @@ impl KeyedProjection {
             .admits(self.value.frame()?, window)
             .then_some((window, target.rows_before))
     }
+
+    /// The exact window for the painted frame, else the retained rows above the newer live frame.
+    pub(super) fn tail_presentation(&self) -> Option<TailPresentation<'_>> {
+        if let Some((window, rows_before)) = self.tail_window() {
+            return Some(TailPresentation {
+                retained: &window.rows,
+                foreground: window.foreground,
+                background: window.background,
+                rows_before,
+                start_row: window.route.start_row,
+            });
+        }
+        if self.status != ClientProjectionStatus::FrameAvailable || self.tail.is_none() {
+            return None;
+        }
+        self.tail_retained.as_ref()?.presents(self.value.frame()?)
+    }
+
+    /// Keep the rows above the seam of the acknowledged tail window for later live frames.
+    pub(super) fn retain_tail_rows(&mut self) {
+        if self.tail.is_none() {
+            self.tail_retained = None;
+            return;
+        }
+        let Some(window) = self
+            .viewport
+            .as_ref()
+            .and_then(TerminalViewport::committed_window)
+        else {
+            return;
+        };
+        if self
+            .tail_retained
+            .as_ref()
+            .is_none_or(|retained| retained.route() != &window.route)
+        {
+            self.tail_retained = RetainedTail::capture(window);
+        }
+    }
 }
 
 impl WorkbenchClientView<'_> {
@@ -28,6 +67,18 @@ impl WorkbenchClientView<'_> {
         let key = self.pane_ref_for_panel(panel)?;
         let projection = self.panes.iter().find(|projection| projection.key == key)?;
         projection.tail_window()
+    }
+
+    /// What an automatic tail paints over the live frame; `None` paints the live frame itself.
+    pub(crate) fn pane_tail_presentation(
+        &self,
+        panel: &WorkbenchPanelId,
+    ) -> Option<TailPresentation<'_>> {
+        let key = self.pane_ref_for_panel(panel)?;
+        self.panes
+            .iter()
+            .find(|projection| projection.key == key)?
+            .tail_presentation()
     }
 
     fn tail_target(&self, key: &PaneRef) -> Option<Target> {
@@ -70,6 +121,7 @@ impl WorkbenchClientUi {
         let mut changed = false;
         for index in 0..self.projections.len() {
             let key = self.projections[index].key.clone();
+            self.projections[index].retain_tail_rows();
             if self.viewport_admission_blocked(&key) {
                 continue;
             }

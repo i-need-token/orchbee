@@ -1374,6 +1374,87 @@ export class PackedTerminalViewport {
 	}
 }
 
+/**
+ * Agent tail presentation repainted from a live frame without a Host round trip: rows above the
+ * seam are the retained rows of the last exact tail window, rows below it are the current live
+ * rows. It owns neither source; the exact window and the live store outlive it.
+ */
+export class PackedTerminalTailComposition {
+	readonly #graphics: ProjectedTerminalGraphics;
+	#fullRedraw: boolean;
+	readonly #live: PackedTerminalStore;
+	readonly #metadata: ProjectedTerminalMetadata;
+	readonly #retained: PackedTerminalViewport;
+	readonly #rows: readonly PackedTerminalRowView[];
+
+	constructor(
+		retained: PackedTerminalViewport,
+		retainedRows: number,
+		live: PackedTerminalStore,
+		metadata: ProjectedTerminalMetadata,
+		fullRedraw: boolean,
+	) {
+		const liveRows = metadata.rows - retainedRows;
+		if (
+			!Number.isInteger(retainedRows) ||
+			retainedRows < 1 ||
+			liveRows < 1 ||
+			retained.rows.length < retainedRows ||
+			live.rows.length < liveRows
+		) {
+			throw new RangeError('Packed tail composition rows must fit both of its sources.');
+		}
+		this.#retained = retained;
+		this.#live = live;
+		this.#metadata = metadata;
+		this.#fullRedraw = fullRedraw;
+		this.#rows = [...retained.rows.slice(0, retainedRows), ...live.rows.slice(0, liveRows)];
+		this.#graphics = {
+			...live.graphics,
+			placements: live.graphics.placements.map((placement) => ({
+				...placement,
+				row: placement.row + retainedRows,
+			})),
+		};
+	}
+
+	get metadata(): ProjectedTerminalMetadata {
+		return this.#metadata;
+	}
+
+	get graphics(): ProjectedTerminalGraphics {
+		return this.#graphics;
+	}
+
+	get rows(): readonly PackedTerminalRowView[] {
+		return this.#rows;
+	}
+
+	get needsFullRedraw(): boolean {
+		return this.#fullRedraw || this.#live.needsFullRedraw;
+	}
+
+	get byteLength(): number {
+		return this.#retained.byteLength + this.#live.byteLength;
+	}
+
+	capturePresentationSnapshot(): ProjectedTerminalPresentationSnapshot {
+		return createPresentationSnapshot(
+			this.byteLength,
+			this.#graphics,
+			this.#metadata,
+			this.#rows.map((row) => row.capturePresentationRow()),
+		);
+	}
+
+	/** Live rows painted here sit below the seam, so the exact live grid must repaint in full. */
+	markRendered(): void {
+		this.#fullRedraw = false;
+		this.#retained.markRendered();
+		this.#live.markRendered();
+	}
+}
+
 function createPresentationSnapshot(
 	byteLength: number,
 	graphics: ProjectedTerminalGraphics,

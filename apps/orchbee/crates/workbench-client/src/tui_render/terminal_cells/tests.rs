@@ -352,7 +352,7 @@ fn cropping_into_a_wide_tail_erases_old_cells_without_painting_half_a_glyph() {
 }
 
 #[test]
-fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
+fn shared_tail_paints_retained_rows_above_live_rows_and_moves_the_cursor_with_its_live_row() {
     let mut live = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
         "../../../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
@@ -362,27 +362,9 @@ fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
         row: 0,
         visible: true,
     };
-    let mut rows = live.rows.clone();
-    rows[0].cells[0].text = "H".into();
-    let window = ViewportWindow {
-        route: TerminalRowWindowRoute {
-            attachment_id: live.route.attachment_id,
-            host_epoch: live.route.host_epoch,
-            sequence: live.route.sequence,
-            revision: live.route.revision,
-            generation: live.route.generation,
-            total_rows: 4,
-            start_row: 0,
-            columns: 6,
-            row_count: 2,
-            detail: RowWindowDetail::Render,
-        },
-        foreground: live.foreground,
-        background: live.background,
-        graphics_present: false,
-        graphics: None,
-        rows,
-    };
+    live.rows[0].cells[0].text = "L".into();
+    let mut retained = live.rows.clone();
+    retained[0].cells[0].text = "H".into();
     let mut terminal = Terminal::new(TestBackend::new(10, 5)).unwrap();
     terminal
         .draw(|surface| {
@@ -390,8 +372,13 @@ fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
                 surface,
                 Rect::new(1, 1, 6, 3),
                 &live,
-                &window,
-                2,
+                TailPresentation {
+                    retained: &retained,
+                    foreground: live.foreground,
+                    background: live.background,
+                    rows_before: 2,
+                    start_row: 0,
+                },
                 true,
                 &Theme::orchbee_dark(),
             ) {
@@ -400,6 +387,7 @@ fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
         })
         .unwrap();
     assert_eq!(terminal.backend().buffer()[(1, 1)].symbol(), "H");
+    assert_eq!(terminal.backend().buffer()[(1, 3)].symbol(), "L");
     assert_eq!(
         terminal.get_cursor_position().unwrap(),
         ratatui::layout::Position::new(2, 3)

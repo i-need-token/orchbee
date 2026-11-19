@@ -12,8 +12,22 @@ use crate::workbench_state::PaneRef;
 
 impl KeyedProjection {
     fn scrollbar_snapshot(&self) -> Option<ScrollbarSnapshot> {
+        if let Some(tail) = self.tail_presentation() {
+            let frame = self.value.frame()?;
+            return ScrollbarSnapshot::new(
+                frame.route.attachment_id,
+                frame.route.host_epoch,
+                frame.route.generation,
+                (frame.geometry.columns, frame.geometry.rows),
+                frame.geometry.rows,
+                frame
+                    .scrollback_rows
+                    .checked_add(u64::from(frame.geometry.rows))?,
+                tail.start_row,
+            );
+        }
         if let Some(viewport) = &self.viewport
-            && (self.tail.is_none() || self.tail_window().is_some())
+            && self.tail.is_none()
         {
             let ViewportSurface::Window(window) = viewport.surface() else {
                 return None;

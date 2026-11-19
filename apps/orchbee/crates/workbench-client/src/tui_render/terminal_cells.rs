@@ -12,6 +12,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     terminal_live_view::LiveView, terminal_text::is_forbidden_terminal_scalar, tui_theme::Theme,
+    workbench_client::TailPresentation,
 };
 
 pub fn render(
@@ -182,18 +183,42 @@ pub(super) fn render_rows_at(
         }
     }
 }
+/// Paint an automatic tail: retained rows above the seam, the current live rows below it.
 pub(super) fn render_tail(
     frame: &mut Frame<'_>,
     area: Rect,
     terminal: &TerminalTextFrame,
-    window: &crate::terminal_viewport::ViewportWindow,
-    rows_before: u32,
+    tail: TailPresentation<'_>,
     show_cursor: bool,
     theme: &Theme,
 ) -> Option<Position> {
-    let theme = theme.with_host_terminal_colors(window.foreground, window.background);
-    render_rows(frame, area, &window.rows, &theme);
-    let cursor_row = u32::from(terminal.cursor.row).saturating_add(rows_before);
+    let seam = u16::try_from(tail.rows_before)
+        .unwrap_or(u16::MAX)
+        .min(area.height);
+    let (retained_area, live_area) = (
+        Rect {
+            height: seam,
+            ..area
+        },
+        Rect {
+            y: area.y + seam,
+            height: area.height - seam,
+            ..area
+        },
+    );
+    render_rows(
+        frame,
+        retained_area,
+        tail.retained,
+        &theme.with_host_terminal_colors(tail.foreground, tail.background),
+    );
+    render_rows(
+        frame,
+        live_area,
+        &terminal.rows,
+        &theme.with_host_terminal_colors(terminal.foreground, terminal.background),
+    );
+    let cursor_row = u32::from(terminal.cursor.row).saturating_add(tail.rows_before);
     (show_cursor
         && terminal.cursor.visible
         && terminal.cursor.column < area.width

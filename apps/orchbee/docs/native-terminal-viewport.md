@@ -70,11 +70,18 @@ The common trim preference may borrow this same core for a live-input tail windo
 Eligibility requires an exact current Agent observation, a primary screen without application mouse
 tracking, an unclipped local live grid, available retained rows, and a proved empty suffix. Prompt markers, cursor rows,
 styled backgrounds/underlines and graphics prevent trimming. A returned window must match the live
-attachment, epoch, generation, revision, geometry and expected row start before painting.
-Stale, pending or failed reads keep the exact live grid; unchanged failed targets do not retry.
-Automatic entry keeps projection demand `Active`: in-place text, selection, color and animation
-changes must continue delivering live frames while the retained-row lease exists. Every new live
-frame invalidates an older crop until an exact current window has been acknowledged.
+attachment, epoch, generation, revision, geometry and expected row start before it is the exact
+tail window. Its rows above the seam are retained once acknowledged: a newer live frame with the
+same attachment, epoch, generation, geometry, default colors, retained-row count and suffix length
+paints at once as those retained rows above the new live rows, while the exact read for its
+revision proceeds and replaces them when acknowledged. Any other change, such as rows pushed into
+retained history, paints the exact live grid until that read is acknowledged. Pending or failed
+reads with no admissible retained rows keep the exact live grid; unchanged failed targets do not
+retry. Automatic entry keeps projection demand `Active`: in-place text, selection, color and
+animation changes must continue delivering live frames while the retained-row lease exists. Copy,
+link and selection admission still require the exact acknowledged window, so they wait for it
+after a frame change; the painted rows, cursor, find matches and scrollbar use the composition's
+unchanged start row.
 
 Automatic tail owns a retained-row lease but does not consume ordinary terminal keys or display
 manual-history chrome. Explicit scrolling, copy mode or admitted selection transfers the core to
@@ -85,7 +92,8 @@ are implementation obligations covered by focused tail and painter tests.
 An automatic lease transferred to manual history retains its active projection demand; the manual
 surface and input owner still use the committed history window. The executor's `tests/viewport.rs`
 checks entry demand selection and partial-entry reset; `ui/terminal_tail/tests.rs` checks fresh
-text/colors before and after a replacement crop, both locales/themes, and stale-window exclusion.
+text/colors before and after a replacement crop, both locales/themes, retained rows over a newer
+frame while its read is pending, and stale-window exclusion.
 
 ## State machine
 

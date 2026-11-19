@@ -4763,6 +4763,162 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('repaints live frames inside the committed Agent tail window while a newer tail read is pending', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: {
+				historyRange: (start, end, total) => `${start}-${end}/${total}`,
+				input: 'input',
+				screen: 'screen',
+			},
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+			trimTrailingBlankRows: true,
+		});
+		await terminal.open(browser.root);
+		const accessibilityRoot = (browser.root as unknown as FakeElement).children[2];
+		const liveFrame = (revision: bigint, text: readonly string[], scrollbackRows = 4n) =>
+			terminal.applyFrame(
+				terminalFrame(
+					revision === 1n ? 'snapshot' : 'delta',
+					revision,
+					revision,
+					text,
+					revision === 1n ? null : revision - 1n,
+					[0, 1, 2, 3],
+					scrollbackRows,
+					interaction,
+					{ column: 0, row: 1 },
+					1n,
+					2,
+					ActiveScreen.primary,
+					0n,
+					{ rows: 4 },
+				),
+			);
+		const lastTailRead = () => {
+			const read = commands.filter((command) => command.kind === 'read-rows').at(-1);
+			if (read?.kind !== 'read-rows') throw new Error('Agent tail request was not sent');
+			return read;
+		};
+		const presentedRows = () => {
+			browser.flushFrames();
+			return terminal.capturePresentationSnapshot()?.rows.map((row) => row.grapheme(0));
+		};
+
+		liveFrame(1n, ['x', 'p', '', '']);
+		const firstRead = lastTailRead();
+		expect(
+			terminal.applyRows(
+				renderRowWindow(BigInt(firstRead.payload.requestSequence), 1n, 2n, 8n, [
+					'a',
+					'b',
+					'x',
+					'p',
+				]),
+			),
+		).toBe('committed');
+		expect(presentedRows()).toEqual(['a', 'b', 'x', 'p']);
+
+		liveFrame(2n, ['y', 'p', '', '']);
+		const staleRead = lastTailRead();
+		expect(staleRead.payload.requestSequence).not.toBe(firstRead.payload.requestSequence);
+		expect(staleRead.payload.revision).toBe('2');
+		expect(terminal.metadata?.cursor).toEqual(expect.objectContaining({ row: 3, visible: true }));
+		expect(accessibilityRoot?.attributes.get('data-terminal-visible-row-start')).toBe('2');
+		expect(presentedRows()).toEqual(['a', 'b', 'y', 'p']);
+
+		liveFrame(3n, ['z', 'p', '', '']);
+		expect(lastTailRead()).toBe(staleRead);
+		expect(
+			terminal.applyRows(
+				renderRowWindow(BigInt(staleRead.payload.requestSequence), 2n, 2n, 8n, [
+					'a',
+					'b',
+					'y',
+					'p',
+				]),
+			),
+		).toBe('ignored');
+		expect(accessibilityRoot?.attributes.get('data-terminal-visible-row-start')).toBe('2');
+		expect(presentedRows()).toEqual(['a', 'b', 'z', 'p']);
+		expect(accessibilityRoot?.children.map((row) => row.textContent)).toEqual(['a', 'b', 'z', 'p']);
+
+		// The Host serves one viewport read at a time, so the current read follows the late answer's
+		// acknowledgement.
+		const acknowledgement = commands.findIndex(
+			(command) =>
+				command.kind === 'rows-applied' &&
+				command.payload.requestSequence === staleRead.payload.requestSequence,
+		);
+		const overtakenRead = lastTailRead();
+		expect(overtakenRead.payload.revision).toBe('3');
+		expect(acknowledgement).toBeGreaterThan(-1);
+		expect(commands.indexOf(overtakenRead)).toBeGreaterThan(acknowledgement);
+
+		// A Host revision with no new live frame overtakes that read; the composition stays.
+		terminal.notifyBrokerFailure({
+			code: 'stale-revision',
+			message: 'ReadRows failed because the revision advanced',
+			operation: 'history',
+			requestSequence: overtakenRead.payload.requestSequence,
+			retryable: true,
+		});
+		expect(presentedRows()).toEqual(['a', 'b', 'z', 'p']);
+		liveFrame(4n, ['v', 'p', '', '']);
+		expect(presentedRows()).toEqual(['a', 'b', 'v', 'p']);
+
+		// The Host answers with its current view; an answer newer than the live frame waits for it.
+		const earlyRead = lastTailRead();
+		expect(earlyRead.payload.revision).toBe('4');
+		expect(
+			terminal.applyRows(
+				renderRowWindow(BigInt(earlyRead.payload.requestSequence), 5n, 2n, 8n, [
+					'c',
+					'd',
+					'u',
+					'p',
+				]),
+			),
+		).toBe('ignored');
+		expect(lastTailRead()).toBe(earlyRead);
+		expect(presentedRows()).toEqual(['a', 'b', 'v', 'p']);
+		liveFrame(5n, ['u', 'p', '', '']);
+		expect(presentedRows()).toEqual(['a', 'b', 'u', 'p']);
+
+		const currentRead = lastTailRead();
+		expect(currentRead.payload.revision).toBe('5');
+		expect(
+			terminal.applyRows(
+				renderRowWindow(BigInt(currentRead.payload.requestSequence), 5n, 2n, 8n, [
+					'c',
+					'd',
+					'u',
+					'p',
+				]),
+			),
+		).toBe('committed');
+		expect(presentedRows()).toEqual(['c', 'd', 'u', 'p']);
+
+		// Rows pushed into history move the retained rows, so the exact live grid waits for a read.
+		liveFrame(6n, ['w', 'p', '', ''], 5n);
+		expect(terminal.metadata?.cursor).toEqual(expect.objectContaining({ row: 1, visible: true }));
+		expect(accessibilityRoot?.attributes.get('data-terminal-visible-row-start')).toBe('5');
+		expect(presentedRows()).toEqual(['w', 'p', '', '']);
+		terminal.dispose();
+	});
+
 	it('excludes alternate-screen and application-mouse frames and transfers a tail window to manual history', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);

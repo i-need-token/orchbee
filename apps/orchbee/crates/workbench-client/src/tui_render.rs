@@ -1778,7 +1778,7 @@ fn render_native_workbench(
             let show_cursor = show_cursor && native.copy_mode().is_none();
             let tail = native
                 .focus_panel_id()
-                .and_then(|panel| native.pane_tail_window(panel));
+                .and_then(|panel| native.pane_tail_presentation(panel));
             let crop = crate::terminal_live_view::LiveView::new(
                 terminal,
                 content_area.width,
@@ -1789,16 +1789,8 @@ fn render_native_workbench(
             } else {
                 crop.content(content_area)
             };
-            *pane_cursor = if let Some((window, rows_before)) = tail {
-                terminal_cells::render_tail(
-                    frame,
-                    content_area,
-                    terminal,
-                    window,
-                    rows_before,
-                    show_cursor,
-                    theme,
-                )
+            *pane_cursor = if let Some(tail) = tail {
+                terminal_cells::render_tail(frame, content_area, terminal, tail, show_cursor, theme)
             } else {
                 viewport::render_live(
                     frame,
@@ -1816,7 +1808,7 @@ fn render_native_workbench(
                 painted,
                 tail.map_or(
                     terminal.scrollback_rows.saturating_add(u64::from(crop.row)),
-                    |(window, _)| window.route.start_row,
+                    |tail| tail.start_row,
                 ),
                 if tail.is_some() { 0 } else { crop.column },
                 native
@@ -1831,7 +1823,7 @@ fn render_native_workbench(
             if input_enabled {
                 let origin = tail.map_or(
                     terminal.scrollback_rows.saturating_add(u64::from(crop.row)),
-                    |(window, _)| window.route.start_row,
+                    |tail| tail.start_row,
                 );
                 let first_column = if tail.is_some() { 0 } else { crop.column };
                 paint_find(
@@ -2330,7 +2322,7 @@ fn render_leaf(
     } else if let Some(terminal) = terminal {
         let show_cursor = cursor_visible && active;
         let show_cursor = show_cursor && native.copy_mode().is_none();
-        let tail = panel.and_then(|panel| native.pane_tail_window(panel.panel_id()));
+        let tail = panel.and_then(|panel| native.pane_tail_presentation(panel.panel_id()));
         let crop =
             crate::terminal_live_view::LiveView::new(terminal, content.width, content.height);
         let painted = if tail.is_some() {
@@ -2338,16 +2330,8 @@ fn render_leaf(
         } else {
             crop.content(content)
         };
-        let cursor = if let Some((window, rows_before)) = tail {
-            terminal_cells::render_tail(
-                frame,
-                content,
-                terminal,
-                window,
-                rows_before,
-                show_cursor,
-                theme,
-            )
+        let cursor = if let Some(tail) = tail {
+            terminal_cells::render_tail(frame, content, terminal, tail, show_cursor, theme)
         } else {
             viewport::render_live(
                 frame,
@@ -2366,7 +2350,7 @@ fn render_leaf(
             painted,
             tail.map_or(
                 terminal.scrollback_rows.saturating_add(u64::from(crop.row)),
-                |(window, _)| window.route.start_row,
+                |tail| tail.start_row,
             ),
             if tail.is_some() { 0 } else { crop.column },
             panel.and_then(|panel| native.pane_selection(panel.panel_id())),
@@ -2375,7 +2359,7 @@ fn render_leaf(
         if active && input_enabled {
             let origin = tail.map_or(
                 terminal.scrollback_rows.saturating_add(u64::from(crop.row)),
-                |(window, _)| window.route.start_row,
+                |tail| tail.start_row,
             );
             let first_column = if tail.is_some() { 0 } else { crop.column };
             paint_find(

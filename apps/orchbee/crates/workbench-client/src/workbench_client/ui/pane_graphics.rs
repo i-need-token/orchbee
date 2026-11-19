@@ -58,7 +58,7 @@ impl WorkbenchClientView<'_> {
     pub(crate) fn terminal_graphics(&self, panel: &ClientPanel) -> Vec<PaneGraphicsCanvas> {
         let panel_id = panel.panel_id();
         if self.pane_history_stand_in(panel_id).is_some()
-            || self.pane_tail_window(panel_id).is_some()
+            || self.pane_tail_presentation(panel_id).is_some()
         {
             return Vec::new();
         }

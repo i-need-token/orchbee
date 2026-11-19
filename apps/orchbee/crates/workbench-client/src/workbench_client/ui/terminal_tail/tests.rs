@@ -59,7 +59,17 @@ fn install_tail(ui: &mut WorkbenchClientUi, key: &PaneRef, mailbox: &Arc<Command
 
 fn serve_tail_window(ui: &mut WorkbenchClientUi, key: &PaneRef, mailbox: &Arc<CommandMailbox>) {
     let frame = ui.projections[0].value.frame().unwrap().clone();
-    let target = Target::capture(&frame).unwrap();
+    serve_window_for(ui, key, mailbox, &frame);
+}
+
+/// Serve and acknowledge the pending tail read with rows `frame` described.
+fn serve_window_for(
+    ui: &mut WorkbenchClientUi,
+    key: &PaneRef,
+    mailbox: &Arc<CommandMailbox>,
+    frame: &TerminalTextFrame,
+) {
+    let target = Target::capture(frame).unwrap();
     let core = ui.projections[0].viewport.as_mut().unwrap();
     let step = if let Some(step) = core.peek_command() {
         core.command_admitted();
@@ -183,7 +193,7 @@ fn in_place_text_and_color_updates_replace_a_cropped_frame_without_manual_refres
                 });
             assert!(ui.view().pane_tail_window(key.pane().panel()).is_none());
             assert!(ui.drive_terminal_tails(&mailbox));
-            // The old window cannot paint while a current crop is being acquired.
+            // Only the old window's retained rows paint while a current crop is being acquired.
             let pending = paint(&ui, locale, &theme);
             assert!(
                 pending
@@ -276,4 +286,75 @@ fn frame_change_never_shows_stale_rows() {
     frame.route.sequence = NonZeroU64::new(2).unwrap();
     ui.projections[0].value.install_frame_for_test(frame);
     assert!(ui.view().pane_tail_window(key.pane().panel()).is_none());
+}
+
+#[test]
+fn a_newer_frame_paints_below_retained_rows_and_a_late_window_never_shows_its_live_rows() {
+    // Below the retained rows the helper copies from live rows, so only the live row carries it.
+    const MARKER_ROW: usize = 10;
+    let (mut ui, key, mailbox) = fixture();
+    let panel = key.pane().panel().clone();
+    let marker_row = |ui: &WorkbenchClientUi, marker: &str| {
+        let buffer = paint(ui, Locale::EnUs, &Theme::terminal_native());
+        buffer
+            .content
+            .iter()
+            .position(|cell| cell.symbol() == marker)
+            .map(|index| index / usize::from(buffer.area.width))
+    };
+    let next_frame = |ui: &mut WorkbenchClientUi, revision: u64, marker: &str| {
+        let mut frame = ui.projections[0].value.frame().unwrap().clone();
+        frame.route.revision = revision;
+        frame.route.sequence = NonZeroU64::new(revision).unwrap();
+        frame.rows[MARKER_ROW].cells[1].text = marker.into();
+        ui.projections[0]
+            .value
+            .install_frame_for_test(frame.clone());
+        ui.projections[0]
+            .viewport
+            .as_mut()
+            .unwrap()
+            .facts(HistoryChanged {
+                attachment_id: frame.route.attachment_id,
+                sequence: NonZeroU64::new(revision).unwrap(),
+                revision,
+                generation: frame.route.generation,
+                anchor_status: HistoryAnchorStatus::Valid,
+                total_rows: frame.scrollback_rows + u64::from(frame.geometry.rows),
+            });
+        frame
+    };
+    let mut frame = ui.projections[0].value.frame().unwrap().clone();
+    frame.rows[MARKER_ROW].cells[1].text = "Ω".into();
+    ui.projections[0].value.install_frame_for_test(frame);
+    install_tail(&mut ui, &key, &mailbox);
+    let tail_row = marker_row(&ui, "Ω").expect("exact tail paints the live row");
+
+    let pending = next_frame(&mut ui, 2, "Ψ");
+    assert!(ui.drive_terminal_tails(&mailbox));
+    assert!(ui.view().pane_tail_window(&panel).is_none());
+    assert_eq!(
+        ui.view()
+            .pane_tail_presentation(&panel)
+            .unwrap()
+            .rows_before,
+        9
+    );
+    assert_eq!(marker_row(&ui, "Ψ"), Some(tail_row));
+
+    next_frame(&mut ui, 3, "Φ");
+    serve_window_for(&mut ui, &key, &mailbox, &pending);
+    assert!(ui.drive_terminal_tails(&mailbox));
+    assert!(ui.view().pane_tail_window(&panel).is_none());
+    assert_eq!(marker_row(&ui, "Φ"), Some(tail_row));
+    assert_eq!(marker_row(&ui, "Ψ"), None);
+
+    // Rows pushed into retained history move every retained row: the live grid paints alone.
+    let mut grown = ui.projections[0].value.frame().unwrap().clone();
+    grown.route.revision = 4;
+    grown.route.sequence = NonZeroU64::new(4).unwrap();
+    grown.scrollback_rows += 1;
+    ui.projections[0].value.install_frame_for_test(grown);
+    assert!(ui.view().pane_tail_presentation(&panel).is_none());
+    assert_ne!(marker_row(&ui, "Φ"), Some(tail_row));
 }

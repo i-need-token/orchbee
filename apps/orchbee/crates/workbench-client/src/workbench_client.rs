@@ -57,6 +57,7 @@ mod terminal_clipboard;
 mod terminal_effects;
 mod terminal_selection;
 mod terminal_tail;
+pub(crate) use terminal_tail::TailPresentation;
 mod ui;
 pub use crate::ui_wakeup::UiWakeup;
 

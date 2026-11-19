@@ -543,26 +543,35 @@ not blank when it contains non-whitespace text, a visible cursor, a graphics pla
 row flag, a non-default background, a style flag, or underline presentation. The policy is disabled
 on the alternate screen and while application mouse tracking is active.
 
-| Condition                                                                            | Presentation result                                                                                                                  |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Policy disabled, alternate screen, application mouse active, or no safe blank suffix | Present the exact live grid.                                                                                                         |
-| Safe suffix exists but retained history is shorter than that suffix                  | Replace only as many suffix rows as retained rows can fill; never move the gap to the top.                                           |
-| Safe suffix exists and enough retained history is available                          | Request one exact Host tail window ending before the removable suffix and present the returned full-height window.                   |
-| Read fails, becomes stale, is superseded, or its anchor becomes invalid              | Settle any Host row acknowledgement, discard the candidate, and fall back to the exact live grid until a later live frame can retry. |
+| Condition                                                                                                                                                      | Presentation result                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Policy disabled, alternate screen, application mouse active, or no safe blank suffix                                                                           | Present the exact live grid.                                                                                                                           |
+| Safe suffix exists but retained history is shorter than that suffix                                                                                            | Replace only as many suffix rows as retained rows can fill; never move the gap to the top.                                                             |
+| Safe suffix exists and enough retained history is available                                                                                                    | Request one Host tail window ending before the removable suffix and present the returned full-height window once it matches the live frame.            |
+| A newer live frame keeps the committed window's generation, geometry, theme, suffix length, and retained-row count, and no graphics placement crosses the seam | Present the committed window's retained rows above the new live rows at once; the window read for the new revision replaces the composition on commit. |
+| A newer live frame changes any of those facts, such as rows pushed into retained history                                                                       | Present the exact live grid until the window for the new revision commits.                                                                             |
+| A newer live frame arrives while a tail read is outstanding                                                                                                    | Keep that read; the Host serves one viewport read at a time and rejects another until the pending window is acknowledged.                              |
+| The answer belongs to another frame                                                                                                                            | Acknowledge it and keep the presentation; an older answer requests the live revision, and a newer one waits for its frame, whose commit requests it.   |
+| Read fails with a stale revision while a composition or window is presented                                                                                    | Keep the presentation, which still matches the live frame, and request the live revision if it differs from the failed read.                           |
+| Read fails otherwise, or its anchor becomes invalid                                                                                                            | Settle any Host row acknowledgement, discard the candidate, and fall back to the exact live grid until a later live frame can retry.                   |
 
 The result is a presentation window, not a VT mutation: it never changes PTY rows, Ghostty state,
 retained history, frame acknowledgements, or terminal output. Internal blank rows are preserved and
 at least one live row remains. A committed semantic tail window uses the Host history anchor for
 selection coordinate resolution while live projection remains active; its cursor is remapped from
-the same live frame. Keyboard input continues to target the live terminal. Manual history
-navigation takes ownership from that window, and disabling the policy, losing live-Agent
-eligibility, changing screen or generation, resizing, or disposing restores ordinary
+the same live frame. A composition keeps that window's start row, so selection, search, and link
+coordinates do not move across its seam, and the next exact window verifies its retained rows. A
+history event that changes only the revision keeps the presentation; a new
+generation or retained-row count clears it. Keyboard input continues to target the live terminal.
+Manual history navigation takes ownership from that window, and disabling the policy, losing
+live-Agent eligibility, changing screen or generation, resizing, or disposing restores ordinary
 bottom-following state. Accessibility rows, links, search, selection, the scrollbar, and hidden
-input geometry all consume the same committed visible window.
+input geometry all consume the same visible window.
 
 The Host-projected row window owns the visible-tail policy. Deterministic policy tests cover every content signal and no-op boundary;
-projected-terminal tests cover exact-window admission, cursor remapping, failure fallback, runtime
-disablement, alternate-screen and application-mouse exclusion, and transfer to manual history.
+projected-terminal tests cover exact-window admission, composition while a newer read is outstanding,
+answers for older and newer frames, stale-revision failure, cursor remapping, failure fallback,
+runtime disablement, alternate-screen and application-mouse exclusion, and transfer to manual history.
 
 Primary-screen viewport progress and wheel presentation follow these rules: a valid pinned
 primary-screen viewport continues accepting history motion while output advances, and each admitted

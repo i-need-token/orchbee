@@ -1468,6 +1468,8 @@ pub(crate) struct KeyedProjection {
     /// Automatic tail holds the same history lease, but never captures ordinary input.
     tail: Option<super::terminal_tail::Target>,
     tail_attempted: Option<super::terminal_tail::Target>,
+    /// Rows above the seam of the last acknowledged tail window, painted over newer live frames.
+    tail_retained: Option<super::terminal_tail::RetainedTail>,
     /// Strict per-incarnation kind-53 sequence cursor: the next
     /// `HistoryChanged` must exceed this or the stream is malformed.
     history_sequence: u64,
@@ -1517,6 +1519,7 @@ impl KeyedProjection {
             viewport: None,
             tail: None,
             tail_attempted: None,
+            tail_retained: None,
             history_sequence: 0,
             resyncs: 0,
             read_watermark: 0,
@@ -3115,6 +3118,9 @@ impl WorkbenchClientUi {
             }
         };
         self.settle_viewport_effect(mailbox, &key, effect);
+        if let Some(projection) = self.projections.iter_mut().find(|p| p.key == key) {
+            projection.retain_tail_rows();
+        }
         true
     }
 
@@ -4432,6 +4438,7 @@ impl WorkbenchClientUi {
                             viewport: None,
                             tail: None,
                             tail_attempted: None,
+                            tail_retained: None,
                             history_sequence: 0,
                             resyncs: 0,
                             read_watermark: 0,
