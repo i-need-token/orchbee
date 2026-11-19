@@ -1,3 +1,7 @@
+import type { websiteShellMessages } from '@orchbee/i18n';
+
+import type { IconName } from './components/icon/Icon';
+
 // The only switch between the "no release yet" and "released" install content. After a release is
 // published, `pnpm website:release <version>` sets `release` to its version and to the download of
 // each platform the release published, together with the update feeds under public/update/, so the
@@ -68,4 +72,85 @@ export function offersMacos(offered: Release): boolean {
 
 export function releaseNotesUrl(version: string): string {
 	return `${REPOSITORY_URL}/releases/tag/v${version}`;
+}
+
+type ShellMessageKey = keyof typeof websiteShellMessages;
+
+export type PlatformId = 'windows' | 'macos';
+
+// One installer of a platform: the download key it reads from ReleaseDownloads and its button's copy.
+interface PlatformVariant {
+	readonly download: keyof ReleaseDownloads;
+	readonly label: ShellMessageKey;
+}
+
+// One other way to install that a platform needs: its label and its command.
+interface PlatformCommand {
+	readonly label: ShellMessageKey;
+	readonly command: string;
+}
+
+interface Platform {
+	readonly id: PlatformId;
+	readonly name: ShellMessageKey;
+	readonly icon: IconName;
+	/** Matches the browser's platform string, which names the visitor's operating system. */
+	readonly visitor: RegExp;
+	readonly variants: readonly PlatformVariant[];
+	readonly commands: readonly PlatformCommand[];
+}
+
+// The platforms the download dialog groups its installers by, in the order it lists them to a visitor who
+// matches none of them. A platform appears in the dialog only while the release publishes one of its variants.
+// To add a platform: add its download keys to ReleaseDownloads and to the release script's table, add an entry
+// here, add its icon to components/icon/Icon.tsx, and add its copy in both locales.
+const PLATFORMS: readonly Platform[] = [
+	{
+		id: 'windows',
+		name: 'platformWindows',
+		icon: 'windows',
+		visitor: /Win/iu,
+		variants: [{ download: 'windows-x86_64', label: 'downloadAction' }],
+		commands: [],
+	},
+	{
+		id: 'macos',
+		name: 'platformMacos',
+		icon: 'apple',
+		visitor: /Mac|iPhone|iPad|iPod/iu,
+		variants: [
+			{ download: 'macos-aarch64', label: 'downloadAppleSilicon' },
+			{ download: 'macos-x86_64', label: 'downloadIntel' },
+		],
+		commands: [
+			{ label: 'downloadScriptDesktop', command: INSTALL_SCRIPT_DESKTOP_COMMAND },
+			{ label: 'downloadScriptCli', command: INSTALL_SCRIPT_COMMAND },
+		],
+	},
+];
+
+interface PublishedVariant extends PlatformVariant {
+	readonly url: string;
+}
+
+export interface PublishedPlatform {
+	readonly platform: Platform;
+	readonly variants: readonly PublishedVariant[];
+}
+
+/** The platforms a release published, in catalog order, each with its published variants; empty before a release. */
+export function publishedPlatforms(offered: Release): readonly PublishedPlatform[] {
+	if (!offered.published) return [];
+	return PLATFORMS.flatMap((platform) => {
+		const variants = platform.variants.flatMap((variant) => {
+			const url = offered.downloads[variant.download];
+			return url === undefined ? [] : [{ ...variant, url }];
+		});
+		return variants.length === 0 ? [] : [{ platform, variants }];
+	});
+}
+
+/** The platform whose pattern matches a browser's platform string, or undefined when none does. */
+export function visitorPlatform(platformString: string): PlatformId | undefined {
+	return PLATFORMS.find((platform) => platform.visitor.test(platformString))?.id;
 }

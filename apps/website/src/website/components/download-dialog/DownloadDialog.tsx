@@ -2,11 +2,8 @@ import { useOrchbeeIntl, websiteShellMessages as messages } from '@orchbee/i18n'
 import type { ReactElement } from 'react';
 
 import {
-	INSTALL_SCRIPT_COMMAND,
-	INSTALL_SCRIPT_DESKTOP_COMMAND,
-	macosDownloads,
 	NPM_INSTALL_COMMAND,
-	offersMacos,
+	publishedPlatforms,
 	releaseNotesUrl,
 	type Release,
 } from '../../release';
@@ -15,47 +12,24 @@ import { Icon } from '../icon/Icon';
 import { LinkButton } from '../link-button/LinkButton';
 import styles from './DownloadDialog.module.css';
 
-// The dialog that the navigation bar and the home hero open with their Download buttons: each installer
-// of the release, then the other ways to install: the npm package and, once a macOS disk image is
-// published, the install script. It is rendered only after a release is published, so nothing unshipped
-// appears before one. activateDownloadDialog lists the visitor's platform first and opens the dialog for
-// #download.
+// The dialog that the navigation bar and the home hero open with their Download buttons: the installers of the
+// release grouped by platform, each group under the platform's icon and name, then the other ways to install:
+// the npm package and the install commands of each platform the release published. It is rendered only after a
+// release is published, so nothing unshipped appears before one. activateDownloadDialog lists the visitor's
+// platform first and opens the dialog for #download.
 export function DownloadDialog({ release }: { release: Release }): ReactElement | null {
 	const { formatMessage: t } = useOrchbeeIntl();
 	if (!release.published) return null;
-	const downloads = [
-		{
-			platform: 'windows' as const,
-			key: 'windows-x86_64',
-			url: release.downloads['windows-x86_64'],
-			label: messages.downloadForWindows,
-		},
-		...macosDownloads(release.downloads).map(({ platform, url }) => ({
-			platform: 'macos' as const,
-			key: platform,
-			url,
-			label:
-				platform === 'macos-aarch64'
-					? messages.downloadForMacAppleSilicon
-					: messages.downloadMacIntel,
-		})),
-	];
+	const platforms = publishedPlatforms(release);
 	const methods = [
 		{ key: 'npm', label: messages.downloadNpm, command: NPM_INSTALL_COMMAND },
-		...(offersMacos(release)
-			? [
-					{
-						key: 'script-desktop',
-						label: messages.downloadScriptDesktop,
-						command: INSTALL_SCRIPT_DESKTOP_COMMAND,
-					},
-					{
-						key: 'script-cli',
-						label: messages.downloadScriptCli,
-						command: INSTALL_SCRIPT_COMMAND,
-					},
-				]
-			: []),
+		...platforms.flatMap(({ platform }) =>
+			platform.commands.map(({ label, command }) => ({
+				key: `${platform.id}-${label}`,
+				label: messages[label],
+				command,
+			})),
+		),
 	];
 	return (
 		<div className={styles['backdrop']} data-download-dialog='' hidden>
@@ -90,13 +64,34 @@ export function DownloadDialog({ release }: { release: Release }): ReactElement 
 					</a>
 				</div>
 				<div className={styles['downloads']} data-download-list=''>
-					{downloads.map(({ platform, key, url, label }, index) => (
-						<div className={styles['download']} data-download-item={platform} key={key}>
-							<LinkButton href={url} icon='download' primary={index === 0}>
-								{t(label)}
-							</LinkButton>
-						</div>
-					))}
+					{platforms.map(({ platform, variants }, groupIndex) => {
+						const headingId = `download-group-${platform.id}`;
+						return (
+							<section
+								className={styles['group']}
+								data-download-group={platform.id}
+								aria-labelledby={headingId}
+								key={platform.id}
+							>
+								<h3 className={styles['groupTitle']} id={headingId}>
+									<Icon name={platform.icon} />
+									<span className={styles['groupName']}>{t(messages[platform.name])}</span>
+								</h3>
+								<div className={styles['variants']}>
+									{variants.map(({ download, label, url }, variantIndex) => (
+										<LinkButton
+											href={url}
+											icon='download'
+											primary={groupIndex === 0 && variantIndex === 0}
+											key={download}
+										>
+											{t(messages[label])}
+										</LinkButton>
+									))}
+								</div>
+							</section>
+						);
+					})}
 				</div>
 				<section className={styles['other']} aria-labelledby='download-dialog-other'>
 					<h3 className={styles['kicker']} id='download-dialog-other'>

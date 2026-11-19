@@ -83,15 +83,37 @@
 .notes:hover {
 	color: var(--ob-sys-color-website-fg);
 }
-/* One full-width button per installer; the visitor's platform is the solid one, listed first. */
+/* The platforms, each a heading over its installers; the visitor's platform comes first and its first
+   installer is the solid button. */
 .downloads {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-16);
+}
+.group {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	gap: var(--ob-ref-length-website-8);
 }
-.download {
+/* The icon and the name share one line; the icon is the same size as the icons in the buttons. */
+.groupTitle {
+	height: var(--ob-ref-length-website-24);
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-8);
+	margin: 0;
+	font: var(--ob-sys-typography-website-install-title);
+}
+/* The name's box ends at its capitals, so the icon centers on the letters rather than on the line box, as the
+   title does. */
+.groupName {
+	text-box: trim-both cap alphabetic;
+}
+/* A platform's installers sit side by side where two fit (Apple silicon and Intel) and stack on a phone. */
+.variants {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr);
+	grid-template-columns: repeat(auto-fit, minmax(var(--ob-ref-length-website-190), 1fr));
+	gap: var(--ob-ref-length-website-8);
 }
 .other {
 	display: grid;

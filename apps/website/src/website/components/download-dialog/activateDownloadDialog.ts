@@ -1,4 +1,5 @@
 import type { ActivationContext } from '../../activation';
+import { visitorPlatform } from '../../release';
 
 // The fragment that addresses the dialog. A page opened with it shows the dialog, and the open dialog
 // writes it into the address, so the page can be shared that way.
@@ -8,15 +9,11 @@ const DOWNLOAD_HASH = '#download';
 const FOCUSABLE =
 	'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-function isMac(view: Window): boolean {
-	const platform = view.navigator.platform || view.navigator.userAgent;
-	return /Mac|iPhone|iPad|iPod/i.test(platform);
-}
-
 // Opens the download dialog from each download trigger (the navigation bar's and the home hero's) and when
 // the page is addressed with #download. While it is open, Tab stays inside it; Escape, its close button or
 // a click on the backdrop close it; focus returns to the trigger that opened it; and the page does not
-// scroll. The visitor's platform is listed first, with the primary style.
+// scroll. The platform group of the visitor's operating system is listed first, and its first installer is
+// the primary one.
 export function activateDownloadDialog({ document }: ActivationContext): void {
 	const view = document.defaultView;
 	const dialog = document.querySelector<HTMLElement>('[data-download-dialog]');
@@ -35,15 +32,17 @@ export function activateDownloadDialog({ document }: ActivationContext): void {
 		);
 
 	if (list !== null) {
-		const items = [...list.querySelectorAll<HTMLElement>('[data-download-item]')];
-		const preferred = isMac(view) ? 'macos' : 'windows';
+		const groups = [...list.querySelectorAll<HTMLElement>('[data-download-group]')];
+		const preferred = visitorPlatform(view.navigator.platform || view.navigator.userAgent);
 		const ordered = [
-			...items.filter((item) => item.dataset['downloadItem'] === preferred),
-			...items.filter((item) => item.dataset['downloadItem'] !== preferred),
+			...groups.filter((group) => group.dataset['downloadGroup'] === preferred),
+			...groups.filter((group) => group.dataset['downloadGroup'] !== preferred),
 		];
-		for (const item of ordered) {
-			list.append(item);
-			item.querySelector('a')?.removeAttribute('data-primary');
+		for (const group of ordered) {
+			list.append(group);
+			for (const link of group.querySelectorAll<HTMLElement>('a')) {
+				link.removeAttribute('data-primary');
+			}
 		}
 		ordered[0]?.querySelector('a')?.setAttribute('data-primary', '');
 	}

@@ -17,6 +17,7 @@ import {
 } from '../../../../release';
 import { richText } from '../../../../rich-text';
 import { CommandChip } from '../../../command-chip/CommandChip';
+import { Icon } from '../../../icon/Icon';
 import { LinkButton } from '../../../link-button/LinkButton';
 import { SectionHead } from '../../../section-head/SectionHead';
 import styles from './Install.module.css';
@@ -94,6 +95,7 @@ export function Install({ release }: { release: Release }): ReactElement {
 										data-install-tab='windows'
 										aria-pressed='true'
 									>
+										<Icon name='windows' />
 										{t(messages.installTabWindows)}
 									</button>
 									<button
@@ -102,6 +104,7 @@ export function Install({ release }: { release: Release }): ReactElement {
 										data-install-tab='macos'
 										aria-pressed='false'
 									>
+										<Icon name='apple' />
 										{t(messages.installTabMacos)}
 									</button>
 									<button

@@ -51,14 +51,14 @@ export function GetOrchbee({
 					<>
 						<LinkButton
 							href={release.downloads['windows-x86_64']}
-							icon='download'
+							icon='windows'
 							platform='windows'
 							primary
 						>
 							{t(messages.downloadForWindows)}
 						</LinkButton>
 						{withMacos && macPrimaryUrl !== undefined ? (
-							<LinkButton href={macPrimaryUrl} icon='download' platform='macos' primary={false}>
+							<LinkButton href={macPrimaryUrl} icon='apple' platform='macos' primary={false}>
 								{t(
 									release.downloads['macos-aarch64'] !== undefined
 										? messages.downloadForMacAppleSilicon

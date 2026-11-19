@@ -88,9 +88,25 @@ export const websiteShellMessages = defineMessages({
 		'website.shell.downloadForMacIntel',
 		'Link that downloads the macOS disk image for Intel Macs.',
 	),
-	downloadMacIntel: message(
-		'website.shell.download.macIntel',
-		'Button that downloads the macOS disk image for Intel Macs, in the download dialog.',
+	platformWindows: message(
+		'website.shell.platform.windows',
+		'Name of the Windows platform: the heading over its installers in the download dialog.',
+	),
+	platformMacos: message(
+		'website.shell.platform.macos',
+		'Name of the macOS platform: the heading over its disk images in the download dialog.',
+	),
+	downloadAction: message(
+		'website.shell.download.action',
+		'Button in the download dialog that downloads the only installer of a platform.',
+	),
+	downloadAppleSilicon: message(
+		'website.shell.download.appleSilicon',
+		'Button in the download dialog that downloads the macOS disk image for Macs with Apple silicon.',
+	),
+	downloadIntel: message(
+		'website.shell.download.intel',
+		'Button in the download dialog that downloads the macOS disk image for Macs with an Intel processor.',
 	),
 	downloadTitle: message('website.shell.download.title', 'Heading of the download dialog.'),
 	downloadClose: message(

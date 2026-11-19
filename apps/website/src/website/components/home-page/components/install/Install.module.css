@@ -28,6 +28,9 @@
 	background: var(--ob-sys-color-website-surface);
 }
 .tab {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-8);
 	height: var(--ob-ref-length-website-30);
 	padding: 0 var(--ob-ref-length-website-14);
 	border-radius: var(--ob-ref-length-website-6);
