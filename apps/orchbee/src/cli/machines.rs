@@ -41,6 +41,9 @@ enum Error {
     UnsupportedMachine,
     /// The machine hub of this data root could not be reached or started.
     HubUnavailable,
+    /// A machine hub started as administrator serves this data root and refused this standard
+    /// process; it reads as `hub-unavailable` with its own message.
+    HubElevated,
     HostUnreachable,
     /// Signing in needs an answer and nobody gave one.
     AuthRequired,
@@ -85,7 +88,7 @@ impl Error {
             Self::RemoteNotReady => "remote-not-ready",
             Self::DisabledMachine => "disabled-machine",
             Self::UnsupportedMachine => "unsupported-machine",
-            Self::HubUnavailable => "hub-unavailable",
+            Self::HubUnavailable | Self::HubElevated => "hub-unavailable",
             Self::HostUnreachable => "host-unreachable",
             Self::AuthRequired => "auth-required",
             Self::AuthFailed => "auth-failed",
@@ -101,10 +104,12 @@ impl Error {
             Self::Internal => "internal",
         }
     }
-    /// The standard-error message: a `cancelled` the hub gave reads differently from an interrupt.
+    /// The standard-error message: a `cancelled` the hub gave reads differently from an interrupt,
+    /// and a hub started as administrator differently from one that cannot be reached.
     fn message(self) -> &'static str {
         match self {
             Self::AttemptEnded => "attempt-ended",
+            Self::HubElevated => "hub-elevated",
             _ => self.code(),
         }
     }
@@ -123,6 +128,7 @@ impl Error {
             | Self::RemoteNotReady
             | Self::UnsupportedMachine
             | Self::HubUnavailable
+            | Self::HubElevated
             | Self::HostUnreachable
             | Self::AuthRequired
             | Self::NotYetAvailable => 4,

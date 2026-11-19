@@ -160,19 +160,20 @@ fn select<'a>(catalog: &'a Catalog, selector: &str) -> Result<&'a Profile, Error
     }
     Ok(profile)
 }
-/// Why a routed command failed: its closed reason and the failure kind it has while nothing was
-/// submitted. [`reported_kind`] then applies the remote outcome, and the exit code follows from
-/// the reported kind alone.
-type Refusal = (&'static str, FailureKind);
+/// Why a routed command failed: its closed reason, the failure kind it has while nothing was
+/// submitted, and the key of its standard-error message. [`reported_kind`] then applies the remote
+/// outcome, and the exit code follows from the reported kind alone.
+type Refusal = (&'static str, FailureKind, &'static str);
 /// The local input could not be acquired, or the packet carrying it is over the request bound.
-const INPUT_SOURCE: Refusal = ("input-source", FailureKind::Rejected);
+const INPUT_SOURCE: Refusal = ("input-source", FailureKind::Rejected, "input-source");
 /// The far side's reply names no completed command.
 const REMOTE_REJECTED: Refusal = (
     "remote-rejected-or-interrupted",
     FailureKind::ProtocolInvalid,
+    "remote-rejected-or-interrupted",
 );
 fn mapped(error: Error) -> Refusal {
-    (error.code(), kind(error))
+    (error.code(), kind(error), error.message())
 }
 /// The failure kind of a machine error that ends a routed command before anything was submitted.
 /// A hub `cancelled`, the end of the attempt the command waited for, and an install the hub did not
@@ -194,6 +195,7 @@ fn kind(error: Error) -> FailureKind {
         | Error::RemoteNotReady
         | Error::UnsupportedMachine
         | Error::HubUnavailable
+        | Error::HubElevated
         | Error::HostUnreachable
         | Error::AuthRequired
         | Error::AttemptEnded
@@ -237,7 +239,12 @@ fn reported_kind(kind: FailureKind, outcome: Outcome) -> FailureKind {
         (_, Outcome::Unknown) => FailureKind::OutcomeUnknown,
     }
 }
-fn failed((code, kind): Refusal, outcome: Outcome, format: OutputFormat, locale: Locale) -> Output {
+fn failed(
+    (code, kind, message): Refusal,
+    outcome: Outcome,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
     let kind = reported_kind(kind, outcome);
     let mut result = cli::failure_output(
         Failure::new(kind)
@@ -256,9 +263,9 @@ fn failed((code, kind): Refusal, outcome: Outcome, format: OutputFormat, locale:
         code,
         outcome.token()
     );
-    // The remote or this build refused until one side changes, so name what must change.
+    // The remote, this build or the hub refused until one side changes, so name what must change.
     if matches!(
-        code,
+        message,
         "unsupported-machine"
             | "remote-unsupported"
             | "remote-not-installed"
@@ -267,10 +274,11 @@ fn failed((code, kind): Refusal, outcome: Outcome, format: OutputFormat, locale:
             | "host-untrusted"
             | "host-key-changed"
             | "version-incompatible"
+            | "hub-elevated"
     ) {
         result
             .stderr
-            .push_str(CliText::new(locale).cli_machine_message(code));
+            .push_str(CliText::new(locale).cli_machine_message(message));
         result.stderr.push('\n');
     }
     result

@@ -266,6 +266,21 @@ pub fn endpoint_exists(path: &Path) -> io::Result<bool> {
     }
 }
 
+/// Binds `path`, which must not exist. A socket's peer proves its effective user, which elevation
+/// changes, so there is no integrity level to admit across.
+///
+/// # Errors
+///
+/// The bind's own failure.
+pub fn bind(path: &Path) -> io::Result<LocalListener> {
+    LocalListener::bind(path)
+}
+
+/// Never: a Unix endpoint has no integrity label to refuse a process by.
+pub const fn refused_from_above(_error: &io::Error) -> bool {
+    false
+}
+
 /// Binds `path` for a caller whose lock proves no other listener of it serves, first removing a
 /// socket file a listener that ended without closing left there.
 ///
@@ -279,5 +294,5 @@ pub fn bind_locked(path: &Path) -> io::Result<LocalListener> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),
     }
-    LocalListener::bind(path)
+    bind(path)
 }

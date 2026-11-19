@@ -57,6 +57,9 @@ pub enum AttachFailure {
     Unavailable,
     /// The endpoint refused this process, or its server runs as another user.
     Denied,
+    /// A hub started as administrator serves the data root and refused this standard process;
+    /// on Windows only. Nothing here can attach until it ends.
+    Elevated,
     /// The hub was still closing at the deadline; for the owner, also a hub that was asked to stop
     /// when no other took its place.
     Closing,

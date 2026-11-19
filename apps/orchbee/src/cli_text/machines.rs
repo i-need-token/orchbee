@@ -318,6 +318,12 @@ impl super::CliText {
                 "The background machine hub could not be reached or started. Try again."
             }
             (Locale::ZhCn, "hub-unavailable") => "无法连接或启动后台连接进程，请重试。",
+            (Locale::EnUs, "hub-elevated") => {
+                "The background machine hub runs as administrator and refused this command. Close the Orchbee running as administrator, or run this command in an administrator terminal."
+            }
+            (Locale::ZhCn, "hub-elevated") => {
+                "后台连接进程以管理员身份运行，拒绝了此命令。请关闭以管理员身份运行的 Orchbee，或在管理员终端中运行此命令。"
+            }
             (Locale::EnUs, "host-unreachable") => {
                 "The machine could not be reached: its name did not resolve, it refused, or it did not answer in time."
             }
@@ -427,6 +433,12 @@ impl super::CliText {
             }
             (Locale::ZhCn, F::Denied) => {
                 "访问连接进程被拒绝；它可能属于其他用户或以管理员身份运行的进程。"
+            }
+            (Locale::EnUs, F::Elevated) => {
+                "The machine hub runs as administrator and refused this process. Close the Orchbee running as administrator, or run this command in an administrator terminal."
+            }
+            (Locale::ZhCn, F::Elevated) => {
+                "连接进程以管理员身份运行，拒绝了此进程。请关闭以管理员身份运行的 Orchbee，或在管理员终端中运行此命令。"
             }
             (Locale::EnUs, F::Closing) => "The machine hub is closing. Try again.",
             (Locale::ZhCn, F::Closing) => "连接进程正在关闭，请重试。",

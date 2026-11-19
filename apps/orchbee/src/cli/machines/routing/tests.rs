@@ -81,6 +81,7 @@ fn every_routed_failure_exits_by_its_kind_and_an_unknown_outcome_never_claims_no
             Error::DisabledMachine,
             Error::UnsupportedMachine,
             Error::HubUnavailable,
+            Error::HubElevated,
             Error::HostUnreachable,
             Error::AuthRequired,
             Error::AuthFailed,

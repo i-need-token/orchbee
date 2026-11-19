@@ -17,7 +17,7 @@ use orchbee_machine_protocol::{
 };
 use orchbee_workbench_client::application::{
     machine_credentials::{Item, Store},
-    machine_endpoint::{LocalListener, LocalStream, Readiness, private_endpoint},
+    machine_endpoint::{self, LocalListener, LocalStream, Readiness, private_endpoint},
 };
 use std::{
     ffi::OsStr,
@@ -107,7 +107,7 @@ fn prepare(prompt: &OsStr, ticket: String) -> Option<Ready> {
         &format!("{}-{}", std::process::id(), hex(&suffix)),
     );
     let endpoint = path.to_str()?.to_owned();
-    let listener = LocalListener::bind(&path).ok()?;
+    let listener = machine_endpoint::bind(&path).ok()?;
     listener.set_nonblocking(true).ok()?;
     let (name, host_key) = match kind {
         QuestionKind::Password => ("password", None),

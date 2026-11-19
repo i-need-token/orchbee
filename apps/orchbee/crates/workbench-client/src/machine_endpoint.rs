@@ -1,8 +1,10 @@
 //! The local endpoints of saved machines: the machine hub's, its askpass endpoint, each askpass
 //! helper's answer endpoint and each Session carrier's. Windows serves them as private named pipes,
 //! macOS and Linux as Unix sockets in this environment's socket folder; either way an accepted or
-//! connected stream has proved its peer is this user before a byte is read. It names, binds and
-//! connects endpoints only; their protocols belong to their owners.
+//! connected stream has proved its peer is this user before a byte is read. Every one binds
+//! through [`bind`] or [`bind_locked`], so on Windows this user's processes at every integrity
+//! level the endpoint's label lets in connect. It names, binds and connects endpoints only; their
+//! protocols belong to their owners.
 //! `apps/orchbee/docs/machines.md#names-that-freeze` owns the names.
 #[cfg(unix)]
 mod unix;
@@ -14,7 +16,8 @@ use unix as platform;
 use windows as platform;
 
 pub use platform::{
-    FolderHold, LocalListener, LocalStream, Readiness, bind_locked, endpoint_exists, hold_folder,
+    FolderHold, LocalListener, LocalStream, Readiness, bind, bind_locked, endpoint_exists,
+    hold_folder, refused_from_above,
 };
 use std::path::PathBuf;
 

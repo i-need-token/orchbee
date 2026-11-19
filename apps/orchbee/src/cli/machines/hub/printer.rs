@@ -27,6 +27,8 @@ pub(crate) enum StateFailure {
     DataRoot,
     Unavailable,
     Denied,
+    /// A hub started as administrator refused this standard process.
+    Elevated,
     Closing,
     Lost,
     Incompatible(Incompatible),
@@ -37,7 +39,7 @@ impl StateFailure {
     pub(super) const fn status(&self) -> u8 {
         match self {
             Self::DataRoot => 1,
-            Self::Denied => 3,
+            Self::Denied | Self::Elevated => 3,
             Self::Unavailable | Self::Closing => 4,
             Self::Lost => 5,
             Self::Incompatible(_) => 6,
@@ -52,6 +54,7 @@ impl From<AttachFailure> for StateFailure {
             AttachFailure::DataRoot => Self::DataRoot,
             AttachFailure::Unavailable => Self::Unavailable,
             AttachFailure::Denied => Self::Denied,
+            AttachFailure::Elevated => Self::Elevated,
             AttachFailure::Closing => Self::Closing,
             AttachFailure::Incompatible(incompatible) => Self::Incompatible(incompatible),
             AttachFailure::Lost => Self::Lost,

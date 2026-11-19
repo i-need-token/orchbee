@@ -342,6 +342,14 @@ impl Locale {
             (Self::ZhCn, HubStatus::Blocked(Blocked::Denied)) => {
                 "另一个用户的 Orchbee 占用着这里的机器连接。\n它关闭之前，这里无法连接机器。".into()
             }
+            (Self::EnUs, HubStatus::Blocked(Blocked::Elevated)) => {
+                "An Orchbee running as administrator holds machine connections.\nClose it, or run this Orchbee as administrator, to connect machines."
+                    .into()
+            }
+            (Self::ZhCn, HubStatus::Blocked(Blocked::Elevated)) => {
+                "以管理员身份运行的 Orchbee 占用着机器连接。\n关闭它，或以管理员身份运行此 Orchbee，才能在这里连接机器。"
+                    .into()
+            }
             (Self::EnUs, HubStatus::Blocked(Blocked::Protocol)) => {
                 "Machine connections answered outside the protocol.\nChoose this machine to try again."
                     .into()

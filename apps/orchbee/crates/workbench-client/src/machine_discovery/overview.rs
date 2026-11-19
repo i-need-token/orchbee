@@ -175,6 +175,8 @@ pub enum Blocked {
     Environment { environment: String },
     /// The endpoint refused this process, or another user's hub serves it.
     Denied,
+    /// A hub started as administrator serves it and refused this standard process.
+    Elevated,
     /// The hub answered outside the contract.
     Protocol,
     /// The data root or its machines folder is unavailable.

@@ -4,7 +4,7 @@
 //! channel's credit returns only as its own endpoint takes the bytes.
 use super::{Gate, StartedCarrier};
 use crate::{
-    machine_endpoint::{LocalListener, LocalStream, hold_folder, private_endpoint},
+    machine_endpoint::{LocalStream, bind, hold_folder, private_endpoint},
     machine_hub::{ChannelDelivery, ChannelHandle, HubClient},
     machines::ProfileId,
 };
@@ -44,7 +44,7 @@ pub(super) fn start(hub: &Hub, machine: &ProfileId, online: Gate) -> io::Result<
         .map_err(|_| io::Error::other("machine endpoint identity unavailable"))?;
     let folder = hold_folder()?;
     let endpoint: PathBuf = private_endpoint("machine", id.as_str());
-    let listener = LocalListener::bind(&endpoint)?;
+    let listener = bind(&endpoint)?;
     listener.set_nonblocking(true)?;
     let stop = Arc::new(AtomicBool::new(false));
     let task = {

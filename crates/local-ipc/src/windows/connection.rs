@@ -1,5 +1,5 @@
 //! One bounded kernel wait followed by same-user admission under the caller's whole deadline.
-use super::{LocalStream, connect_identified, pipe_name};
+use super::{LocalStream, PeerProof, connect_identified, pipe_name};
 use std::{
     io,
     path::Path,
@@ -40,7 +40,7 @@ impl LocalStream {
             wait_limit,
             Instant::now,
             |wait| connect_identified(pipe_name(path)?, wait),
-            Self::admit,
+            |pipe| Self::admit(pipe, PeerProof::Process),
         )
     }
 }

@@ -309,6 +309,7 @@ fn failed(failure: AttachFailure, opening: Opening) -> Next {
             Blocked::Protocol
         }
         AttachFailure::Denied => Blocked::Denied,
+        AttachFailure::Elevated => Blocked::Elevated,
         AttachFailure::DataRoot => Blocked::DataRoot,
         // A hub that is closing was asked to stop: start none in its place.
         AttachFailure::Closing => return Next::Stopped { going: true },

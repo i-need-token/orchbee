@@ -8,7 +8,9 @@ processes, select a runtime, own protocol state, or grant terminal authority.
 ## Windows transport refinement
 
 The user-authorized Windows native delivery retains the existing process and protocol
-owners. Both ends prove the peer process's token user before exchanging protocol bytes.
+owners. Both ends prove the peer's token user before exchanging protocol bytes: a client
+reads its server process's token, and a listener its client process's token, or the
+token the client opened with for a listener bound with `bind_admitting_elevated`.
 Listeners reject remote connections, use a protected current-user DACL, and exclude
 handle inheritance. A name alone is never authorization. The existing Terminal Host
 keeps its independently owned endpoint naming and peer validation, and labels its pipe
@@ -19,21 +21,35 @@ a service does, also carries the mandatory label `S:(ML;;NWNR;;;HI)`: no process
 can open it for reading or writing, the same user's standard processes included. Without
 it, a standard process could open an elevated Session's pipe and pass that Server's peer
 check, because the elevated side may open a lower peer. A creator below High keeps the
-system's default label for its own level. `runs_at_high_integrity` reads the token's
-level through `winsafe`, so a Client can tell that the refusal it met came from a Session
-started as administrator.
+system's default label for its own level; the level is that of the token the binding
+thread acts with, its process's unless it impersonates. `runs_at_high_integrity` reads the
+token's level through `winsafe`, so a Client can tell that the refusal it met came from a
+Session started as administrator.
 
-| Field        | Contract                                                                                                                                                                                                                                                                                                    |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs       | Validated local pipe name, current token user and integrity level, nonblocking pipe results, optional monotonic deadline, explicit shutdown                                                                                                                                                                 |
-| State        | One shared connection owner, at most one zero-byte read watch, closed flag, caller-selected read/write timeout                                                                                                                                                                                              |
-| Output       | Exact ordered bytes, would-block, EOF, timeout, or typed OS error; no protocol retry                                                                                                                                                                                                                        |
-| Ownership    | Clones share one connection; shutdown closes every clone's transport and signals its read watch, which wakes any poller; final drop closes the handle                                                                                                                                                       |
-| Invariants   | Readiness consumes no bytes; no pipe call waits on the peer, because reads and writes stay within counted bytes and quota and a zero quota is tested in nonblocking mode; no detached I/O thread; no application bytes before identity verification                                                         |
-| Transitions  | Connect/accept → identity proof → admission; readiness waits on a zero-byte read; shutdown/final drop → closed                                                                                                                                                                                              |
-| Deadline     | A timeout bounds each transport call; protocol owners retain their existing absolute whole-operation deadline across calls                                                                                                                                                                                  |
-| Dependencies | `interprocess` supplies Windows named-pipe listener binding, accepts, and `SecurityDescriptor`; the client end owns its overlapped `OwnedHandle` directly via `std` + `windows_native`; `winsafe` supplies process-token and search-handle RAII; `widestring` encodes descriptors and query names as UTF-16 |
-| Evidence     | Native two-process round trip, first-instance/name rejection, exact byte ordering across readiness probes, wake on peer bytes and closure, full-buffer timeout, shutdown, and handle release                                                                                                                |
+The reverse direction depends on the bind. `LocalListener::bind` proves a client by
+opening its process and that process's token, and an elevated process's access list grants
+only Administrators and SYSTEM, which a standard token holds for deny only, so a listener
+bound by a standard process refuses the same user's elevated clients; Sessions and Workers
+bind this way. `LocalListener::bind_admitting_elevated` keeps the same descriptor and label
+but proves a client by the token it opened the pipe with: the accepting thread calls
+`ImpersonateNamedPipeClient`, reads the user through the effective-token pseudo handle,
+which opens no object and so meets no access check, and reverts before the comparison. The
+client's identification-level open guarantees that the thread can only query that token.
+Such a listener admits this user's clients at every level its label lets in, an elevated
+client of a standard listener among them, and still refuses another user's. `require_same_user`
+proves the peer again the way admission did.
+
+| Field        | Contract                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs       | Validated local pipe name, current token user and integrity level, nonblocking pipe results, optional monotonic deadline, explicit shutdown                                                                                                                                                                                                                                 |
+| State        | One shared connection owner, at most one zero-byte read watch, closed flag, caller-selected read/write timeout                                                                                                                                                                                                                                                              |
+| Output       | Exact ordered bytes, would-block, EOF, timeout, or typed OS error; no protocol retry                                                                                                                                                                                                                                                                                        |
+| Ownership    | Clones share one connection; shutdown closes every clone's transport and signals its read watch, which wakes any poller; final drop closes the handle                                                                                                                                                                                                                       |
+| Invariants   | Readiness consumes no bytes; no pipe call waits on the peer, because reads and writes stay within counted bytes and quota and a zero quota is tested in nonblocking mode; no detached I/O thread; no application bytes before identity verification                                                                                                                         |
+| Transitions  | Connect/accept → identity proof → admission; readiness waits on a zero-byte read; shutdown/final drop → closed                                                                                                                                                                                                                                                              |
+| Deadline     | A timeout bounds each transport call; protocol owners retain their existing absolute whole-operation deadline across calls                                                                                                                                                                                                                                                  |
+| Dependencies | `interprocess` supplies Windows named-pipe listener binding, accepts, and `SecurityDescriptor`; the client end owns its overlapped `OwnedHandle` directly via `std` + `windows_native`; `winsafe` supplies process-token and search-handle RAII; `widestring` encodes descriptors and query names as UTF-16                                                                 |
+| Evidence     | Native two-process round trip, first-instance/name rejection, exact byte ordering across readiness probes, wake on peer bytes and closure, full-buffer timeout, shutdown, and handle release; admission of a same-user client whose process the listener cannot open, of a higher client by a lower listener, and refusal of a lower client and of another user at the open |
 
 Readiness is advisory: writable notification permits a bounded nonblocking attempt,
 not a promise that the complete record fits. Pipe writes never count as protocol ACKs.
@@ -129,8 +145,8 @@ The same adapter owns pipe readiness, so `poll` blocks on kernel events instead 
   the system tick. A thread without that timer falls back to a timed wait. Nothing retains a pointer,
   and callers reprobe after every return: a wake is advisory.
 
-The same adapter also owns client-side pipe I/O, the busy-endpoint wait, and a test-only impersonation
-probe:
+The same adapter also owns client-side pipe I/O, the busy-endpoint wait, the pipe-client
+impersonation, and test-only tokens:
 
 - **Client pipe I/O.** `open_identified` opens the client handle once, with `FILE_FLAG_OVERLAPPED`, and
   `ClientPipe` keeps that handle; it is never reopened. Each `ClientPipe` owns one manual-reset event that
@@ -145,9 +161,16 @@ probe:
   `WaitNamedPipeW` and keeps no pointer. The timeout is clamped to `1..=u32::MAX - 1` milliseconds, so the
   system default (zero) and an infinite wait are never requested. The wake is advisory, and the caller
   reopens the pipe.
-- **Impersonation probe.** Test builds only. `impersonated_client_level` impersonates the client of a
-  borrowed, live server-side pipe, reads the thread token's impersonation level, and always reverts. A
-  failed `RevertToSelf` panics rather than returning. No production path impersonates a peer.
+- **Pipe-client impersonation.** `as_pipe_client` runs one closure while the thread acts as the
+  client of a borrowed, live server-side pipe, then reverts through a guard that also runs on unwind;
+  a failed `RevertToSelf` aborts the process, because a thread left acting as the client would go on
+  doing so. The client's identification-level open means the closure can query the thread token but
+  not act as the client. The test-only `impersonated_client_level` reads the level it grants.
+- **Test tokens.** Test builds only. `lowered_token` duplicates this process's token for
+  impersonation and labels the copy with a lower integrity level; `as_token` and `as_anonymous` run a
+  closure while the thread acts as that copy or as the anonymous logon, and revert through the same
+  guard. They stand in for a process of another level or another user, which a test cannot start
+  without administrator rights.
 
 A zero write quota cannot refuse a write by itself, so `write_once` cancels this end's read watch and
 tests the write in `PIPE_NOWAIT` mode. `ERROR_PIPE_BUSY` from that mode change proves queued bytes and

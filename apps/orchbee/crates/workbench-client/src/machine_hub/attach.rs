@@ -3,7 +3,7 @@
 //! start a hub; the lock lets one serve and every caller connects to it.
 
 use super::{AttachFailure, Attached, Attachment, HUB_ENTRY, Incompatible, control, holders};
-use crate::machine_endpoint::LocalStream;
+use crate::machine_endpoint::{LocalStream, refused_from_above};
 use orchbee_connection_handshake::{
     AcceptorMessage, Build, ConnectionKind, InitiatorMessage, Offer, OfferFailure, ProductVersion,
     Rejection, RejectionReason, conclude_offer, encode_initiator_frame, read_acceptor_message,
@@ -219,6 +219,7 @@ pub(super) fn attach(
                 return Err(AttachFailure::Incompatible(Incompatible::Protocol));
             }
             Err(Attempt::Denied) => return Err(AttachFailure::Denied),
+            Err(Attempt::Elevated) => return Err(AttachFailure::Elevated),
             Err(Attempt::Nothing) if start == Start::Never => {
                 closing = false;
                 if gone_since.get_or_insert_with(Instant::now).elapsed() >= GONE_WAIT {
@@ -307,6 +308,9 @@ pub(super) enum Reached {
     Lost,
     /// The endpoint refused this process: no attempt can succeed.
     Denied,
+    /// A hub started as administrator refused this standard process: no attempt can succeed
+    /// while it runs.
+    Elevated,
 }
 
 /// How one attempt ended, short of `attached`.
@@ -315,6 +319,8 @@ enum Attempt {
     Nothing,
     /// The endpoint refused this process.
     Denied,
+    /// A hub started as administrator refused this standard process.
+    Elevated,
     /// The hub refused the offer.
     Refused(Rejection),
     /// The answer was not a handshake answer to this offer.
@@ -347,6 +353,7 @@ fn attempt(
         Reached::Nothing => Attempt::Nothing,
         Reached::Lost => Attempt::Lost,
         Reached::Denied => Attempt::Denied,
+        Reached::Elevated => Attempt::Elevated,
     })?;
     let Some(_watch) = cancel.watch(&stream) else {
         return Err(Attempt::Lost);
@@ -376,8 +383,10 @@ pub(super) fn connect(endpoint: &Path, deadline: Instant) -> Result<LocalStream,
     let bound = deadline.min(Instant::now() + CONNECT);
     LocalStream::connect_before(endpoint, bound).map_err(|error| match error.kind() {
         io::ErrorKind::NotFound => Reached::Nothing,
-        // The pipe's DACL or an elevated creator's integrity label refused this process, or the
-        // same-user proof found another user's server.
+        // An elevated creator's integrity label refused this standard process at the open.
+        io::ErrorKind::PermissionDenied if refused_from_above(&error) => Reached::Elevated,
+        // The pipe's DACL refused this process, or the same-user proof found another user's
+        // server.
         io::ErrorKind::PermissionDenied => Reached::Denied,
         _ => Reached::Lost,
     })

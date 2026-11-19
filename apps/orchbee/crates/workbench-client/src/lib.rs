@@ -271,7 +271,7 @@ pub mod application {
 
     pub mod machine_endpoint {
         pub use crate::machine_endpoint::{
-            FolderHold, LocalListener, LocalStream, Readiness, bind_locked, endpoint_exists,
+            FolderHold, LocalListener, LocalStream, Readiness, bind, bind_locked, endpoint_exists,
             endpoint_prefix, hold_folder, names_private_endpoint, private_endpoint,
         };
     }

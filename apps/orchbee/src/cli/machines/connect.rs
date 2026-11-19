@@ -612,6 +612,7 @@ mod requests {
             AttachFailure::DataRoot => Error::Catalog(CatalogError::Configuration),
             AttachFailure::Incompatible(_) => Error::VersionIncompatible,
             AttachFailure::Timeout => Error::Timeout,
+            AttachFailure::Elevated => Error::HubElevated,
             AttachFailure::Unavailable
             | AttachFailure::Denied
             | AttachFailure::Closing
@@ -623,6 +624,7 @@ mod requests {
         match failure {
             EndFailure::Foreign { .. } => Error::VersionIncompatible,
             EndFailure::Timeout { .. } => Error::Timeout,
+            EndFailure::Elevated => Error::HubElevated,
             EndFailure::Denied | EndFailure::Unavailable => Error::HubUnavailable,
         }
     }

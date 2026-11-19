@@ -65,6 +65,7 @@ fn receipts_preserve_committed_and_remote_effects_on_cancellation() {
         Error::DisabledMachine,
         Error::UnsupportedMachine,
         Error::HubUnavailable,
+        Error::HubElevated,
         Error::HostUnreachable,
         Error::AuthRequired,
         Error::AuthFailed,

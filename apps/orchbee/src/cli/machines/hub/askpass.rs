@@ -12,7 +12,9 @@ use crate::cli::machines::askpass::{
 use orchbee_machine_protocol::{AnswerToken, PathText, hub::AnswerEndpoint, hub::QuestionKind};
 use orchbee_workbench_client::application::{
     machine_credentials::SecretKind,
-    machine_endpoint::{LocalListener, LocalStream, names_private_endpoint, private_endpoint},
+    machine_endpoint::{
+        self, LocalListener, LocalStream, names_private_endpoint, private_endpoint,
+    },
 };
 use std::{
     io::{Read, Write},
@@ -40,7 +42,7 @@ pub(super) fn bind() -> Option<(String, LocalListener)> {
         &format!("{}-{}", std::process::id(), hex(&suffix)),
     );
     let name = path.to_str()?.to_owned();
-    let listener = LocalListener::bind(&path).ok()?;
+    let listener = machine_endpoint::bind(&path).ok()?;
     listener.set_nonblocking(true).ok()?;
     Some((name, listener))
 }

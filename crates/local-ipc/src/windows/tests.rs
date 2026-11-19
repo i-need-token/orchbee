@@ -532,7 +532,15 @@ fn child_stdout_is_nonblocking_and_preserves_final_bytes() {
 
 #[test]
 fn real_process_peer() {
-    let Some(path) = std::env::var_os("ORCHBEE_IPC_TEST_PIPE") else {
+    // A spawner that cannot set the child's environment names the pipe as one more filter, which
+    // matches no test.
+    let Some(path) = std::env::var_os("ORCHBEE_IPC_TEST_PIPE").or_else(|| {
+        std::env::args_os().find(|argument| {
+            argument
+                .to_string_lossy()
+                .starts_with(r"\\.\pipe\orchbee-ipc-test-")
+        })
+    }) else {
         return;
     };
     let mut stream = LocalStream::connect(Path::new(&path)).unwrap();
@@ -600,4 +608,173 @@ fn verifies_a_real_second_process_before_round_trip() {
         assert!(Instant::now() < deadline, "child did not exit");
         thread::sleep(POLL_INTERVAL);
     }
+}
+
+/// The integrity levels below this process's that a test thread can act at: Low for a standard
+/// process, Medium and Low for an elevated one such as a CI runner's.
+fn levels_below_this_process() -> Vec<u32> {
+    let own = integrity_level().unwrap();
+    let levels: Vec<u32> = [0x2000, 0x1000]
+        .into_iter()
+        .filter(|level| *level < own)
+        .collect();
+    assert!(!levels.is_empty(), "no level below {own:#x} to act at");
+    levels
+}
+
+// An elevated client's process and token grant only Administrators and SYSTEM, and the standard
+// user's Administrators group is deny-only, so a standard listener cannot open them. A process
+// whose access list grants nobody stands in for it without elevation: its owner, this user, keeps
+// only the rights to read and change that list.
+#[test]
+fn a_listener_admitting_elevated_clients_admits_its_user_whose_process_it_cannot_open() {
+    let path = endpoint();
+    let listener = LocalListener::bind_admitting_elevated(&path).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut nobody = winsafe::ACL {
+        AclRevision: 2,
+        AclSize: std::mem::size_of::<winsafe::ACL>() as u16,
+        ..Default::default()
+    };
+    let mut descriptor = winsafe::InitializeSecurityDescriptor().unwrap();
+    descriptor.Control |= co::SE::DACL_PRESENT;
+    descriptor.Dacl = &mut nobody;
+    let mut attributes = winsafe::SECURITY_ATTRIBUTES::default();
+    attributes.set_lpSecurityDescriptor(Some(&mut descriptor));
+    // The child inherits this environment: winsafe frees the environment block it builds before
+    // the call reads it.
+    let command = format!(
+        "\"{}\" --exact windows::tests::real_process_peer {} --nocapture",
+        std::env::current_exe().unwrap().display(),
+        path.display()
+    );
+    let child = winsafe::CreateProcess(
+        None,
+        Some(&command),
+        Some(&attributes),
+        None,
+        false,
+        co::CREATE::NO_WINDOW,
+        &[],
+        None,
+        &mut winsafe::STARTUPINFO::default(),
+    )
+    .unwrap();
+    struct ChildOwner(winsafe::guard::CloseHandlePiGuard);
+    impl Drop for ChildOwner {
+        fn drop(&mut self) {
+            let _ = self.0.hProcess.TerminateProcess(1);
+            let _ = self.0.hProcess.WaitForSingleObject(Some(5_000));
+        }
+    }
+    let child = ChildOwner(child);
+    assert_eq!(
+        HPROCESS::OpenProcess(
+            co::PROCESS::QUERY_LIMITED_INFORMATION,
+            false,
+            child.0.dwProcessId
+        )
+        .map(drop)
+        .unwrap_err(),
+        co::ERROR::ACCESS_DENIED,
+        "the client's process must refuse this listener"
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut server = loop {
+        match listener.accept() {
+            Ok((stream, ())) => break stream,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                assert!(Instant::now() < deadline, "child was not admitted");
+                thread::sleep(POLL_INTERVAL);
+            }
+            Err(error) => panic!("admission failed: {error}"),
+        }
+    };
+    server
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    server.write_all(b"ping").unwrap();
+    let mut reply = [0; 4];
+    server.read_exact(&mut reply).unwrap();
+    assert_eq!(&reply, b"pong");
+    server.require_same_user().unwrap();
+    server.write_all(&[1]).unwrap();
+    assert_eq!(
+        child.0.hProcess.WaitForSingleObject(Some(10_000)).unwrap(),
+        co::WAIT::OBJECT_0,
+        "child did not exit"
+    );
+    assert_eq!(child.0.hProcess.GetExitCodeProcess().unwrap(), 0);
+}
+
+// The listener's thread acts as a lowered copy of this process's token while it binds and
+// accepts, so the pipe carries that lower level, and the client connects at this process's
+// level, elevated on a CI runner.
+#[test]
+fn a_lower_listener_admitting_elevated_clients_admits_a_higher_client_of_its_user() {
+    for level in levels_below_this_process() {
+        let path = endpoint();
+        let token = crate::windows_native::lowered_token(level).unwrap();
+        let (bound, ready) = std::sync::mpsc::channel();
+        thread::scope(|scope| {
+            let hub = scope.spawn(|| {
+                crate::windows_native::as_token(token.as_handle(), || {
+                    assert_eq!(integrity_level().unwrap(), level);
+                    let listener = LocalListener::bind_admitting_elevated(&path).unwrap();
+                    bound.send(()).unwrap();
+                    let (mut server, ()) = listener.accept().unwrap();
+                    server
+                        .set_read_timeout(Some(Duration::from_secs(3)))
+                        .unwrap();
+                    let mut bytes = [0; 8];
+                    server.read_exact(&mut bytes).unwrap();
+                    assert_eq!(&bytes, b"admitted");
+                })
+                .unwrap();
+            });
+            ready.recv_timeout(Duration::from_secs(5)).unwrap();
+            let mut client = LocalStream::connect(&path).unwrap();
+            client.write_all(b"admitted").unwrap();
+            hub.join().unwrap();
+        });
+    }
+}
+
+// The reverse: the listener runs at this process's level and the client's thread acts at a lower
+// one. The pipe's label refuses the open, so the client meets access denied, the code a client
+// reads as a hub above it, and the listener never sees a connection.
+#[test]
+fn a_listener_refuses_a_lower_client_of_its_user_at_the_open() {
+    for level in levels_below_this_process() {
+        let path = endpoint();
+        let listener = LocalListener::bind_admitting_elevated(&path).unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let token = crate::windows_native::lowered_token(level).unwrap();
+        let refusal = crate::windows_native::as_token(token.as_handle(), || {
+            assert_eq!(integrity_level().unwrap(), level);
+            LocalStream::connect(&path).unwrap_err()
+        })
+        .unwrap();
+        assert_eq!(refusal.raw_os_error(), Some(5), "{refusal}");
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            io::ErrorKind::WouldBlock
+        );
+    }
+}
+
+// Creating another account needs administrator rights; the anonymous logon is another user any
+// thread may act as.
+#[test]
+fn a_listener_refuses_another_users_client_at_the_open() {
+    let path = endpoint();
+    let listener = LocalListener::bind_admitting_elevated(&path).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let refusal =
+        crate::windows_native::as_anonymous(|| LocalStream::connect(&path).unwrap_err()).unwrap();
+    assert_eq!(refusal.raw_os_error(), Some(5), "{refusal}");
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        io::ErrorKind::WouldBlock
+    );
 }

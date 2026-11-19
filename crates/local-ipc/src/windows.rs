@@ -23,7 +23,7 @@ use interprocess::os::windows::{
     security_descriptor::SecurityDescriptor,
 };
 use widestring::U16CString;
-use winsafe::{HPROCESS, TokenInfo, co};
+use winsafe::{HACCESSTOKEN, HPROCESS, TokenInfo, co};
 
 use crate::windows_native::{
     ClientPipe, ReadWatch, WatchArm, new_event, pipe_counters, wait_for_instance,
@@ -120,6 +120,10 @@ pub fn current_user_sid() -> io::Result<String> {
 
 fn process_user(process: &HPROCESS) -> io::Result<String> {
     let token = process.OpenProcessToken(co::TOKEN::QUERY).map_err(system)?;
+    token_user(&token)
+}
+
+fn token_user(token: &HACCESSTOKEN) -> io::Result<String> {
     let info = token
         .GetTokenInformation(co::TOKEN_INFORMATION_CLASS::User)
         .map_err(system)?;
@@ -136,6 +140,16 @@ fn process_user(process: &HPROCESS) -> io::Result<String> {
     winsafe::ConvertSidToStringSid(sid).map_err(system)
 }
 
+/// The user of the token `pipe`'s client opened it with. The thread acts as the client only for
+/// one query through the effective-token pseudo handle, which opens nothing, so neither the
+/// client's process nor its token can refuse the read: an elevated client's can refuse a standard
+/// listener.
+fn client_token_user(pipe: &PipeStream<Bytes, Bytes>) -> io::Result<String> {
+    crate::windows_native::as_pipe_client(pipe.as_handle(), || {
+        token_user(&HACCESSTOKEN::GetCurrentThreadEffectiveToken())
+    })?
+}
+
 /// The Mandatory Integrity Control level of an elevated administrator's token; System is higher.
 const HIGH_INTEGRITY: u32 = 0x3000;
 
@@ -145,11 +159,10 @@ pub fn runs_at_high_integrity() -> io::Result<bool> {
     Ok(integrity_level()? >= HIGH_INTEGRITY)
 }
 
-/// The relative identifier of the current token's mandatory label, such as `0x2000` for Medium.
+/// The relative identifier of the mandatory label of the token this thread acts with, its
+/// process's unless it impersonates, such as `0x2000` for Medium.
 fn integrity_level() -> io::Result<u32> {
-    let token = HPROCESS::GetCurrentProcess()
-        .OpenProcessToken(co::TOKEN::QUERY)
-        .map_err(system)?;
+    let token = HACCESSTOKEN::GetCurrentThreadEffectiveToken();
     let info = token
         .GetTokenInformation(co::TOKEN_INFORMATION_CLASS::IntegrityLevel)
         .map_err(system)?;
@@ -185,14 +198,33 @@ fn system(error: co::ERROR) -> io::Error {
     io::Error::from_raw_os_error(error.raw() as i32)
 }
 
-fn verify_peer(pipe: &Pipe) -> io::Result<()> {
-    let process = HPROCESS::OpenProcess(
-        co::PROCESS::QUERY_LIMITED_INFORMATION,
-        false,
-        pipe.peer_process_id()?,
-    )
-    .map_err(system)?;
-    if process_user(&process)? != current_user_sid()? {
+/// How a stream proves that its peer runs as this user.
+#[derive(Clone, Copy, Debug)]
+enum PeerProof {
+    /// By the peer process's token. A client always proves its server this way; a listener bound
+    /// with [`LocalListener::bind`] proves its clients this way too, so it refuses a client whose
+    /// process it cannot open, such as an elevated client of a standard listener.
+    Process,
+    /// By the token a client opened the pipe with, which identification-level impersonation reads
+    /// without opening the client's process or token, so this user's clients above the listener's
+    /// integrity level are admitted. A client stream still proves its server's process.
+    ClientToken,
+}
+
+fn verify_peer(pipe: &Pipe, proof: PeerProof) -> io::Result<()> {
+    let user = match (proof, pipe) {
+        (PeerProof::ClientToken, Pipe::Server(server)) => client_token_user(server)?,
+        (PeerProof::Process, _) | (PeerProof::ClientToken, Pipe::Client(_)) => {
+            let process = HPROCESS::OpenProcess(
+                co::PROCESS::QUERY_LIMITED_INFORMATION,
+                false,
+                pipe.peer_process_id()?,
+            )
+            .map_err(system)?;
+            process_user(&process)?
+        }
+    };
+    if user != current_user_sid()? {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
             "local peer user differs",
@@ -269,6 +301,8 @@ pub enum Readiness {
 #[derive(Debug)]
 struct Connection {
     pipe: Option<Pipe>,
+    /// How admission proved the peer, so a revalidation proves it the same way.
+    proof: PeerProof,
     watch: Option<ReadWatch>,
     eof: bool,
     read_timeout: Option<Duration>,
@@ -316,13 +350,12 @@ pub struct LocalStream {
 }
 
 impl LocalStream {
-    /// Revalidates the kernel token identity of the admitted peer.
+    /// Revalidates the kernel token identity of the admitted peer, the way admission proved it.
     pub fn require_same_user(&self) -> io::Result<()> {
+        let connection = self.lock()?;
         verify_peer(
-            self.lock()?
-                .pipe
-                .as_ref()
-                .ok_or(io::ErrorKind::BrokenPipe)?,
+            connection.pipe.as_ref().ok_or(io::ErrorKind::BrokenPipe)?,
+            connection.proof,
         )
     }
 
@@ -359,21 +392,22 @@ impl LocalStream {
             .checked_duration_since(Instant::now())
             .ok_or_else(|| io::Error::from(io::ErrorKind::TimedOut))?;
         let pipe = connect_identified(pipe_name(path)?, remaining)?;
-        let stream = Self::admit(pipe)?;
+        let stream = Self::admit(pipe, PeerProof::Process)?;
         if Instant::now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());
         }
         Ok(stream)
     }
 
-    fn admit(pipe: Pipe) -> io::Result<Self> {
+    fn admit(pipe: Pipe, proof: PeerProof) -> io::Result<Self> {
         // A zero-byte read pends only in blocking mode, and the kernel refuses to leave that mode
         // while one is outstanding. Counted transfers below never wait in it.
         pipe.set_nonblocking(false)?;
-        verify_peer(&pipe)?;
+        verify_peer(&pipe, proof)?;
         Ok(Self {
             connection: Arc::new(Mutex::new(Connection {
                 pipe: Some(pipe),
+                proof,
                 watch: None,
                 eof: false,
                 read_timeout: None,
@@ -713,18 +747,33 @@ pub struct LocalListener {
     pipe: PipeListener<Bytes, Bytes>,
     nonblocking: AtomicBool,
     pending: Mutex<Option<LocalStream>>,
+    proof: PeerProof,
 }
 
 impl LocalListener {
-    /// Reserves a fresh named pipe; an existing listener is never adopted or replaced.
+    /// Reserves a fresh named pipe; an existing listener is never adopted or replaced. Each client
+    /// proves its user by its process's token, so a client whose process this listener cannot
+    /// open is refused: one elevated above a standard listener among them.
     pub fn bind(path: impl AsRef<Path>) -> io::Result<Self> {
+        Self::bind_proving(path.as_ref(), PeerProof::Process)
+    }
+
+    /// Reserves a fresh named pipe as [`bind`](Self::bind) does, but each client proves its user
+    /// by the token it opened the pipe with, so this user's clients at every integrity level the
+    /// label lets in are admitted, an elevated client of a standard listener among them. The label
+    /// is unchanged: a listener created at High still refuses every process below High.
+    pub fn bind_admitting_elevated(path: impl AsRef<Path>) -> io::Result<Self> {
+        Self::bind_proving(path.as_ref(), PeerProof::ClientToken)
+    }
+
+    fn bind_proving(path: &Path, proof: PeerProof) -> io::Result<Self> {
         let descriptor = U16CString::from_str(listener_descriptor(
             &current_user_sid()?,
             integrity_level()?,
         ))
         .map_err(io::Error::other)?;
         let pipe = PipeListenerOptions::new()
-            .path(pipe_name(path.as_ref())?)
+            .path(pipe_name(path)?)
             .nonblocking(true)
             .accept_remote(false)
             .inheritable(false)
@@ -736,6 +785,7 @@ impl LocalListener {
             pipe,
             nonblocking: AtomicBool::new(false),
             pending: Mutex::new(None),
+            proof,
         })
     }
 
@@ -758,7 +808,8 @@ impl LocalListener {
         loop {
             match self.pipe.accept() {
                 Ok(pipe) => {
-                    return LocalStream::admit(Pipe::Server(pipe)).map(|stream| (stream, ()));
+                    return LocalStream::admit(Pipe::Server(pipe), self.proof)
+                        .map(|stream| (stream, ()));
                 }
                 Err(error)
                     if error.kind() == io::ErrorKind::WouldBlock
@@ -781,7 +832,7 @@ impl LocalListener {
         }
         match self.pipe.accept() {
             Ok(pipe) => {
-                *pending = Some(LocalStream::admit(Pipe::Server(pipe))?);
+                *pending = Some(LocalStream::admit(Pipe::Server(pipe), self.proof)?);
                 Ok(Readiness::Readable)
             }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => Ok(Readiness::Pending),

@@ -1,7 +1,8 @@
 //! The crate's sole Win32 FFI: one exact namespace lookup, pipe counters, one zero-byte read
 //! watch per connection, one wait over the resulting events, direct overlapped I/O on client
-//! pipe handles without reopening them, and one bounded wait for a busy endpoint instance.
-//! Test builds add one impersonation probe that reverts before returning.
+//! pipe handles without reopening them, one bounded wait for a busy endpoint instance, and acting
+//! as a pipe's client for one token query, always reverting. Test builds add the tokens a test
+//! thread acts as.
 
 use std::{
     cell::{RefCell, UnsafeCell},
@@ -652,9 +653,6 @@ impl ClientPipe {
     }
 }
 
-// Test probe: impersonates the client of a connected server-side pipe, reads the impersonation
-// level of that thread token, and reverts. Production code never impersonates a peer.
-#[cfg(test)]
 #[link(name = "advapi32")]
 unsafe extern "system" {
     #[link_name = "ImpersonateNamedPipeClient"]
@@ -663,23 +661,40 @@ unsafe extern "system" {
     fn revert_to_self() -> i32;
 }
 
-/// The raw `SECURITY_IMPERSONATION_LEVEL` a server thread gets when it impersonates the client of
-/// `pipe`: `1` is identification and `2` is impersonation.
-#[cfg(test)]
-pub(super) fn impersonated_client_level(pipe: BorrowedHandle<'_>) -> io::Result<u32> {
-    // SAFETY: `pipe` is a live server-side pipe handle borrowed for the call; the call retains nothing.
+/// Runs `read` on this thread while it acts as the client of `pipe`, then reverts. The client's
+/// open set the level: a Rust or native client allows identification, so `read` can query the
+/// thread's token but cannot act as the client.
+pub(super) fn as_pipe_client<T>(
+    pipe: BorrowedHandle<'_>,
+    read: impl FnOnce() -> T,
+) -> io::Result<T> {
+    // SAFETY: `pipe` is a live server-side pipe handle borrowed for the call; the call retains
+    // nothing.
     if unsafe { impersonate_named_pipe_client(pipe.as_raw_handle()) } == 0 {
         return Err(io::Error::last_os_error());
     }
-    let level = thread_impersonation_level();
-    // SAFETY: reverting takes no arguments. A thread left impersonating would act as the client,
-    // so a failed revert stops the probe instead of returning.
-    assert_ne!(
-        unsafe { revert_to_self() },
-        0,
-        "RevertToSelf failed after impersonation"
-    );
-    level
+    let _revert = Revert;
+    Ok(read())
+}
+
+/// Reverts this thread to its process's token when dropped, unwinding included. A thread that kept
+/// another token would go on acting as it, so a failed revert aborts the process.
+struct Revert;
+
+impl Drop for Revert {
+    fn drop(&mut self) {
+        // SAFETY: reverting takes no arguments and changes only this thread's token.
+        if unsafe { revert_to_self() } == 0 {
+            std::process::abort();
+        }
+    }
+}
+
+/// The raw `SECURITY_IMPERSONATION_LEVEL` a server thread gets when it acts as the client of
+/// `pipe`: `1` is identification and `2` is impersonation.
+#[cfg(test)]
+pub(super) fn impersonated_client_level(pipe: BorrowedHandle<'_>) -> io::Result<u32> {
+    as_pipe_client(pipe, thread_impersonation_level)?
 }
 
 #[cfg(test)]
@@ -697,6 +712,119 @@ fn thread_impersonation_level() -> io::Result<u32> {
         ));
     };
     Ok(level.raw())
+}
+
+// Test-only token tools: a test thread acts as a lowered copy of this process's token, or as the
+// anonymous logon, to stand in for a process of another integrity level or another user.
+#[cfg(test)]
+#[link(name = "advapi32")]
+unsafe extern "system" {
+    #[link_name = "DuplicateTokenEx"]
+    fn duplicate_token_ex(
+        existing: *mut c_void,
+        access: u32,
+        attributes: *const c_void,
+        level: u32,
+        kind: u32,
+        token: *mut *mut c_void,
+    ) -> i32;
+    #[link_name = "SetTokenInformation"]
+    fn set_token_information(
+        token: *mut c_void,
+        class: u32,
+        information: *const c_void,
+        length: u32,
+    ) -> i32;
+    #[link_name = "ImpersonateLoggedOnUser"]
+    fn impersonate_logged_on_user(token: *mut c_void) -> i32;
+    #[link_name = "ImpersonateAnonymousToken"]
+    fn impersonate_anonymous_token(thread: *mut c_void) -> i32;
+}
+
+#[cfg(test)]
+#[repr(C)]
+struct TokenMandatoryLabel {
+    sid: *const winsafe::SID,
+    attributes: u32,
+}
+
+/// A copy of this process's token that a thread can act as, labeled with the integrity level
+/// `level`, such as `0x1000` for Low. A level above this process's own is refused.
+#[cfg(test)]
+pub(super) fn lowered_token(level: u32) -> io::Result<OwnedHandle> {
+    const TOKEN_ADJUST_DEFAULT: u32 = 0x0080;
+    const TOKEN_IMPERSONATE: u32 = 0x0004;
+    const TOKEN_QUERY: u32 = 0x0008;
+    const SECURITY_IMPERSONATION: u32 = 2;
+    const TOKEN_IMPERSONATION: u32 = 2;
+    const TOKEN_INTEGRITY_LEVEL: u32 = 25;
+    const SE_GROUP_INTEGRITY: u32 = 0x20;
+    let system = |error: co::ERROR| io::Error::from_raw_os_error(error.raw() as i32);
+    let process = winsafe::HPROCESS::GetCurrentProcess()
+        .OpenProcessToken(co::TOKEN::DUPLICATE | co::TOKEN::QUERY)
+        .map_err(system)?;
+    let mut raw = ptr::null_mut();
+    // SAFETY: `process` is a live token handle with duplicate access for the call, and `raw` is a
+    // writable out pointer that receives one new handle.
+    if unsafe {
+        duplicate_token_ex(
+            process.ptr(),
+            TOKEN_ADJUST_DEFAULT | TOKEN_IMPERSONATE | TOKEN_QUERY,
+            ptr::null(),
+            SECURITY_IMPERSONATION,
+            TOKEN_IMPERSONATION,
+            &mut raw,
+        )
+    } == 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the call succeeded, so `raw` is a new token handle that nothing else owns.
+    let token = unsafe { OwnedHandle::from_raw_handle(raw) };
+    let sid = winsafe::ConvertStringSidToSid(&format!("S-1-16-{level}")).map_err(system)?;
+    let label = TokenMandatoryLabel {
+        sid: &*sid,
+        attributes: SE_GROUP_INTEGRITY,
+    };
+    let length = std::mem::size_of::<TokenMandatoryLabel>() as u32 + winsafe::GetLengthSid(&sid);
+    // SAFETY: `token` is live with adjust-default access, and `label` and the SID it points to
+    // outlive the call, which copies them.
+    if unsafe {
+        set_token_information(
+            token.as_raw_handle(),
+            TOKEN_INTEGRITY_LEVEL,
+            ptr::from_ref(&label).cast(),
+            length,
+        )
+    } == 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(token)
+}
+
+/// Runs `act` on this thread while it acts as `token`, then reverts.
+#[cfg(test)]
+pub(super) fn as_token<T>(token: BorrowedHandle<'_>, act: impl FnOnce() -> T) -> io::Result<T> {
+    // SAFETY: `token` is a live token handle with impersonate and query access, borrowed for the
+    // call, which retains nothing.
+    if unsafe { impersonate_logged_on_user(token.as_raw_handle()) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let _revert = Revert;
+    Ok(act())
+}
+
+/// Runs `act` on this thread while it acts as the anonymous logon, another user than this
+/// process's, then reverts.
+#[cfg(test)]
+pub(super) fn as_anonymous<T>(act: impl FnOnce() -> T) -> io::Result<T> {
+    // SAFETY: the current thread's pseudo handle stays valid for the call.
+    if unsafe { impersonate_anonymous_token(winsafe::HTHREAD::GetCurrentThread().ptr()) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let _revert = Revert;
+    Ok(act())
 }
 
 #[cfg(test)]

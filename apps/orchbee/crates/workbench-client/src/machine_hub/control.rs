@@ -48,8 +48,11 @@ const LOOK_QUERY: Duration = Duration::from_millis(500);
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EndFailure {
     /// The endpoint refused this process, or its server runs as another user; for `end`, also a
-    /// hub process this one may not wait for, such as an elevated one.
+    /// hub process this one may not wait for.
     Denied,
+    /// A hub started as administrator serves the data root and refused this standard process at
+    /// the open, so nothing was asked of it; on Windows only.
+    Elevated,
     /// A build of another environment serves this data root and refuses control requests.
     Foreign {
         /// That build's environment name.
@@ -244,6 +247,7 @@ fn request(
             Ok(stream) => stream,
             Err(Reached::Nothing) => return Ok(None),
             Err(Reached::Denied) => return Err(EndFailure::Denied),
+            Err(Reached::Elevated) => return Err(EndFailure::Elevated),
             Err(_) if Instant::now() < deadline => {
                 pause(deadline)?;
                 continue;

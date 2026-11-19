@@ -1082,6 +1082,7 @@ const fn failure_token(failure: &AttachFailure) -> &'static str {
         AttachFailure::Incompatible(Incompatible::Environment { .. }) => "incompatible-environment",
         AttachFailure::Incompatible(Incompatible::Protocol) => "incompatible-protocol",
         AttachFailure::Denied => "denied",
+        AttachFailure::Elevated => "elevated",
         AttachFailure::Timeout => "timeout",
         AttachFailure::Unavailable => "unavailable",
         AttachFailure::Closing => "closing",
