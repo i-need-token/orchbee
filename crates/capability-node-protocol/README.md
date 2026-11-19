@@ -810,7 +810,11 @@ Control request action tag 5 is Takeover, followed by the expected previous cont
 or a transport failure may answer it; the Server maps uncertain delivery without replay.
 Worker validates the exact terminal and incumbent, acknowledges old Host detach, then acquires
 the replacement within one serialized operation. An already-released incumbent is allowed;
-another live incumbent is refused. See the [transfer model](../../apps/orchbee-server/docs/terminal-controller-takeover.md).
+another live incumbent is refused. A Takeover whose outer controller ID equals its previous one
+confirms the requesting viewer's own grant: Worker answers Acquired, with no Host exchange and the
+grant's sequence and demand unchanged, only while that viewer holds that committed grant on the
+exact terminal. It answers `ControllerBusy` when another viewer holds that ID and `NotController`
+otherwise; the Server then drops its lease for the grant. See the [transfer model](../../apps/orchbee-server/docs/terminal-controller-takeover.md).
 Existing tags remain unchanged; mixed private cohorts are unsupported.
 
 Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.

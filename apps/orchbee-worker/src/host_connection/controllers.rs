@@ -109,6 +109,23 @@ impl HostControllers {
             None => Ok(None),
         }
     }
+    /// A Takeover naming one controller as both incumbent and replacement asks whether `viewer`
+    /// still holds that committed grant on `terminal`, and changes nothing. A grant another viewer
+    /// holds stays busy, as for any replacement reusing its incumbent's identity.
+    pub(crate) fn confirm_own(
+        &self,
+        viewer: OperationId,
+        controller: OperationId,
+        terminal: HostTerminalId,
+    ) -> Result<(), ControlRejection> {
+        match self.grants.get(&controller.as_bytes()) {
+            Some(grant) if grant.viewer_id != viewer => Err(ControlRejection::ControllerBusy),
+            Some(grant) if grant.terminal_id == terminal && grant.capability_revision.is_some() => {
+                Ok(())
+            }
+            _ => Err(ControlRejection::NotController),
+        }
+    }
     pub(crate) fn admit(
         &mut self,
         viewer: OperationId,

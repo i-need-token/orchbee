@@ -19,7 +19,7 @@ in that order and released before any transport wait.
 | Vacant      | Acquire or Takeover, current unfenced target                     | Pending new grant; submit Worker Acquire                                           |
 | Active old  | Ordinary Acquire                                                 | Refuse controller-busy; preserve old grant                                         |
 | Active old  | Explicit Takeover                                                | Pending new grant; fence old Server effects; candidate owns old and new cleanup    |
-| Active self | Explicit Takeover from the exact current Viewer                  | Return the verified current grant without another Worker acquisition               |
+| Active self | Explicit Takeover from the exact current Viewer                  | Ask Worker to confirm it; Acquired keeps it, refusal drops lease and reservation   |
 | Pending     | Another Acquire or Takeover                                      | Refuse controller-busy; never steal incomplete work                                |
 | Pending     | Worker proves new Host grant, target still current and unfenced  | Active new; publish Acquired                                                       |
 | Pending     | Refusal, cancellation, delivery loss, or failed revalidation     | Clean exact old/new grants; remove only after proof, disposal or Worker retirement |
@@ -46,9 +46,16 @@ Existing typed Rejected, Unavailable and OutcomeUnknown outcomes remain distinct
 
 An old Session can explicitly take back control using its existing Viewer. Its cached lease
 is checked against the exact current reservation under the same lock order. A revoked lease
-is dropped outside those locks; its cleanup never touches the replacement. A still-current
-Active self grant is returned as Acquired without allocating or submitting another grant.
-Ordinary Acquire retains its controller-busy behavior.
+is dropped outside those locks; its cleanup never touches the replacement. Worker can release a
+grant without telling Server, so a still-current Active self grant is not returned from the
+lease: after the locks are released, Server sends an OBCN Takeover naming that grant as both
+incumbent and replacement. Worker's Acquired returns the same controller ID and leaves the lease,
+its sequence and geometry, and the reservation unchanged. A refusal means Worker holds no such
+grant: the lease is dropped as after an effect's `NotController`, its cleanup frees the
+reservation unless another Viewer's Takeover has replaced it meanwhile, and the Client receives the
+refusal; its next Acquire or Takeover asks Worker for a fresh grant. Unknown, backpressured or
+undelivered confirmation keeps the lease, because confirmation never changes a grant. Ordinary
+Acquire retains its controller-busy behavior.
 
 ## Published ownership and recent focus
 
@@ -105,6 +112,7 @@ label follows subsequent ownership observations without waiting for rejected inp
 Protocol corpus checks cover strict action decoding and correlation. Reservation tests cover
 pending exclusion, cleanup ownership and stale removal. Windows-capable Worker local-pipe checks cover acknowledged
 detach-before-attach, refusal/failure and old-token input/resize fences. Same-author targeted tests
-include repeated transfer with the same Viewers and verified self ownership. They do not establish
+include repeated transfer with the same Viewers and a same-Viewer Takeover that Worker confirms or,
+for a grant it already released, refuses. They do not establish
 independent review, crash recovery or physical Windows Terminal acceptance. The native integration
 adds controlled state/carrier and ConPTY evidence; final cohort acceptance remains required.

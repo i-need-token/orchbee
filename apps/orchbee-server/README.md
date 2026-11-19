@@ -859,8 +859,10 @@ released the grant on a contradictory answer, on a demand its cleanup could not 
 viewer it closed. Such an effect may have reached the Host; the viewer's next effect meets
 `NotController` without reaching the Worker, nothing is replayed, and its next Acquire or Takeover
 asks the Worker again. Every other refusal, `HostRejected` included, leaves both the grant and the
-lease in place. The Server learns of a release only from such an answer, so until the viewer's next
-effect a Takeover by that viewer still answers from its lease. No other viewer is promoted.
+lease in place. The Server learns of a release only from a refusal, so a Takeover by the
+viewer that holds the lease asks the Worker to confirm that grant instead of answering from the
+lease: the Worker's `Acquired` returns the same grant and leaves the lease, and its refusal drops
+the lease as an effect's `NotController` does. No other viewer is promoted.
 Explicit takeover now follows the [controller takeover model](docs/terminal-controller-takeover.md):
 Pending reservations fence both competing takeover and stale effects; the candidate owns old/new
 cleanup until acknowledged transfer. Independent release while retaining the Viewer remains later work.
@@ -922,11 +924,11 @@ The mutation suite accepts wrong-flight feedback and requires a counterexample. 
 
 ## Accepted Connection Viewer routing modeling record
 
-`ConnectionViewerOwnership.tla/.cfg` checks two immutable viewer identities, two Connections, two targets and two Worker epochs. Attach explores every Connection/target assignment, including same-target contention. A controller grant remains reserved while its owner closes; controller release precedes viewer retirement, and stale cleanup cannot release a successor's grant. Control admission validates Connection, target, viewer and Worker epoch together. Target disposal or Worker replacement closes affected bindings. Weak fairness of controller/viewer release establishes eventual retirement.
+`ConnectionViewerOwnership.tla/.cfg` checks two immutable viewer identities, two Connections, two targets and two Worker epochs. Attach explores every Connection/target assignment, including same-target contention. A controller grant remains reserved while its owner closes; controller release precedes viewer retirement, and stale cleanup cannot release a successor's grant. One grant stands for both the Server lease and the Worker grant; `ForgetGrant` drops an active viewer's lease on a Worker refusal meaning the Worker holds no such grant, after an effect or a Takeover by that viewer, through the same exact cleanup, so a grant another viewer's Takeover installed meanwhile stays. Control admission validates Connection, target, viewer and Worker epoch together. Target disposal or Worker replacement closes affected bindings. Weak fairness of controller/viewer release establishes eventual retirement.
 
-`Attach`, `Acquire`, `Control`, `Close` and the release actions map to `local_terminal_service/viewer_connection`, `controller_connection` and Worker carrier ownership. Viewer identities are never reused within the model. Capacity arithmetic, candidate attach failures, frame/history routing, wire validation and compound operation results belong to the existing service unit tests and `tests/client_process` traces. They are not exhaustive claims of this identity core. The relay model independently checks lane isolation.
+`Attach`, `Acquire`, `Control`, `Close`, `ForgetGrant` and the release actions map to `local_terminal_service/viewer_connection`, `controller_connection` and Worker carrier ownership. Viewer identities are never reused within the model. Capacity arithmetic, candidate attach failures, frame/history routing, wire validation and compound operation results belong to the existing service unit tests and `tests/client_process` traces. They are not exhaustive claims of this identity core. The relay model independently checks lane isolation.
 
-The maintained late-cleanup mutant must violate `StaleCleanupPreservesSuccessor`. Run `node scripts/tla/run-models.mjs --models connection-viewer-routing` plus the owning Server tests.
+The maintained exact-cleanup mutant, which lets a late cleanup or a forgotten lease release a successor's grant, must violate `StaleCleanupPreservesSuccessor`. Run `node scripts/tla/run-models.mjs --models connection-viewer-routing` plus the owning Server tests.
 
 ## Accepted Connection Viewer history read modeling record
 

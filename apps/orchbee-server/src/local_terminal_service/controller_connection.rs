@@ -463,7 +463,7 @@ fn acquire_candidate<'service>(
     // Drop a revoked lease outside the registry locks; its exact cleanup cannot affect a successor.
     let mut revoked_lease = None;
     // Generation selection and reservation are one short critical section, never a transport call.
-    let (controller_id, request_id, cleanup_id, superseded) = {
+    let claim = 'claim: {
         let Ok(workers) = service.workers.lock() else {
             return unavailable(Unavailable::ServerBusy);
         };
@@ -497,14 +497,27 @@ fn acquire_candidate<'service>(
                     if owner.phase != ReservationPhase::Active {
                         return rejected(Rejected::ControllerBusy);
                     }
-                    return ControllerId::parse(&format!(
-                        "{:032x}",
-                        u128::from_be_bytes(owner.controller_id.as_bytes())
-                    ))
-                    .map_or_else(
-                        |_| unavailable(Unavailable::ServerBusy),
-                        |controller_id| Outcome::Acquired { controller_id },
-                    );
+                    let (Some(request_id), Ok(controller_id)) = (
+                        coordinator
+                            .allocate_identity()
+                            .and_then(|bytes| OperationId::from_bytes(bytes).ok()),
+                        ControllerId::parse(&format!(
+                            "{:032x}",
+                            u128::from_be_bytes(owner.controller_id.as_bytes())
+                        )),
+                    ) else {
+                        return unavailable(Unavailable::ServerBusy);
+                    };
+                    break 'claim Claim::Retained {
+                        request: WorkerRequest {
+                            request_id,
+                            action: WorkerAction::Takeover {
+                                previous_controller_id: owner.controller_id,
+                            },
+                            ..lease.cleanup.clone()
+                        },
+                        controller_id,
+                    };
                 }
                 _ => revoked_lease = viewer.controller.take(),
             }
@@ -540,7 +553,24 @@ fn acquire_candidate<'service>(
             worker_generation: template.worker_generation,
             action: WorkerAction::Release,
         });
-        (controller_id, request_id, cleanup_id, superseded)
+        Claim::Reserved {
+            controller_id,
+            request_id,
+            cleanup_id,
+            superseded,
+        }
+    };
+    let (controller_id, request_id, cleanup_id, superseded) = match claim {
+        Claim::Retained {
+            request,
+            controller_id,
+        } => return confirm_retained(viewer, request, controller_id),
+        Claim::Reserved {
+            controller_id,
+            request_id,
+            cleanup_id,
+            superseded,
+        } => (controller_id, request_id, cleanup_id, superseded),
     };
     drop(revoked_lease);
     let mut lease = ControllerLease {
@@ -610,6 +640,64 @@ fn acquire_candidate<'service>(
             lease.armed = false;
             unavailable(Unavailable::TerminalRuntimeUnavailable)
         }
+    }
+}
+
+/// What the reservation section settled before any transport call.
+enum Claim {
+    /// The viewer's lease still names the current Active reservation. The Worker can drop a grant
+    /// without telling the Server, so it is asked to confirm this one.
+    Retained {
+        request: WorkerRequest,
+        controller_id: ControllerId,
+    },
+    /// A new Pending reservation and, for a Takeover of an Active one, its superseded cleanup.
+    Reserved {
+        controller_id: OperationId,
+        request_id: OperationId,
+        cleanup_id: OperationId,
+        superseded: Option<WorkerRequest>,
+    },
+}
+
+/// Sends the viewer's own grant as both incumbent and replacement of a Takeover. The Worker
+/// answers `Acquired` while it holds that grant for this viewer and changes nothing, so the lease
+/// keeps its sequence and geometry and the reservation stays Active.
+fn confirm_retained(
+    viewer: &mut ViewerAttachment<'_>,
+    request: WorkerRequest,
+    controller_id: ControllerId,
+) -> Outcome {
+    match viewer
+        .handle
+        .request(WorkerOperationRequest::Control(request))
+    {
+        Ok(WorkerOperationResult::Control(result)) => match result.outcome {
+            WorkerOutcome::Acquired => Outcome::Acquired { controller_id },
+            WorkerOutcome::Rejected(reason) => {
+                // Every refusal of this request means the Worker holds no such grant for this
+                // viewer, as `NotController` means for an effect, so the lease goes the same way:
+                // its Drop releases the reservation, or leaves it alone when another viewer's
+                // Takeover has replaced it meanwhile, and the next Acquire or Takeover asks the
+                // Worker for a fresh grant.
+                viewer.controller.take();
+                rejected(worker_rejection(reason))
+            }
+            WorkerOutcome::Cleared { .. }
+            | WorkerOutcome::ClearOutcomeUnknown
+            | WorkerOutcome::ResetAccepted { .. }
+            | WorkerOutcome::ResetOutcomeUnknown
+            | WorkerOutcome::Released
+            | WorkerOutcome::InputAccepted
+            | WorkerOutcome::Resized(_)
+            | WorkerOutcome::Pasted { .. }
+            | WorkerOutcome::HostColorsAccepted => Outcome::OutcomeUnknown {},
+        },
+        // The confirmation never changes a grant, so the lease stays as true as it was without
+        // an answer; the viewer's next effect or Takeover reaches the Worker again.
+        Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_)) => Outcome::OutcomeUnknown {},
+        Err(WorkerRequestError::Backpressure) => unavailable(Unavailable::ServerBusy),
+        _ => unavailable(Unavailable::TerminalRuntimeUnavailable),
     }
 }
 

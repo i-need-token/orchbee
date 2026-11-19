@@ -418,6 +418,61 @@ fn acquire_sends_a_deferred_detach_before_asking_for_the_lease() -> TestResult {
     })
 }
 
+/// A Takeover naming the viewer's own grant as its replacement confirms that grant without any
+/// Host exchange and keeps its sequence and demand. Once the Worker has released the grant without
+/// telling the Server, the same request is refused as `NotController`, so the Server drops its
+/// lease; the identity held by another viewer stays busy.
+#[test]
+fn a_takeover_of_the_viewers_own_grant_only_confirms_it() -> TestResult {
+    let (host, mut peer) = fixture()?;
+    let (server, _quiet) = UnixStream::pair()?;
+    let own = Action::Takeover {
+        previous_controller_id: id(11),
+    };
+    let consumed = NonZeroU64::new(3).ok_or("sequence")?;
+    host.controllers
+        .borrow_mut()
+        .set_demand(id(11), ProjectionDemand::Active);
+    host.controllers
+        .borrow_mut()
+        .admit(id(10), id(11), consumed)
+        .map_err(|reason| format!("admit: {reason:?}"))?;
+    assert_eq!(
+        execute(&host, &server, request(10, 11, own.clone()))?,
+        Outcome::Acquired
+    );
+    let grant = host
+        .controllers
+        .borrow()
+        .for_viewer(id(10))
+        .ok_or("the grant stays")?;
+    assert_eq!(grant.controller_id, id(11));
+    assert_eq!(grant.demand, ProjectionDemand::Active);
+    assert!(matches!(
+        host.controllers
+            .borrow_mut()
+            .admit(id(10), id(11), consumed),
+        Err(ControlRejection::SequenceMismatch)
+    ));
+    assert_eq!(
+        execute(&host, &server, request(20, 11, own.clone()))?,
+        Outcome::Rejected(ControlRejection::ControllerBusy)
+    );
+    // Released on the Worker's own initiative, its Detach left for a later cleanup.
+    host.defer_detach(id(11).as_bytes());
+    host.forget_controller(id(11));
+    assert_eq!(
+        execute(&host, &server, request(10, 11, own))?,
+        Outcome::Rejected(ControlRejection::NotController)
+    );
+    peer.set_nonblocking(true)?;
+    assert_eq!(
+        peer.read(&mut [0]).unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+    Ok(())
+}
+
 #[test]
 fn viewer_demand_reaches_its_controller_first_and_seeds_a_new_grant() -> TestResult {
     let (host, mut peer) = fixture()?;

@@ -972,13 +972,11 @@ fn explicit_takeover_transfers_cleanup_and_old_connection_cannot_dispatch_effect
                 let take_back = CAction::Takeover {
                     attachment_id: old.attachment_id.clone(),
                 };
-                let retaken = run(&service, &mut old, take_back.clone());
+                let retaken = run(&service, &mut old, take_back);
                 assert!(
                     matches!(retaken, COutcome::Acquired { .. }),
                     "same old Viewer must retake: {retaken:?}"
                 );
-                // No Worker request: exact active self ownership is already proven.
-                assert_eq!(run(&service, &mut old, take_back), retaken);
             }
             // These manually seeded viewers have no Host viewing attachment; only controller cleanup is exercised.
             old.cleanup = None;
@@ -1242,6 +1240,175 @@ fn a_controller_lease_ends_exactly_when_the_worker_releases_its_grant() {
             }
             let viewer_id = OperationId::from_bytes([2; 16]).unwrap();
             assert!(seen.iter().all(|(_, viewer, _)| *viewer == viewer_id));
+            let _exit = server_thread.join().unwrap();
+        });
+    }
+}
+
+/// A Takeover by the viewer whose lease still names the Active reservation asks the Worker about
+/// that grant, which it may have released without telling the Server. Confirmed, the same grant
+/// comes back and the next effect goes ahead under its consumed sequence. Refused, the lease and
+/// its reservation go, the Client gets the Worker's answer, and the next Takeover reaches the
+/// Worker for a fresh grant.
+#[test]
+fn a_same_viewer_takeover_follows_the_workers_answer_about_its_grant() {
+    use orchbee_capability_node_protocol::{
+        ControlRejection, TerminalControlAction as WAction, TerminalControlOutcome as WOutcome,
+        TerminalControlResult,
+    };
+    use orchbee_client_server_protocol::{
+        ControlInput, ControlRejectedReason, TerminalControlAction as CAction,
+        TerminalControlOutcome as COutcome, TerminalControlRequest,
+    };
+    fn run<'a>(
+        service: &'a LocalTerminalService,
+        viewer: &mut ViewerAttachment<'a>,
+        action: CAction,
+    ) -> COutcome {
+        super::super::controller_connection::execute(
+            service,
+            Some(viewer),
+            &TerminalControlRequest::new(
+                RequestId::parse("99999999999999999999999999999999").unwrap(),
+                action,
+            ),
+        )
+    }
+    for kept in [true, false] {
+        let service = service();
+        let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
+        let handle = carrier.request_handle();
+        assert!(matches!(
+            service.workers.lock().unwrap().admit(WORKER_ID, None),
+            crate::worker_registry::WorkerAdmission::Accepted { .. }
+        ));
+        let owner =
+            WorkerRegistry::register_carrier(&service.workers, NonZeroU64::MIN, carrier).unwrap();
+        let (server, mut peer) = UnixStream::pair().unwrap();
+        peer.set_read_timeout(Some(std::time::Duration::from_secs(2)))
+            .unwrap();
+        let (checks_done, checks_finished) = channel::<()>();
+        thread::scope(|scope| {
+            let server_thread = scope.spawn(move || owner.run(server));
+            let worker = scope.spawn(move || {
+                // The grant, an input and the Takeover; then the next input and the release at
+                // teardown, or that grant's release, a fresh grant and its release at teardown.
+                let requests = if kept { 5 } else { 6 };
+                let mut seen = Vec::new();
+                for _ in 0..requests {
+                    let CapabilityNodeMessage::TerminalControlRequest(request) =
+                        read_message(&mut peer).unwrap()
+                    else {
+                        panic!("expected control")
+                    };
+                    let (kind, previous, outcome) = match request.action {
+                        WAction::Acquire => ("acquire", None, WOutcome::Acquired),
+                        WAction::Input { .. } => ("input", None, WOutcome::InputAccepted),
+                        WAction::Takeover {
+                            previous_controller_id,
+                        } => (
+                            "takeover",
+                            Some(previous_controller_id),
+                            if kept {
+                                WOutcome::Acquired
+                            } else {
+                                WOutcome::Rejected(ControlRejection::NotController)
+                            },
+                        ),
+                        WAction::Release => ("release", None, WOutcome::Released),
+                        _ => panic!("unexpected control action"),
+                    };
+                    seen.push((kind, previous, request.controller_id));
+                    write_message(
+                        &mut peer,
+                        &CapabilityNodeMessage::TerminalControlResult(TerminalControlResult {
+                            request_id: request.request_id,
+                            viewer_id: request.viewer_id,
+                            controller_id: request.controller_id,
+                            outcome,
+                        }),
+                    )
+                    .unwrap();
+                }
+                let _finished = checks_finished.recv();
+                seen
+            });
+            let mut viewer = viewer(&service, handle.clone());
+            let acquire = CAction::Acquire {
+                attachment_id: viewer.attachment_id.clone(),
+            };
+            let COutcome::Acquired { controller_id } = run(&service, &mut viewer, acquire) else {
+                panic!("first grant")
+            };
+            let input = |sequence| CAction::Input {
+                attachment_id: viewer.attachment_id.clone(),
+                controller_id: controller_id.clone(),
+                sequence: NonZeroU64::new(sequence).unwrap(),
+                bytes: ControlInput::new(b"ls".to_vec()).unwrap(),
+            };
+            let (first, replayed, next) = (input(1), input(1), input(2));
+            let takeover = CAction::Takeover {
+                attachment_id: viewer.attachment_id.clone(),
+            };
+            assert_eq!(
+                run(&service, &mut viewer, first),
+                COutcome::InputAccepted {}
+            );
+            if kept {
+                assert_eq!(
+                    run(&service, &mut viewer, takeover),
+                    COutcome::Acquired {
+                        controller_id: controller_id.clone()
+                    }
+                );
+                assert_eq!(
+                    run(&service, &mut viewer, replayed),
+                    COutcome::Rejected {
+                        reason: ControlRejectedReason::SequenceMismatch
+                    }
+                );
+                assert_eq!(run(&service, &mut viewer, next), COutcome::InputAccepted {});
+            } else {
+                assert_eq!(
+                    run(&service, &mut viewer, takeover.clone()),
+                    COutcome::Rejected {
+                        reason: ControlRejectedReason::NotController
+                    }
+                );
+                assert!(viewer.controller.is_none());
+                assert!(service.controllers.lock().unwrap().is_empty());
+                let COutcome::Acquired {
+                    controller_id: fresh,
+                } = run(&service, &mut viewer, takeover)
+                else {
+                    panic!("the same viewer acquires again")
+                };
+                assert_ne!(fresh, controller_id);
+            }
+            // This manually seeded viewer has no Host viewing attachment; only controller cleanup
+            // is exercised.
+            viewer.cleanup = None;
+            drop(viewer);
+            assert!(service.controllers.lock().unwrap().is_empty());
+            drop(checks_done);
+            let seen = worker.join().unwrap();
+            let grant = seen[0].2;
+            // The Takeover names the held grant as both incumbent and replacement.
+            assert_eq!(seen[2], ("takeover", Some(grant), grant));
+            if kept {
+                assert_eq!(
+                    seen[3..],
+                    [("input", None, grant), ("release", None, grant)]
+                );
+            } else {
+                assert_eq!(seen[3], ("release", None, grant));
+                let fresh = seen[4].2;
+                assert_ne!(fresh, grant);
+                assert_eq!(
+                    seen[4..],
+                    [("acquire", None, fresh), ("release", None, fresh)]
+                );
+            }
             let _exit = server_thread.join().unwrap();
         });
     }

@@ -1406,7 +1406,11 @@ Takeover validates the expected committed incumbent and target before any Host e
 operation loop releases that exact controller, waits for DetachTerminalAccepted, then attaches the
 new input/resize controller. Late old effects fail token admission; late old cleanup cannot release
 the replacement. Host refusal after detach leaves the old grant revoked. Missing detach proof
-ends the operation with a broker error and never attempts new Attach. Windows-capable local-pipe
+ends the operation with a broker error and never attempts new Attach. A Takeover naming the same
+controller as incumbent and replacement only confirms the requesting viewer's grant: with no Host
+exchange, deferred Detach or backlog check, it answers Acquired and keeps the grant, its sequence
+and demand while that viewer holds that committed grant on the exact terminal, `ControllerBusy`
+while another viewer holds that ID, and `NotController` otherwise. Windows-capable local-pipe
 tests exercise real protocol exchanges, not a packaged Worker/Host process acceptance. The
 [Server transfer model](../orchbee-server/docs/terminal-controller-takeover.md) owns the joint contract.
 

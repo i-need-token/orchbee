@@ -3,7 +3,10 @@ EXTENDS Naturals, FiniteSets
 
 \* Two immutable viewer identities may share either Connection or target. A grant
 \* remains owned while cleanup is pending; a late cleanup cannot release a
-\* successor's grant. Frame/history queues belong to RelayDeliveryIsolation.
+\* successor's grant. One grant stands for both the Server's lease and the
+\* Worker's grant; the Server forgets it while its viewer stays active only on a
+\* Worker refusal meaning the Worker holds no such grant. Frame/history queues
+\* belong to RelayDeliveryIsolation.
 Viewers == {1, 2}
 Connections == {"a", "b"}
 Targets == {"x", "y"}
@@ -47,12 +50,22 @@ ReleaseViewer(v) ==
   /\ s.viewer[v].phase = "closing"
   /\ s.grant[s.viewer[v].target] # v
   /\ s' = [s EXCEPT !.viewer[v].phase = "retired"]
+\* A lease's exact cleanup frees its target's grant only while that grant is
+\* still the lease's own; a successor's grant stays.
+ExactCleanup(v) ==
+  LET target == s.viewer[v].target
+      after == IF s.grant[target] = v THEN 0 ELSE s.grant[target]
+  IN s' = [s EXCEPT !.grant[target] = after,
+       !.staleCleanupSafe = s.grant[target] \in {v, after}]
 LateCleanup(v) ==
   /\ v \in s.cleanup /\ s.viewer[v].phase = "retired"
-  /\ LET target == s.viewer[v].target
-         after == IF s.grant[target] = v THEN 0 ELSE s.grant[target]
-     IN s' = [s EXCEPT !.grant[target] = after,
-          !.staleCleanupSafe = after = s.grant[target]]
+  /\ ExactCleanup(v)
+\* The Worker refused an effect, or a Takeover by the viewer holding the lease,
+\* as holding no grant for it: the Server drops that lease while the viewer
+\* stays active. Another viewer's Takeover may have replaced the grant meanwhile.
+ForgetGrant(v) ==
+  /\ s.viewer[v].phase = "active"
+  /\ ExactCleanup(v)
 Dispose(target) ==
   /\ target \notin s.disposed
   /\ s' = [s EXCEPT !.disposed = @ \cup {target},
@@ -71,6 +84,7 @@ ReplaceWorker ==
 Next ==
   \/ \E v \in Viewers, connection \in Connections, target \in Targets: Attach(v, connection, target)
   \/ \E v \in Viewers: Acquire(v) \/ Close(v) \/ ReleaseController(v) \/ ReleaseViewer(v) \/ LateCleanup(v)
+       \/ ForgetGrant(v)
   \/ \E v \in Viewers, connection \in Connections, target \in Targets, epoch \in 1..2:
        Control(v, connection, target, epoch)
   \/ \E target \in Targets: Dispose(target)

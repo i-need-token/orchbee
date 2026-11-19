@@ -265,6 +265,7 @@
 				"ReleaseController",
 				"ReleaseViewer",
 				"LateCleanup",
+				"ForgetGrant",
 				"Dispose",
 				"ReplaceWorker"
 			]

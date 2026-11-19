@@ -135,6 +135,20 @@ fn apply(
     let Some(target) = host.viewers.borrow().target(request.viewer_id) else {
         return Ok(Outcome::Rejected(Rejection::ViewerUnavailable));
     };
+    // A Takeover naming the viewer's own grant as its replacement only confirms that grant: it
+    // touches no Host attachment, so no deferred Detach or full backlog stands in its way, and a
+    // refusal always means this Worker holds no such grant for the viewer.
+    if let Action::Takeover {
+        previous_controller_id,
+    } = request.action
+        && previous_controller_id == request.controller_id
+    {
+        let held =
+            host.controllers
+                .borrow()
+                .confirm_own(request.viewer_id, request.controller_id, target);
+        return Ok(held.map_or_else(Outcome::Rejected, |()| Outcome::Acquired));
+    }
     let id = AttachmentId::from_bytes(request.controller_id.as_bytes())?;
     let correlation = CorrelationId::from_bytes(request.request_id.as_bytes())?;
     if matches!(request.action, Action::Acquire | Action::Takeover { .. }) {

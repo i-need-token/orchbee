@@ -42,7 +42,7 @@ const cases = [
 	],
 	[
 		'connection-viewer-routing',
-		'late cleanup releases successor',
+		'exact cleanup releases successor',
 		'after == IF s.grant[target] = v THEN 0 ELSE s.grant[target]',
 		'after == 0',
 		/Invariant StaleCleanupPreservesSuccessor is violated/u,
