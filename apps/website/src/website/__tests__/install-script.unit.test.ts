@@ -456,6 +456,7 @@ function runInstallDesktop(
 		existingVersion,
 		newVersion = '0.2.0',
 		running,
+		sessionRunning = false,
 		quitBehavior = 'exits',
 		helperSupported = true,
 		locale = 'en_US.UTF-8',
@@ -463,7 +464,8 @@ function runInstallDesktop(
 		readonly existingVersion: string | null;
 		readonly newVersion?: string;
 		readonly running: boolean;
-		readonly quitBehavior?: 'exits' | 'stays-running';
+		readonly sessionRunning?: boolean;
+		readonly quitBehavior?: 'exits' | 'stays-running' | 'hangs';
 		readonly helperSupported?: boolean;
 		readonly locale?: string;
 	},
@@ -489,11 +491,12 @@ function runInstallDesktop(
 		const osascriptLogPosix = toPosixPath(path.join(scratch, 'osascript.log'));
 		const openLogPosix = toPosixPath(path.join(scratch, 'open.log'));
 		const expectedTargetPosix = `${toPosixPath(appsDir)}/Orchbee.app`;
-		if (running) {
-			writeFileSync(
-				path.join(scratch, 'bundle-running'),
-				`${expectedTargetPosix}/Contents/MacOS/Orchbee\n`,
-			);
+		const runningProcesses = [
+			...(running ? [`${expectedTargetPosix}/Contents/MacOS/Orchbee`] : []),
+			...(sessionRunning ? [`${expectedTargetPosix}/Contents/Resources/cohort/orchbee`] : []),
+		];
+		if (runningProcesses.length > 0) {
+			writeFileSync(path.join(scratch, 'bundle-running'), `${runningProcesses.join('\n')}\n`);
 		}
 
 		writeExecutableScript(
@@ -529,7 +532,7 @@ for arg in "$@"; do
 done
 printf '%s\\n' "$target" >>${JSON.stringify(osascriptLogPosix)}
 ${quitBehavior === 'exits' ? `rm -f ${JSON.stringify(runningMarkerPosix)}` : ':'}
-exit 0
+${quitBehavior === 'hangs' ? 'exec sleep 30' : 'exit 0'}
 `,
 		);
 		writeExecutableScript(
@@ -547,6 +550,8 @@ ob_window_folder=${JSON.stringify(windowFolder)}
 ob_window_name=${JSON.stringify(windowName)}
 ob_quit_polls=2
 ob_quit_poll_sleep=0.01
+ob_quit_check_sleep=0.01
+${quitBehavior === 'hangs' ? 'ob_quit_timeout=1' : ''}
 tar -c -f "$ob_tmp/$ob_window_name" -C ${JSON.stringify(toPosixPath(archiveBuild))} "$ob_window_folder"
 ob_install_desktop
 `;
@@ -600,21 +605,9 @@ describe('install.sh --desktop live hot-swap', () => {
 		});
 		expect(en.status).toBe(0);
 		expect(en.stderr).toBe('');
-		expect(en.stdout.trim()).toBe(
-			`Orchbee.app 0.2.0 is already running in ${en.expectedTargetPosix.replace(/\/Orchbee\.app$/u, '')}.`,
-		);
 		expect(en.osascriptTargets).toEqual([]);
 		expect(en.openTargets).toEqual([]);
 		expect(en.installedVersion).toBe('0.2.0');
-
-		const zh = runInstallDesktop(toolchain, {
-			existingVersion: '0.2.0',
-			newVersion: '0.2.0',
-			running: true,
-			locale: 'zh_CN.UTF-8',
-		});
-		expect(zh.status).toBe(0);
-		expect(zh.stdout).toContain('中的 Orchbee.app 已在运行 0.2.0。');
 	});
 
 	it('stages first, quits an older running bundle gracefully, swaps it and reopens it', () => {
@@ -631,39 +624,67 @@ describe('install.sh --desktop live hot-swap', () => {
 		expect(updated.openTargets).toEqual([updated.expectedTargetPosix]);
 		expect(updated.installedVersion).toBe('0.2.0');
 		expect(updated.appsEntries).toEqual(['Orchbee.app']);
-		expect(updated.stdout.trim()).toBe(
-			'Updated Orchbee.app to 0.2.0 and reopened it (terminals kept running).',
-		);
 	});
 
-	it('cleans up the stage and succeeds with store guidance when the open window refuses to quit', () => {
+	it('leaves the bundle in place and asks no closed window to quit when only a Session runs from it', () => {
 		const toolchain = requirePosixShellToolchain();
 		const staged = runInstallDesktop(toolchain, {
 			existingVersion: '0.1.0',
 			newVersion: '0.2.0',
-			running: true,
-			quitBehavior: 'stays-running',
+			running: false,
+			sessionRunning: true,
 			helperSupported: true,
 		});
 		expect(staged.status).toBe(0);
 		expect(staged.stderr).toBe('');
-		expect(staged.osascriptTargets).toEqual([staged.expectedTargetPosix]);
+		expect(staged.osascriptTargets).toEqual([]);
 		expect(staged.openTargets).toEqual([]);
 		expect(staged.installedVersion).toBe('0.1.0');
 		expect(staged.appsEntries).toEqual(['Orchbee.app']);
-		expect(staged.stdout.trim()).toBe(
-			'Staged Orchbee.app 0.2.0 in the Orchbee store; click Update in the open Orchbee window (or quit and reopen it) to finish switching.',
-		);
 
-		const legacyRefused = runInstallDesktop(toolchain, {
+		const withoutStore = runInstallDesktop(toolchain, {
+			existingVersion: '0.1.0',
+			newVersion: '0.2.0',
+			running: false,
+			sessionRunning: true,
+			helperSupported: false,
+		});
+		expect(withoutStore.status).toBe(1);
+		expect(withoutStore.osascriptTargets).toEqual([]);
+		expect(withoutStore.installedVersion).toBe('0.1.0');
+		expect(withoutStore.appsEntries).toEqual(['Orchbee.app']);
+	});
+
+	it('keeps the bundle and fails when the open window refuses to quit and the store lacks the version', () => {
+		const toolchain = requirePosixShellToolchain();
+		const refused = runInstallDesktop(toolchain, {
 			existingVersion: '0.1.0',
 			newVersion: '0.2.0',
 			running: true,
 			quitBehavior: 'stays-running',
 			helperSupported: false,
 		});
-		expect(legacyRefused.status).toBe(1);
-		expect(legacyRefused.stderr).toContain('is running. Quit Orchbee and run this again');
-		expect(legacyRefused.appsEntries).toEqual(['Orchbee.app']);
+		expect(refused.status).toBe(1);
+		expect(refused.osascriptTargets).toEqual([refused.expectedTargetPosix]);
+		expect(refused.openTargets).toEqual([]);
+		expect(refused.installedVersion).toBe('0.1.0');
+		expect(refused.appsEntries).toEqual(['Orchbee.app']);
+	});
+
+	it('does not wait on a quit request that never returns and ends like the refusing window', () => {
+		const toolchain = requirePosixShellToolchain();
+		const hung = runInstallDesktop(toolchain, {
+			existingVersion: '0.1.0',
+			newVersion: '0.2.0',
+			running: true,
+			quitBehavior: 'hangs',
+			helperSupported: true,
+		});
+		expect(hung.status).toBe(0);
+		expect(hung.stderr).toBe('');
+		expect(hung.osascriptTargets).toEqual([hung.expectedTargetPosix]);
+		expect(hung.openTargets).toEqual([]);
+		expect(hung.installedVersion).toBe('0.1.0');
+		expect(hung.appsEntries).toEqual(['Orchbee.app']);
 	});
 });

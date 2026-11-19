@@ -520,9 +520,9 @@ ob_applications() {
 			"无法创建 ${ob_destination}；命令行已安装，桌面应用未安装。"
 }
 
-# Whether any process of the current user runs from the application bundle $1.
-ob_bundle_running() {
-	ob_pattern=$(printf '%s/Contents/' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g')
+# Whether any process of the current user runs from the path prefix $1, as pgrep -f matches it.
+ob_running_under() {
+	ob_pattern=$(printf '%s' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g')
 	ob_uid=$(id -u 2>/dev/null || true)
 	if [ -n "$ob_uid" ]; then
 		pgrep -u "$ob_uid" -f "^$ob_pattern" >/dev/null 2>&1
@@ -535,6 +535,17 @@ ob_bundle_running() {
 	pgrep -f "^$ob_pattern" >/dev/null 2>&1
 }
 
+# Whether any process of the current user runs from the application bundle $1: its window or a Session.
+ob_bundle_running() {
+	ob_running_under "$1/Contents/"
+}
+
+# Whether the window of the application bundle $1 runs. The window's program lies in Contents/MacOS,
+# while a Session's Server, Worker and terminals run from Contents/Resources/cohort.
+ob_window_running() {
+	ob_running_under "$1/Contents/MacOS/"
+}
+
 # Asks the application bundle $1 to quit gracefully, which settles window state and leaves the
 # Session's Server, Worker and terminals running. Passed through argv so no path character is parsed
 # as AppleScript.
@@ -542,7 +553,17 @@ ob_quit_bundle() {
 	ob_osascript=$(command -v osascript 2>/dev/null || true)
 	[ -n "$ob_osascript" ] || ob_osascript=/usr/bin/osascript
 	[ -x "$ob_osascript" ] || return 0
-	"$ob_osascript" -e 'on run argv' -e 'tell application (item 1 of argv) to quit' -e 'end run' "$1" </dev/null >/dev/null 2>&1 || true
+	"$ob_osascript" -e 'on run argv' -e 'tell application (item 1 of argv) to quit' -e 'end run' "$1" </dev/null >/dev/null 2>&1 &
+	ob_quit_pid=$!
+	ob_quit_timeout=${ob_quit_timeout:-10}
+	ob_quit_deadline=$(($(date +%s) + ob_quit_timeout))
+	while kill -0 "$ob_quit_pid" 2>/dev/null && [ "$(date +%s)" -lt "$ob_quit_deadline" ]; do
+		sleep "${ob_quit_check_sleep:-1}" 2>/dev/null || sleep 1
+	done
+	if kill -0 "$ob_quit_pid" 2>/dev/null; then
+		kill "$ob_quit_pid" 2>/dev/null || true
+	fi
+	wait "$ob_quit_pid" 2>/dev/null || true
 }
 
 ob_open_bundle() {
@@ -623,15 +644,17 @@ ob_install_desktop() {
 	fi
 	if [ "$ob_was_running" = 1 ] || ob_bundle_running "$ob_target"; then
 		ob_was_running=1
-		if ob_bundle_running "$ob_target"; then
+		# Only a running window is asked to quit. A Session keeps running from the bundle and is left
+		# alone, so the bundle stays in place while a Session runs from it.
+		if ob_window_running "$ob_target"; then
 			ob_quit_bundle "$ob_target"
 			ob_tries=${ob_quit_polls:-150}
-			while [ "$ob_tries" -gt 0 ] && ob_bundle_running "$ob_target"; do
+			while [ "$ob_tries" -gt 0 ] && ob_window_running "$ob_target"; do
 				sleep "${ob_quit_poll_sleep:-0.1}" 2>/dev/null || sleep 1
 				ob_tries=$((ob_tries - 1))
 			done
 		fi
-		if ob_bundle_running "$ob_target"; then
+		if ob_window_running "$ob_target"; then
 			rm -rf "$ob_staged"
 			ob_staged=''
 			if [ "$ob_window_stored" = 1 ]; then
@@ -641,6 +664,18 @@ ob_install_desktop() {
 			fi
 			ob_fail "$ob_target is running. Quit Orchbee and run this again; $ob_partial." \
 				"$ob_target 正在运行。请退出 Orchbee 后重新运行；${ob_partial_zh}。"
+		fi
+		if ob_bundle_running "$ob_target"; then
+			# The window is closed, so it is not asked to quit, and a Session still runs from the bundle.
+			rm -rf "$ob_staged"
+			ob_staged=''
+			if [ "$ob_window_stored" = 1 ]; then
+				ob_say "The Orchbee window is closed, but the Session still runs from the old app, so $ob_name was not replaced. $ob_name $ob_window_version is in the Orchbee store: open Orchbee and click Update to finish switching." \
+					"Orchbee 窗口已关闭，但会话仍从旧应用运行，因此未替换 ${ob_name}。${ob_name} ${ob_window_version} 已在 Orchbee 存储中：请打开 Orchbee 并点击“更新”完成切换。"
+				return 0
+			fi
+			ob_fail "The Orchbee window is closed, but the Session still runs from the old app, so $ob_name was not replaced. Run orchbee update to put $ob_name $ob_window_version in the Orchbee store, then open Orchbee and click Update; $ob_partial." \
+				"Orchbee 窗口已关闭，但会话仍从旧应用运行，因此未替换 ${ob_name}。请运行 orchbee update，把 ${ob_name} ${ob_window_version} 放入 Orchbee 存储，然后打开 Orchbee 并点击“更新”；${ob_partial_zh}。"
 		fi
 	fi
 	if [ -e "$ob_target" ]; then
