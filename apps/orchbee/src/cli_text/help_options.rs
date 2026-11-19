@@ -182,8 +182,8 @@ impl super::CliText {
             ) => ("<target>", "Select a workspace.", "选择工作区。"),
             (CommandPath::AgentStart, "--name") => (
                 "<name>",
-                "Optional name, bound once an integration reports the Agent's session.",
-                "可选名称，在集成报告智能体会话后绑定。",
+                "Optional name. It binds only when that provider's integration is enabled (`orchbee agent integration enable --provider <id>`); otherwise the Agent stays unbound and is addressed by its @panel: handle.",
+                "可选名称。仅当该提供方的集成已启用（`orchbee agent integration enable --provider <id>`）时才绑定；否则智能体保持未绑定，用其 @panel: 句柄指定。",
             ),
             (CommandPath::LaunchProfileCreate, "--name") => (
                 "<name>",

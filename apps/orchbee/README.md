@@ -52,10 +52,11 @@ input receipt on later timeout or cancellation; it does not promise turn causali
 `--split right|down` in a new split, or with `--here --panel <id>` at the confirmed prompt of that
 idle terminal. Without arguments or a name, a new Panel's shell runs the Agent as its first command
 and the CLI returns once the Panel exists; otherwise the command is typed and the CLI returns after
-a three-second check. The Agent then shows as opening and is observed like one typed by hand. With
-`--name alpha` it also waits for readiness: the integration's canonical Session confirms it and
-binds the name; without an integration the Agent observed ready in its Panel confirms it and no
-name is bound.
+a three-second check. The Agent then shows as opening and is observed like one typed by hand.
+With `--name alpha` it also waits for readiness. The name binds only when that provider's
+integration is enabled (`orchbee agent integration enable --provider <id>`); otherwise the Agent
+stays unbound and is addressed by the `@panel:` handle `agent start` prints, for example
+`orchbee agent prompt @panel:0x36 "<task>"`.
 See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and recovery.
 
 Windows `channel show [--format text|json]` reads the strict stable/preview preference from the shared user configuration without activating a Session. See [configuration and channel provenance](docs/windows-cli-configuration.md#rule-update-policy).
@@ -1166,7 +1167,7 @@ Shared application and terminal themes apply to the native TUI from the same Ser
 
 ## Windows terminal observation stream
 
-`terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` emits NDJSON from one existing binding without control or Host resizing. The [stream contract](docs/windows-terminal-streams.md) owns full safe ANSI frames, resets, flush-before-ACK, deadlines and cleanup. Default viewport: 120×40; default duration: unlimited. Both output formats emit `orchbee.terminal.stream` v2 records. Catalog v68 has 76 schemas and 90 native command paths. Machine control now accepts NDJSON input through `terminal session control`; interactive `terminal attach <terminal>` or `agent attach --name <name>` requires console stdin/stdout and uses the actual console size. Both accept `--takeover`, `--mouse on|off` and an optional total `--timeout`. `Ctrl+b q` detaches; a double prefix sends one literal prefix. Paste cannot trigger detach. Output stays interactive with either global format. No Session start, Workbench focus change, reconnect or input replay occurs.
+`terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` emits NDJSON from one existing binding without control or Host resizing. The [stream contract](docs/windows-terminal-streams.md) owns full safe ANSI frames, resets, flush-before-ACK, deadlines and cleanup. Default viewport: 120×40; default duration: unlimited. Both output formats emit `orchbee.terminal.stream` v2 records. Catalog v68 has 76 schemas and 90 native command paths. Machine control now accepts NDJSON input through `terminal session control`; interactive `terminal attach <terminal>` or `agent attach --panel <panel>` requires console stdin/stdout and uses the actual console size. Both accept `--takeover`, `--mouse on|off` and an optional total `--timeout`. `Ctrl+b q` detaches; a double prefix sends one literal prefix. Paste cannot trigger detach. Output stays interactive with either global format. No Session start, Workbench focus change, reconnect or input replay occurs.
 
 ## Workspace metadata integration
 

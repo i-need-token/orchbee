@@ -71,7 +71,8 @@ the Panel created before them, which stays open.
 
 Agent integrations are opt-in, so starting never inspects one and never refuses because one is
 missing: neither the CLI nor the TUI runs a provider command or reads provider configuration
-before it types. A start without a name reserves nothing. A named start without an integration is
+before it types. A start without a name reserves nothing. A named start binds its name only when that
+provider's integration is enabled (`orchbee agent integration enable --provider <id>`); otherwise it is
 confirmed by [observation](#workflow-and-invariants) and binds no name. On success the text result
 is one outcome line that names the place and the Panel by the handle `agent list` prints, such as
 `Started Codex in a new Tab (Panel @panel:0x36).`, while JSON keeps the canonical `panelId`; then

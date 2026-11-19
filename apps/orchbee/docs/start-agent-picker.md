@@ -42,7 +42,7 @@ key reaches the Panel.
 Outside the TUI, `orchbee agent start <provider>` is the scriptable entry. It takes the picker's
 places as flags beside a reference Panel — `--new-tab`, its default, `--split right|down` or
 `--here` — and uses the same Tab creation, split and catalog id as the picker, so an exact catalog
-start in a new Panel types nothing; it adds the named start the picker does not offer. See
+start in a new Panel types nothing; it adds `--name`, which the picker does not offer and which binds a name only when the provider's integration is enabled. See
 [Windows Agent startup](windows-agent-start.md#invocation-and-prerequisites).
 
 The list comes from the Session's [Agent catalog](../../orchbee-server/README.md#agent-catalog),
