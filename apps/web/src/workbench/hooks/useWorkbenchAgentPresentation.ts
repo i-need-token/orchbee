@@ -179,7 +179,7 @@ export function useWorkbenchAgentPresentation({
 			const hasUnread = presentationIds.some((id) => unread.has(id));
 			statusAdornments.set(tab.tabId, {
 				accessibleLabel: `${formatWorkbenchAgentGroupName(intl, agents)}: ${status.status}${hasUnread ? ` · ${unreadLabel}` : ''}`,
-				mark: React.createElement(WorkbenchAgentStateGlyph, { size: 'small', status }),
+				mark: React.createElement(WorkbenchAgentStateGlyph, { status }),
 				icon: identityIcon,
 				kind: TAB_ADORNMENT_KINDS[state],
 				unreadLabel: hasUnread ? unreadLabel : undefined,

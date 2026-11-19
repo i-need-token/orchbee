@@ -70,7 +70,6 @@ describe('useWorkbenchAgentPresentation', () => {
 		);
 		const glyph = activeMark.container.querySelector('[data-agent-state-glyph]');
 		expect(glyph?.getAttribute('data-shape')).toBe('hex');
-		expect(glyph?.getAttribute('data-size')).toBe('small');
 		expect(glyph?.getAttribute('data-tone')).toBe('working');
 
 		// The Agent exited, so the Server reports none in the terminal.

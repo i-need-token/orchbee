@@ -29,14 +29,14 @@ export function WorkspaceAgentStatusLine({ overview }: WorkspaceAgentStatusLineP
 				<Tooltip>
 					<TooltipTrigger render={<span className={styles['glyphs']} />}>
 						{shownGlyphs.map((glyph) => (
-							<WorkbenchAgentStateGlyph key={glyph.presentationId} size='small' status={glyph} />
+							<WorkbenchAgentStateGlyph key={glyph.presentationId} status={glyph} />
 						))}
 					</TooltipTrigger>
 					<TooltipContent align='start' side='bottom'>
 						<span className={styles['legend']}>
 							{status.legend.map((state) => (
 								<span key={state.status} className={styles['legendRow']}>
-									<WorkbenchAgentStateGlyph size='small' status={state} />
+									<WorkbenchAgentStateGlyph status={state} />
 									{state.status}
 								</span>
 							))}
@@ -63,7 +63,7 @@ export function WorkspaceAgentStatusLine({ overview }: WorkspaceAgentStatusLineP
 						<span className={styles['roster']}>
 							{hiddenGlyphs.map((glyph) => (
 								<span key={glyph.presentationId} className={styles['rosterRow']}>
-									<WorkbenchAgentStateGlyph size='small' status={glyph} />
+									<WorkbenchAgentStateGlyph status={glyph} />
 									<span className={styles['rosterState']}>{glyph.status}</span>
 									<span className={styles['rosterIdentity']}>{glyph.identity}</span>
 								</span>

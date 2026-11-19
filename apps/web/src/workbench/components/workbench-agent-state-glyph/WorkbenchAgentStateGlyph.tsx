@@ -9,8 +9,6 @@ interface WorkbenchAgentStateGlyphProps {
 	 * start, where a line of glyphs begins at a text edge.
 	 */
 	readonly alignment?: 'center' | 'start';
-	/** `small` draws the 12 px glyph a folded Workspace's status line lists. */
-	readonly size?: 'small';
 	readonly status: Pick<WorkbenchAgentStatusView, 'shape' | 'tone'>;
 }
 
@@ -21,10 +19,12 @@ const SHAPE_PATHS: Readonly<Record<WorkbenchAgentStatusView['shape'], string>> =
 	ring: 'M7 2 11.33 4.5v5L7 12 2.67 9.5v-5Z',
 };
 
-/** One Agent state's glyph in its tone; the state's words come from its owner. */
+/**
+ * One Agent state's glyph in its tone, always at the status-glyph size (`icon-xs`). The state's
+ * words come from its owner.
+ */
 export function WorkbenchAgentStateGlyph({
 	alignment = 'center',
-	size,
 	status,
 }: WorkbenchAgentStateGlyphProps): ReactNode {
 	return (
@@ -34,7 +34,6 @@ export function WorkbenchAgentStateGlyph({
 			data-agent-state-glyph=''
 			data-alignment={alignment}
 			data-shape={status.shape}
-			data-size={size}
 			data-tone={status.tone}
 		>
 			<svg className={styles['shape']} viewBox='0 0 14 14'>

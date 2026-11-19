@@ -110,7 +110,7 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 								<span aria-label={agentStatus.status} className={styles['agentGlyph']} role='img' />
 							}
 						>
-							<WorkbenchAgentStateGlyph size='small' status={agentStatus} />
+							<WorkbenchAgentStateGlyph status={agentStatus} />
 						</TooltipTrigger>
 						<TooltipContent side='bottom'>{agentStatus.status}</TooltipContent>
 					</Tooltip>

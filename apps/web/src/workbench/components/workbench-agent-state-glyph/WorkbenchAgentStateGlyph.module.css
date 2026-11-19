@@ -1,16 +1,11 @@
 .glyph {
 	display: inline-flex;
-	width: var(--ob-ref-size-icon-sm);
-	height: var(--ob-ref-size-icon-sm);
+	width: var(--ob-ref-size-icon-xs);
+	height: var(--ob-ref-size-icon-xs);
 	flex: none;
 	align-items: center;
 	justify-content: center;
 	color: var(--ob-sys-color-text-muted);
-}
-
-.glyph[data-size='small'] {
-	width: var(--ob-ref-size-icon-xs);
-	height: var(--ob-ref-size-icon-xs);
 }
 
 .glyph[data-alignment='start'] {
