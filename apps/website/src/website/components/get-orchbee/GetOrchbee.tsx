@@ -3,18 +3,24 @@ import {
 	websiteShellMessages as messages,
 	type OrchbeeLocale,
 } from '@orchbee/i18n';
-import type { ReactElement } from 'react';
+import { Fragment, type ReactElement } from 'react';
 
 import { pagePath } from '../../pages';
-import { BUILD_GUIDE_URL, NPM_INSTALL_COMMAND, offersMacos, type Release } from '../../release';
+import {
+	BUILD_GUIDE_URL,
+	NPM_INSTALL_COMMAND,
+	publishedPlatforms,
+	type Release,
+} from '../../release';
 import { CommandChip } from '../command-chip/CommandChip';
 import { LinkButton } from '../link-button/LinkButton';
 import styles from './GetOrchbee.module.css';
 
-// The way to get Orchbee that a call to action offers. Once a release is published it offers direct
-// platform downloads (with the visitor's OS highlighted as primary by activateGetOrchbee) and a
-// direct link to all installation options, or the command line package. Before a release, every
-// call to action leads to the source build.
+// The way to get Orchbee that a call to action offers. Once a release is published it offers a download button
+// for each platform the release published, in catalog order (activateGetOrchbee moves the visitor's platform
+// first and marks it primary), then a link to each platform's other installers and a link to all installation
+// options. The command line call to action offers the npm package instead. Before a release, every call to
+// action leads to the source build.
 export function GetOrchbee({
 	locale,
 	release,
@@ -34,12 +40,8 @@ export function GetOrchbee({
 			</div>
 		);
 	}
-	const withMacos = offersMacos(release);
-	const macPrimaryUrl = release.downloads['macos-aarch64'] ?? release.downloads['macos-x86_64'];
-	const macIntelUrl =
-		release.downloads['macos-aarch64'] !== undefined
-			? release.downloads['macos-x86_64']
-			: undefined;
+	const platforms = publishedPlatforms(release);
+	const otherInstallers = platforms.flatMap(({ variants }) => variants.slice(1));
 	const installHref = `${pagePath('home', locale)}#install`;
 
 	return (
@@ -48,38 +50,35 @@ export function GetOrchbee({
 				{offer === 'npm' ? (
 					<CommandChip command={NPM_INSTALL_COMMAND} />
 				) : (
-					<>
-						<LinkButton
-							href={release.downloads['windows-x86_64']}
-							icon='windows'
-							platform='windows'
-							primary
-						>
-							{t(messages.downloadForWindows)}
-						</LinkButton>
-						{withMacos && macPrimaryUrl !== undefined ? (
-							<LinkButton href={macPrimaryUrl} icon='apple' platform='macos' primary={false}>
-								{t(
-									release.downloads['macos-aarch64'] !== undefined
-										? messages.downloadForMacAppleSilicon
-										: messages.downloadForMac,
-								)}
+					platforms.map(({ platform, variants }, index) => {
+						const offered = variants[0];
+						return offered === undefined ? null : (
+							<LinkButton
+								href={offered.url}
+								icon={platform.icon}
+								platform={platform.id}
+								primary={index === 0}
+								key={platform.id}
+							>
+								{t(messages[offered.cta])}
 							</LinkButton>
-						) : null}
-					</>
+						);
+					})
 				)}
 			</div>
 			<div className={styles['meta']}>
-				{offer !== 'npm' && macIntelUrl !== undefined ? (
-					<>
-						<a className={styles['link']} href={macIntelUrl}>
-							↓ {t(messages.downloadForMacIntel)} (.dmg)
-						</a>
-						<span className={styles['dot']} aria-hidden='true'>
-							·
-						</span>
-					</>
-				) : null}
+				{offer === 'npm'
+					? null
+					: otherInstallers.map((variant) => (
+							<Fragment key={variant.download}>
+								<a className={styles['link']} href={variant.url}>
+									↓ {t(messages[variant.link ?? variant.cta])}
+								</a>
+								<span className={styles['dot']} aria-hidden='true'>
+									·
+								</span>
+							</Fragment>
+						))}
 				<a className={styles['link']} href={installHref}>
 					{t(messages.allInstallOptions)} (curl / npm) →
 				</a>

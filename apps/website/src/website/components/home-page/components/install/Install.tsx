@@ -3,14 +3,12 @@ import {
 	websiteHomeMessages as messages,
 	websiteShellMessages as shellMessages,
 } from '@orchbee/i18n';
-import type { ReactElement, ReactNode } from 'react';
+import { Fragment, type ReactElement, type ReactNode } from 'react';
 
 import {
-	INSTALL_SCRIPT_COMMAND,
-	INSTALL_SCRIPT_DESKTOP_COMMAND,
-	macosDownloads,
 	NPM_INSTALL_COMMAND,
 	offersMacos,
+	publishedPlatforms,
 	releaseNotesUrl,
 	SOURCE_COMMANDS,
 	type Release,
@@ -22,8 +20,7 @@ import { LinkButton } from '../../../link-button/LinkButton';
 import { SectionHead } from '../../../section-head/SectionHead';
 import styles from './Install.module.css';
 
-type InstallGroup = 'windows' | 'macos' | 'npm' | 'all';
-
+// `group` names the tab a row belongs to: a platform's id, `npm`, or `all` for a row that every tab shows.
 function InstallRow({
 	title,
 	detail,
@@ -35,7 +32,7 @@ function InstallRow({
 	detail?: ReactNode;
 	/** Puts the content under the text, for content too wide to sit beside it. */
 	stacked?: boolean;
-	group?: InstallGroup;
+	group?: string;
 	children: ReactNode;
 }): ReactElement {
 	return (
@@ -49,13 +46,14 @@ function InstallRow({
 	);
 }
 
-// How to install Orchbee. Once a release is published: the Windows installer, the npm package and
-// how to start, with the release named; with a macOS download as well, a platform switcher that
-// focuses the visitor's OS (Windows, macOS, or npm), showing the script commands and disk images;
-// before a release, the source build.
+// How to install Orchbee. Once a release is published: the rows of each platform it published (its commands, when it
+// has any, above its installer buttons), the npm package and how to start, with the release named. With more than one
+// platform, a tab per platform and one for npm, opening on the visitor's platform; the note under the rows follows
+// the tab. Before a release, the source build.
 export function Install({ release }: { release: Release }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
-	const macos = release.published ? macosDownloads(release.downloads) : [];
+	const platforms = publishedPlatforms(release);
+	const several = platforms.length > 1;
 	const withMacos = offersMacos(release);
 	return (
 		<section className={styles['section']} id='install' data-install=''>
@@ -81,7 +79,7 @@ export function Install({ release }: { release: Release }): ReactElement {
 				<div>
 					{release.published ? (
 						<>
-							{withMacos ? (
+							{several ? (
 								<div
 									className={styles['tabs']}
 									role='group'
@@ -89,24 +87,18 @@ export function Install({ release }: { release: Release }): ReactElement {
 									data-install-tabs=''
 									hidden
 								>
-									<button
-										className={styles['tab']}
-										type='button'
-										data-install-tab='windows'
-										aria-pressed='true'
-									>
-										<Icon name='windows' />
-										{t(messages.installTabWindows)}
-									</button>
-									<button
-										className={styles['tab']}
-										type='button'
-										data-install-tab='macos'
-										aria-pressed='false'
-									>
-										<Icon name='apple' />
-										{t(messages.installTabMacos)}
-									</button>
+									{platforms.map(({ platform }, index) => (
+										<button
+											className={styles['tab']}
+											type='button'
+											data-install-tab={platform.id}
+											aria-pressed={index === 0 ? 'true' : 'false'}
+											key={platform.id}
+										>
+											<Icon name={platform.icon} />
+											{t(shellMessages[platform.name])}
+										</button>
+									))}
 									<button
 										className={styles['tab']}
 										type='button'
@@ -117,57 +109,55 @@ export function Install({ release }: { release: Release }): ReactElement {
 									</button>
 								</div>
 							) : null}
-							<InstallRow
-								title={t(withMacos ? messages.installAppWindows : messages.installApp)}
-								detail={t(shellMessages.installerNote, richText)}
-								group='windows'
-							>
-								<LinkButton href={release.downloads['windows-x86_64']} icon='download'>
-									{t(shellMessages.downloadForWindows)}
-								</LinkButton>
-							</InstallRow>
-							{withMacos ? (
-								<>
-									<InstallRow
-										title={t(messages.installMacosScript)}
-										detail={t(messages.installMacosScriptNote)}
-										stacked
-										group='macos'
+							{platforms.map(({ platform, variants }) => {
+								const installers = variants.map(({ download, install, url }, variantIndex) => (
+									<LinkButton
+										href={url}
+										icon='download'
+										primary={variantIndex === 0}
+										key={download}
 									>
-										<div className={styles['commands']}>
-											<div className={styles['commandItem']}>
-												<span className={styles['commandLabel']}>
-													{t(messages.installMacosScriptDesktop)}
-												</span>
-												<CommandChip command={INSTALL_SCRIPT_DESKTOP_COMMAND} tone='quiet' />
-											</div>
-											<div className={styles['commandItem']}>
-												<span className={styles['commandLabel']}>
-													{t(messages.installMacosScriptCli)}
-												</span>
-												<CommandChip command={INSTALL_SCRIPT_COMMAND} tone='quiet' />
-											</div>
-										</div>
-									</InstallRow>
-									<InstallRow
-										title={t(messages.installMacosApp)}
-										detail={t(messages.installMacosAppNote)}
-										group='macos'
-									>
-										<div className={styles['downloads']}>
-											{macos.map(({ platform, url }, index) => (
-												<LinkButton href={url} icon='download' primary={index === 0} key={platform}>
-													{t(
-														platform === 'macos-aarch64'
-															? messages.installDownloadAppleSilicon
-															: messages.installDownloadIntel,
-													)}
-												</LinkButton>
-											))}
-										</div>
-									</InstallRow>
-								</>
-							) : null}
+										{t(shellMessages[install])}
+									</LinkButton>
+								));
+								return (
+									<Fragment key={platform.id}>
+										{platform.install.commands === undefined ? null : (
+											<InstallRow
+												title={t(shellMessages[platform.install.commands.title])}
+												detail={t(shellMessages[platform.install.commands.detail])}
+												stacked
+												group={platform.id}
+											>
+												<div className={styles['commands']}>
+													{platform.commands.map((command) => (
+														<div className={styles['commandItem']} key={command.command}>
+															<span className={styles['commandLabel']}>
+																{t(shellMessages[command.install])}
+															</span>
+															<CommandChip command={command.command} tone='quiet' />
+														</div>
+													))}
+												</div>
+											</InstallRow>
+										)}
+										<InstallRow
+											title={
+												several ? t(shellMessages[platform.install.title]) : t(messages.installApp)
+											}
+											detail={t(shellMessages[platform.install.detail], richText)}
+											group={platform.id}
+										>
+											{/* A lone installer sits in the row itself, as the Windows download always has. */}
+											{installers.length === 1 ? (
+												installers
+											) : (
+												<div className={styles['downloads']}>{installers}</div>
+											)}
+										</InstallRow>
+									</Fragment>
+								);
+							})}
 							<InstallRow
 								title={t(messages.installNpm)}
 								detail={t(messages.installNpmNote)}
@@ -182,14 +172,11 @@ export function Install({ release }: { release: Release }): ReactElement {
 							>
 								<CommandChip command='orchbee' tone='quiet' />
 							</InstallRow>
-							<p className={styles['note']} data-install-note='windows'>
-								{t(messages.installNote)}
-							</p>
-							{withMacos ? (
-								<p className={styles['note']} data-install-note='macos'>
-									{t(messages.installMacosNote, richText)}
+							{platforms.map(({ platform }) => (
+								<p className={styles['note']} data-install-note={platform.id} key={platform.id}>
+									{t(shellMessages[platform.install.note], richText)}
 								</p>
-							) : null}
+							))}
 						</>
 					) : (
 						<>

@@ -1,11 +1,8 @@
 import type { ActivationContext } from '../../../../activation';
+import { visitorPlatform } from '../../../../release';
 
-function isMac(view: Window): boolean {
-	const platform = view.navigator.platform || view.navigator.userAgent;
-	return /Mac|iPhone|iPad|iPod/i.test(platform);
-}
-
-// Activates the platform tabs in the install section, selecting the visitor's OS by default.
+// Activates the platform tabs in the install section. The section opens on the visitor's platform when it has a
+// tab, and on the first platform otherwise.
 export function activateInstall({ document }: ActivationContext): void {
 	const view = document.defaultView;
 	const root = document.querySelector<HTMLElement>('[data-install]');
@@ -32,10 +29,12 @@ export function activateInstall({ document }: ActivationContext): void {
 
 	for (const tab of tabs) {
 		tab.addEventListener('click', () => {
-			select(tab.dataset['installTab'] ?? 'windows');
+			select(tab.dataset['installTab'] ?? '');
 		});
 	}
 
 	tabBar.hidden = false;
-	select(isMac(view) ? 'macos' : 'windows');
+	const preferred = visitorPlatform(view.navigator.platform || view.navigator.userAgent);
+	const opening = tabs.find((tab) => tab.dataset['installTab'] === preferred) ?? tabs[0];
+	select(opening?.dataset['installTab'] ?? '');
 }

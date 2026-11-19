@@ -20,7 +20,7 @@ export function LinkButton({
 	icon?: IconName;
 	size?: 'regular' | 'small';
 	primary?: boolean;
-	platform?: 'windows' | 'macos';
+	platform?: string;
 	downloadTrigger?: boolean;
 }): ReactElement {
 	return (

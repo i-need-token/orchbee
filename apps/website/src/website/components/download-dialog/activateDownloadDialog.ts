@@ -1,5 +1,5 @@
 import type { ActivationContext } from '../../activation';
-import { visitorPlatform } from '../../release';
+import { visitorFirst, visitorPlatform } from '../../release';
 
 // The fragment that addresses the dialog. A page opened with it shows the dialog, and the open dialog
 // writes it into the address, so the page can be shared that way.
@@ -34,10 +34,7 @@ export function activateDownloadDialog({ document }: ActivationContext): void {
 	if (list !== null) {
 		const groups = [...list.querySelectorAll<HTMLElement>('[data-download-group]')];
 		const preferred = visitorPlatform(view.navigator.platform || view.navigator.userAgent);
-		const ordered = [
-			...groups.filter((group) => group.dataset['downloadGroup'] === preferred),
-			...groups.filter((group) => group.dataset['downloadGroup'] !== preferred),
-		];
+		const ordered = visitorFirst(groups, (group) => group.dataset['downloadGroup'], preferred);
 		for (const group of ordered) {
 			list.append(group);
 			for (const link of group.querySelectorAll<HTMLElement>('a')) {

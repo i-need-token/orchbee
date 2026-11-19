@@ -26,7 +26,7 @@ export const zhCNWebsiteShellMessages = {
 	'website.shell.downloadForWindows': '下载 Windows 版',
 	'website.shell.downloadForMac': '下载 Mac 版',
 	'website.shell.downloadForMacAppleSilicon': '下载 Mac 版（Apple 芯片）',
-	'website.shell.downloadForMacIntel': 'Intel 版',
+	'website.shell.downloadForMacIntel': 'Intel 版 (.dmg)',
 	'website.shell.platform.windows': 'Windows',
 	'website.shell.platform.macos': 'macOS',
 	'website.shell.download.action': '下载',
@@ -41,10 +41,23 @@ export const zhCNWebsiteShellMessages = {
 	'website.shell.download.releaseNotes': '{version} · 发布说明',
 	'website.shell.allInstallOptions': '全部安装方式',
 	'website.shell.getSource': '获取源码',
-	'website.shell.installerNote':
+	'website.shell.install.windows.title': 'Windows 桌面应用、终端和 CLI',
+	'website.shell.install.windows.detail':
 		'只为当前用户安装，不需要管理员权限。会把 <code>orchbee</code> 命令加入 <code>Path</code>。',
-	'website.shell.installerNoteWindows':
-		'Windows：只为当前用户安装，不需要管理员权限。会把 <code>orchbee</code> 命令加入 <code>Path</code>。',
+	'website.shell.install.windows.note':
+		'安装程序暂未做代码签名，Windows SmartScreen 可能会要求你确认。',
+	'website.shell.install.macos.title': 'macOS 桌面应用',
+	'website.shell.install.macos.detail':
+		'打开磁盘映像，把 Orchbee 拖进“应用程序”。请按 Mac 的芯片选择对应版本。',
+	'website.shell.install.macos.note':
+		'macOS 应用暂未经过 Apple 公证。首次打开从浏览器下载的副本时，macOS 会提示无法检查 Orchbee：点按<b>完成</b>，打开“系统设置”›“隐私与安全性”，点按 Orchbee 旁的<b>仍要打开</b>并确认。用终端命令安装则不会遇到这一步。',
+	'website.shell.install.macos.scriptTitle': 'macOS 终端和 CLI',
+	'website.shell.install.macos.scriptDetail':
+		'自动识别 Apple 芯片与 Intel，直接安装且不会弹出 macOS 安全拦截提示。',
+	'website.shell.install.macos.scriptDesktop': '桌面应用、终端界面与 CLI（推荐，无安全弹窗）',
+	'website.shell.install.macos.scriptCli': '仅终端界面与 CLI',
+	'website.shell.install.downloadAppleSilicon': '下载 Apple 芯片版',
+	'website.shell.install.downloadIntel': '下载 Intel 版',
 	'website.shell.copyCommand': '复制命令',
 	'website.shell.footer.name':
 		'名字由 <b>orch</b>estrator（编排者）和 <b>bee</b>（蜜蜂）组合而来，寓意独立个体协同如一。',

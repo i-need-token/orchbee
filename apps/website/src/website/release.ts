@@ -8,10 +8,10 @@ import type { IconName } from './components/icon/Icon';
 // download buttons and the update channel always name the same version. Keep the block's shape:
 // the command rewrites it.
 //
-// Every section that offers Orchbee or names its platforms reads this value; nothing else changes.
-// A platform without a download here is not mentioned: the macOS downloads, the install script
-// command, the Open Anyway steps, the Mac call to action and the copy that names macOS render only
-// while a macOS download is present.
+// Every section that offers Orchbee or names its platforms reads this value. A platform appears on
+// those surfaces only while the release publishes one of its installers; PLATFORMS below says which
+// copy and which downloads each platform brings. Sentences that name platforms are copy, not data:
+// apps/website/README.md lists the ones to update when a platform is added.
 
 export const REPOSITORY_URL = 'https://github.com/i-need-token/orchbee';
 
@@ -20,9 +20,9 @@ export const BUILD_GUIDE_URL = `${REPOSITORY_URL}#install`;
 export const NPM_INSTALL_COMMAND = 'npm install -g orchbee@next';
 
 // The install script public/install.sh, served at the site root.
-export const INSTALL_SCRIPT_COMMAND = 'curl -fsSL https://orchbee.com/install.sh | sh';
+const INSTALL_SCRIPT_COMMAND = 'curl -fsSL https://orchbee.com/install.sh | sh';
 
-export const INSTALL_SCRIPT_DESKTOP_COMMAND = `${INSTALL_SCRIPT_COMMAND} -s -- --desktop`;
+const INSTALL_SCRIPT_DESKTOP_COMMAND = `${INSTALL_SCRIPT_COMMAND} -s -- --desktop`;
 
 export const SOURCE_COMMANDS = [
 	'git clone https://github.com/i-need-token/orchbee.git',
@@ -32,8 +32,8 @@ export const SOURCE_COMMANDS = [
 ] as const;
 
 // The download of each platform a release published: the Windows setup file, which every release
-// has, and each macOS disk image.
-export interface ReleaseDownloads {
+// has, and each macOS disk image. A platform added to PLATFORMS adds its download key here too.
+interface ReleaseDownloads {
 	readonly 'windows-x86_64': string;
 	readonly 'macos-aarch64'?: string;
 	readonly 'macos-x86_64'?: string;
@@ -53,21 +53,9 @@ export const release: Release = {
 	},
 };
 
-export type MacosPlatform = 'macos-aarch64' | 'macos-x86_64';
-
-/** The macOS disk images of a release, Apple silicon first; empty before a macOS release. */
-export function macosDownloads(
-	downloads: ReleaseDownloads,
-): readonly { readonly platform: MacosPlatform; readonly url: string }[] {
-	return (['macos-aarch64', 'macos-x86_64'] as const).flatMap((platform) => {
-		const url = downloads[platform];
-		return url === undefined ? [] : [{ platform, url }];
-	});
-}
-
-/** Whether the release offers macOS, that is, publishes at least one macOS disk image. */
+/** Whether the release offers macOS, that is, publishes a macOS installer. */
 export function offersMacos(offered: Release): boolean {
-	return offered.published && macosDownloads(offered.downloads).length > 0;
+	return publishedPlatforms(offered).some(({ platform }) => platform.id === 'macos');
 }
 
 export function releaseNotesUrl(version: string): string {
@@ -76,42 +64,95 @@ export function releaseNotesUrl(version: string): string {
 
 type ShellMessageKey = keyof typeof websiteShellMessages;
 
-export type PlatformId = 'windows' | 'macos';
-
-// One installer of a platform: the download key it reads from ReleaseDownloads and its button's copy.
+// One installer of a platform, with the copy that names it wherever a surface offers it. `download` is its key in
+// ReleaseDownloads. `label` names it in the download dialog, `install` is its button in the install section, `cta`
+// is the call to action's button when it is the platform's first published installer, and `link` is its text in the
+// call to action's link line when it is one of the others (`cta` stands in when there is no `link`).
 interface PlatformVariant {
 	readonly download: keyof ReleaseDownloads;
 	readonly label: ShellMessageKey;
+	readonly install: ShellMessageKey;
+	readonly cta: ShellMessageKey;
+	readonly link?: ShellMessageKey;
 }
 
-// One other way to install that a platform needs: its label and its command.
+// One other way to install that a platform needs: its label in the download dialog, its label in the
+// install section, and its command.
 interface PlatformCommand {
 	readonly label: ShellMessageKey;
+	readonly install: ShellMessageKey;
 	readonly command: string;
 }
 
+// A platform's rows in the install section: the downloads row (its title, its description and a button per
+// installer) and, when the platform has commands, a commands row above it. Both show under the platform's tab,
+// followed by the platform's note.
+interface PlatformInstall {
+	readonly title: ShellMessageKey;
+	readonly detail: ShellMessageKey;
+	readonly note: ShellMessageKey;
+	readonly commands?: { readonly title: ShellMessageKey; readonly detail: ShellMessageKey };
+}
+
 interface Platform {
-	readonly id: PlatformId;
+	/** The platform's key on the page: its tab, its download group and its button attributes. */
+	readonly id: string;
 	readonly name: ShellMessageKey;
 	readonly icon: IconName;
 	/** Matches the browser's platform string, which names the visitor's operating system. */
 	readonly visitor: RegExp;
 	readonly variants: readonly PlatformVariant[];
 	readonly commands: readonly PlatformCommand[];
+	readonly install: PlatformInstall;
 }
 
-// The platforms the download dialog groups its installers by, in the order it lists them to a visitor who
-// matches none of them. A platform appears in the dialog only while the release publishes one of its variants.
-// To add a platform: add its download keys to ReleaseDownloads and to the release script's table, add an entry
-// here, add its icon to components/icon/Icon.tsx, and add its copy in both locales.
-const PLATFORMS: readonly Platform[] = [
+// Every surface that names a platform reads this catalog: the download dialog's groups, the call-to-action
+// buttons and their links, and the install section's tabs and rows. A platform appears only while the release
+// publishes one of its installers, in this order. The visitor's platform leads the dialog and the call to action
+// (activateDownloadDialog and activateGetOrchbee move it first), and the install section opens on it
+// (activateInstall).
+//
+// To add a platform, in this order (the "Release state" section of apps/website/README.md lists the same steps):
+// 1. Its download key: in ReleaseDownloads above, and in the `downloads` table of scripts/website-release.mjs,
+//    which refuses a release that publishes a platform missing from that table. `pnpm website:release` then
+//    writes its download into the release block under that key, once a release publishes that installer.
+// 2. Its entry here: `id`, `name` (its copy key), `icon`, the `visitor` pattern (it must not match Android, whose
+//    platform string also starts with "Linux"), `variants` (one per installer: its `download` key and the copy keys
+//    `label`, `install` and `cta`; `link` names a non-first installer in the call to action's link line, and `cta`
+//    stands in when there is no `link`), `commands` (other ways to install, if any), and `install` (the copy of its
+//    install rows: `title`, `detail` and `note`, plus `commands` when it has commands).
+// 3. Its icon: a PATHS entry in components/icon/Icon.tsx, under the name `icon` gives.
+// 4. Its copy keys: every key the entry references, in packages/i18n/src/descriptors/website-shell.ts with a
+//    description for translators, and in both locales (en-US and zh-CN). The typecheck names a key that a locale
+//    lacks or the catalog does not know; then run `pnpm --filter @orchbee/i18n build`.
+// 5. The sentences that name platforms. They are copy, not generated: the install lead and start note
+//    (installLeadMacos and installStartNoteMacos in website-home), the data sheet's platform row (Statement.tsx),
+//    and the desktop sections that describe macOS (DesktopBackground, DesktopHighlights, DesktopKeys). All of them
+//    read offersMacos, so each names macOS only while macOS is published.
+// 6. The checks: `pnpm --filter @orchbee/website typecheck` and `pnpm --filter @orchbee/website test`. Then the
+//    call to action and the install section at 400 and 1440 pixels in both locales, with a visitor of each platform.
+// Nothing else needs a change: the call-to-action buttons, the download dialog's groups, the install tabs and rows,
+// and the visitor ordering all read PLATFORMS.
+const PLATFORMS = [
 	{
 		id: 'windows',
 		name: 'platformWindows',
 		icon: 'windows',
 		visitor: /Win/iu,
-		variants: [{ download: 'windows-x86_64', label: 'downloadAction' }],
+		variants: [
+			{
+				download: 'windows-x86_64',
+				label: 'downloadAction',
+				install: 'downloadForWindows',
+				cta: 'downloadForWindows',
+			},
+		],
 		commands: [],
+		install: {
+			title: 'installWindowsTitle',
+			detail: 'installWindowsDetail',
+			note: 'installWindowsNote',
+		},
 	},
 	{
 		id: 'macos',
@@ -119,29 +160,58 @@ const PLATFORMS: readonly Platform[] = [
 		icon: 'apple',
 		visitor: /Mac|iPhone|iPad|iPod/iu,
 		variants: [
-			{ download: 'macos-aarch64', label: 'downloadAppleSilicon' },
-			{ download: 'macos-x86_64', label: 'downloadIntel' },
+			{
+				download: 'macos-aarch64',
+				label: 'downloadAppleSilicon',
+				install: 'installDownloadAppleSilicon',
+				cta: 'downloadForMacAppleSilicon',
+			},
+			{
+				download: 'macos-x86_64',
+				label: 'downloadIntel',
+				install: 'installDownloadIntel',
+				cta: 'downloadForMac',
+				link: 'downloadForMacIntel',
+			},
 		],
 		commands: [
-			{ label: 'downloadScriptDesktop', command: INSTALL_SCRIPT_DESKTOP_COMMAND },
-			{ label: 'downloadScriptCli', command: INSTALL_SCRIPT_COMMAND },
+			{
+				label: 'downloadScriptDesktop',
+				install: 'installMacosScriptDesktop',
+				command: INSTALL_SCRIPT_DESKTOP_COMMAND,
+			},
+			{
+				label: 'downloadScriptCli',
+				install: 'installMacosScriptCli',
+				command: INSTALL_SCRIPT_COMMAND,
+			},
 		],
+		install: {
+			title: 'installMacosTitle',
+			detail: 'installMacosDetail',
+			note: 'installMacosNote',
+			commands: { title: 'installMacosScriptTitle', detail: 'installMacosScriptDetail' },
+		},
 	},
-];
+] as const satisfies readonly Platform[];
+
+const catalog: readonly Platform[] = PLATFORMS;
+
+export type PlatformId = (typeof PLATFORMS)[number]['id'];
 
 interface PublishedVariant extends PlatformVariant {
 	readonly url: string;
 }
 
-export interface PublishedPlatform {
+interface PublishedPlatform {
 	readonly platform: Platform;
 	readonly variants: readonly PublishedVariant[];
 }
 
-/** The platforms a release published, in catalog order, each with its published variants; empty before a release. */
+/** The platforms a release published, in catalog order, each with its published installers; empty before a release. */
 export function publishedPlatforms(offered: Release): readonly PublishedPlatform[] {
 	if (!offered.published) return [];
-	return PLATFORMS.flatMap((platform) => {
+	return catalog.flatMap((platform) => {
 		const variants = platform.variants.flatMap((variant) => {
 			const url = offered.downloads[variant.download];
 			return url === undefined ? [] : [{ ...variant, url }];
@@ -153,4 +223,20 @@ export function publishedPlatforms(offered: Release): readonly PublishedPlatform
 /** The platform whose pattern matches a browser's platform string, or undefined when none does. */
 export function visitorPlatform(platformString: string): PlatformId | undefined {
 	return PLATFORMS.find((platform) => platform.visitor.test(platformString))?.id;
+}
+
+/**
+ * The items with the visitor's platform first and the others after them in their own order. Without a visitor
+ * platform, or when no item belongs to it, the items keep their order.
+ */
+export function visitorFirst<T>(
+	items: readonly T[],
+	platformOf: (item: T) => string | undefined,
+	visitor: PlatformId | undefined,
+): readonly T[] {
+	if (visitor === undefined) return items;
+	return [
+		...items.filter((item) => platformOf(item) === visitor),
+		...items.filter((item) => platformOf(item) !== visitor),
+	];
 }

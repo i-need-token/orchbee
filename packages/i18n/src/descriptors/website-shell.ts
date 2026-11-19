@@ -141,13 +141,53 @@ export const websiteShellMessages = defineMessages({
 		'website.shell.getSource',
 		'Button to the build instructions while no release is published.',
 	),
-	installerNote: message(
-		'website.shell.installerNote',
+	installWindowsTitle: message(
+		'website.shell.install.windows.title',
+		'What the Windows installer contains, beside the macOS rows.',
+	),
+	installWindowsDetail: message(
+		'website.shell.install.windows.detail',
 		'What the Windows installer does; <code> marks a command and a variable name.',
 	),
-	installerNoteWindows: message(
-		'website.shell.installerNoteWindows',
-		'What the Windows installer does, led by the platform name once a release also offers macOS; <code> marks a command and a variable name.',
+	installWindowsNote: message(
+		'website.shell.install.windows.note',
+		'Warning under the install rows about the unsigned installer.',
+	),
+	installMacosTitle: message(
+		'website.shell.install.macos.title',
+		'Row of the macOS disk images: what they contain.',
+	),
+	installMacosDetail: message(
+		'website.shell.install.macos.detail',
+		'How to install from the macOS disk image.',
+	),
+	installMacosNote: message(
+		'website.shell.install.macos.note',
+		'Steps under the install rows to open the macOS app that Apple has not notarized.',
+	),
+	installMacosScriptTitle: message(
+		'website.shell.install.macos.scriptTitle',
+		'Row of the install script command for macOS.',
+	),
+	installMacosScriptDetail: message(
+		'website.shell.install.macos.scriptDetail',
+		'What the two install script commands do.',
+	),
+	installMacosScriptDesktop: message(
+		'website.shell.install.macos.scriptDesktop',
+		'Label above the macOS install script command that installs the desktop app, terminal interface, and CLI.',
+	),
+	installMacosScriptCli: message(
+		'website.shell.install.macos.scriptCli',
+		'Label above the macOS install script command that installs only the terminal interface and CLI.',
+	),
+	installDownloadAppleSilicon: message(
+		'website.shell.install.downloadAppleSilicon',
+		'Button that downloads the disk image for Macs with Apple silicon.',
+	),
+	installDownloadIntel: message(
+		'website.shell.install.downloadIntel',
+		'Button that downloads the disk image for Macs with an Intel processor.',
 	),
 	copyCommand: message(
 		'website.shell.copyCommand',

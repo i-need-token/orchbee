@@ -252,7 +252,10 @@ export const websiteHomeMessages = defineMessages({
 		'website.home.install.releaseNotes',
 		'Link to the notes of the published release.',
 	),
-	installApp: message('website.home.install.app', 'What the Windows installer contains.'),
+	installApp: message(
+		'website.home.install.app',
+		'Install section title when one platform is published; it names no platform.',
+	),
 	installNpm: message('website.home.install.npm', 'What the npm package contains.'),
 	installNpmNote: message(
 		'website.home.install.npmNote',
@@ -263,61 +266,13 @@ export const websiteHomeMessages = defineMessages({
 		'Row that shows how to start Orchbee after installing.',
 	),
 	installStartNote: message('website.home.install.startNote', 'What the start command opens.'),
-	installNote: message(
-		'website.home.install.note',
-		'Warning under the install rows about the unsigned installer.',
-	),
 	installLeadMacos: message(
 		'website.home.install.leadMacos',
 		'Paragraph under the install heading once a release offers macOS downloads.',
 	),
-	installAppWindows: message(
-		'website.home.install.appWindows',
-		'What the Windows installer contains, beside the macOS rows.',
-	),
-	installMacosApp: message(
-		'website.home.install.macosApp',
-		'Row of the macOS disk images: what they contain.',
-	),
-	installMacosAppNote: message(
-		'website.home.install.macosAppNote',
-		'How to install from the macOS disk image.',
-	),
-	installDownloadAppleSilicon: message(
-		'website.home.install.downloadAppleSilicon',
-		'Button that downloads the disk image for Macs with Apple silicon.',
-	),
-	installDownloadIntel: message(
-		'website.home.install.downloadIntel',
-		'Button that downloads the disk image for Macs with an Intel processor.',
-	),
-	installMacosScript: message(
-		'website.home.install.macosScript',
-		'Row of the install script command for macOS.',
-	),
-	installMacosScriptNote: message(
-		'website.home.install.macosScriptNote',
-		'What the two install script commands do.',
-	),
-	installMacosScriptDesktop: message(
-		'website.home.install.macosScriptDesktop',
-		'Label above the macOS install script command that installs the desktop app, terminal interface, and CLI.',
-	),
-	installMacosScriptCli: message(
-		'website.home.install.macosScriptCli',
-		'Label above the macOS install script command that installs only the terminal interface and CLI.',
-	),
 	installPlatform: message(
 		'website.home.install.platform',
 		'Accessible label for the platform switcher in the install section.',
-	),
-	installTabWindows: message(
-		'website.home.install.tabWindows',
-		'Tab label for Windows installation instructions.',
-	),
-	installTabMacos: message(
-		'website.home.install.tabMacos',
-		'Tab label for macOS installation instructions.',
 	),
 	installTabNpm: message(
 		'website.home.install.tabNpm',
@@ -326,10 +281,6 @@ export const websiteHomeMessages = defineMessages({
 	installStartNoteMacos: message(
 		'website.home.install.startNoteMacos',
 		'What the start command opens, once a release offers macOS downloads.',
-	),
-	installMacosNote: message(
-		'website.home.install.macosNote',
-		'Steps under the install rows to open the macOS app that Apple has not notarized.',
 	),
 	installSource: message(
 		'website.home.install.source',
