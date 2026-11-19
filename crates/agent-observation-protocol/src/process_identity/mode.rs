@@ -164,6 +164,7 @@ pub(super) mod grammar {
         interactive_optional_options: &["-r", "--resume"],
         interactive_options: &[
             "--model",
+            "--effort",
             "--fallback-model",
             "--permission-mode",
             "--add-dir",

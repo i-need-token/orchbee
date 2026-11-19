@@ -170,7 +170,7 @@ reuse it rather than keeping their own tables.
 - Runtime entries: the runtime skips its own listed options before the script, including the
   value-less `--expose-gc` that Qwen's `cli-entry.js` passes when it re-executes `cli.js`. Both Qwen
   files are package entries, so the outer `cli-entry.js` run anchors a Qwen sample.
-- `AGENT_PROVIDER_REGISTRY_VERSION` is 10. It changes whenever an entry's recognition meaning
+- `AGENT_PROVIDER_REGISTRY_VERSION` is 11. It changes whenever an entry's recognition meaning
   changes: a provider, alias, install root, version root, renamed image root, package entry or
   grammar option joining or leaving the registry.
 - Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,

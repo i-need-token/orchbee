@@ -676,6 +676,12 @@ fn recognition_matrix_rows_and_counterexamples() {
         ),
         (
             "interactive form",
+            "claude.exe",
+            Some(vec!["claude", "--effort", "high", "explain this"]),
+            interactive(P::Claude, S::NativeImage),
+        ),
+        (
+            "interactive form",
             "codex.exe",
             Some(vec!["codex", "-p", "work", "resume", "--last"]),
             interactive(P::Codex, S::NativeImage),
@@ -702,6 +708,12 @@ fn recognition_matrix_rows_and_counterexamples() {
             "unclassified",
             "claude.exe",
             Some(vec!["claude", "--model"]),
+            unresolved(Some(P::Claude), U::UnclassifiedArguments),
+        ),
+        (
+            "unclassified",
+            "claude.exe",
+            Some(vec!["claude", "--effort"]),
             unresolved(Some(P::Claude), U::UnclassifiedArguments),
         ),
         (
