@@ -15,6 +15,10 @@
 //! with a copy of `pointer.active`, so cleanup keeps only `pointer.active` plus any stored version a
 //! process still runs from. Each step is best effort: whatever runs, cannot be told, or is refused
 //! stays for the next run, and a lock another update holds skips the whole step.
+//!
+//! A Client older than the store's active window version runs only the version retention and
+//! arranges nothing under `desktop\`: a newer window version adds names there that an older Client
+//! does not know, so it must neither move nor remove them as flat-layout leftovers.
 use super::super::retention;
 use crate::release_store::ReleaseStore;
 use orchbee_release_records::Pointer;
@@ -23,9 +27,10 @@ use std::{fs, path::Path};
 /// Places the entry, moves a flat layout on and removes unused window versions of the window store
 /// below the store root `root`. Without a real `desktop` folder there is no window store, and one is
 /// never created here; without a window pointer there is no active window version yet, so nothing is
-/// placed or removed. Changing this (the install and handover step) needs a manual real-window
-/// self-test before merging; its steps are in `apps/desktop/README.md`, Window Update, Manual
-/// self-test.
+/// placed or removed. A Client older than the active window version only removes unused versions
+/// (see the module documentation). Changing this (the install and handover step) needs a manual
+/// real-window self-test before merging; its steps are in `apps/desktop/README.md`, Window Update,
+/// Manual self-test.
 pub(in crate::cli::update) fn tend(root: &Path) {
     let desktop = root.join(super::FOLDER);
     if !fs::symlink_metadata(&desktop).is_ok_and(|metadata| metadata.is_dir()) {
@@ -47,7 +52,9 @@ pub(in crate::cli::update) fn tend(root: &Path) {
         return;
     };
     #[cfg(windows)]
-    windows::arrange(&root_store, &store, &pointer.active.product);
+    if windows::may_arrange(&pointer.active.product) {
+        windows::arrange(&root_store, &store, &pointer.active.product);
+    }
     #[cfg(not(windows))]
     let _ = &root_store;
     #[cfg(target_os = "macos")]
@@ -66,6 +73,7 @@ mod windows {
         no_process_runs_from, no_process_runs_from_except, same,
     };
     use crate::release_store::{ReleaseStore, numbered_name, open_release_file, transient_name};
+    use orchbee_local_runtime::compare_product_versions;
     use std::{
         fs::{self, File, OpenOptions},
         io::{self, Read, Write},
@@ -80,6 +88,13 @@ mod windows {
     const COPY: &str = ".new-";
     /// The prefix of a running flat-layout entry moved aside so the launcher can take its path.
     const FLAT_ASIDE: &str = ".remove-flat-";
+
+    /// Whether this Client may arrange the store: it is not older than the store's active window
+    /// version, by the store's product version precedence. An older Client only retains versions,
+    /// because the names a newer window version adds under `desktop\` are unknown to it.
+    pub(super) fn may_arrange(active: &str) -> bool {
+        compare_product_versions(env!("CARGO_PKG_VERSION"), active).is_ge()
+    }
 
     /// Places the entry and, once it is placed, removes what a flat layout left; then removes the
     /// store root's leftover `desktop.previous` once nothing runs from it.

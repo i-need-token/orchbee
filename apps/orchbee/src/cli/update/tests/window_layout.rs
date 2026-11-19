@@ -20,6 +20,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// The test store's active window version: this build's own version, so its Client is not older
+/// than that version and arranges the store.
+const ACTIVE: &str = env!("CARGO_PKG_VERSION");
+
 /// A stand-in process started from a store file, stopped through its own handle on drop.
 struct Running(Child);
 
@@ -92,13 +96,13 @@ fn a_flat_layout_moves_on_once_its_window_quits_and_its_session_ends() {
     // The first window version beside a flat layout, its pointer moved; an unused older version;
     // what crashed runs left; and the folder an earlier Setup moved its previous window into.
     let launcher = b"the window launcher".as_slice();
-    let version = desktop.join(r"versions\0.2.0");
+    let version = desktop.join(format!(r"versions\{ACTIVE}"));
     write(
         &version.join(format!(r"resources\cohort\{stem}-desktop-launcher.exe")),
         launcher,
     );
     write(&version.join(&entry_name), b"window");
-    write(&desktop.join(r"versions\0.1.0\old.txt"), b"old");
+    write(&desktop.join(r"versions\0.0.1\old.txt"), b"old");
     write(&desktop.join(r".stage-1-0\part.txt"), b"x");
     write(&desktop.join(".new-1-0"), b"x");
     write(
@@ -107,7 +111,7 @@ fn a_flat_layout_moves_on_once_its_window_quits_and_its_session_ends() {
     );
     let mut store = ReleaseStore::acquire(&desktop).unwrap();
     store
-        .replace_pointer(&Pointer::activate(None, entry_for("0.2.0", b"list")).encode())
+        .replace_pointer(&Pointer::activate(None, entry_for(ACTIVE, b"list")).encode())
         .unwrap();
     drop(store);
     // The flat window runs from the entry, and a Session its bundled Client started still runs.
@@ -133,7 +137,7 @@ fn a_flat_layout_moves_on_once_its_window_quits_and_its_session_ends() {
             "versions"
         ])
     );
-    assert_eq!(names(&desktop.join("versions")), ["0.2.0"]);
+    assert_eq!(names(&desktop.join("versions")), [ACTIVE]);
     assert!(!root.join("desktop.previous").exists());
 
     drop(window);
@@ -174,13 +178,13 @@ fn a_running_flat_electron_entry_is_never_moved_aside() {
     let entry = desktop.join(&entry_name);
     write(
         &desktop.join(format!(
-            r"versions\0.2.0\resources\cohort\{stem}-desktop-launcher.exe"
+            r"versions\{ACTIVE}\resources\cohort\{stem}-desktop-launcher.exe"
         )),
         b"the window launcher",
     );
     let mut store = ReleaseStore::acquire(&desktop).unwrap();
     store
-        .replace_pointer(&Pointer::activate(None, entry_for("0.2.0", b"list")).encode())
+        .replace_pointer(&Pointer::activate(None, entry_for(ACTIVE, b"list")).encode())
         .unwrap();
     drop(store);
     write(&desktop.join(r"resources\app.asar"), b"page");
@@ -217,13 +221,13 @@ fn a_running_launcher_moves_aside_so_the_new_launcher_takes_its_path() {
     let launcher = b"the new launcher".as_slice();
     write(
         &desktop.join(format!(
-            r"versions\0.2.0\resources\cohort\{stem}-desktop-launcher.exe"
+            r"versions\{ACTIVE}\resources\cohort\{stem}-desktop-launcher.exe"
         )),
         launcher,
     );
     let mut store = ReleaseStore::acquire(&desktop).unwrap();
     store
-        .replace_pointer(&Pointer::activate(None, entry_for("0.2.0", b"list")).encode())
+        .replace_pointer(&Pointer::activate(None, entry_for(ACTIVE, b"list")).encode())
         .unwrap();
     drop(store);
     let running = start(&entry);
@@ -245,4 +249,46 @@ fn a_running_launcher_moves_aside_so_the_new_launcher_takes_its_path() {
     ]);
     tend_until(&root, || names(&desktop) == settled);
     assert_eq!(names(&desktop), settled);
+}
+
+/// A Client older than the store's active window version only retains versions: a flat layout, a
+/// stale copy and the root's `desktop.previous` stay, the entry keeps its launcher, and the unused
+/// version goes.
+#[test]
+fn an_older_client_retains_versions_and_arranges_nothing() {
+    let fixture = Fixture::new();
+    let root = fixture.0.join("install");
+    let desktop = root.join(FOLDER);
+    drop(ReleaseStore::acquire(&root).unwrap());
+    let stem = environment_stem();
+    let entry_name = format!("{stem}-desktop.exe");
+    let entry = desktop.join(&entry_name);
+    let newer = "99.0.0";
+    let older_launcher = b"the older launcher".as_slice();
+    write(&entry, older_launcher);
+    write(
+        &desktop.join(format!(
+            r"versions\{newer}\resources\cohort\{stem}-desktop-launcher.exe"
+        )),
+        b"the newer launcher",
+    );
+    write(&desktop.join(r"versions\0.0.1\old.txt"), b"old");
+    write(&desktop.join(".new-1-0"), b"x");
+    write(&desktop.join("ffmpeg.dll"), b"flat");
+    write(
+        &root.join(r"desktop.previous\resources\app.asar"),
+        b"previous",
+    );
+    let mut store = ReleaseStore::acquire(&desktop).unwrap();
+    store
+        .replace_pointer(&Pointer::activate(None, entry_for(newer, b"list")).encode())
+        .unwrap();
+    drop(store);
+
+    layout::tend(&root);
+    assert_eq!(fs::read(&entry).unwrap(), older_launcher);
+    assert!(desktop.join(".new-1-0").is_file());
+    assert!(desktop.join("ffmpeg.dll").is_file());
+    assert!(root.join("desktop.previous").is_dir());
+    assert_eq!(names(&desktop.join("versions")), [newer]);
 }
