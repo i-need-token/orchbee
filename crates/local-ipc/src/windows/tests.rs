@@ -668,17 +668,19 @@ fn a_listener_admitting_elevated_clients_admits_its_user_whose_process_it_cannot
         }
     }
     let child = ChildOwner(child);
-    assert_eq!(
-        HPROCESS::OpenProcess(
-            co::PROCESS::QUERY_LIMITED_INFORMATION,
-            false,
-            child.0.dwProcessId
-        )
-        .map(drop)
-        .unwrap_err(),
-        co::ERROR::ACCESS_DENIED,
-        "the client's process must refuse this listener"
-    );
+    // A process whose token enables the debug privilege, as an elevated CI runner's can, opens
+    // every process, so the stand-in cannot refuse it there; admission is still checked.
+    if let Err(error) = HPROCESS::OpenProcess(
+        co::PROCESS::QUERY_LIMITED_INFORMATION,
+        false,
+        child.0.dwProcessId,
+    ) {
+        assert_eq!(
+            error,
+            co::ERROR::ACCESS_DENIED,
+            "the client's process must refuse this listener"
+        );
+    }
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut server = loop {
         match listener.accept() {
