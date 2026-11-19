@@ -80,7 +80,7 @@ Orchbee 无需任何配置即可识别 30 余种 CLI Agent，并显示每个 Age
 ## 安装
 
 > [!IMPORTANT]
-> Orchbee 处于测试阶段，目前支持 Windows 11（x86_64）和 macOS 13 或更高版本（Apple 芯片和
+> Orchbee 处于测试阶段，目前支持 Windows（x86_64）和 macOS 13 或更高版本（Apple 芯片和
 > Intel）；Linux 版本正在开发中。
 
 ### Windows：桌面应用、终端和 CLI

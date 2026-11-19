@@ -80,7 +80,7 @@ When local resources are not enough, other computers can be added over SSH to ex
 ## Install
 
 > [!IMPORTANT]
-> Orchbee is in beta. It runs on Windows 11 (x86_64) and on macOS 13 or later (Apple silicon and
+> Orchbee is in beta. It runs on Windows (x86_64) and on macOS 13 or later (Apple silicon and
 > Intel); Linux builds are in progress.
 
 ### Windows: desktop app, terminal and CLI
