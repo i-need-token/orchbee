@@ -1,6 +1,5 @@
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 
-import type { AgentIntegrationManagementControl } from '../../agent-integration-management';
 import type { ApplicationLocaleController } from '../../application-locale';
 import type { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import type { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
@@ -83,7 +82,6 @@ export interface TerminalSettingsFontCatalog {
 export interface TerminalSettingsSurfaceProps {
 	/** What About shows; without it Settings has no About category. */
 	readonly about?: TerminalSettingsAbout | undefined;
-	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
 	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly controller: TerminalSettingsController;
 	/** Custom folder… of the new terminal folder row asks it; without it the row takes a typed folder. */

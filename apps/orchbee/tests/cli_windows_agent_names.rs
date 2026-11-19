@@ -3,6 +3,8 @@
 
 #[path = "support/windows_agent_peer/cohort_fixture.rs"]
 mod cohort_fixture;
+#[path = "support/windows_agent_peer/deadline_fixture.rs"]
+mod deadline_fixture;
 #[path = "support/inherited_environment.rs"]
 mod inherited_environment;
 #[allow(dead_code)]
@@ -20,11 +22,7 @@ use orchbee_agent_observation_protocol::{
 use orchbee_local_ipc::LocalListener;
 use peer_support::*;
 use serde_json::{Value, json};
-use std::{
-    io::Read,
-    thread,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 fn join_peer(handler: PeerGuard<'_>, output: &std::process::Output) {
     assert!(
@@ -36,129 +34,6 @@ fn join_peer(handler: PeerGuard<'_>, output: &std::process::Output) {
     );
 }
 
-#[test]
-fn names_commands_exchange_correlated_typed_results_on_windows() {
-    let fixture = Fixture::new();
-    let rendezvous = fixture.rendezvous();
-    // Each wire outcome and the public result that names its Session as a target.
-    let cases: &[(&[&str], &str, Value, Value, &str)] = &[
-        (
-            &["agent", "resolve", "--name", "alpha"],
-            "resolve",
-            json!({"kind":"resolved","sessionId":"s1","resolvedBy":"name"}),
-            json!({"kind":"resolved-target","target":{"kind":"session","sessionId":"s1"},"resolvedBy":"name"}),
-            include_str!("../src/cli/schemas/orchbee.agent.resolve.json"),
-        ),
-        (
-            &["agent", "rename", "--agent-session", "s1", "alpha"],
-            "name.assign",
-            json!({"kind":"assigned","sessionId":"s1","name":"alpha","previousName":null}),
-            json!({"kind":"assigned-target","target":{"kind":"session","sessionId":"s1"},"name":"alpha","previousName":null}),
-            include_str!("../src/cli/schemas/orchbee.agent.rename.json"),
-        ),
-        (
-            &["agent", "rename", "alpha", "--clear"],
-            "name.release",
-            json!({"kind":"released","sessionId":"s1","name":"alpha"}),
-            json!({"kind":"released-target","target":{"kind":"session","sessionId":"s1"},"name":"alpha"}),
-            include_str!("../src/cli/schemas/orchbee.agent.rename.json"),
-        ),
-    ];
-    for (arguments, operation, outcome, expected, schema) in cases {
-        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let operation = (*operation).to_owned();
-        let outcome = outcome.clone();
-        let handler = peer(&fixture, listener, move |mut stream| {
-            let AgentRequest::Names(request) = read_agent_request(&mut stream).unwrap() else {
-                panic!("names request");
-            };
-            let request_document = json!(request);
-            assert_eq!(
-                request_document["kind"],
-                format!("agent.session.{operation}.request")
-            );
-            validate(
-                &request_document,
-                include_str!("../../../schemas/agent-observation/v1/agent-observation.schema.json"),
-            );
-            let response = json!({"kind":format!("agent.session.{operation}.result"),"requestId":request.request_id(),"result":{"outcome":outcome}});
-            validate(
-                &response,
-                include_str!("../../../schemas/agent-observation/v1/agent-observation.schema.json"),
-            );
-            let result = AgentResult::Names(serde_json::from_value(response).unwrap());
-            write_agent_result(&mut stream, &result).unwrap();
-            let mut byte = [0];
-            assert_eq!(
-                stream.read(&mut byte).unwrap(),
-                0,
-                "one request only, then close"
-            );
-        });
-        let arguments = [*arguments, &["--format", "json"]].concat();
-        let output = fixture.run(&arguments);
-        join_peer(handler, &output);
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-        validate(&document, schema);
-        assert_eq!(&document["result"], expected);
-    }
-}
-
-#[test]
-fn lost_and_mismatched_mutation_replies_are_unknown_without_replay() {
-    let fixture = Fixture::new();
-    let rendezvous = fixture.rendezvous();
-    for wrong_reply in [false, true] {
-        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(&fixture, listener, move |mut stream| {
-            let AgentRequest::Names(request) = read_agent_request(&mut stream).unwrap() else {
-                panic!("names request");
-            };
-            if wrong_reply {
-                let result = AgentResult::Names(serde_json::from_value(json!({"kind":"agent.session.names.list.result","requestId":request.request_id(),"result":{"outcome":{"kind":"listed","pending":[],"bindings":[]}}})).unwrap());
-                write_agent_result(&mut stream, &result).unwrap();
-                let mut byte = [0];
-                assert_eq!(stream.read(&mut byte).unwrap(), 0);
-            }
-        });
-        let output = fixture.run(&["agent", "rename", "s1", "alpha", "--format", "json"]);
-        join_peer(handler, &output);
-        assert_eq!(output.status.code(), Some(8));
-        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-        validate(
-            &document,
-            include_str!("../src/cli/schemas/orchbee.cli.failure.agent-names.json"),
-        );
-        assert_eq!(document["failure"]["kind"], "outcome-unknown");
-        assert!(document.get("source").is_none());
-    }
-}
-
-#[test]
-fn invalid_names_and_conflicting_selectors_fail_before_runtime_creation() {
-    let fixture = Fixture::new();
-    for arguments in [
-        vec!["agent", "rename", "s1", "Upper"],
-        vec!["agent", "resolve", "s1", "--name", "alpha"],
-        vec!["agent", "rename", "--clear"],
-        vec!["agent", "prompt", "alpha", ""],
-        vec!["agent", "prompt", "alpha", "text", "--timeout", "100"],
-        vec!["agent", "send-keys", "alpha", "enter", "invalid-key"],
-        vec!["agent", "read", "alpha", "--history"],
-        vec!["agent", "get", "s1", "--name", "alpha"],
-        vec!["agent", "wait", "--name", "Upper"],
-    ] {
-        let output = fixture.run(&[arguments.as_slice(), &["--format", "json"]].concat());
-        assert_eq!(output.status.code(), Some(2));
-        assert!(!fixture.0.join("runtime").exists());
-    }
-}
-
 fn begin_get_projection(
     stream: &mut orchbee_local_ipc::LocalStream,
     revision: u64,
@@ -168,220 +43,6 @@ fn begin_get_projection(
     let projection = AgentProjectionFixture::canonical(bound_snapshot(9), revision, details);
     projection.read(stream, true);
     projection
-}
-
-#[test]
-fn named_get_shares_one_admission_and_publishes_only_the_read_source() {
-    let fixture = Fixture::new();
-    let rendezvous = fixture.rendezvous();
-    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(&fixture, listener, move |mut stream| {
-        let projection = begin_get_projection(&mut stream, 7, &[session_detail("sess-alpha")]);
-        let resolution = resolve_reply(
-            &mut stream,
-            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
-        );
-        let read = read_reply(
-            &mut stream,
-            "get",
-            json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
-        );
-        assert_ne!(resolution, read);
-        metadata_peer::sample(&mut stream, "observed", "claude.exe");
-        read_reply(
-            &mut stream,
-            "get",
-            json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
-        );
-        bound_snapshot_reply(&mut stream);
-        management_reply(&mut stream, 7, json!({"phase":"unmanaged"}));
-        explain_reply(&mut stream);
-        projection.confirm(&mut stream, true);
-        assert_closed(&mut stream);
-    });
-    let output = fixture.run(&["agent", "get", "alpha", "--format", "json"]);
-    join_peer(handler, &output);
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(document["source"]["kind"], "agent-projection");
-    assert_eq!(
-        document["result"]["inspection"]["session"]["snapshot"]["sessionId"],
-        "sess-alpha"
-    );
-    assert_eq!(
-        document["result"]["explanation"]["statusBasis"],
-        "attention-request"
-    );
-    assert!(document["result"]["detection"].is_null());
-    validate(
-        &document,
-        include_str!("../src/cli/schemas/orchbee.agent.get.json"),
-    );
-}
-
-#[test]
-fn named_wait_resolves_once_and_keeps_polling_the_original_session() {
-    let fixture = Fixture::new();
-    let rendezvous = fixture.rendezvous();
-    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(&fixture, listener, move |mut stream| {
-        resolve_reply(
-            &mut stream,
-            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
-        );
-        // A quiet first observation keeps the wait alive. After this response
-        // a reused alias could represent another session. The pinned-ID contract
-        // forbids a second Resolve; read_reply rejects it before answering.
-        let mut first = session_detail("sess-alpha");
-        first["snapshot"]["pendingRequests"] = json!([]);
-        first["status"] = json!({"kind":"working","activity":"tool","phase":"working"});
-        wait::checkpoint(&mut stream, 7);
-        read_reply(
-            &mut stream,
-            "get",
-            json!({"kind":"found","revision":7,"session":first}),
-        );
-        wait::checkpoint(&mut stream, 7);
-        read_reply(
-            &mut stream,
-            "get",
-            json!({"kind":"found","revision":8,"session":session_detail("sess-alpha")}),
-        );
-        assert_closed(&mut stream);
-    });
-    let output = fixture.run(&[
-        "agent",
-        "wait",
-        "--name",
-        "alpha",
-        "--timeout",
-        "2000",
-        "--format",
-        "json",
-    ]);
-    join_peer(handler, &output);
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-    validate(
-        &document,
-        include_str!("../src/cli/schemas/orchbee.agent.wait.json"),
-    );
-    assert_eq!(
-        document["result"]["session"]["snapshot"]["sessionId"],
-        "sess-alpha"
-    );
-    assert_eq!(document["result"]["wait"]["observations"], 2);
-}
-
-#[test]
-fn unresolved_name_publishes_its_own_failure_without_get_or_wait_poll() {
-    let fixture = Fixture::new();
-    let rendezvous = fixture.rendezvous();
-    for verb in ["get", "wait"] {
-        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(&fixture, listener, move |mut stream| {
-            if verb == "get" {
-                begin_get_projection(&mut stream, 7, &[]);
-            }
-            resolve_reply(&mut stream, json!({"kind":"rejected","reason":"not-found"}));
-            assert_closed(&mut stream);
-        });
-        let output = fixture.run(&["agent", verb, "--name", "missing", "--format", "json"]);
-        join_peer(handler, &output);
-        assert_eq!(output.status.code(), Some(3));
-        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-        validate(
-            &document,
-            include_str!("../src/cli/schemas/orchbee.cli.failure.agent-names.json"),
-        );
-        assert_eq!(document["source"]["kind"], "agent-names");
-        assert_eq!(document["failure"]["kind"], "not-found");
-    }
-}
-
-#[test]
-fn explicit_session_bypasses_name_resolution_even_for_a_valid_alias_spelling() {
-    let fixture = Fixture::new();
-    let rendezvous = fixture.rendezvous();
-    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(&fixture, listener, move |mut stream| {
-        let projection = begin_get_projection(&mut stream, 7, &[session_detail("sess-alpha")]);
-        read_reply(
-            &mut stream,
-            "get",
-            json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
-        );
-        metadata_peer::sample(&mut stream, "observed", "claude.exe");
-        read_reply(
-            &mut stream,
-            "get",
-            json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
-        );
-        bound_snapshot_reply(&mut stream);
-        management_reply(&mut stream, 7, json!({"phase":"unmanaged"}));
-        explain_reply(&mut stream);
-        projection.confirm(&mut stream, true);
-        assert_closed(&mut stream);
-    });
-    let output = fixture.run(&[
-        "agent",
-        "get",
-        "--agent-session",
-        "sess-alpha",
-        "--format",
-        "json",
-    ]);
-    join_peer(handler, &output);
-    assert!(output.status.success());
-}
-
-#[test]
-fn named_get_resolution_and_read_share_the_original_five_second_deadline() {
-    let fixture = Fixture::deadline_sensitive();
-    let rendezvous = fixture.rendezvous();
-    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(&fixture, listener, move |mut stream| {
-        begin_get_projection(&mut stream, 7, &[session_detail("sess-alpha")]);
-        // Spending most of the command budget on resolution must leave only
-        // the remainder for Get; renewing another five seconds would fail.
-        let AgentRequest::Names(request) = read_agent_request(&mut stream).unwrap() else {
-            panic!("resolve");
-        };
-        let exchange_started = Instant::now();
-        thread::sleep(Duration::from_millis(3200));
-        let reply = AgentResult::Names(serde_json::from_value(json!({"kind":"agent.session.resolve.result","requestId":request.request_id(),"result":{"outcome":{"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}}})).unwrap());
-        write_agent_result(&mut stream, &reply).unwrap();
-        assert!(matches!(
-            read_agent_request(&mut stream).unwrap(),
-            AgentRequest::Read(_)
-        ));
-        assert_closed(&mut stream);
-        let elapsed = exchange_started.elapsed();
-        // Measure from the peer-observed Resolve, excluding process creation,
-        // Defender scanning and output finalization outside this wire budget.
-        assert!(
-            elapsed < Duration::from_millis(7250),
-            "exchange budget renewed: {elapsed:?}"
-        );
-    });
-    let output = fixture.run(&["agent", "get", "--name", "alpha", "--format", "json"]);
-    join_peer(handler, &output);
-    assert_eq!(output.status.code(), Some(7));
-    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-    validate(
-        &document,
-        include_str!("../src/cli/schemas/orchbee.cli.failure.agent.json"),
-    );
-    assert_eq!(document["failure"]["kind"], "timeout");
-    assert!(document.get("source").is_none());
 }
 
 #[test]
@@ -427,7 +88,7 @@ fn agent_terminal_refuses_inactive_missing_and_ambiguous_bindings_before_termina
                 bound_agent_reply(&mut stream, detail);
                 assert_closed(&mut stream);
             });
-            let mut arguments = vec!["agent", verb, "--name", "alpha", "--format", "json"];
+            let mut arguments = vec!["agent", verb, "sess-alpha", "--format", "json"];
             if verb == "send-keys" {
                 arguments.push("enter");
             }
@@ -527,8 +188,7 @@ fn agent_keys_use_the_exact_bound_terminal_once_and_preserve_unknown_outcomes() 
         let output = fixture.run(&[
             "agent",
             "send-keys",
-            "--name",
-            "alpha",
+            "sess-alpha",
             "enter",
             "ctrl+shift+a",
             "--format",
@@ -695,8 +355,7 @@ fn agent_visible_read_returns_a_schema_valid_frame_and_detaches_before_output() 
         let mut arguments = vec![
             "agent",
             "read",
-            "--name",
-            "alpha",
+            "sess-alpha",
             "--source=visible",
             "--format",
             "json",
@@ -737,8 +396,7 @@ fn agent_terminal_never_acts_on_a_different_session_in_the_get_reply() {
     let output = fixture.run(&[
         "agent",
         "send-keys",
-        "--name",
-        "alpha",
+        "sess-alpha",
         "enter",
         "--format",
         "json",
@@ -760,6 +418,10 @@ fn infinite_wait_preserves_condition_names_and_rejects_a_different_session() {
     for (condition, wrong_session) in [("blocked", false), ("done", false), ("done", true)] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
+            resolve_reply(
+                &mut stream,
+                json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
+            );
             let mut detail = session_detail(if wrong_session {
                 "sess-other"
             } else {
@@ -783,7 +445,6 @@ fn infinite_wait_preserves_condition_names_and_rejects_a_different_session() {
         let output = fixture.run(&[
             "agent",
             "wait",
-            "--agent-session",
             "sess-alpha",
             "--forever",
             "--until",
@@ -821,6 +482,10 @@ fn infinite_wait_still_times_out_a_stalled_read_without_reconnecting() {
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
+        resolve_reply(
+            &mut stream,
+            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
+        );
         let AgentRequest::Changes(_) = read_agent_request(&mut stream).unwrap() else {
             panic!("initial checkpoint");
         };
@@ -831,7 +496,6 @@ fn infinite_wait_still_times_out_a_stalled_read_without_reconnecting() {
     let output = fixture.run(&[
         "agent",
         "wait",
-        "--agent-session",
         "sess-alpha",
         "--forever",
         "--format",
@@ -847,29 +511,6 @@ fn infinite_wait_still_times_out_a_stalled_read_without_reconnecting() {
     assert_eq!(document["version"], 1);
     assert_eq!(document["failure"]["details"]["reason"], "read-deadline");
     assert!(document["failure"]["details"]["timeoutMs"].is_null());
-}
-
-fn presentation_reply(
-    stream: &mut orchbee_local_ipc::LocalStream,
-    operation: &str,
-    outcome: Value,
-) -> String {
-    let AgentRequest::Names(request) = read_agent_request(stream).unwrap() else {
-        panic!("names request")
-    };
-    assert_eq!(
-        json!(request)["kind"],
-        format!("agent.session.{operation}.request")
-    );
-    assert_eq!(
-        json!(request)["target"],
-        json!({"kind":"presentation","presentationId":"11111111111111111111111111111111"})
-    );
-    let request_id = request.request_id().as_str().to_owned();
-    write_agent_result(stream, &AgentResult::Names(serde_json::from_value(json!({
-        "kind":format!("agent.session.{operation}.result"), "requestId":request_id, "result":{"outcome":outcome}
-    })).unwrap())).unwrap();
-    request_id
 }
 
 fn session_target_reply(
@@ -1016,110 +657,6 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
 }
 
 #[test]
-fn positional_panel_fallback_preserves_session_or_alias_precedence_and_resolve_provenance() {
-    let fixture = Fixture::new();
-    let rendezvous = fixture.rendezvous();
-    for resolved_by in ["session-id", "name", "presentation"] {
-        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let (source_tx, source_rx) = std::sync::mpsc::channel();
-        let handler = peer(&fixture, listener, move |mut stream| {
-            let source = if resolved_by == "presentation" {
-                resolve_reply(&mut stream, json!({"kind":"rejected","reason":"not-found"}));
-                bound_snapshot_reply(&mut stream);
-                presentation_reply(
-                    &mut stream,
-                    "resolve",
-                    json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"presentation"}),
-                )
-            } else {
-                resolve_reply(
-                    &mut stream,
-                    json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":resolved_by}),
-                )
-            };
-            assert_closed(&mut stream);
-            source_tx.send(source).unwrap();
-        });
-        let output = fixture.run(&[
-            "agent",
-            "resolve",
-            "22222222222222222222222222222222",
-            "--format",
-            "json",
-        ]);
-        join_peer(handler, &output);
-        let source = source_rx.recv().unwrap();
-        assert_eq!(
-            output.status.code(),
-            Some(0),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-        validate(
-            &doc,
-            include_str!("../src/cli/schemas/orchbee.agent.resolve.json"),
-        );
-        assert_eq!(doc["source"]["requestId"], source);
-        assert_eq!(doc["result"]["resolvedBy"], resolved_by);
-        assert_eq!(doc["version"], 1);
-    }
-}
-
-#[test]
-fn panel_rename_distinguishes_ambiguous_refusal_from_a_pre_mutation_read_loss() {
-    let fixture = Fixture::new();
-    let rendezvous = fixture.rendezvous();
-    for read_loss in [false, true] {
-        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(&fixture, listener, move |mut stream| {
-            if read_loss {
-                assert!(matches!(
-                    orchbee_workbench_protocol::read_workbench_request(&mut stream).unwrap(),
-                    orchbee_workbench_protocol::WorkbenchRequest::SnapshotRead(_)
-                ));
-                return;
-            }
-            bound_snapshot_reply(&mut stream);
-            let selected = panel_projection(1, &[panel_detail("sess-alpha")]);
-            selected.read(&mut stream, false);
-            session_target_reply(
-                &mut stream,
-                "name.assign",
-                json!({"kind":"rejected","reason":"ambiguous-target","conflictSessionId":null}),
-            );
-            assert_closed(&mut stream);
-        });
-        let output = fixture.run(&[
-            "agent",
-            "rename",
-            "--panel",
-            "@panel:0x22222222222222222222222222222222",
-            "new-name",
-            "--format",
-            "json",
-        ]);
-        join_peer(handler, &output);
-        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_ne!(doc["failure"]["kind"], "outcome-unknown");
-        if read_loss {
-            validate(
-                &doc,
-                include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
-            );
-            assert_ne!(output.status.code(), Some(0));
-        } else {
-            validate(
-                &doc,
-                include_str!("../src/cli/schemas/orchbee.cli.failure.agent-names.json"),
-            );
-            assert_eq!(doc["failure"]["kind"], "ambiguous");
-            assert_eq!(doc["version"], 1);
-        }
-    }
-}
-
-#[test]
 fn panel_send_keeps_primary_presentation_when_the_agent_also_owns_a_child() {
     use orchbee_client_server_protocol::{ClientMessage, read_client_message};
     let fixture = Fixture::new();
@@ -1167,34 +704,6 @@ fn panel_send_keeps_primary_presentation_when_the_agent_also_owns_a_child() {
     let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(doc["failure"]["kind"], "outcome-unknown", "{doc}");
     assert_eq!(output.status.code(), Some(8));
-    validate(
-        &doc,
-        include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
-    );
-}
-
-#[test]
-fn missing_panel_is_a_snapshot_refusal_without_an_agent_operation() {
-    let fixture = Fixture::new();
-    let rendezvous = fixture.rendezvous();
-    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(&fixture, listener, move |mut stream| {
-        bound_snapshot_reply(&mut stream);
-        assert_closed(&mut stream);
-    });
-    let output = fixture.run(&[
-        "agent",
-        "rename",
-        "--panel",
-        "@panel:0x999",
-        "alpha",
-        "--format",
-        "json",
-    ]);
-    join_peer(handler, &output);
-    let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(doc["failure"]["kind"], "not-found");
-    assert_eq!(doc["failure"]["details"]["resource"], "panel");
     validate(
         &doc,
         include_str!("../src/cli/schemas/orchbee.cli.failure.json"),

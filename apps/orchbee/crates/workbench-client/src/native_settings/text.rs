@@ -46,10 +46,6 @@ impl From<Row> for SettingsRow {
             Row::AddProfile => Self::AddProfile,
             Row::DeleteProfile => Self::DeleteProfile,
             Row::Back => Self::Back,
-            Row::AgentIntegrations => Self::AgentIntegrations,
-            Row::Agent(id) => Self::Agent(id),
-            Row::RemoteHosts => Self::RemoteHosts,
-            Row::RefreshIntegrations => Self::RefreshIntegrations,
             Row::Version => Self::Version,
             Row::Updates => Self::Updates,
         }
@@ -87,9 +83,6 @@ impl From<Group> for SettingsGroup {
             Group::WhenToNotify => Self::WhenToNotify,
             Group::SoundDelivery => Self::SoundDelivery,
             Group::Prefix => Self::Prefix,
-            Group::AgentIntegrations => Self::AgentIntegrations,
-            Group::LocalAgents => Self::LocalAgents,
-            Group::RemoteHosts => Self::RemoteHosts,
             Group::About => Self::About,
         }
     }
@@ -284,10 +277,6 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
             },
             Row::SetDefault if profile.id == values.launch_profiles.default_profile_id => {
                 Self::Default
-            }
-            Row::Agent(id) => Self::Integration(page.integrations().status(id)),
-            Row::RemoteHosts => {
-                Self::Integration(crate::localization::IntegrationStatus::ManualOnly)
             }
             Row::Version => Self::Text(crate::local_client::CLIENT_VERSION),
             _ => Self::Empty,

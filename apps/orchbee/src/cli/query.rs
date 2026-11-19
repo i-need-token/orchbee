@@ -33,9 +33,7 @@ pub(crate) use agent_journal::{AgentJournal, JournalError};
 pub(in crate::cli) mod agent_explanation;
 mod agent_focus;
 mod agent_input_area;
-mod agent_names;
 mod agent_names_failure;
-pub(in crate::cli) use agent_names_failure::rejection as agent_names_rejection;
 
 pub(in crate::cli) mod agent_target;
 pub(in crate::cli) fn read_agent_snapshot(
@@ -2795,11 +2793,6 @@ pub(crate) fn read_terminal(
     )
 }
 
-pub(super) fn names_command(
-    command: &crate::invocation::AgentNamesCommand,
-) -> agent_names::Execution {
-    agent_names::execute(command)
-}
 pub(in crate::cli) fn workbench_failure(reason: &'static str) -> Failure {
     Failure::new(if reason == "agent-page-invalid" {
         FailureKind::ProtocolInvalid

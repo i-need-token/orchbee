@@ -759,7 +759,7 @@ pub(crate) fn publish_capsule(source: &Path, target: &Path) -> PublishResult {
 }
 
 /// The termination source check shared by every frontier boundary — absent
-/// in contexts that cannot be cancelled (tests, `--adapter-source` drives
+/// in contexts that cannot be cancelled (tests, adapter-source drives
 /// without an armed signal owner).
 pub(super) fn cancelled(context: &ProviderContext) -> bool {
     context
@@ -2136,7 +2136,7 @@ pub(super) fn step_outcome(step: FsStep) -> StepOutcome {
 
 // -- `explain` plan projection ------------------------------------------------
 
-/// `agent integration explain`'s plan — the enable-direction vector the
+/// The explain plan — the enable-direction vector the
 /// frontier would run for the observed dims. An empty plan means the
 /// pre-effect gates admit nothing; `state`/`issue` carry why.
 pub(crate) fn plan_enable(

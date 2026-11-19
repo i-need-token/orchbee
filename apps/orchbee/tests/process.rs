@@ -458,8 +458,6 @@ check --help 1 orchbee session attach audit --mouse off --h
 check --format 0 orchbee session attach audit --f
 check attach 0 orchbee --format json session a
 check --format 0 orchbee session attach audit --format json --f
-check enable 0 orchbee agent integration --provider codex --provider gemini e
-check --format 0 orchbee agent integration enable --provider codex --provider gemini --f
 check --format 1 orchbee --session work workspace create --label example --f
 check --help 1 orchbee workspace create --session work --label example --h
 check --session 1 orchbee workspace create --s
@@ -500,7 +498,6 @@ check status 0 orchbee --mouse off ''
 check attach 1 orchbee --mouse off terminal ''
 check session 0 orchbee --mouse off terminal ''
 check attach 1 orchbee --mouse off agent ''
-check integration 0 orchbee --mouse off agent ''
 check attach 1 orchbee --mouse off --format=json terminal a
 check --mouse=off 1 orchbee --takeover --mouse=
 check --mouse 1 orchbee terminal attach target --m
@@ -508,11 +505,10 @@ check --mouse=off 1 orchbee terminal attach target --mouse=
 check --mouse 0 orchbee terminal attach target --mouse off --m
 check --format 0 orchbee terminal attach target --mouse invalid --f
 check --format 0 orchbee terminal read target --mouse off --f
-check --mouse 1 orchbee agent attach --name alpha --m
-check --agent-session 0 orchbee agent attach --name alpha --s
-check --name 0 orchbee agent attach alpha --n
-check --format 0 orchbee agent attach alpha --name beta --f
-check --format 0 orchbee agent attach --name alpha extra --f
+check --mouse 1 orchbee agent attach @agent:1 --m
+check --panel 0 orchbee agent attach @agent:1 --p
+check --format 0 orchbee agent attach @agent:1 --panel 2 --f
+check --format 0 orchbee agent attach @agent:1 extra --f
 check control 1 orchbee terminal session c
 check --format 0 orchbee --takeover terminal session observe target --f
 check --format 0 orchbee terminal session observe target --takeover --f

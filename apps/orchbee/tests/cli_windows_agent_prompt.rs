@@ -112,8 +112,7 @@ fn prompt_refuses_attention_and_nonfresh_state_before_input() {
         let output = fixture.run(&[
             "agent",
             "prompt",
-            "--name",
-            "alpha",
+            "sess-alpha",
             "private prompt",
             "--format",
             "json",
@@ -245,7 +244,13 @@ fn prompt_wait_rejects_old_idle_but_accepts_a_new_completed_turn_when_working_wa
         assert_closed(&mut stream);
     });
     let output = fixture.run(&[
-        "agent", "prompt", "--name", "alpha", "task", "--wait", "--format", "json",
+        "agent",
+        "prompt",
+        "sess-alpha",
+        "task",
+        "--wait",
+        "--format",
+        "json",
     ]);
     handler.join().unwrap();
     assert_eq!(

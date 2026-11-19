@@ -117,6 +117,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             snapshot_reply(&mut stream);
             let projection = AgentProjectionFixture::canonical(snapshot(12), 3, &[completed()]);
             projection.read(&mut stream, true);
+            super::resolved(&mut stream);
             let view = selected_reply(&mut stream, busy);
             attention_reply(&mut stream, view, state, outer, true);
             read_reply(
@@ -139,7 +140,6 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
         let output = fixture.run(&[
             "agent",
             "get",
-            "--agent-session",
             "sess-alpha",
             "--client",
             &id(7),
@@ -176,6 +176,7 @@ fn selected_client_get_checks_intervening_changes_and_refuses_foreign_boot() {
             snapshot_reply(&mut stream);
             let projection = AgentProjectionFixture::canonical(snapshot(12), 4, &[completed()]);
             projection.read(&mut stream, true);
+            super::resolved(&mut stream);
             let view = selected_reply(&mut stream, false);
             attention_reply(
                 &mut stream,
@@ -227,7 +228,6 @@ fn selected_client_get_checks_intervening_changes_and_refuses_foreign_boot() {
         let output = fixture.run(&[
             "agent",
             "get",
-            "--agent-session",
             "sess-alpha",
             "--client",
             &id(7),
@@ -277,6 +277,7 @@ fn selected_client_get_failures_keep_their_declared_contract() {
             snapshot_reply(&mut stream);
             AgentProjectionFixture::canonical(snapshot(12), 3, &[completed()])
                 .read(&mut stream, true);
+            super::resolved(&mut stream);
             let request = view_request(&mut stream);
             assert!(matches!(request.action, ClientViewAction::Get { .. }));
             let outcome = match case {
@@ -297,7 +298,6 @@ fn selected_client_get_failures_keep_their_declared_contract() {
         let output = fixture.run(&[
             "agent",
             "get",
-            "--agent-session",
             "sess-alpha",
             "--client",
             &id(7),

@@ -14,9 +14,9 @@
 use super::execution::{Capability, admit};
 use super::schema_export::{PublishFailure, publish};
 use super::{Failure, FailureKind, Output, failure_output, output};
-use super::{config, integration, named_sessions};
+use super::{config, named_sessions};
 use crate::cli_text::CliText;
-use crate::invocation::{AgentIntegrationCommand, NamedSessionCommand, OutputFormat};
+use crate::invocation::{NamedSessionCommand, OutputFormat};
 use crate::localization::Locale;
 use orchbee_local_runtime::{
     Cohort, CohortArtifact, DataRoot, DiagnosticRedactor, LogValue, recent_diagnostic_logs,
@@ -56,14 +56,11 @@ struct Collected {
     omitted_log_lines: u64,
 }
 
-/// One Session as the bundle reports it: its name and state as listed, its Server's process, and
-/// whether it is the default Session and running.
+/// One Session as the bundle reports it: its name and state as listed, and its Server's process.
 struct Running {
     name: Value,
     state: Value,
     pid: Option<u32>,
-    default: bool,
-    running: bool,
 }
 
 pub(crate) fn create(path: &str, format: OutputFormat, locale: Locale) -> Output {
@@ -209,34 +206,7 @@ fn collect(locale: Locale) -> Collected {
         "config-check.json",
         answered(&config::check(OutputFormat::Json, locale), &redactor),
     );
-    let default_running = running.as_deref().is_some_and(|sessions| {
-        sessions
-            .iter()
-            .any(|session| session.default && session.running)
-    });
     collected.document("sessions.json", sessions);
-    // Without any installed Capsule no provider entry names this environment: provider commands
-    // and configuration stay untouched.
-    let integrations = if !orchbee_local_runtime::agent_integration_may_have_been_enabled() {
-        Some(json!({"state": "never-enabled"}))
-    } else if default_running {
-        answered(
-            &integration::run(
-                &AgentIntegrationCommand::List {
-                    outdated_only: false,
-                    provider: None,
-                    adapter_source: None,
-                },
-                OutputFormat::Json,
-                locale,
-            ),
-            &redactor,
-        )
-    } else {
-        Some(json!({"state": "session-not-running"}))
-    };
-    collected.document("integrations.json", integrations);
-
     let settings = match orchbee_local_runtime::user_settings_path(environment) {
         Ok(Some(path)) => match read_bounded(&path, MAXIMUM_SETTINGS_BYTES) {
             Ok(Some(text)) => String::from_utf8(text)
@@ -302,8 +272,6 @@ fn listed(sessions: Option<&Value>) -> Option<Vec<Running>> {
                 pid: session["pid"]
                     .as_u64()
                     .and_then(|pid| u32::try_from(pid).ok()),
-                default: session["default"] == true,
-                running: session["running"] == true,
             })
             .collect(),
     )

@@ -1,31 +1,8 @@
 # Windows Agent integrations
 
-This record owns the Windows refinement of native `agent integration list`,
-`explain`, `enable`, and `disable`. `list` and `explain` are queries that run in the CLI's own
-process: `list` reads the provider files, and `explain` also starts the provider's own program
-where only that program reports the state. Their user profile, PATH and configuration roots are
-the invoking process's, and they never start, contact or lock a Session, so no saved terminal is
-restored. While a Session started from another environment runs, `availability` reflects the
-CLI's PATH, not its Worker's. A missing or unusable profile or data root answers
-`home-unavailable`. `enable` and `disable` activate the local Session and run one
-Server-authorized job on its Worker, so their profile, PATH and configuration roots are those of
-the process that started the Session. Activation itself refuses a missing or non-absolute
-LOCALAPPDATA or APPDATA before any job runs.
-The shared provider classifier and mutation workflow remain authoritative
-for ownership, payload identity, plans, receipts, and residuals.
+This record owns the Windows refinement of the Agent integration writer. In this release no command or setting lists, explains, enables or disables an integration: the `agent integration` commands, the `--outdated-only` filter, the Settings page and the doctor integrations check are removed. The writer, its hook ingress and its Worker jobs remain as dormant engine. Uninstall still disables entries an earlier version wrote, through the writer's own disable path.
 
-Integrations are opt-in and off by default; only the person turns one on. Without one, Orchbee
-runs no provider command and reads no provider configuration implicitly: Agent start never
-inspects, the diagnostics bundle inspects only when a Capsule folder exists, and Settings inspects
-when the person opens its Agent integrations page. These commands and that page are the explicit
-requests.
-
-`list`, and so Settings' page and Refresh and the diagnostics bundle, reads files only and starts
-no Agent program. Claude Code, Grok, GitHub Copilot and Hermes report their plugins only through
-their own `claude`, `grok`, `copilot` and `hermes` programs, which may create their own first-run
-files whenever they start, so `list` reports them not checked unless Hermes's entry files already
-prove a conflict. `explain` of one of them starts its program, and Settings asks first; `enable`
-and `disable` start it by design.
+Orchbee reads or writes provider configuration for these entries only on uninstall's disable path, so the provider-state rules below describe that engine and its evidence.
 
 ## Model and boundaries
 
@@ -80,9 +57,7 @@ action remains outside this cooperative teardown claim.
 
 ## Maintenance filtering
 
-Windows `agent integration list --outdated-only` performs the usual files-only local inspection once and shows only update-required entries, including owned installations needing repair. It never installs or downloads. `agent integration enable --provider <id>` remains the explicit guarded update/repair action; conflicting and uninspectable entries are not replaced.
-
-Filtered lists use v1 with outdatedOnly true, inspectedCount, unresolvedProviderIds for unknown inspections and blockedProviderIds for conflicting entries. Complete is calculated from the entire selected inspection before filtering; an empty list cannot hide inspection failures. Text includes these counts and the same filtered entries. The default list uses v1. The current schema admits all 20 canonical providers. The flag has no non-Windows runtime; original 40-second deadline, cancellation, profile isolation and local-only ownership remain. Detailed installed-version reporting and remaining provider Windows hook support are separate obligations.
+The `--outdated-only` filter is removed in this release. Conflicting and uninspectable entries are still never replaced.
 
 ## Claude exec hooks
 
@@ -396,15 +371,15 @@ and [native Windows](https://hermes-agent.nousresearch.com/docs/user-guide/windo
 
 Managed PowerShell exports `ORCHBEE_RUN_TOKEN` to each command it runs, including Agent start and [typed commands](native-terminal-run.md#typed-run-boundaries), and the Agent's hooks inherit it. The shared transport adds it to the envelope as the optional `runToken` only when it is 32 lowercase hex digits and nonzero; any other value is omitted, so the observation is still delivered. The Server and Desktop envelope parsers admit envelopes with and without the field and refuse a present malformed token. The Server binds a token-carrying session exactly to its run and keeps the newest-run fallback for tokenless sessions, as the [canonical model](../../orchbee-server/docs/agent-canonical-model.md#managed-launch-reservations) describes.
 
-Integrations installed before this field keep sending tokenless envelopes and keep the fallback. The field changes the Capsule payload, so `agent integration list` reports them as `update-required`; `orchbee agent integration enable --provider codex` (select the provider) installs the forwarding transport. No envelope version changes, and no negotiation is needed.
+Integrations installed before this field keep sending tokenless envelopes and keep the fallback. The field changes the Capsule payload, so the dormant writer reports them as `update-required`, and its repair operation installs the forwarding transport. No envelope version changes, and no negotiation is needed.
 
-Gemini and Qwen extensions copy the scripts into their own directory, and their currency follows the entry contract version, not the Capsule digest. An existing extension therefore stays `enabled` with the tokenless transport and keeps the fallback; `agent integration disable` followed by `enable` reinstalls it with forwarding.
+Gemini and Qwen extensions copy the scripts into their own directory, and their currency follows the entry contract version, not the Capsule digest. An existing extension therefore stays `enabled` with the tokenless transport and keeps the fallback; the dormant writer's disable followed by enable reinstalls it with forwarding, and no command reaches those operations in this release.
 
 ## Current Capsule identity
 
 The Capsule contract is 1 and its identity is `payloadSha256`, with the exact manifest and canonical digest rules in the [adapter guide](../../../crates/agent-integration-writer/agent-observation-adapters/README.md#packaged-payload-identity). CLI capsule objects expose that digest; the directory is `internal/integrations/agent-observation/<version>` in the environment's own data root, and the [writer](../../../crates/agent-integration-writer/README.md#capsule-location-and-ownership) owns the naming and the rule that an entry belongs to the environment whose Capsule it names. No semver ceiling or automatic migration is retained. Any final payload-byte change produces a different identity, including documentation and formatting.
 
-Integration inspection reads an entry that names an older version of the environment's own Capsule as `update-required`. Explicit repair uses `orchbee agent integration enable --provider codex` (select the provider). Conflicting or uninspectable entries still require manual review. A completed change removes the environment's own Capsule versions that no entry names; disable follows the existing provider-entry removal rules.
+Integration inspection reads an entry that names an older version of the environment's own Capsule as `update-required`. Explicit repair is the dormant writer's operation; no command reaches it in this release. Conflicting or uninspectable entries still require manual review. A completed change removes the environment's own Capsule versions that no entry names; disable follows the existing provider-entry removal rules.
 
 Entries written before each environment kept its own Capsules name `~/.orchbee/agent-observation-adapters/<digest>`. No build owns them: every build, release included, leaves them as they are and reads them as `conflict`, as the writer's [ownership rule](../../../crates/agent-integration-writer/README.md#capsule-location-and-ownership) says, so disable and `uninstall` do not stop for them. Nothing deletes that folder; once no entry names it, a person may delete it. Gemini and Qwen copies made then carry no owner record, so they read as release's and keep their earlier transport until release disables and enables them again. Rollback selects a complete retained cohort.
 

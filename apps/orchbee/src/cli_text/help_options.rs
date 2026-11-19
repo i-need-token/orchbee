@@ -180,11 +180,6 @@ impl super::CliText {
                 | CommandPath::PanelMove,
                 "--workspace",
             ) => ("<target>", "Select a workspace.", "选择工作区。"),
-            (CommandPath::AgentStart, "--name") => (
-                "<name>",
-                "Optional name. It binds only when that provider's integration is enabled (`orchbee agent integration enable --provider <id>`); otherwise the Agent stays unbound and is addressed by its @panel: handle.",
-                "可选名称。仅当该提供方的集成已启用（`orchbee agent integration enable --provider <id>`）时才绑定；否则智能体保持未绑定，用其 @panel: 句柄指定。",
-            ),
             (CommandPath::LaunchProfileCreate, "--name") => (
                 "<name>",
                 "Name of the saved launch profile.",
@@ -199,11 +194,6 @@ impl super::CliText {
                 "<source>",
                 "Output scope: recent, recent-unwrapped, visible or detection.",
                 "输出范围：recent、recent-unwrapped、visible 或 detection。",
-            ),
-            (CommandPath::AgentIntegrationList, "--outdated-only") => (
-                "",
-                "Show only integrations that need updating.",
-                "仅显示需要更新的集成。",
             ),
             (CommandPath::LayoutSetSplitRatio, "--path") => (
                 "<root|0.1>",
@@ -472,11 +462,6 @@ impl super::CliText {
                     "Mouse capture in the terminal interface; default: on.",
                     "终端界面鼠标捕获；默认 on。",
                 ),
-                "--name" => (
-                    "<name>",
-                    "Select an Agent by its saved session name.",
-                    "按保存的会话名称选择智能体。",
-                ),
                 "--new-tab" => ("", "Move into a newly created tab.", "移入新建的标签页。"),
                 "--new-workspace" => (
                     "",
@@ -495,11 +480,6 @@ impl super::CliText {
                 ),
                 "--off" => ("", "Turn panel maximization off.", "关闭面板最大化。"),
                 "--on" => ("", "Turn panel maximization on.", "开启面板最大化。"),
-                "--outdated-only" => (
-                    "",
-                    "Select only clients using an older version.",
-                    "仅选择使用旧版本的客户端。",
-                ),
                 "--output" => (
                     "<path>",
                     "Also write the prepared document to this file.",
@@ -551,11 +531,6 @@ impl super::CliText {
                     "Select an existing project grouping.",
                     "选择已有的项目分组。",
                 ),
-                "--provider" => (
-                    "<id>",
-                    "Limit the operation to this Agent provider.",
-                    "将操作限定到此智能体提供方。",
-                ),
                 "--ratio" => ("<n>", "Desired split ratio.", "目标分屏比例。"),
                 "--ref" => (
                     "<ref>",
@@ -591,11 +566,6 @@ impl super::CliText {
                     "<n>",
                     "Monotonic sequence number for this source.",
                     "此来源单调递增的序号。",
-                ),
-                "--agent-session" => (
-                    "<id>",
-                    "Select an Agent session explicitly.",
-                    "显式选择智能体会话。",
                 ),
                 "--session" => (
                     "<name>",

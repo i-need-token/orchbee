@@ -15,13 +15,12 @@ inspect or require an Agent integration, or infer readiness from process creatio
 ## Invocation and prerequisites
 
 ```text
-orchbee agent start <provider> [--new-tab | --here | --split right|down] [--name <name>]
+orchbee agent start <provider> [--new-tab | --here | --split right|down]
     [--panel <id> | --current] [--cwd <abs|follow|home|current|workspace>] [--focus | --no-focus]
     [--client <id>] [--timeout <ms>] [--format text|json] [-- <args>...]
 ```
 
-The positional `<provider>` is a canonical provider ID from the runtime recognition registry, the
-same ID `agent integration` takes with `--provider`; executable aliases do not
+The positional `<provider>` is a canonical provider ID from the runtime recognition registry; executable aliases do not
 become additional kinds. `--provider` is not an `agent start` option, and any other word before
 `--` is refused, so it never reaches the Agent. Help and the invalid-value diagnostic list the
 complete provider set. The optional name uses `[a-z][a-z0-9_-]{0,31}`.
@@ -69,17 +68,11 @@ the stage, the typed reason, and the Client's answer when one came back. Three f
 the start: a lost transport (exit 5), a cancelled focus, and an expired one. The outcome still names
 the Panel created before them, which stays open.
 
-Agent integrations are opt-in, so starting never inspects one and never refuses because one is
-missing: neither the CLI nor the TUI runs a provider command or reads provider configuration
-before it types. A start without a name reserves nothing. A named start binds its name only when that
-provider's integration is enabled (`orchbee agent integration enable --provider <id>`); otherwise it is
-confirmed by [observation](#workflow-and-invariants) and binds no name. On success the text result
+Agent integrations are not offered in this release, so starting never inspects one and never refuses because one is missing: neither the CLI nor the TUI runs a provider command or reads provider configuration before it types. A start reserves nothing. A start that no canonical Session reports is confirmed by [observation](#workflow-and-invariants) and binds no name. On success the text result
 is one outcome line that names the place and the Panel by the handle `agent list` prints, such as
 `Started Codex in a new Tab (Panel @panel:0x36).`, while JSON keeps the canonical `panelId`; then
 the next step, with the same handle:
-`agent wait --panel <panel> --until idle` after a start without a name,
-`agent prompt --name <name>` after a canonical confirmation, or `agent prompt --panel <panel>`
-after an observed one, whose name was not bound.
+`agent wait --panel <panel> --until idle` before prompting.
 
 The [Start Agent picker](start-agent-picker.md) lists from the Session's
 [Agent catalog](../../orchbee-server/README.md#agent-catalog), which the Server keeps from its
@@ -131,8 +124,7 @@ that predates the prompt gate and refuses as `terminal-too-old`. The rest of thi
 idle-shell rule is `idle_shell_only` in `orchbee-agent-observation-protocol`; the Server's
 [Agent session resume](../../orchbee-server/docs/agent-session-resume.md#delivery) applies it, the
 run prefix and records before it types a resume command into a restored shell. Canonical
-readiness needs a provider integration, which is opt-in; [Windows integrations](windows-agent-integrations.md)
-defines managed setup and each provider's identity/state limits. Recognizing an executable does not
+readiness needs a provider integration, which this release does not offer; [Windows integrations](windows-agent-integrations.md) records the dormant engine and each provider's identity/state limits. Recognizing an executable does not
 establish hook coverage or verify a provider's own interactive UI.
 
 ### Prompt-gated input
@@ -419,9 +411,7 @@ Timeout, cancellation and release do not kill the Agent. If release is not confi
 send automatically. `agent list` shows a committed or pending name on its row; committed bindings
 and pending reservations share a Server capacity of 512. Resolve/rename/clear refuse reserved names or terminals
 with `launch-pending` (names failure v1). Cold restart drops all names and pending reservations.
-Closing a terminal retires its pending reservation. A committed name follows the canonical
-session lifecycle: detaching a still-live session keeps its name until end/removal or explicit
-`agent rename <name> --clear`; detachment alone does not prove the provider session ended.
+Closing a terminal retires its pending reservation. Names are dormant in this release. Detaching a still-live session does not prove the provider session ended.
 
 ## Evidence and ownership
 

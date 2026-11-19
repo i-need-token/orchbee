@@ -266,13 +266,7 @@ function CategoryContent({ category, props, query }: CategoryContentProps): Reac
 				/>
 			);
 		case 'agents':
-			return (
-				<AgentSettings
-					integrationControl={props.agentIntegrationManagementControl}
-					query={query}
-					userSettings={userSettings}
-				/>
-			);
+			return <AgentSettings query={query} userSettings={userSettings} />;
 	}
 }
 

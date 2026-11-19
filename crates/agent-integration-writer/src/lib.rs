@@ -92,7 +92,7 @@ mod imp {
             directory: PathBuf,
             declared_payload_sha256: String,
         },
-        /// The `--adapter-source` development/test override — no manifest
+        /// The development/test adapter source override — no manifest
         /// binding, the capsule's own validation still applies.
         Override { directory: PathBuf },
         /// No cohort could be loaded and no override was given.
@@ -180,7 +180,7 @@ mod imp {
 
     pub use orchbee_agent_integration::CapsuleStatus;
 
-    /// Resolve the adapter source: the explicit `--adapter-source` override
+    /// Resolve the adapter source: the explicit development/test override
     /// wins; otherwise the cohort's declared sidecar. A cohort that cannot be
     /// loaded is an absent source — the integration command answers a typed
     /// unavailable rather than failing Session-style.
@@ -293,7 +293,7 @@ mod imp {
         }
     }
 
-    /// `agent integration list` — inspect all providers inside one deadline from files only; it
+    /// Inspect all providers inside one deadline from files only; it
     /// never starts an Agent's program.
     pub fn list(
         context: &IntegrationContext,
@@ -324,7 +324,7 @@ mod imp {
             .collect()
     }
 
-    /// `agent integration explain --provider <id>` — the snapshot row, the
+    /// Explain one provider: the snapshot row, the
     /// provider's guard dimensions, and the guard-evaluated enable vector. It starts the Agent's
     /// program when only that program reports the state.
     pub fn explain(
@@ -347,7 +347,7 @@ mod imp {
         )
     }
 
-    /// `agent integration enable|disable --provider <id>` — the guarded
+    /// The guarded enable and disable
     /// mutation.
     pub fn mutate(
         context: &IntegrationContext,

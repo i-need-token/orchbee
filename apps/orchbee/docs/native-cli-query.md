@@ -2,7 +2,7 @@
 
 ## Canonical grammar boundary
 
-Panel-family commands use a positional Panel or `--current`. Agent targets additionally accept `--terminal` and `@terminal:` for exact child or primary terminals. Startup and integration use `--provider antigravity`; `antigravity-cli` stays a private adapter identity. CLI event names use `panel.*` in event/filter input and v1 receipts. Terminal and Agent reads use `--source`/`--lines`; the read/history projection descriptions below cover internal content evidence. Source waits default to 30000 ms, with `--forever` as the explicit unlimited form.
+Panel-family commands use a positional Panel or `--current`. Agent targets additionally accept `--terminal` and `@terminal:` for exact child or primary terminals. Agent startup takes the provider as an operand, such as `antigravity`; `antigravity-cli` stays a private adapter identity. CLI event names use `panel.*` in event/filter input and v1 receipts. Terminal and Agent reads use `--source`/`--lines`; the read/history projection descriptions below cover internal content evidence. Source waits default to 30000 ms, with `--forever` as the explicit unlimited form.
 
 `src/invocation/grammar/` is the single declarative Rust syntax authority. Its const/static records own paths, option storage bindings and scopes, closed values, operand limits, targets, conflicts, repeatability, execution availability and the schema dictionary. The hand-written parser in `src/invocation.rs`, help directories/options, and Bash/Zsh/Fish/PowerShell/Elvish adapters consume those records. POSIX shells receive a literal metadata projection; PowerShell and Elvish receive JSON. Shell adapters interpret syntax without probing runtime state or evaluating user input. There is no parser framework or parallel command/option table. Localized descriptions and examples remain authored product copy; parser-backed examples and real-shell witnesses cover behavior that structural derivation cannot prove.
 
@@ -26,7 +26,7 @@ Terminal selection, copy and link workflows share bounded buffer validation and 
 
 Terminal observation, control, attachment and Pane graphics share protocol, framing, acknowledgement and cleanup workflows. Windows adapters own the stdin helper and stdout relay processes; macOS and Linux adapters read the inherited stdin and write the inherited stdout in place, each read or write gated by a zero-timeout poll, writes bounded by `PIPE_BUF`, and never switch the shared descriptors to nonblocking mode. Shared polling interprets their actual byte, EOF and exit observations. A host that does not admit a command refuses before terminal admission, signal registration or helper creation; macOS admits all of these commands, and Linux none. Pane graphics and the terminal streams observe interrupts through the CLI interrupt-pair port, which delegates to the existing Windows guard or the macOS signal producer.
 
-Agent changes, explanations, waits, names and retained close operations share exchange, cancellation settlement and presentation owners. Omitted wait options use the unchanged defaults from named platform policy owners. The CLI interrupt-pair port delegates to the existing Linux or Windows signal producer; the held Client Connection is still dropped before its single finish arbitration. Windows waits retain contiguous history and optional Client evidence, while Linux waits retain sampled canonical observations and their existing output fields. List/Get dispatch and canonical result rendering compile in the same owners on every host. macOS keeps its bounded canonical list path without signal registration; unavailable read capabilities refuse before signal or Session effects.
+Agent waits, names and retained close operations share exchange, cancellation settlement and presentation owners. Omitted wait options use the unchanged defaults from named platform policy owners. The CLI interrupt-pair port delegates to the existing Linux or Windows signal producer; the held Client Connection is still dropped before its single finish arbitration. Windows waits retain contiguous history and optional Client evidence, while Linux waits retain sampled canonical observations and their existing output fields. List/Get dispatch and canonical result rendering compile in the same owners on every host. macOS keeps its bounded canonical list path without signal registration; unavailable read capabilities refuse before signal or Session effects.
 
 Event subscription/wait, exact-terminal clear, Agent view specification and offline channel reporting share their existing protocol, retained outcome and rendering workflows. Capability admission precedes signal registration, request identities and preference reads on unsupported hosts. Event cleanup still drops the relay before the original console guard performs its one final arbitration; a lost clear or view mutation keeps its unknown-outcome receipt.
 
@@ -49,7 +49,7 @@ terminal programs.
 `--session <name>` selects that environment; `session list/attach/stop/delete` manages named
 Sessions, while `server start/stop` and `config reload` manage the selected Session's
 background service. An **Agent session** identifies one Agent conversation/runtime record and
-uses `--agent-session <id>` or an ordinary Agent target. A protocol **Client Connection** identifies
+is addressed by an ordinary Agent target. A protocol **Client Connection** identifies
 one admitted connection; it is not a separate work environment.
 
 Use `orchbee server -h` to list service commands and `orchbee server stop -h` for confirmed
@@ -76,23 +76,22 @@ unlisted options while they do nothing. The terminal geometry group `--cols`, `-
 `--cell-width` and `--cell-height` is unlisted on the creation commands (`workspace create`,
 `tab create`, `panel split`, `panel create-terminal`, `worktree create|open`, `plugin panel open`):
 the Client sizes new terminals, and a test harness may still pin the grid. `--cols` and `--rows`
-stay listed on `terminal session observe|control`. `agent integration --adapter-source` is an
-unlisted development and test override: the cohort supplies the adapter payload.
+stay listed on `terminal session observe|control`.
 
 `--request-id`, `--retry`, `--detach` and `--generation` belong to stop, close and worktree
 operations and their `operation status|resume` recovery. Focus, resize, `panel maximize`,
 `layout set-split-ratio` and the Agent manifests commands refuse them as unknown options; they
 always generate the operation ID they report.
 
-Completion keeps local `--session` selection separate from Agent session selectors. Get/read/prompt/send-keys/wait/focus offer static `@agent:<kind>` provider aliases before a target; they never query runtime state or invent ordinal suggestions. In PowerShell, start an alias with a quote (for example, `'@agent:c`); completion inserts the full target as a safely single-quoted handle because an unquoted `@agent` token is parsed as splatting syntax. POSIX-shell adapters filter remote `--machine` paths using the same static grammar as PowerShell and Elvish, including nested families and root data commands. Known options and operands keep suffix `--help` discoverable; unsupported routing, duplicates and terminated options do not regain candidates.
+Completion keeps local `--session` selection separate from Agent targets. Get/read/prompt/send-keys/wait/focus offer static `@agent:<kind>` provider aliases before a target; they never query runtime state or invent ordinal suggestions. In PowerShell, start an alias with a quote (for example, `'@agent:c`); completion inserts the full target as a safely single-quoted handle because an unquoted `@agent` token is parsed as splatting syntax. POSIX-shell adapters filter remote `--machine` paths using the same static grammar as PowerShell and Elvish, including nested families and root data commands. Known options and operands keep suffix `--help` discoverable; unsupported routing, duplicates and terminated options do not regain candidates.
 
 Snapshot v1 and Tab Get v1 admit the canonical optional split `ratio` (0.1–0.9); omitted means 0.5.
 
 Target help states ID/selector precedence: a display label shaped like an ID or a recognized `@kind:` selector is addressed through the resource’s real ID. Creation and rename keep the literal display label. `panel resize --amount` is a split-ratio step (default 0.05, absolute value capped at 0.5).
 
-Agent startup help maps `--provider antigravity` to integration `--provider antigravity`. A missing startup Panel identifies the target failure and directs users to `orchbee panel list`. A local update feed read failure directs users to the path and read permissions configured by `ORCHBEE_UPDATE_FEED`; its machine reason remains `download` at the manifest phase.
+A missing startup Panel identifies the target failure and directs users to `orchbee panel list`. A local update feed read failure directs users to the path and read permissions configured by `ORCHBEE_UPDATE_FEED`; its machine reason remains `download` at the manifest phase.
 
-Launch Profile list/get use version 1 and admit POSIX, drive-absolute and verbatim drive executable paths. `orchbee.doctor` version 1 keeps all six checks on every platform; a check the platform cannot make is `{kind:"unsupported"}`. Integration lists always include `outdatedOnly`, inspection counts and provider ID lists, with bounds covering all 20 providers. Generic failures select closed details by semantic stage, including local plugin preparation at `stage: plugin`. Session catalog and startup environment failures preserve their failed runtime stage. Client selection diagnostics identify Clients and the applicable `--client` remedy.
+Launch Profile list/get use version 1 and admit POSIX, drive-absolute and verbatim drive executable paths. `orchbee.doctor` version 1 keeps all five checks on every platform; a check the platform cannot make is `{kind:"unsupported"}`. Generic failures select closed details by semantic stage, including local plugin preparation at `stage: plugin`. Session catalog and startup environment failures preserve their failed runtime stage. Client selection diagnostics identify Clients and the applicable `--client` remedy.
 
 The event stream schema exposes typed filter input at `$defs/filter`; plugin runtime exposes
 context input at `$defs/context`. Help includes valid JSON examples and schema lookup hints.
@@ -114,16 +113,13 @@ Navigation has global `directories` and `workspaces` arrays; `projects` contain 
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends Enter in one input request. Supply one quoted string; text is preserved, and targets are exact IDs or `@terminal:0x<hex>`. The receipt confirms input submission, not Shell readiness, command completion or exit status; never replay partial or unknown delivery. [Command submission contract](native-terminal-run.md).
 
 Status: current implementation and correctness contract for the native `orchbee`
-command line, covering queries, Workbench mutations, terminal observation and input,
-Agent names, and local provider onboarding. Queries observe an existing Session; Workbench
+command line, covering queries, Workbench mutations, terminal observation and input. Queries observe an existing Session; Workbench
 mutations follow the mutation contract below. Only `server start`, `server connect`, the
-`agent integration enable` and `disable` jobs, the TUI startup path, and `workspace create`,
+TUI startup path, and `workspace create`,
 `project create`, `worktree create` and `worktree open` may activate a Session; those four creating
 commands start the selected Session first when it is not running, exactly as `server start` would.
 Agent state
-comes from the Server's canonical model, never terminal-text inference; the Server owns names,
-while `agent integration` manages
-only the invoking user's local provider configuration. Each command's effects, budgets,
+comes from the Server's canonical model, never terminal-text inference. Each command's effects, budgets,
 and release boundaries are specified in its section. CLI commands need no TTY; the
 interactive TUI has separate terminal admission requirements. The native CLI remains
 a native development surface.
@@ -406,7 +402,7 @@ observations are not an atomic snapshot. Windows Panel list/get and retained vie
 The global `--session <name>` / `--session=<name>` selects the local Session for the entire
 invocation, including `server start`, `server stop`, queries and `tui`, on Windows and macOS; Linux
 refuses it, and the `session` commands, with the typed unsupported-platform failure. It does not change the
-Agent `--agent-session` selector. Names contain 1–64 ASCII letters, digits, `.` / `_` / `-`,
+Agent targets. Session names contain 1–64 ASCII letters, digits, `.` / `_` / `-`,
 neither start nor end with `.`, and are no Windows device name (`con`, `nul`, `com1`, and so on) in
 any letter case, with or without an extension. Letter case does not tell Sessions apart: `Work` and
 `work` select one Session, which keeps the spelling it was created with. `default` in any letter
@@ -486,61 +482,13 @@ Background and clean-stop checkpoints preserve layouts, Launch Profiles and samp
 and warns when it falls back or opens an empty workspace. Live Agent state, terminal history and
 screen contents are excluded. Live Host adoption remains separate work.
 
-## Agent session names
+## Physical Agent inspection
 
-Windows `agent list` shows each row's live alias. `agent resolve <target>`
-returns a canonical session ID or an exact terminal target, testing exact session ID existence before aliases. `agent rename
-<target> <new-name>` assigns or atomically replaces a name; `agent rename <target>
---clear` releases it without stopping the session. Replace the target operand with
-`--agent-session <id>`, `--name <alias>` or `--panel <id|@panel:0x<hex>>` for explicit selection; exactly one selector is
-required. Names match `[a-z][a-z0-9_-]{0,31}` and are case-sensitive. They are unique,
-sharing a 512-entry cap across canonical names, terminal names and pending launches, and released when the session ends, is removed, or the
-Session runtime is disposed. Names are transient and do not survive Session restart.
+Agent names are dormant in this release: no command assigns one. `agent resolve`, `agent rename`, `agent start --name`, and the `--name` and `--agent-session` selectors are removed. The names protocol, the Server names service and the name display remain as dormant engine, and `agent list` rows keep their `name` field, null when no name exists. The failure document `orchbee.cli.failure.agent-names`, version 1, stays with that engine; its `resolve`, `rename` and `clear-name` operation values describe removed commands until the engine is narrowed.
 
-Windows terminal-backed names require a reported, detected or retained provider identity; an
-ordinary unnamed shell does not qualify. Their target carries presentation ID, creation generation,
-Host epoch and terminal ID. A changed provider, proven release/exit, removal or physical replacement clears the name. Intermediate
-report changes are reconciled at commit, so A → B → A cannot revive an old alias. Missing process
-observations alone do not clear it. Hook arrival does not silently convert a terminal alias into a
-canonical session alias.
+Windows `agent get` keeps `terminal-found` under v1 `inspection`, with its exact target, actual frame/process/primary-panel report fields and physical semantic observations. Startup management belongs to canonical Agent session inspection. Physical inspection contains no invented session ID. Child terminal reads never borrow the primary panel's report. `read`, `send-keys` and `attach` route through the exact physical binding and existing terminal owners. Physical `get --format json` adds `detection`: v1 fresh screen diagnostics with active rule provenance, plus the [Agent identity](#agent-identity-diagnostics); semantic `wait`/`prompt`, focus and `get --client` use their physical observation/Client contracts without inventing canonical sessions.
 
-Terminal-target resolve uses version 1, rename/clear use version 1, and mixed-target name
-collisions use failure version 1 with `conflictTarget`. Canonical receipts use the same version and target shape. Windows `agent get` keeps `terminal-found` under v1 `inspection`, with its exact
-target, actual frame/process/primary-panel report fields and physical semantic observations.
-Startup management belongs to canonical Agent session inspection. Physical inspection contains no invented
-session ID. Child terminal reads never borrow the primary panel's report. Named `read`, `send-keys` and
-`attach` route through the exact physical binding and existing terminal owners. Physical
-`get --format json` adds `detection`: v1 fresh screen diagnostics with active rule provenance, plus the [Agent identity](#agent-identity-diagnostics); semantic `wait`/`prompt`, focus and `get --client`
-use their physical observation/Client contracts without inventing canonical sessions;
-terminal names and pending reservations do not survive a cold restart. Renaming preserves the exact physical binding; clearing releases its current name.
-
-Both commands admit `--format text|json`. The embedded success schemas are
-`orchbee.agent.resolve` and `orchbee.agent.rename`, version 1;
-post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Presentation resolution and ambiguous-target failures use version 1; launch-pending failures use version 1; all outcomes use version 1. Correlated
-semantic answers carry an `agent-names` source with the OBAP request ID. These three documents are included in schema catalog version 1, alongside the prompt contracts. Invalid names or conflicting selectors
-fail with exit 2 before any runtime access. A collision is exit 3 and identifies the
-incumbent session; it never overwrites that session's name.
-
-Each command owns one five-second deadline spanning cohort validation, existing-only
-Session discovery, admission, optional Panel resolution and the final OBAP exchange. Signals participate in transport
-waits; the session closes before signal arbitration and output. A confirmed reply
-remains authoritative if a signal races its completion. A submitted mutation without
-a trustworthy matching reply returns outcome-unknown (exit 8), including cancellation,
-and is never replayed. A known pre-submission cancellation is exit 130. No alias
-cache, provider process, new Session, or canonical-session mutation is involved.
-
-`get` and `wait` accept the same positional target or explicit
-`--agent-session`/`--name`/`--panel` selector. Exact retained IDs take precedence over names; explicit
-IDs and opaque tokens that cannot name aliases or Panels go directly to the read. Other targets first send
-Resolve on the same admitted Client Connection. Resolution and reads share the original
-deadline and signal owner, without a second admission or renewed budget. A wait bounds
-initial resolution by `min(remaining_ms, 5000)` and pins the resolved ID before
-polling; releasing, renaming or reusing an alias never retargets it. Success publishes
-only the actual read's `agent-read` source. Resolution refusals use their own
-`agent-names` source and failure schema, never the identity of an unexecuted read.
-Windows process evidence covers real pipe admission, resolved reads, pinned polling,
-the shared five-second deadline, explicit-ID reads, schema-valid failures,
-lost/mismatched mutation replies and parse-before-effect.
+`get` and `wait` accept one positional target or an explicit `--panel` selector. A wait pins the resolved ID before polling. Success publishes only the actual read's `agent-read` source.
 
 Windows physical Agent Get v1 includes `semantic: {source, observation}` in the current
 inspection shape. Its source recorded Session, Workbench/report revisions and request ID; the observation
@@ -552,9 +500,9 @@ revision, nullable sequence/seen/status and outer focus. Only matching full bind
 sequence under a covering Server report revision corroborate seen. State remains idle/working/blocked/done/error/unknown independently; missing or stale acknowledgement leaves only seen unknown. No canonical Session, turn or
 readiness is invented.
 
-### Physical Agent wait and prompt
+## Physical Agent wait and prompt
 
-Windows terminal-backed names use the report owner's exact physical binding and semantic history.
+Windows terminal-backed Agents use the report owner's exact physical binding and semantic history.
 The CLI holds one Client Connection through admission, every bounded read and private interruptible
 backoff, dropping it before signal arbitration. Each round refreshes Workbench membership, reads
 contiguous changes and revalidates the original selector and provider. Replacement, history loss,
@@ -588,8 +536,7 @@ Client attention, authenticated-provider behavior and final full acceptance rema
 ## Agent terminal operations
 
 `agent read <target>` and `agent send-keys <target> <key>...` accept the same
-Session ID, runtime name or Panel selectors as `agent get`, including explicit `--agent-session`,
-`--name`, `--panel` and `--terminal`. Read admits `--source` and `--lines <n>`
+Session ID or Panel selectors as `agent get`, including explicit `--panel` and `--terminal`. Read admits `--source` and `--lines <n>`
 with the same bounds and meaning as `terminal read`, except that a recent read of a full-screen
 Agent whose screen rules place its input area ends above that area, so the empty input box, status
 and footer rows are not read ([Agent input area](native-terminal-output.md#agent-input-area)).
@@ -598,12 +545,11 @@ keys or modifier combinations and validates the entire sequence before any effec
 
 On Windows, these commands use the shared projection resolver described in
 [Windows unified Agent projection](#windows-unified-agent-projection). It also
-accepts `@agent:<kind>` and complete-list `@agent:<n>` selectors. Bare names keep
-Server alias precedence; physical targets retain and revalidate their full binding.
+accepts `@agent:<kind>` and complete-list `@agent:<n>` selectors. Physical targets retain and revalidate their full binding.
 The canonical-session flow below describes that target path and other platforms.
 
 The CLI composes existing owners: one existing-only Client Connection reads a Workbench
-snapshot, optionally resolves an alias, and gets the canonical Agent session. Only
+snapshot, resolves the target, and gets the canonical Agent session. Only
 an active session's navigable, live presentation attachments may select a terminal.
 The join compares full presentation IDs against bound terminals in the snapshot;
 a Panel ID is never treated as a presentation ID. An explicit or fallback Panel restricts the join to its primary presentation.
@@ -644,7 +590,7 @@ failure without acquiring those resources; Linux prompt results keep their exist
 unsupported journal and Client fields.
 
 `agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]`
-uses the same Session/name/Panel selectors as other Agent commands. Windows also accepts
+uses the same Session/Panel selectors as other Agent commands. Windows also accepts
 `@agent:<kind>` and complete-list `@agent:<n>` through the shared projection resolver above.
 Text is non-empty UTF-8,
 bounded by the 256 KiB paste limit and the command's 64 KiB argv envelope. `--until`
@@ -721,7 +667,7 @@ Selected-Client composition keeps missing/stale Client selection failures in `or
   effect.
 - Environment: `ORCHBEE_RUNTIME_BASE` (optional; defaults to `/tmp`) selects the runtime base;
   `LC_ALL`/`LC_MESSAGES`/`LANG` select the diagnostic locale. `doctor` additionally reads the home folder and
-  `PATH` the way `agent integration list` does. `panel current` in caller mode additionally reads
+  `PATH`. `panel current` in caller mode additionally reads
   `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` as described below. Nothing else is consulted.
 - Filesystem: the resolved runtime base, the Session scope directory (the Session name, `default`
   unless a managed terminal routes another), its Client and Worker sockets in the socket folder,
@@ -874,17 +820,7 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   the optional global-revision fence as one decimal `u64` in the safe-integer
   range `0..=9007199254740991`. A repeated, non-numeric, or out-of-range value is
   `invalid-usage`.
-- `--provider <id>`: single-use value flag, admitted only on the `agent integration`
-  commands; one of the closed supported-provider ids (reported by
-  `agent integration list`). Required on `explain`/`enable`/`disable`, an optional
-  filter on `list`. Any other value is `invalid-usage`. A canonical
-  Agent that Orchbee can only start (such as `kiro`, `amp`, `maki` or `muse`) is still `invalid-usage`
-  (exit 2), but its diagnostic says that Agent has no Orchbee integration to check or manage and
-  lists the Agents that have one.
-- `--adapter-source <abs>` (unlisted): single-use value flag, admitted only on the
-  `agent integration` commands; a literal absolute path to a development/test
-  adapter payload that replaces the packaged cohort source for that invocation.
-  A relative path or a repeat is `invalid-usage`.
+
 - `-v`, `-V`, `--version`: equivalent version options, legal only as the sole root invocation;
   each prints the same `orchbee <version>` line and exits `0` offline. Combining them or adding
   a command, help flag or output format is usage. Option values and tokens after `--` stay data.
@@ -932,10 +868,6 @@ orchbee agent read <target> [--source visible|recent|recent-unwrapped|detection]
 orchbee agent send-keys <target> <key>...
 orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>] [--forever]
 orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>] [--forever]
-orchbee agent integration list [--provider <id>]
-orchbee agent integration explain --provider <id>
-orchbee agent integration enable --provider <id>
-orchbee agent integration disable --provider <id>
 orchbee client list | client get <client-id>
 orchbee workspace focus <target> [--client <id>]
 orchbee tab focus <target> [--client <id>]
@@ -957,7 +889,7 @@ orchbee <recognized path> -h|--help
 ```
 
 Help topics include the root, every build-admitted family and complete command path including
-`tui`, and nested families such as `agent integration`, `terminal session`, and Windows `panel graphics`.
+`tui`, and nested families such as `terminal session` and Windows `panel graphics`.
 `help` takes only a recognized path (no filters, no format); `help -h` and `help --help` show root
 help, and `help <path> -h|--help` preserves that exact path and option scope.
 A single `-h` or `--help` before `--` is the same request on the same path:
@@ -973,7 +905,7 @@ Help has three information levels, in both `en-US` and `zh-CN`:
 - Root help introduces Orchbee, shows a small set of common examples, groups each admitted
   top-level command once, and explains global options and how to descend.
 - Family help describes that resource and lists each direct child with its purpose. Nested
-  families such as `agent integration` and `panel graphics` have their own directories. A Synopsis
+  families such as `panel graphics` have their own directories. A Synopsis
   section repeats each direct child command's own usage line, without the leading `orchbee` and
   the shared `--format` choice, so it follows the grammar; full option descriptions stay on the
   child page. `completion` lists its supported shells. Every family and command
@@ -999,9 +931,7 @@ the existing stop receipt witnesses retain the lifecycle safety checks.
 On Windows and macOS, `config default` takes no other argument and emits canonical UTF-8 TOML from the build without reading user configuration or runtime-selection environment.
 The shared process router preserves this path before locale selection. Its named native ports
 retain Windows Session selection and Unix rejection of unavailable runtime routes; offline
-discovery continues to ignore Session selection. Integration `--outdated-only` admission also
-runs before the files-only inspection, retaining its existing Windows capability; `agent
-integration list` and `explain` never start or contact a Session.
+discovery continues to ignore Session selection.
 `--skill` must be the sole root argument and emits the localized, embedded CLI usage guide.
 PowerShell completion is a static grammar projection: it never executes user expressions or
 queries a Session; loading it is explicit and does not modify a shell profile.
@@ -1039,7 +969,7 @@ not accept `--format`; a single valid `--format=json` turns the resulting syntax
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
 commands (`status`, all `list`/`get`, `operation status`,
 `agent wait`, `api snapshot`, `api schema`, `server start`, `server stop`,
-`doctor`, `config check`, and all four `agent integration` commands) and every
+`doctor`, and `config check`) and every
 mutation command accept `--format`. The `api` commands are the machine surface: a successful `api snapshot` or
 `api schema` emits the identical JSON document under both formats, while an `api` failure
 follows the selected format like any other command — under text/default it reports on stderr
@@ -1048,7 +978,7 @@ with empty stdout, and only `--format json` produces a failure envelope.
 `orchbee completion` prints a static projection of this grammar: verbs, complete help paths,
 each command's declared flags in both the separate and the joined `--flag=value` spelling,
 both `--format` spellings and its `text`/`json` values, the closed value vocabularies under
-either spelling (`--mouse`, `--direction`, `--key`, `--until`, `--provider`), `--`
+either spelling (`--mouse`, `--direction`, `--key`, `--until`), `--`
 termination, and flag-value consumption contexts. It enumerates no Session state, resource
 names, or runtime data, and never guesses a freeform value.
 
@@ -1074,7 +1004,7 @@ inside the destination tab). `api schema` takes a nonempty schema ID; an empty o
 `invalid-identifier` with `resource="schema"`, an unmatched one is `not-found`.
 `agent get` and `agent wait` take one positional token of 1–128
 characters drawn from `[A-Za-z0-9._:-]` (or an explicit Panel prefix), resolved by the ID-first rules above, or an
-explicit `--agent-session`/`--name`/`--panel` selector. Malformed tokens are `invalid-usage` before runtime access.
+explicit `--panel` or `--terminal` selector. Malformed tokens are `invalid-usage` before runtime access.
 `launch-profile get` and `launch-profile delete` take one positional `<selector>`, and
 `--profile` carries the same token: a `LaunchProfileSelector` — a nonempty UTF-8 literal
 of at most 512 bytes (the name bound, so every admitted selector can reach either rule).
@@ -1913,8 +1843,7 @@ profileId?,name?}` per
 - `orchbee.doctor` → `{ok,checks:{installation,settings,records,runtime,session,integrations}}`:
   each check is `{status,reason,details}` or `{kind:"unsupported"}`; `details` are the
   `orchbee.status.client` result, the `user-config` and `records` row details, the runtime folder
-  report, the `orchbee.status.server` result or a failed Session check's failure details, and the
-  `agent integration list` result. A failed check still produces this success schema with
+  report, the `orchbee.status.server` result or a failed Session check's failure details. A failed check still produces this success schema with
   `ok:false` and exit 1; see [runtime status and doctor](native-runtime-status.md#doctor).
 - `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
 source?}`; no English `message` field exists. `source` is attached only from an already trusted
@@ -2503,10 +2432,8 @@ Native `workspace.launch` uses tagged placement: `ungrouped`, `project`, `new-pr
 
 ## Agent Panel targeting model
 
-Targeted Agent commands accept `--panel <id|@panel:0x<hex>>` exclusively with positional,
-`--agent-session` and `--name` selectors. A positional full Panel ID first resolves as an exact
-retained Session ID or runtime name; only a definite not-found permits Panel fallback.
-Explicit Session/name selectors never fall back. A prefixed `@panel:` target selects a Panel
+Targeted Agent commands accept `--panel <id|@panel:0x<hex>>` exclusively with the positional target. A positional full Panel ID first resolves as an exact
+retained Session ID; only a definite not-found permits Panel fallback. A prefixed `@panel:` target selects a Panel
 without consulting aliases. Workbench owns Panel identity and its primary presentation;
 Agent state owns live, navigable presentation attachments. Hidden attachments remain eligible.
 The CLI reads one Workbench snapshot on the held Client Connection and passes the primary
@@ -2515,7 +2442,7 @@ assigns or releases under the Agent state fold: zero live matches is not-found, 
 selected, and multiple sessions are ambiguous. Repeated attachments of one session count
 once. No paging, first-match choice, terminal-text inference or client-side alias table is used.
 
-The workflow is parse → existing-only admission → optional exact ID/name resolution →
+The workflow is parse → existing-only admission → optional exact ID resolution →
 Panel snapshot resolution → OBAP presentation resolution/operation → pinned Session read,
 wait or terminal operation. It shares the caller's deadline and cancellation wake; failure
 before the final names mutation is a read failure, not an unknown mutation. A lost mutation
@@ -2523,13 +2450,13 @@ reply remains outcome-unknown with no replay. Waiters never follow a later Panel
 Terminal operations retain the selected primary presentation and reject a missing binding
 or changed Agent attachment before sending; Server terminal authorization remains authoritative.
 Workbench and Agent reads are sequential samples, not a cross-owner atomic transaction.
-Session/name behavior and existing receipt sources remain unchanged. Resolve receipts may
+Existing receipt sources remain unchanged. Resolve receipts may
 report `resolvedBy: presentation`; ambiguity is a bounded rejection without a candidate list.
 
 Native grammar and Panel projection tests cover selector exclusivity and primary/child
-separation; Agent fold tests cover zero/one/multiple sessions, ended/non-navigable/hidden
-attachments and atomic rename refusal. Windows process tests cover the shared admission,
-ID/name precedence, pinned waits, pre-mutation read failures and exact terminal selection.
+separation; Agent fold tests cover zero/one/multiple sessions and ended/non-navigable/hidden
+attachments. Windows process tests cover the shared admission,
+pinned waits, pre-mutation read failures and exact terminal selection.
 Real Session/Worker/ConPTY evidence covers the integrated command path. These checks do not
 establish provider foreground ownership or readiness. This workflow uses implementation tests.
 
@@ -2764,9 +2691,9 @@ For canonical session targets, Windows `agent prompt <target> <text> --wait --cl
 
 ## Windows unified Agent projection
 
-Windows `agent list` joins canonical Server sessions and physical terminal Agents into `orchbee.agent.list` v1. Its `source.kind` is `agent-projection`; the source carries `sessionId` (32 lowercase hex), decimal-string `workbenchRevision` and `reportRevision`, and safe-integer `canonicalRevision`. Its `result` is `{kind:"listed",revision,nextCursor,items,clientId}`; `nextCursor` is null or a `u1` cursor. Each row has a one-based `ordinal` (1–4096), `provider`, semantic `status` (`unknown`, `idle`, `working`, `blocked`, `done`, `error`, `ended`), identity `source` (`canonical`, `terminal`, `both`), the existing nullable canonical `AgentSessionSummary`, and a nullable physical terminal record with its existing launch binding, nonempty provider, `PanelAgentState` and decimal-string sequence. `source` controls which facets are present. Physical and `both` rows always carry `placement` with 32-hex Panel, Presentation, Terminal, Terminal Context and Tab IDs; canonical-only rows may also carry placement when a current terminal incarnation is observed with no Agent. `workspaceId` within placement is nullable. `cwd` is a nullable string. When `--include-ended` is used, ended sessions sort after all current live rows, keeping live ordinals stable; ended rows follow canonical ID order and can be inspected by exact `--agent-session`.
+Windows `agent list` joins canonical Server sessions and physical terminal Agents into `orchbee.agent.list` v1. Its `source.kind` is `agent-projection`; the source carries `sessionId` (32 lowercase hex), decimal-string `workbenchRevision` and `reportRevision`, and safe-integer `canonicalRevision`. Its `result` is `{kind:"listed",revision,nextCursor,items,clientId}`; `nextCursor` is null or a `u1` cursor. Each row has a one-based `ordinal` (1–4096), `provider`, semantic `status` (`unknown`, `idle`, `working`, `blocked`, `done`, `error`, `ended`), identity `source` (`canonical`, `terminal`, `both`), the existing nullable canonical `AgentSessionSummary`, and a nullable physical terminal record with its existing launch binding, nonempty provider, `PanelAgentState` and decimal-string sequence. `source` controls which facets are present. Physical and `both` rows always carry `placement` with 32-hex Panel, Presentation, Terminal, Terminal Context and Tab IDs; canonical-only rows may also carry placement when a current terminal incarnation is observed with no Agent. `workspaceId` within placement is nullable. `cwd` is a nullable string. When `--include-ended` is used, ended sessions sort after all current live rows, keeping live ordinals stable; ended rows follow canonical ID order and are listed for inspection only, since no selector addresses an ended session in this release.
 
-Windows rows also carry `name`: the row's live alias, or null when it has none. The list reads the Session's names on its own connection before confirming the projection; a terminal binding names the row with that exact launch binding, a pending launch reservation names its terminal, and a session binding names the row with that `sessionId`. A row's own target wins, so a terminal's name takes precedence over its session's. macOS carries `name` as Windows does; Linux marks it unsupported. The text table prints `#`, `HANDLE`, `AGENT`, `NAME`, `STATE` and `CWD`; the identity `source` stays in JSON, and `agent get` text names the Agent and its state without it. On Linux, `agent list` text prints `SESSION`, `AGENT` and `STATE`, and `agent get` text prints the session, provider, lifecycle, status, last outcome and the kinds of pending requests; freshness, execution location, observation coordinates, capabilities, request IDs and presentation attachments stay in JSON.
+Windows rows also carry `name`: the row's live alias, or null when it has none. No command assigns a name in this release. The list reads the Session's names on its own connection before confirming the projection; a terminal binding names the row with that exact launch binding, a pending launch reservation names its terminal, and a session binding names the row with that `sessionId`. A row's own target wins, so a terminal's name takes precedence over its session's. macOS carries `name` as Windows does; Linux marks it unsupported. The text table prints `#`, `HANDLE`, `AGENT`, `NAME`, `STATE` and `CWD`; the identity `source` stays in JSON, and `agent get` text names the Agent and its state without it. On Linux, `agent list` text prints `SESSION`, `AGENT` and `STATE`, and `agent get` text prints the session, provider, lifecycle, status, last outcome and the kinds of pending requests; freshness, execution location, observation coordinates, capabilities, request IDs and presentation attachments stay in JSON.
 
 `clientId` and every row's `client` are always present, null on Windows when no Client was selected, with canonical and terminal Client facets kept separate. Client unread state never supplies semantic Agent status. Optional cwd enrichment covers at most 64 rows per page and returns null when unavailable. Pages contain 1–100 rows (default 50); the joined output ceiling is 4096 rows and 8 MiB. Source admission can fail earlier: the canonical source is bounded to 512 sessions/six pages of 100, and physical source registration is bounded to 1024 entries. The 4096-row output ceiling does not promise that many physical sources.
 
@@ -2778,7 +2705,7 @@ A terminal whose Close the Server has accepted contributes no physical row. Its 
 list and `@agent:<n>` numbering at acceptance, and an Agent command naming its Panel answers
 not-found ([rule owner](../../orchbee-server/docs/agent-report-model.md#physical-semantic-observations)).
 
-Windows Get, Read, Prompt, Send Keys, Wait and Focus share one resolver. `@agent:<kind>` selects a provider only when the complete current projection proves it unique. `@agent:<n>` selects a one-based ordinal in the complete list order, never a page-relative position; the resolver accepts live rows only, so use exact `--agent-session` for ended sessions. Bare names preserve Server alias precedence before provider fallback. Partial reads cannot establish provider uniqueness. Mutating effects retain the complete physical binding and revalidate it immediately before the write.
+Windows Get, Read, Prompt, Send Keys, Wait and Focus share one resolver. `@agent:<kind>` selects a provider only when the complete current projection proves it unique. `@agent:<n>` selects a one-based ordinal in the complete list order, never a page-relative position; the resolver accepts live rows only, and no selector reaches an ended session in this release. Bare names preserve Server alias precedence before provider fallback. Partial reads cannot establish provider uniqueness. Mutating effects retain the complete physical binding and revalidate it immediately before the write.
 
 Projection failures use `orchbee.cli.failure.agent-projection` v1. The closed `failure.details` has `stage:"agent-projection"`, a reason from `unavailable`, `denied`, `changed`, `invalid`, `too-large`, `timeout`, `cancelled`, `cursor-restart`, `target-not-found` or `target-ambiguous`, and optional `selector`/`candidates`. Candidate entries carry `selector:"@agent:<n>"`, nullable `sessionId`, nullable `panelId` and nullable `AgentLaunchBinding`; at most 16 candidates are returned. The optional envelope `source` has the same typed projection shape used by Agent list/get, and failure envelopes have no `result`.
 

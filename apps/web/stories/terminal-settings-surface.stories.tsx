@@ -21,13 +21,6 @@ import {
 } from '../src/terminal-launch-profile-control';
 import { TerminalInteractionSettingsController } from '../src/terminal-interaction-settings';
 import type { TerminalDefaultSettingsControl } from '../src/terminal-default-settings-control';
-import {
-	AGENT_INTEGRATION_IDS,
-	type AgentIntegrationId,
-	type AgentIntegrationManagementClientSnapshot,
-	type AgentIntegrationManagementControl,
-	type AgentIntegrationSnapshotItem,
-} from '../src/agent-integration-management';
 import { ApplicationLocaleController } from '../src/application-locale';
 import { ApplicationLocaleProvider } from '../src/application-locale-provider';
 import type { UserSettingsControl } from '../src/user-settings';
@@ -51,7 +44,6 @@ const englishFeedbackController = createFeedbackStoryController(englishSettings)
 const englishTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(true);
 const englishInteractionController = new TerminalInteractionSettingsController(englishSettings);
 const englishTerminalDefaults = createTerminalDefaultSettingsStoryControl();
-const englishAgentIntegrations = createAgentIntegrationStoryControl();
 
 const chineseSettings = memoryUserSettings({
 	values: {
@@ -75,7 +67,6 @@ const chineseFeedbackController = createFeedbackStoryController(chineseSettings)
 const chineseTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(false);
 const chineseInteractionController = new TerminalInteractionSettingsController(chineseSettings);
 const chineseTerminalDefaults = createTerminalDefaultSettingsStoryControl(24_000_000);
-const chineseAgentIntegrations = createAgentIntegrationStoryControl();
 
 const brokenFileSettings = memoryUserSettings({
 	file: { column: 14, line: 9, reason: 'invalid-toml', status: 'syntax-error' },
@@ -120,7 +111,6 @@ type TerminalSettingsCategory = NonNullable<
 
 const englishArgs = {
 	about: createAboutStorySource({ kind: 'idle' }),
-	agentIntegrationManagementControl: englishAgentIntegrations,
 	applicationLocaleController: englishApplicationLocaleController,
 	controller: englishController,
 	fontCatalog: storyFontCatalog,
@@ -136,7 +126,6 @@ const englishArgs = {
 
 const chineseArgs = {
 	about: createAboutStorySource({ kind: 'idle' }),
-	agentIntegrationManagementControl: chineseAgentIntegrations,
 	applicationLocaleController: chineseApplicationLocaleController,
 	controller: chineseController,
 	fontCatalog: storyFontCatalog,
@@ -517,99 +506,5 @@ function createTerminalLaunchProfileStoryControl(
 					candidate.id === profile.id ? profile : candidate,
 				),
 			}),
-	};
-}
-
-function createAgentIntegrationStoryControl(): AgentIntegrationManagementControl {
-	let snapshot: AgentIntegrationManagementClientSnapshot = createAgentIntegrationStorySnapshot();
-	const listeners = new Set<() => void>();
-	const update = (integrationId: AgentIntegrationId, enabled: boolean) => {
-		snapshot = {
-			...snapshot,
-			integrations: snapshot.integrations.map((integration) =>
-				integration.integrationId === integrationId
-					? { ...integration, state: enabled ? 'enabled' : 'disabled' }
-					: integration,
-			),
-			revision: snapshot.revision + 1,
-		};
-		for (const listener of listeners) listener();
-		return Promise.resolve({
-			kind: 'completed' as const,
-			snapshot: {
-				integrations: snapshot.integrations,
-				revision: snapshot.revision,
-			},
-		});
-	};
-	return {
-		disable: (integrationId) => update(integrationId, false),
-		enable: (integrationId) => update(integrationId, true),
-		explain: (integrationId) => {
-			const item = snapshot.integrations.find(
-				(integration) => integration.integrationId === integrationId,
-			);
-			if (item === undefined) return Promise.resolve({ kind: 'unavailable' as const });
-			snapshot = {
-				...snapshot,
-				diagnosis: {
-					explanation: {
-						adapter: 'ready',
-						detail: { entry: 'missing', kind: 'guarded', sourceReady: true },
-						item,
-						plan: [{ kind: 'publish-adapter' }, { kind: 'write-entry' }],
-						timedOut: false,
-					},
-					integrationId,
-					kind: 'explained',
-				},
-				revision: snapshot.revision + 1,
-			};
-			for (const listener of listeners) listener();
-			return Promise.resolve({
-				kind: 'completed' as const,
-				snapshot: { integrations: snapshot.integrations, revision: snapshot.revision },
-			});
-		},
-		getSnapshot: () => snapshot,
-		refresh: () =>
-			Promise.resolve({
-				kind: 'completed' as const,
-				snapshot: {
-					integrations: snapshot.integrations,
-					revision: snapshot.revision,
-				},
-			}),
-		subscribe: (listener) => {
-			listeners.add(listener);
-			return () => listeners.delete(listener);
-		},
-	};
-}
-
-function createAgentIntegrationStorySnapshot(): AgentIntegrationManagementClientSnapshot {
-	const examples: Partial<
-		Readonly<Record<AgentIntegrationId, Partial<AgentIntegrationSnapshotItem>>>
-	> = {
-		'claude-code': { availability: 'available', state: 'enabled' },
-		codex: { availability: 'available', state: 'not-installed' },
-		grok: { availability: 'available', state: 'disabled' },
-		opencode: { availability: 'available', state: 'enabled' },
-	};
-	return {
-		diagnosis: null,
-		failureCode: null,
-		failureIntegrationId: null,
-		integrations: AGENT_INTEGRATION_IDS.map((integrationId) => ({
-			availability: 'not-found',
-			integrationId,
-			issue: null,
-			managementMode: 'managed-local',
-			state: 'unknown',
-			...examples[integrationId],
-		})),
-		pending: false,
-		pendingIntegrationId: null,
-		revision: 1,
 	};
 }

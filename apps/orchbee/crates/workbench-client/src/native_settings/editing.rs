@@ -1,8 +1,8 @@
 //! Keys, clicks and wheel turns on the page. A change on a category's row becomes one edit the
 //! Server applies at once; the launch-profile editor applies its catalog when it closes.
 use super::{
-    AdjustmentStep, Category, Choice, ChoicePicker, Control, Edit, Editor, IntegrationJob, Page,
-    Pane, Row, State, Submission, Token, changes::Change, page::text_key, values,
+    AdjustmentStep, Category, Choice, ChoicePicker, Control, Edit, Editor, Page, Pane, Row, State,
+    Submission, Token, changes::Change, page::text_key, values,
 };
 use crate::localization::StartFolder;
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
@@ -141,30 +141,6 @@ impl Editor {
                 self.redraw();
                 return None;
             }
-            Edit::Explain => {
-                let id = match (page.page, page.row) {
-                    (Page::Integrations, Row::Agent(id)) if page.activation_ready => id,
-                    (Page::Diagnosis(id), _) => id,
-                    _ => return None,
-                };
-                // A check that starts the Agent's program first says so; Explain on that
-                // question is the consent that runs it.
-                let admitted = if page.page == Page::Integrations
-                    && self.integrations.explain_needs_consent(id)
-                {
-                    self.integrations.ask_to_explain(id)
-                } else {
-                    self.integrations.begin(IntegrationJob::Explain(id))
-                };
-                if !admitted {
-                    return None;
-                }
-                if page.page == Page::Integrations {
-                    page.enter_page(Page::Diagnosis(id), Row::Back);
-                }
-                self.redraw();
-                return None;
-            }
             _ => {}
         }
         if page.pane == Pane::Categories && page.page == Page::General {
@@ -227,7 +203,7 @@ impl Editor {
             Edit::Adjust(forward) => {
                 if !page.activation_ready
                     || !matches!(page.row, Row::Profile | Row::Argument)
-                    || !page.enabled(&self.integrations, &self.about, page.row)
+                    || !page.enabled(&self.about, page.row)
                 {
                     return None;
                 }
@@ -309,7 +285,7 @@ impl Editor {
             return None;
         };
         let row = page.row;
-        if !page.activation_ready || !page.enabled(&self.integrations, &self.about, row) {
+        if !page.activation_ready || !page.enabled(&self.about, row) {
             return None;
         }
         // About's rows hold no setting: only Updates acts, and the TUI takes what it asked for.
@@ -322,16 +298,6 @@ impl Editor {
                 return None;
             }
             _ => {}
-        }
-        let job = match row {
-            Row::Agent(id) => self.integrations.change(id),
-            Row::RefreshIntegrations => Some(IntegrationJob::Refresh),
-            _ => None,
-        };
-        if let Some(job) = job {
-            self.integrations.begin(job);
-            self.redraw();
-            return None;
         }
         match row {
             Row::LaunchProfiles => {
@@ -346,14 +312,6 @@ impl Editor {
                     })
                     .unwrap_or(0);
                 page.argument = 0;
-            }
-            Row::AgentIntegrations => {
-                page.enter_page(
-                    Page::Integrations,
-                    Row::Agent(orchbee_agent_integration::IntegrationId::ALL[0]),
-                );
-                // Opening the page is the explicit request to inspect providers.
-                self.integrations.begin(IntegrationJob::Refresh);
             }
             Row::Back if page.page == Page::Profiles => return self.leave_profiles(),
             Row::Back => page.return_to_parent(),
@@ -689,7 +647,7 @@ impl Editor {
                 if idle
                     && page.picker.is_none()
                     && page.rows().contains(&row)
-                    && page.enabled(&self.integrations, &self.about, row)
+                    && page.enabled(&self.about, row)
                     && page.adjustment(row).is_some_and(|adjustment| {
                         if forward {
                             adjustment.forward
@@ -711,12 +669,6 @@ impl Editor {
                 values::adjust(page, forward, AdjustmentStep::Small);
                 let requested = std::mem::replace(&mut page.values, before);
                 self.commit(row, requested)
-            }
-            Control::Explain(id) if idle && page.page == Page::Integrations => {
-                page.row = Row::Agent(id);
-                page.follow_selection = false;
-                page.activation_ready = true;
-                self.edit(Edit::Explain)
             }
             Control::Back => {
                 if page.page.is_child() || page.text.is_some() || page.picker.is_some() {

@@ -1,6 +1,7 @@
 //! Localized session connection, display, and mutation feedback; does not change session state.
 
 use super::Locale;
+use crate::agent_provider::IntegrationId;
 mod parameters;
 pub(crate) use parameters::{
     ClientProjectionStatus, DisplayController, DisplayProvenance, DisplayRetirement,
@@ -10,6 +11,35 @@ pub(crate) use parameters::{
 pub use parameters::{DisplayPhase, TerminalStatus};
 
 impl Locale {
+    /// The provider's display name, shared by every locale's Agent messages.
+    pub(crate) const fn agent_provider_name(
+        self,
+        id: crate::agent_provider::IntegrationId,
+    ) -> &'static str {
+        match id {
+            IntegrationId::ClaudeCode => "Claude Code",
+            IntegrationId::Codex => "Codex",
+            IntegrationId::Grok => "Grok",
+            IntegrationId::Opencode => "OpenCode",
+            IntegrationId::Kilo => "Kilo",
+            IntegrationId::Cursor => "Cursor",
+            IntegrationId::QoderCli => "Qoder CLI",
+            IntegrationId::AntigravityCli => "Antigravity CLI",
+            IntegrationId::Mastracode => "Mastracode",
+            IntegrationId::Droid => "Droid",
+            IntegrationId::Kimi => "Kimi",
+            IntegrationId::Letta => "Letta",
+            IntegrationId::Devin => "Devin",
+            IntegrationId::Hermes => "Hermes",
+            IntegrationId::Pi => "Pi",
+            IntegrationId::Omp => "OMP",
+            IntegrationId::Gemini => "Gemini CLI",
+            IntegrationId::GitHubCopilot => "GitHub Copilot CLI",
+            IntegrationId::Cline => "Cline",
+            IntegrationId::QwenCode => "Qwen Code",
+        }
+    }
+
     pub const fn launch_request_too_large(self) -> &'static str {
         match self {
             Self::EnUs => {
@@ -223,11 +253,11 @@ impl Locale {
         match (self, agent) {
             (Self::EnUs, Some(id)) => format!(
                 "Couldn't resume the {} conversation.",
-                self.agent_integration_name(id)
+                self.agent_provider_name(id)
             ),
             (Self::EnUs, None) => "Couldn't resume the Agent conversation.".into(),
             (Self::ZhCn, Some(id)) => {
-                format!("没能续接 {} 对话。", self.agent_integration_name(id))
+                format!("没能续接 {} 对话。", self.agent_provider_name(id))
             }
             (Self::ZhCn, None) => "没能续接智能体对话。".into(),
         }

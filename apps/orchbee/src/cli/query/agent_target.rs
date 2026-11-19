@@ -42,14 +42,6 @@ pub(super) fn prepare(
         resolved: None,
     };
     let panel = match target {
-        AgentTarget::Session { session_id } => {
-            return Ok(plain(AgentSessionSelector::Session {
-                session_id: session_id.clone(),
-            }));
-        }
-        AgentTarget::Name { name } => {
-            return Ok(plain(AgentSessionSelector::Name { name: name.clone() }));
-        }
         AgentTarget::Projection { selector } => {
             crate::cli::execution::admit(crate::cli::execution::Capability::AgentProjection)?;
             let owned;
@@ -218,7 +210,6 @@ pub(in crate::cli) fn resolve_named(
 ) -> Result<NamedTarget, Failure> {
     // Preserve direct reads for explicit IDs and opaque non-Panel IDs.
     let direct = match target {
-        AgentTarget::Session { session_id } => Some(session_id),
         AgentTarget::Auto { target }
             if AgentName::parse(target.as_str()).is_err()
                 && AgentPresentationId::parse(target.as_str()).is_err() =>

@@ -14,7 +14,6 @@ struct BindingSpec {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum LocalBinding {
     Search,
-    Explain,
     PageUp,
     PageDown,
     Exit,
@@ -37,7 +36,6 @@ impl LocalBinding {
     const fn spec(self) -> BindingSpec {
         let (code, mods, edit, list_only) = match self {
             Self::Search => (KeyCode::Char('/'), Modifiers::NONE, Edit::Search, true),
-            Self::Explain => (KeyCode::Char('e'), Modifiers::NONE, Edit::Explain, true),
             Self::PageUp => (KeyCode::PageUp, Modifiers::NONE, Edit::Page(false), true),
             Self::PageDown => (KeyCode::PageDown, Modifiers::NONE, Edit::Page(true), true),
             Self::Exit => (KeyCode::Esc, Modifiers::NONE, Edit::Cancel, false),
@@ -78,9 +76,8 @@ impl LocalBinding {
     }
 }
 
-const DISPATCH_ORDER: [LocalBinding; 18] = [
+const DISPATCH_ORDER: [LocalBinding; 17] = [
     LocalBinding::Search,
-    LocalBinding::Explain,
     LocalBinding::PageUp,
     LocalBinding::PageDown,
     LocalBinding::Exit,
@@ -128,15 +125,13 @@ const MOVE: &[LocalBinding] = &[LocalBinding::PreviousRow, LocalBinding::NextRow
 const SWITCH: &[LocalBinding] = &[LocalBinding::Left, LocalBinding::Right];
 const SEARCH: &[LocalBinding] = &[LocalBinding::Search];
 const RESTORE: &[LocalBinding] = &[LocalBinding::Delete];
-const EXPLAIN: &[LocalBinding] = &[LocalBinding::Explain];
 
 /// What `Enter` does on a row, as its hint names it.
 fn primary_label(page: PageView<'_>, row: Row) -> SettingsHintLabel {
     match row {
-        Row::LaunchProfiles | Row::AgentIntegrations => SettingsHintLabel::Open,
+        Row::LaunchProfiles => SettingsHintLabel::Open,
         Row::Back => SettingsHintLabel::Back,
         Row::ThemeOption(_) => SettingsHintLabel::Select,
-        Row::Agent(_) => SettingsHintLabel::Toggle,
         Row::Updates if page.about().update().is_some() => SettingsHintLabel::Update,
         Row::Updates => SettingsHintLabel::Check,
         row if page.checked(row).is_some() => SettingsHintLabel::Toggle,
@@ -184,23 +179,6 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
     }
     let selected = page.selected();
     match page.page() {
-        Page::Diagnosis(_) => {
-            return vec![
-                hint(EXIT, SettingsHintLabel::Back),
-                hint(EXPLAIN, SettingsHintLabel::Explain),
-            ];
-        }
-        Page::Integrations => {
-            let mut hints = vec![
-                hint(EXIT, SettingsHintLabel::Back),
-                hint(MOVE, SettingsHintLabel::Move),
-                hint(PRIMARY, primary_label(page, selected)),
-            ];
-            if matches!(selected, Row::Agent(_)) {
-                hints.push(hint(EXPLAIN, SettingsHintLabel::Explain));
-            }
-            return hints;
-        }
         Page::Profiles => {
             let mut hints = vec![
                 hint(EXIT, SettingsHintLabel::Back),
@@ -266,11 +244,6 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
 pub(crate) fn key_edit_for_view(event: KeyEvent, view: View<'_>) -> Option<Edit> {
     let text_entry = matches!(view, View::Page(page) if page.text().is_some() || page.searching());
     let edit = key_edit(event, text_entry)?;
-    if matches!(edit, Edit::Explain)
-        && !matches!(view, View::Page(page) if page.page().is_integrations())
-    {
-        return None;
-    }
     if matches!(view, View::Page(page) if page.confirm_delete()) {
         match edit {
             Edit::Cancel => Some(edit),

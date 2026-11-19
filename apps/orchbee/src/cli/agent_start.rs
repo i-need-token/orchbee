@@ -1,8 +1,8 @@
 //! Agent startup in one place beside a reference Panel: a new Tab in its Workspace (the default),
 //! a new Panel split from it, or that Panel's own prompt. A new Panel runs the Agent as its
 //! shell's first command when the start is exactly the catalog command; otherwise one submission
-//! is typed at the Panel's confirmed prompt. Without a name the start returns after the early
-//! check, and with one it also composes a name reservation and canonical or observed readiness.
+//! is typed at the Panel's confirmed prompt. The start returns after the early check; a canonical
+//! Session that an existing hook reports still confirms readiness.
 //! Every failure retains the independently known effects, including a Panel this invocation
 //! created, which stays. A focus that misses that Panel is reported beside the start, not as a
 //! failure.
@@ -13,7 +13,7 @@ use super::output;
 use super::{FailureKind, Output, failure_output};
 use crate::cli_text::CliText;
 use crate::{
-    agent_start::{Request, ReservationState},
+    agent_start::Request,
     cli::{
         caller_context::PanelTarget,
         command_interrupt::{ArmedSignals, Finish},
@@ -80,7 +80,7 @@ pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Loc
     let started = Instant::now();
     let provider = AgentProviderId::parse(&command.provider)
         .expect("agent start parser admits only canonical providers");
-    let request = Request::new(command.name.clone(), provider, command.args.clone());
+    let request = Request::new(None, provider, command.args.clone());
     let mut placed = Placed {
         place: command.place,
         panel: None,
@@ -266,13 +266,12 @@ fn run_local(
 }
 
 /// The catalog Agent a new Panel's shell runs as its first command. Only a start that is exactly
-/// the catalog command, with no arguments and no name, takes this form; every other start is
-/// typed once at a confirmed prompt.
+/// the catalog command, with no arguments, takes this form; every other start is typed once at
+/// a confirmed prompt.
 fn first_command(
     command: &AgentStartCommand,
 ) -> Option<orchbee_workbench_protocol::AgentStartSelector> {
-    if command.place == AgentStartPlace::Here || command.name.is_some() || !command.args.is_empty()
-    {
+    if command.place == AgentStartPlace::Here || !command.args.is_empty() {
         return None;
     }
     orchbee_workbench_protocol::AgentStartSelector::parse(&command.provider)
@@ -293,13 +292,7 @@ fn run_with_prompt_retry(
             PromptRetryPolicy::NewPanel => NEW_SHELL_SETTLE,
             PromptRetryPolicy::HereUnmarked => UNMARKED_SHELL_SETTLE,
         };
-    let min_remaining = if request.name.is_some() {
-        // Named startups refuse at `ttl <= 3000` before `Reserve`; stop retrying before crossing
-        // that floor so the settled prompt-gate diagnosis stays intact.
-        Duration::from_millis(3250)
-    } else {
-        PROMPT_RETRY * 8
-    };
+    let min_remaining = PROMPT_RETRY * 8;
     let mut prior: Option<Report> = None;
     loop {
         let session = match initial.take() {
@@ -335,12 +328,10 @@ fn run_with_prompt_retry(
             }
         } && deadline.saturating_duration_since(Instant::now()) > min_remaining;
         let report: Report = client_report.into();
-        // Only an attempt that timed out before sending `Reserve` falls back to the earlier
-        // attempt's report; an attempt that sent it reports its own reservation state, which may
-        // still hold the name.
+        // Only an attempt that timed out before its command was typed falls back to the earlier
+        // attempt's report.
         if report.failure_kind() == Some(FailureKind::Timeout)
             && report.submission.is_none()
-            && report.reservation_state == ReservationState::None
             && let Some(previous) = prior
         {
             return previous;
@@ -408,7 +399,6 @@ fn project(
         report.replace_failure(Failure::new(FailureKind::InternalFailure));
     }
     let text = CliText::new(locale);
-    let name = report.name.as_ref().map_or("", |name| name.as_str());
     let place = placed.place;
     // The workflow names the Panel it confirmed; a canonical Session confirms the Panel it ran in.
     let panel = match &report.verdict {
@@ -423,13 +413,13 @@ fn project(
             "session",
             Some(session),
             panel,
-            text.cli_agent_started(name, session.as_str(), place, &handle(panel)),
+            text.cli_agent_started(session.as_str(), place, &handle(panel)),
         )),
         (Verdict::Observed { .. }, Some(panel)) => Some((
             "observed",
             None,
             panel,
-            text.cli_agent_observed(name, place, &handle(panel)),
+            text.cli_agent_observed(place, &handle(panel)),
         )),
         // A new shell that ran the Agent as its first command had nothing typed into it.
         (Verdict::Sent { .. }, Some(panel)) => Some((
@@ -449,16 +439,15 @@ fn project(
         _ => None,
     };
     if let Some((confirmation, session, panel, rendered)) = started {
-        // A start without a name ends when its line is typed or its shell is seen, so it promises
-        // no ready Agent.
+        // A start that ends when its line is typed or its shell is seen promises no ready Agent.
         let mut document = json!({"schema":"orchbee.agent.start", "version":1, "result":{
             "kind":"started", "confirmation":confirmation,
-            "interactiveReady":!matches!(confirmation, "sent" | "launched"), "name":&report.name,
-            "providerId":&report.provider, "reservationId":&report.reservation,
+            "interactiveReady":!matches!(confirmation, "sent" | "launched"),
+            "providerId":&report.provider,
             "elapsedMs":report.elapsed_ms, "submission":&report.submission,
             "place":place.as_str(), "panelId":panel.as_str(),
         }});
-        // Only the canonical Session holds the name; an observed start has none to report.
+        // Only a canonical Session reports a Session ID; an observed start has none to report.
         if let Some(session) = session {
             document["result"]["sessionId"] = json!(session);
         }
@@ -501,17 +490,7 @@ fn project(
     failure.details = Some(serde_json::Map::from_iter([
         ("stage".into(), json!("agent-start")),
         ("reason".into(), json!(reason)),
-        ("name".into(), json!(report.name)),
         ("providerId".into(), json!(report.provider)),
-        ("reservationId".into(), json!(report.reservation)),
-        (
-            "reservationState".into(),
-            json!(report.reservation_state.as_str()),
-        ),
-        (
-            "lastObservedReservation".into(),
-            json!(report.last_observed),
-        ),
         ("submission".into(), json!(report.submission)),
         ("elapsedMs".into(), json!(report.elapsed_ms)),
         ("cause".into(), json!(cause)),

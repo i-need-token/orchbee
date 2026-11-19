@@ -1,6 +1,5 @@
 export {
 	enUSApplicationRoutingMessages,
-	enUSAgentIntegrationMessages,
 	enUSAgentObservationMessages,
 	enUSAgentStartMessages,
 	enUSDesktopDiagnosticsMessages,

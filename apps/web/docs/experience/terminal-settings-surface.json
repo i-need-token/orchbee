@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the Settings dialog over the Workbench, closed by its close button, Escape or a press on its scrim: a navigation column with search and eight categories (General, Appearance, Themes, Terminal, Notifications, Keyboard, Agents, About) and a centered column of grouped cards whose rows each carry a name, an always-visible description and one immediately applied control. It covers System, English or Simplified-Chinese display language, application and terminal appearance, Light and Dark theme groups whose Choose theme button opens a quick pick over the window that previews the highlighted theme on the whole window, copy-on-select, the new terminal folder, terminal history, macOS Option-as-Alt, shell launch profiles, notifications, keyboard shortcuts, restore-after-restart choices, local Agent integrations, and About with the window's version and Check for updates, with per-setting restore default, a per-row reason when the settings file refuses a change, a read-only page while the file cannot be parsed or read, dismissible page notices, global search and the settings file's real path for the options the page leaves out, without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the Settings dialog over the Workbench, closed by its close button, Escape or a press on its scrim: a navigation column with search and eight categories (General, Appearance, Themes, Terminal, Notifications, Keyboard, Agents, About) and a centered column of grouped cards whose rows each carry a name, an always-visible description and one immediately applied control. It covers System, English or Simplified-Chinese display language, application and terminal appearance, Light and Dark theme groups whose Choose theme button opens a quick pick over the window that previews the highlighted theme on the whole window, copy-on-select, the new terminal folder, terminal history, macOS Option-as-Alt, shell launch profiles, notifications, keyboard shortcuts, restore-after-restart choices, and About with the window's version and Check for updates, with per-setting restore default, a per-row reason when the settings file refuses a change, a read-only page while the file cannot be parsed or read, dismissible page notices, global search and the settings file's real path for the options the page leaves out, without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -15,7 +15,6 @@
 		"configure-terminal-interaction",
 		"configure-desktop-terminal-defaults",
 		"configure-keyboard-shortcuts",
-		"configure-local-agent-integrations",
 		"configure-macos-terminal-input",
 		"configure-local-shell-profiles",
 		"configure-shell-integration-reminders",
@@ -48,7 +47,6 @@
 		"apps/web/src/workbench/model/WorkbenchUpdateCheckModel.ts",
 		"apps/web/src/workbench-client/server-workbench/askServerUpdateCheck.ts",
 		"apps/web/src/workbench-client/server-workbench/serverSessionServes.ts",
-		"apps/web/src/terminal-settings-surface/components/agent-integration-settings/AgentIntegrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/application-language-settings/ApplicationLanguageSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/keyboard-shortcut-settings/KeyboardShortcutSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/macos-terminal-input-settings/MacosTerminalInputSettings.tsx",
@@ -168,7 +166,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-agents",
 			"states": [
-				"Inspect the resume-on-restore switch and the Agent integrations card: one line per Agent with its status description, Explain on hover, an inspected-state switch and the diagnosis panel under its row with its one-sentence result and its closed Details, the filter box above more than eight entries, and the Refresh action."
+				"Inspect the Agents category: the resume-on-restore switch with its description, and nothing else."
 			]
 		},
 		{
@@ -267,7 +265,7 @@
 			"exportName": "ChineseAgents",
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-agents",
-			"states": ["Inspect localized Agent integration states."]
+			"states": ["Inspect the localized resume-on-restore switch."]
 		},
 		{
 			"exportName": "ChineseAbout",
@@ -317,7 +315,6 @@
 		"A macOS Desktop client chooses whether the left, right, both, or neither Option key acts as terminal Alt.",
 		"A Desktop client creates, edits, selects, or removes the Session's shared system-shell and custom-executable launch profiles for future terminals.",
 		"A Desktop client changes the terminal history default captured only by future terminals.",
-		"A Desktop user explicitly inspects, enables, or disables Orchbee's exact local observation integration for one supported terminal Agent without granting remote-host mutation authority.",
 		"A user wants to configure Agent notifications, completion reminders, or notification sound.",
 		"A user wants to see which version and build the window runs, or ask the Session to check for updates now."
 	],
@@ -346,8 +343,6 @@
 		"Desktop shell profiles live in the settings file under the Server platform's keys, change only executable and literal ordered arguments, and affect only terminals launched after the Server commits the catalog; running and restored terminals retain their captured launch.",
 		"Terminal history commits to the settings file, and the Worker gives it to each terminal it launches after the save, so existing history never changes; a composition without that control omits the Output group.",
 		"The new terminal folder row offers Workspace folder, Home folder, Same as the current terminal and Custom folder… in the TUI's order and words, stores `workspace`, `home`, `follow` or the folder in `terminal.new_cwd`, shows unset, empty and `follow` as Same as the current terminal and any other text, `current` included, as Custom folder… with its text, and says it applies to terminals the orchbee command creates. Custom folder… asks the composition's folder picker when it has one and otherwise opens the folder field; a cancelled picker keeps the stored value.",
-		"Agent integration inventory is read-only on startup and refresh, and entering the Agents category is the explicit request to inspect it; Agent-specific details stay behind Desktop adapters while the renderer receives only the canonical Agent labels, bounded states, and privacy-safe failures.",
-		"Agent integration mutation begins only from an explicit switch change, serializes one operation, re-inspects after every attempt, keeps the switch at its last inspected position until that result arrives, never overwrites a conflict, and reports the observed state instead of assuming command success. Disabling removes or disables only Orchbee's exact owned entry.",
 		"The surface never reads or edits a shell startup file, executes a source command, or requests notification permission except from the notification banner's Allow button.",
 		"The config.toml row shows the path of the settings file the Session reads, from its snapshot, with a copy action; the page opens no file and adds no native capability.",
 		"No current composition runs a Host-owned terminal-theme transaction: a Desktop window, as a Server Client, paints default-coded cells through defaultColorOverride, with the selected color theme's canvas for Theme and Host and the custom pair for Custom. Explicit colors, palette projection, cursor, VT, and OSC state retain their Host authority.",

@@ -37,7 +37,6 @@ pub(crate) mod events;
 pub(crate) mod pane_graphics;
 mod stdin_bytes;
 pub(crate) use client_control::run as run_client_control;
-pub(crate) mod agent_names;
 mod agent_projection;
 mod agent_prompt;
 mod agent_start;
@@ -64,7 +63,6 @@ pub(crate) use terminal_clear::run as clear_terminal;
 pub(crate) mod config;
 mod configuration;
 pub(crate) mod doctor;
-pub(crate) mod integration;
 mod layout_topology;
 pub(crate) mod layouts;
 mod mutation;
@@ -483,16 +481,6 @@ pub(crate) fn activating(
 /// shared connect-or-activate core once and reports the branch it took.
 pub(crate) fn session_start(format: OutputFormat, locale: Locale) -> Output {
     server::start(format, locale)
-}
-
-/// `agent integration` is provider onboarding. `list` and `explain` run in this process; `enable`
-/// and `disable` activate the local Session, whose Worker owns their provider commands.
-pub(crate) fn agent_integration(
-    command: crate::invocation::AgentIntegrationCommand,
-    format: OutputFormat,
-    locale: Locale,
-) -> Output {
-    integration::run(&command, format, locale)
 }
 
 pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {

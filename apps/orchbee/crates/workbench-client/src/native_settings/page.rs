@@ -1,8 +1,8 @@
 //! What the page shows and what is in flight: the confirmed values, the changes the person asked
 //! for in order, and where focus is. Drawing and key decoding stay outside.
 use super::{
-    About, Adjustment, Category, Choice, ChoicePicker, Confirmed, Entry, FileState, Group,
-    Integrations, Page, Row, SettingAvailability, SettingControl, SettingsDraw, Token,
+    About, Adjustment, Category, Choice, ChoicePicker, Confirmed, Entry, FileState, Group, Page,
+    Row, SettingAvailability, SettingControl, SettingsDraw, Token,
     catalog::{self, Filter},
     changes::Changes,
     setting, setting_for_row,
@@ -32,7 +32,6 @@ pub(super) struct Navigation {
 pub(super) struct PageState {
     pub(super) login_shell_supported: bool,
     pub(super) reduced_color: bool,
-    pub(super) integrations_available: bool,
     /// Shows the rows whose key the settings registry does not yet mark for the page.
     pub(super) unlisted: bool,
     pub(super) token: Token,
@@ -73,12 +72,7 @@ impl PageState {
         catalog::entries(
             self.page,
             self.category,
-            Filter::of(
-                self.filter.text(),
-                &self.values,
-                self.integrations_available,
-                self.unlisted,
-            ),
+            Filter::of(self.filter.text(), &self.values, self.unlisted),
             self.picker
                 .map(|picker| (picker.row(), Choice::options(picker.row()))),
         )
@@ -380,16 +374,12 @@ impl PageState {
             .unwrap_or_else(|_| self.values.clone())
     }
 
-    pub(super) fn enabled(&self, integrations: &Integrations, about: &About, row: Row) -> bool {
-        // Integration rows act through the Worker, About's through the update state, both
-        // independently of the settings file.
+    pub(super) fn enabled(&self, about: &About, row: Row) -> bool {
+        // About's rows act through the update state, independently of the settings file.
         match row {
             Row::Version => return true,
             Row::Updates => return about.enabled(),
-            Row::Agent(id) => return integrations.block(id).is_none(),
-            Row::RefreshIntegrations => return !integrations.pending(),
-            Row::RemoteHosts => return false,
-            Row::AgentIntegrations | Row::Back | Row::LaunchProfiles => return true,
+            Row::Back | Row::LaunchProfiles => return true,
             Row::ThemeOption(_) => return !self.reduced_color,
             _ => {}
         }
@@ -430,12 +420,9 @@ impl PageState {
         }
     }
 
-    pub(super) fn checked(&self, integrations: &Integrations, row: Row) -> Option<bool> {
+    pub(super) fn checked(&self, row: Row) -> Option<bool> {
         let values = &self.values;
         match row {
-            Row::Agent(id) => {
-                Some(integrations.row(id).state == orchbee_agent_integration::State::Enabled)
-            }
             Row::CopyOnSelect => Some(values.copy_on_select),
             Row::ResumeAgents => Some(values.resume_agents_on_restore),
             Row::RestoreOutput => Some(values.restore_terminal_output),
@@ -506,21 +493,12 @@ pub(super) const fn text_key(row: Row) -> Option<&'static str> {
 #[derive(Clone, Copy)]
 pub(crate) struct PageView<'a> {
     state: &'a PageState,
-    integrations: &'a Integrations,
     about: &'a About,
 }
 
 impl<'a> PageView<'a> {
-    pub(super) const fn new(
-        state: &'a PageState,
-        integrations: &'a Integrations,
-        about: &'a About,
-    ) -> Self {
-        Self {
-            state,
-            integrations,
-            about,
-        }
+    pub(super) const fn new(state: &'a PageState, about: &'a About) -> Self {
+        Self { state, about }
     }
     /// The update state About's rows show.
     pub(crate) const fn about(self) -> &'a About {
@@ -599,9 +577,6 @@ impl<'a> PageView<'a> {
     pub(crate) const fn argument(self) -> usize {
         self.state.argument
     }
-    pub(crate) const fn integrations(self) -> &'a Integrations {
-        self.integrations
-    }
     pub(crate) const fn login_shell_supported(self) -> bool {
         self.state.login_shell_supported
     }
@@ -618,10 +593,10 @@ impl<'a> PageView<'a> {
         self.state.described(group)
     }
     pub(crate) fn enabled(self, row: Row) -> bool {
-        self.state.enabled(self.integrations, self.about, row)
+        self.state.enabled(self.about, row)
     }
     pub(crate) fn checked(self, row: Row) -> Option<bool> {
-        self.state.checked(self.integrations, row)
+        self.state.checked(row)
     }
     pub(crate) fn adjustment(self, row: Row) -> Option<Adjustment> {
         self.state.adjustment(row)

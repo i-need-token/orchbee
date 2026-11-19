@@ -168,27 +168,6 @@ fn run() -> Result<StartOutcome, Failure> {
         .map_err(classify)
 }
 
-/// Converges the selected local Session toward readiness for a verb that declares activation,
-/// with `server start`'s failure vocabulary. The admitted probe is dropped.
-pub(super) fn activate(deadline: std::time::Instant) -> Result<(), Failure> {
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-    {
-        crate::local_activation::activate_local_session(deadline)
-            .map(drop)
-            .map_err(classify)
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
-    {
-        let _unsupported = deadline;
-        Err(
-            Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
-                "platform",
-                "unsupported-platform",
-            )),
-        )
-    }
-}
-
 /// The first phase of a creating command that declares activation: the selected local Session
 /// starts exactly as `server start` starts it, under the same budget, before the command's own
 /// deadline begins. The answer is the stderr text: `server start`'s started line and restore

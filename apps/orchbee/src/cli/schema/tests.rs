@@ -178,36 +178,6 @@ fn catalog_requires_and_admits_every_embedded_schema_exactly_once() {
     assert!(!validator.is_valid(&stale));
 }
 
-#[test]
-fn terminal_name_schemas_accept_current_receipts() {
-    use serde_json::json;
-    let id = "11111111111111111111111111111111";
-    let target = json!({"kind":"terminal","binding":{"presentationId":id,"generation":id,"hostEpoch":id,"hostTerminalId":id}});
-    for (schema, result) in [
-        (
-            "orchbee.agent.resolve",
-            json!({"kind":"resolved-target","target":target,"resolvedBy":"name"}),
-        ),
-        (
-            "orchbee.agent.rename",
-            json!({"kind":"assigned-target","target":target,"name":"alpha","previousName":null}),
-        ),
-    ] {
-        let definition: Value = serde_json::from_str(super::document(schema).unwrap()).unwrap();
-        let validator = jsonschema::validator_for(&definition).unwrap();
-        let document = json!({"schema":schema,"version":1,"source":{"kind":"agent-names","requestId":id},"result":result});
-        validator.validate(&document).unwrap();
-    }
-    let definition: Value =
-        serde_json::from_str(super::document("orchbee.cli.failure.agent-names").unwrap()).unwrap();
-    let validator = jsonschema::validator_for(&definition).unwrap();
-    let document = json!({"schema":"orchbee.cli.failure.agent-names","version":1,"failure":{"kind":"rejected","details":{"stage":"agent-names","reason":"name-in-use","conflictTarget":target}}});
-    validator.validate(&document).unwrap();
-    let mut invalid = document.clone();
-    invalid["failure"]["details"]["conflictTarget"] = Value::Null;
-    assert!(!validator.is_valid(&invalid));
-}
-
 fn canonical_agent_inspection(with_client: bool) -> Box<crate::cli::results::AgentInspectionDoc> {
     use crate::cli::results::{AgentInspectionDoc, AgentManagementDoc, AgentRuntimeDoc};
     use crate::cli_outcome::{AgentClientVersionMatch, AgentClientViewDoc};
@@ -304,8 +274,8 @@ fn canonical_agent_get_schema_has_fixed_members() {
     let validator = jsonschema::validator_for(&definition).unwrap();
     for client in [false, true] {
         let result = crate::cli::results::complete(
-            &crate::invocation::QueryCommand::AgentGet(crate::invocation::AgentTarget::Session {
-                session_id: orchbee_agent_observation_protocol::AgentSessionId::parse(
+            &crate::invocation::QueryCommand::AgentGet(crate::invocation::AgentTarget::Auto {
+                target: orchbee_agent_observation_protocol::AgentSessionId::parse(
                     "11111111111111111111111111111111",
                 )
                 .unwrap(),

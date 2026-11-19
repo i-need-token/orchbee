@@ -1,6 +1,5 @@
-//! The page's rows: the common settings, the launch-profile editor and Agent integrations.
+//! The page's rows: the common settings, the launch-profile editor and About.
 use super::choices::ColorTheme;
-use orchbee_agent_integration::IntegrationId;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Row {
@@ -43,13 +42,6 @@ pub enum Row {
     DeleteProfile,
     /// Leaves a child page; leaving the launch-profile editor applies its catalog.
     Back,
-    /// Opens Agent integrations; it holds no setting.
-    AgentIntegrations,
-    /// One Agent's integration switch; changing it runs a Worker job at once.
-    Agent(IntegrationId),
-    /// The manual-only explanation for remote hosts.
-    RemoteHosts,
-    RefreshIntegrations,
     /// About: this Client's version.
     Version,
     /// About: Check for updates, or the Update control while a newer version is offered.
@@ -61,22 +53,7 @@ pub enum Row {
 pub(crate) enum Page {
     General,
     Profiles,
-    Integrations,
-    /// One Agent's read-only explain result.
-    Diagnosis(IntegrationId),
 }
-
-const INTEGRATION_ROWS: [Row; IntegrationId::ALL.len() + 3] = {
-    let mut rows = [Row::Back; IntegrationId::ALL.len() + 3];
-    let mut index = 0;
-    while index < IntegrationId::ALL.len() {
-        rows[index] = Row::Agent(IntegrationId::ALL[index]);
-        index += 1;
-    }
-    rows[index] = Row::RemoteHosts;
-    rows[index + 1] = Row::RefreshIntegrations;
-    rows
-};
 
 impl Page {
     /// A child page's rows in order; the categories list theirs through the catalog.
@@ -98,8 +75,6 @@ impl Page {
                 Row::DeleteProfile,
                 Row::Back,
             ],
-            Self::Integrations => &INTEGRATION_ROWS,
-            Self::Diagnosis(_) => &[Row::Back],
         }
     }
 
@@ -107,15 +82,10 @@ impl Page {
         !matches!(self, Self::General)
     }
 
-    pub(crate) const fn is_integrations(self) -> bool {
-        matches!(self, Self::Integrations | Self::Diagnosis(_))
-    }
-
     /// The row that opened this child page, whose name titles it.
     pub(crate) const fn opener(self) -> Row {
         match self {
             Self::General | Self::Profiles => Row::LaunchProfiles,
-            Self::Integrations | Self::Diagnosis(_) => Row::AgentIntegrations,
         }
     }
 }

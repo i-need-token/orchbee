@@ -8,7 +8,6 @@ use std::sync::LazyLock;
 impl super::CliText {
     pub(crate) fn cli_agent_started(
         self,
-        name: &str,
         session: &str,
         place: AgentStartPlace,
         panel: &str,
@@ -16,10 +15,10 @@ impl super::CliText {
         let at = self.place_phrase(place, panel);
         match self.locale {
             Locale::EnUs => format!(
-                "Agent {name} is ready {at}, session {session}.\nNext: orchbee agent prompt --name {name} <text>\n"
+                "The Agent is ready {at}, session {session}.\nNext: orchbee agent prompt --panel {panel} <text>\n"
             ),
             Locale::ZhCn => format!(
-                "智能体 {name} 已在{at}中就绪，会话 {session}。\n下一步：orchbee agent prompt --name {name} <text>\n"
+                "智能体已在{at}中就绪，会话 {session}。\n下一步：orchbee agent prompt --panel {panel} <text>\n"
             ),
         }
     }
@@ -37,21 +36,15 @@ impl super::CliText {
         }
     }
 
-    /// The Agent was seen ready without an integration's Session, so `name` was not bound and the
-    /// next step addresses its Panel.
-    pub(crate) fn cli_agent_observed(
-        self,
-        name: &str,
-        place: AgentStartPlace,
-        panel: &str,
-    ) -> String {
+    /// The Agent was seen ready on screen, so the next step addresses its Panel.
+    pub(crate) fn cli_agent_observed(self, place: AgentStartPlace, panel: &str) -> String {
         let at = self.place_phrase(place, panel);
         match self.locale {
             Locale::EnUs => format!(
-                "The Agent is ready {at}. No integration reported its session, so the name {name} was not given to it.\nNext: orchbee agent prompt --panel {panel} <text>\n"
+                "The Agent is ready {at}.\nNext: orchbee agent prompt --panel {panel} <text>\n"
             ),
             Locale::ZhCn => format!(
-                "智能体已在{at}中就绪。没有集成报告它的会话，因此未把名称 {name} 分配给它。\n下一步：orchbee agent prompt --panel {panel} <text>\n"
+                "智能体已在{at}中就绪。\n下一步：orchbee agent prompt --panel {panel} <text>\n"
             ),
         }
     }
@@ -202,8 +195,6 @@ impl super::CliText {
             .and_then(|details| details.get("cause"))
             .filter(|cause| cause["stage"] == "capability")
             .and_then(|cause| cause["reason"].as_str());
-        // A prompt refusal, including the Host's own busy refusal, and a missing capability
-        // typed nothing; the attempted-input suffix below would contradict that.
         let nothing_typed = matches!(field("reason"), "prompt-unconfirmed" | "terminal-not-idle")
             || cause.is_some();
         let message = match (self.locale, cause, field("reason"), field("promptState")) {
@@ -239,35 +230,21 @@ impl super::CliText {
             }
             (locale, _, reason, _) => self.cli_agent_start_reason(locale, reason),
         };
-        let reservation = match (self.locale, field("reservationState")) {
-            (Locale::EnUs, "pending" | "unknown") => {
-                " The name reservation may remain until it expires; wait for it to expire before reusing the name."
-            }
-            (Locale::ZhCn, "pending" | "unknown") => {
-                " 名称预留可能保留至到期；请等其到期后再复用该名称。"
-            }
-            (Locale::EnUs, "released") => " The name reservation was released.",
-            (Locale::ZhCn, "released") => " 名称预留已释放。",
-            (Locale::EnUs, "completed") => " The Agent name was already committed.",
-            (Locale::ZhCn, "completed") => " 智能体名称已经绑定。",
-            _ => "",
-        };
         let submitted = failure
             .details
             .as_ref()
             .and_then(|details| details.get("submission"))
             .is_some_and(|value| !value.is_null());
-        // Only a named start keeps watching after the line is typed; a start without a name
-        // reports its early check alone.
-        let named = !field("name").is_empty();
-        let delivery = match (self.locale, named && submitted && !nothing_typed) {
+        // A start that submitted its line may have left the Agent running, so its failure says
+        // so whether or not the Agent was named.
+        let delivery = match (self.locale, submitted && !nothing_typed) {
             (Locale::EnUs, true) => {
                 " Input was attempted once; the Agent may still be running. No process was terminated."
             }
             (Locale::ZhCn, true) => " 启动输入已尝试提交一次，智能体可能仍在运行；没有终止进程。",
             _ => "",
         };
-        format!("{message}{reservation}{delivery}{created}\n")
+        format!("{message}{delivery}{created}\n")
     }
 
     fn cli_agent_start_reason(self, locale: Locale, reason: &str) -> &'static str {
@@ -347,10 +324,10 @@ impl super::CliText {
             (Locale::EnUs, "binding-changed") => "The target terminal changed during startup.",
             (Locale::ZhCn, "binding-changed") => "目标终端在启动期间发生了变化。",
             (Locale::EnUs, "reply-not-confirmed") => {
-                "The startup operation's result is unknown. Inspect Agent names and the terminal before retrying."
+                "The startup operation's result is unknown. Inspect the Agent list and the terminal before retrying."
             }
             (Locale::ZhCn, "reply-not-confirmed") => {
-                "启动操作的结果尚不确定。重试前请检查智能体名称和终端。"
+                "启动操作的结果尚不确定。重试前请检查智能体列表和终端。"
             }
             (Locale::EnUs, "cancelled") => "Agent startup monitoring was cancelled.",
             (Locale::ZhCn, "cancelled") => "已取消等待智能体启动。",

@@ -1,6 +1,4 @@
 //! Copy inputs selected by the Settings page. No page state, token or persistence authority.
-use super::IntegrationStatus;
-use orchbee_agent_integration::IntegrationId;
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
     TerminalDisplayAppearance,
@@ -41,10 +39,6 @@ pub(crate) enum SettingsRow {
     AddProfile,
     DeleteProfile,
     Back,
-    AgentIntegrations,
-    Agent(IntegrationId),
-    RemoteHosts,
-    RefreshIntegrations,
     Version,
     Updates,
 }
@@ -78,9 +72,6 @@ pub(crate) enum SettingsGroup {
     WhenToNotify,
     SoundDelivery,
     Prefix,
-    AgentIntegrations,
-    LocalAgents,
-    RemoteHosts,
     About,
 }
 
@@ -139,7 +130,6 @@ pub(crate) enum SettingsValue<'a> {
     ArgumentPosition { position: usize, total: usize },
     Default,
     Empty,
-    Integration(IntegrationStatus),
 }
 
 /// Selected profile name/fallback only; no launch configuration or profile identity is retained.
@@ -215,7 +205,6 @@ pub(crate) enum SettingsHintLabel {
     Search,
     GoTo,
     Restore,
-    Explain,
     /// About's Check for updates.
     Check,
     /// About's Update control.

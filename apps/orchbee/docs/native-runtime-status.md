@@ -38,16 +38,15 @@ the platform cannot ask a Session for its processes, `result.server` is `{"kind"
 status, a closed reason and those facts unchanged; each collector keeps its own bound: five seconds,
 and for the Session query five seconds with two for the reply.
 
-| Key            | Label (en-US / zh-CN)           | Collector                                                                                                   | Result                                                                                                                                                                      |
-| -------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `installation` | Installation / 安装             | `status client`                                                                                             | fail: installation files `missing`, `invalid`, `denied`, `timed-out` or `io-error`; warning `delivery-unknown`: the installed release could not be verified                 |
-| `settings`     | Settings / 设置                 | the `user-config` row of `config check`                                                                     | that row's status; the reason is the failure's, or the first diagnostic's for a warning                                                                                     |
-| `records`      | Saved data / 已保存数据         | the `records` row of `config check`                                                                         | warning with the first record's problem (`newer-format` or `not-updated`)                                                                                                   |
-| `runtime`      | Runtime folder / 运行时目录     | the runtime folder report with the `runtime-base`, `runtime-directory` and `sockets` rows of `config check` | fail: an unsafe or unreadable path (`absent` explicit base, `invalid-path`, `io-error`, `unsafe`, `address-too-long`); warning: the first advisory while no Session answers |
-| `session`      | Session / 会话                  | `status server`                                                                                             | pass: running; warning: the Server `draining` or `stopping`; not-applicable: not running; fail: the refusal's reason, `timed-out`, or the failure kind                      |
-| `integrations` | Agent integrations / 智能体集成 | `agent integration list` for every provider                                                                 | warning `update-required` when a provider needs an update or repair, `home-unavailable` when the home folder cannot be read; otherwise pass                                 |
+| Key            | Label (en-US / zh-CN)       | Collector                                                                                                   | Result                                                                                                                                                                      |
+| -------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `installation` | Installation / 安装         | `status client`                                                                                             | fail: installation files `missing`, `invalid`, `denied`, `timed-out` or `io-error`; warning `delivery-unknown`: the installed release could not be verified                 |
+| `settings`     | Settings / 设置             | the `user-config` row of `config check`                                                                     | that row's status; the reason is the failure's, or the first diagnostic's for a warning                                                                                     |
+| `records`      | Saved data / 已保存数据     | the `records` row of `config check`                                                                         | warning with the first record's problem (`newer-format` or `not-updated`)                                                                                                   |
+| `runtime`      | Runtime folder / 运行时目录 | the runtime folder report with the `runtime-base`, `runtime-directory` and `sockets` rows of `config check` | fail: an unsafe or unreadable path (`absent` explicit base, `invalid-path`, `io-error`, `unsafe`, `address-too-long`); warning: the first advisory while no Session answers |
+| `session`      | Session / 会话              | `status server`                                                                                             | pass: running; warning: the Server `draining` or `stopping`; not-applicable: not running; fail: the refusal's reason, `timed-out`, or the failure kind                      |
 
-Integrations are opt-in, so a provider that is installed but not enabled passes. The runtime
+The runtime
 advisories (`activation-recorded`, `socket-residue`, `pipe-name-present`, `unrecognized-records`)
 describe what a running Session also leaves, so they warn only when the Session check is
 not-applicable. A check whose collector the platform lacks is `{"kind":"unsupported"}` in JSON and
@@ -59,31 +58,27 @@ failure shows its reason instead of the fact and may add one indented line with 
 The last line points to JSON:
 
 ```text
-Orchbee usable with 1 warning(s).
+Orchbee OK: all 5 checks passed.
 ok    Installation        0.1.0-beta.1 · stable · C:\Users\me\AppData\Local\Programs\Orchbee\orchbee.exe
 ok    Settings            C:\Users\me\.orchbee\config.toml
 ok    Saved data
 ok    Runtime folder      C:\Users\me\.orchbee\internal\runtime\default
 ok    Session             running · 0.1.0-beta.1
-warn  Agent integrations  codex needs an update
-      orchbee agent integration enable --provider codex
 Details: orchbee doctor --format json
 ```
 
 The verdicts are "Orchbee OK: all N checks passed.", "Orchbee usable with N warning(s)." and
 "Orchbee has problems: N check(s) failed." (zh-CN "Orchbee 正常：N 项检查全部通过。", "Orchbee 可用，有 N 项警告。"
 and "Orchbee 有问题：N 项检查失败。"), counting the checks this platform makes. A settings warning or
-failure adds `orchbee config check`; one provider that needs an update adds its `enable` command, several add
-`orchbee agent integration list --outdated-only`.
+failure adds `orchbee config check`.
 
 `orchbee.doctor` v1 is `{schema, version, source:{kind:"local-runtime"}, result:{ok, checks}}`.
-`checks` has the six keys, each `{status, reason, details}` or `{"kind":"unsupported"}`; `status`
+`checks` has the five keys, each `{status, reason, details}` or `{"kind":"unsupported"}`; `status`
 is `pass`, `warning`, `fail` or `not-applicable`; `reason` is a closed kebab-case token, null for a
 pass or a not-applicable Session; `details` are the collector's existing shapes moved in unchanged:
 the `orchbee.status.client` result, the `user-config` and `records` row details of
 `orchbee.config.check`, the runtime folder report, the `orchbee.status.server` result (or, for a
-failed Session check, the failure's details object), and the `orchbee.agent.integrations` result
-(null when the home folder cannot be read). `ok` is false only when a check failed.
+failed Session check, the failure's details object). `ok` is false only when a check failed.
 
 Exit codes: 0 when no check failed, warnings and a Session that is not running included; 1 when a
 check failed, with the document still on standard output and one line on standard error, as

@@ -98,10 +98,6 @@ impl super::CliText {
                 if let Some(selector) = candidate["selector"].as_str() {
                     text.push_str("  ");
                     text.push_str(&crate::cli_text::escape::unquoted(selector));
-                    if let Some(id) = candidate["sessionId"].as_str() {
-                        text.push_str("  --agent-session ");
-                        text.push_str(&crate::cli_text::escape::quoted(id));
-                    }
                     if let Some(id) = candidate["panelId"].as_str() {
                         text.push_str("  panel=");
                         text.push_str(&crate::cli_text::escape::unquoted(

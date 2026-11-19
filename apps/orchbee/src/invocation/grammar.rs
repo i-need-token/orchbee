@@ -44,7 +44,6 @@ const UNLISTED_OPTIONS: &[(&str, Unlisted)] = &[
     ("--cell-width", Unlisted::Everywhere),
     ("--cell-height", Unlisted::Everywhere),
     // Development and test overrides: the product supplies the adapter payload and the roots.
-    ("--adapter-source", Unlisted::Everywhere),
     ("--asset-root", Unlisted::Everywhere),
 ];
 
@@ -373,17 +372,12 @@ impl CommandSpec {
                 .string_rule(flag)
                 .is_none_or(|rule| rule.accepts(value));
             if !valid_string || (closed && !choices.contains(&value.as_str())) {
-                let expected = if *flag == "--provider" && values::start_only_provider(value) {
-                    ExpectedValue::StartOnlyProvider
-                } else {
-                    ExpectedValue::DeclaredValue
-                };
                 return Err(usage_with(
                     UsageReason::InvalidValue {
                         context,
                         option: flag,
                         value: value.clone(),
-                        expected,
+                        expected: ExpectedValue::DeclaredValue,
                     },
                     envelope,
                 ));

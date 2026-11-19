@@ -17,9 +17,7 @@
 			"required": [
 				"kind",
 				"confirmation",
-				"name",
 				"providerId",
-				"reservationId",
 				"elapsedMs",
 				"submission",
 				"interactiveReady",
@@ -55,12 +53,6 @@
 					},
 					"then": {
 						"properties": {
-							"name": {
-								"type": "null"
-							},
-							"reservationId": {
-								"type": "null"
-							},
 							"interactiveReady": {
 								"const": false
 							}
@@ -68,12 +60,6 @@
 					},
 					"else": {
 						"properties": {
-							"name": {
-								"$ref": "#/$defs/agentName"
-							},
-							"reservationId": {
-								"$ref": "#/$defs/hexId"
-							},
 							"interactiveReady": {
 								"const": true
 							}
@@ -126,28 +112,8 @@
 				"focus": {
 					"$ref": "#/$defs/focusMiss"
 				},
-				"name": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/agentName"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
 				"providerId": {
 					"$ref": "#/$defs/providerId"
-				},
-				"reservationId": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/hexId"
-						},
-						{
-							"type": "null"
-						}
-					]
 				},
 				"elapsedMs": {
 					"$ref": "#/$defs/safeInteger"
@@ -467,10 +433,6 @@
 					}
 				}
 			}
-		},
-		"agentName": {
-			"type": "string",
-			"pattern": "^[a-z][a-z0-9_-]{0,31}$"
 		},
 		"providerId": {
 			"type": "string",

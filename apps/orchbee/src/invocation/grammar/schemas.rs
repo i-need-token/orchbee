@@ -313,32 +313,12 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.agent.get.json"),
     ),
     (
-        "orchbee.agent.integration.mutation",
-        include_str!("../../cli/schemas/orchbee.agent.integration.mutation.json"),
-    ),
-    (
-        "orchbee.agent.integration.plan",
-        include_str!("../../cli/schemas/orchbee.agent.integration.plan.json"),
-    ),
-    (
-        "orchbee.agent.integrations",
-        include_str!("../../cli/schemas/orchbee.agent.integrations.json"),
-    ),
-    (
         "orchbee.agent.list",
         include_str!("../../cli/schemas/orchbee.agent.list.json"),
     ),
     (
         "orchbee.agent.prompt",
         include_str!("../../cli/schemas/orchbee.agent.prompt.json"),
-    ),
-    (
-        "orchbee.agent.resolve",
-        include_str!("../../cli/schemas/orchbee.agent.resolve.json"),
-    ),
-    (
-        "orchbee.agent.rename",
-        include_str!("../../cli/schemas/orchbee.agent.rename.json"),
     ),
     (
         "orchbee.cli.failure.agent-prompt",

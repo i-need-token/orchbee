@@ -57,13 +57,8 @@
 					"type": "object",
 					"required": [
 						"orchbee.agent.get",
-						"orchbee.agent.integration.mutation",
-						"orchbee.agent.integration.plan",
-						"orchbee.agent.integrations",
 						"orchbee.agent.list",
 						"orchbee.agent.prompt",
-						"orchbee.agent.rename",
-						"orchbee.agent.resolve",
 						"orchbee.agent.start",
 						"orchbee.agent.wait",
 						"orchbee.api.schema",
@@ -186,13 +181,8 @@
 		"schemaId": {
 			"enum": [
 				"orchbee.agent.get",
-				"orchbee.agent.integration.mutation",
-				"orchbee.agent.integration.plan",
-				"orchbee.agent.integrations",
 				"orchbee.agent.list",
 				"orchbee.agent.prompt",
-				"orchbee.agent.rename",
-				"orchbee.agent.resolve",
 				"orchbee.agent.start",
 				"orchbee.agent.wait",
 				"orchbee.api.schema",

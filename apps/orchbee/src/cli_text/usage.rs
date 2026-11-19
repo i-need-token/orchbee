@@ -342,12 +342,6 @@ impl super::CliText {
             }
             (Locale::EnUs, ExpectedValue::AgentName) => "a name matching [a-z][a-z0-9_-]{0,31}",
             (Locale::ZhCn, ExpectedValue::AgentName) => "符合 [a-z][a-z0-9_-]{0,31} 的名称",
-            (Locale::EnUs, ExpectedValue::AgentSessionId) => {
-                "an agent session identity (1–128 ASCII letters, digits, '.', '_', ':', '-')"
-            }
-            (Locale::ZhCn, ExpectedValue::AgentSessionId) => {
-                "一个智能体会话身份（1–128 个 ASCII 字母、数字、'.'、'_'、':'、'-'）"
-            }
             (Locale::EnUs, ExpectedValue::AgentTarget) => {
                 "an Agent session ID or name, a Panel ID, or @panel:0x<hex>; for a terminal, pass the Panel that shows it"
             }
@@ -370,10 +364,6 @@ impl super::CliText {
                 "a decimal integer from 0 to 9007199254740991"
             }
             (Locale::ZhCn, ExpectedValue::AgentAfterRevision) => "0–9007199254740991 的十进制整数",
-            (Locale::EnUs, ExpectedValue::StartOnlyProvider) => {
-                "a provider with an Orchbee integration"
-            }
-            (Locale::ZhCn, ExpectedValue::StartOnlyProvider) => "具有 Orchbee 集成的 provider",
             (Locale::EnUs, ExpectedValue::ProfileName) => {
                 "a nonempty launch profile name of at most 512 UTF-8 bytes"
             }
@@ -384,16 +374,6 @@ impl super::CliText {
             (Locale::ZhCn, ExpectedValue::ProfileSelector) => {
                 "精确 profile ID 或唯一匹配的名称（不超过 512 UTF-8 字节）"
             }
-            (Locale::EnUs, ExpectedValue::Provider) => {
-                "one of the supported provider ids ('orchbee agent integration list' names them)"
-            }
-            (Locale::ZhCn, ExpectedValue::Provider) => {
-                "受支持的 provider ID 之一（'orchbee agent integration list' 列出全部）"
-            }
-            (Locale::EnUs, ExpectedValue::AdapterSource) => {
-                "a literal absolute adapter-source directory path"
-            }
-            (Locale::ZhCn, ExpectedValue::AdapterSource) => "一个字面绝对 adapter-source 目录路径",
             (Locale::EnUs, ExpectedValue::CommandText) => {
                 "one non-empty UTF-8 command string within the 256 KiB paste and 64 KiB argv limits"
             }
@@ -563,27 +543,6 @@ impl super::CliText {
                 },
                 hint(*ctx),
             ),
-            UsageReason::InvalidValue {
-                context: ctx,
-                value,
-                expected: ExpectedValue::StartOnlyProvider,
-                ..
-            } => {
-                let integrated = crate::invocation::grammar::values::PROVIDER_VALUES.join(", ");
-                (
-                    match self.locale {
-                        Locale::EnUs => format!(
-                            "Agent {} has no Orchbee integration to check or manage; it can only be started. Agents with an integration: {integrated}.",
-                            echo(value)
-                        ),
-                        Locale::ZhCn => format!(
-                            "智能体 {} 没有可检查或管理的 Orchbee 集成，只能启动。具有集成的智能体：{integrated}。",
-                            echo(value)
-                        ),
-                    },
-                    hint(*ctx),
-                )
-            }
             UsageReason::InvalidValue {
                 context: ctx,
                 option,

@@ -134,13 +134,7 @@ fn current_panel_read_refuses_stale_location_instead_of_following_a_moved_panel(
 fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts() {
     let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
     let id = "00000000000000000000000000000007";
-    for selector in [
-        vec!["alpha"],
-        vec!["@panel:0x7"],
-        vec!["--name", "alpha"],
-        vec!["--agent-session", "sess-alpha"],
-        vec!["--panel", id],
-    ] {
+    for selector in [vec!["alpha"], vec!["@panel:0x7"], vec!["--panel", id]] {
         let mut words = vec!["agent", "focus"];
         words.extend(selector);
         let Request::Client {
@@ -173,9 +167,6 @@ fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts(
     for tail in [
         vec![],
         vec!["alpha", "beta"],
-        vec!["alpha", "--name", "alpha"],
-        vec!["--name", "alpha", "--panel", id],
-        vec!["--agent-session", "sess-alpha", "--name", "alpha"],
         vec!["alpha", "--current"],
         vec!["alpha", "--direction", "left"],
         vec!["alpha", "--wait"],

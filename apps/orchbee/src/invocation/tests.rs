@@ -136,8 +136,6 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
         "agent",
         "start",
         "codex",
-        "--name",
-        "alpha",
         "--timeout=3001",
         "--format=json",
         "--",
@@ -150,10 +148,6 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
     .unwrap() else {
         panic!("start");
     };
-    assert_eq!(
-        command.name.as_ref().map(|name| name.as_str()),
-        Some("alpha")
-    );
     assert_eq!(command.provider, "codex");
     assert_eq!(command.place, super::AgentStartPlace::NewTab);
     assert_eq!(command.timeout_ms, 3001);
@@ -166,7 +160,6 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
     };
     assert_eq!(command.timeout_ms, 30000);
     assert_eq!(command.args, ["", "--"]);
-    assert_eq!(command.name, None);
     // Each place flag selects its place; none selects a new Tab.
     for (flags, place) in [
         (&[][..], super::AgentStartPlace::NewTab),
@@ -306,77 +299,6 @@ use super::{
 
 fn parse(arguments: &[&str]) -> Result<Request, ParseFailure> {
     parse_request(arguments.iter().map(OsString::from))
-}
-
-#[test]
-fn agent_names_admit_one_selector_and_a_bounded_name_before_any_effect() {
-    use super::AgentNamesCommand;
-    use orchbee_agent_observation_protocol::{AgentName, AgentSessionId};
-    let session = AgentSessionId::parse("s1").unwrap();
-    let alias = AgentName::parse("alpha").unwrap();
-    for (words, command) in [
-        (
-            vec!["agent", "resolve", "s1"],
-            AgentNamesCommand::Resolve(AgentTarget::Auto {
-                target: session.clone(),
-            }),
-        ),
-        (
-            vec!["agent", "resolve", "--name=alpha"],
-            AgentNamesCommand::Resolve(AgentTarget::Name {
-                name: alias.clone(),
-            }),
-        ),
-        (
-            vec!["agent", "rename", "--agent-session=s1", "alpha"],
-            AgentNamesCommand::Assign {
-                target: AgentTarget::Session {
-                    session_id: session.clone(),
-                },
-                name: alias.clone(),
-            },
-        ),
-        (
-            vec!["agent", "rename", "--clear", "s1"],
-            AgentNamesCommand::Release(AgentTarget::Auto { target: session }),
-        ),
-    ] {
-        assert_eq!(
-            parse(&words),
-            Ok(Request::AgentNames {
-                command,
-                format: OutputFormat::Text
-            })
-        );
-    }
-    for words in [
-        vec!["agent", "rename", "s1", "Upper"],
-        vec!["agent", "rename", "s1", "two words"],
-        vec!["agent", "rename", "s1", "名字"],
-        vec!["agent", "rename", "s1", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
-        vec!["agent", "rename", "s1", "alpha", "--clear"],
-        vec!["agent", "resolve", "s1", "--name", "alpha"],
-        vec![
-            "agent",
-            "resolve",
-            "--agent-session",
-            "s1",
-            "--name",
-            "alpha",
-        ],
-        vec!["status", "--clear"],
-    ] {
-        assert!(parse(&words).is_err(), "{words:?}");
-    }
-    for (verb, path) in [
-        ("resolve", CommandPath::AgentResolve),
-        ("rename", CommandPath::AgentRename),
-    ] {
-        assert_eq!(
-            parse(&["agent", verb, "--help"]),
-            Ok(Request::Help(HelpTopic::Command(path)))
-        );
-    }
 }
 
 #[test]
@@ -2320,24 +2242,6 @@ fn joined_value_spelling_is_equivalent() {
         (
             &["agent", "wait", "a", "--after-revision", "7"][..],
             &["agent", "wait", "a", "--after-revision=7"][..],
-        ),
-        (
-            &[
-                "agent",
-                "integration",
-                "list",
-                "--provider",
-                "pi",
-                "--adapter-source",
-                "s",
-            ][..],
-            &[
-                "agent",
-                "integration",
-                "list",
-                "--provider=pi",
-                "--adapter-source=s",
-            ][..],
         ),
         // Repeatables accumulate identically in either spelling, mixed freely.
         (
@@ -5041,13 +4945,10 @@ fn agent_read_usage_failures() {
             value: "extra".to_owned(),
         }
     );
-    assert_eq!(
+    assert!(matches!(
         usage_reason(&["agent", "get"]),
-        UsageReason::MissingRequired {
-            context: path("agent get"),
-            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector> or --terminal <id|selector>",
-        }
-    );
+        UsageReason::MissingRequired { context, .. } if context == path("agent get")
+    ));
     assert_eq!(
         usage_reason(&["agent", "explain", "a"]),
         UsageReason::UnknownCommand {
@@ -5299,13 +5200,10 @@ fn agent_wait_usage_failures() {
     };
     let path = |spelling: &'static str| UsageContext::Path(spelling);
 
-    assert_eq!(
+    assert!(matches!(
         usage_reason(&["agent", "wait"]),
-        UsageReason::MissingRequired {
-            context: path("agent wait"),
-            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector> or --terminal <id|selector>",
-        }
-    );
+        UsageReason::MissingRequired { context, .. } if context == path("agent wait")
+    ));
     assert_eq!(
         usage_reason(&["agent", "wait", "a", "b"]),
         UsageReason::UnexpectedArgument {
@@ -5447,241 +5345,6 @@ fn agent_help_paths_resolve() {
             parse(&["help", "agent", verb]),
             Ok(Request::Help(HelpTopic::Command(command))),
             "help agent {verb}"
-        );
-    }
-}
-
-/// `agent integration` parses the four local provider-onboarding commands;
-/// `explain`/`enable`/`disable` owe `--provider`, `list` accepts it as a
-/// filter, and `--adapter-source` must be a literal absolute path.
-#[test]
-fn agent_integration_commands_parse() {
-    use crate::agent_integrations::IntegrationId;
-    use crate::invocation::AgentIntegrationCommand;
-    let integration = |command: AgentIntegrationCommand| Request::AgentIntegration {
-        command,
-        format: OutputFormat::Text,
-    };
-    assert_eq!(
-        parse(&["agent", "integration", "list"]),
-        Ok(integration(AgentIntegrationCommand::List {
-            outdated_only: false,
-            provider: None,
-            adapter_source: None,
-        }))
-    );
-    assert_eq!(
-        parse(&[
-            "agent",
-            "integration",
-            "list",
-            "--provider",
-            "codex",
-            "--format",
-            "json",
-        ]),
-        Ok(Request::AgentIntegration {
-            command: AgentIntegrationCommand::List {
-                outdated_only: false,
-                provider: Some(IntegrationId::Codex),
-                adapter_source: None,
-            },
-            format: OutputFormat::Json,
-        })
-    );
-    assert_eq!(
-        parse(&["agent", "integration", "list", "--outdated-only"]),
-        Ok(integration(AgentIntegrationCommand::List {
-            outdated_only: true,
-            provider: None,
-            adapter_source: None
-        }))
-    );
-    for args in [
-        vec![
-            "agent",
-            "integration",
-            "enable",
-            "--provider",
-            "codex",
-            "--outdated-only",
-        ],
-        vec!["agent", "list", "--outdated-only"],
-        vec![
-            "agent",
-            "integration",
-            "list",
-            "--outdated-only",
-            "--outdated-only",
-        ],
-    ] {
-        assert!(parse(&args).is_err(), "{args:?}");
-    }
-    for (verb, provider) in [
-        ("explain", "claude-code"),
-        ("enable", "github-copilot"),
-        ("disable", "qwen-code"),
-    ] {
-        let parsed = parse(&["agent", "integration", verb, "--provider", provider]);
-        let Request::AgentIntegration { command, .. } = parsed.expect(verb) else {
-            panic!("{verb} must resolve to an integration command")
-        };
-        let (id, ..) = match command {
-            AgentIntegrationCommand::Explain {
-                provider,
-                adapter_source,
-            }
-            | AgentIntegrationCommand::Enable {
-                provider,
-                adapter_source,
-            }
-            | AgentIntegrationCommand::Disable {
-                provider,
-                adapter_source,
-            } => (provider, adapter_source),
-            other => panic!("{verb} resolved to {other:?}"),
-        };
-        assert_eq!(id.as_str(), provider, "{verb} --provider");
-    }
-    let source = if cfg!(windows) {
-        r"C:\adapters"
-    } else {
-        "/tmp/adapters"
-    };
-    assert_eq!(
-        parse(&[
-            "agent",
-            "integration",
-            "explain",
-            "--provider",
-            "omp",
-            "--adapter-source",
-            source,
-        ]),
-        Ok(integration(AgentIntegrationCommand::Explain {
-            provider: IntegrationId::Omp,
-            adapter_source: Some(std::path::PathBuf::from(source)),
-        }))
-    );
-}
-
-/// The integration grammar rejects everything outside its declared shape:
-/// missing verbs, extra positionals, out-of-scope flags, an absent or
-/// invalid `--provider`, and a relative `--adapter-source`.
-#[test]
-fn agent_integration_commands_fail_closed() {
-    for arguments in [
-        // Bare sub-family owes a verb.
-        &["agent", "integration"][..],
-        // Unknown verbs and extra positionals.
-        &["agent", "integration", "bogus"][..],
-        &["agent", "integration", "list", "extra"][..],
-        // `explain`/`enable`/`disable` owe `--provider`.
-        &["agent", "integration", "explain"][..],
-        &["agent", "integration", "enable"][..],
-        &["agent", "integration", "disable"][..],
-        // An unknown provider id is a missing/invalid value, not a topic.
-        &["agent", "integration", "enable", "--provider", "bogus"][..],
-        // `--provider` is single-use and owes its value.
-        &["agent", "integration", "list", "--provider"][..],
-        &[
-            "agent",
-            "integration",
-            "list",
-            "--provider",
-            "codex",
-            "--provider",
-            "pi",
-        ][..],
-        // `--adapter-source` must be absolute and is single-use.
-        &[
-            "agent",
-            "integration",
-            "list",
-            "--adapter-source",
-            "relative/dir",
-        ][..],
-        &[
-            "agent",
-            "integration",
-            "list",
-            "--adapter-source",
-            "/a",
-            "--adapter-source",
-            "/b",
-        ][..],
-        // Out-of-scope business flags.
-        &["agent", "integration", "list", "--confirm"][..],
-        &["agent", "integration", "list", "--project", "x"][..],
-        &[
-            "agent",
-            "integration",
-            "enable",
-            "--provider",
-            "pi",
-            "--label",
-            "x",
-        ][..],
-        &["agent", "integration", "list", "--include-ended"][..],
-        // A joined spelling on an undeclared name is not a known option.
-        &["agent", "integration", "list", "--bogus=codex"][..],
-        // `--mouse` belongs to `tui` alone.
-        &["agent", "integration", "list", "--mouse"][..],
-    ] {
-        assert_eq!(
-            parse(arguments),
-            Err(usage(FailureEnvelope::Text)),
-            "{arguments:?}"
-        );
-    }
-    // `--format` still applies on the mutation surface.
-    assert_eq!(
-        parse(&[
-            "--format",
-            "json",
-            "agent",
-            "integration",
-            "enable",
-            "--provider",
-            "pi",
-        ]),
-        Ok(Request::AgentIntegration {
-            command: crate::invocation::AgentIntegrationCommand::Enable {
-                provider: crate::agent_integrations::IntegrationId::Pi,
-                adapter_source: None,
-            },
-            format: OutputFormat::Json,
-        })
-    );
-}
-
-/// `agent integration` help resolves on both surfaces for the sub-family
-/// and each of its four commands.
-#[test]
-fn agent_integration_help_paths_resolve() {
-    assert_eq!(
-        parse(&["agent", "integration", "--help"]),
-        Ok(Request::Help(HelpTopic::Family(Family::AgentIntegration)))
-    );
-    assert_eq!(
-        parse(&["help", "agent", "integration"]),
-        Ok(Request::Help(HelpTopic::Family(Family::AgentIntegration)))
-    );
-    for (verb, command) in [
-        ("list", CommandPath::AgentIntegrationList),
-        ("explain", CommandPath::AgentIntegrationExplain),
-        ("enable", CommandPath::AgentIntegrationEnable),
-        ("disable", CommandPath::AgentIntegrationDisable),
-    ] {
-        assert_eq!(
-            parse(&["agent", "integration", verb, "--help"]),
-            Ok(Request::Help(HelpTopic::Command(command))),
-            "agent integration {verb} --help"
-        );
-        assert_eq!(
-            parse(&["help", "agent", "integration", verb]),
-            Ok(Request::Help(HelpTopic::Command(command))),
-            "help agent integration {verb}"
         );
     }
 }
@@ -6031,51 +5694,27 @@ fn workspace_launch_preserves_launch_values_in_the_platform_workflow() {
 }
 
 #[test]
-fn agent_read_targets_accept_exactly_one_auto_session_or_name_selector() {
-    use orchbee_agent_observation_protocol::{AgentName, AgentSessionId};
+fn agent_read_targets_accept_one_positional_target() {
+    use orchbee_agent_observation_protocol::AgentSessionId;
     for verb in ["get", "wait"] {
-        for (args, expected) in [
-            (
-                vec!["alpha"],
-                AgentTarget::Auto {
-                    target: AgentSessionId::parse("alpha").unwrap(),
-                },
-            ),
-            (
-                vec!["--agent-session", "alpha"],
-                AgentTarget::Session {
-                    session_id: AgentSessionId::parse("alpha").unwrap(),
-                },
-            ),
-            (
-                vec!["--name=alpha"],
-                AgentTarget::Name {
-                    name: AgentName::parse("alpha").unwrap(),
-                },
-            ),
-        ] {
-            let parsed = parse(&[vec!["agent", verb], args].concat()).unwrap();
-            let Request::Query { command, .. } = parsed else {
-                panic!("query");
-            };
-            let target = match command {
-                QueryCommand::AgentGet(target)
-                | QueryCommand::AgentWait {
-                    session: target, ..
-                } => target,
-                _ => panic!("target query"),
-            };
-            assert_eq!(target, expected);
-        }
-        for args in [
-            vec!["alpha", "--name", "beta"],
-            vec!["--name", "alpha", "--agent-session", "beta"],
-            vec!["--name", "Upper"],
-            vec!["--agent-session", "bad id"],
-            vec!["--name", "alpha", "extra"],
-        ] {
-            assert!(parse(&[vec!["agent", verb], args].concat()).is_err());
-        }
+        let parsed = parse(&["agent", verb, "alpha"]).unwrap();
+        let Request::Query { command, .. } = parsed else {
+            panic!("query");
+        };
+        let target = match command {
+            QueryCommand::AgentGet(target)
+            | QueryCommand::AgentWait {
+                session: target, ..
+            } => target,
+            _ => panic!("target query"),
+        };
+        assert_eq!(
+            target,
+            AgentTarget::Auto {
+                target: AgentSessionId::parse("alpha").unwrap(),
+            }
+        );
+        assert!(parse(&["agent", verb, "alpha", "extra"]).is_err());
     }
 }
 
@@ -6159,16 +5798,9 @@ fn projection_selectors_share_one_grammar_across_agent_operations() {
 
 #[test]
 fn agent_terminal_grammar_validates_all_keys_and_exclusive_targets_before_effects() {
-    let command = parse(&[
-        "agent",
-        "send-keys",
-        "--name",
-        "alpha",
-        "enter",
-        "ctrl+shift+a",
-    ]);
+    let command = parse(&["agent", "send-keys", "alpha", "enter", "ctrl+shift+a"]);
     assert!(matches!(command, Ok(Request::Mutation {
-        command: MutationCommand::AgentSendKeys { target: AgentTarget::Name { .. }, keys }, ..
+        command: MutationCommand::AgentSendKeys { target: AgentTarget::Auto { .. }, keys }, ..
     }) if keys.len() == 2));
     assert!(matches!(
         parse(&[
@@ -6195,16 +5827,6 @@ fn agent_terminal_grammar_validates_all_keys_and_exclusive_targets_before_effect
     for words in [
         vec!["agent", "send-keys", "alpha"],
         vec!["agent", "send-keys", "alpha", "enter", "not-a-key"],
-        vec![
-            "agent",
-            "send-keys",
-            "--name",
-            "alpha",
-            "--agent-session",
-            "s1",
-            "enter",
-        ],
-        vec!["agent", "read", "alpha", "--name", "beta"],
         vec!["agent", "read", "alpha", "--rows", "20"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
@@ -6242,7 +5864,7 @@ fn terminal_and_agent_send_share_extended_keys_and_reject_partial_invalid_sequen
 #[test]
 fn prompt_grammar_keeps_text_literal_and_wait_options_explicit() {
     assert!(
-        matches!(parse(&["agent", "prompt", "--name", "alpha", "line one\nline two", "--wait", "--until", "succeeded", "--timeout", "1234"]),
+        matches!(parse(&["agent", "prompt", "alpha", "line one\nline two", "--wait", "--until", "succeeded", "--timeout", "1234"]),
         Ok(Request::Mutation { command: MutationCommand::AgentPrompt { text, wait: Some(wait), .. }, .. }) if text == "line one\nline two" && wait.timeout_ms == Some(crate::invocation::AgentWaitTimeout::Milliseconds(1234)))
     );
     for words in [
@@ -6310,7 +5932,7 @@ fn infinite_agent_wait_is_explicit_and_rejects_conflicting_or_unscoped_flags() {
 #[test]
 fn agent_panel_selectors_are_exclusive_and_preserve_following_operands() {
     let panel = "22222222222222222222222222222222";
-    for verb in ["get", "wait", "read", "resolve"] {
+    for verb in ["get", "wait", "read"] {
         let parsed = parse_request(
             ["agent", verb, "--panel", panel]
                 .into_iter()
@@ -6318,20 +5940,14 @@ fn agent_panel_selectors_are_exclusive_and_preserve_following_operands() {
         )
         .unwrap();
         assert!(!matches!(parsed, Request::Help { .. }));
-        for extra in [
-            ["--agent-session", "sess"],
-            ["--name", "alpha"],
-            [panel, "extra"],
-        ] {
-            assert!(
-                parse_request(
-                    ["agent", verb, "--panel", panel, extra[0], extra[1]]
-                        .into_iter()
-                        .map(OsString::from)
-                )
-                .is_err()
-            );
-        }
+        assert!(
+            parse_request(
+                ["agent", verb, "--panel", panel, panel, "extra"]
+                    .into_iter()
+                    .map(OsString::from)
+            )
+            .is_err()
+        );
         assert!(
             parse_request(
                 ["agent", verb, "--panel", "label"]
@@ -6366,8 +5982,6 @@ fn agent_panel_selectors_are_exclusive_and_preserve_following_operands() {
             "@terminal:0x33333333333333333333333333333333",
             "enter",
         ],
-        vec!["agent", "rename", "--panel", panel, "alpha"],
-        vec!["agent", "rename", "--panel", panel, "--clear"],
     ] {
         assert!(parse_request(words.into_iter().map(OsString::from)).is_ok());
     }
@@ -6711,7 +6325,6 @@ fn named_session_selection_preserves_complete_grammar_and_value_ownership() {
         "work",
         "agent",
         "get",
-        "--agent-session",
         "00000000000000000000000000000001",
     ]);
     let agent = agent.unwrap();
@@ -6719,9 +6332,9 @@ fn named_session_selection_preserves_complete_grammar_and_value_ownership() {
     assert!(matches!(
         agent.request,
         Request::Query {
-            command: QueryCommand::AgentGet(AgentTarget::Session { session_id }),
+            command: QueryCommand::AgentGet(AgentTarget::Auto { target }),
             ..
-        } if session_id.as_str() == "00000000000000000000000000000001"
+        } if target.as_str() == "00000000000000000000000000000001"
     ));
     // A runtime selector alone must not become an Agent target.
     assert!(parse(&["--session", "work", "agent", "get"]).is_err());

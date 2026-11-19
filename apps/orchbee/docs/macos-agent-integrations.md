@@ -1,13 +1,13 @@
 # macOS Agent integrations
 
-`orchbee agent integration list/explain/enable/disable --provider <id>` manages the
+The dormant macOS writer manages the
 configuration-hook providers Cursor (`cursor`), Qoder CLI (`qodercli`), Antigravity CLI
 (`antigravity-cli`), Mastracode (`mastracode`), Droid (`droid`), Kimi (`kimi`), Letta (`letta`)
 and Devin (`devin`), and the Hermes session plugin (`hermes`), on macOS as on Windows. The
 document grammar, ownership proofs, byte-preserving edits and refusals are the ones the
 [Windows integration contract](windows-agent-integrations.md) describes; this page owns what
 differs on macOS: where each provider keeps its configuration, the hook command, and how a file
-is replaced. `agent integration list --outdated-only` filters the same inspection as on Windows.
+is replaced. The removed `--outdated-only` filter read the same inspection as on Windows. No command reaches the list, explain, enable or disable operations in this release; uninstall still disables entries an earlier version wrote.
 
 Linux compiles the same adapter and locations, but they are not verified there, so these nine
 providers stay manual-only on Linux. Kilo stays manual-only on every platform but Windows.
@@ -108,12 +108,12 @@ user files stay.
 
 ## Finding Agent programs
 
-`enable`, `disable`, and the Agents page of Settings in either Client, run on the Session's Worker.
+The removed `enable`, `disable` and Settings page ran on the Session's Worker.
 A Session that the window started from Finder or the Dock inherits launchd's `PATH`, which has none
 of the folders a profile adds, so the Worker first searches the `PATH` a new terminal's login shell
 leaves, then its own, and starts every provider command with both; the
 [Worker's integration job](../../orchbee-worker/README.md#agent-integration-job) owns the lookup.
-`list` and `agent integration explain` run in the CLI's own process and search only its `PATH`,
+The removed `list` and `explain` ran in the CLI's own process and searched only its `PATH`,
 which the terminal it runs in has set the same way. The CLI does not run that login-shell lookup,
 because an interactive shell takes the controlling terminal the command shares with its caller.
 

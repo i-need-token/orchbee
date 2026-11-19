@@ -4,14 +4,11 @@ use super::{ClientActionDisposition, ModalPresentation, WorkbenchClientUi, Workb
 use crate::{
     client_view::KeyEvent,
     native_settings::{
-        Edit, Editor, JobEnd, Row, SettingsDraw, SettingsInputContext, Submission, Token, View,
-        key_edit, key_edit_for_view,
+        Edit, Editor, Row, SettingsDraw, SettingsInputContext, Submission, Token, View, key_edit,
+        key_edit_for_view,
     },
     tui_presentation::{GeometrySettlement, PresentationPhase},
-    workbench_client::{
-        integration_lane::Lane as IntegrationLane,
-        settings_lane::{Job, Lane},
-    },
+    workbench_client::settings_lane::{Job, Lane},
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, SessionId, SettingsOperation, SettingsOutcome, SettingsRefusal,
@@ -53,8 +50,6 @@ pub(super) struct Coordinator {
     pub(super) editor: Editor,
     origin: Option<crate::local_client::LocalClientOrigin>,
     lane: Option<Lane>,
-    /// Created by the first integration job; tied to that job's Session.
-    integrations: Option<IntegrationLane>,
     session: Option<SessionId>,
     serial: u64,
     saving: bool,
@@ -72,17 +67,12 @@ impl Coordinator {
         }
     }
     pub(super) fn set_origin(&mut self, origin: crate::local_client::LocalClientOrigin) {
-        // Integration management runs on the origin's Worker; remote hosts stay manual.
-        self.editor.configure_integrations(origin.is_local());
         self.origin = Some(origin);
     }
     pub(super) fn close(&mut self) {
         self.editor.edit(Edit::Cancel);
         if let Some(mut lane) = self.lane.take() {
             lane.close();
-        }
-        if let Some(end) = self.integrations.take().and_then(|mut lane| lane.abandon()) {
-            self.editor.settle_integration(end);
         }
     }
     pub(super) fn clear_notice(&mut self) {
@@ -253,7 +243,6 @@ impl WorkbenchClientUi {
             let saving = self.settings.editor.in_flight();
             self.settings.close();
             self.settings.editor.retire();
-            self.settings.editor.reset_integrations();
             self.settings.started = None;
             self.settings.pending = false;
             self.settings.observed_revision = None;
@@ -331,7 +320,6 @@ impl WorkbenchClientUi {
         if let Some(snapshot) = self.settings.lane.as_ref().and_then(Lane::take_observation) {
             changed |= self.settings.observe_snapshot(snapshot);
         }
-        changed |= self.drive_integrations();
         let Some(reply) = self.settings.lane.as_ref().and_then(Lane::take) else {
             return changed;
         };
@@ -372,52 +360,6 @@ impl WorkbenchClientUi {
         if let Some(notice) = self.settings.editor.take_notice() {
             self.settings.note(notice);
         }
-    }
-    /// Submits the job the page admitted and settles whatever ended, even while Settings is
-    /// closed. A job of another Session is no longer followed.
-    fn drive_integrations(&mut self) -> bool {
-        let session = self
-            .state
-            .as_ref()
-            .map(|state| state.cache().session_id().clone());
-        let mut changed = false;
-        if self
-            .settings
-            .integrations
-            .as_ref()
-            .is_some_and(|lane| Some(lane.session()) != session.as_ref())
-        {
-            self.settings.integrations = None;
-            self.settings.editor.reset_integrations();
-            changed = true;
-        }
-        if let Some(job) = self.settings.editor.take_integration_job() {
-            let end = match (self.settings.origin.clone(), session) {
-                (Some(origin), Some(session)) if origin.is_local() => self
-                    .settings
-                    .integrations
-                    .get_or_insert_with(|| {
-                        IntegrationLane::new(origin, self.clock.clone(), session)
-                    })
-                    .start(job),
-                _ => Some(JobEnd::Exchange {
-                    started: false,
-                    submitted: false,
-                }),
-            };
-            if let Some(end) = end {
-                changed |= self.settings.editor.settle_integration(end);
-            }
-        }
-        if let Some(end) = self
-            .settings
-            .integrations
-            .as_mut()
-            .and_then(IntegrationLane::poll)
-        {
-            changed |= self.settings.editor.settle_integration(end);
-        }
-        changed
     }
     fn finish_settings(&mut self, token: Token, outcome: SettingsOutcome) {
         match outcome {

@@ -9,7 +9,7 @@
 //! and source queries, `project close-all`, the unified Agent projection with per-Client
 //! attention, Client control, configured commands, Panel graphics, the runtime status reads
 //! with the processes its managed Session reports, the diagnostic bundle, schema export, the
-//! Agent detection rule commands, the outdated integration filter, the Panel, Workspace,
+//! Agent detection rule commands, the Panel, Workspace,
 //! notification, title and configuration reports, the extended creation and move options, the
 //! enriched Workbench inspection, `terminal run` with its managed-shell wait, `terminal clear`,
 //! `panel create-terminal`, layout export and apply, the terminal streams: `terminal attach`,
@@ -34,7 +34,6 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::DiagnosticBundle
         | Capability::SchemaPublication
         | Capability::AgentManifests
-        | Capability::IntegrationOutdated
         | Capability::Reports
         | Capability::ExtendedCreation
         | Capability::ExtendedWorkbenchMutation
@@ -53,7 +52,6 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         Capability::WorkbenchMutation
         | Capability::CanonicalPanelProcess
         | Capability::CanonicalAgentRead
-        | Capability::AgentNames
         | Capability::RetainedCloseOperation
         | Capability::CanonicalWorkbenchRead
         | Capability::RuntimeInspection
@@ -68,7 +66,6 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         Capability::WorkbenchMutation
         | Capability::CanonicalPanelProcess
         | Capability::CanonicalAgentRead
-        | Capability::AgentNames
         | Capability::RetainedCloseOperation
         | Capability::CanonicalWorkbenchRead
         | Capability::RuntimeInspection
@@ -78,7 +75,6 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::ClientViewRead
         | Capability::TerminalRun
         | Capability::ExtendedWorkbenchMutation
-        | Capability::IntegrationOutdated
         | Capability::Reports
         | Capability::AgentManifests
         | Capability::RuntimeStatus

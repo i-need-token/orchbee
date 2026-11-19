@@ -119,7 +119,6 @@ pub(crate) enum ExpectedValue {
     ExecutableOnPath,
     LaunchArguments,
     LaunchEnvironment,
-    AgentSessionId,
     /// A positional Agent target: session ID or name, Panel ID or selector.
     AgentTarget,
     AgentName,
@@ -132,19 +131,12 @@ pub(crate) enum ExpectedValue {
     /// The `agent wait --after-revision` operand: a nonnegative
     /// safe-integer global runtime revision.
     AgentAfterRevision,
-    /// An integration-scoped `--provider` named a canonical Agent that Orchbee
-    /// can only start: it has no integration to check or manage.
-    StartOnlyProvider,
     /// The `launch-profile create --name` value: a required non-unique
     /// catalog name, 1..=512 UTF-8 bytes.
     ProfileName,
     /// A `launch-profile` selector or `--profile` value: id-first exact
     /// then name cardinality, 1..=512 UTF-8 bytes.
     ProfileSelector,
-    /// `agent integration --provider <id>`: the closed provider vocabulary.
-    Provider,
-    /// `agent integration --adapter-source <abs>`: a literal absolute path.
-    AdapterSource,
     /// The `operation resume --generation` operand: the caller's
     /// last-observed nonzero attempt generation, canonical decimal text.
     CloseGeneration,

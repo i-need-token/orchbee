@@ -25,13 +25,9 @@ fn here() -> Placed {
     }
 }
 
-fn report(receipt: &Value, state: ReservationState, verdict: Verdict) -> Report {
+fn report(receipt: &Value, verdict: Verdict) -> Report {
     Report {
-        name: Some(AgentName::parse("alpha").unwrap()),
         provider: AgentProviderId::parse("codex").unwrap(),
-        reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
-        last_observed: None,
-        reservation_state: state,
         submission: Some(receipt.clone()),
         submission_status: Some(0),
         elapsed_ms: 1,
@@ -188,7 +184,7 @@ fn every_non_success_send_receipt_keeps_its_cli_status_and_exact_envelope() {
 }
 
 #[test]
-fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() {
+fn startup_outputs_preserve_delivery_facts_under_both_locales() {
     let receipt = super::super::send::test_receipt(TerminalSendOutcome::Accepted {
         progress: SendProgress::complete(2, 10),
         cleanup: SendCleanupStatus::Confirmed,
@@ -206,27 +202,14 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
     )
     .unwrap();
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for (kind, reason, state) in [
-            (
-                FailureKind::Timeout,
-                "start-deadline",
-                ReservationState::Pending,
-            ),
-            (
-                FailureKind::Cancelled,
-                "cancelled",
-                ReservationState::Released,
-            ),
-            (
-                FailureKind::OutcomeUnknown,
-                "reply-not-confirmed",
-                ReservationState::Unknown,
-            ),
+        for (kind, reason) in [
+            (FailureKind::Timeout, "start-deadline"),
+            (FailureKind::Cancelled, "cancelled"),
+            (FailureKind::OutcomeUnknown, "reply-not-confirmed"),
         ] {
             let answer = project(
                 report(
                     &receipt,
-                    state,
                     Verdict::Failed {
                         failure: super::failure(kind, reason),
                         reason: reason.to_owned(),
@@ -241,10 +224,6 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
             let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
             assert!(failure_schema.is_valid(&document), "{document}");
             assert_eq!(document["failure"]["details"]["submission"], receipt);
-            assert_eq!(
-                document["failure"]["details"]["reservationState"],
-                state.as_str()
-            );
             assert_eq!(answer.status, kind.exit_code());
             assert!(answer.stderr.contains(if locale == Locale::EnUs {
                 "No process was terminated"
@@ -255,7 +234,6 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
         let answer = project(
             report(
                 &receipt,
-                ReservationState::Completed,
                 Verdict::Started {
                     session: AgentSessionId::parse("s1").unwrap(),
                 },
@@ -274,7 +252,6 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
         let answer = project(
             report(
                 &receipt,
-                ReservationState::Released,
                 Verdict::Observed {
                     panel: orchbee_workbench_protocol::WorkbenchPanelId::parse(&"a".repeat(32))
                         .unwrap(),
@@ -292,17 +269,14 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
         assert!(document["result"].get("sessionId").is_none());
         assert_eq!(document["result"]["submission"], receipt);
 
-        // A start without a name reserves nothing and promises no ready Agent.
-        let mut sent = report(
+        // A start reserves nothing and promises no ready Agent.
+        let sent = report(
             &receipt,
-            ReservationState::None,
             Verdict::Sent {
                 panel: orchbee_workbench_protocol::WorkbenchPanelId::parse(&"a".repeat(32))
                     .unwrap(),
             },
         );
-        sent.name = None;
-        sent.reservation = None;
         let answer = project(sent, &here(), OutputFormat::Json, locale, None);
         assert_eq!(answer.status, 0);
         let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
@@ -319,7 +293,6 @@ fn finish_boundary_replacement_retains_only_the_workflow_read_cause() {
     let read_cause = serde_json::json!({"kind":"transport-loss", "stage":"agent-read"});
     let mut retained = report(
         &receipt,
-        ReservationState::Pending,
         Verdict::Failed {
             failure: super::failure(FailureKind::Timeout, "start-deadline"),
             reason: "start-deadline".into(),
@@ -334,7 +307,6 @@ fn finish_boundary_replacement_retains_only_the_workflow_read_cause() {
 
     let mut upstream = report(
         &receipt,
-        ReservationState::None,
         Verdict::Failed {
             failure: Failure::new(FailureKind::TransportLoss)
                 .details(super::super::stage_details("admission")),
@@ -349,9 +321,8 @@ fn finish_boundary_replacement_retains_only_the_workflow_read_cause() {
     assert_eq!(cause, None);
 }
 
-fn command(place: AgentStartPlace, name: Option<&str>, args: &[&str]) -> AgentStartCommand {
+fn command(place: AgentStartPlace, args: &[&str]) -> AgentStartCommand {
     AgentStartCommand {
-        name: name.map(|name| AgentName::parse(name).unwrap()),
         provider: "codex".into(),
         place,
         panel: None,
@@ -383,7 +354,7 @@ fn own_panel_here_is_refused_from_the_caller_context_alone() {
         _ => None,
     };
     // `--here` aimed at the caller's own Panel is decided before any runtime is discovered.
-    let Err(refused) = reference(&command(AgentStartPlace::Here, None, &[]), caller) else {
+    let Err(refused) = reference(&command(AgentStartPlace::Here, &[]), caller) else {
         panic!("--here without --panel names the caller's own Panel")
     };
     assert_eq!(refused.kind, FailureKind::InvalidUsage);
@@ -392,7 +363,7 @@ fn own_panel_here_is_refused_from_the_caller_context_alone() {
         serde_json::json!("own-panel")
     );
     // An explicit Panel is compared with the caller's own once the Snapshot resolves both.
-    let mut explicit = command(AgentStartPlace::Here, None, &[]);
+    let mut explicit = command(AgentStartPlace::Here, &[]);
     explicit.panel = Some(crate::invocation::Target::Id("a".repeat(32)));
     assert!(reference(&explicit, caller).unwrap().caller.is_some());
     // Every other place takes the caller's own Panel as its reference.
@@ -402,7 +373,7 @@ fn own_panel_here_is_refused_from_the_caller_context_alone() {
         AgentStartPlace::SplitDown,
     ] {
         assert!(
-            reference(&command(place, None, &[]), caller)
+            reference(&command(place, &[]), caller)
                 .unwrap()
                 .caller
                 .is_none()
@@ -418,14 +389,10 @@ fn only_an_exact_catalog_start_in_a_new_panel_runs_as_the_first_command() {
         AgentStartPlace::SplitDown,
         AgentStartPlace::Here,
     ] {
-        for (name, args) in [
-            (None, &[][..]),
-            (None, &["--model", "o3"][..]),
-            (Some("alpha"), &[][..]),
-        ] {
-            let first = first_command(&command(place, name, args));
-            let expected = place != AgentStartPlace::Here && name.is_none() && args.is_empty();
-            assert_eq!(first.is_some(), expected, "{place:?} {name:?} {args:?}");
+        for args in [&[][..], &["--model", "o3"][..]] {
+            let first = first_command(&command(place, args));
+            let expected = place != AgentStartPlace::Here && args.is_empty();
+            assert_eq!(first.is_some(), expected, "{place:?} {args:?}");
             if let Some(selector) = first {
                 assert_eq!(selector.agent().id(), "codex");
             }
@@ -448,11 +415,7 @@ fn new_panel_outcomes_name_their_place_under_both_locales() {
         focus: None,
     };
     let unnamed = |submission: Option<Value>, verdict| Report {
-        name: None,
         provider: AgentProviderId::parse("codex").unwrap(),
-        reservation: None,
-        last_observed: None,
-        reservation_state: ReservationState::None,
         submission,
         submission_status: None,
         elapsed_ms: 1,
@@ -508,7 +471,6 @@ fn new_panel_outcomes_name_their_place_under_both_locales() {
         // A later failure keeps the new Panel and says so.
         let mut failed = report(
             &receipt,
-            ReservationState::Released,
             Verdict::Failed {
                 failure: super::failure(FailureKind::Timeout, "start-deadline"),
                 reason: "start-deadline".into(),

@@ -1,7 +1,5 @@
 export { enUSApplicationRoutingMessages } from './application-routing';
 export type { ApplicationRoutingMessageId } from './application-routing';
-export { enUSAgentIntegrationMessages } from './agent-integrations';
-export type { AgentIntegrationMessageId } from './agent-integrations';
 export { enUSAgentObservationMessages } from './agent-observation';
 export type { AgentObservationMessageId } from './agent-observation';
 export { enUSAgentStartMessages } from './agent-start';

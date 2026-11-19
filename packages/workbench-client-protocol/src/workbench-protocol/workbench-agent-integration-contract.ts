@@ -17,7 +17,7 @@ const MAXIMUM_BUDGET_MILLISECONDS = 40_000;
 const utf8 = new TextEncoder();
 
 /** Provider-registry spellings in registry order, the only integration vocabulary on the wire. */
-export const AGENT_INTEGRATION_PROVIDERS = [
+const AGENT_INTEGRATION_PROVIDERS = [
 	'claude-code',
 	'codex',
 	'grok',

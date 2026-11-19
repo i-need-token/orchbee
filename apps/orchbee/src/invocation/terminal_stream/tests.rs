@@ -23,8 +23,6 @@ fn attach_targets_are_explicit_and_options_are_scoped_before_effects() {
     assert!(matches!(command.target, AttachTarget::Terminal(_)));
     for words in [
         vec!["agent", "attach", "alpha"],
-        vec!["agent", "attach", "--name=alpha"],
-        vec!["agent", "attach", "--agent-session=session-1"],
         vec!["agent", "attach", "--panel=@panel:0xab"],
     ] {
         let Request::TerminalAttach { command } = parse(&words).unwrap() else {
@@ -50,14 +48,9 @@ fn attach_targets_are_explicit_and_options_are_scoped_before_effects() {
         vec!["terminal", "attach", "@terminal:0xab", "--timeout=0"],
         vec!["terminal", "attach", "@terminal:0xab", "--name=alpha"],
         vec!["agent", "attach"],
-        vec!["agent", "attach", "alpha", "--name=alpha"],
-        vec![
-            "agent",
-            "attach",
-            "--panel=@panel:0xab",
-            "--agent-session=session-1",
-        ],
-        vec!["agent", "attach", "--name=alpha", "--stdin"],
+        vec!["agent", "attach", "alpha", "beta"],
+        vec!["agent", "attach", "--panel=@panel:0xab", "alpha"],
+        vec!["agent", "attach", "alpha", "--stdin"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
     }

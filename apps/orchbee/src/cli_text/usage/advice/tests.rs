@@ -29,14 +29,9 @@ fn unknown_option_advice_uses_root_family_and_leaf_grammar_scopes() {
             .any(|candidate| candidate == "--machine")
     );
     assert!(
-        advice(UsageContext::Path("agent"), "--prvider")
+        advice(UsageContext::Path("agent get"), "--formt")
             .iter()
-            .any(|candidate| candidate == "--provider")
-    );
-    assert!(
-        advice(UsageContext::Path("agent integration"), "--outdated-onl")
-            .iter()
-            .any(|candidate| candidate == "--outdated-only")
+            .any(|candidate| candidate == "--format")
     );
     assert!(
         advice(UsageContext::Path("terminal list"), "--formt")

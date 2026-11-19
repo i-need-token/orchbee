@@ -86,19 +86,3 @@ fn public_events_use_panel_and_refuse_pane() {
         .is_err()
     );
 }
-
-#[test]
-fn provider_identity_is_canonical() {
-    assert!(parse(&["agent", "integration", "list", "--provider", "antigravity"]).is_ok());
-    assert!(
-        parse(&[
-            "agent",
-            "integration",
-            "list",
-            "--provider",
-            "antigravity-cli"
-        ])
-        .is_err()
-    );
-    assert!(parse(&["agent", "get", "--kind", "codex"]).is_err());
-}

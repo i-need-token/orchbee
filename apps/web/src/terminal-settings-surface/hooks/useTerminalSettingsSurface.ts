@@ -46,7 +46,6 @@ interface OpenChildPage {
  */
 export function useTerminalSettingsSurface({
 	about,
-	agentIntegrationManagementControl,
 	controller,
 	initialCategory,
 	macosTerminalInputSettingsController,
@@ -134,17 +133,7 @@ export function useTerminalSettingsSurface({
 		searchReference.current?.focus();
 	}, [snapshot.landing, snapshot.open]);
 
-	// Integrations are opt-in: entering their category is the explicit request to inspect them, so
-	// opening Settings alone runs no provider command.
 	const onCategorySelect = (nextCategory: TerminalSettingsCategory): void => {
-		if (
-			nextCategory === 'agents' &&
-			category !== 'agents' &&
-			agentIntegrationManagementControl !== undefined &&
-			!agentIntegrationManagementControl.getSnapshot().pending
-		) {
-			void agentIntegrationManagementControl.refresh();
-		}
 		setCategory(nextCategory);
 		setQuery('');
 		if (contentReference.current !== null) contentReference.current.scrollTop = 0;

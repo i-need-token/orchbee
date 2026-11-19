@@ -1,5 +1,4 @@
 export { applicationRoutingMessages } from './application-routing';
-export { agentIntegrationMessages } from './agent-integrations';
 export { agentObservationMessages } from './agent-observation';
 export { agentStartMessages } from './agent-start';
 

@@ -27,7 +27,7 @@ fn attach_requires_inherited_console_before_runtime_or_agent_resolution() {
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
         for args in [
             vec!["terminal", "attach", "@terminal:0x1"],
-            vec!["agent", "attach", "--name=alpha", "--format=json"],
+            vec!["agent", "attach", "@agent:1", "--format=json"],
         ] {
             let output = run(&args, None, None, locale);
             assert_eq!(output.status.code(), Some(2));

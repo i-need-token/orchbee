@@ -50,12 +50,6 @@ commands! {
     AgentPrompt => ["agent", "prompt"], 2, Agent, Portable, true, true, false;
     AgentSendKeys => ["agent", "send-keys"], super::super::MAXIMUM_SEND_RECORDS + 1, Agent, Portable, true, true, false;
     AgentWait => ["agent", "wait"], 1, Agent, Portable, true, true, false;
-    AgentResolve => ["agent", "resolve"], 1, Operand, Portable, true, true, false;
-    AgentRename => ["agent", "rename"], 2, Operand, Portable, true, true, false;
-    AgentIntegrationList => ["agent", "integration", "list"], 0, Operand, Portable, true, false, false;
-    AgentIntegrationExplain => ["agent", "integration", "explain"], 0, Operand, Portable, true, false, false;
-    AgentIntegrationEnable => ["agent", "integration", "enable"], 0, Operand, Portable, true, false, false;
-    AgentIntegrationDisable => ["agent", "integration", "disable"], 0, Operand, Portable, true, false, false;
     TerminalAttach => ["terminal", "attach"], 1, Operand, Portable, true, false, false;
     AgentAttach => ["agent", "attach"], 1, Operand, Portable, true, false, false;
     TerminalObserve => ["terminal", "session", "observe"], 1, Operand, Portable, true, false, false;

@@ -319,12 +319,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::AgentStart { command, format }) => {
                 cli::run_agent_start(&command, format, locale)
             }
-            Ok(invocation::Request::AgentNames { command, format }) => {
-                cli::agent_names::run(command, format, locale)
-            }
-            Ok(invocation::Request::AgentIntegration { command, format }) => {
-                cli::agent_integration(command, format, locale)
-            }
         },
         locale,
     )

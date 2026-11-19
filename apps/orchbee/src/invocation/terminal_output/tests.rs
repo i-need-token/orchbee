@@ -64,14 +64,7 @@ fn ansi_selects_recent_by_default_and_accepts_a_json_envelope() {
             "11111111111111111111111111111111",
             "--ansi",
         ],
-        vec![
-            "agent",
-            "read",
-            "--name",
-            "alpha",
-            "--ansi",
-            "--format=json",
-        ],
+        vec!["agent", "read", "alpha", "--ansi", "--format=json"],
     ] {
         let Request::Query {
             command:
@@ -152,7 +145,7 @@ fn source_read_bounds_physical_lines() {
         })
     ));
     assert!(matches!(
-        parse(&["agent", "read", "--name", "worker", "--plain"]),
+        parse(&["agent", "read", "worker", "--plain"]),
         Ok(Request::Query {
             command: QueryCommand::TerminalOutput {
                 target: OutputTarget::Agent(_),

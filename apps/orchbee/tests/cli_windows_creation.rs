@@ -2,6 +2,8 @@
 #![cfg(windows)]
 #[path = "support/windows_agent_peer/cohort_fixture.rs"]
 mod cohort_fixture;
+#[path = "support/windows_agent_peer/deadline_fixture.rs"]
+mod deadline_fixture;
 #[allow(dead_code)]
 #[path = "support/inherited_environment.rs"]
 mod inherited_environment;

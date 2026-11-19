@@ -199,14 +199,7 @@ fn windows_source_read_exports_plain_unicode_and_zero_without_history_requests()
         let viewer = observed_frame(&mut stream);
         detached(&mut stream, &viewer);
     });
-    let output = fixture.run(&[
-        "agent",
-        "read",
-        "--name",
-        "alpha",
-        "--source=visible",
-        "--plain",
-    ]);
+    let output = fixture.run(&["agent", "read", "sess-alpha", "--source=visible", "--plain"]);
     handler.join().unwrap();
     assert_eq!(
         output.status.code(),

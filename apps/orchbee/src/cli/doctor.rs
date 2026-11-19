@@ -1,4 +1,4 @@
-//! `doctor`: six fixed checks of whether Orchbee works here. Each check folds facts a collector
+//! `doctor`: five fixed checks of whether Orchbee works here. Each check folds facts a collector
 //! already gathers for another command into one status, one closed reason and those facts
 //! unchanged. It never connects as a Client, starts nothing and writes nothing; each collector
 //! keeps its own bound.
@@ -36,7 +36,7 @@ impl Check {
 }
 
 /// The checks in report order; `None` is a check this platform cannot make.
-type Checks = [(&'static str, Option<Check>); 6];
+type Checks = [(&'static str, Option<Check>); 5];
 
 pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
     let failed = |failure: Failure| {
@@ -80,18 +80,12 @@ fn collect(signals: &ArmedSignals) -> Result<Checks, Failure> {
         .as_ref()
         .is_some_and(|check| check.status != "not-applicable");
     let runtime = runtime(session.is_some(), session_answers)?;
-    let integrations = if signals.requested() {
-        None
-    } else {
-        integrations()
-    };
     Ok([
         ("installation", installation),
         ("settings", settings),
         ("records", records),
         ("runtime", runtime),
         ("session", session),
-        ("integrations", integrations),
     ])
 }
 
@@ -247,22 +241,6 @@ fn failed_row_reason(row: &CheckReport) -> Option<String> {
                 .and_then(|entry| entry["reason"].as_str())
         });
     Some(reason.unwrap_or("unsafe").to_owned())
-}
-
-/// Every provider, as `agent integration list` reads them. Integrations are opt-in, so only one
-/// that needs an update warns.
-fn integrations() -> Option<Check> {
-    let Some(details) = super::integration::list_facts()? else {
-        return Some(Check::new("warning", Some("home-unavailable"), Value::Null));
-    };
-    let outdated = details["integrations"]
-        .as_array()
-        .is_some_and(|items| items.iter().any(|item| item["state"] == "update-required"));
-    Some(if outdated {
-        Check::new("warning", Some("update-required"), details)
-    } else {
-        Check::new("pass", None, details)
-    })
 }
 
 fn document(checks: &Checks) -> Value {
@@ -483,31 +461,6 @@ fn line(key: &str, check: &Check, locale: Locale) -> (String, Option<String>) {
                 .unwrap_or_default();
             (copy.cli_doctor_running(&escape(version)), None)
         }
-        (_, "warning") if reason == "home-unavailable" => {
-            (copy.cli_doctor_home_unavailable().to_owned(), None)
-        }
-        (_, "warning") => {
-            let outdated = details["integrations"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter(|item| item["state"] == "update-required")
-                .filter_map(|item| item["integrationId"].as_str())
-                .collect::<Vec<_>>();
-            let command = match outdated.as_slice() {
-                [provider] => format!("orchbee agent integration enable --provider {provider}"),
-                _ => "orchbee agent integration list --outdated-only".to_owned(),
-            };
-            (copy.cli_doctor_update_required(&outdated), Some(command))
-        }
-        _ => {
-            let enabled = details["integrations"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter(|item| item["state"] == "enabled")
-                .count();
-            (copy.cli_doctor_enabled(enabled), None)
-        }
+        _ => (String::new(), None),
     }
 }

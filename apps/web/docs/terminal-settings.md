@@ -10,7 +10,7 @@ validates and writes. The TUI edits the same file. One `UserSettingsControl` per
 last snapshot; the locale, appearance, interaction, feedback, macOS input, terminal-default and
 launch-profile controls all read it, and every change is one edit. No setting keeps a browser record.
 
-The Session's Server and Worker own launch adaptation, terminal defaults and Agent integration effects.
+The Session's Server and Worker own launch adaptation and terminal defaults.
 Settings are not Workbench content and never synchronize to remote devices.
 Host metadata remains authoritative for VT state, palette, cursor and OSC behavior.
 A theme update sets the renderer's source-neutral defaultColorOverride, as the
@@ -419,7 +419,7 @@ The categories keep a stable product-outcome order instead of exposing implement
 | Terminal      | Selection and keys; Output: new terminal folder, terminal history; Launch profiles     |
 | Notifications | When to notify; Sound and delivery                                                     |
 | Keyboard      | Window and panel shortcuts                                                             |
-| Agents        | After a restart: resume Agents; Agent integrations                                     |
+| Agents        | After a restart: resume Agents                                                         |
 | About         | Version; Updates (unnamed card)                                                        |
 
 Every category but Themes and About ends with a "More options in config.toml" row that shows the path of
@@ -428,8 +428,8 @@ no port that opens a file, so the row copies the path instead; Copy is unavailab
 snapshot arrives.
 
 Navigation and search expose only categories and rows whose required capabilities are present: the
-Terminal category needs at least one of its controls, Notifications needs the feedback controller,
-and the Agent integrations group needs the Desktop control. Roadmap-only controls remain absent.
+Terminal category needs at least one of its controls, and Notifications needs the feedback
+controller. Roadmap-only controls remain absent.
 About is an information category: it holds no setting, so it has no settings-file row and search
 never lists it. Every composition that hands the page its build shows it; a served Web Client shows
 its Updates row unavailable for this installation and leaves Version out, because it knows neither.
@@ -491,61 +491,6 @@ their category names in navigation order, and each match keeps its working contr
 own filter box hides while the page is searched. Zero matches show a plain-words empty state.
 Escape or clearing the query returns to the selected category. Changing category clears the query
 and starts at the top of that category.
-
-## Desktop Agent integrations
-
-Only the Desktop composition injects `AgentIntegrationManagementControl`, as
-`ServerAgentIntegrationClient`. A composition without it omits the Agent integrations group and its
-search matches. The renderer consumes one
-canonical snapshot with a row for every wire provider in registry order, taken from
-`AGENT_INTEGRATION_PROVIDERS` in `@orchbee/workbench-client-protocol`, and displays curated Agent
-names, bounded states and failures, and the shared privacy explanation. It receives no Agent command output, executable path, adapter resource
-path, filesystem capability, or remote-host authority.
-
-Opening Settings, rendering rows, and searching are read-only. Integrations are opt-in, so entering
-the Agents category from another category is the explicit request to inspect: it starts
-one `list` job unless one is pending, and a reopened Settings that still shows the category starts
-none. Refresh runs one `list` job and a switch one `enable` or `disable` job on the Session's Worker through the
-[Workbench job direction](../../../crates/workbench-protocol/README.md#agent-integration-jobs), the
-writer the CLI's `orchbee agent integration` uses. The window polls a job from 20 ms up to every
-250 ms and, after 50 seconds, asks it to stop. Rows start unknown and each completed report replaces
-them; the Worker's report decides for each row whether it is managed or needs manual setup. A switch
-position reflects the last report and never moves optimistically. Pending work labels the affected
-row **Working…** and disables every competing switch. The Worker alone decides whether a change may
-proceed, so the window checks nothing before it asks. A change the window cannot follow to its
-report reads as unverified, marks its row unknown, and is never repeated. Remote hosts stay
-manual-only and the renderer never writes terminal input or attempts remote setup. The
-[writer](../../../crates/agent-integration-writer/README.md) is authoritative for these effects.
-
-A `list` reads files only and starts no Agent program, so an Agent whose plugins only its own
-program reports, under the contract's
-[reading rule](../../../crates/agent-integration/README.md#reading-rule), reads Not checked and its
-switch stays disabled until Explain checks it; a change the window could not follow still reads
-Unknown.
-
-Each row's Explain button runs one `explain` job for that Agent, under the same one-job rule, and
-opens its diagnosis on a child page until Back. For an Agent read only through its own program,
-the first Explain only opens the question "Check <Agent>?" on that page: the check starts that
-program, which may create its own files, and Orchbee changes nothing. Explain on the page runs it,
-and Explain on an open diagnosis reruns it. A result is one sentence first, such as "Claude Code isn't
-installed." or "The integration is off.", and a definite finding (on, manual setup, the Agent or the
-plugin not installed, off, an update needed, a conflict) stays apart from "Couldn't read the
-plugin's state.", which a timed-out, unreadable or undetermined inspection and an unfinished job
-produce. Everything else waits under a Details disclosure that starts closed: the explanation, the
-facts, and what the check did, "Read-only check: nothing was changed and no Agent program was
-started.", or, for those Agents, that Orchbee changed nothing and the check starts the Agent when
-needed. The question before such a check shows its explanation without Details. The facts follow
-`orchbee agent integration explain`: Agent presence, integration status, any issue, the Orchbee
-adapter, the provider's marketplace and plugin or guarded entry and adapter source, and what
-turning it on would do: consecutive commands of one program name its executable file name once and
-list what they do. The control drops paths
-and command arguments before publishing the diagnosis; a report also refreshes that Agent's row,
-and an explain failure stays in the diagnosis rather than the notice line. The TUI's
-[Agent integrations page](../../orchbee/docs/native-settings.md#agent-integrations) offers the same
-operations and copy.
-
-Neither Client offers an integration reminder when an Agent launches. A future reminder would be
-designed for both Clients together.
 
 ## Notifications and completion reminders
 
@@ -626,13 +571,11 @@ fully disconnected SSH delivery remains out of scope.
   literal custom executable arguments, a kept draft after a refused save, create and default
   selection, delete constraints, and restore confirmation.
 - Terminal-default-settings component tests cover bounds, capability gating, localized
-  validation, and the edit of the settings file. The Server-path clients that fill the launch-profile,
-  terminal-default and Agent-integration controls have no tests of their own.
+  validation, and the edit of the settings file. The Server-path clients that fill the launch-profile
+  and terminal-default controls have no tests of their own.
 - Terminal-feedback model tests cover default-off behavior, shared updates and Reset, duration
   and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
   explicit permission requests, and disposal. Settings has no notification component test.
-- Agent-integration protocol and Settings tests cover canonical ordering, read-only startup, one
-  pending mutation, explicit user actions, and switches that move only with the inspected state.
 - Application composition tests cover the shared `ActionRuntime` wiring between the sidebar footer's
   Update button and Settings › About, plus Check for updates transitioning through Checking… to the
   failed escape hatch (`https://orchbee.com/#install`) and to the offered Update action. No

@@ -42,12 +42,7 @@ impl CohortFixture {
         Self::acquire(false)
     }
 
-    pub(super) fn deadline_sensitive() -> Self {
-        // Reach the intended protocol phase without sibling process startup consuming its budget.
-        Self::acquire(true)
-    }
-
-    fn acquire(exclusive: bool) -> Self {
+    pub(super) fn acquire(exclusive: bool) -> Self {
         let mut live = LIVE_FIXTURES.lock().unwrap();
         if exclusive {
             live.exclusive_waiters += 1;

@@ -144,9 +144,6 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.groups.whenToNotify': 'When to notify',
 	'terminal.settings.page.groups.soundAndDelivery': 'Sound and delivery',
 	'terminal.settings.page.groups.shortcuts': 'Window and panel shortcuts',
-	'terminal.settings.page.groups.agentIntegrations': 'Agent integrations',
-	'terminal.settings.page.groups.agentIntegrations.description':
-		'Lets Orchbee show each Agent’s status. Turning one on changes one file of that Agent.',
 	'terminal.settings.page.filter.count': '{shown, number}/{total, number}',
 	'terminal.settings.page.filter.noMatches': 'Nothing matches the filter.',
 	'terminal.settings.page.filter.profiles': 'Filter profiles',

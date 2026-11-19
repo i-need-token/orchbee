@@ -137,9 +137,6 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.groups.whenToNotify': '何时通知',
 	'terminal.settings.page.groups.soundAndDelivery': '声音与显示',
 	'terminal.settings.page.groups.shortcuts': '窗口与面板快捷键',
-	'terminal.settings.page.groups.agentIntegrations': '智能体集成',
-	'terminal.settings.page.groups.agentIntegrations.description':
-		'让 Orchbee 显示各智能体的状态；开启一项会修改该智能体的一个文件。',
 	'terminal.settings.page.filter.count': '{shown, number}/{total, number}',
 	'terminal.settings.page.filter.noMatches': '没有符合筛选的项。',
 	'terminal.settings.page.filter.profiles': '筛选启动配置',

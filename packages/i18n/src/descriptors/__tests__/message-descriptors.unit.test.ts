@@ -2,7 +2,6 @@ import type { MessageDescriptor } from 'react-intl';
 import { describe, expect, it } from 'vitest';
 
 import { enUSMessages } from '../../locales';
-import { agentIntegrationMessages } from '../agent-integrations';
 import { agentObservationMessages } from '../agent-observation';
 import { applicationRoutingMessages } from '../application-routing';
 
@@ -22,7 +21,6 @@ const descriptorCollections: readonly (readonly [
 	owner: string,
 	descriptors: Readonly<Record<string, MessageDescriptor>>,
 ])[] = [
-	['agent integrations', agentIntegrationMessages],
 	['agent observation', agentObservationMessages],
 	['application routing', applicationRoutingMessages],
 

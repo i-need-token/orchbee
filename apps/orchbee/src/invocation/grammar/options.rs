@@ -1252,8 +1252,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::AgentRead,
             CommandPath::AgentSendKeys,
             CommandPath::AgentPrompt,
-            CommandPath::AgentResolve,
-            CommandPath::AgentRename,
             CommandPath::AgentWait,
         ],
         role: OptionRole::Business,
@@ -1429,8 +1427,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::AgentRead,
             CommandPath::AgentSendKeys,
             CommandPath::AgentPrompt,
-            CommandPath::AgentResolve,
-            CommandPath::AgentRename,
             CommandPath::AgentWait,
             CommandPath::TerminalList,
             CommandPath::TerminalRead,
@@ -2031,22 +2027,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
-        spelling: "--outdated-only",
-        values: &[],
-        closed_values: false,
-        string_rule: None,
-        commands: &[CommandPath::AgentIntegrationList],
-        role: OptionRole::Business,
-        value: None,
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, _, _| {
-            options.outdated_only = true;
-            Ok(())
-        },
-    },
-    OptionSpec {
         spelling: "--worktrees",
         values: &[],
         closed_values: false,
@@ -2164,27 +2144,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
-        spelling: "--provider",
-        values: super::values::PROVIDER_VALUES,
-        closed_values: true,
-        string_rule: None,
-        commands: &[
-            CommandPath::AgentIntegrationList,
-            CommandPath::AgentIntegrationExplain,
-            CommandPath::AgentIntegrationEnable,
-            CommandPath::AgentIntegrationDisable,
-        ],
-        role: OptionRole::Business,
-        value: Some("provider"),
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.provider = Some(value);
-            Ok(())
-        },
-    },
-    OptionSpec {
         spelling: "--profile",
         values: &[],
         closed_values: false,
@@ -2210,19 +2169,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[
-            CommandPath::AgentAttach,
-            CommandPath::AgentGet,
-            CommandPath::AgentFocus,
-            CommandPath::AgentRead,
-            CommandPath::AgentSendKeys,
-            CommandPath::AgentPrompt,
-            CommandPath::AgentResolve,
-            CommandPath::AgentRename,
-            CommandPath::AgentStart,
-            CommandPath::AgentWait,
-            CommandPath::LaunchProfileCreate,
-        ],
+        commands: &[CommandPath::LaunchProfileCreate],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
@@ -2234,37 +2181,11 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
-        spelling: "--agent-session",
-        values: &[],
-        closed_values: false,
-        string_rule: None,
-        commands: &[
-            CommandPath::AgentAttach,
-            CommandPath::AgentGet,
-            CommandPath::AgentFocus,
-            CommandPath::AgentRead,
-            CommandPath::AgentSendKeys,
-            CommandPath::AgentPrompt,
-            CommandPath::AgentResolve,
-            CommandPath::AgentRename,
-            CommandPath::AgentWait,
-        ],
-        role: OptionRole::Business,
-        value: Some("filter"),
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.agent_session = Some(value);
-            Ok(())
-        },
-    },
-    OptionSpec {
         spelling: "--clear",
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[CommandPath::AgentRename, CommandPath::PanelRename],
+        commands: &[CommandPath::PanelRename],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
@@ -2308,27 +2229,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         help: None,
         apply: |options, _, _| {
             options.forever = true;
-            Ok(())
-        },
-    },
-    OptionSpec {
-        spelling: "--adapter-source",
-        values: &[],
-        closed_values: false,
-        string_rule: None,
-        commands: &[
-            CommandPath::AgentIntegrationList,
-            CommandPath::AgentIntegrationExplain,
-            CommandPath::AgentIntegrationEnable,
-            CommandPath::AgentIntegrationDisable,
-        ],
-        role: OptionRole::Business,
-        value: Some("filter"),
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.adapter_source = Some(value);
             Ok(())
         },
     },

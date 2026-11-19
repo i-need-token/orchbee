@@ -111,7 +111,7 @@ the observation exit classes and bounded cleanup reserve.
 interfaces. macOS polls a duplicate of the inherited terminal input, the reader the startup wait
 uses, and `TerminalModeGuard` owns its termios raw mode.
 They accept `--takeover`, `--timeout <ms>` and `--mouse on|off` (default on); Agent selectors also
-accept `--agent-session`, `--name` or `--panel`. Grammar validation precedes admission of inherited
+accept `--panel`. Grammar validation precedes admission of inherited
 interactive stdin/stdout. Neither interface starts a Session, changes Workbench focus or falls back
 to another terminal. Agent resolution selects one live binding under the original cancellable
 admission budget. Output remains an interactive screen even with a global format selection.

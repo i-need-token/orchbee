@@ -42,7 +42,7 @@
 					"maxItems": 16,
 					"items": {
 						"type": "string",
-						"pattern": "^(manifest|versions|system|config-check|sessions|integrations)[.]json$|^config[.]toml$|^logs/[0-9]{4}-[0-9]{2}-[0-9]{2}[.]jsonl$"
+						"pattern": "^(manifest|versions|system|config-check|sessions)[.]json$|^config[.]toml$|^logs/[0-9]{4}-[0-9]{2}-[0-9]{2}[.]jsonl$"
 					}
 				},
 				"sections": {
@@ -59,7 +59,6 @@
 									"system.json",
 									"config-check.json",
 									"sessions.json",
-									"integrations.json",
 									"config.toml",
 									"logs"
 								]

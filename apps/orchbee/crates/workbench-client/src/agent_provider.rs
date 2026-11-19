@@ -73,7 +73,7 @@ pub fn product_name(label: &str) -> &str {
     AgentReportProvider::lookup(label).map_or(label, |provider| provider.product_name())
 }
 
-/// The `agent integration --provider` identity that manages a canonical
+/// The integration writer identity that manages a canonical
 /// interactive identity, when a managed integration exists for it.
 pub fn integration_id(canonical: &str) -> Option<&'static str> {
     let id = match canonical {

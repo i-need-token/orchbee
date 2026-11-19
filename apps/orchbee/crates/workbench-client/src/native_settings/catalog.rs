@@ -2,7 +2,6 @@
 //! search, or a child page lists. Values only decide which dependent rows show.
 use super::{Choice, Page, Row};
 use crate::localization::Locale;
-use orchbee_agent_integration::IntegrationId;
 use orchbee_workbench_protocol::{CompletionReminderMode, TerminalDisplayAppearance};
 
 /// One entry of the page's left column.
@@ -39,7 +38,7 @@ impl Category {
             Self::Terminal => &[Group::SelectionKeys, Group::Output, Group::LaunchProfiles],
             Self::Notifications => &[Group::WhenToNotify, Group::SoundDelivery],
             Self::Keyboard => &[Group::Prefix],
-            Self::Agents => &[Group::AgentRestore, Group::AgentIntegrations],
+            Self::Agents => &[Group::AgentRestore],
             Self::About => &[Group::About],
         }
     }
@@ -74,10 +73,6 @@ pub enum Group {
     SoundDelivery,
     Prefix,
     AgentRestore,
-    AgentIntegrations,
-    /// Sections of the Agent integrations page.
-    LocalAgents,
-    RemoteHosts,
     /// About's version and update rows; unnamed, since the category names it.
     About,
 }
@@ -104,9 +99,6 @@ impl Group {
             Self::SoundDelivery => vec![Row::Sound],
             Self::Prefix => vec![Row::PrefixKey],
             Self::AgentRestore => vec![Row::ResumeAgents],
-            Self::AgentIntegrations => vec![Row::AgentIntegrations],
-            Self::LocalAgents => IntegrationId::ALL.map(Row::Agent).to_vec(),
-            Self::RemoteHosts => vec![Row::RemoteHosts],
             Self::About => vec![Row::Version, Row::Updates],
         }
     }
@@ -148,7 +140,6 @@ pub(super) struct Filter<'a> {
     pub(super) query: &'a str,
     pub(super) custom_colors: bool,
     pub(super) completion_reminders: bool,
-    pub(super) integrations: bool,
     /// Rows whose key the settings registry does not yet mark for the page show anyway.
     pub(super) unlisted: bool,
 }
@@ -157,14 +148,12 @@ impl Filter<'_> {
     pub(super) fn of<'a>(
         query: &'a str,
         values: &orchbee_workbench_protocol::UserSettingsValues,
-        integrations: bool,
         unlisted: bool,
     ) -> Filter<'a> {
         Filter {
             query,
             custom_colors: values.terminal_display_theme == TerminalDisplayAppearance::Custom,
             completion_reminders: values.completion_reminder_mode != CompletionReminderMode::Never,
-            integrations,
             unlisted,
         }
     }
@@ -173,7 +162,6 @@ impl Filter<'_> {
         match row {
             Row::Foreground | Row::Background => self.custom_colors,
             Row::CompletionThreshold => self.completion_reminders,
-            Row::AgentIntegrations => self.integrations,
             Row::AutomaticUpdates => self.unlisted || on_page("update.automatic"),
             _ => true,
         }
@@ -199,23 +187,6 @@ pub(super) fn entries(
     match page {
         Page::Profiles => {
             entries.extend(page.rows().iter().copied().map(Entry::Setting));
-            return entries;
-        }
-        Page::Integrations => {
-            entries.push(Entry::Heading(Group::LocalAgents));
-            entries.extend(Group::LocalAgents.rows().into_iter().map(Entry::Setting));
-            entries.push(Entry::Heading(Group::RemoteHosts));
-            entries.extend(
-                page.rows()
-                    .iter()
-                    .copied()
-                    .skip(IntegrationId::ALL.len())
-                    .map(Entry::Setting),
-            );
-            return entries;
-        }
-        Page::Diagnosis(_) => {
-            entries.push(Entry::Setting(Row::Back));
             return entries;
         }
         Page::General => {}
@@ -267,7 +238,7 @@ pub(super) fn entries(
 }
 
 /// Every term appears in the row's name, description, group or category, in either locale; a
-/// theme line also matches its theme's name and the Agent integrations row its Agents' names.
+/// theme line also matches its theme's name.
 fn matches(row: Row, category: Category, group: Group, terms: &[String]) -> bool {
     let document = [Locale::EnUs, Locale::ZhCn]
         .map(|locale| {
@@ -275,15 +246,8 @@ fn matches(row: Row, category: Category, group: Group, terms: &[String]) -> bool
                 Row::ThemeOption(theme) => locale.settings_choice(Choice::ColorTheme(theme)),
                 _ => locale.settings_row(row),
             };
-            let extra = if row == Row::AgentIntegrations {
-                IntegrationId::ALL
-                    .map(|id| locale.agent_integration_name(id))
-                    .join(" ")
-            } else {
-                String::new()
-            };
             format!(
-                "{name} {} {} {} {extra}",
+                "{name} {} {} {}",
                 locale.settings_description(row),
                 locale.settings_group_name(group).unwrap_or_default(),
                 locale.settings_category_name(category),

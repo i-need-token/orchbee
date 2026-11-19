@@ -5063,9 +5063,7 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
 
 // ---- catalog envelope v8 ------------------------------------------------------
 
-/// The `orchbee.api.schema` catalog is its own versioned document: v8 now
-/// that the three Agent integration schemas join the closed dictionary
-/// alongside the v7 Agent wait addition. The
+/// The `orchbee.api.schema` catalog is its own versioned document at v8. The
 /// listing self-validates, names exactly the
 /// registered ids, and every embedded document's `$id` equals its key; the
 /// older v1..v6 shapes are refused. Business schemas are untouched —
@@ -5107,17 +5105,12 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
         "orchbee.agent.list",
         "orchbee.agent.get",
         "orchbee.agent.wait",
-        "orchbee.agent.resolve",
-        "orchbee.agent.rename",
         "orchbee.cli.failure.agent-names",
         "orchbee.doctor",
         "orchbee.server.stop",
         "orchbee.launch-profile.list",
         "orchbee.launch-profile.get",
         "orchbee.cli.failure.launch-profile",
-        "orchbee.agent.integrations",
-        "orchbee.agent.integration.plan",
-        "orchbee.agent.integration.mutation",
         "orchbee.panel.current",
         "orchbee.panel.process-info",
         "orchbee.cli.failure.process-info",

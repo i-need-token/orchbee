@@ -1,16 +1,13 @@
-//! Agent options: list limits, provider and adapter sources, session identities, wait conditions
-//! and fences, Agent names, and Agent selectors.
+//! Agent options: list limits, wait conditions and fences, and Agent selectors.
 
 use super::{
     AgentSelector, AgentTarget, AgentWaitCondition, AgentWaitTimeout, ExpectedValue,
-    FailureEnvelope, Options, ParseFailure, Resource, UsageContext, UsageReason, missing_required,
-    target, usage_with, user_path,
+    FailureEnvelope, Options, ParseFailure, Resource, UsageContext, UsageReason, target,
+    usage_with,
 };
 use orchbee_agent_observation_protocol::{
-    AgentName, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT,
-    MAXIMUM_SAFE_INTEGER,
+    AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT, MAXIMUM_SAFE_INTEGER,
 };
-use std::path::PathBuf;
 
 /// `agent list --limit`: the bounded page size, 1..=100, defaulting to the
 /// wire contract's 50.
@@ -34,88 +31,6 @@ pub(super) fn agent_limit_option(
             envelope,
         )),
     }
-}
-
-/// `agent integration --provider <id>`: the closed provider vocabulary —
-/// an unknown spelling is a usage failure, never a fuzzy match. `list`
-/// admits it as an optional filter.
-pub(super) fn provider_option(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<Option<crate::agent_integrations::IntegrationId>, ParseFailure> {
-    match &options.provider {
-        Some(value) => crate::agent_integrations::IntegrationId::parse_provider(value)
-            .map(Some)
-            .ok_or_else(|| {
-                usage_with(
-                    UsageReason::InvalidValue {
-                        context,
-                        option: "--provider",
-                        value: value.clone(),
-                        expected: ExpectedValue::Provider,
-                    },
-                    envelope,
-                )
-            }),
-        None => Ok(None),
-    }
-}
-
-/// The required `--provider` on explain/enable/disable.
-pub(super) fn required_provider(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<crate::agent_integrations::IntegrationId, ParseFailure> {
-    provider_option(options, context, envelope)?
-        .ok_or_else(|| missing_required(context, "'--provider'", envelope))
-}
-
-/// `agent integration --adapter-source <abs>`: a literal absolute path —
-/// never expanded, created, or probed at parse time.
-pub(super) fn adapter_source_option(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<Option<PathBuf>, ParseFailure> {
-    match &options.adapter_source {
-        Some(value)
-            if value.is_empty() || !user_path::absolute(value) || value.as_bytes().contains(&0) =>
-        {
-            Err(usage_with(
-                UsageReason::InvalidValue {
-                    context,
-                    option: "--adapter-source",
-                    value: value.clone(),
-                    expected: ExpectedValue::AdapterSource,
-                },
-                envelope,
-            ))
-        }
-        Some(value) => Ok(Some(PathBuf::from(value))),
-        None => Ok(None),
-    }
-}
-
-/// The `agent get|explain|wait` operand: a wire-ready Agent session identity —
-/// opaque `1..=128` `[A-Za-z0-9._:-]+`, never an id/label split.
-fn agent_session_id(
-    value: &str,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<AgentSessionId, ParseFailure> {
-    AgentSessionId::parse(value).map_err(|_| {
-        usage_with(
-            UsageReason::InvalidValue {
-                context,
-                option: "<session>",
-                value: value.to_owned(),
-                expected: ExpectedValue::AgentSessionId,
-            },
-            envelope,
-        )
-    })
 }
 
 /// `agent wait --until <condition>`: the repeatable canonical condition
@@ -221,24 +136,6 @@ pub(super) fn agent_wait_timeout_option(
     }
 }
 
-pub(super) fn agent_name(
-    value: &str,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<AgentName, ParseFailure> {
-    AgentName::parse(value).map_err(|_| {
-        usage_with(
-            UsageReason::InvalidValue {
-                context,
-                option: "name",
-                value: value.to_owned(),
-                expected: ExpectedValue::AgentName,
-            },
-            envelope,
-        )
-    })
-}
-
 pub(super) fn agent_selector(
     words: &[&str],
     options: &Options,
@@ -255,8 +152,6 @@ pub(super) fn agent_selector(
         ));
     }
     let selected = usize::from(!words.is_empty())
-        + usize::from(options.agent_session.is_some())
-        + usize::from(options.name.is_some())
         + usize::from(options.panel.is_some())
         + usize::from(options.terminal.is_some());
     if selected > 1 {
@@ -264,7 +159,7 @@ pub(super) fn agent_selector(
             UsageReason::ConflictingOptions {
                 context,
                 first: "<target>",
-                second: "--agent-session / --name / --panel / --terminal",
+                second: "--panel / --terminal",
             },
             envelope,
         ));
@@ -329,20 +224,10 @@ pub(super) fn agent_selector(
             })?,
         });
     }
-    if let Some(value) = &options.agent_session {
-        return Ok(AgentTarget::Session {
-            session_id: agent_session_id(value, context, envelope)?,
-        });
-    }
-    if let Some(value) = &options.name {
-        return Ok(AgentTarget::Name {
-            name: agent_name(value, context, envelope)?,
-        });
-    }
     Err(usage_with(
         UsageReason::MissingRequired {
             context,
-            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector> or --terminal <id|selector>",
+            requirement: "<target> or --panel <id|selector> or --terminal <id|selector>",
         },
         envelope,
     ))

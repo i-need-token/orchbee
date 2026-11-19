@@ -145,59 +145,7 @@ while the Session's handshake answer is unknown or lacks `update-check`, or afte
 
 ## Agent integrations
 
-The Agents category holds an Agent integrations entry on a Session reached through a local origin.
-A saved-machine origin omits the entry, as the GUI offers the page only in Desktop: remote hosts
-stay manual. Search matches the entry's title, its description and every Agent name. Activating
-the entry opens a child page, like Launch profiles, that edits no preference; Back or Esc returns to
-the entry with the filter unchanged.
-
-The page lists the same twenty Agents as the GUI in the Agent integration contract's canonical
-order, under a "Local Agent status adapters" heading, then a disabled "Remote hosts stay manual"
-row with the GUI's manual-only description. Each Agent row carries a checkbox for the enabled
-state and the GUI's status word, with the same precedence: Working, Manual setup, Status
-unavailable, Agent not found, Not checked, then the reported state. Rows start Unknown and change
-only from a Worker report. Entering the page is the explicit request to inspect: it starts one
-refresh unless a job already runs. Opening, navigating, searching and closing Settings read and
-write nothing, so without that request no provider configuration is read. A refresh reads files
-only and starts no Agent program, so an Agent whose plugins only its own program reports (the
-contract's [reading rule](../../../crates/agent-integration/README.md#reading-rule)) reads Not
-checked, and its row says Explain checks it; a change that could not be followed still reads
-Unknown. The
-page ends with a Refresh status row, and the line below the title shows the last failure, a running
-job, the not-yet-checked hint or the GUI's disclosure.
-
-Entering the page, Refresh status, Enter/Space or a click on an Agent row, and Explain each start
-one Server-authorized Worker job over the shared carrier, through the same `workbench.agent-integration` start, poll and
-cancel exchanges as the GUI. One job runs at a time; while it runs the Agent rows, Refresh and
-Explain are disabled and the affected rows show Working with a pending status glyph. A row takes
-the GUI's switch rule: manual-only, conflicting, unknown and missing Agents cannot change, and
-the detail line names the reason. Polls start after 20 ms and back off to 250 ms on the UI tick;
-each exchange has five seconds, and a job still running after 50 seconds receives a cancellation
-the Client does not wait for. Settlement is the GUI's: a definite refusal before start keeps the
-rows, a change whose effect may have begun reads as unknown with the verification message, an
-unlisted Agent reads as Status unavailable, and nothing is resubmitted automatically. Closing
-Settings does not cancel a job; it settles while Settings is closed and shows on reopen. A new
-Session drops the old job's result and starts uninspected.
-
-Each Agent row ends in a quiet Explain action, `e` on the page, which runs the `explain`
-operation and opens that Agent's diagnosis child page. For an Agent read only through its own
-program, Explain first opens the page with the question "Check <Agent>?": the check starts that
-program, which may create its own files, and Orchbee changes nothing. Nothing runs until Explain
-on that page. The page opens with one sentence, in the same words as the desktop and web
-Clients, such as "Claude Code isn't installed." or "The integration is off.", or "Couldn't read
-the plugin's state." for a timed-out, unreadable or undetermined inspection, whose explanation
-says the state is unknown, not missing. The TUI has no disclosure control, so the explanation and
-the facts follow directly below the sentence. As in the desktop and web Clients, one closing
-sentence after the facts says what the check did: "Read-only check: nothing was changed and no
-Agent program was started.", or, for those Agents, that Orchbee changed nothing and the check
-starts the Agent when needed. The line under the title stays empty for an explanation. The
-facts follow `orchbee agent integration explain`: Agent presence, integration status, any
-issue, the Orchbee adapter, the provider's marketplace and plugin or guarded entry and adapter
-source, and what turning it on would do: consecutive commands of one program name its executable
-file name once and list what they do, such as adding Orchbee's plugin source, installing the
-plugin and turning it on. Paths and command lines are never shown. `e` on the diagnosis page reruns it, and a report also updates
-that Agent's row. Rows narrower than 40 columns beside the action drop it and keep `e`; a short
-diagnosis clips its facts after the sentence and its explanation.
+Not offered in this release. The Agents category has no integrations entry in the TUI or GUI, and no setting, page or command lists, explains, enables or disables an integration. Entries an earlier version wrote are left alone; uninstall removes them. The engine's status is in the [Windows integration contract](windows-agent-integrations.md) and the [macOS integration contract](macos-agent-integrations.md).
 
 ## Domain and ownership
 

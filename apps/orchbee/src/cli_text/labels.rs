@@ -67,9 +67,6 @@ pub(crate) struct CliLabels {
     pub(crate) agent_pending_requests: &'static str,
     pub(crate) agent_none: &'static str,
     pub(crate) agent_headers: [&'static str; 3],
-    // `agent integration list` columns — provider, its PATH availability,
-    // the management mode, the observed state, and the issue when present.
-    pub(crate) integration_headers: [&'static str; 5],
 }
 
 const EN_US_LABELS: CliLabels = CliLabels {
@@ -138,7 +135,6 @@ const EN_US_LABELS: CliLabels = CliLabels {
     agent_pending_requests: "Pending requests",
     agent_none: "none",
     agent_headers: ["SESSION", "AGENT", "STATE"],
-    integration_headers: ["PROVIDER", "AVAILABILITY", "MANAGEMENT", "STATE", "ISSUE"],
 };
 
 const ZH_CN_LABELS: CliLabels = CliLabels {
@@ -199,7 +195,6 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     agent_pending_requests: "待处理请求",
     agent_none: "无",
     agent_headers: ["会话", "智能体", "状态"],
-    integration_headers: ["提供方", "可用性", "管理方式", "状态", "问题"],
 };
 
 impl super::CliText {

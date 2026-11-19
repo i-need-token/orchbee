@@ -30,11 +30,6 @@ pub(crate) enum SettingsNotice {
 }
 
 use crate::terminal_text::{sanitize_terminal_text, truncate_display};
-mod integrations;
-pub(crate) use integrations::{
-    IntegrationAdapter, IntegrationBlock, IntegrationFactLabel, IntegrationFailure,
-    IntegrationFinding, IntegrationStatus, IntegrationStep, IntegrationUnknown,
-};
 mod parameters;
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
@@ -96,10 +91,6 @@ impl Locale {
             Row::AddProfile => ("Add profile", "添加启动配置"),
             Row::DeleteProfile => ("Delete profile", "删除启动配置"),
             Row::Back => ("Back", "返回"),
-            Row::AgentIntegrations => return self.integrations_title(),
-            Row::Agent(id) => return self.agent_integration_name(id),
-            Row::RemoteHosts => return self.integrations_remote_title(),
-            Row::RefreshIntegrations => return self.integrations_refresh(),
             Row::Version => ("Version", "版本"),
             Row::Updates => ("Updates", "更新"),
         };
@@ -137,9 +128,6 @@ impl Locale {
             Group::LaunchProfiles => self.setting("Launch profiles", "启动配置"),
             Group::WhenToNotify => self.setting("When to notify", "何时通知"),
             Group::SoundDelivery => self.setting("Sound and delivery", "声音与显示"),
-            Group::AgentIntegrations => self.integrations_title(),
-            Group::LocalAgents => self.integrations_local_section(),
-            Group::RemoteHosts => self.integrations_remote_section(),
         })
     }
     /// The line under a described group's heading.
@@ -319,12 +307,6 @@ impl Locale {
                 "Press it first, then a command key.",
                 "先按它，再按命令键。",
             ),
-            Row::AgentIntegrations => self.setting(
-                "Shows each Agent’s status. Turning one on changes one of its files.",
-                "让 Orchbee 显示各智能体的状态；开启一项会修改该智能体的一个文件。",
-            ),
-            Row::RemoteHosts => self.integrations_remote_description(),
-            Row::RefreshIntegrations => self.integrations_refresh_description(),
             // About's rows describe live state; the page draws theirs from it.
             Row::Version => self.about_build(orchbee_local_runtime::environment_kind()),
             Row::Updates => self.setting(
@@ -414,7 +396,6 @@ impl Locale {
             SettingsValue::ArgumentPosition { position, total } => format!("{position} / {total}"),
             SettingsValue::Default => self.setting("Default", "默认").into(),
             SettingsValue::Empty => String::new(),
-            SettingsValue::Integration(status) => self.integration_status(status).into(),
         }
     }
 
@@ -434,7 +415,6 @@ impl Locale {
             SettingsHintLabel::Search => self.setting("search", "搜索"),
             SettingsHintLabel::GoTo => self.setting("go to", "前往"),
             SettingsHintLabel::Restore => self.setting("restore", "恢复默认"),
-            SettingsHintLabel::Explain => self.setting("explain", "诊断"),
             SettingsHintLabel::Check => self.setting("check", "检查"),
             SettingsHintLabel::Update => self.setting("update", "更新"),
         }

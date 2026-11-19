@@ -25,8 +25,8 @@ use std::{
 };
 
 use orchbee_agent_observation_protocol::{
-    AgentReadRequest, AgentReadResult, AgentRequest, AgentResult, read_agent_request,
-    write_agent_result,
+    AgentNamesRequest, AgentReadRequest, AgentReadResult, AgentRequest, AgentResult,
+    AgentSessionSelector, read_agent_request, write_agent_result,
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use sha2::{Digest, Sha256};
@@ -169,14 +169,36 @@ fn admit(stream: &UnixStream) {
     .expect("peer writes acceptance");
 }
 
-/// Read the OBAP request record off the admitted session.
+/// Read the OBAP request record off the admitted session. A name-shaped positional target
+/// resolves before its read, so a Resolve lookup is answered first and the read follows.
 fn read_request(stream: &UnixStream) -> AgentReadRequest {
-    match read_agent_request(&mut &*stream).expect("peer reads one OBAP request") {
-        AgentRequest::Read(request) => request,
-        AgentRequest::Names(_) => panic!("peer expected a session read request, got names"),
-        AgentRequest::Launch(_) => panic!("peer expected a session read request, got launch"),
-        AgentRequest::Changes(_) => panic!("peer expected a session read request, got changes"),
+    loop {
+        match read_agent_request(&mut &*stream).expect("peer reads one OBAP request") {
+            AgentRequest::Read(request) => return request,
+            AgentRequest::Names(request) => answer_resolve(stream, request),
+            AgentRequest::Launch(_) => panic!("peer expected a session read request, got launch"),
+            AgentRequest::Changes(_) => panic!("peer expected a session read request, got changes"),
+        }
     }
+}
+
+/// Answer a Resolve lookup with the requested selector as the committed session, the same
+/// identity the Windows peers answer with.
+fn answer_resolve(stream: &UnixStream, request: AgentNamesRequest) {
+    let AgentNamesRequest::Resolve { request_id, target } = request else {
+        panic!("peer expected a resolve lookup, got another names request");
+    };
+    let AgentSessionSelector::Auto { target } = target else {
+        panic!("peer expected a name-shaped target");
+    };
+    let reply = serde_json::json!({
+        "kind": "agent.session.resolve.result",
+        "requestId": request_id.as_str(),
+        "result": {"outcome": {"kind": "resolved", "sessionId": target.as_str(), "resolvedBy": "name"}},
+    });
+    let result = serde_json::from_value(reply).expect("fixture decodes as a names result");
+    write_agent_result(&mut &*stream, &AgentResult::Names(result))
+        .expect("peer writes OBAP result");
 }
 
 /// Build a typed result document from its wire JSON and frame it back; the
@@ -793,17 +815,7 @@ fn get_sigint_reports_its_own_operation() -> TestResult {
     let base = base_dir("aget-int");
     let scope = stage_scope(&base);
     let (peer, ready) = held_exchange_peer(&scope);
-    let child = spawn_cli(
-        &base,
-        &[
-            "agent",
-            "get",
-            "--agent-session",
-            "sess-alpha",
-            "--format",
-            "json",
-        ],
-    );
+    let child = spawn_cli(&base, &["agent", "get", "sess-alpha", "--format", "json"]);
     ready
         .recv_timeout(Duration::from_secs(15))
         .expect("the request reached the held peer");
@@ -1151,17 +1163,7 @@ fn get_found_emits_current_inspection() -> TestResult {
         );
         answer_explain(&stream, "sess-alpha");
     });
-    let output = run(
-        &base,
-        &[
-            "agent",
-            "get",
-            "--agent-session",
-            "sess-alpha",
-            "--format",
-            "json",
-        ],
-    );
+    let output = run(&base, &["agent", "get", "sess-alpha", "--format", "json"]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let document = document(&output);
@@ -1207,7 +1209,7 @@ fn get_text_renders_session_fields() -> TestResult {
             ),
         );
     });
-    let output = run(&base, &["agent", "get", "--agent-session", "sess-alpha"]);
+    let output = run(&base, &["agent", "get", "sess-alpha"]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let text = String::from_utf8(output.stdout).expect("text output is UTF-8");
@@ -1237,17 +1239,7 @@ fn get_not_found_maps_to_agent_failure_document() -> TestResult {
             }),
         );
     });
-    let output = run(
-        &base,
-        &[
-            "agent",
-            "get",
-            "--agent-session",
-            "sess-gone",
-            "--format",
-            "json",
-        ],
-    );
+    let output = run(&base, &["agent", "get", "sess-gone", "--format", "json"]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(3));
     let document = document(&output);
@@ -1302,17 +1294,7 @@ fn wrong_result_kind_is_protocol_invalid() -> TestResult {
             listed_document(&request_id, serde_json::json!([]), serde_json::Value::Null),
         );
     });
-    let output = run(
-        &base,
-        &[
-            "agent",
-            "get",
-            "--agent-session",
-            "sess-alpha",
-            "--format",
-            "json",
-        ],
-    );
+    let output = run(&base, &["agent", "get", "sess-alpha", "--format", "json"]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(5));
     let document = document(&output);
@@ -1346,17 +1328,7 @@ fn malformed_frame_is_protocol_invalid() -> TestResult {
 fn invalid_session_id_fails_before_any_session() -> TestResult {
     let base = base_dir("abadid");
     let scope = stage_scope(&base);
-    let output = run(
-        &base,
-        &[
-            "agent",
-            "get",
-            "--agent-session",
-            "bad id!",
-            "--format",
-            "json",
-        ],
-    );
+    let output = run(&base, &["agent", "get", "bad id!", "--format", "json"]);
     assert_eq!(output.status.code(), Some(2));
     let document = document(&output);
     assert_eq!(document["schema"], "orchbee.cli.failure");
@@ -1449,17 +1421,7 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
         }
     });
     let list_out = run(&base, &["agent", "list", "--format", "json"]);
-    let get_out = run(
-        &base,
-        &[
-            "agent",
-            "get",
-            "--agent-session",
-            "sess-alpha",
-            "--format",
-            "json",
-        ],
-    );
+    let get_out = run(&base, &["agent", "get", "sess-alpha", "--format", "json"]);
     let denied = run(&base, &["agent", "list", "--format", "json"]);
     peer.join().expect("peer finished");
     for (output, validator, name) in [
@@ -1645,17 +1607,7 @@ fn wait_matched_emits_wait_envelope_on_one_held_session() -> TestResult {
             ),
         );
     });
-    let output = run(
-        &base,
-        &[
-            "agent",
-            "wait",
-            "--agent-session",
-            "sess-alpha",
-            "--format",
-            "json",
-        ],
-    );
+    let output = run(&base, &["agent", "wait", "sess-alpha", "--format", "json"]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let document = document(&output);
@@ -1731,7 +1683,6 @@ fn wait_freshness_gates_status_and_preserves_requested_order() -> TestResult {
         &[
             "agent",
             "wait",
-            "--agent-session",
             "sess-alpha",
             "--until",
             "idle",
@@ -1788,7 +1739,6 @@ fn wait_fence_ahead_refuses_after_one_observation() -> TestResult {
         &[
             "agent",
             "wait",
-            "--agent-session",
             "sess-alpha",
             "--after-revision",
             "9",
@@ -1859,7 +1809,6 @@ fn wait_fence_equal_waits_for_later_revision() -> TestResult {
         &[
             "agent",
             "wait",
-            "--agent-session",
             "sess-alpha",
             "--after-revision",
             "7",
@@ -1908,17 +1857,7 @@ fn wait_mid_wait_not_found_is_agent_failure() -> TestResult {
             }),
         );
     });
-    let output = run(
-        &base,
-        &[
-            "agent",
-            "wait",
-            "--agent-session",
-            "sess-gone",
-            "--format",
-            "json",
-        ],
-    );
+    let output = run(&base, &["agent", "wait", "sess-gone", "--format", "json"]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(3));
     let document = document(&output);
@@ -1962,17 +1901,7 @@ fn wait_mid_wait_refusal_kinds_keep_their_family() -> TestResult {
                 }),
             );
         });
-        let output = run(
-            &base,
-            &[
-                "agent",
-                "wait",
-                "--agent-session",
-                "sess-alpha",
-                "--format",
-                "json",
-            ],
-        );
+        let output = run(&base, &["agent", "wait", "sess-alpha", "--format", "json"]);
         peer.join().expect("peer finished");
         assert_eq!(output.status.code(), Some(code), "{kind}");
         let document = document(&output);
@@ -2010,7 +1939,6 @@ fn wait_read_deadline_records_the_admitted_budget() -> TestResult {
         &[
             "agent",
             "wait",
-            "--agent-session",
             "sess-alpha",
             "--timeout",
             "60000",
@@ -2079,7 +2007,6 @@ fn wait_deadline_reports_completed_observations() -> TestResult {
         &[
             "agent",
             "wait",
-            "--agent-session",
             "sess-alpha",
             "--timeout",
             "4000",
@@ -2121,17 +2048,7 @@ fn wait_sigint_during_held_exchange_is_typed_cancellation() -> TestResult {
     let base = base_dir("await-int");
     let scope = stage_scope(&base);
     let (peer, ready) = held_exchange_peer(&scope);
-    let child = spawn_cli(
-        &base,
-        &[
-            "agent",
-            "wait",
-            "--agent-session",
-            "sess-alpha",
-            "--format",
-            "json",
-        ],
-    );
+    let child = spawn_cli(&base, &["agent", "wait", "sess-alpha", "--format", "json"]);
     ready
         .recv_timeout(Duration::from_secs(15))
         .expect("the request reached the held peer");

@@ -178,7 +178,6 @@ pub mod application {
             AgentExchangeError, AgentExchangeFailure, AgentReadOperation,
         };
         pub use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
-        pub use crate::local_client::workbench::agent_integration::AgentIntegrationJobEnd;
         pub use crate::local_client::workbench::client_view::ClientViewExchangeError;
         pub use crate::local_client::workbench::creation::{CreationRequest, CreationSubmission};
         pub use crate::local_client::workbench::label_rename::{

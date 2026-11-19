@@ -1,4 +1,3 @@
-export { AGENT_INTEGRATION_PROVIDERS } from './workbench-agent-integration-contract';
 export type { WorkbenchAgentCatalog } from './workbench-agent-catalog-contract';
 export {
 	WORKBENCH_MAXIMUM_LABEL_LENGTH,

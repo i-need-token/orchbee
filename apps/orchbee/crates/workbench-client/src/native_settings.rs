@@ -2,7 +2,6 @@
 //! and live application remain separate owners.
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
-use orchbee_agent_integration::IntegrationId;
 use orchbee_workbench_protocol::{
     SettingScalar, SettingsFile, SettingsOperation, SettingsSnapshot, UserSettingsValues,
 };
@@ -17,8 +16,6 @@ mod choices;
 pub(crate) use choices::{Choice, ChoicePicker};
 mod editing;
 mod input;
-mod integrations;
-pub(crate) use integrations::{Diagnosis, IntegrationJob, Integrations, JobEnd};
 mod metadata;
 mod page;
 use page::PageState;
@@ -104,8 +101,6 @@ pub enum Control {
     /// Restores one row's keys to their defaults.
     Restore(Row),
     Choose(Choice),
-    /// One Agent row's auxiliary action: open its read-only diagnosis.
-    Explain(IntegrationId),
 }
 /// The newest settings the Server confirmed: the revision orders observations, `values` are the
 /// common values the file gives, `set` names the keys the file sets.
@@ -203,8 +198,6 @@ pub(crate) enum Edit {
     Line(LineKey),
     Search,
     Page(bool),
-    /// Opens or reruns the selected Agent's diagnosis.
-    Explain,
 }
 pub(crate) struct Submission {
     pub(crate) token: Token,
@@ -237,11 +230,8 @@ enum State {
 pub(crate) struct Editor {
     login_shell_supported: bool,
     reduced_color: bool,
-    integrations_available: bool,
     /// Only tests set it, to show the rows the settings registry keeps off the page.
     unlisted: bool,
-    /// Survives closing Settings: an accepted job keeps running and settles here.
-    integrations: Integrations,
     /// About's mirror of the update state, followed while Settings is closed.
     about: About,
     /// Followed while Settings is closed, so a page that opens names the file at once.
@@ -318,7 +308,6 @@ impl Editor {
         let mut page = PageState {
             login_shell_supported: self.login_shell_supported,
             reduced_color: self.reduced_color,
-            integrations_available: self.integrations_available,
             unlisted: self.unlisted,
             token,
             values: confirmed.values.clone(),
@@ -486,11 +475,7 @@ impl Editor {
                 token,
                 visible: true,
             } => Some(View::Loading { token: *token }),
-            State::Open(page) => Some(View::Page(PageView::new(
-                page,
-                &self.integrations,
-                &self.about,
-            ))),
+            State::Open(page) => Some(View::Page(PageView::new(page, &self.about))),
             _ => None,
         }
     }
@@ -600,39 +585,6 @@ impl Editor {
         }
     }
 
-    /// A remote origin offers no integration management: remote hosts stay manual.
-    pub(crate) fn configure_integrations(&mut self, available: bool) -> bool {
-        if self.integrations_available == available {
-            return false;
-        }
-        self.integrations_available = available;
-        if let State::Open(page) = &mut self.state {
-            page.integrations_available = available;
-            if !available {
-                while page.page.is_integrations() {
-                    page.return_to_parent();
-                }
-                page.settle_focus();
-            }
-        }
-        self.redraw();
-        self.visible()
-    }
-
-    /// The job the page admitted and the transport has not yet taken.
-    pub(crate) fn take_integration_job(&mut self) -> Option<IntegrationJob> {
-        self.integrations.take_submission()
-    }
-
-    /// Applies a job end even while Settings is closed; returns whether a visible page changed.
-    pub(crate) fn settle_integration(&mut self, end: JobEnd) -> bool {
-        if !self.integrations.settle(end) {
-            return false;
-        }
-        self.redraw();
-        self.visible()
-    }
-
     /// Follows the update state About shows; answers whether a visible page changed.
     pub(crate) fn observe_update(
         &mut self,
@@ -659,11 +611,5 @@ impl Editor {
                 && page.category == Category::About
                 && page.filter.text().is_empty()
         )
-    }
-
-    /// A new Session starts uninspected; a job of the old one is no longer followed.
-    pub(crate) fn reset_integrations(&mut self) {
-        self.integrations = Integrations::default();
-        self.redraw();
     }
 }

@@ -73,9 +73,8 @@ mod wait_options;
 mod workbench_options;
 mod worktree;
 use agent_options::{
-    adapter_source_option, agent_after_revision_option, agent_limit_option, agent_name,
-    agent_selector, agent_until_option, agent_wait_timeout_option, provider_option,
-    required_provider,
+    agent_after_revision_option, agent_limit_option, agent_selector, agent_until_option,
+    agent_wait_timeout_option,
 };
 #[cfg(test)]
 pub(crate) use argv::parse_request;
@@ -100,7 +99,6 @@ use option_scope::{
 use scan::{format_envelope, scan};
 use send_input::{parse_send_key, send_input};
 use server_stop::{confirm_option_required, stop_command};
-use std::path::PathBuf;
 pub(crate) use target_syntax::label_requires_id;
 use target_syntax::{ZERO_IDENTITY, target, valid_typed_id};
 use wait_options::{close_wait, wait_matcher_option, wait_timeout_option};
@@ -113,7 +111,7 @@ pub(crate) use worktree::WorktreeQueryCommand;
 pub(crate) use worktree::{ParsedWorktreeCommand, ParsedWorktreeQueryCommand};
 pub(crate) use worktree::{WorktreeOpenSelector, WorktreeStartCommand, WorktreeStartKind};
 
-use orchbee_agent_observation_protocol::{AgentName, AgentSafeInteger, AgentSessionId};
+use orchbee_agent_observation_protocol::{AgentSafeInteger, AgentSessionId};
 use orchbee_workbench_protocol::{
     LaunchOptions, LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchClientId,
     WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
@@ -176,8 +174,6 @@ impl Target {
 /// Parsed Agent targets keep Workbench Panel selectors out of OBAP DTOs.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AgentTarget {
-    Session { session_id: AgentSessionId },
-    Name { name: AgentName },
     Auto { target: AgentSessionId },
     Panel { target: Target },
     Terminal { target: Target },
@@ -592,32 +588,6 @@ pub(crate) enum PanelMoveDestination {
     },
 }
 
-/// One `agent integration` command admitted by the grammar — a local
-/// provider-onboarding operation that never touches a Session. `provider` is
-/// optional on `list` (a filter) and required on every other verb;
-/// `adapter_source` is the development/test override already validated as
-/// a literal absolute path.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum AgentIntegrationCommand {
-    List {
-        outdated_only: bool,
-        provider: Option<crate::agent_integrations::IntegrationId>,
-        adapter_source: Option<PathBuf>,
-    },
-    Explain {
-        provider: crate::agent_integrations::IntegrationId,
-        adapter_source: Option<PathBuf>,
-    },
-    Enable {
-        provider: crate::agent_integrations::IntegrationId,
-        adapter_source: Option<PathBuf>,
-    },
-    Disable {
-        provider: crate::agent_integrations::IntegrationId,
-        adapter_source: Option<PathBuf>,
-    },
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AgentPromptWait {
     pub(crate) client: Option<WorkbenchClientId>,
@@ -627,8 +597,6 @@ pub(crate) struct AgentPromptWait {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct AgentStartCommand {
-    /// `--name`: bound only once an integration reports the Agent's session.
-    pub(crate) name: Option<AgentName>,
     /// The `<provider>` positional: a canonical startable provider id.
     pub(crate) provider: String,
     pub(crate) place: AgentStartPlace,
@@ -668,16 +636,6 @@ impl AgentStartPlace {
             Self::SplitDown => "split-down",
         }
     }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum AgentNamesCommand {
-    Resolve(AgentTarget),
-    Assign {
-        target: AgentTarget,
-        name: AgentName,
-    },
-    Release(AgentTarget),
 }
 
 /// Parsed stop/status intent; destructive confirmation and flag conflicts are checked before use.
@@ -942,16 +900,6 @@ pub(crate) enum Request {
         command: AgentStartCommand,
         format: OutputFormat,
     },
-    AgentNames {
-        command: AgentNamesCommand,
-        format: OutputFormat,
-    },
-    /// `agent integration`: provider onboarding — declares activation of the local Session and
-    /// runs one Server-authorized job on its Worker.
-    AgentIntegration {
-        command: AgentIntegrationCommand,
-        format: OutputFormat,
-    },
 }
 
 /// Invocation-wide selection is separate from business targets such as Agent sessions.
@@ -1070,7 +1018,6 @@ struct Options {
     cwd: Option<String>,
     environment: Vec<String>,
     args: Vec<String>,
-    outdated_only: bool,
     include_ended: bool,
     worktrees: bool,
     limit: Option<String>,
@@ -1083,13 +1030,10 @@ struct Options {
     after_revision: Option<String>,
     output_after: Option<String>,
     name: Option<String>,
-    agent_session: Option<String>,
     clear: bool,
     prompt_wait: bool,
     forever: bool,
     profile: Option<String>,
-    provider: Option<String>,
-    adapter_source: Option<String>,
     /// `operation resume --generation <n>`: the explicit attempt
     /// fence; a stale value is a settled `stale` answer, never an effect.
     generation: Option<String>,

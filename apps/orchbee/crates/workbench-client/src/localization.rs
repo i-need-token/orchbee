@@ -37,11 +37,9 @@ mod capabilities;
 mod plugins;
 mod settings;
 pub(crate) use settings::{
-    IntegrationAdapter, IntegrationBlock, IntegrationFactLabel, IntegrationFailure,
-    IntegrationFinding, IntegrationStatus, IntegrationStep, IntegrationUnknown, SettingUnit,
-    SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsFieldRequirement,
-    SettingsFileFact, SettingsGroup, SettingsHintLabel, SettingsNotice, SettingsProfileLabel,
-    SettingsRow, SettingsTextRequirement, SettingsValue, StartFolder,
+    SettingUnit, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
+    SettingsFieldRequirement, SettingsFileFact, SettingsGroup, SettingsHintLabel, SettingsNotice,
+    SettingsProfileLabel, SettingsRow, SettingsTextRequirement, SettingsValue, StartFolder,
 };
 mod status;
 mod terminal_feedback;

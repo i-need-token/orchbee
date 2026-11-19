@@ -81,21 +81,6 @@ wait_conditions! {
     Stale => "stale",
     Disconnected => "disconnected",
 }
-pub(crate) const PROVIDER_VALUES: &[&str] = &{
-    use crate::agent_integrations::IntegrationId;
-    let mut values = [""; IntegrationId::ALL.len()];
-    let mut index = 0;
-    while index < values.len() {
-        values[index] = IntegrationId::ALL[index].provider();
-        index += 1;
-    }
-    values
-};
-/// A canonical Agent outside the integration vocabulary: Orchbee can start
-/// it but has no integration to check or manage for it.
-pub(crate) fn start_only_provider(value: &str) -> bool {
-    crate::agent_provider::CANONICAL_IDS.contains(&value) && !PROVIDER_VALUES.contains(&value)
-}
 macro_rules! mapped_values {
     ($values:ident, $parse:ident, $type:ty, {$($word:literal => $value:expr),+ $(,)?}) => {
         pub(crate) const $values: &[&str] = &[$($word),+];

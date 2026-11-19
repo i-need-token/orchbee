@@ -2,22 +2,21 @@
 //! typed request and builds the remaining simple requests in place.
 
 use super::{
-    AgentIntegrationCommand, AgentNamesCommand, AgentPromptWait, AgentStartCommand,
-    AgentStartPlace, CompletionShell, ExpectedValue, FailureEnvelope, MAXIMUM_SEND_RECORDS,
-    ManifestCommand, MutationCommand, Options, OutputFormat, OutputTarget, PanelQueryTarget,
-    ParseFailure, QueryCommand, Request, Resource, RuntimeStatusScope, Target, TerminalListFilter,
-    UsageContext, UsageReason, adapter_source_option, agent_after_revision_option,
-    agent_limit_option, agent_name, agent_selector, agent_until_option, agent_wait_timeout_option,
-    business_options, check_scope, client_control, close_wait, configured_commands,
-    confirm_option_required, creation, diagnostics, events, grammar, label_option, layouts,
-    machines, missing_command, missing_required, mutation, named_sessions, operation,
-    pane_graphics, panel_agent, panel_metadata, panel_move_destination, panel_relocation,
-    panel_terminal_creation, parse_send_key, path_option, plugins, profile_name_option,
-    profile_selector, provider_option, query, reject_extras, reject_extras_scope, reject_filters,
-    required, required_launch_option, required_provider, resolve_help_path, schema_export,
-    send_input, stop_command, tab_move_command, target, terminal_output, terminal_run,
-    terminal_stream, terminal_target, unexpected_argument, unknown_command, usage_with,
-    workspace_creation, workspace_group_close, workspace_metadata, worktree,
+    AgentPromptWait, AgentStartCommand, AgentStartPlace, CompletionShell, ExpectedValue,
+    FailureEnvelope, MAXIMUM_SEND_RECORDS, ManifestCommand, MutationCommand, Options, OutputFormat,
+    OutputTarget, PanelQueryTarget, ParseFailure, QueryCommand, Request, Resource,
+    RuntimeStatusScope, Target, TerminalListFilter, UsageContext, UsageReason,
+    agent_after_revision_option, agent_limit_option, agent_selector, agent_until_option,
+    agent_wait_timeout_option, business_options, check_scope, client_control, close_wait,
+    configured_commands, confirm_option_required, creation, diagnostics, events, grammar,
+    label_option, layouts, machines, missing_command, missing_required, mutation, named_sessions,
+    operation, pane_graphics, panel_agent, panel_metadata, panel_move_destination,
+    panel_relocation, panel_terminal_creation, parse_send_key, path_option, plugins,
+    profile_name_option, profile_selector, query, reject_extras, reject_extras_scope,
+    reject_filters, required, required_launch_option, resolve_help_path, schema_export, send_input,
+    stop_command, tab_move_command, target, terminal_output, terminal_run, terminal_stream,
+    terminal_target, unexpected_argument, unknown_command, usage_with, workspace_creation,
+    workspace_group_close, workspace_metadata, worktree,
 };
 
 pub(super) fn resolve_words(
@@ -147,11 +146,6 @@ pub(super) fn resolve_words(
                     envelope,
                 )
             };
-            let name = options
-                .name
-                .as_deref()
-                .map(|name| agent_name(name, context, envelope))
-                .transpose()?;
             // The provider is the one operand before `--`; Agent arguments follow `--`. Any other
             // word before it is refused rather than passed to the Agent, so a stale
             // `agent start <name>` never becomes the Agent's first argument.
@@ -266,7 +260,6 @@ pub(super) fn resolve_words(
             }
             Ok(Request::AgentStart {
                 command: AgentStartCommand {
-                    name,
                     provider: (*provider).to_owned(),
                     place,
                     panel,
@@ -284,11 +277,7 @@ pub(super) fn resolve_words(
             let context = UsageContext::Path("agent prompt");
             check_scope(options, context, envelope)?;
             let selector_len = usize::from(
-                options.name.is_none()
-                    && options.agent_session.is_none()
-                    && options.panel.is_none()
-                    && options.terminal.is_none()
-                    && !rest.is_empty(),
+                options.panel.is_none() && options.terminal.is_none() && !rest.is_empty(),
             );
             let target = agent_selector(&rest[..selector_len], options, context, envelope)?;
             let values = &rest[selector_len..];
@@ -345,11 +334,7 @@ pub(super) fn resolve_words(
             let context = UsageContext::Path("agent send-keys");
             check_scope(options, context, envelope)?;
             let selector_len = usize::from(
-                options.name.is_none()
-                    && options.agent_session.is_none()
-                    && options.panel.is_none()
-                    && options.terminal.is_none()
-                    && !rest.is_empty(),
+                options.panel.is_none() && options.terminal.is_none() && !rest.is_empty(),
             );
             let target = agent_selector(&rest[..selector_len], options, context, envelope)?;
             let values = &rest[selector_len..];
@@ -401,86 +386,6 @@ pub(super) fn resolve_words(
                 },
                 options,
             ))
-        }
-        ["agent", "resolve", rest @ ..] => {
-            let context = UsageContext::Path("agent resolve");
-            check_scope(options, context, envelope)?;
-            Ok(Request::AgentNames {
-                command: AgentNamesCommand::Resolve(agent_selector(
-                    rest, options, context, envelope,
-                )?),
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
-        ["agent", "rename", rest @ ..] => {
-            let context = UsageContext::Path("agent rename");
-            check_scope(options, context, envelope)?;
-            let command = if options.clear {
-                AgentNamesCommand::Release(agent_selector(rest, options, context, envelope)?)
-            } else {
-                let Some((value, selectors)) = rest.split_last() else {
-                    return Err(usage_with(
-                        UsageReason::MissingRequired {
-                            context,
-                            requirement: "<target> <new-name> or --clear",
-                        },
-                        envelope,
-                    ));
-                };
-                AgentNamesCommand::Assign {
-                    target: agent_selector(selectors, options, context, envelope)?,
-                    name: agent_name(value, context, envelope)?,
-                }
-            };
-            Ok(Request::AgentNames {
-                command,
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
-        ["agent", "integration", "list"] => {
-            let context = UsageContext::Path("agent integration list");
-            check_scope(options, context, envelope)?;
-            Ok(Request::AgentIntegration {
-                command: AgentIntegrationCommand::List {
-                    outdated_only: options.outdated_only,
-                    provider: provider_option(options, context, envelope)?,
-                    adapter_source: adapter_source_option(options, context, envelope)?,
-                },
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
-        ["agent", "integration", "explain"] => {
-            let context = UsageContext::Path("agent integration explain");
-            check_scope(options, context, envelope)?;
-            Ok(Request::AgentIntegration {
-                command: AgentIntegrationCommand::Explain {
-                    provider: required_provider(options, context, envelope)?,
-                    adapter_source: adapter_source_option(options, context, envelope)?,
-                },
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
-        ["agent", "integration", "enable"] => {
-            let context = UsageContext::Path("agent integration enable");
-            check_scope(options, context, envelope)?;
-            Ok(Request::AgentIntegration {
-                command: AgentIntegrationCommand::Enable {
-                    provider: required_provider(options, context, envelope)?,
-                    adapter_source: adapter_source_option(options, context, envelope)?,
-                },
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
-        ["agent", "integration", "disable"] => {
-            let context = UsageContext::Path("agent integration disable");
-            check_scope(options, context, envelope)?;
-            Ok(Request::AgentIntegration {
-                command: AgentIntegrationCommand::Disable {
-                    provider: required_provider(options, context, envelope)?,
-                    adapter_source: adapter_source_option(options, context, envelope)?,
-                },
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
         }
         ["project", "list"] => {
             reject_filters(options, UsageContext::Path("project list"), envelope)?;
@@ -1264,35 +1169,6 @@ pub(super) fn resolve_words(
         ["agent", "list", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("agent list"),
             extra,
-            envelope,
-        )),
-        ["agent", "integration"] => Err(missing_command(
-            UsageContext::Path("agent integration"),
-            envelope,
-        )),
-        ["agent", "integration", "list", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("agent integration list"),
-            extra,
-            envelope,
-        )),
-        [
-            "agent",
-            "integration",
-            verb @ ("explain" | "enable" | "disable"),
-            extra,
-            ..,
-        ] => Err(unexpected_argument(
-            UsageContext::Path(match *verb {
-                "explain" => "agent integration explain",
-                "enable" => "agent integration enable",
-                _ => "agent integration disable",
-            }),
-            extra,
-            envelope,
-        )),
-        ["agent", "integration", verb, ..] => Err(unknown_command(
-            UsageContext::Path("agent integration"),
-            verb,
             envelope,
         )),
         ["agent", verb, ..] => Err(unknown_command(UsageContext::Path("agent"), verb, envelope)),

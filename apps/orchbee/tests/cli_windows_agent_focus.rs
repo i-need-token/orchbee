@@ -2,6 +2,8 @@
 #![cfg(windows)]
 #[path = "support/windows_agent_peer/cohort_fixture.rs"]
 mod cohort_fixture;
+#[path = "support/windows_agent_peer/deadline_fixture.rs"]
+mod deadline_fixture;
 #[allow(dead_code)]
 #[path = "support/inherited_environment.rs"]
 mod inherited_environment;
@@ -146,63 +148,6 @@ fn receipt(document: &Value) {
         document,
         include_str!("../src/cli/schemas/orchbee.client.control.json"),
     );
-}
-
-#[test]
-fn physical_agent_focus_pins_the_full_binding_and_never_substitutes_a_childs_parent() {
-    for case in ["primary", "child", "no-agent"] {
-        let fixture = FocusFixture::new();
-        let rendezvous = fixture.rendezvous();
-        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let server = peer(&fixture, listener, move |mut stream| {
-            snapshot_reply(&mut stream);
-            list_reply(&mut stream, vec![record(7, 6)]);
-            let binding = json!({"presentationId":id(if case == "child" {308} else {108}),
-                "generation":id(800),"hostEpoch":id(801),"hostTerminalId":id(802)});
-            resolve_reply(
-                &mut stream,
-                json!({"kind":"resolved-target","resolvedBy":"name",
-                "target":{"kind":"terminal","binding":binding}}),
-            );
-            let WorkbenchRequest::PanelAgent(request) =
-                read_workbench_request(&mut stream).unwrap()
-            else {
-                panic!("physical Observe")
-            };
-            assert_eq!(
-                json!(request.action),
-                json!({"kind":"observe","binding":binding,"afterSequence":null})
-            );
-            write_workbench_response(&mut stream,&WorkbenchResponse::PanelAgent(PanelAgentResult {
-                protocol_version:ProtocolVersion, request_id:request.request_id, session_id:request.session_id,
-                outcome:PanelAgentOutcome::Observed {
-                    workbench_revision:WorkbenchRevision::new(12), report_revision:WorkbenchRevision::new(3),
-                    observation:Box::new(serde_json::from_value(json!({"binding":binding,"sequence":"0","changes":[],
-                        "view":{"agent":if case == "no-agent" {Value::Null} else {json!("pi")},"state":"unknown","authoritySource":null,"message":null}})).unwrap()),
-                },
-            })).unwrap();
-            if case == "primary" {
-                let request = view_request(&mut stream);
-                let ClientViewAction::Submit { command } = &request.action else {
-                    panic!("single focus Submit")
-                };
-                assert_eq!(
-                    json!(command.intent),
-                    json!({"kind":"agent-focus","terminalContextId":id(4),"tabId":id(5),"panelId":id(8),"presentationId":id(108),"target":{"kind":"terminal","binding":binding}})
-                );
-                settled(&mut stream, &request, command);
-            }
-            assert_closed(&mut stream);
-        });
-        let output = fixture.run(&["agent", "focus", "--name", "physical", "--format=json"]);
-        server.join().unwrap();
-        assert_eq!(output.status.success(), case == "primary", "{output:?}");
-        if case == "primary" {
-            let document = document(&output);
-            assert_eq!(document["version"], 1);
-            receipt(&document);
-        }
-    }
 }
 
 #[test]
@@ -371,25 +316,15 @@ fn unified_agent_selectors_complete_before_resolving_or_submitting_focus() {
 }
 
 #[test]
-fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_clients() {
-    for selector in [
-        vec!["alpha"],
-        vec!["--name", "alpha"],
-        vec!["--agent-session", "sess-alpha"],
-        vec!["--panel", "@panel:0x8"],
-    ] {
+fn sessions_and_explicit_panels_select_one_primary_without_touching_other_clients() {
+    for selector in [vec!["sess-alpha"], vec!["--panel", "@panel:0x8"]] {
         let fixture = FocusFixture::new();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let direct = selector[0] == "--agent-session";
         let pinned = selector[0] == "--panel";
-        let busy = selector[0] == "--name";
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
-            let mut selected = record(7, 6);
-            if busy {
-                selected["view"]["phase"] = json!("busy");
-            }
+            let selected = record(7, 6);
             list_reply(&mut stream, vec![selected, record(9, 6)]);
             let session = if pinned {
                 peer_support::with_attachment_generation(detail(&[106, 108]), &id(108), &id(1))
@@ -408,9 +343,7 @@ fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_
                 )
                 .read(&mut stream, false);
             }
-            if !direct {
-                resolved(&mut stream);
-            }
+            resolved(&mut stream);
             get_reply(&mut stream, session);
             let (request, command) = submitted(&mut stream);
             settled(&mut stream, &request, &command);
@@ -606,6 +539,7 @@ fn a_stale_view_focus_is_resubmitted_only_to_the_same_target_and_at_most_three_t
                 let mut current = record(7, 6);
                 current["viewRevision"] = json!((2 + attempt).to_string());
                 list_reply(&mut stream, vec![current]);
+                resolved(&mut stream);
                 let moved = case == "moved" && attempt == 1;
                 get_reply(&mut stream, detail(if moved { &[106] } else { &[108] }));
                 if moved {
@@ -647,13 +581,7 @@ fn a_stale_view_focus_is_resubmitted_only_to_the_same_target_and_at_most_three_t
             assert_closed(&mut stream);
             sent.send(operations).unwrap();
         });
-        let output = fixture.run(&[
-            "agent",
-            "focus",
-            "--agent-session",
-            "sess-alpha",
-            "--format=json",
-        ]);
+        let output = fixture.run(&["agent", "focus", "sess-alpha", "--format=json"]);
         server.join().unwrap();
         let operations = received.recv().unwrap();
         let document = document(&output);

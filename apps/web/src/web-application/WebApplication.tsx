@@ -22,7 +22,6 @@ import type { WorkbenchLayoutStorage } from '../workbench-layout-storage';
 import { useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
-import type { AgentIntegrationManagementControl } from '../agent-integration-management';
 import type { ApplicationLocaleController } from '../application-locale';
 import { createBrowserLocalFontCatalog } from '../browser-local-fonts';
 import {
@@ -57,7 +56,6 @@ const ORCHBEE_INSTALL_URL = 'https://orchbee.com/#install';
 export interface WebApplicationProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly applicationLocaleController: ApplicationLocaleController;
-	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
 	readonly agentNameSource?: WorkbenchAgentNameSource | undefined;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority: WorkbenchAuthority;
@@ -103,7 +101,6 @@ interface WebApplicationClientBuild {
 export function WebApplication({
 	actionRuntime,
 	applicationLocaleController,
-	agentIntegrationManagementControl,
 	agentNameSource,
 	agentObservationSource,
 	authority,
@@ -247,7 +244,6 @@ export function WebApplication({
 			</div>
 			<TerminalSettingsSurface
 				about={about}
-				agentIntegrationManagementControl={agentIntegrationManagementControl}
 				applicationLocaleController={applicationLocaleController}
 				controller={terminalSettingsController}
 				folderPicker={projectFolderAcquisition}

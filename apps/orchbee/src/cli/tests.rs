@@ -6,8 +6,6 @@ use crate::cli_text::CliText;
 mod list_output;
 #[cfg(windows)]
 mod projection_schemas;
-#[cfg(unix)]
-mod provider_packs;
 
 use serde_json::{Value, json};
 
@@ -53,51 +51,6 @@ fn default_config_uses_the_setting_and_client_action_registries() {
     }
     assert!(text.contains("# rename_panel = []"));
     assert!(text.contains("# focus_agent = []"));
-}
-
-#[cfg(any(unix, windows))]
-#[test]
-fn integration_list_documents_cover_the_entire_provider_registry() {
-    use crate::agent_integrations::model::Availability;
-    use crate::agent_integrations::{CapsuleStatus, IntegrationId, SnapshotItem, State};
-    use orchbee_agent_integration::ManagementMode;
-    let schema: Value =
-        serde_json::from_str(include_str!("schemas/orchbee.agent.integrations.json")).unwrap();
-    let validator = jsonschema::validator_for(&schema).unwrap();
-    for outdated_only in [false, true] {
-        let items = IntegrationId::ALL
-            .into_iter()
-            .map(|integration_id| SnapshotItem {
-                availability: Availability::Available,
-                integration_id,
-                issue: None,
-                management_mode: ManagementMode::ManagedLocal,
-                state: State::UpdateRequired,
-                timed_out: false,
-            })
-            .collect();
-        let prepared = super::integration::Prepared::List {
-            items,
-            capsule: CapsuleStatus {
-                ready: false,
-                root: "/isolated-capsule".into(),
-                source_kind: "absent",
-                binding_failure: false,
-                payload_sha256: "a".repeat(64),
-            },
-            outdated_only,
-        };
-        let output = prepared.render(OutputFormat::Json, Locale::EnUs);
-        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-        validator
-            .validate(&document)
-            .unwrap_or_else(|error| panic!("{document}: {error}"));
-        assert_eq!(document["version"], 1);
-        assert_eq!(
-            document["result"]["integrations"].as_array().unwrap().len(),
-            IntegrationId::ALL.len()
-        );
-    }
 }
 
 #[test]
@@ -873,7 +826,6 @@ fn fixed_outputs_are_far_below_the_bound() {
     ));
     for family in [
         Family::Agent,
-        Family::AgentIntegration,
         Family::Command,
         Family::Events,
         Family::Plugin,
@@ -955,12 +907,6 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::AgentStart,
         CommandPath::AgentSendKeys,
         CommandPath::AgentList,
-        CommandPath::AgentRename,
-        CommandPath::AgentResolve,
-        CommandPath::AgentIntegrationDisable,
-        CommandPath::AgentIntegrationEnable,
-        CommandPath::AgentIntegrationExplain,
-        CommandPath::AgentIntegrationList,
         CommandPath::AgentWait,
         CommandPath::ApiSchema,
         CommandPath::ApiSnapshot,
@@ -1160,7 +1106,6 @@ fn fixed_outputs_are_far_below_the_bound() {
         "delete",
         "explain",
         "get",
-        "integration",
         "list",
         "move",
         "process-info",
@@ -1186,9 +1131,6 @@ fn fixed_outputs_are_far_below_the_bound() {
         "wait",
         "wait-output",
     ];
-    // `agent integration` nests one level deeper — the pin table must cover
-    // its commands through both legal surfaces as well.
-    let integration_verbs = ["disable", "enable", "explain", "list"];
     let mut topics: Vec<CommandPath> = Vec::new();
     let mut collect = |arguments: &[&str]| {
         if let Ok(Request::Help(HelpTopic::Command(command))) =
@@ -1205,10 +1147,6 @@ fn fixed_outputs_are_far_below_the_bound() {
             collect(&[root, verb, "--help"]);
             collect(&["help", root, verb]);
         }
-    }
-    for verb in integration_verbs {
-        collect(&["agent", "integration", verb, "--help"]);
-        collect(&["help", "agent", "integration", verb]);
     }
     for verb in ["set", "clear"] {
         collect(&["terminal", "title", verb, "--help"]);
@@ -1501,80 +1439,6 @@ fn agent_cancellation_emits_agent_envelope_with_finalization() {
     assert!(
         body.get("source").is_none() || body["source"].is_null(),
         "a cancelled read publishes no correlated source"
-    );
-}
-
-/// A failed termination-signal registration refuses an integration job
-/// before any Session exchange, so no job runs uncancellable — the armed
-/// seam makes `install` fail once, and the refusal carries the existing
-/// `internal-failure` kind at exit 1. A second install succeeds, proving
-/// the refusal came from the injected fault, not ambient state.
-#[cfg(unix)]
-#[test]
-fn integration_signal_install_failure_refuses_before_effects() {
-    use super::{FailureKind, integration};
-    use crate::agent_integrations::IntegrationId;
-    use crate::invocation::AgentIntegrationCommand;
-
-    orchbee_workbench_client::test_support::termination_signal::arm_install_fault();
-    let command = AgentIntegrationCommand::Enable {
-        provider: IntegrationId::ClaudeCode,
-        adapter_source: None,
-    };
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
-    let failure = match integration::run_job(&command, deadline) {
-        Err(failure) => failure,
-        Ok(_) => panic!("armed install fault must refuse the invocation"),
-    };
-    assert_eq!(failure.kind, FailureKind::InternalFailure);
-    assert_eq!(failure.kind.exit_code(), 1);
-    assert!(
-        crate::termination_signal::TerminationSignal::install().is_ok(),
-        "the armed fault is one-shot; install itself stays healthy"
-    );
-}
-
-/// A cancelled integration mutation projects `outcome:"cancelled"` — the
-/// schema must accept the real emitted document and the exit stays 130.
-/// The report is an entry-gate cancel: no attempted step, no observation.
-#[cfg(unix)]
-#[test]
-fn integration_cancelled_mutation_document_validates_against_schema() {
-    use super::integration::Prepared;
-    use crate::agent_integrations::{IntegrationId, MutationReport, Verdict};
-    use orchbee_agent_integration::{Direction, Provenance};
-
-    let report = MutationReport {
-        integration_id: IntegrationId::ClaudeCode,
-        direction: Direction::Enable,
-        attempted: vec![],
-        residuals: vec![],
-        observed: None,
-        provenance: Provenance::PreEffect,
-        effect_begun: false,
-        verdict: Verdict::Cancelled,
-    };
-    let output = Prepared::Mutation { report }.render(OutputFormat::Json, Locale::EnUs);
-    assert_eq!(output.status, 130, "cancelled keeps exit 130");
-    let document: Value = serde_json::from_slice(&output.stdout).expect("mutation JSON");
-    assert_eq!(document["result"]["outcome"], "cancelled");
-
-    let schema: Value = serde_json::from_str(include_str!(
-        "schemas/orchbee.agent.integration.mutation.json"
-    ))
-    .expect("mutation schema parses");
-    let validator = jsonschema::draft202012::new(&schema).expect("schema compiles");
-    assert!(
-        validator.is_valid(&document),
-        "real cancelled projection must validate: {document}"
-    );
-
-    // The vocabulary stays closed — an unknown outcome word is rejected.
-    let mut bad = document.clone();
-    bad["result"]["outcome"] = json!("aborted");
-    assert!(
-        !validator.is_valid(&bad),
-        "a non-vocabulary outcome must fail the schema"
     );
 }
 

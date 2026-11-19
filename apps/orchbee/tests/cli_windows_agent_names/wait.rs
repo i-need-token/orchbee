@@ -43,6 +43,10 @@ fn wait_keeps_a_transient_completion_separate_from_the_current_working_sample() 
     let fixture = Fixture::new();
     let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
+        super::resolve_reply(
+            &mut stream,
+            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
+        );
         checkpoint(&mut stream, 7);
         read_reply(
             &mut stream,
@@ -72,7 +76,6 @@ fn wait_keeps_a_transient_completion_separate_from_the_current_working_sample() 
     let output = fixture.run(&[
         "agent",
         "wait",
-        "--agent-session",
         "sess-alpha",
         "--until",
         "done",
@@ -112,6 +115,10 @@ fn wait_refuses_lost_history_without_restarting_or_publishing_a_match() {
     ] {
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
+            super::resolve_reply(
+                &mut stream,
+                json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
+            );
             checkpoint(&mut stream, 7);
             read_reply(
                 &mut stream,
@@ -131,7 +138,6 @@ fn wait_refuses_lost_history_without_restarting_or_publishing_a_match() {
         let output = fixture.run(&[
             "agent",
             "wait",
-            "--agent-session",
             "sess-alpha",
             "--until",
             "done",
@@ -157,6 +163,10 @@ fn wait_total_deadline_covers_the_initial_changes_checkpoint() {
     let fixture = Fixture::deadline_sensitive();
     let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
+        super::resolve_reply(
+            &mut stream,
+            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
+        );
         assert!(matches!(
             read_agent_request(&mut stream).unwrap(),
             AgentRequest::Changes(_)
@@ -166,7 +176,6 @@ fn wait_total_deadline_covers_the_initial_changes_checkpoint() {
     let output = fixture.run(&[
         "agent",
         "wait",
-        "--agent-session",
         "sess-alpha",
         "--timeout",
         "3000",

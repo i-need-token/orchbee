@@ -18,7 +18,6 @@ families! {
     Client => ["client"],
     Layout => ["layout"],
     Agent => ["agent"],
-    AgentIntegration => ["agent", "integration"],
     Project => ["project"],
     Workspace => ["workspace"],
     Tab => ["tab"],

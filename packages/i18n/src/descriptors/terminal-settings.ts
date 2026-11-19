@@ -152,10 +152,6 @@ export const terminalSettingsMessages = defineMessages({
 	pageGroupWhenToNotify: message('terminal.settings.page.groups.whenToNotify'),
 	pageGroupSoundAndDelivery: message('terminal.settings.page.groups.soundAndDelivery'),
 	pageGroupShortcuts: message('terminal.settings.page.groups.shortcuts'),
-	pageGroupAgentIntegrations: message('terminal.settings.page.groups.agentIntegrations'),
-	pageGroupAgentIntegrationsDescription: message(
-		'terminal.settings.page.groups.agentIntegrations.description',
-	),
 	pageFilterCount: message(
 		'terminal.settings.page.filter.count',
 		'How many entries of a long Settings list the filter shows. shown and total are entry counts.',

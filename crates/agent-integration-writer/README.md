@@ -14,9 +14,7 @@ retained mutation outcomes. Values and report vocabularies come from the
   sources. Linux compiles the latter unverified and keeps the configuration-hook providers and
   Hermes manual-only. The hook command each declaration carries is the platform's launcher:
   PowerShell on Windows, a POSIX shell line elsewhere.
-- The actual consumers are `orchbee-worker`, whose job owner runs every mutation and the Settings
-  `explain` and `list` for its Session, and `orchbee`, which runs the `list` and `explain` of
-  `agent integration` and `doctor` in its own process, reuses the read-only configuration
+- The actual consumers are `orchbee-worker`, whose job owner runs every mutation a job requests, and `orchbee`, which reuses the read-only configuration
   helpers for Windows update verification, and, after the environment's Sessions have stopped,
   runs the disable of each provider `uninstall` finds this environment may have enabled. It
   decides from `list_owned`, which reads Hermes's own state from its two entry files alone, so it
@@ -39,7 +37,7 @@ no issue, not checked, unless Orchbee's own Hermes entry files already prove a c
 this writer installs. Native staging and Desktop packaging copy it into each cohort, and
 `bundled_payload_sha256` embeds its manifest's identity. Every byte of it except `capsule.json` is
 payload, so any edit, including its README, needs a new `payloadSha256` and makes existing
-installations `update-required` until `orchbee agent integration enable` repairs them. Its adapter
+installations `update-required` until an enable job repairs them; no command or Settings control starts one in this release. Its adapter
 tests run from the repository root:
 
 ```sh

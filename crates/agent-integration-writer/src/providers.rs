@@ -30,7 +30,7 @@ pub(crate) struct ProviderContext<'a> {
     /// environment's data root.
     pub(crate) capsule_root: &'a Path,
     /// The declared adapter source: the cohort sidecar directory or the
-    /// `--adapter-source` override — `None` when no source exists.
+    /// development/test override — `None` when no source exists.
     pub(crate) adapter_source: Option<&'a Path>,
     /// The PATH provider programs are found on and each provider command starts with: this process's, after any folders the caller searches first.
     pub(crate) path_env: Option<&'a OsStr>,

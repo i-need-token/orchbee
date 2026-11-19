@@ -181,30 +181,6 @@ impl super::CliText {
                 "Wait for an Agent to match a condition.",
                 "等待智能体满足指定条件。",
             ),
-            HelpTopic::Command(CommandPath::AgentResolve) => (
-                "Resolve an Agent name to its session.",
-                "按名称查找智能体会话。",
-            ),
-            HelpTopic::Command(CommandPath::AgentRename) => {
-                ("Give an Agent session a name.", "设置智能体会话名称。")
-            }
-            HelpTopic::Family(Family::AgentIntegration) => {
-                ("Set up local Agent integrations.", "配置本地智能体集成。")
-            }
-            HelpTopic::Command(CommandPath::AgentIntegrationList) => (
-                "List local Agent integration states.",
-                "列出本地智能体集成状态。",
-            ),
-            HelpTopic::Command(CommandPath::AgentIntegrationExplain) => (
-                "Explain an Agent integration's setup.",
-                "说明智能体集成的配置情况。",
-            ),
-            HelpTopic::Command(CommandPath::AgentIntegrationEnable) => {
-                ("Enable a local Agent integration.", "启用本地智能体集成。")
-            }
-            HelpTopic::Command(CommandPath::AgentIntegrationDisable) => {
-                ("Disable a local Agent integration.", "停用本地智能体集成。")
-            }
             HelpTopic::Family(Family::Project) => (
                 "Group related workspaces into projects.",
                 "用项目组织相关工作区。",
@@ -731,7 +707,7 @@ impl super::CliText {
             HelpText::Terminals => ("Terminals and layout", "终端与布局"),
             HelpText::Agents => ("Agents and workflows", "智能体与工作流程"),
             HelpText::Sessions => ("Sessions and connections", "会话与连接"),
-            HelpText::Setup => ("Setup and integration", "设置与集成"),
+            HelpText::Setup => ("Setup", "设置"),
             HelpText::Introduction => (
                 "A terminal for running and coordinating AI Agents.",
                 "运行和协作 AI 智能体的终端。",

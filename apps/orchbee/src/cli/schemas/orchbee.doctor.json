@@ -32,7 +32,7 @@
 				},
 				"checks": {
 					"type": "object",
-					"required": ["installation", "settings", "records", "runtime", "session", "integrations"],
+					"required": ["installation", "settings", "records", "runtime", "session"],
 					"additionalProperties": false,
 					"properties": {
 						"installation": {
@@ -79,16 +79,6 @@
 							"oneOf": [
 								{
 									"$ref": "#/$defs/sessionCheck"
-								},
-								{
-									"$ref": "#/$defs/unsupported"
-								}
-							]
-						},
-						"integrations": {
-							"oneOf": [
-								{
-									"$ref": "#/$defs/integrationsCheck"
 								},
 								{
 									"$ref": "#/$defs/unsupported"
@@ -916,83 +906,6 @@
 					}
 				}
 			]
-		},
-		"integrations_publicProvider_item": {
-			"type": "object",
-			"required": ["integrationId", "availability", "managementMode", "state", "issue"],
-			"additionalProperties": false,
-			"properties": {
-				"integrationId": {
-					"enum": [
-						"claude-code",
-						"codex",
-						"grok",
-						"opencode",
-						"kilo",
-						"cursor",
-						"qodercli",
-						"antigravity",
-						"mastracode",
-						"droid",
-						"kimi",
-						"letta",
-						"devin",
-						"hermes",
-						"pi",
-						"omp",
-						"gemini",
-						"github-copilot",
-						"cline",
-						"qwen-code"
-					]
-				},
-				"availability": {
-					"enum": ["available", "not-found", "unknown"]
-				},
-				"managementMode": {
-					"enum": ["managed-local", "manual-only"]
-				},
-				"state": {
-					"enum": ["conflict", "disabled", "enabled", "not-installed", "update-required", "unknown"]
-				},
-				"issue": {
-					"enum": [
-						"inspection-failed",
-						"manual-action-required",
-						"unsupported-platform",
-						"unsupported-version",
-						null
-					]
-				}
-			}
-		},
-		"integrations_publicProvider_capsule": {
-			"type": "object",
-			"required": ["state", "source", "payloadSha256"],
-			"additionalProperties": false,
-			"properties": {
-				"state": {
-					"enum": ["ready", "not-ready", "source-absent", "binding-failed"]
-				},
-				"source": {
-					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
-				},
-				"bindingFailure": {
-					"const": true
-				},
-				"rootPath": {
-					"type": "string",
-					"minLength": 1
-				},
-				"rootPathBytesHex": {
-					"type": "string",
-					"pattern": "^([0-9a-f]{2})+$"
-				},
-				"payloadSha256": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{64}$"
-				}
-			}
 		},
 		"installationFacts": {
 			"$ref": "#/$defs/installation_client"
@@ -1904,139 +1817,6 @@
 						"properties": {
 							"details": {
 								"$ref": "#/$defs/sessionFacts"
-							}
-						}
-					}
-				}
-			]
-		},
-		"integrationsFacts": {
-			"type": "object",
-			"required": [
-				"complete",
-				"capsule",
-				"integrations",
-				"outdatedOnly",
-				"inspectedCount",
-				"unresolvedProviderIds",
-				"blockedProviderIds"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"complete": {
-					"type": "boolean"
-				},
-				"capsule": {
-					"$ref": "#/$defs/integrations_publicProvider_capsule"
-				},
-				"integrations": {
-					"type": "array",
-					"maxItems": 20,
-					"items": {
-						"$ref": "#/$defs/integrations_publicProvider_item"
-					}
-				},
-				"outdatedOnly": {
-					"type": "boolean"
-				},
-				"inspectedCount": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 20
-				},
-				"unresolvedProviderIds": {
-					"type": "array",
-					"maxItems": 20,
-					"uniqueItems": true,
-					"items": {
-						"$ref": "#/$defs/integrations_publicProvider_item/properties/integrationId"
-					}
-				},
-				"blockedProviderIds": {
-					"type": "array",
-					"maxItems": 20,
-					"uniqueItems": true,
-					"items": {
-						"$ref": "#/$defs/integrations_publicProvider_item/properties/integrationId"
-					}
-				}
-			}
-		},
-		"integrationsCheck": {
-			"type": "object",
-			"required": ["status", "reason", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"status": {
-					"enum": ["pass", "warning"]
-				},
-				"reason": true,
-				"details": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/integrationsFacts"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						},
-						"required": ["status"]
-					},
-					"then": {
-						"properties": {
-							"reason": {
-								"type": "null"
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "warning"
-							}
-						},
-						"required": ["status"]
-					},
-					"then": {
-						"properties": {
-							"reason": {
-								"enum": ["update-required", "home-unavailable"]
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"reason": {
-								"const": "home-unavailable"
-							}
-						},
-						"required": ["reason"]
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "null"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"$ref": "#/$defs/integrationsFacts"
 							}
 						}
 					}

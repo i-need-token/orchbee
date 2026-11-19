@@ -6,7 +6,7 @@ A Session contains your Workspaces, terminals and Agents; its background service
 running when you leave the interface. Start with the default Session and use Workspaces for daily
 organization. Windows and macOS support separate named Sessions through `--session <name>` and
 `session attach <name>`; `server` commands manage the selected Session's background service.
-Agent IDs use `--agent-session <id>`. The [Session contract](docs/native-cli-query.md#sessions-and-background-services)
+Agent commands take a positional target, `--panel <id>` or `--terminal <id>`. The [Session contract](docs/native-cli-query.md#sessions-and-background-services)
 defines terminology, supported boundaries and unchanged storage/protocol identities.
 
 Windows and macOS refuse a TUI launched from a terminal already inside the selected Session before
@@ -35,27 +35,24 @@ live TUI switching, and Windows supports user configuration and complete-cohort 
 and updates, through the contracts linked below. The emitted `orchbee` participates in root Cargo verification. macOS packaging is an
 unsigned, per-user development cohort for Apple Silicon; it does not include release signing or installation.
 
-Use `agent rename <session-id> <name>` to assign a runtime name, `agent list` to see each Agent's name,
-and `agent resolve <name>` to obtain the full session ID. `agent rename <target> --clear`
-releases a name. `agent get/explain/wait <name>` resolve directly; a wait pins its session
-even if the name is reused. Names are unique and disappear when the session ends or the Session stops.
+`agent list` shows the Agents the running Session observes. `agent get`, `agent focus` and `agent wait`
+take the Agent's positional target, `--panel <id>` or `--terminal <id>`; a wait pins the session it
+resolves, even if its target is later reused.
 
-`agent read <name>` reads the uniquely bound terminal; `agent send-keys <name> enter`
-sends semantic keys through the existing terminal input receipt. Both also accept
-`--agent-session <id>` and `--name <alias>`, and refuse missing or ambiguous bindings.
+`agent read <target>` reads the uniquely bound terminal; `agent send-keys <target> enter`
+sends semantic keys through the existing terminal input receipt. Both accept `--panel <id>` and
+`--terminal <id>`, and refuse missing or ambiguous targets.
 
-`agent prompt <name> <text> --wait` submits literal paste plus Enter after a fresh,
+`agent prompt <target> <text> --wait` submits literal paste plus Enter after a fresh,
 unblocked preflight. It observes activity before waiting for a condition and retains the
 input receipt on later timeout or cancellation; it does not promise turn causality.
 
 `agent start codex` starts an Agent on Windows or macOS in a new Tab beside the caller's Panel, or with
 `--split right|down` in a new split, or with `--here --panel <id>` at the confirmed prompt of that
-idle terminal. Without arguments or a name, a new Panel's shell runs the Agent as its first command
+idle terminal. Without arguments, a new Panel's shell runs the Agent as its first command
 and the CLI returns once the Panel exists; otherwise the command is typed and the CLI returns after
-a three-second check. The Agent then shows as opening and is observed like one typed by hand.
-With `--name alpha` it also waits for readiness. The name binds only when that provider's
-integration is enabled (`orchbee agent integration enable --provider <id>`); otherwise the Agent
-stays unbound and is addressed by the `@panel:` handle `agent start` prints, for example
+a three-second check. The Agent then shows as opening and is observed like one typed by hand, and
+is addressed by the `@panel:` handle `agent start` prints, for example
 `orchbee agent prompt @panel:0x36 "<task>"`.
 See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and recovery.
 
@@ -180,13 +177,7 @@ the connection's bytes between its standard streams until either side ends. Both
 pipes, and it takes no `--format` because stdout carries raw protocol bytes. It neither decodes
 those bytes nor reconnects; the parent owns the protocol and any new connection. Help and
 completion leave it out because Client shells, not people, run it.
-`agent integration` (`list`, `explain`,
-`enable`, `disable`) is the local provider-onboarding family: bounded reads
-and managed mutations of the invoking user's provider configuration on this
-machine only; only entries verifiably owned by Orchbee are installed or removed.
-`list` and `explain` run in their own process with no socket, lock, or Session contact;
-`explain` starts a provider's own program only for the rows that only that program reports.
-`enable` and `disable` activate the local Session and run on its Worker.
+
 The complete grammar, target and
 filter rules, mutation outcomes, and the failure matrix with exit classes are owned by
 [native CLI query](docs/native-cli-query.md); `orchbee help <family>` and
@@ -206,14 +197,12 @@ orchbee project create --label demo       # then workspace create / set-director
 orchbee tab create --workspace <ws> --label shell
 orchbee terminal send <terminal-id> --text 'make test' --enter
 orchbee terminal wait-output <terminal-id> --match 'PASS'
-orchbee agent integration enable --provider <id>   # one-time local onboarding
 orchbee agent list                        # sessions the running Session observes
 orchbee agent wait <session-id> --until ended
 ```
 
 The Apple Silicon macOS development cohort runs the same Session-backed Agent commands as Linux:
-`agent list`, `get`, `read` and `wait`, `agent prompt`, and Agent names through `agent resolve` and
-`agent rename`. macOS also runs `agent start`, which Linux refuses as unsupported. Like Windows,
+`agent list`, `get`, `read` and `wait`, and `agent prompt`. macOS also runs `agent start`, which Linux refuses as unsupported. Like Windows,
 macOS reads them through the unified Agent projection, so physical terminal Agents, `@agent:`
 selectors, the per-Client projection (`--client`) and `agent focus` work there; Linux keeps the
 canonical sessions only.
@@ -295,11 +284,11 @@ and Git worktree discovery. Console records feed the existing key and SGR mouse 
 mode guard restores the inherited input/output modes when leaving the TUI. Large byte records use
 bounded writes, and cancelled exchanges close their shared pipe without a detached flush thread.
 
-Windows `agent integration list/explain/enable/disable --provider <id>` manages Claude Code, Codex, Grok, GitHub Copilot, OpenCode, Kilo, Pi, OMP, Gemini and Qwen Code. See the [Windows integration contract](docs/windows-agent-integrations.md). Capsule 0.4.16 supplies Claude Code, Codex, Grok and GitHub Copilot hooks and JavaScript modules using the native observation pipe and console correlation.
-Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
-On macOS the same commands also manage Cursor, Qoder CLI, Antigravity CLI, Mastracode, Droid,
-Kimi, Letta, Devin and Hermes; see the [macOS integration contract](docs/macos-agent-integrations.md).
-Other providers retain their
+The Agent integration writers for Windows and macOS are dormant in this release: no command or setting
+enables them, an integration an earlier version enabled stays as written, and uninstall still removes
+the entries Orchbee wrote. See the [Windows integration contract](docs/windows-agent-integrations.md)
+and the [macOS integration contract](docs/macos-agent-integrations.md). Windows x64 cohorts include the
+pinned ConPTY runtime needed to preserve console correlation. Other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
 files and pipes; on Windows an owned hidden Windows PowerShell reader makes pipe input cancellable.
 It is resolved from the OS system directory, never from PATH, and is terminated/reaped on failure.
@@ -965,8 +954,8 @@ ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test 
 ### Agent integration conformance fixtures
 
 The [Agent integration writer](../../crates/agent-integration-writer/README.md#conformance-fixtures)
-owns the provider conformance and effect corpora; the application's CLI tests replay both packs
-with its integration exit mapping.
+owns the provider conformance and effect corpora. The application no longer replays them: the CLI tests
+that replayed them covered the removed `agent integration` commands.
 
 ## Workspace terminal startup
 
@@ -1060,7 +1049,6 @@ path, size, entries and section states.
 | `system.json`             | Operating system, architecture, Windows product and build or macOS version, locale and its variable, and a closed terminal token |
 | `config-check.json`       | The `config check` document                                                                                                      |
 | `sessions.json`           | The `session list` document with states                                                                                          |
-| `integrations.json`       | `never-enabled` without a Capsule folder, else `agent integration list` from a running default Session or `session-not-running`  |
 | `config.toml`             | The settings file, redacted                                                                                                      |
 | `logs/<YYYY-MM-DD>.jsonl` | Well-formed records of today's daily log and the six before it                                                                   |
 
@@ -1140,27 +1128,17 @@ under `recent-unwrapped`. Detection remains plain text. Original PTY bytes, hype
 are not reproduced. Render requests and prepared output each retain the 8 MiB bound. See the
 [output contract](docs/native-terminal-output.md).
 
-Bare `status` reads the Workbench and then lists the Session's processes and their versions, one line each, with one handshake `query`. `doctor` checks this executable offline and folds the same Session read with the settings, saved data, runtime folder and Agent integration checks into six lines and exits 1 only when a check failed. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, refusals, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
+Bare `status` reads the Workbench and then lists the Session's processes and their versions, one line each, with one handshake `query`. `doctor` checks this executable offline and folds the same Session read with the settings, saved data and runtime folder checks into five lines and exits 1 only when a check failed. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, refusals, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
 
 ## Agent navigation
 
-Windows and macOS `agent focus <target> [--client <id>]` resolves a name, session or Panel to its unique live primary Panel before one Client control submission, which a definite `stale-view` refusal repeats on a fresh read up to three times while the target resolves the same way. Explicit `--agent-session`, `--name` and `--panel` selectors use the existing resolver; `--request-id`, `--detach` and the 30000 ms total default timeout retain the common navigation recovery contract. Starting or Unavailable Clients fail with `client-not-ready` before Agent reads; Busy permits the Client-owned cancellable-mode preflight. The [Agent navigation contract](docs/native-agent-navigation.md) defines primary binding, ambiguity, cancellation and retained operation status. Successful explicit focus acknowledges current known Agent versions in the selected Tab even when the outer terminal is unfocused. Ordinary paint still requires host focus.
+Windows and macOS `agent focus <target> [--client <id>]` resolves a name, session or Panel to its unique live primary Panel before one Client control submission, which a definite `stale-view` refusal repeats on a fresh read up to three times while the target resolves the same way. Explicit `--panel` and `--terminal` selectors use the existing resolver; `--request-id`, `--detach` and the 30000 ms total default timeout retain the common navigation recovery contract. Starting or Unavailable Clients fail with `client-not-ready` before Agent reads; Busy permits the Client-owned cancellable-mode preflight. The [Agent navigation contract](docs/native-agent-navigation.md) defines primary binding, ambiguity, cancellation and retained operation status. Successful explicit focus acknowledges current known Agent versions in the selected Tab even when the outer terminal is unfocused. Ordinary paint still requires host focus.
 
 Windows host focus reporting is owned by [native Client attention](docs/native-client-attention.md); focus reports are Client metadata and never terminal text. The attention/CLI acknowledgement integration remains under development.
 
-Cursor, Qoder and Antigravity session identity hooks are managed on Windows with `agent integration enable --provider cursor`, `agent integration enable --provider qodercli` or `agent integration enable --provider antigravity`. Existing hooks and other configuration values are preserved.
-
-Windows `agent integration enable --provider mastracode` installs session, run, tool, permission and subagent observations; partial owned hook sets can be repaired.
-
-Windows `agent integration enable --provider droid` manages session identity hooks in the effective user configuration without shadowing existing fallback hooks.
-
-Windows `agent integration enable --provider kimi` manages current Kimi TOML session hooks; working/blocked/idle parity remains open.
-
-Windows `agent integration enable --provider letta` installs a silent SessionStart hook and keeps default conversations distinct per Agent.
-
-Windows `agent integration enable --provider devin` manages six session identity hook groups in APPDATA/devin/config.json.
-
-Windows `agent integration enable --provider hermes` publishes two owned Python plugin entries and enables them through the provider CLI; disable retains the plugin and its cache.
+The Windows provider hook writers for Cursor, Qoder, Antigravity, Mastracode, Droid, Kimi, Letta, Devin
+and Hermes are dormant with the rest of the integration family: no command or setting enables them in this
+release. Their contracts remain in the [Windows integration contract](docs/windows-agent-integrations.md).
 
 On Windows and macOS, `workspace create` accepts omitted Project, label and cwd, resolves source terminal/Workspace/home defaults, creates an ungrouped Workspace by default, and optionally focuses an existing TUI with `--focus`. Every Windows form launches its first terminal; explicit operands and no-focus use the same workflow and receipt. Workspace and focus retain separate outcomes; optional Project placement commits atomically with Workspace creation, without a separate Project preparation step. See the [Workspace creation contract](docs/windows-workspace-creation.md); `orchbee api schema` supplies the current command and schema catalog.
 

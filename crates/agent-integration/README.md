@@ -14,8 +14,7 @@ found, managed row reports `unknown` with no issue and no timeout, which `Snapsh
 reads as not checked. `explain`, `enable` and `disable` start it, and `explain_starts_agent` says
 whether an `explain` of a row does. Every other integration is read from files only.
 `PlannedStep::command_purpose` names what a planned plugin command does, so a Client states each
-step once instead of repeating the program. The TypeScript Client mirrors these rules in
-`apps/web/src/agent-integration-management`.
+step once instead of repeating the program.
 
 ## Identity
 

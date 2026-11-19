@@ -45,6 +45,30 @@ fn uninstall_removes_the_installation_and_keeps_data_unless_asked() {
     }
 }
 
+/// Runs only as a child of `seed_earlier_version_integration`, under its scratch profile: the
+/// writer's own enable writes what an earlier version wrote, with no removed verb.
+#[test]
+#[ignore = "runs only as a child of an uninstall scenario under its scratch profile"]
+fn seed_earlier_version_antigravity_integration() {
+    let bundle = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../crates/agent-integration-writer/agent-observation-adapters/bundle");
+    let context = orchbee_agent_integration_writer::context(Some(&bundle), None)
+        .expect("the scratch profile resolves");
+    let report = orchbee_agent_integration_writer::mutate(
+        &context,
+        orchbee_agent_integration_writer::IntegrationId::AntigravityCli,
+        orchbee_agent_integration_writer::Direction::Enable,
+    );
+    assert!(
+        matches!(
+            report.verdict,
+            orchbee_agent_integration_writer::Verdict::Completed
+        ),
+        "the seed enable did not complete: {:?}",
+        report.verdict
+    );
+}
+
 /// On an account whose user `Path` was absent or empty, the PATH step leaves a value holding only
 /// the store's entry, `REG_EXPAND_SZ` when it was absent. The platform uninstaller's removal then
 /// succeeds and leaves the value empty with its registry type.
@@ -395,6 +419,26 @@ impl Profile {
         (output, document)
     }
 
+    /// Seeds the Antigravity integration an earlier version enabled: the writer's own enable,
+    /// run in a child of this test binary under the scratch profile.
+    fn seed_earlier_version_integration(&self) {
+        let output = self
+            .command(&std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--nocapture",
+                "seed_earlier_version_antigravity_integration",
+            ])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", describe(&output));
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("1 passed; 0 failed"),
+            "{}",
+            describe(&output)
+        );
+    }
+
     fn reg(&self, arguments: &[&str]) -> Output {
         Command::new(system_folder().join("reg.exe"))
             .args(arguments)
@@ -467,8 +511,8 @@ impl Profile {
 
     /// Installs the package, then stands in for the installer and the PATH step: the launcher in
     /// `bin`, the `Path` entry, the registration, the shortcut, a `desktop` folder and the
-    /// installer's own uninstaller files in the store root. Enables one Agent integration and starts
-    /// the Session.
+    /// installer's own uninstaller files in the store root. Seeds one Agent integration as an
+    /// earlier version wrote it, and starts the Session.
     fn prepare(&self) -> PathBuf {
         let launcher = self.install();
         fs::create_dir_all(self.store().join("desktop")).unwrap();
@@ -503,20 +547,7 @@ impl Profile {
         fs::write(self.root.join(r"bin\agy.cmd"), b"@exit /b 99\r\n").unwrap();
         fs::create_dir_all(self.agent_file().parent().unwrap()).unwrap();
         fs::write(self.agent_file(), AGENT_FILE).unwrap();
-        let (output, enable) = self.run(
-            &launcher,
-            &[
-                "agent",
-                "integration",
-                "enable",
-                "--provider",
-                "antigravity",
-                "--format",
-                "json",
-            ],
-        );
-        assert_eq!(output.status.code(), Some(0), "{}", describe(&output));
-        assert_eq!(enable["result"]["outcome"], "completed", "{enable}");
+        self.seed_earlier_version_integration();
         assert_ne!(fs::read_to_string(self.agent_file()).unwrap(), AGENT_FILE);
         assert!(self.agent_skill().is_file());
         let (output, _) = self.run(&launcher, &["server", "start", "--format", "json"]);

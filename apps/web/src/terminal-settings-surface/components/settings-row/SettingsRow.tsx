@@ -9,7 +9,7 @@ interface SettingsRowProps {
 	/** The row's one control, or the action or switch of a list entry. */
 	readonly children?: React.ReactNode;
 	readonly description?: string | null | undefined;
-	/** Colors a description that reports a state, such as an integration's health. */
+	/** Colors a description that reports a state, such as an update check's result. */
 	readonly descriptionTone?: 'danger' | 'neutral' | 'positive' | 'warning' | undefined;
 	/** When a change takes effect, if not at once. */
 	readonly effect?: 'new-terminals' | 'next-restart' | undefined;

@@ -48,7 +48,6 @@ import {
 	createServerTerminalColorsSource,
 	createServerWorkbenchRuntime,
 	ProjectedTerminalSurface,
-	ServerAgentIntegrationClient,
 	ServerConnection,
 	ServerTerminalDefaultSettingsClient,
 	ServerTerminalLaunchProfileClient,
@@ -312,10 +311,6 @@ async function run(
 		}),
 		userSettings,
 	});
-	const agentIntegrationManagementClient = new ServerAgentIntegrationClient(
-		connection,
-		session.snapshot.sessionId,
-	);
 
 	let routing: WebApplicationRouting | undefined;
 	let stopBackgroundStatus: (() => void) | undefined;
@@ -347,7 +342,6 @@ async function run(
 					() => terminalFeedbackSettingsController.dispose(),
 					() => macosTerminalInputSettingsController?.dispose(),
 					() => applicationLocaleController.dispose(),
-					() => agentIntegrationManagementClient.dispose(),
 					() => terminalLaunchProfileClient.dispose(),
 					() => terminalDefaultSettingsClient.dispose(),
 					() => userSettings.dispose(),
@@ -402,7 +396,6 @@ async function run(
 	routing = createWebApplicationRouting(
 		{
 			actionRuntime: runtime.actionRuntime,
-			agentIntegrationManagementControl: agentIntegrationManagementClient,
 			agentNameSource: runtime.agentNameSource,
 			agentObservationSource: runtime.agentObservationSource,
 			applicationLocaleController,

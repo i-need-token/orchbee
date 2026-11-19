@@ -24,12 +24,12 @@ const HELP_STATUS_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetail
 
 const HELP_DOCTOR_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee doctor [--format text|json]",
-    "Check whether Orchbee works here with six fixed checks, one line each: Installation (this executable and its installation files), Settings (config.toml), Saved data (records this version cannot use), Runtime folder (the Session's folder, locks and endpoints), Session (whether one runs and answers this version) and Agent integrations (a provider that needs an update). Each line starts with ok, warn, fail or - (does not apply); a warn or fail line gives the reason and may add the command to run. Never connects as a Client, starts nothing and writes nothing; each check keeps its own five-second budget. A Session that is not running is not a failure. Exits 1 when a check failed, still writing the whole report; otherwise 0.\nJSON schema: orchbee.doctor (v1).",
+    "Check whether Orchbee works here with five fixed checks, one line each: Installation (this executable and its installation files), Settings (config.toml), Saved data (records this version cannot use), Runtime folder (the Session's folder, locks and endpoints) and Session (whether one runs and answers this version). Each line starts with ok, warn, fail or - (does not apply); a warn or fail line gives the reason and may add the command to run. Never connects as a Client, starts nothing and writes nothing; each check keeps its own five-second budget. A Session that is not running is not a failure. Exits 1 when a check failed, still writing the whole report; otherwise 0.\nJSON schema: orchbee.doctor (v1).",
 );
 
 const HELP_DOCTOR_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee doctor [--format text|json]",
-    "用六项固定检查确认 Orchbee 能否在本机正常工作，每项一行：安装（当前程序及其安装文件）、设置（config.toml）、已保存数据（本版本无法使用的记录）、运行时目录（会话的文件夹、锁和端点）、会话（是否运行、能否应答本版本）和智能体集成（需要更新的提供方）。每行以通过、警告、失败或 -（不适用）开头；警告或失败行给出原因，并可附上要运行的命令。不以客户端身份连接，不启动、不写入任何内容；每项检查各有五秒时限。会话未运行不算失败。有检查失败时退出 1，仍输出完整报告；否则退出 0。\nJSON schema：orchbee.doctor（v1）。",
+    "用五项固定检查确认 Orchbee 能否在本机正常工作，每项一行：安装（当前程序及其安装文件）、设置（config.toml）、已保存数据（本版本无法使用的记录）、运行时目录（会话的文件夹、锁和端点）和会话（是否运行、能否应答本版本）。每行以通过、警告、失败或 -（不适用）开头；警告或失败行给出原因，并可附上要运行的命令。不以客户端身份连接，不启动、不写入任何内容；每项检查各有五秒时限。会话未运行不算失败。有检查失败时退出 1，仍输出完整报告；否则退出 0。\nJSON schema：orchbee.doctor（v1）。",
 );
 
 const HELP_API_SNAPSHOT_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
@@ -260,12 +260,12 @@ impl super::CliText {
             (Locale::EnUs, CommandPath::AgentList) => super::agent::HELP_AGENT_LIST_EN,
             (Locale::ZhCn, CommandPath::AgentList) => super::agent::HELP_AGENT_LIST_ZH,
             (Locale::EnUs, CommandPath::AgentStart) => crate::cli_text::HelpDetails::new(
-                "orchbee agent start <provider> [--new-tab|--here|--split right|down] [--name <name>] [--panel <id|@panel:0x<hex>>|--current] [--cwd <abs|follow|home|current|workspace>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
-                "Windows and macOS: start an interactive Agent in a new Tab (the default), in a new Panel split\nright or down (--split), or at the prompt of an existing idle terminal (--here). The reference Panel is\n--panel, --current or the caller's own Panel: a new Tab joins its Workspace, a split divides it,\nand --here types into it; --here is refused for the caller's own Panel and rejects --cwd, --focus,\n--client and --no-focus.\nFor --new-tab and --split, --cwd sets the initial directory or directory policy (follow, home,\ncurrent, workspace) instead of the Workspace default, and --focus switches an existing ready TUI\nClient to the new Panel; --client <id> names that Client and needs --focus. A focus that does not\nswitch is reported as `focus` and does not fail the start (--no-focus keeps its selection, which is\nalso the default).\nWith no arguments and no --name, a new Tab or split runs the Agent as its shell's first command\nand returns once the Panel exists. Otherwise the command is typed once at the confirmed prompt.\nWithout --name it returns after a 3-second check: a shell back at its prompt reports the command\nnot found or the Agent exited. With --name it also waits until the Agent is ready (see --name for when the name binds). A new Tab or Panel stays when a later step fails.\nTimeout: 3001–300000 ms, default 30000. Use --arg=<value> repeatedly as an alternative to\ntrailing arguments. Cancellation or timeout releases a name when confirmed; it never kills the Agent.\n<provider> is the id integration takes with --provider, for example antigravity.",
+                "orchbee agent start <provider> [--new-tab|--here|--split right|down] [--panel <id|@panel:0x<hex>>|--current] [--cwd <abs|follow|home|current|workspace>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
+                "Windows and macOS: start an interactive Agent in a new Tab (the default), in a new Panel split\nright or down (--split), or at the prompt of an existing idle terminal (--here). The reference Panel is\n--panel, --current or the caller's own Panel: a new Tab joins its Workspace, a split divides it,\nand --here types into it; --here is refused for the caller's own Panel and rejects --cwd, --focus,\n--client and --no-focus.\nFor --new-tab and --split, --cwd sets the initial directory or directory policy (follow, home,\ncurrent, workspace) instead of the Workspace default, and --focus switches an existing ready TUI\nClient to the new Panel; --client <id> names that Client and needs --focus. A focus that does not\nswitch is reported as `focus` and does not fail the start (--no-focus keeps its selection, which is\nalso the default).\nWith no arguments, a new Tab or split runs the Agent as its shell's first command and returns once\nthe Panel exists. Otherwise the command is typed once at the confirmed prompt. The start returns after\na 3-second check: a shell back at its prompt reports the command not found or the Agent exited. A new\nTab or Panel stays when a later step fails.\nTimeout: 3001–300000 ms, default 30000. Use --arg=<value> repeatedly as an alternative to\ntrailing arguments. Cancellation or timeout never kills the Agent.\n<provider> is a canonical provider id, for example antigravity.",
             ),
             (Locale::ZhCn, CommandPath::AgentStart) => crate::cli_text::HelpDetails::new(
-                "orchbee agent start <provider> [--new-tab|--here|--split right|down] [--name <name>] [--panel <id|@panel:0x<hex>>|--current] [--cwd <abs|follow|home|current|workspace>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
-                "Windows 和 macOS：在新标签页（默认）、向右或向下拆分出的新面板（--split）中启动交互式智能体，或在现有空闲终端的提示符处启动（--here）。参照面板为 --panel、--current 或调用者自己的面板：新标签页加入其工作区，拆分会分割它，--here 在其中输入；--here 不能用于调用者自己的面板，也不能与 --cwd、--focus、--client 或 --no-focus 同时使用。\n对于 --new-tab 与 --split，--cwd 设置初始工作目录或目录策略（follow、home、current、workspace）而非工作区默认值；--focus 让已有就绪 TUI 客户端切换到新面板（--no-focus 保持原选中项，这也是默认行为）；--client <id> 指定要切换的客户端，且需与 --focus 同用。聚焦未切换时在 focus 中报告，不会使启动失败。\n不带参数也不带 --name 时，新标签页或拆分面板的 shell 把智能体作为第一条命令运行，面板出现后即返回。否则在已确认的提示符处输入一次启动命令。不带 --name 时，命令在 3 秒检查后返回：shell 回到提示符则报告找不到命令或智能体已退出。带 --name 时还会等待智能体就绪（名称何时绑定见 --name）。之后的步骤失败时，新标签页或面板会保留。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。取消或超时在确认后释放名称，但不会终止智能体。\n<provider> 与 integration 的 --provider 取值相同，例如 antigravity。",
+                "orchbee agent start <provider> [--new-tab|--here|--split right|down] [--panel <id|@panel:0x<hex>>|--current] [--cwd <abs|follow|home|current|workspace>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
+                "Windows 和 macOS：在新标签页（默认）、向右或向下拆分出的新面板（--split）中启动交互式智能体，或在现有空闲终端的提示符处启动（--here）。参照面板为 --panel、--current 或调用者自己的面板：新标签页加入其工作区，拆分会分割它，--here 在其中输入；--here 不能用于调用者自己的面板，也不能与 --cwd、--focus、--client 或 --no-focus 同时使用。\n对于 --new-tab 与 --split，--cwd 设置初始工作目录或目录策略（follow、home、current、workspace）而非工作区默认值；--focus 让已有就绪 TUI 客户端切换到新面板（--no-focus 保持原选中项，这也是默认行为）；--client <id> 指定要切换的客户端，且需与 --focus 同用。聚焦未切换时在 focus 中报告，不会使启动失败。\n不带参数时，新标签页或拆分面板的 shell 把智能体作为第一条命令运行，面板出现后即返回。否则在已确认的提示符处输入一次启动命令。命令在 3 秒检查后返回：shell 回到提示符则报告找不到命令或智能体已退出。之后的步骤失败时，新标签页或面板会保留。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。取消或超时不会终止智能体。\n<provider> 为规范的提供方 ID，例如 antigravity。",
             ),
             (Locale::EnUs, CommandPath::AgentPrompt) => super::agent::HELP_AGENT_PROMPT_WINDOWS_EN,
             (Locale::ZhCn, CommandPath::AgentPrompt) => super::agent::HELP_AGENT_PROMPT_WINDOWS_ZH,
@@ -281,32 +281,8 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::AgentFocus) => super::client_control::HELP_AGENT_FOCUS_ZH,
             (Locale::EnUs, CommandPath::AgentGet) => super::agent::HELP_AGENT_GET_EN,
             (Locale::ZhCn, CommandPath::AgentGet) => super::agent::HELP_AGENT_GET_ZH,
-            (Locale::EnUs, CommandPath::AgentResolve) => crate::cli_text::HelpDetails::new(
-                "orchbee agent resolve <target> [--format text|json]\n       orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:0x<hex>> | --terminal <id|@terminal:0x<hex>>",
-                "Resolve an exact Session ID first, then a runtime name, then a Panel ID.\nA Panel selects its primary terminal and requires one live Agent. Use --name to select an alias that collides with an ID.",
-            ),
-            (Locale::ZhCn, CommandPath::AgentResolve) => crate::cli_text::HelpDetails::new(
-                "orchbee agent resolve <target> [--format text|json]\n      orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:0x<hex>> | --terminal <id|@terminal:0x<hex>>",
-                "优先按完整会话 ID 定位，再查运行时名称，最后回退到面板 ID。\nPanel 选择主终端，要求唯一存活智能体。名称与 ID 冲突时，用 --name 明确选择名称。",
-            ),
-            (Locale::EnUs, CommandPath::AgentRename) => crate::cli_text::HelpDetails::new(
-                "orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <new-name> [--format text|json]\n       orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) --clear",
-                "Assign or atomically rename one live Agent. Name: [a-z][a-z0-9_-]{0,31}. Duplicate names are rejected. --clear releases only the name. Replace <target> with --agent-session <id>, --name <alias>, or --panel <id|@panel:0x<hex>> to select explicitly. Names reset when the session ends or the session stops.",
-            ),
-            (Locale::ZhCn, CommandPath::AgentRename) => crate::cli_text::HelpDetails::new(
-                "orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <new-name> [--format text|json]\n      orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) --clear",
-                "为存活智能体命名或原子重命名。名称格式为 [a-z][a-z0-9_-]{0,31}，拒绝重名。--clear 只释放名称。可将 <target> 替换成 --agent-session <id> 或 --name <alias>。会话结束或会话停止后名称释放。",
-            ),
             (Locale::EnUs, CommandPath::AgentWait) => super::agent::HELP_AGENT_WAIT_EN,
             (Locale::ZhCn, CommandPath::AgentWait) => super::agent::HELP_AGENT_WAIT_ZH,
-            (Locale::EnUs, CommandPath::AgentIntegrationList) => super::integration::HELP_AGENT_INTEGRATION_LIST_EN,
-            (Locale::ZhCn, CommandPath::AgentIntegrationList) => super::integration::HELP_AGENT_INTEGRATION_LIST_ZH,
-            (Locale::EnUs, CommandPath::AgentIntegrationExplain) => super::integration::HELP_AGENT_INTEGRATION_EXPLAIN_EN,
-            (Locale::ZhCn, CommandPath::AgentIntegrationExplain) => super::integration::HELP_AGENT_INTEGRATION_EXPLAIN_ZH,
-            (Locale::EnUs, CommandPath::AgentIntegrationEnable) => super::integration::HELP_AGENT_INTEGRATION_ENABLE_EN,
-            (Locale::ZhCn, CommandPath::AgentIntegrationEnable) => super::integration::HELP_AGENT_INTEGRATION_ENABLE_ZH,
-            (Locale::EnUs, CommandPath::AgentIntegrationDisable) => super::integration::HELP_AGENT_INTEGRATION_DISABLE_EN,
-            (Locale::ZhCn, CommandPath::AgentIntegrationDisable) => super::integration::HELP_AGENT_INTEGRATION_DISABLE_ZH,
             (Locale::EnUs, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_EN,
             (Locale::ZhCn, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_ZH,
             (Locale::EnUs, CommandPath::ApiSchema) => HELP_API_SCHEMA_EN,

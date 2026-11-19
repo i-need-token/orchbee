@@ -52,8 +52,7 @@ fn ansi_visible_agent_json_and_zero_need_no_render_request() {
         let output = fixture.run(&[
             "agent",
             "read",
-            "--name",
-            "alpha",
+            "sess-alpha",
             "--ansi",
             "--source=visible",
             "--lines",

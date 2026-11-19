@@ -3,10 +3,10 @@
 //! from the last successful frame authorize input.
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
-    localization::{IntegrationFactLabel, IntegrationFinding, Locale},
+    localization::Locale,
     native_settings::{
-        Category, Choice, Control, Diagnosis, Entry, Group, Page, PageView, Pane, Row,
-        SettingsDraw, View, footer_bindings,
+        Category, Choice, Control, Entry, Group, Page, PageView, Pane, Row, SettingsDraw, View,
+        footer_bindings,
     },
     release_update::UpdateCheck,
     terminal_text::{
@@ -20,12 +20,10 @@ use crate::{
     tui_presentation::ModalPresentation,
     tui_theme::{GlyphMode, Role, Theme},
 };
-use orchbee_agent_integration::{InspectionDetail, IntegrationId};
 use ratatui::{
     Frame,
     layout::Rect,
     style::{Color, Style},
-    text::{Line, Text},
     widgets::{Padding, Paragraph},
 };
 
@@ -392,8 +390,6 @@ fn render_content(
             .settings_group_name(Group::LaunchProfiles)
             .unwrap_or_default()
             .to_owned(),
-        Page::Integrations => locale.integrations_title().to_owned(),
-        Page::Diagnosis(id) => locale.agent_integration_name(id).to_owned(),
         Page::General if !page.query().is_empty() || page.searching() => {
             locale.settings_search_results().to_owned()
         }
@@ -433,13 +429,6 @@ fn render_content(
             Paragraph::new(super::modal::status_line(&text, Role::StatusWarning, theme)),
             Rect::new(x, y, width, 1),
         );
-    } else if page.page().is_integrations() {
-        if let Some((text, role)) = integration_fact(page, locale) {
-            frame.render_widget(
-                Paragraph::new(super::modal::status_line(text, role, theme)),
-                Rect::new(x, y, width, 1),
-            );
-        }
     } else if page.page() == Page::General
         && page.query().is_empty()
         && page.category() == Category::Themes
@@ -455,7 +444,7 @@ fn render_content(
         put(frame, x, y, width, &text, theme.style(Role::TextMuted));
     }
     y += 1;
-    let detail = matches!(page.page(), Page::Profiles | Page::Integrations);
+    let detail = page.page() == Page::Profiles;
     let bottom = region.bottom().saturating_sub(u16::from(detail));
     let list = Rect::new(x, y, width, bottom.saturating_sub(y));
     if list.height == 0 || list.width < 8 {
@@ -468,15 +457,7 @@ fn render_content(
         first,
         visible,
     };
-    if let Page::Diagnosis(id) = page.page() {
-        render_entries(frame, column, page, locale, theme, hits);
-        let below = Rect::new(x, list.y + 2, width, list.height.saturating_sub(2));
-        if !below.is_empty() {
-            render_diagnosis(frame, below, page, id, locale, theme);
-        }
-    } else {
-        render_entries(frame, column, page, locale, theme, hits);
-    }
+    render_entries(frame, column, page, locale, theme, hits);
     let total = total_lines(page);
     if total > visible {
         render_scrollbar(frame, list, region, first, visible, total, theme);
@@ -1177,7 +1158,7 @@ fn control_text(
         })
     };
     match row {
-        Row::LaunchProfiles | Row::AgentIntegrations => plain(
+        Row::LaunchProfiles => plain(
             format!("{value} {}", theme.glyphs.navigation_marker)
                 .trim_start()
                 .to_owned(),
@@ -1314,41 +1295,7 @@ fn render_child_row(
         Role::TextDisabled
     };
     let mut controls = Vec::new();
-    let mut end = rect.right();
-    if let Row::Agent(id) = row {
-        let label = locale.integrations_explain();
-        let width = u16::try_from(display_width(label)).unwrap_or(0);
-        if width + 4 < half {
-            let button = Rect::new(end - width, rect.y, width, 1);
-            let explain_target = InteractionTarget::SettingsControl {
-                token,
-                control: Control::Explain(id),
-            };
-            let explain_spec = interaction_spec(!page.integrations().pending());
-            let pointer = hits.projected_pointer(
-                HitLayer::Overlay,
-                button,
-                button,
-                &explain_target,
-                explain_spec,
-            );
-            put(
-                frame,
-                button.x,
-                rect.y,
-                width,
-                label,
-                on(
-                    theme,
-                    base,
-                    pointer_surface(pointer).or(interaction),
-                    Role::AccentAction,
-                ),
-            );
-            controls.push((button, explain_target, explain_spec));
-            end = button.x.saturating_sub(2);
-        }
-    }
+    let end = rect.right();
     put(
         frame,
         rect.x + 2,
@@ -1416,233 +1363,17 @@ fn render_child_row(
     hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
 }
 
-/// The integration lane's state: a running job, the last failure, or a consent title. An
-/// explanation's page opens with its own sentence and ends with what the check changed and
-/// started, as in the GUI, so it has no line here.
-fn integration_fact(
-    page: PageView<'_>,
-    locale: Locale,
-) -> Option<(std::borrow::Cow<'static, str>, Role)> {
-    let integrations = page.integrations();
-    let working = locale.integration_status(crate::localization::IntegrationStatus::Working);
-    Some(match (page.page(), integrations.failure()) {
-        (Page::Diagnosis(id), _) => match integrations.diagnosis(id) {
-            Some(Diagnosis::Pending) => (working.into(), Role::StatusPending),
-            Some(Diagnosis::Failed(failure)) => (
-                locale.integration_failure(*failure).into(),
-                Role::StatusError,
-            ),
-            Some(Diagnosis::Confirm) => (
-                locale
-                    .integration_consent_title(locale.agent_integration_name(id))
-                    .into(),
-                Role::StatusWarning,
-            ),
-            Some(Diagnosis::Explained(_)) | None => return None,
-        },
-        (_, Some(failure)) => (
-            locale.integration_failure(failure).into(),
-            Role::StatusError,
-        ),
-        _ if integrations.pending() => (working.into(), Role::StatusPending),
-        _ if !integrations.reported() => (locale.integrations_unchecked().into(), Role::TextMuted),
-        _ => (locale.integrations_disclosure().into(), Role::TextMuted),
-    })
-}
-
 /// The line under a child page's rows: a field rule, a confirmation, or why a row is unavailable.
 fn child_detail(page: PageView<'_>, locale: Locale) -> (String, Role) {
-    match page.page() {
-        Page::Integrations => {
-            let text = match page.selected() {
-                Row::Agent(id) => match page.integrations().block(id) {
-                    Some(block) => locale.integration_block(block).to_owned(),
-                    None => {
-                        locale.integration_provider_description(locale.agent_integration_name(id))
-                    }
-                },
-                Row::RemoteHosts => locale.integrations_remote_description().to_owned(),
-                Row::RefreshIntegrations if page.integrations().pending() => locale
-                    .integration_block(crate::localization::IntegrationBlock::Pending)
-                    .to_owned(),
-                Row::RefreshIntegrations => locale.integrations_refresh_description().to_owned(),
-                _ => locale.integrations_back_description().to_owned(),
-            };
-            (text, Role::TextMuted)
-        }
-        _ => {
-            let role = if page.confirm_delete() {
-                Role::StatusWarning
-            } else if page.invalid() {
-                Role::StatusError
-            } else {
-                Role::TextMuted
-            };
-            (locale.settings_detail(page), role)
-        }
-    }
-}
-
-/// One Agent's explain result: a definite finding is named as such, an unknown result says it
-/// is unknown, and no path or command line is shown.
-fn render_diagnosis(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    page: PageView<'_>,
-    id: IntegrationId,
-    locale: Locale,
-    theme: &Theme,
-) {
-    let integrations = page.integrations();
-    let mut lines: Vec<Line<'static>> = Vec::new();
-    let wrap = |text: &str, lines: &mut Vec<Line<'static>>| {
-        lines.extend(
-            crate::terminal_text::wrap_text(&Text::from(text.to_owned()), area.width)
-                .lines
-                .into_iter()
-                .map(|line| line.style(theme.style(Role::TextSecondary))),
-        );
+    let role = if page.confirm_delete() {
+        Role::StatusWarning
+    } else if page.invalid() {
+        Role::StatusError
+    } else {
+        Role::TextMuted
     };
-    let fact = |label, value: &str| {
-        Line::from(truncate_display(
-            &locale.integration_fact(label, value),
-            usize::from(area.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(theme.style(Role::TextPrimary))
-    };
-    match integrations.diagnosis(id) {
-        Some(Diagnosis::Confirm) => {
-            lines.push(super::modal::status_line(
-                locale.integration_consent_title(locale.agent_integration_name(id)),
-                Role::StatusWarning,
-                theme,
-            ));
-            wrap(
-                &locale.integration_consent(locale.agent_integration_name(id)),
-                &mut lines,
-            );
-        }
-        Some(Diagnosis::Pending) => lines.push(super::modal::status_line(
-            locale.integration_diagnosis_pending(),
-            Role::StatusPending,
-            theme,
-        )),
-        Some(Diagnosis::Failed(failure)) => {
-            lines.push(super::modal::status_line(
-                locale.integration_finding(
-                    IntegrationFinding::Unknown(
-                        crate::localization::IntegrationUnknown::Undetermined,
-                    ),
-                    locale.agent_integration_name(id),
-                ),
-                Role::StatusWarning,
-                theme,
-            ));
-            wrap(locale.integration_failure(*failure), &mut lines);
-        }
-        Some(Diagnosis::Explained(explanation)) => {
-            let finding = explanation.finding();
-            let role = match finding {
-                IntegrationFinding::Ready => Role::StatusSuccess,
-                IntegrationFinding::ManualSetup | IntegrationFinding::Disabled => Role::StatusInfo,
-                IntegrationFinding::Conflict => Role::StatusError,
-                IntegrationFinding::AgentMissing
-                | IntegrationFinding::NotInstalled
-                | IntegrationFinding::UpdateRequired
-                | IntegrationFinding::Unknown(_) => Role::StatusWarning,
-            };
-            // One sentence first; the explanation and the facts follow below it.
-            lines.push(super::modal::status_line(
-                locale.integration_finding(finding, locale.agent_integration_name(id)),
-                role,
-                theme,
-            ));
-            wrap(locale.integration_finding_detail(finding), &mut lines);
-            lines.push(Line::default());
-            let item = &explanation.item;
-            lines.push(fact(
-                IntegrationFactLabel::Agent,
-                locale.integration_presence(item.availability),
-            ));
-            lines.push(fact(
-                IntegrationFactLabel::Integration,
-                locale.integration_status(integrations.status(id)),
-            ));
-            if let Some(issue) = item.issue {
-                lines.push(fact(
-                    IntegrationFactLabel::Issue,
-                    locale.integration_issue(issue),
-                ));
-            }
-            lines.push(fact(
-                IntegrationFactLabel::Adapter,
-                locale.integration_adapter(explanation.adapter),
-            ));
-            match explanation.detail {
-                InspectionDetail::Cli {
-                    marketplace,
-                    plugin_present,
-                } => lines.extend([
-                    fact(
-                        IntegrationFactLabel::Marketplace,
-                        locale.integration_marketplace(marketplace),
-                    ),
-                    fact(
-                        IntegrationFactLabel::Plugin,
-                        locale.integration_presence_flag(plugin_present),
-                    ),
-                ]),
-                InspectionDetail::Codex {
-                    marketplace,
-                    plugin_present,
-                } => lines.extend([
-                    fact(
-                        IntegrationFactLabel::Marketplace,
-                        locale.integration_marketplace(Some(marketplace)),
-                    ),
-                    fact(
-                        IntegrationFactLabel::Plugin,
-                        locale.integration_presence_flag(Some(plugin_present)),
-                    ),
-                ]),
-                InspectionDetail::Guarded {
-                    target_state,
-                    source_ready,
-                    ..
-                } => lines.extend([
-                    fact(
-                        IntegrationFactLabel::Entry,
-                        locale.integration_entry(target_state),
-                    ),
-                    fact(
-                        IntegrationFactLabel::AdapterSource,
-                        locale.integration_source(source_ready),
-                    ),
-                ]),
-                InspectionDetail::Plain {} => {}
-            }
-            lines.push(fact(
-                IntegrationFactLabel::Plan,
-                &locale.integration_plan(&explanation.plan),
-            ));
-            // The closing sentence: what the check changed and started.
-            lines.push(Line::default());
-            let closing = if explanation.started_agent() {
-                locale.integration_diagnosis_started(locale.agent_integration_name(id))
-            } else {
-                locale.integration_diagnosis_read_only().to_owned()
-            };
-            wrap(&closing, &mut lines);
-        }
-        None => lines.push(fact(
-            IntegrationFactLabel::Integration,
-            locale.integration_status(integrations.status(id)),
-        )),
-    }
-    frame.render_widget(Paragraph::new(Text::from(lines)), area);
+    (locale.settings_detail(page), role)
 }
-
 fn render_scrollbar(
     frame: &mut Frame<'_>,
     list: Rect,

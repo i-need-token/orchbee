@@ -72,6 +72,7 @@ fn selected_wait_matches_actual_state_independently_of_seen_or_missing_acknowled
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
+            super::resolved(&mut stream);
             checkpoint(&mut stream, 3, 100);
             sample(&mut stream, 3, 11, seen, condition);
             assert_closed(&mut stream);
@@ -79,7 +80,6 @@ fn selected_wait_matches_actual_state_independently_of_seen_or_missing_acknowled
         let output = fixture.run(&[
             "agent",
             "wait",
-            "--agent-session",
             "sess-alpha",
             "--client",
             &id(7),
@@ -120,6 +120,7 @@ fn selected_wait_client_read_shares_the_total_deadline_and_missing_client_does_n
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
+            super::resolved(&mut stream);
             checkpoint(&mut stream, 3, 100);
             let request = view_request(&mut stream);
             assert!(matches!(request.action, ClientViewAction::Get { .. }));
@@ -131,7 +132,6 @@ fn selected_wait_client_read_shares_the_total_deadline_and_missing_client_does_n
         let output = fixture.run(&[
             "agent",
             "wait",
-            "--agent-session",
             "sess-alpha",
             "--client",
             &id(7),

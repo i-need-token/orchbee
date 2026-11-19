@@ -164,21 +164,6 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
         ("orchbee --session work help terminal a", "attach", true),
         ("orchbee --session work completion p", "powershell", true),
         ("orchbee --session ", "status", false),
-        (
-            "orchbee agent get --agent-session abc --se",
-            "--session",
-            true,
-        ),
-        (
-            "orchbee --session work agent get --ag",
-            "--agent-session",
-            true,
-        ),
-        (
-            "orchbee --session work agent get --agent-session abc --se",
-            "--session",
-            false,
-        ),
         ("orchbee --session work server st", "start", true),
         ("orchbee help ser", "server", true),
         ("orchbee si", "session", false),

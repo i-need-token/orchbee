@@ -7,7 +7,6 @@ pub(super) enum Capability {
     AgentProjection,
     /// `agent list` and `agent get` over the canonical Agent sessions, and `agent wait`.
     CanonicalAgentRead,
-    AgentNames,
     RetainedCloseOperation,
     CanonicalWorkbenchRead,
     RuntimeInspection,
@@ -15,7 +14,6 @@ pub(super) enum Capability {
     /// A declared `terminal send --file` or `--stdin` source, read under its own signal watch.
     TerminalInputSource,
     AgentPrompt,
-    IntegrationOutdated,
     TerminalRun,
     WorkspaceGroupClose,
     WorktreeOperation,
@@ -63,14 +61,12 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
     platform::admit(capability).map_err(|Unsupported(capability)| match capability {
         Capability::AgentProjection
         | Capability::CanonicalAgentRead
-        | Capability::AgentNames
         | Capability::RetainedCloseOperation
         | Capability::CanonicalWorkbenchRead
         | Capability::RuntimeInspection
         | Capability::TerminalInput
         | Capability::TerminalInputSource
         | Capability::AgentPrompt
-        | Capability::IntegrationOutdated
         | Capability::TerminalRun
         | Capability::WorkspaceGroupClose
         | Capability::WorktreeOperation
@@ -107,9 +103,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
 pub(super) fn admit_agent_target(target: &crate::invocation::AgentTarget) -> Result<(), Failure> {
     match target {
         crate::invocation::AgentTarget::Projection { .. } => admit(Capability::AgentProjection),
-        crate::invocation::AgentTarget::Session { .. }
-        | crate::invocation::AgentTarget::Name { .. }
-        | crate::invocation::AgentTarget::Panel { .. }
+        crate::invocation::AgentTarget::Panel { .. }
         | crate::invocation::AgentTarget::Terminal { .. }
         | crate::invocation::AgentTarget::Auto { .. } => Ok(()),
     }

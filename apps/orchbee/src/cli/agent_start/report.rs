@@ -1,24 +1,21 @@
 //! CLI startup presentation and signal-boundary overrides, separate from domain effect facts.
 use super::{Failure, FailureKind};
-use crate::agent_start::{Request, ReservationState};
-use orchbee_agent_observation_protocol::{
-    AgentLaunchReservation, AgentName, AgentProviderId, AgentSessionId, ObapRequestId,
-};
+use crate::agent_start::Request;
+use orchbee_agent_observation_protocol::{AgentProviderId, AgentSessionId};
 use serde_json::{Value, json};
 use std::time::Instant;
 
 /// Presentation of startup completion or failure, including the CLI reason and optional read cause.
 #[derive(Debug)]
 pub(crate) enum Verdict {
-    /// The integration's canonical Session confirmed readiness and holds the name.
+    /// A canonical Session confirmed readiness.
     Started { session: AgentSessionId },
-    /// The Agent was observed ready in `panel` before any canonical Session reported; no name is
-    /// bound.
+    /// The Agent was observed ready in `panel` before any canonical Session reported.
     Observed {
         panel: orchbee_workbench_protocol::WorkbenchPanelId,
     },
-    /// Without a name, the command was typed in `panel` and passed the early check, or, with no
-    /// submission, `panel`'s new shell runs the Agent as its first command.
+    /// The command was typed in `panel` and passed the early check, or, with no submission,
+    /// `panel`'s new shell runs the Agent as its first command.
     Sent {
         panel: orchbee_workbench_protocol::WorkbenchPanelId,
     },
@@ -32,11 +29,7 @@ pub(crate) enum Verdict {
 /// CLI presentation of the independently retained domain facts, with process-local overrides.
 #[derive(Debug)]
 pub(crate) struct Report {
-    pub(crate) name: Option<AgentName>,
     pub(crate) provider: AgentProviderId,
-    pub(crate) reservation: Option<ObapRequestId>,
-    pub(crate) last_observed: Option<AgentLaunchReservation>,
-    pub(crate) reservation_state: ReservationState,
     pub(crate) submission: Option<Value>,
     pub(crate) submission_status: Option<u8>,
     pub(crate) elapsed_ms: u64,
@@ -44,7 +37,7 @@ pub(crate) struct Report {
 }
 
 impl Report {
-    /// Present a CLI preflight failure with no reservation or submission and the original start time.
+    /// Present a CLI preflight failure with no submission and the original start time.
     pub(crate) fn preflight(request: Request, started: Instant, failure: Failure) -> Self {
         let reason = failure
             .details
@@ -62,11 +55,7 @@ impl Report {
             != Some("agent-start"))
         .then(|| cause(&failure));
         Self {
-            name: request.name,
             provider: request.provider,
-            reservation: None,
-            last_observed: None,
-            reservation_state: ReservationState::None,
             submission: None,
             submission_status: None,
             elapsed_ms: elapsed_ms(started),
@@ -90,11 +79,7 @@ impl Report {
         let mut cause = cause(&failure);
         cause["operation"] = json!(operation);
         Self {
-            name: request.name,
             provider: request.provider,
-            reservation: None,
-            last_observed: None,
-            reservation_state: ReservationState::None,
             submission: None,
             submission_status: None,
             elapsed_ms: elapsed_ms(started),
@@ -114,8 +99,8 @@ impl Report {
         }
     }
 
-    /// Report a settled start: a named start confirmed ready, or a start without a name that
-    /// passed its early check. Accepted input alone does not satisfy this condition.
+    /// Report a settled start: a canonical Session confirmed ready, or a start that passed its
+    /// early check. Accepted input alone does not satisfy this condition.
     pub(crate) const fn completed(&self) -> bool {
         matches!(
             self.verdict,
@@ -123,7 +108,7 @@ impl Report {
         )
     }
 
-    /// Apply a CLI signal-boundary failure without replacing the recorded submission or reservation.
+    /// Apply a CLI signal-boundary failure without replacing the recorded submission.
     /// Preserve a previous read cause only when it belonged to an Agent startup failure.
     pub(crate) fn replace_failure(&mut self, failure: Failure) {
         let read_cause = match &self.verdict {
@@ -244,11 +229,7 @@ impl From<crate::agent_start::Report> for Report {
             }
         };
         Self {
-            name: report.name,
             provider: report.provider,
-            reservation: report.reservation,
-            last_observed: report.last_observed,
-            reservation_state: report.reservation_state,
             submission,
             submission_status,
             elapsed_ms: report.elapsed_ms,

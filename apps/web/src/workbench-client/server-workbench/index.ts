@@ -1,4 +1,3 @@
-export { ServerAgentIntegrationClient } from './ServerAgentIntegrationClient';
 export { ServerClientView } from './ServerClientView';
 export { ServerLeaving } from './ServerLeaving';
 export type {

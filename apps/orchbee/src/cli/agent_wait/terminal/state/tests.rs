@@ -298,8 +298,8 @@ fn physical_wait_documents_reject_fabricated_fields_and_incomplete_client_views(
     let id = "1".repeat(32);
     initial.source =
         json!({"sessionId":id,"workbenchRevision":"1","reportRevision":"1","requestId":id});
-    let target = AgentTarget::Name {
-        name: orchbee_agent_observation_protocol::AgentName::parse("test").unwrap(),
+    let target = AgentTarget::Auto {
+        target: orchbee_agent_observation_protocol::AgentSessionId::parse("test").unwrap(),
     };
     let start = std::time::Instant::now();
     let options = super::super::Options {

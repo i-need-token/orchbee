@@ -177,7 +177,7 @@ fn dropping_an_accepted_peer_settles_the_command_and_joins_its_reader() {
         let runner = scope.spawn(|| {
             fixture.try_run_command(
                 fixture.command(
-                    &["agent", "resolve", "--name", "alpha", "--format=json"],
+                    &["agent", "get", "sess-alpha", "--format=json"],
                     None,
                     None,
                     &[],

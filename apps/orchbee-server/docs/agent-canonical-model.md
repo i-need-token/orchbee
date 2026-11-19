@@ -187,8 +187,7 @@ liveness authority. No socket I/O or outer lock is acquired inside the leaf fold
 The sequential application-session demux routes both OBAP families and writes exactly
 one correlated result. A lost mutation reply is outcome-unknown, without a replay ledger.
 
-`schemas/agent-observation/v1` covers kinds 1–14. Native `agent list`, `agent resolve`,
-and `agent rename` consume the names family; get/explain/wait and terminal control commands resolve names on the same admitted session and pin the resulting session ID. CLI composition and deadlines belong to the [native CLI contract](../../orchbee/docs/native-cli-query.md).
+`schemas/agent-observation/v1` covers kinds 1–14. The names family serves `agent list`; get, wait and terminal control commands resolve names on the same admitted session and pin the resulting session ID. CLI composition and deadlines belong to the [native CLI contract](../../orchbee/docs/native-cli-query.md).
 Deterministic service tests cover collision, atomic rename, exact-ID precedence,
 full capacity, lifecycle cleanup, policy separation, stale preparation, disposal,
 poison, and concurrent claims. Wire and Windows process tests cover bounds,

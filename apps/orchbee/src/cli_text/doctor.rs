@@ -2,15 +2,14 @@
 use super::Locale;
 
 impl super::CliText {
-    /// The label of one check, by its JSON key.
+    /// The label of one check, by its JSON key; the Session check is the last key.
     pub(crate) fn cli_doctor_label(self, key: &str) -> &'static str {
         let (en, zh) = match key {
             "installation" => ("Installation", "安装"),
             "settings" => ("Settings", "设置"),
             "records" => ("Saved data", "已保存数据"),
             "runtime" => ("Runtime folder", "运行时目录"),
-            "session" => ("Session", "会话"),
-            _ => ("Agent integrations", "智能体集成"),
+            _ => ("Session", "会话"),
         };
         self.pick(en, zh)
     }
@@ -107,27 +106,6 @@ impl super::CliText {
                 "存在本版本无法使用的会话记录",
             ),
         }
-    }
-
-    pub(crate) fn cli_doctor_enabled(self, count: usize) -> String {
-        match (self.locale, count) {
-            (Locale::EnUs, 0) => "none enabled".to_owned(),
-            (Locale::ZhCn, 0) => "均未启用".to_owned(),
-            (Locale::EnUs, _) => format!("{count} enabled"),
-            (Locale::ZhCn, _) => format!("已启用 {count} 个"),
-        }
-    }
-
-    pub(crate) fn cli_doctor_update_required(self, providers: &[&str]) -> String {
-        match (self.locale, providers.len()) {
-            (Locale::EnUs, 1) => format!("{} needs an update", providers.join(", ")),
-            (Locale::EnUs, _) => format!("{} need an update", providers.join(", ")),
-            (Locale::ZhCn, _) => format!("{} 需要更新", providers.join("、")),
-        }
-    }
-
-    pub(crate) fn cli_doctor_home_unavailable(self) -> &'static str {
-        self.pick("the home folder could not be read", "无法读取主目录")
     }
 
     const fn pick(self, en: &'static str, zh: &'static str) -> &'static str {

@@ -242,7 +242,6 @@ pub(crate) fn admit(request: &Request) -> Option<(OutputFormat, Option<TerminalS
         | Request::RuntimeConfiguration { format, .. }
         | Request::AgentManifests { format, .. }
         | Request::AgentStart { format, .. }
-        | Request::AgentNames { format, .. }
         | Request::RuntimeStatus {
             scope: RuntimeStatusScope::Server,
             format,

@@ -5,7 +5,6 @@ import { enUSWebsiteDesktopMessages } from './website-desktop';
 import { enUSWebsiteCliMessages } from './website-cli';
 import { enUSWebsiteProductMessages } from './website-product';
 import { enUSApplicationRoutingMessages } from './application-routing';
-import { enUSAgentIntegrationMessages } from './agent-integrations';
 import { enUSAgentObservationMessages } from './agent-observation';
 import { enUSAgentStartMessages } from './agent-start';
 
@@ -29,7 +28,6 @@ export const enUSMessages = {
 	...enUSWebsiteCliMessages,
 	...enUSWebsiteProductMessages,
 	...enUSApplicationRoutingMessages,
-	...enUSAgentIntegrationMessages,
 	...enUSAgentObservationMessages,
 	...enUSAgentStartMessages,
 
