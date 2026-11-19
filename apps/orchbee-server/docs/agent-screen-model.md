@@ -141,7 +141,7 @@ state and no custom report source is present, a program status record decided.
 | Transcript/history viewer rule          | Skip publication, preserve existing fallback and clear pending idle confirmation                          |
 | Visibility flag inconsistent with state | Flag is false in the derived result                                                                       |
 
-Regions select live prompts, response markers, prompt boxes, top/bottom nonempty lines and separate OSC fields. Line boundaries retain correct UTF-8 offsets for LF and CRLF, including blank lines and a final unterminated line; no byte offset may split a Unicode character. All matching is pure and does not access files, processes, clocks or mutable global state. Compiled rules may be retained by the sampling owner and reused.
+Regions select live prompts, response markers, prompt boxes, top/bottom nonempty lines and separate OSC fields. `above_prompt_box_non_empty_lines(N)` selects the last N nonempty rows above the prompt box's top rule and needs engine version 5; with no box visible it selects nothing. Line boundaries retain correct UTF-8 offsets for LF and CRLF, including blank lines and a final unterminated line; no byte offset may split a Unicode character. All matching is pure and does not access files, processes, clocks or mutable global state. Compiled rules may be retained by the sampling owner and reused.
 
 ## Input area
 
@@ -154,7 +154,7 @@ can end above it. It plays no part in state detection.
 | `anchor`       | Required line regex. The area contains the last screen line it matches; no match means the area is unknown.                                  |
 | `above`        | Optional line regex. The unbroken run of lines directly above the anchor that match it belongs to the area too.                              |
 | First row      | The top of that run, or the anchor's line. Every row from it to the bottom of the screen, such as the box, status and footer, is the area.   |
-| Engine version | The table needs engine version 4: a manifest that declares a lower `min_engine_version` is refused, and the engine accepts versions up to 4. |
+| Engine version | The table needs engine version 4: a manifest that declares a lower `min_engine_version` is refused, and the engine accepts versions up to 5. |
 | Bounds         | Each pattern follows the matcher bounds above: at most 512 Unicode characters and the same regex memory limits.                              |
 
 Lines are the sampled live-screen rows from the top, with trailing whitespace removed, so a line's

@@ -707,6 +707,37 @@ fn cline_and_command_code_states_follow_redacted_windows_captures() {
         );
     }
 }
+#[test]
+fn claude_status_slot_above_the_prompt_box_follows_live_shapes() {
+    const BOX: &str = "────────────────\n❯ \n────────────────";
+    let footer = "  ⏵⏵ bypass permissions on (shift+tab to cycle) · /tasks to see subagents";
+    let engine = ScreenDetector::bundled().unwrap();
+    // The interrupt hint in the footer marks a running turn.
+    let turn = format!(
+        "● Reading the files.\n\n✻ Zesting… (2s · thinking)\n{BOX}\n  ⏵⏵ bypass permissions on (shift+tab to cycle) · esc to interrupt · ↓ to manage\n"
+    );
+    // The turn has ended while background agents run; an update notice sits below the Waiting line.
+    let waiting = format!(
+        "● Summarized the diff.\n\n✻ Waiting for 3 background agents to finish\n  ✓ Update installed · restart to apply\n{BOX}\n{footer}\n  ◯ general-purpose  Summarizing the diff   2m 4s\n"
+    );
+    // A Waiting line scrolled well above the box is history, not the status slot.
+    let stale = format!(
+        "✻ Waiting for 4 background agents to finish\nEarlier output one.\nEarlier output two.\nEarlier output three.\nEarlier output four.\n{BOX}\n  ? for shortcuts\n"
+    );
+    for (screen, expected) in [(&turn, Working), (&waiting, Working), (&stale, Idle)] {
+        let detected = engine
+            .detect(Some(Provider::Claude), input(screen))
+            .unwrap();
+        assert_eq!(detected.state, expected, "{screen}");
+        assert_eq!(
+            engine
+                .explain(Provider::Claude, input(screen))
+                .unwrap()
+                .state,
+            expected
+        );
+    }
+}
 fn one(rules: &str) -> Manifest {
     Manifest::parse(Provider::Codex, &format!("id='codex'\n{rules}")).unwrap()
 }
@@ -1005,7 +1036,9 @@ fn invalid_manifest_never_becomes_an_executable_ruleset() {
         "id='codex'",
         "id='different'\n[[rules]]\nid='x'\ncontains=['x']",
         "id='codex'\nunknown=1\n[[rules]]\nid='x'\ncontains=['x']",
-        "id='codex'\nmin_engine_version=5\n[[rules]]\nid='x'\ncontains=['x']",
+        "id='codex'\nmin_engine_version=6\n[[rules]]\nid='x'\ncontains=['x']",
+        "id='codex'\nmin_engine_version=4\n[[rules]]\nid='x'\ncontains=['x']\nregion='above_prompt_box_non_empty_lines(3)'",
+        "id='codex'\n[[rules]]\nid='x'\ncontains=['x']\nregion='above_prompt_box_non_empty_lines(3)'",
         "id='codex'\nmin_engine_version=3\n[input_area]\nanchor='x'\n[[rules]]\nid='x'\ncontains=['x']",
         "id='codex'\n[input_area]\nabove='x'\n[[rules]]\nid='x'\ncontains=['x']",
         "id='codex'\n[input_area]\nanchor='['\n[[rules]]\nid='x'\ncontains=['x']",
@@ -1123,6 +1156,9 @@ fn prompt_boxes_nonempty_regions_and_invalid_region_counts() {
         ("after_last_horizontal_rule", "footer\n"),
         ("bottom_non_empty_lines(2)", "────\nfooter\n"),
         ("bottom_lines(0)", ""),
+        ("above_prompt_box_non_empty_lines(1)", "last signal\n"),
+        ("above_prompt_box_non_empty_lines(2)", "old\nlast signal\n"),
+        ("above_prompt_box_non_empty_lines(9)", "old\nlast signal\n"),
     ] {
         assert_eq!(Region::parse(name).unwrap().select(input(text)), expected);
     }
@@ -1132,6 +1168,9 @@ fn prompt_boxes_nonempty_regions_and_invalid_region_counts() {
         "top_non_empty_lines(0)",
         "top_non_empty_lines(01)",
         "top_non_empty_lines(+2)",
+        "above_prompt_box_non_empty_lines(0)",
+        "above_prompt_box_non_empty_lines(01)",
+        "above_prompt_box_non_empty_lines(+1)",
         "wat",
     ] {
         assert!(Region::parse(name).is_err(), "{name}");

@@ -223,7 +223,7 @@ impl Manifest {
                 == Some(provider.report_label())
         };
         if !(matches_provider(&raw.id) || raw.aliases.iter().any(|alias| matches_provider(alias)))
-            || raw.min_engine_version.is_some_and(|v| v > 4)
+            || raw.min_engine_version.is_some_and(|v| v > 5)
             || raw.rules.is_empty()
             || raw.rules.len() > 128
             || raw
@@ -255,6 +255,9 @@ impl Manifest {
             let region = Region::parse(&raw.region)?;
             if matches!(region, Region::TopNonEmpty(_)) && version.is_some_and(|v| v < 3) {
                 return Err("Top region requires engine version 3".into());
+            }
+            if matches!(region, Region::AboveBoxNonEmpty(_)) && version.is_none_or(|v| v < 5) {
+                return Err("Above-box region requires engine version 5".into());
             }
             let state = raw.state.unwrap_or(PanelAgentState::Unknown);
             if matches!(state, PanelAgentState::Done | PanelAgentState::Error) {

@@ -566,6 +566,26 @@ fn recognition_matrix_rows_and_counterexamples() {
             Some(vec!["amp"]),
             unresolved(Some(P::Amp), U::UnverifiedProvenance),
         ),
+        // An updater renames the running native image. The name before its suffix still names the
+        // program inside the program's own install, and nowhere else.
+        (
+            "renamed by updater",
+            r"C:\demo\node_modules\@anthropic-ai\.claude-code-w6s6omoa\bin\claude.exe.old.1795095583365",
+            Some(vec!["claude", "--model", "opus"]),
+            interactive(P::Claude, S::NativeImage),
+        ),
+        (
+            "renamed by updater",
+            r"C:\demo\node_modules\@anthropic-ai\claude-code\bin\claude.exe.old.1795095583365",
+            Some(vec!["claude", "-p", "task"]),
+            noninteractive(P::Claude, S::NativeImage),
+        ),
+        (
+            "renamed outside install",
+            r"C:\demo\claude.exe.old.1795095583365",
+            Some(vec!["claude", "--model", "opus"]),
+            NOT,
+        ),
         // Unreadable command lines never default to interactive.
         (
             "unreadable",
@@ -1296,6 +1316,45 @@ fn recognition_matrix_rows_and_counterexamples() {
             );
         }
     }
+}
+
+/// The captured shape after Claude Code's updater renamed its running image: the renamed Claude
+/// under the terminal's shell anchors the sample, and the bash that Claude runs is not an Agent.
+#[test]
+fn renamed_claude_image_anchors_under_the_terminal_shell() {
+    use AgentAnchorEvidence as E;
+    let argv = |items: &[&str]| {
+        items
+            .iter()
+            .map(|item| (*item).to_owned())
+            .collect::<Vec<_>>()
+    };
+    let claude = classify_agent_process(
+        Some(
+            r"C:\demo\node_modules\@anthropic-ai\.claude-code-w6s6omoa\bin\claude.exe.old.1795095583365",
+        ),
+        Some(
+            argv(&[
+                r"C:\demo\node_modules\@anthropic-ai\claude-code\bin\claude.exe",
+                "--model",
+                "opus",
+            ])
+            .as_slice(),
+        ),
+    );
+    let bash = classify_agent_process(
+        Some(r"C:\demo\Git\usr\bin\bash.exe"),
+        Some(argv(&["bash", "-c", "true"]).as_slice()),
+    );
+    let rows = [
+        row(1, None, AgentProcessRecognition::NotAgent),
+        row(2, Some(1), claude),
+        row(3, Some(2), bash),
+    ];
+    assert_eq!(
+        evaluate_agent_sample(&rows, false),
+        anchor(2, P::Claude, E::Interactive)
+    );
 }
 
 /// The launch shapes a POSIX Host reports name a provider as their Windows counterparts do:

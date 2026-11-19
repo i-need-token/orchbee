@@ -175,7 +175,7 @@ fn resolve<'a>(image: Option<&str>, argv: Option<&'a [String]>) -> Resolved<'a> 
         Name::Unproven(provider) => return Resolved::Done(unproven(provider)),
         Name::Absent => {}
     }
-    if let Some(provider) = versioned_image(image) {
+    if let Some(provider) = versioned_image(image).or_else(|| renamed_image(image)) {
         return Resolved::provider(
             provider,
             AgentInstallShape::NativeImage,
@@ -309,6 +309,31 @@ fn versioned_image(image: &str) -> Option<AgentReportProvider> {
     AGENT_PROVIDER_REGISTRY
         .iter()
         .find(|entry| entry.version_roots.iter().any(|root| root.contains(image)))
+        .map(|entry| entry.provider)
+}
+
+/// The provider whose running native image an updater renamed to `<image>.old.<digits>` inside one
+/// of its renamed-image roots. The name before the suffix must be one of the provider's unique
+/// aliases, so the rename keeps the program's own name.
+fn renamed_image(image: &str) -> Option<AgentReportProvider> {
+    let name = basename_with_suffix(image);
+    let (original, stamp) = name.rsplit_once(".old.")?;
+    if stamp.is_empty() || !stamp.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let program = basename(original);
+    AGENT_PROVIDER_REGISTRY
+        .iter()
+        .find(|entry| {
+            entry
+                .renamed_image_roots
+                .iter()
+                .any(|root| root.contains(image))
+                && entry
+                    .aliases
+                    .iter()
+                    .any(|alias| alias.class == AgentAliasClass::Unique && alias.matches(&program))
+        })
         .map(|entry| entry.provider)
 }
 

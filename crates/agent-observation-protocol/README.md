@@ -125,8 +125,11 @@ reuse it rather than keeping their own tables.
   `antigravity`) are not process aliases. Entries also list package entries, bundled runtimes, and
   allowed Python modules. Claude's entry also lists the native installer's version root,
   `.local/share/claude/versions`, where each release is an image named only by its version, such
-  as `2.0.14`; such an image there is Claude's native image. Version ranges enter an entry only
-  after a real corpus verifies them; until then every entry is best effort.
+  as `2.0.14`; such an image there is Claude's native image. Claude's entry also lists the roots
+  where its updater leaves a running image renamed to `<name>.exe.old.<digits>`, under
+  `node_modules/@anthropic-ai/claude-code` and its `.claude-code-*` staging directory; such an image
+  keeps the provider's identity while it runs. Version ranges enter an entry only after a real
+  corpus verifies them; until then every entry is best effort.
 - Classifier: `classify_agent_process` takes the actual image and decoded arguments and returns
   `AgentProcessRecognition`: not an Agent, interactive or noninteractive with an
   `AgentInstallShape`, unresolved with a reason, or a remote client. Names in arbitrary arguments
@@ -167,9 +170,9 @@ reuse it rather than keeping their own tables.
 - Runtime entries: the runtime skips its own listed options before the script, including the
   value-less `--expose-gc` that Qwen's `cli-entry.js` passes when it re-executes `cli.js`. Both Qwen
   files are package entries, so the outer `cli-entry.js` run anchors a Qwen sample.
-- `AGENT_PROVIDER_REGISTRY_VERSION` is 9. It changes whenever an entry's recognition meaning
-  changes: a provider, alias, install root, version root, package entry or grammar option joining or
-  leaving the registry.
+- `AGENT_PROVIDER_REGISTRY_VERSION` is 10. It changes whenever an entry's recognition meaning
+  changes: a provider, alias, install root, version root, renamed image root, package entry or
+  grammar option joining or leaving the registry.
 - Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,
   `unknown` with one `AgentIdentityUnknownReason`, or `unsupported` with one
   `AgentIdentityUnsupportedReason`. The Server owns the state that produces it. Its wire form is

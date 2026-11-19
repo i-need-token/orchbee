@@ -18,6 +18,8 @@ pub(super) enum Region {
     Bottom(usize),
     BottomNonEmpty(usize),
     TopNonEmpty(usize),
+    /// The last N nonempty rows above the prompt box's top rule, from the first of them down to it.
+    AboveBoxNonEmpty(usize),
 }
 impl Region {
     pub(super) fn parse(spec: &str) -> Result<Self, String> {
@@ -41,6 +43,7 @@ impl Region {
                     ("bottom_lines", 0),
                     ("bottom_non_empty_lines", 1),
                     ("top_non_empty_lines", 2),
+                    ("above_prompt_box_non_empty_lines", 3),
                 ] {
                     if let Some(raw) = spec
                         .strip_prefix(name)
@@ -51,7 +54,7 @@ impl Region {
                             .parse::<usize>()
                             .ok()
                             .filter(|n| *n <= usize::from(u16::MAX));
-                        if kind == 2
+                        if kind >= 2
                             && (raw.starts_with('0') || !raw.bytes().all(|b| b.is_ascii_digit()))
                         {
                             break;
@@ -60,7 +63,8 @@ impl Region {
                             found = Some(match kind {
                                 0 => Self::Bottom(n),
                                 1 => Self::BottomNonEmpty(n),
-                                _ => Self::TopNonEmpty(n),
+                                2 => Self::TopNonEmpty(n),
+                                _ => Self::AboveBoxNonEmpty(n),
                             });
                         }
                         break;
@@ -139,6 +143,17 @@ impl Region {
                 .take(n)
                 .last()
                 .map_or("", |(i, _)| lines.before(i + 1)),
+            Self::AboveBoxNonEmpty(n) => lines.box_top().map_or("", |top| {
+                let first = lines.rows[..top]
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .filter(|(_, r)| !r.1.trim().is_empty())
+                    .take(n)
+                    .last()
+                    .map_or(top, |(i, _)| i);
+                &text[lines.offset(first)..lines.offset(top)]
+            }),
             Self::Whole | Self::Title | Self::Progress => {
                 unreachable!("direct fields returned above")
             }

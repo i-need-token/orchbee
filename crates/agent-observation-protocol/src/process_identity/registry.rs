@@ -6,7 +6,7 @@ use super::mode::{AgentModeGrammar, grammar};
 use crate::AgentReportProvider;
 
 /// Registry data version; it changes whenever an entry's recognition meaning changes.
-pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 9;
+pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 10;
 
 /// How much a bare process name proves about its provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -65,6 +65,10 @@ pub struct AgentProviderEntry {
     /// Directories where a native installer keeps each release as an image named only by its
     /// version, such as `2.0.14`; such an image inside one is this provider's native image.
     pub version_roots: &'static [AgentInstallRoot],
+    /// Directories where an updater renames a running native image to `<name>.old.<digits>`; such
+    /// an image inside one whose name before the suffix is this provider's unique alias is still
+    /// this provider's native image while it runs.
+    pub renamed_image_roots: &'static [AgentInstallRoot],
     /// Script path suffixes, at a path-segment boundary, of package entries.
     pub package_entries: &'static [&'static str],
     pub bundled_runtimes: &'static [AgentBundledRuntime],
@@ -114,6 +118,7 @@ const fn entry(
         aliases,
         install_roots: &[],
         version_roots: &[],
+        renamed_image_roots: &[],
         package_entries,
         bundled_runtimes: &[],
         python_modules: NONE,
@@ -145,6 +150,10 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 36] = {
         },
         AgentProviderEntry {
             version_roots: &[AgentInstallRoot(&[".local", "share", "claude", "versions"])],
+            renamed_image_roots: &[
+                AgentInstallRoot(&["node_modules", "@anthropic-ai", "claude-code"]),
+                AgentInstallRoot(&["node_modules", "@anthropic-ai", ".claude-code-*"]),
+            ],
             ..entry(
                 P::Claude,
                 &[unique("claude")],
