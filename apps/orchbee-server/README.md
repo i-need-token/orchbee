@@ -28,7 +28,7 @@ error's text.
 | `candidate-dropped`       | A candidate is closed before it is served: Client handshake transport setup, peer credentials, a poisoned registry, an exhausted generation, an unencodable reply or query result; an observation connection that cannot be made nonblocking or arrives over capacity                         | `operation`, `stage`, `cause` (I/O error kind, `protocol` or `none`), `suppressed`                                                                                                                                                                                                                                                                                  |
 | `worker-request-failed`   | One Worker request failed while its connection kept serving: no reply within its window, an invalid whole frame, a mismatched reply, or a window that passed while it waited unwritten behind an owed reply; or a connection cleanup's caller stopped waiting while the cleanup stayed queued | `request`, `failure`, `error` (I/O error kind, protocol error or `none`), `elapsedMs`, `suppressed`                                                                                                                                                                                                                                                                 |
 | `worker-reply-dropped`    | The Worker connection dropped a whole frame that answered no request and kept serving: a late reply to a request that already failed, an unmatched reply, or invalid content                                                                                                                  | `cause` (`late`, `unmatched`, `invalid`), `request` (`none` when unknown), `error`, `lateMs` for a late reply, `suppressed`                                                                                                                                                                                                                                         |
-| `client-stream-failed`    | The Server closed one Client stream while that Client's connection kept serving: its request did not decode, its read or intent failed, or its record could not be delivered                                                                                                                  | `stage` (`open`, `job-read`, `update`, `resnapshot`), `failure` (the connection stage, `invalid-request`, `record-size`, `budget`), `close` (`invalid-request`, `capacity`, `outcome-unknown`), `suppressed`                                                                                                                                                        |
+| `client-stream-failed`    | The Server closed one Client stream while that Client's connection kept serving: the reader refused it before it ran, its request did not decode, its read or intent failed, or its record could not be delivered                                                                             | `stage` (`admit`, `open`, `job-read`, `update`, `resnapshot`), `failure` (`backlog`, `streams`, the connection stage, `invalid-request`, `record-size`, `budget`), `close` (`invalid-request`, `capacity`, `outcome-unknown`), `suppressed`                                                                                                                         |
 | `worker-connection-ended` | The Worker connection ends, or its thread cannot start                                                                                                                                                                                                                                        | `exit`, `failure`, `error`, `request` with `elapsedMs` since it was sent, `afterShutdown`, `workerProcess` (`not-held`, `running`, `exited`, `unknown`), `workerExitCode`                                                                                                                                                                                           |
 | `worker-lost`             | The managed Server lost its Worker and decided what follows, once per lost generation                                                                                                                                                                                                         | `generation`, `cause` (`exited`, or `disconnected` when the Server ended a process still running), `exitCode` or `exitSignal` when known, `attempts` in the cap's window, `action` (`replace`, `stop`, `give-up`), and for the last two `reason` (`stop-admitted`, `worker-not-gone`, `host-gone`, `host-spawning`, `host-unverified`, `cap-reached`)               |
 | `worker-replaced`         | One replacement attempt adopted the Host or failed                                                                                                                                                                                                                                            | `generation` once admitted, `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `stage` (`create`, `admit`, `adopt`), the `failure` (an `AdoptHost` failure, `timed-out`, `declined`, `exited`, `protocol`, `unavailable`, or an I/O error kind) and `next` (`retry`, `stop`, `give-up`); `elapsedMs` |
@@ -1053,14 +1053,23 @@ The first successful ClientView Synchronize binds its publishing lane. Only that
 synchronize, and its closure retires the view and settles pending control receipts. Synchronize
 is never a reconstructable subscription; stable invalidations wake one-shot domain-owned exchanges.
 
-Each carrier has one standard-library reader and one writer/dispatcher. The reader admits at
-most 64 queued records; the dispatcher executes finite requests and writes outside mailbox and
-business locks. A request that waits on a Worker job (`WorkspaceGit`, `WorktreeQuery`,
+Each carrier has one standard-library reader and one writer/dispatcher. The reader queues input
+for the dispatcher in arrival order; the dispatcher executes finite requests and writes outside
+mailbox and business locks. A request that waits on a Worker job (`WorkspaceGit`, `WorktreeQuery`,
 `WorktreeListRead`) would hold every other stream behind it, so one job-read thread per connection
 runs those in arrival order and hands each finished result back to the dispatcher, the only writer.
 There are at most 64 active streams and 64 explicit lanes, plus root lane 1. After a `drain`, a
 request stream carrying an intent closes with `stopping` before the intent takes effect, and the
 Client reports that request as not submitted.
+
+The reader refuses a new stream it cannot take now, and only that stream: once 64 input entries
+wait for the dispatcher (`backlog`), while the connection holds 64 streams (`streams`), or when
+the request's reservation does not fit the budget (`budget`). It drops the request bytes at once,
+and the dispatcher, in arrival order, closes the stream with `capacity` before it runs and logs
+`client-stream-failed` at stage `admit`. Cancellations and lane frames still queue behind a full
+backlog, up to 1,024 waiting entries; past that the Client has stopped reading its answers and the
+connection ends with `capacity`. A `capacity` close before a stream's first frame therefore leaves
+its request without effect: either it never ran, or it was a read.
 
 One stream's failure closes only that stream, in a way its Client already handles, and every other
 stream and lane keeps serving. A request record that does not decode inside an intact frame closes
@@ -1073,8 +1082,8 @@ which the Client reports as unknown and never as not submitted, and the connecti
 The Server sends that reason only when the handshake answer lists `stream-outcome-unknown`; a
 Client without it reads every other close as a request that never ran, so for it such an intent
 still ends the connection. Only the carrier itself ends a connection: a message a Client may
-not send, a reused stream ID, an unknown lane, a full inbox or budget at the reader, a lane limit,
-root lane closure,
+not send, a reused stream ID, an unknown lane, 1,024 waiting input entries or a full budget for a
+frame that opens no stream, a lane limit, root lane closure,
 sustained resnapshots, retained records over budget, a maintenance failure, a Session stop, or a
 failed socket write.
 

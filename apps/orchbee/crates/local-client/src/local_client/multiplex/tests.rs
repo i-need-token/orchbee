@@ -134,6 +134,69 @@ fn an_outcome_unknown_close_fails_one_request_as_submitted_and_keeps_the_carrier
     server.finish().unwrap();
 }
 
+/// A capacity refusal before the first frame means the request never ran. The carrier opens a
+/// waiting exchange again under a fresh ID; a request its caller may have pipelined others behind
+/// fails alone, typed and unsent; the same carrier serves both and the next request.
+#[test]
+fn a_capacity_refusal_reopens_a_waiting_request_and_fails_a_pipelined_one_alone() {
+    let server = FakeServer::start(move |mut peer| {
+        let refuse = |peer: &mut LocalStream, stream_id| {
+            write_multiplex_message(
+                peer,
+                &MultiplexMessage::StreamClose {
+                    stream_id,
+                    reason: StreamCloseReason::Capacity,
+                },
+            )
+        };
+        admit(&mut peer, 1)?;
+        let refused = read_open(&mut peer)?;
+        refuse(&mut peer, refused.id)?;
+        let reopened = read_open(&mut peer)?;
+        assert!(reopened.id.value() > refused.id.value());
+        assert_eq!(reopened.request, refused.request);
+        frame(&mut peer, reopened.id, 1, StreamFrameKind::Result, 1)?;
+        let pipelined = read_open(&mut peer)?;
+        refuse(&mut peer, pipelined.id)?;
+        let next = read_open(&mut peer)?;
+        frame(&mut peer, next.id, 1, StreamFrameKind::Result, 3)?;
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint())
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
+    let connection = client.origin().multiplex.clone().unwrap();
+    let clock = crate::local_client::SystemMonotonicClock;
+    let encoded = |id: u64| {
+        let mut bytes = Vec::new();
+        orchbee_workbench_protocol::write_workbench_request(&mut bytes, &request(id)).unwrap();
+        bytes
+    };
+    let exchange = |id: u64| {
+        connection.exchange(
+            MultiplexLaneId::ROOT,
+            &encoded(id),
+            Instant::now() + Duration::from_secs(2),
+            &clock,
+            None,
+            None,
+        )
+    };
+    assert!(matches!(exchange(1), Ok((bytes, _)) if bytes == [1]));
+    let pipelined = connection.request_subscription(encoded(2)).unwrap();
+    let error = take(&pipelined).unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::ResourceBusy);
+    assert!(
+        !pipelined.cancel(),
+        "the refused request was never submitted"
+    );
+    assert!(matches!(exchange(3), Ok((bytes, _)) if bytes == [3]));
+    drop((pipelined, connection, client));
+    server.finish().unwrap();
+}
+
 #[test]
 fn a_ready_listener_hears_a_record_no_reader_is_waiting_for() {
     let (send, release) = mpsc::sync_channel(1);

@@ -690,6 +690,11 @@ reconnect and restores subscriptions; one-shot mutations are never replayed afte
 Its decoder admits the `outcome-unknown` stream close only when the carrier's handshake answer
 listed `stream-outcome-unknown`; such a close fails that one request as submitted with an unknown
 outcome, never as not submitted, and the carrier keeps serving.
+A `capacity` close before a stream's first frame left its request without effect. The actor opens
+a subscription, or a request whose caller waits for it alone, again under a fresh stream ID after
+pauses from 10 to 640 ms, at most seven times; a request whose caller may have sent others behind
+it fails at once. A stream that finally fails, fails alone with a typed `ResourceBusy` refusal, a
+request as not submitted, and the carrier keeps serving.
 A local wake stream makes command/cancel admission interrupt the same readiness wait as incoming
 frames. No channel polling timer is used for delivery. The [Server delivery contract](../orchbee-server/README.md#multiplexed-client-delivery)
 owns framing, bounds, gap recovery and the finite model's exact claims and exclusions.

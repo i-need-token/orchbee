@@ -232,6 +232,107 @@ fn a_record_whose_reservation_exceeds_the_budget_closes_alone() {
     }));
 }
 
+/// While the dispatcher is busy, a stream open the budget can never take and every open past a
+/// full backlog are each refused alone with `Capacity`. Every stream queued before them still
+/// runs, and the connection keeps serving once the dispatcher drains.
+#[test]
+fn a_stream_the_input_cannot_take_is_refused_alone() {
+    let (mut peer, server) = bounded_pair();
+    let signal = Arc::new(SessionChangeSignal::default());
+    let observed = Arc::clone(&signal);
+    let (started, running) = mpsc::channel();
+    let (release, released) = mpsc::channel::<()>();
+    let task = thread::spawn(move || {
+        let mut executions = 0u64;
+        crate::fault_records::capture::records(|| {
+            run(
+                &server,
+                open(1, 1, StreamMode::Request),
+                IntentUnknown::ClosesStream,
+                signal,
+                move |_, _| {
+                    executions += 1;
+                    if executions == 1 {
+                        started.send(()).unwrap();
+                        released.recv().unwrap();
+                    }
+                    Ok(executions.to_be_bytes().to_vec())
+                },
+                Vec::new,
+                no_job_read,
+                |_| {},
+                |_| {},
+                || Ok(None),
+            )
+        })
+    });
+    running.recv().unwrap();
+    let base = observed.wake_revision();
+    // Three times this request's length exceeds the connection budget even with nothing queued.
+    write_multiplex_message(
+        &mut peer,
+        &MultiplexMessage::StreamOpen {
+            stream_id: MultiplexStreamId::new(2).unwrap(),
+            lane_id: MultiplexLaneId::ROOT,
+            mode: StreamMode::Request,
+            request: vec![0; MAXIMUM_MULTIPLEX_BYTES / 3],
+        },
+    )
+    .unwrap();
+    // The refused open holds one backlog entry, these fill the rest, and the last two find it full.
+    let last = 2 + INPUT_RECORDS as u64 + 1;
+    for id in 3..=last {
+        write_multiplex_message(&mut peer, &open(id, 1, StreamMode::Request)).unwrap();
+    }
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let current = observed.wake_revision();
+        if current.wrapping_sub(base) >= last - 1 {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the reader queues every open");
+        observed.wait(current, Some(Duration::from_millis(100)));
+    }
+    release.send(()).unwrap();
+    let mut refused = BTreeSet::new();
+    let mut answered = BTreeSet::new();
+    while refused.len() + answered.len() < last as usize {
+        match read_multiplex_message(&mut peer).unwrap() {
+            MultiplexMessage::StreamFrame { stream_id, .. } => answered.insert(stream_id.value()),
+            MultiplexMessage::StreamClose {
+                stream_id,
+                reason: StreamCloseReason::Capacity,
+            } => refused.insert(stream_id.value()),
+            other => panic!("unexpected {other:?}"),
+        };
+    }
+    assert_eq!(refused, BTreeSet::from([2, last - 1, last]));
+    assert_eq!(
+        answered,
+        (1..=last)
+            .filter(|id| !refused.contains(id))
+            .collect::<BTreeSet<_>>()
+    );
+    write_multiplex_message(&mut peer, &open(last + 1, 1, StreamMode::Request)).unwrap();
+    assert!(matches!(
+        read_multiplex_message(&mut peer).unwrap(),
+        MultiplexMessage::StreamFrame { stream_id, .. } if stream_id.value() == last + 1
+    ));
+    drop(peer);
+    let (_closed, records) = task.join().unwrap();
+    for failure in ["budget", "backlog"] {
+        assert!(records.iter().any(|record| {
+            record.event == "client-stream-failed"
+                && record
+                    .fields
+                    .contains(&("stage", orchbee_local_runtime::LogValue::Token("admit")))
+                && record
+                    .fields
+                    .contains(&("failure", orchbee_local_runtime::LogValue::Token(failure)))
+        }));
+    }
+}
+
 fn reload(id: u64) -> MultiplexMessage {
     use orchbee_workbench_protocol::{ConfigurationAction, ConfigurationRequest, SessionId};
     let mut request = Vec::new();

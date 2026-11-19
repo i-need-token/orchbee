@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { ContainedClientFault } from '../../contained-client-fault';
 import { MultiplexDecoder, encodeMultiplexMessage } from '../workbench-multiplex-codec';
@@ -127,6 +127,63 @@ describe('ServerConnection', () => {
 		base.deliver({ kind: 'stream-close', reason: 'outcome-unknown', streamId: 1n });
 		await expect(held).rejects.toBeInstanceOf(ServerConnectionEndedError);
 		expect(baseConnection.ended?.kind).toBe('protocol-violation');
+	});
+
+	it('reopens a subscription refused for capacity, boundedly, and fails a refused request alone', async () => {
+		vi.useFakeTimers();
+		try {
+			const carrier = new FakeCarrier();
+			const connection = new ServerConnection(carrier);
+			const closed: string[] = [];
+			const frames: string[] = [];
+			const handlers = {
+				onClosed: (reason: string) => closed.push(reason),
+				onFrame: (kind: string) => frames.push(kind),
+				onGap: () => undefined,
+			};
+			const subscription = connection.subscribe('state', REQUEST, handlers);
+			const refused = connection.exchange(REQUEST);
+			carrier.deliver({ kind: 'stream-close', reason: 'capacity', streamId: 1n });
+			carrier.deliver({ kind: 'stream-close', reason: 'capacity', streamId: 2n });
+
+			const failure: unknown = await refused.catch((error: unknown) => error);
+			expect(failure).toBeInstanceOf(ServerStreamRefusedError);
+			expect(failure).toMatchObject({ reason: 'capacity', retryable: true });
+			expect(carrier.opened()).toHaveLength(2);
+
+			vi.runOnlyPendingTimers();
+			const reopened = carrier.opened().at(-1);
+			expect(reopened).toMatchObject({ mode: 'state', request: REQUEST });
+			const streamId = reopened?.streamId ?? 0n;
+			expect(streamId).toBeGreaterThan(2n);
+			carrier.deliver({
+				frameKind: 'snapshot',
+				kind: 'stream-frame',
+				record: new Uint8Array([1]),
+				sequence: 1n,
+				streamId,
+			});
+			subscription.close();
+			expect(frames).toEqual(['snapshot']);
+			expect(closed).toEqual([]);
+			expect(carrier.sent.at(-1)).toEqual({ kind: 'stream-close', reason: 'cancelled', streamId });
+
+			connection.subscribe('state', REQUEST, handlers);
+			for (let refusals = 0; closed.length === 0; refusals += 1) {
+				expect(refusals).toBeLessThan(32);
+				const open = carrier.opened().at(-1);
+				carrier.deliver({
+					kind: 'stream-close',
+					reason: 'capacity',
+					streamId: open?.streamId ?? 0n,
+				});
+				vi.runOnlyPendingTimers();
+			}
+			expect(closed).toEqual(['capacity']);
+			expect(connection.ended).toBeNull();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('cancels at its deadline and ignores the result that crosses the cancellation', async () => {

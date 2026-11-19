@@ -2099,7 +2099,8 @@ impl ClientExecutor {
                 | crate::local_client::multiplex::StreamEvent::Disconnected,
             ))
             | Ok(None) => return Ok(false),
-            // The stream fails only when its carrier stops or closes, so the failure keeps the
+            // The stream fails only when its carrier stops or closes, or when the Server still
+            // refuses it for capacity after the carrier's pauses, so the failure keeps the
             // carrier's class, as a request on that carrier would.
             Err(error) => return Err(ReadyFlowError::Carrier(io_failure(&error))),
         }

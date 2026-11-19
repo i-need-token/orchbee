@@ -8,6 +8,11 @@
  * A handler or listener that throws fails only its own scope: a subscription handler ends that
  * subscription, which the Server and its owner are told of, and a listener loses only its call.
  * The connection and every other stream keep serving, and the fault is reported with its site.
+ *
+ * A subscription the Server refuses for `capacity` before its first frame never ran: it opens again
+ * under a fresh stream ID after a short pause, a bounded number of times, before its owner hears the
+ * close. A request refused that way fails alone at once, since its caller may already have sent
+ * others behind it and a reopened request would run after them.
  */
 import {
 	ContainedClientFault,
@@ -58,11 +63,14 @@ export class ServerConnectionEndedError extends Error {
 /** The Server refused a stream before executing its request. */
 export class ServerStreamRefusedError extends Error {
 	readonly reason: MultiplexCloseReason;
+	/** The connection keeps serving, and the same request may be sent again once it has room. */
+	readonly retryable: boolean;
 
 	constructor(reason: MultiplexCloseReason) {
 		super(`Server closed the stream: ${reason}.`);
 		this.name = 'ServerStreamRefusedError';
 		this.reason = reason;
+		this.retryable = reason === 'capacity';
 	}
 }
 
@@ -103,6 +111,8 @@ export interface ServerSubscription {
 /** The Server's limit minus the stream a Client keeps for its progress probe. */
 const MAXIMUM_APPLICATION_STREAMS = MAXIMUM_MULTIPLEX_STREAMS - 1;
 const DEFAULT_EXCHANGE_DEADLINE_MILLISECONDS = 50_000;
+/** Pauses before a subscription refused for capacity opens again; after the last it closes. */
+const CAPACITY_PAUSES_MILLISECONDS = [10, 20, 40, 80, 160, 320, 640] as const;
 
 interface RequestStream {
 	readonly kind: 'request';
@@ -115,8 +125,14 @@ interface RequestStream {
 
 interface SubscriptionStream {
 	readonly handlers: ServerSubscriptionHandlers;
+	/** The current open's stream ID; reopening after a capacity refusal replaces it. */
+	id: bigint;
 	readonly kind: 'subscription';
 	readonly laneId: bigint;
+	readonly mode: Exclude<MultiplexStreamMode, 'request'>;
+	pause: ReturnType<typeof setTimeout> | null;
+	refusals: number;
+	readonly request: Uint8Array;
 	sequence: bigint;
 }
 
@@ -138,6 +154,8 @@ export class ServerConnection {
 	readonly #lanes = new Set<bigint>([MULTIPLEX_ROOT_LANE]);
 	readonly #reportFault: ContainedClientFaultReporter;
 	readonly #streams = new Map<bigint, ActiveStream>();
+	/** Subscriptions waiting out a capacity pause, under the stream ID the Server refused. */
+	readonly #paused = new Map<bigint, SubscriptionStream>();
 	readonly #viewerReadyListeners = new Map<bigint, () => void>();
 	readonly #waiting: WaitingOpen[] = [];
 	#end: ServerConnectionEnd | null = null;
@@ -218,14 +236,23 @@ export class ServerConnection {
 	): ServerSubscription {
 		const refusal = this.#openRefusal(laneId);
 		if (refusal !== null) throw refusal;
-		const streamId = this.#nextStreamId++;
-		const stream: SubscriptionStream = { handlers, kind: 'subscription', laneId, sequence: 0n };
-		this.#open({ cancelled: false, laneId, mode, request, stream, streamId });
+		const stream: SubscriptionStream = {
+			handlers,
+			id: this.#nextStreamId++,
+			kind: 'subscription',
+			laneId,
+			mode,
+			pause: null,
+			refusals: 0,
+			request,
+			sequence: 0n,
+		};
+		this.#open({ cancelled: false, laneId, mode, request, stream, streamId: stream.id });
 		return {
-			close: () => this.#abandon(streamId),
+			close: () => this.#abandon(stream.id),
 			resnapshot: () => {
-				if (this.#streams.get(streamId) === stream) {
-					this.#send({ kind: 'resnapshot', streamId });
+				if (this.#streams.get(stream.id) === stream) {
+					this.#send({ kind: 'resnapshot', streamId: stream.id });
 				}
 			},
 		};
@@ -256,6 +283,9 @@ export class ServerConnection {
 			if (stream.kind === 'subscription' && stream.laneId === laneId) {
 				this.#streams.delete(streamId);
 			}
+		}
+		for (const stream of this.#paused.values()) {
+			if (stream.laneId === laneId) this.#unpause(stream);
 		}
 		if (this.#end === null) this.#send({ kind: 'lane-close', laneId });
 		this.#admitWaiting();
@@ -310,6 +340,9 @@ export class ServerConnection {
 
 	/** Forgets a stream locally. The Server ignores the close once it has answered a request. */
 	#abandon(streamId: bigint): void {
+		const paused = this.#paused.get(streamId);
+		// The Server already closed the refused stream, so nothing goes on the wire.
+		if (paused !== undefined) this.#unpause(paused);
 		const waiting = this.#waiting.find((open) => open.streamId === streamId);
 		if (waiting !== undefined) waiting.cancelled = true;
 		const stream = this.#streams.get(streamId);
@@ -320,6 +353,32 @@ export class ServerConnection {
 			this.#send({ kind: 'stream-close', reason: 'cancelled', streamId });
 			this.#admitWaiting();
 		}
+	}
+
+	/** Opens a refused subscription again under a fresh stream ID once its pause has passed. */
+	#pause(stream: SubscriptionStream, delay: number): void {
+		stream.refusals += 1;
+		this.#paused.set(stream.id, stream);
+		stream.pause = setTimeout(() => {
+			if (this.#paused.get(stream.id) !== stream) return;
+			this.#unpause(stream);
+			if (this.#end !== null) return;
+			stream.id = this.#nextStreamId++;
+			this.#open({
+				cancelled: false,
+				laneId: stream.laneId,
+				mode: stream.mode,
+				request: stream.request,
+				stream,
+				streamId: stream.id,
+			});
+		}, delay);
+	}
+
+	#unpause(stream: SubscriptionStream): void {
+		this.#paused.delete(stream.id);
+		if (stream.pause !== null) clearTimeout(stream.pause);
+		stream.pause = null;
 	}
 
 	#receive(chunk: Uint8Array): void {
@@ -413,7 +472,12 @@ export class ServerConnection {
 							: new ServerStreamRefusedError(message.reason),
 					);
 				} else {
-					stream.handlers.onClosed(message.reason);
+					const pause = CAPACITY_PAUSES_MILLISECONDS[stream.refusals];
+					if (message.reason === 'capacity' && stream.sequence === 0n && pause !== undefined) {
+						this.#pause(stream, pause);
+					} else {
+						stream.handlers.onClosed(message.reason);
+					}
 				}
 				this.#admitWaiting();
 				return;
@@ -470,6 +534,7 @@ export class ServerConnection {
 		this.#end = end;
 		this.#unsubscribe?.();
 		this.#carrier.close();
+		for (const stream of this.#paused.values()) this.#unpause(stream);
 		const error = new ServerConnectionEndedError(end);
 		for (const open of this.#waiting.splice(0)) {
 			if (!open.cancelled && open.stream.kind === 'request') {

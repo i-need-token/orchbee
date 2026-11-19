@@ -1,6 +1,7 @@
 //! Three-thread admitted carrier: bounded input, one dispatch/output owner, one owner of reads
-//! that wait on a Worker job, and event wakeups. A request or read that fails closes only its own
-//! stream; only the carrier's own input, output, and limits end the connection.
+//! that wait on a Worker job, and event wakeups. A stream the connection cannot take now, or a
+//! request or read that fails, closes only its own stream; only the carrier's own input, output,
+//! and limits end the connection.
 use super::application_connection::{ApplicationConnectionError, ApplicationRequest, Effect};
 use orchbee_local_ipc::LocalStream;
 use orchbee_server::SessionChangeSignal;
@@ -22,7 +23,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Queued input at which the reader refuses each new stream until the dispatcher drains it.
 const INPUT_RECORDS: usize = 64;
+/// Queued input, refused streams and control frames included, at which the connection ends: a
+/// Client that keeps sending while every new stream is refused has stopped reading its answers.
+const INPUT_ENTRIES: usize = 1_024;
 const PERSISTENT_OVERRUN: u8 = 3;
 
 /// The budget a record of `len` bytes reserves: three times its length, which conservatively
@@ -57,18 +62,20 @@ impl Claim {
             streams: None,
         })
     }
+    /// Reserves one input frame's budget and, for a stream open, one of the connection's streams.
+    /// A refusal names what was full: `budget` or `streams`.
     fn message(
         budget: &Arc<AtomicUsize>,
         streams: &Arc<AtomicUsize>,
         message: &MultiplexMessage,
-    ) -> io::Result<Self> {
-        let mut claim = Self::reserve(budget, size(message))?;
+    ) -> Result<Self, &'static str> {
+        let mut claim = Self::reserve(budget, size(message)).map_err(|_| "budget")?;
         if matches!(message, MultiplexMessage::StreamOpen { .. }) {
             streams
                 .fetch_update(Ordering::AcqRel, Ordering::Acquire, |count| {
                     (count < MAXIMUM_MULTIPLEX_STREAMS).then_some(count + 1)
                 })
-                .map_err(|_| io::ErrorKind::OutOfMemory)?;
+                .map_err(|_| "streams")?;
             claim.streams = Some(Arc::clone(streams));
         }
         Ok(claim)
@@ -82,9 +89,39 @@ impl Drop for Claim {
         }
     }
 }
+/// One input frame in arrival order. A stream open the reader refused keeps no request bytes; the
+/// dispatcher closes that stream with the refusal's name.
 struct Queued {
     message: MultiplexMessage,
-    claim: Claim,
+    admission: Result<Claim, &'static str>,
+}
+
+/// Admits one input frame behind `queued` others. A stream open that finds the backlog
+/// (`backlog`), the connection's streams (`streams`), or its budget (`budget`) full is refused
+/// alone, and the connection keeps serving. Any other frame the budget cannot take, or input past
+/// [`INPUT_ENTRIES`], ends the connection (`None`).
+fn admit(
+    queued: usize,
+    budget: &Arc<AtomicUsize>,
+    streams: &Arc<AtomicUsize>,
+    mut message: MultiplexMessage,
+) -> Option<Queued> {
+    if queued >= INPUT_ENTRIES {
+        return None;
+    }
+    let open = matches!(message, MultiplexMessage::StreamOpen { .. });
+    let admission = if open && queued >= INPUT_RECORDS {
+        Err("backlog")
+    } else {
+        Claim::message(budget, streams, &message)
+    };
+    if admission.is_err() {
+        let MultiplexMessage::StreamOpen { request, .. } = &mut message else {
+            return None;
+        };
+        *request = Vec::new();
+    }
+    Some(Queued { message, admission })
 }
 
 /// How the carrier answers an intent that ran but whose outcome it cannot report: it failed after
@@ -114,6 +151,9 @@ enum StreamFailure {
     /// The intent ran, then failed at this connection stage, or its record could not be delivered
     /// (`record-size`, `budget`).
     OutcomeUnknown(&'static str),
+    /// The reader refused the stream before it ran: the backlog (`backlog`), the connection's
+    /// streams (`streams`), or its budget (`budget`) could not take it.
+    Refused(&'static str),
 }
 
 impl StreamFailure {
@@ -146,7 +186,7 @@ impl StreamFailure {
         let (reason, failure) = match self {
             Self::Drained => (StreamCloseReason::Stopping, None),
             Self::InvalidRequest => (StreamCloseReason::InvalidRequest, Some("invalid-request")),
-            Self::Undeliverable(failure) | Self::Execution(failure) => {
+            Self::Undeliverable(failure) | Self::Execution(failure) | Self::Refused(failure) => {
                 (StreamCloseReason::Capacity, Some(failure))
             }
             Self::OutcomeUnknown(failure) => (StreamCloseReason::OutcomeUnknown, Some(failure)),
@@ -199,7 +239,6 @@ fn deliverable(
 #[derive(Default)]
 struct Inbox {
     messages: VecDeque<Queued>,
-    bytes: usize,
     closed: bool,
     failure: Option<MultiplexDisconnectReason>,
 }
@@ -306,10 +345,7 @@ pub(super) fn run(
     let inbox = Arc::new(Mutex::new(Inbox::default()));
     let budget = Arc::new(AtomicUsize::new(0));
     let streams = Arc::new(AtomicUsize::new(0));
-    let first = Queued {
-        claim: Claim::message(&budget, &streams, &first)?,
-        message: first,
-    };
+    let first = admit(0, &budget, &streams, first).ok_or(io::ErrorKind::OutOfMemory)?;
     let reader = stream.try_clone()?;
     let mut writer = super::record_stream::ClientRecordStream::new(stream)?;
     let job_reads = JobReads::default();
@@ -408,19 +444,13 @@ fn read_loop(
             return Err(io::ErrorKind::InvalidData.into());
         }
         let mut state = inbox.lock().map_err(|_| io::ErrorKind::BrokenPipe)?;
-        let bytes = size(&message);
-        let claim = Claim::message(budget, streams, &message);
-        if state.messages.len() == INPUT_RECORDS || claim.is_err() {
+        let Some(queued) = admit(state.messages.len(), budget, streams, message) else {
             state.failure = Some(MultiplexDisconnectReason::Capacity);
             drop(state);
             signal.wake();
             return Ok(());
-        }
-        state.bytes += bytes;
-        state.messages.push_back(Queued {
-            message,
-            claim: claim?,
-        });
+        };
+        state.messages.push_back(queued);
         drop(state);
         signal.wake();
     }
@@ -463,7 +493,6 @@ fn dispatch(
         // Take bounded work out of the mailbox before semantic execution or socket I/O.
         let (messages, failure, closed) = {
             let mut state = inbox.lock().map_err(|_| io::ErrorKind::BrokenPipe)?;
-            state.bytes = 0;
             (
                 std::mem::take(&mut state.messages),
                 state.failure,
@@ -509,7 +538,7 @@ fn dispatch(
                 },
             )?;
         }
-        for Queued { message, claim } in pending.take().into_iter().chain(messages) {
+        for Queued { message, admission } in pending.take().into_iter().chain(messages) {
             match message {
                 MultiplexMessage::StreamOpen {
                     stream_id,
@@ -526,6 +555,13 @@ fn dispatch(
                         );
                     }
                     high_water = stream_id.value();
+                    let claim = match admission {
+                        Ok(claim) => claim,
+                        Err(failure) => {
+                            StreamFailure::Refused(failure).close(writer, stream_id, "admit")?;
+                            continue;
+                        }
+                    };
                     if subscriptions.len() >= MAXIMUM_MULTIPLEX_STREAMS {
                         write_multiplex_message(
                             writer,

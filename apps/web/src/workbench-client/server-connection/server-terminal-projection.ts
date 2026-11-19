@@ -45,7 +45,11 @@ import {
 	encodeClientServerPaste,
 	encodeClientServerRequest,
 } from './client-server-carrier';
-import { type ServerConnection, ServerConnectionEndedError } from './server-connection';
+import {
+	type ServerConnection,
+	ServerConnectionEndedError,
+	ServerStreamRefusedError,
+} from './server-connection';
 import { ServerSelectionCopy, readSelectionAnswer } from './server-selection-copy';
 import {
 	type ServerHostColors,
@@ -574,9 +578,16 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		});
 	}
 
-	/** A connection that ended retires this transport through its own listener. */
+	/**
+	 * A connection that ended retires this transport through its own listener. A refused stream
+	 * never ran its request, so the command did not happen; any other failure leaves it unknown.
+	 */
 	#report(command: ProjectedTerminalCommand, error: unknown): void {
 		if (error instanceof ServerConnectionEndedError) return;
+		if (error instanceof ServerStreamRefusedError) {
+			this.#fail(command, error.reason, error.message, error.retryable);
+			return;
+		}
 		this.#fail(
 			command,
 			'outcome-unknown',

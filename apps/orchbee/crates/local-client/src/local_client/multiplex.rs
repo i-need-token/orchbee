@@ -24,6 +24,18 @@ const QUEUED: u8 = 0;
 const HANDED_OFF: u8 = 1;
 const CANCELLED: u8 = 2;
 const EVENT_RECORDS: usize = 32;
+/// Pauses before the Client opens again a stream the Server refused with `Capacity` before its
+/// first frame. Such a stream never ran, so opening it again repeats no effect; after the last
+/// pause the stream fails with the refusal.
+const CAPACITY_PAUSES: [Duration; 7] = [
+    Duration::from_millis(10),
+    Duration::from_millis(20),
+    Duration::from_millis(40),
+    Duration::from_millis(80),
+    Duration::from_millis(160),
+    Duration::from_millis(320),
+    Duration::from_millis(640),
+];
 mod health;
 
 /// One aggregate retained-byte budget covers admitted requests, their encoded output and inboxes.
@@ -85,6 +97,8 @@ struct DeliveryState {
     refused: bool,
     /// The Server ran this stream's request and cannot report how it ended.
     unknown: bool,
+    /// The Server refused this stream for capacity before it ran, through every pause.
+    capacity: bool,
 }
 /// Runs on the connection actor or the thread cancelling the stream, so it must not block.
 struct ReadyListener(Box<dyn Fn() + Send + Sync>);
@@ -104,6 +118,8 @@ struct Delivery {
     listener: OnceLock<ReadyListener>,
     handoff: AtomicU8,
     generation: AtomicU64,
+    /// The stream ID of the current open; reopening after a capacity refusal replaces it.
+    stream: AtomicU64,
     cancelled: AtomicBool,
     completed: AtomicBool,
     budget: Arc<AtomicUsize>,
@@ -118,6 +134,7 @@ impl Delivery {
             listener: OnceLock::new(),
             handoff: AtomicU8::new(QUEUED),
             generation: AtomicU64::new(0),
+            stream: AtomicU64::new(0),
             cancelled: AtomicBool::new(false),
             completed: AtomicBool::new(false),
             budget,
@@ -148,11 +165,17 @@ impl Delivery {
             (listener.0)();
         }
     }
+    /// Sequentially consistent with [`Self::stream`]: a cancel marks the delivery before it reads
+    /// the stream ID, and a reopen publishes the ID before it checks the mark, so one of them
+    /// sees the other.
     fn cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::Acquire)
+        self.cancelled.load(Ordering::SeqCst)
+    }
+    fn stream(&self) -> Option<MultiplexStreamId> {
+        MultiplexStreamId::new(self.stream.load(Ordering::SeqCst))
     }
     fn cancel(&self) -> bool {
-        self.cancelled.store(true, Ordering::Release);
+        self.cancelled.store(true, Ordering::SeqCst);
         let submitted = self
             .handoff
             .compare_exchange(QUEUED, CANCELLED, Ordering::AcqRel, Ordering::Acquire)
@@ -238,6 +261,9 @@ impl Delivery {
             if state.unknown {
                 return Err(io::Error::new(io::ErrorKind::BrokenPipe, OutcomeUnknown));
             }
+            if state.capacity {
+                return Err(io::Error::new(io::ErrorKind::ResourceBusy, CapacityRefused));
+            }
             return Err(io::ErrorKind::BrokenPipe.into());
         }
         Ok(result)
@@ -261,6 +287,13 @@ impl Delivery {
     fn refuse(&self) {
         if let Ok(mut state) = self.state.lock() {
             state.refused = true;
+            state.closed = true;
+        }
+        self.signal();
+    }
+    fn refuse_capacity(&self) {
+        if let Ok(mut state) = self.state.lock() {
+            state.capacity = true;
             state.closed = true;
         }
         self.signal();
@@ -374,6 +407,7 @@ enum Command {
         lane: MultiplexLaneId,
         mode: StreamMode,
         request: Vec<u8>,
+        reopen: bool,
         delivery: Arc<Delivery>,
         reservation: Arc<Reservation>,
     },
@@ -691,11 +725,15 @@ impl Connection {
         }
         Ok(())
     }
+    /// Opens one stream. `reopen` lets a capacity refusal open it again after a pause; only a
+    /// stream nothing else of its caller's can be ordered behind may take it, since the reopened
+    /// request runs after whatever the connection carried meanwhile.
     fn open(
         self: &Arc<Self>,
         lane: MultiplexLaneId,
         frame: Vec<u8>,
         mode: StreamMode,
+        reopen: bool,
     ) -> io::Result<Subscription> {
         if self.shared.stopped.load(Ordering::Acquire) {
             return Err(io::ErrorKind::BrokenPipe.into());
@@ -720,11 +758,13 @@ impl Connection {
             .ok_or(io::ErrorKind::OutOfMemory)?;
         let id = MultiplexStreamId::new(next).ok_or(io::ErrorKind::InvalidData)?;
         commands.next = next;
+        delivery.stream.store(next, Ordering::SeqCst);
         commands.queue.push_back(Command::Open {
             id,
             lane,
             mode,
             request: frame,
+            reopen,
             delivery: Arc::clone(&delivery),
             reservation,
         });
@@ -732,7 +772,6 @@ impl Connection {
         self.shared.signal();
         Ok(Subscription {
             owner: Arc::clone(self),
-            id,
             delivery,
         })
     }
@@ -741,16 +780,21 @@ impl Connection {
         frame: Vec<u8>,
         mode: StreamMode,
     ) -> io::Result<Subscription> {
-        let subscription = self.open(MultiplexLaneId::ROOT, frame, mode)?;
+        // A request opened here may have others pipelined behind it.
+        let reopen = mode != StreamMode::Request;
+        let subscription = self.open(MultiplexLaneId::ROOT, frame, mode, reopen)?;
         subscription.delivery.ensure_pipe()?;
         Ok(subscription)
     }
+    /// A request whose caller may send others before it settles; a capacity refusal fails it at
+    /// once.
     pub(crate) fn request_subscription(
         self: &Arc<Self>,
         frame: Vec<u8>,
     ) -> io::Result<Subscription> {
-        self.open(MultiplexLaneId::ROOT, frame, StreamMode::Request)
+        self.open(MultiplexLaneId::ROOT, frame, StreamMode::Request, false)
     }
+    /// The caller waits here for this request alone, so a capacity refusal may open it again.
     pub(super) fn exchange(
         self: &Arc<Self>,
         lane: MultiplexLaneId,
@@ -764,7 +808,7 @@ impl Connection {
             return Err((false, io::ErrorKind::TimedOut.into()));
         }
         let subscription = self
-            .open(lane, frame.to_vec(), StreamMode::Request)
+            .open(lane, frame.to_vec(), StreamMode::Request, true)
             .map_err(|error| (false, error))?;
         match subscription
             .delivery
@@ -789,6 +833,7 @@ impl Connection {
                 subscription.delivery.cancel();
                 Err((true, error))
             }
+            // A capacity refusal leaves the request unsent, as its handoff state says.
             Err(error) => Err((subscription.delivery.cancel(), error)),
         }
     }
@@ -802,7 +847,6 @@ impl Drop for Connection {
 #[derive(Debug)]
 pub struct Subscription {
     owner: Arc<Connection>,
-    id: MultiplexStreamId,
     delivery: Arc<Delivery>,
 }
 impl Subscription {
@@ -813,7 +857,9 @@ impl Subscription {
     }
     pub fn cancel(&self) -> bool {
         let submitted = self.delivery.cancel();
-        self.owner.shared.cancel(self.id);
+        if let Some(id) = self.delivery.stream() {
+            self.owner.shared.cancel(id);
+        }
         submitted
     }
     pub fn poll(&self) -> io::Result<Option<StreamEvent>> {
@@ -844,9 +890,16 @@ struct Active {
     lane: MultiplexLaneId,
     mode: StreamMode,
     request: Vec<u8>,
+    /// Whether a capacity refusal before the first frame opens this stream again.
+    reopen: bool,
     delivery: Arc<Delivery>,
     sequence: u64,
     needs_snapshot: bool,
+    /// Capacity refusals this stream met before its first frame on the current carrier.
+    refusals: usize,
+    /// When a stream the Server refused for capacity opens again under a fresh ID; until then it
+    /// stays under the refused ID, which the Server has already closed.
+    reopen_at: Option<Instant>,
     _reservation: Arc<Reservation>,
 }
 struct Outgoing {
@@ -924,6 +977,7 @@ fn actor(
                     lane,
                     mode,
                     request,
+                    reopen,
                     delivery,
                     reservation,
                 } => {
@@ -960,9 +1014,12 @@ fn actor(
                             lane,
                             mode,
                             request,
+                            reopen,
                             delivery,
                             sequence: 0,
                             needs_snapshot: mode != StreamMode::Request,
+                            refusals: 0,
+                            reopen_at: None,
                             _reservation: reservation,
                         },
                     );
@@ -972,6 +1029,7 @@ fn actor(
                     // Server. A partial frame is completed before the cancellation record.
                     outgoing.retain(|item| item.id != Some(id) || item.offset != 0);
                     if let Some(removed) = active.remove(&id)
+                        && removed.reopen_at.is_none()
                         && connection.is_some()
                         && let Ok(bytes) =
                             encode_multiplex_message(&MultiplexMessage::StreamClose {
@@ -1012,6 +1070,9 @@ fn actor(
                 }
             }
         }
+        if connection.is_some() {
+            reopen_refused(&shared, &mut active, &mut outgoing, Instant::now());
+        }
         if connection.is_none() && !active.is_empty() && Instant::now() >= reconnect_at {
             match ClientConnection::connect_before_cancellable(
                 &origin.endpoint,
@@ -1041,6 +1102,8 @@ fn actor(
                     for (id, item) in &mut active {
                         item.sequence = 0;
                         item.needs_snapshot = item.mode != StreamMode::Request;
+                        item.refusals = 0;
+                        item.reopen_at = None;
                         if let Ok(bytes) = encode_multiplex_message(&MultiplexMessage::StreamOpen {
                             stream_id: *id,
                             lane_id: item.lane,
@@ -1225,9 +1288,12 @@ fn drive(
         .into_iter()
         .chain(*partial_at)
         .min();
+    // A stream waiting out a capacity pause wakes this poll when the pause ends; unlike the
+    // deadlines above, reaching it fails nothing.
     let wait_until = deadline
         .into_iter()
         .chain((probing || health.pending()).then(|| health.deadline()))
+        .chain(active.values().filter_map(|item| item.reopen_at))
         .min();
     let timeout = wait_until.map_or(PollTimeout::NONE, |deadline| {
         super::poll_timeout(deadline.saturating_duration_since(Instant::now()))
@@ -1375,15 +1441,36 @@ fn deliver(
             }
         }
         MultiplexMessage::StreamClose { stream_id, reason } => {
-            if let Some(item) = active.remove(&stream_id) {
-                item.delivery.completed.store(true, Ordering::Release);
-                match reason {
-                    StreamCloseReason::Stopping => item.delivery.refuse(),
-                    StreamCloseReason::OutcomeUnknown => item.delivery.unknown(),
-                    _ => item.delivery.close(),
-                }
-            } else {
+            let Some(item) = active.get_mut(&stream_id) else {
                 return Ok(false);
+            };
+            // Refused for capacity before its first frame, the request never ran: until it opens
+            // again, or fails with the refusal, a cancel reports it unsent.
+            let capacity = reason == StreamCloseReason::Capacity
+                && item.sequence == 0
+                && item.reopen_at.is_none()
+                && item
+                    .delivery
+                    .handoff
+                    .compare_exchange(HANDED_OFF, QUEUED, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok();
+            if capacity
+                && item.reopen
+                && let Some(pause) = CAPACITY_PAUSES.get(item.refusals)
+            {
+                item.refusals += 1;
+                item.reopen_at = Some(Instant::now() + *pause);
+                return Ok(true);
+            }
+            let Some(item) = active.remove(&stream_id) else {
+                return Ok(false);
+            };
+            item.delivery.completed.store(true, Ordering::Release);
+            match reason {
+                StreamCloseReason::Stopping => item.delivery.refuse(),
+                StreamCloseReason::OutcomeUnknown => item.delivery.unknown(),
+                _ if capacity => item.delivery.refuse_capacity(),
+                _ => item.delivery.close(),
             }
         }
         MultiplexMessage::Disconnect { reason } => {
@@ -1426,6 +1513,58 @@ fn queue_lane(outgoing: &mut VecDeque<Outgoing>, lane_id: MultiplexLaneId, open:
     });
 }
 
+/// Opens again, under a fresh stream ID, each stream whose capacity pause has passed. The new ID is
+/// published before the cancellation check, so a cancel racing this either sees the new ID or is
+/// seen here.
+fn reopen_refused(
+    shared: &Shared,
+    active: &mut BTreeMap<MultiplexStreamId, Active>,
+    outgoing: &mut VecDeque<Outgoing>,
+    now: Instant,
+) {
+    let due = active
+        .iter()
+        .filter(|(_, item)| item.reopen_at.is_some_and(|at| at <= now))
+        .map(|(id, _)| *id)
+        .collect::<Vec<_>>();
+    for refused in due {
+        let Some(mut item) = active.remove(&refused) else {
+            continue;
+        };
+        let id = shared.commands.lock().ok().and_then(|mut commands| {
+            let next = commands.next.checked_add(1)?;
+            commands.next = next;
+            MultiplexStreamId::new(next)
+        });
+        let Some(id) = id else {
+            item.delivery.close();
+            continue;
+        };
+        item.delivery.stream.store(id.value(), Ordering::SeqCst);
+        if item.delivery.cancelled() {
+            continue;
+        }
+        let Ok(bytes) = encode_multiplex_message(&MultiplexMessage::StreamOpen {
+            stream_id: id,
+            lane_id: item.lane,
+            mode: item.mode,
+            request: item.request.clone(),
+        }) else {
+            item.delivery.close();
+            continue;
+        };
+        outgoing.push_back(Outgoing {
+            id: Some(id),
+            bytes,
+            offset: 0,
+            deadline: now + Duration::from_secs(2),
+            _reservation: Some(Arc::clone(&item._reservation)),
+        });
+        item.reopen_at = None;
+        active.insert(id, item);
+    }
+}
+
 #[derive(Debug)]
 struct Disconnect(orchbee_workbench_protocol::MultiplexDisconnectReason);
 impl std::fmt::Display for Disconnect {
@@ -1449,6 +1588,17 @@ impl std::error::Error for Refused {}
 fn refused(error: &io::Error) -> bool {
     error.get_ref().is_some_and(|source| source.is::<Refused>())
 }
+
+/// The Server could not take this request and refused it before it ran, through every pause the
+/// Client allowed; the connection keeps serving and the request may be sent again later.
+#[derive(Debug)]
+struct CapacityRefused;
+impl std::fmt::Display for CapacityRefused {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("the Session is at capacity and refused the request before it ran")
+    }
+}
+impl std::error::Error for CapacityRefused {}
 
 /// The Server ran one request and cannot report how it ended; the connection stays usable.
 #[derive(Debug)]
