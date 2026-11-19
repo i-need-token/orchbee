@@ -25,7 +25,6 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--ob-ref-length-website-6) var(--ob-ref-length-website-22);
-	text-transform: lowercase;
 }
 .link {
 	transition: color var(--ob-sys-motion-duration-website-150)

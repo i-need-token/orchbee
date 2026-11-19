@@ -1,5 +1,4 @@
 import type { ActivationContext } from '../../../../../../activation';
-import { SCENE_RESTART_EVENT } from '../../../../../../scene/scene';
 
 const SECOND_MS = 1000;
 
@@ -12,8 +11,7 @@ function clockText(seconds: number): string {
 }
 
 // Shows the stage controls and runs them: the client switch, Close and Reattach with the clock of
-// how long the window has been closed. Until the visitor picks a client, each replay of the
-// Session shows the next client.
+// how long the window has been closed.
 export function activateHeroStage({ document }: ActivationContext): void {
 	const view = document.defaultView;
 	const root = document.querySelector('[data-hero-stage]');
@@ -27,9 +25,7 @@ export function activateHeroStage({ document }: ActivationContext): void {
 		return;
 	const buttons = [...bar.querySelectorAll<HTMLButtonElement>('button[data-view]')];
 	const views = [...stage.querySelectorAll('[data-view]')];
-	const names = buttons.map((button) => button.dataset['view'] ?? '');
 
-	let picked = false;
 	let closedAt = 0;
 	let timer = 0;
 	const show = (name: string): void => {
@@ -54,7 +50,6 @@ export function activateHeroStage({ document }: ActivationContext): void {
 
 	for (const button of buttons) {
 		button.addEventListener('click', () => {
-			picked = true;
 			setClosed(false);
 			show(button.dataset['view'] ?? '');
 		});
@@ -67,12 +62,6 @@ export function activateHeroStage({ document }: ActivationContext): void {
 	reattach.addEventListener('click', () => {
 		setClosed(false);
 		close.focus();
-	});
-	const scene = root.closest('[data-scene]');
-	scene?.addEventListener(SCENE_RESTART_EVENT, (event) => {
-		if (picked || stage.hasAttribute('data-closed') || !(event instanceof CustomEvent)) return;
-		const loop: unknown = event.detail;
-		if (typeof loop === 'number') show(names[loop % names.length] ?? '');
 	});
 	bar.hidden = false;
 }

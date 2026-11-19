@@ -6,8 +6,7 @@ import {
 } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
-import { offersMacos, type Release } from '../../release';
-import { richText } from '../../rich-text';
+import type { Release } from '../../release';
 import { GetOrchbee } from '../get-orchbee/GetOrchbee';
 import { OtherClients } from '../other-clients/OtherClients';
 import { PageHead } from '../page-head/PageHead';
@@ -34,16 +33,6 @@ export function DesktopPage({
 				title={t(shellMessages.clientDesktop)}
 				lead={t(messages.lead)}
 				action={<GetOrchbee locale={locale} release={release} offer='installer' />}
-				note={
-					release.published
-						? t(
-								offersMacos(release)
-									? shellMessages.installerNoteWindows
-									: shellMessages.installerNote,
-								richText,
-							)
-						: undefined
-				}
 			>
 				<DesktopStage />
 			</PageHead>

@@ -34,9 +34,19 @@ const OUTPUT: Readonly<Record<string, () => readonly TerminalRow[]>> = {
 		textRow('## ', green('main'), '...', red('origin/main'), ' [ahead ', green('1'), ']'),
 		textRow(' ', red('M'), ' src/orders/routes.ts'),
 	],
+	'git status': () => [
+		textRow('On branch ', green('main')),
+		textRow("Your branch is ahead of 'origin/main' by 1 commit."),
+		textRow('  modified:   ', red('src/orders/routes.ts')),
+	],
 	'git log --oneline -2': () => GIT_LOG,
+	'git log': () => GIT_LOG,
 	'git branch': () => [textRow('* ', green('main'))],
 	'git diff --stat': () => [
+		textRow(' src/orders/routes.ts | 14 ', green('+++++++++'), red('-----')),
+		textRow(' 1 file changed, 9 insertions(+), 5 deletions(-)'),
+	],
+	'git diff': () => [
 		textRow(' src/orders/routes.ts | 14 ', green('+++++++++'), red('-----')),
 		textRow(' 1 file changed, 9 insertions(+), 5 deletions(-)'),
 	],
@@ -45,6 +55,17 @@ const OUTPUT: Readonly<Record<string, () => readonly TerminalRow[]>> = {
 			{ handle: CLAUDE_HANDLE, agent: 'claude-code', state: 'working', cwd: 'C:\\demo\\shop-api' },
 			{ handle: OPENCODE_HANDLE, agent: 'opencode', state: 'done', cwd: 'C:\\demo\\shop-web' },
 		]),
+	orchbee: () => [
+		textRow('Orchbee — run `orchbee agent list`, `git status -sb`, or `git diff --stat`'),
+	],
+	'orchbee --help': () => [
+		textRow('Commands: agent, terminal, panel, tab, workspace, worktree, session'),
+	],
+	help: () => [
+		textRow('Try: git status -sb, git diff --stat, git branch, orchbee agent list, ls, pwd'),
+	],
+	ls: () => [textRow('package.json   README.md   src/   test/   tsconfig.json')],
+	dir: () => [textRow('package.json   README.md   src/   test/   tsconfig.json')],
 	pwd: () => [
 		textRow(''),
 		textRow('Path'),

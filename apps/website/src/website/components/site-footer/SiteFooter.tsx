@@ -27,7 +27,7 @@ export function SiteFooter({
 				<p className={styles['name']}>{t(messages.footerName, richText)}</p>
 				<nav className={styles['links']} aria-label={t(messages.footerNavigation)}>
 					<a className={styles['link']} href={REPOSITORY_URL} target='_blank' rel='noreferrer'>
-						github ↗
+						GitHub ↗
 					</a>
 					<a
 						className={styles['link']}

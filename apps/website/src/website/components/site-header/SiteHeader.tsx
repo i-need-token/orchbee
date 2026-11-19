@@ -65,7 +65,7 @@ export function SiteHeader({
 				</nav>
 				<div className={styles['end']}>
 					<a className={styles['wide']} href={REPOSITORY_URL} target='_blank' rel='noreferrer'>
-						github ↗
+						GitHub ↗
 					</a>
 					<a
 						className={styles['wide']}
@@ -76,9 +76,15 @@ export function SiteHeader({
 					>
 						{language.label}
 					</a>
-					<LinkButton href={`${pagePath('home', locale)}#install`} size='small'>
-						{t(release.published ? messages.navDownload : messages.navInstall)}
-					</LinkButton>
+					<span className={styles['download']}>
+						<LinkButton
+							href={`${pagePath('home', locale)}#install`}
+							size='small'
+							downloadTrigger={release.published}
+						>
+							{t(release.published ? messages.navDownload : messages.navInstall)}
+						</LinkButton>
+					</span>
 					<button
 						className={styles['menu']}
 						type='button'

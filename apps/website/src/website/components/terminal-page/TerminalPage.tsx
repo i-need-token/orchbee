@@ -7,7 +7,6 @@ import {
 import type { ReactElement } from 'react';
 
 import type { Release } from '../../release';
-import { richText } from '../../rich-text';
 import { GetOrchbee } from '../get-orchbee/GetOrchbee';
 import { OtherClients } from '../other-clients/OtherClients';
 import { PageHead } from '../page-head/PageHead';
@@ -32,7 +31,6 @@ export function TerminalPage({
 				title={t(shellMessages.clientTerminal)}
 				lead={t(messages.lead)}
 				action={<GetOrchbee locale={locale} release={release} offer='npm' />}
-				note={release.published ? t(messages.note, richText) : undefined}
 			>
 				<TerminalStage />
 			</PageHead>

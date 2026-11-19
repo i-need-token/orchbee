@@ -1,5 +1,31 @@
+.root {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--ob-ref-length-website-12);
+}
 .actions {
 	display: flex;
 	flex-wrap: wrap;
+	align-items: center;
 	gap: var(--ob-ref-length-website-10);
+}
+.meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ob-ref-length-website-8);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-label);
+}
+.link {
+	color: var(--ob-sys-color-website-fg2);
+	transition: color var(--ob-sys-motion-duration-website-150)
+		var(--ob-sys-motion-easing-website-ease);
+}
+.link:hover {
+	color: var(--ob-sys-color-website-fg);
+}
+.dot {
+	color: var(--ob-sys-color-website-fg3);
 }

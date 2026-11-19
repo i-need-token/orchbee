@@ -42,6 +42,13 @@
 	gap: var(--ob-ref-length-website-10) var(--ob-ref-length-website-14);
 	margin-left: auto;
 }
+.status {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-8);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-label);
+}
 .close {
 	height: var(--ob-ref-length-website-30);
 	padding: 0 var(--ob-ref-length-website-12);

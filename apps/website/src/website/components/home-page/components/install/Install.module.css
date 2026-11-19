@@ -10,12 +10,39 @@
 .release {
 	display: inline-block;
 	margin-top: var(--ob-ref-length-website-16);
-	color: var(--ob-sys-color-website-fg3);
-	font: var(--ob-sys-typography-website-fine-print);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-label);
 	transition: color var(--ob-sys-motion-duration-website-150)
 		var(--ob-sys-motion-easing-website-ease);
 }
 .release:hover {
+	color: var(--ob-sys-color-website-fg);
+}
+.tabs {
+	display: inline-flex;
+	flex-wrap: wrap;
+	margin-bottom: var(--ob-ref-length-website-16);
+	padding: var(--ob-ref-length-website-3);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	border-radius: var(--ob-ref-length-website-9);
+	background: var(--ob-sys-color-website-surface);
+}
+.tab {
+	height: var(--ob-ref-length-website-30);
+	padding: 0 var(--ob-ref-length-website-14);
+	border-radius: var(--ob-ref-length-website-6);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-label);
+	white-space: nowrap;
+	transition:
+		background var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
+}
+.tab:hover {
+	color: var(--ob-sys-color-website-fg);
+}
+.tab[aria-pressed='true'] {
+	background: var(--ob-sys-color-website-pressed);
 	color: var(--ob-sys-color-website-fg);
 }
 .row {
@@ -46,16 +73,26 @@
 .detail code {
 	color: var(--ob-sys-color-website-fg2);
 }
-/* One column no wider than the row, so a long command shortens with an ellipsis instead of
-   widening the page. */
 .commands {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	justify-items: start;
-	gap: var(--ob-ref-length-website-8);
+	gap: var(--ob-ref-length-website-12);
+}
+.commandItem {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	justify-items: start;
+	gap: var(--ob-ref-length-website-6);
+	width: 100%;
+}
+.commandLabel {
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-label);
 }
 .downloads {
-	display: grid;
+	display: flex;
+	flex-wrap: wrap;
 	gap: var(--ob-ref-length-website-8);
 }
 .note {

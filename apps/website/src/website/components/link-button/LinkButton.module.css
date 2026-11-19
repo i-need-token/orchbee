@@ -4,17 +4,28 @@
 	gap: var(--ob-ref-length-website-8);
 	height: var(--ob-ref-length-website-40);
 	padding: 0 var(--ob-ref-length-website-16);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
 	border-radius: var(--ob-ref-length-website-9);
-	background: var(--ob-sys-color-website-fg);
-	color: var(--ob-sys-color-website-on-button);
+	background: var(--ob-sys-color-website-surface);
+	color: var(--ob-sys-color-website-fg);
 	font: var(--ob-sys-typography-website-button);
 	white-space: nowrap;
 	text-transform: none;
 	transition:
 		background var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		border-color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
 		transform var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
 }
 .button:hover {
+	background: var(--ob-sys-color-website-hover-soft);
+	border-color: var(--ob-sys-color-website-line-hover);
+}
+.button[data-primary] {
+	border-color: transparent;
+	background: var(--ob-sys-color-website-fg);
+	color: var(--ob-sys-color-website-on-button);
+}
+.button[data-primary]:hover {
 	background: var(--ob-sys-color-website-button-hover);
 }
 .button:active {

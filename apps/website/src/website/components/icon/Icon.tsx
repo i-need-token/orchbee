@@ -4,6 +4,7 @@ import styles from './Icon.module.css';
 
 // Line icons drawn on a 16-unit grid in the current text color.
 const PATHS = {
+	close: <path d='M3.5 3.5l9 9m0-9l-9 9' />,
 	copy: (
 		<>
 			<rect x='5.5' y='5.5' width='8' height='8' rx='1.7' />

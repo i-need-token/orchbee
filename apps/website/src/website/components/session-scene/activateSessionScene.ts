@@ -7,7 +7,10 @@ function pageStrings(root: Element): Map<string, string> {
 	const words = new Map<string, string>();
 	const template = root.querySelector(':scope > template[data-scene-strings]');
 	if (!(template instanceof HTMLTemplateElement)) return words;
-	for (const word of template.content.querySelectorAll('[data-key]'))
+	// Parsed HTML puts the words in the template's content; a client render appends them to the
+	// template element itself.
+	const source = template.content.childElementCount > 0 ? template.content : template;
+	for (const word of source.querySelectorAll('[data-key]'))
 		words.set(word.getAttribute('data-key') ?? '', word.textContent ?? '');
 	return words;
 }

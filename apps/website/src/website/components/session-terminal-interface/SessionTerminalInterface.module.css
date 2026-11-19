@@ -1,6 +1,7 @@
 .panels {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	/* The shell's commands are longer than the Agent's lines, so it takes the wider column. */
+	grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
 	min-height: 0;
 	padding: var(--ob-ref-length-website-2) var(--ob-ref-length-website-6)
 		var(--ob-ref-length-website-8) var(--ob-ref-length-website-4);

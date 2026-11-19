@@ -1158,6 +1158,7 @@
 	--ob-ref-color-website-pressed: rgba(248, 247, 244, 0.11);
 	--ob-ref-color-website-ring-muted: #8b877d;
 	--ob-ref-color-website-ring-start: rgba(248, 247, 244, 0.7);
+	--ob-ref-color-website-scrim: rgba(11, 10, 8, 0.72);
 	--ob-ref-color-website-selection: rgba(242, 181, 31, 0.3);
 	--ob-ref-color-website-surface: rgba(248, 247, 244, 0.035);
 	--ob-ref-color-website-terminal-ansi-0: #000000;
@@ -1240,6 +1241,7 @@
 	--ob-sys-color-website-pressed: var(--ob-ref-color-website-pressed);
 	--ob-sys-color-website-ring-muted: var(--ob-ref-color-website-ring-muted);
 	--ob-sys-color-website-ring-start: var(--ob-ref-color-website-ring-start);
+	--ob-sys-color-website-scrim: var(--ob-ref-color-website-scrim);
 	--ob-sys-color-website-selection: var(--ob-ref-color-website-selection);
 	--ob-sys-color-website-state-attention: var(--ob-ref-color-traffic-light-yellow);
 	--ob-sys-color-website-state-done: var(--ob-ref-color-traffic-light-green);
@@ -1505,6 +1507,7 @@
 	--ob-ref-opacity-website-45: 0.45;
 	--ob-ref-opacity-website-55: 0.55;
 	--ob-ref-opacity-website-100: 1;
+	--ob-ref-layer-website-dialog: 50;
 	--ob-ref-layer-website-divider: 3;
 	--ob-ref-layer-website-navigation: 40;
 	--ob-ref-length-website-1ch: 1ch;

@@ -1,0 +1,130 @@
+/* The download dialog: a modal over the page that scrolls within the viewport on a short screen. The
+   panel keeps the page's 16px gutter at phone width. */
+.backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: var(--ob-ref-layer-website-dialog);
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: var(--ob-ref-length-website-16);
+	background: var(--ob-sys-color-website-scrim);
+	-webkit-backdrop-filter: blur(var(--ob-ref-length-website-6));
+	backdrop-filter: blur(var(--ob-ref-length-website-6));
+	animation: fade var(--ob-sys-motion-duration-website-200) var(--ob-sys-motion-easing-website-ease);
+}
+@keyframes fade {
+	from {
+		opacity: 0;
+	}
+}
+/* Every block starts at the panel's content edge, so the title, the buttons and the install rows share
+   one left edge. */
+.panel {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-24);
+	box-sizing: border-box;
+	width: 100%;
+	max-width: var(--ob-ref-length-website-660);
+	margin: auto;
+	padding: var(--ob-ref-length-website-24);
+	border-radius: var(--ob-ref-length-website-14);
+	background: var(--ob-sys-color-website-bg);
+	box-shadow: var(--ob-sys-shadow-website-window);
+	color: var(--ob-sys-color-website-fg);
+}
+.head {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	justify-items: start;
+	gap: var(--ob-ref-length-website-4);
+}
+/* The close button is centered on the title's line, and its glyph ends on the content edge. */
+.titleRow {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ob-ref-length-website-16);
+	width: 100%;
+}
+/* The box ends at the capitals, so the close button centers on the letters rather than on the line box. */
+.title {
+	margin: 0;
+	font: var(--ob-sys-typography-website-highlight-title);
+	letter-spacing: var(--ob-sys-typography-website-highlight-title-tracking);
+	text-box: trim-both cap alphabetic;
+}
+.close {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: var(--ob-ref-length-website-36);
+	height: var(--ob-ref-length-website-36);
+	margin-right: calc(-1 * var(--ob-ref-length-website-13));
+	border-radius: var(--ob-ref-length-website-8);
+	color: var(--ob-sys-color-website-fg2);
+	transition:
+		color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		background var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
+}
+.close:hover {
+	color: var(--ob-sys-color-website-fg);
+	background: var(--ob-sys-color-website-hover-soft);
+}
+/* The version and the release notes read as metadata under the title. */
+.notes {
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-label);
+	transition: color var(--ob-sys-motion-duration-website-150)
+		var(--ob-sys-motion-easing-website-ease);
+}
+.notes:hover {
+	color: var(--ob-sys-color-website-fg);
+}
+/* One full-width button per installer; the visitor's platform is the solid one, listed first. */
+.downloads {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-8);
+}
+.download {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+}
+.other {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-12);
+	padding-top: var(--ob-ref-length-website-24);
+	border-top: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+}
+.kicker {
+	margin: 0;
+	font: var(--ob-sys-typography-website-label);
+	color: var(--ob-sys-color-website-fg3);
+	text-transform: lowercase;
+}
+.methods {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-16);
+}
+/* Each method is its label above its command, both at the content edge; the command takes the full width,
+   so every copy button ends on the same edge. */
+.method {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-6);
+}
+.label {
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-install-body);
+	text-wrap: pretty;
+}
+/* Locks the page's scroll while the dialog is open; the gutter stays, so the page does not shift. */
+:global(html[data-download-open]) {
+	overflow: hidden;
+	scrollbar-gutter: stable;
+}

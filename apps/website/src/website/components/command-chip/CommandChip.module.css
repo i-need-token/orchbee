@@ -1,16 +1,25 @@
 .chip {
 	display: inline-flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: var(--ob-ref-length-website-10);
 	max-width: 100%;
-	height: var(--ob-ref-length-website-40);
-	padding: 0 var(--ob-ref-length-website-5) 0 var(--ob-ref-length-website-14);
+	min-height: var(--ob-ref-length-website-40);
+	padding: var(--ob-ref-length-website-4) var(--ob-ref-length-website-5)
+		var(--ob-ref-length-website-4) var(--ob-ref-length-website-14);
 	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
 	border-radius: var(--ob-ref-length-website-9);
 	font: var(--ob-sys-typography-website-command);
 	white-space: nowrap;
 }
+/* The first line of a command centers on the 30 px copy button, so a wrapped command starts level with
+   the prompt and the button. Each element takes the half-gap above its own line box; a single line keeps
+   its previous position. */
+.prompt,
+.command {
+	padding-block-start: calc((var(--ob-ref-length-website-30) - 1lh) / 2);
+}
 .prompt {
+	flex: none;
 	color: var(--ob-sys-color-website-fg3);
 }
 /* The command takes any width the chip is given beyond its text, so a chip stretched across a row
@@ -24,4 +33,13 @@
 }
 .quiet .command {
 	color: var(--ob-sys-color-website-fg2);
+}
+@media (max-width: 48rem) {
+	.chip {
+		white-space: normal;
+	}
+	.command {
+		overflow-wrap: anywhere;
+		font: var(--ob-sys-typography-website-command-list);
+	}
 }

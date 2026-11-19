@@ -38,6 +38,7 @@
 	fill: none;
 	stroke: var(--ob-sys-color-website-honey);
 	stroke-width: 36;
+	stroke-linecap: round;
 	stroke-linejoin: round;
 }
 .cell {

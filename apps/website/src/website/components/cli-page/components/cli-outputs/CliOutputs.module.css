@@ -99,3 +99,8 @@
 		white-space: nowrap;
 	}
 }
+@media (max-width: 40rem) {
+	.body {
+		font: var(--ob-sys-typography-website-terminal-compact);
+	}
+}

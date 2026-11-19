@@ -40,7 +40,7 @@ export const websiteShellMessages = defineMessages({
 	),
 	navDownload: message(
 		'website.shell.nav.download',
-		'Navigation button to the install section once a release is published.',
+		'Button that opens the download dialog once a release is published, in the navigation bar and the home hero.',
 	),
 	navInstall: message(
 		'website.shell.nav.install',
@@ -79,6 +79,47 @@ export const websiteShellMessages = defineMessages({
 	downloadForMac: message(
 		'website.shell.downloadForMac',
 		'Button that leads to the macOS downloads in the install section once a release offers macOS.',
+	),
+	downloadForMacAppleSilicon: message(
+		'website.shell.downloadForMacAppleSilicon',
+		'Button that downloads the macOS disk image for Apple silicon.',
+	),
+	downloadForMacIntel: message(
+		'website.shell.downloadForMacIntel',
+		'Link that downloads the macOS disk image for Intel Macs.',
+	),
+	downloadMacIntel: message(
+		'website.shell.download.macIntel',
+		'Button that downloads the macOS disk image for Intel Macs, in the download dialog.',
+	),
+	downloadTitle: message('website.shell.download.title', 'Heading of the download dialog.'),
+	downloadClose: message(
+		'website.shell.download.close',
+		'Accessible name of the button that closes the download dialog.',
+	),
+	downloadOther: message(
+		'website.shell.download.other',
+		'Heading above the other ways to install in the download dialog; the dialog shows it in lowercase.',
+	),
+	downloadNpm: message(
+		'website.shell.download.npm',
+		'Label above the npm command in the download dialog; the package is for the CLI only.',
+	),
+	downloadScriptDesktop: message(
+		'website.shell.download.scriptDesktop',
+		'Label above the macOS install script command that installs the desktop app, terminal interface, and CLI.',
+	),
+	downloadScriptCli: message(
+		'website.shell.download.scriptCli',
+		'Label above the macOS install script command that installs only the terminal interface and CLI.',
+	),
+	downloadReleaseNotes: message(
+		'website.shell.download.releaseNotes',
+		'Link in the download dialog to the notes of the published release; {version} is its version.',
+	),
+	allInstallOptions: message(
+		'website.shell.allInstallOptions',
+		'Link to the install section showing all platforms and command-line installation methods.',
 	),
 	getSource: message(
 		'website.shell.getSource',

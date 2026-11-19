@@ -16,11 +16,7 @@ export const websiteHomeMessages = defineMessages({
 	),
 	title: message('website.home.title', 'Headline of the home page.'),
 	lead: message('website.home.lead', 'Paragraph beside the headline.'),
-	beta: message('website.home.beta', 'Line under the download button.'),
-	betaMacos: message(
-		'website.home.betaMacos',
-		'Line under the download buttons once a release offers macOS downloads.',
-	),
+	beta: message('website.home.beta', 'Label above the headline: the beta status of the product.'),
 	stageView: message(
 		'website.home.stage.view',
 		'Label before the buttons that switch the drawn Session between the clients.',
@@ -302,6 +298,30 @@ export const websiteHomeMessages = defineMessages({
 	installMacosScriptNote: message(
 		'website.home.install.macosScriptNote',
 		'What the two install script commands do.',
+	),
+	installMacosScriptDesktop: message(
+		'website.home.install.macosScriptDesktop',
+		'Label above the macOS install script command that installs the desktop app, terminal interface, and CLI.',
+	),
+	installMacosScriptCli: message(
+		'website.home.install.macosScriptCli',
+		'Label above the macOS install script command that installs only the terminal interface and CLI.',
+	),
+	installPlatform: message(
+		'website.home.install.platform',
+		'Accessible label for the platform switcher in the install section.',
+	),
+	installTabWindows: message(
+		'website.home.install.tabWindows',
+		'Tab label for Windows installation instructions.',
+	),
+	installTabMacos: message(
+		'website.home.install.tabMacos',
+		'Tab label for macOS installation instructions.',
+	),
+	installTabNpm: message(
+		'website.home.install.tabNpm',
+		'Tab label for npm CLI-only installation instructions.',
 	),
 	installStartNoteMacos: message(
 		'website.home.install.startNoteMacos',

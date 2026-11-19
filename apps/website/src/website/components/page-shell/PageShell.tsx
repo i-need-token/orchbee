@@ -3,6 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 
 import type { RenderedPage } from '../../pages';
 import type { Release } from '../../release';
+import { DownloadDialog } from '../download-dialog/DownloadDialog';
 import { Lattice } from '../lattice/Lattice';
 import { SiteFooter } from '../site-footer/SiteFooter';
 import { SiteHeader } from '../site-header/SiteHeader';
@@ -29,6 +30,7 @@ export function PageShell({
 				<div className={styles['page']}>{children}</div>
 			</main>
 			<SiteFooter locale={locale} page={page} />
+			<DownloadDialog release={release} />
 		</div>
 	);
 }

@@ -72,6 +72,18 @@
 	transition: color var(--ob-sys-motion-duration-website-150)
 		var(--ob-sys-motion-easing-website-ease);
 }
+/* The bar's Download steps aside while the page's own Download button is on screen. Visibility
+   stays visible for the whole transition, so it hides only once the fade ends. */
+.download {
+	display: flex;
+	transition:
+		opacity var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		visibility var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
+}
+.header[data-page-download-shown] .download {
+	visibility: hidden;
+	opacity: 0;
+}
 .menu {
 	display: none;
 	place-items: center;
@@ -113,7 +125,8 @@
 	padding: var(--ob-ref-length-website-6) var(--ob-ref-length-website-20)
 		var(--ob-ref-length-website-18);
 	background: var(--ob-sys-color-website-bg);
-	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+	box-shadow: var(--ob-sys-shadow-website-window);
 	font: var(--ob-sys-typography-website-sheet);
 }
 .item {

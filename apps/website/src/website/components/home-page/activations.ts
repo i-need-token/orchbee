@@ -2,6 +2,7 @@ import type { Activation } from '../../activation';
 import { activateAgentRing } from './components/agents/components/agent-ring/activateAgentRing';
 import { activateCollaboration } from './components/collaboration/activateCollaboration';
 import { activateHeroStage } from './components/hero/components/hero-stage/activateHeroStage';
+import { activateInstall } from './components/install/activateInstall';
 import { activateMultiplexing } from './components/multiplexing/activateMultiplexing';
 import { activateTerminalThemes } from './components/terminal-core/activateTerminalThemes';
 
@@ -13,4 +14,5 @@ export const homePageActivations: readonly Activation[] = [
 	activateCollaboration,
 	activateAgentRing,
 	activateTerminalThemes,
+	activateInstall,
 ];
