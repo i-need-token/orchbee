@@ -52,6 +52,7 @@ import {
 } from '../window-state';
 import {
 	DesktopWindowUpdate,
+	discardSetupLaunch,
 	givesWayToReplacedVersion,
 	locateWindowDesktopRoot,
 	readFallbackFromVersion,
@@ -60,6 +61,7 @@ import {
 	relaunchWindow,
 	resolvePosixReleaseStoreRoot,
 	takeRelaunchAnnouncement,
+	takeSetupLaunch,
 	watchWindowPointer,
 	windowVersionResources,
 } from '../window-update';
@@ -547,6 +549,31 @@ function requestDiagnosticBundle(): void {
 	void (application?.openWindow() ?? Promise.resolve()).then(save, save);
 }
 
+/**
+ * Answers a second launch. The launch Setup makes when it finishes switches this window to the
+ * version it installed, at the place the window shows; every other launch, or a switch that does
+ * not start, only brings the window forward.
+ */
+async function answerSecondLaunch(): Promise<void> {
+	const update = windowUpdate;
+	const switched =
+		update !== undefined &&
+		(await isSetupLaunch(update)) &&
+		(await update.switchIfOffered(() => update.askPlace()));
+	if (!switched) await application?.openWindow().catch(() => undefined);
+}
+
+/** Whether this launch is the one Setup made: its marker names the version the store now offers. */
+async function isSetupLaunch(update: DesktopWindowUpdate): Promise<boolean> {
+	if (process.platform !== 'win32' || windowDesktopRoot === null) return false;
+	await update.refresh();
+	return takeSetupLaunch({
+		desktopRoot: windowDesktopRoot,
+		now: Date.now(),
+		offeredVersion: update.offeredVersion,
+	});
+}
+
 async function start(): Promise<void> {
 	const rendererUrl = await resolveRendererUrl();
 	if (!isPermittedDesktopRendererUrl(rendererUrl)) {
@@ -556,6 +583,10 @@ async function start(): Promise<void> {
 		automationEnvironment[SESSION_ENVIRONMENT_KEY] ?? resolveDesktopSessionName(distribution);
 	const sessionArguments = session === undefined ? [] : ['--session', session];
 	background = await createBackground(sessionArguments);
+	// A first instance has no Setup launch to answer; it deletes a marker that Setup left unread.
+	if (process.platform === 'win32' && windowDesktopRoot !== null) {
+		await discardSetupLaunch(windowDesktopRoot);
+	}
 	windowUpdate = createWindowUpdate(sessionArguments);
 	windowUpdate.start();
 	const started = new DesktopServerClientApplication({
@@ -612,17 +643,15 @@ async function start(): Promise<void> {
 }
 
 if (app.requestSingleInstanceLock()) {
-	// Starting Orchbee again switches to a newer joinable window version when Setup or an update just
-	// placed one, and otherwise brings this window forward (or opens one where macOS kept none); the
-	// taskbar's task starts a diagnostic bundle save.
+	// A second launch only brings this window forward, or opens one where macOS kept none; the one
+	// exception is the launch Setup makes when it finishes, which switches this window to the version
+	// it installed. The taskbar's task starts a diagnostic bundle save.
 	app.on('second-instance', (_event, argv) => {
 		if (argv.includes(SAVE_DIAGNOSTIC_BUNDLE_SWITCH)) {
 			requestDiagnosticBundle();
 			return;
 		}
-		void (windowUpdate?.switchIfOffered() ?? Promise.resolve(false)).then((switched) => {
-			if (!switched) void application?.openWindow().catch(() => undefined);
-		});
+		void answerSecondLaunch();
 	});
 	recordEvent('info', 'started');
 	void app

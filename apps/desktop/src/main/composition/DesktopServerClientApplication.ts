@@ -43,7 +43,7 @@ import {
 } from '../project-folder-acquisition';
 import { ServerConnectionRelay, readServerStartAnswer } from '../server-connection';
 import type { DesktopWindowStateAttachment, DesktopWindowStateOwner } from '../window-state';
-import type { DesktopWindowUpdatePort } from '../window-update';
+import type { DesktopWindowUpdateFocus, DesktopWindowUpdatePort } from '../window-update';
 import { followRendererCrashes } from './followRendererCrashes';
 
 /** What the window's Client processes run under, and where its page comes from. */
@@ -77,12 +77,12 @@ export interface DesktopServerClientApplicationOptions {
 	readonly windowHidden: boolean;
 	readonly windowStateOwner: DesktopWindowStateOwner;
 	/**
-	 * Serves a document's window-update port, what it returns ending that service, and says whether
-	 * it can ever offer a newer version.
+	 * Serves a document's window-update port with the focus of its window, what it returns ending that
+	 * service, and says whether it can ever offer a newer version.
 	 */
 	readonly windowUpdate: {
 		readonly offersUpdates: boolean;
-		serve(port: DesktopWindowUpdatePort): { close(): void };
+		serve(port: DesktopWindowUpdatePort, focus: DesktopWindowUpdateFocus): { close(): void };
 	};
 }
 
@@ -104,6 +104,17 @@ function openExternalLink(address: string): void {
 	if (!EXTERNAL_LINK_PROTOCOLS.has(url.protocol)) return;
 	// The page has already counted the link as opened, as the TUI counts an accepted request.
 	shell.openExternal(url.href).catch(() => undefined);
+}
+
+/** Whether the window has focus, and how a place request hears that the window gains it. */
+function windowFocus(window: BrowserWindow): DesktopWindowUpdateFocus {
+	return {
+		isFocused: () => !window.isDestroyed() && window.isFocused(),
+		onFocus: (listener) => {
+			window.on('focus', listener);
+			return () => window.off('focus', listener);
+		},
+	};
 }
 
 /**
@@ -482,7 +493,7 @@ export class DesktopServerClientApplication {
 				backgroundStatus.port1,
 				containBackgroundSink(options.background, options.recordEvent),
 			);
-			windowUpdatePort = options.windowUpdate.serve(windowUpdate.port1);
+			windowUpdatePort = options.windowUpdate.serve(windowUpdate.port1, windowFocus(window));
 			const pagePorts: Readonly<Record<DesktopServerConnectionPortRole, MessagePortMain>> = {
 				'background-status': backgroundStatus.port2,
 				'project-folder-acquisition': folders.port2,

@@ -284,6 +284,7 @@ mod windows {
             "active.json",
             "active.pending",
             "install.lock",
+            "setup-launch.json",
             entry,
         ]
         .iter()

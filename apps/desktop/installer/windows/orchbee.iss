@@ -98,7 +98,9 @@ Name: "{userprograms}\{#AppName}"; Filename: "{app}\desktop\{#DesktopExecutable}
 [Run]
 ; Explorer starts the window with the environment the broadcast refreshed, so its terminals find
 ; the command; Setup's own environment predates the `Path` entry.
-Filename: "{win}\explorer.exe"; Parameters: """{app}\desktop\{#DesktopExecutable}"""; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; BeforeInstall marks this launch first, so the window it starts switches an open older window to
+; the version Setup installed. The entry is skipped when Launch is unticked or the install is silent.
+Filename: "{win}\explorer.exe"; Parameters: """{app}\desktop\{#DesktopExecutable}"""; Description: "{cm:LaunchProgram,{#AppName}}"; BeforeInstall: WriteSetupLaunchMarker; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\desktop.previous"
@@ -417,6 +419,14 @@ begin
     end;
     ReportOutcome;
   end;
+end;
+
+// Setup's own launch of the window switches an open older window to the version it installed, so the
+// marker names that version. Without the window store, or without a launch, nothing is written.
+procedure WriteSetupLaunchMarker;
+begin
+  if WindowStore then
+    SaveStringToFile(ExpandConstant('{app}\desktop\setup-launch.json'), '{"version":"{#AppVersion}"}', False);
 end;
 
 // A cancelled or failed install puts the previous flat window application back.

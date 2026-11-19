@@ -1,4 +1,8 @@
-export { DesktopWindowUpdate, type DesktopWindowUpdatePort } from './DesktopWindowUpdate';
+export {
+	DesktopWindowUpdate,
+	type DesktopWindowUpdateFocus,
+	type DesktopWindowUpdatePort,
+} from './DesktopWindowUpdate';
 export { readWindowPointer } from './readWindowPointer';
 export { watchWindowPointer } from './watchWindowPointer';
 export {
@@ -13,3 +17,4 @@ export {
 	relaunchWindow,
 	takeRelaunchAnnouncement,
 } from './window-relaunch';
+export { discardSetupLaunch, takeSetupLaunch } from './setup-launch';

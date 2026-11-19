@@ -6,7 +6,11 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ServerStartAnswer } from '../../server-connection';
-import { DesktopWindowUpdate, type DesktopWindowUpdatePort } from '../DesktopWindowUpdate';
+import {
+	DesktopWindowUpdate,
+	type DesktopWindowUpdateFocus,
+	type DesktopWindowUpdatePort,
+} from '../DesktopWindowUpdate';
 
 const ROOT = 'C:\\Programs\\Orchbee\\desktop';
 const PLACE = DesktopRelaunchPlaceSchema.parse({
@@ -16,6 +20,8 @@ const PLACE = DesktopRelaunchPlaceSchema.parse({
 
 function fakePort() {
 	let receive: ((event: { readonly data: unknown }) => void) | undefined;
+	let focused = false;
+	const focusListeners = new Set<() => void>();
 	const sent: DesktopWindowUpdateMainMessage[] = [];
 	const port: DesktopWindowUpdatePort = {
 		close: vi.fn<() => void>(),
@@ -25,13 +31,36 @@ function fakePort() {
 		postMessage: (message) => sent.push(message),
 		start: vi.fn<() => void>(),
 	};
+	const focus: DesktopWindowUpdateFocus = {
+		isFocused: () => focused,
+		onFocus: (listener) => {
+			focusListeners.add(listener);
+			return () => focusListeners.delete(listener);
+		},
+	};
 	return {
+		focus,
+		gainFocus: () => {
+			focused = true;
+			for (const listener of focusListeners) listener();
+		},
+		placeReply: (requestId: string, place: DesktopRelaunchPlace | null) =>
+			receive?.({ data: { place, requestId, type: 'desktop-window-update-place' } }),
 		port,
 		refresh: () => receive?.({ data: { type: 'desktop-window-update-refresh' } }),
 		request: (version: string, place: DesktopRelaunchPlace | null = null) =>
 			receive?.({ data: { place, type: 'desktop-window-update-requested', version } }),
 		sent,
 	};
+}
+
+/** The request id of the place request a document was sent. */
+function requestIdOf(sent: readonly DesktopWindowUpdateMainMessage[]): string {
+	const request = sent.find((message) => message.type === 'desktop-window-update-place-requested');
+	if (request?.type !== 'desktop-window-update-place-requested') {
+		throw new Error('No place request was sent.');
+	}
+	return request.requestId;
 }
 
 function started(negotiatedCapabilities: readonly string[]): ServerStartAnswer {
@@ -84,7 +113,7 @@ describe('DesktopWindowUpdate', () => {
 		const { movePointer, update } = create({ active: '0.3.0' });
 		await settle();
 		const document = fakePort();
-		update.serve(document.port);
+		update.serve(document.port, document.focus);
 		expect(document.sent).toEqual([{ type: 'desktop-window-update-offered', version: '0.3.0' }]);
 		movePointer('0.2.0');
 		await settle();
@@ -98,7 +127,7 @@ describe('DesktopWindowUpdate', () => {
 		});
 		await settle();
 		const document = fakePort();
-		update.serve(document.port);
+		update.serve(document.port, document.focus);
 		document.request('0.3.0');
 		await settle();
 		expect(startVersionClient).toHaveBeenCalledWith(ROOT, '0.3.0');
@@ -113,7 +142,7 @@ describe('DesktopWindowUpdate', () => {
 		});
 		await settle();
 		const document = fakePort();
-		update.serve(document.port);
+		update.serve(document.port, document.focus);
 		document.request('0.3.0', PLACE);
 		await settle();
 		expect(onJoinable).toHaveBeenCalledWith('0.3.0', PLACE);
@@ -131,7 +160,7 @@ describe('DesktopWindowUpdate', () => {
 		});
 		await settle();
 		const document = fakePort();
-		update.serve(document.port);
+		update.serve(document.port, document.focus);
 		document.request('0.2.5');
 		document.request('0.3.0');
 		document.request('0.3.0');
@@ -165,7 +194,7 @@ describe('DesktopWindowUpdate', () => {
 		await settle();
 		watchable = true;
 		const document = fakePort();
-		update.serve(document.port);
+		update.serve(document.port, document.focus);
 		active = '0.3.0';
 		changed?.();
 		await settle();
@@ -192,7 +221,7 @@ describe('DesktopWindowUpdate', () => {
 		update.start();
 		await settle();
 		const document = fakePort();
-		update.serve(document.port);
+		update.serve(document.port, document.focus);
 		document.request('0.3.0');
 		await settle();
 		expect(readPointer).not.toHaveBeenCalled();
@@ -217,7 +246,7 @@ describe('DesktopWindowUpdate', () => {
 			update.start();
 			await settle();
 			const document = fakePort();
-			update.serve(document.port);
+			update.serve(document.port, document.focus);
 			document.request('0.3.0', PLACE);
 			await settle();
 			expect(document.sent.at(-1)).toEqual({ type: 'desktop-window-update-failed' });
@@ -240,7 +269,7 @@ describe('DesktopWindowUpdate', () => {
 		update.start();
 		await settle();
 		const document = fakePort();
-		update.serve(document.port);
+		update.serve(document.port, document.focus);
 		expect(document.sent).toEqual([{ type: 'desktop-window-update-offered', version: null }]);
 
 		active = '0.3.0';
@@ -297,5 +326,45 @@ describe('DesktopWindowUpdate', () => {
 		launcherStarts = true;
 		expect(await update.switchIfOffered(() => PLACE)).toBe(true);
 		expect(onJoinable).toHaveBeenLastCalledWith('0.3.0', PLACE);
+	});
+
+	it('asks the focused document for its place and resolves with the place it answers with', async () => {
+		const { update } = create({ active: '0.2.0' });
+		const elsewhere = fakePort();
+		const focused = fakePort();
+		update.serve(elsewhere.port, elsewhere.focus);
+		update.serve(focused.port, focused.focus);
+		focused.gainFocus();
+		const asked = update.askPlace();
+		focused.placeReply(requestIdOf(focused.sent), PLACE);
+		expect(await asked).toEqual(PLACE);
+		expect(elsewhere.sent.map((message) => message.type)).not.toContain(
+			'desktop-window-update-place-requested',
+		);
+	});
+
+	it('resolves with no place when the asked document does not reply within a second', async () => {
+		vi.useFakeTimers();
+		try {
+			const { update } = create({ active: '0.2.0' });
+			const document = fakePort();
+			update.serve(document.port, document.focus);
+			document.gainFocus();
+			const asked = update.askPlace();
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(await asked).toBeNull();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('resolves with no place when the reply names another request', async () => {
+		const { update } = create({ active: '0.2.0' });
+		const document = fakePort();
+		update.serve(document.port, document.focus);
+		document.gainFocus();
+		const asked = update.askPlace();
+		document.placeReply('another-request', PLACE);
+		expect(await asked).toBeNull();
 	});
 });

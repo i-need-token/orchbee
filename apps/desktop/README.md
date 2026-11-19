@@ -80,12 +80,19 @@ while the window pointer `desktop\active.json` names a version of higher precede
 unless that is the version a `--fallback-from-v1=<version>` start came back from. A development
 build, a flat layout, and a build's output folder never offer it. `src/main/window-update/` watches the pointer's folder, because the pointer is replaced by a rename,
 reads at most 16 KiB of it, and pushes the offer, or none, to every document's window-update port
-(and re-reads it directly from disk when an update check settles or a second instance starts). A
-press or a second instance first runs the new version's bundled Client with this window's Session
-arguments, `server start --format json`; the switch goes ahead only when the start succeeds and its
+(and re-reads it directly from disk when an update check settles or a second launch starts). A
+press first runs the new version's bundled Client with this window's Session arguments,
+`server start --format json`; the switch goes ahead only when the start succeeds and its
 `negotiatedCapabilities` include `compatibility-window`. Otherwise a press shows that the update
-applies when no terminal runs, a second instance brings the open window forward, and the diagnostic
-log records why. A joinable version is switched to through the window entry
+applies when no terminal runs, and the diagnostic log records why. A second launch only brings the
+open window forward, except Setup's own launch on Windows: Setup's `[Run]` entry first writes
+`desktop\setup-launch.json` naming the window version it installed, and Main switches the window to
+that version, through the same start and place steps, only when the file is at most 120 seconds old,
+parses, and names the offered version. Main deletes the file on every read, so a refused or failed
+switch leaves nothing behind, and a first instance deletes a leftover file when it starts. The place
+is asked of the focused document, or of the most recently focused one, and no answer within one
+second relaunches with no place. macOS has no Setup marker, so a second launch only brings the
+window forward there. A joinable version is switched to through the window entry
 `desktop\<this window's file name>`: Main starts it detached, with `desktop\` as working folder and
 the arguments `--relaunch-after-v1 <its process id>` followed by the place the asking document shows,
 `--select-terminal-v1=<TerminalPresentationId>` for its displayed terminal or else
@@ -149,8 +156,9 @@ Session is not touched. Keep a terminal with a long-running command open through
 1. Install an older Test build and start it. Install a newer Test build without closing the older
    window: its window version lands in `desktop\versions\<newer>\` (on macOS,
    `desktop/versions/<newer>/<name>.app`), and `desktop\active.json` names it. The older window's
-   sidebar footer shows Update. On Windows, clear Launch Orchbee on Setup's last page; otherwise
-   the older window moves to the newer version at once and steps 2 to 4 cannot run. On macOS,
+   sidebar footer shows Update. On Windows, clear Launch Orchbee on Setup's last page: with it ticked,
+   Setup's own launch moves the older window to the newer version at once, and steps 2 to 4 cannot
+   run. A Start-menu launch only focuses the older window, which keeps its footer Update. On macOS,
    install the newer build with `orchbee update` or the `--installer-window-v1` install, not with
    `install.sh --desktop`, which quits the older window first, and not by copying from the `.dmg`,
    which needs the older app to quit.

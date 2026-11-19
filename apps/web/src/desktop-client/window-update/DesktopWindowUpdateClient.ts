@@ -8,8 +8,8 @@ import type { WorkbenchClientUpdate } from '../../workbench';
 
 /**
  * This document's window-update port: the newer window version Main offers, or none, the request to
- * switch to it with the place the window shows, and Main's answer when the switch has to wait until
- * no terminal runs.
+ * switch to it with the place the window shows, Main's answer when the switch has to wait until no
+ * terminal runs, and the place it answers when Main asks for one.
  */
 export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 	#disposed = false;
@@ -20,7 +20,7 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 	readonly #readPlace: () => DesktopRelaunchPlace | null;
 	readonly #waitingListeners = new Set<() => void>();
 
-	/** `readPlace` names where the relaunched window opens, read when the switch is asked for. */
+	/** `readPlace` names where the relaunched window opens, read when a switch or a place request asks. */
 	constructor(port: MessagePort, readPlace: () => DesktopRelaunchPlace | null) {
 		this.#port = port;
 		this.#readPlace = readPlace;
@@ -73,9 +73,23 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 		this.#port.close();
 	}
 
+	/** Answers Main's place request with the place the window shows, naming the request it answers. */
+	#answerPlace(requestId: string): void {
+		const message: DesktopWindowUpdateRendererMessage = {
+			place: this.#readPlace(),
+			requestId,
+			type: 'desktop-window-update-place',
+		};
+		this.#port.postMessage(message);
+	}
+
 	#receive(data: unknown): void {
 		const message = DesktopWindowUpdateMainMessageSchema.safeParse(data);
 		if (this.#disposed || !message.success) return;
+		if (message.data.type === 'desktop-window-update-place-requested') {
+			this.#answerPlace(message.data.requestId);
+			return;
+		}
 		if (message.data.type === 'desktop-window-update-failed') {
 			for (const listener of this.#failedListeners) listener();
 			return;
