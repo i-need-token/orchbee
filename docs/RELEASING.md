@@ -119,7 +119,7 @@ repository>`. Print each public half with the command in
    files. When a release also changes website copy in `packages/i18n/src/locales/*/website-*.ts`,
    or when moving the website manually, you can still run `pnpm website:release <version>`, build,
    deploy as [its README](../apps/website/README.md#static-delivery) says, and verify live with
-   `node scripts/website-release.mjs verify-live`.
+   `node scripts/website-release.mjs verify-live`. The rollout deploys main as it stands, so website changes merged to main go live with the next release.
 8. Pull `main` locally (so your checkout includes the website channel commit) and move `main` to
    the next version in a new commit, for example `node scripts/release-version.mjs set 0.1.0-beta.2`.
 

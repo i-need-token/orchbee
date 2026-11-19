@@ -25,8 +25,8 @@ The site serves the install script `public/install.sh` at `/install.sh`, run as 
 `wrangler.jsonc` publishes `dist/` as a Cloudflare Worker with static assets only. Deploying it takes these steps:
 
 1. Build the site with `pnpm website:build` from the repository root.
-2. Sign in to the Cloudflare account that holds the active `orchbee.com` zone with `pnpm dlx wrangler@4 login`.
-3. Deploy with `pnpm dlx wrangler@4 deploy --config apps/website/wrangler.jsonc`. On the first deploy, Wrangler attaches `orchbee.com` and `www.orchbee.com` as custom domains and creates their DNS records and certificates.
+2. Sign in to the Cloudflare account that holds the active `orchbee.com` zone with `pnpm --filter @orchbee/website exec wrangler login`.
+3. Deploy with `pnpm --filter @orchbee/website run deploy`. On the first deploy, Wrangler attaches `orchbee.com` and `www.orchbee.com` as custom domains and creates their DNS records and certificates.
 4. Check that `https://orchbee.com/zh-CN` and `https://orchbee.com/terminal` redirect to their addresses with a trailing slash, that each of the eight pages answers, and that an unknown address under `/zh-CN/` returns status 404 with the Chinese page.
 
 Both host names serve the same files; canonical links send search engines to `https://orchbee.com`. The Worker has no `workers.dev` address and no preview addresses.

@@ -14,7 +14,7 @@ const analysisInputs = [
 	},
 	{
 		file: 'pnpm-workspace.yaml',
-		sha256: 'af2b7c011fe2125dad1e65290ff2d5fa8d1c39f61f5466795a2761b6b1374a61',
+		sha256: 'f1ee844e2d5def8d80dadb3b1f625eeab6b399e6faf37b2137be4a2f41a1f136',
 	},
 	{
 		file: 'tsconfig.base.json',
