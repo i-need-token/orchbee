@@ -120,42 +120,64 @@ describe('Workbench command contract', () => {
 	// Compiling the five schemas takes several seconds on a shared two-core runner, past the default
 	// limit, so this test states its own.
 	it('agrees with the schema-authored Rust/TypeScript conformance corpus', async () => {
-		const [projectionText, commandText, corpusText, clientViewText, graphicsText] =
-			await Promise.all([
-				readFile(
-					new URL('../../../../../schemas/workbench/v1/workbench.schema.json', import.meta.url),
-					'utf8',
+		const [
+			projectionText,
+			commandText,
+			corpusText,
+			terminalLimitCorpusText,
+			clientViewText,
+			graphicsText,
+		] = await Promise.all([
+			readFile(
+				new URL('../../../../../schemas/workbench/v1/workbench.schema.json', import.meta.url),
+				'utf8',
+			),
+			readFile(
+				new URL(
+					'../../../../../schemas/workbench/v1/workbench-command.schema.json',
+					import.meta.url,
 				),
-				readFile(
-					new URL(
-						'../../../../../schemas/workbench/v1/workbench-command.schema.json',
-						import.meta.url,
-					),
-					'utf8',
+				'utf8',
+			),
+			readFile(
+				new URL(
+					'../../../../../schemas/workbench/v1/workbench-command-conformance-v1.json',
+					import.meta.url,
 				),
-				readFile(
-					new URL(
-						'../../../../../schemas/workbench/v1/workbench-command-conformance-v1.json',
-						import.meta.url,
-					),
-					'utf8',
+				'utf8',
+			),
+			readFile(
+				new URL(
+					'../../../../../schemas/workbench/v1/workbench-command-terminal-limit-reached-conformance-v1.json',
+					import.meta.url,
 				),
-				readFile(
-					new URL(
-						'../../../../../schemas/workbench/v1/workbench-client-view.schema.json',
-						import.meta.url,
-					),
-					'utf8',
+				'utf8',
+			),
+			readFile(
+				new URL(
+					'../../../../../schemas/workbench/v1/workbench-client-view.schema.json',
+					import.meta.url,
 				),
-				readFile(
-					new URL(
-						'../../../../../schemas/workbench/v1/workbench-panel-graphics.schema.json',
-						import.meta.url,
-					),
-					'utf8',
+				'utf8',
+			),
+			readFile(
+				new URL(
+					'../../../../../schemas/workbench/v1/workbench-panel-graphics.schema.json',
+					import.meta.url,
 				),
-			]);
-		const corpus = corpusSchema.parse(JSON.parse(corpusText));
+				'utf8',
+			),
+		]);
+		// A capability's cases live in a corpus of their own, so the sealed one keeps its bytes.
+		const corpora = [corpusText, terminalLimitCorpusText].map((text) =>
+			corpusSchema.parse(JSON.parse(text)),
+		);
+		const corpus = {
+			valid: corpora.flatMap((each) => each.valid),
+			invalid: corpora.flatMap((each) => each.invalid),
+			validJson: corpora.flatMap((each) => each.validJson),
+			invalidJson: corpora.flatMap((each) => each.invalidJson),
+		};
 		const ajv = new Ajv2020({ strict: true });
 		ajv.addFormat(
 			'orchbee-uint64',

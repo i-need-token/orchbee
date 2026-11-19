@@ -44,11 +44,22 @@ struct Corpus {
 
 #[test]
 fn command_contract_matches_the_shared_corpus() {
-    let corpus: Corpus = serde_json::from_str(include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../schemas/workbench/v1/workbench-command-conformance-v1.json"
-    )))
-    .unwrap();
+    // A capability's cases live in a corpus of their own, so the sealed one keeps its bytes.
+    for corpus in [
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../schemas/workbench/v1/workbench-command-conformance-v1.json"
+        )),
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../schemas/workbench/v1/workbench-command-terminal-limit-reached-conformance-v1.json"
+        )),
+    ] {
+        command_corpus_holds(serde_json::from_str(corpus).unwrap());
+    }
+}
+
+fn command_corpus_holds(corpus: Corpus) {
     for case in corpus.valid {
         let encoded = serde_json::to_vec(&case.document).unwrap();
         let roundtrip = match case.direction {

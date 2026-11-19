@@ -465,6 +465,7 @@ impl PreparedPanel {
 enum PreparedPanelResult {
     NotApplied,
     LaunchRequestTooLarge,
+    TerminalLimitReached,
     /// The Server asks before this conditional close: the armed confirmation presents.
     ConfirmationRequired,
     Unchanged,
@@ -647,6 +648,9 @@ impl WorkbenchClientState {
             }) if operation.intent == PanelIntent::CloseIfIdle => {
                 PreparedPanelResult::ConfirmationRequired
             }
+            PanelResult::Precommit(PanelPrecommit::Unavailable {
+                reason: WorkbenchCommandUnavailableReason::TerminalLimitReached,
+            }) => PreparedPanelResult::TerminalLimitReached,
             PanelResult::NotSubmitted | PanelResult::Precommit(_) => {
                 PreparedPanelResult::NotApplied
             }
@@ -790,6 +794,9 @@ impl WorkbenchClientState {
             PreparedPanelResult::NotApplied => self.notice = Some(ClientNotice::PanelNotApplied),
             PreparedPanelResult::LaunchRequestTooLarge => {
                 self.notice = Some(ClientNotice::LaunchRequestTooLarge)
+            }
+            PreparedPanelResult::TerminalLimitReached => {
+                self.notice = Some(ClientNotice::TerminalLimitReached)
             }
             PreparedPanelResult::Unchanged | PreparedPanelResult::ConfirmationRequired => {
                 self.notice = None;

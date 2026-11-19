@@ -201,6 +201,7 @@ impl Locale {
             N::Settings(notice) => self.settings_notice_shorter(notice).map(str::to_owned),
             N::Unsupported(capability) => Some(self.unsupported_capability_shorter(capability)),
             N::LaunchRequestTooLarge => Some(self.say("Launch request too large", "启动请求过大")),
+            N::TerminalLimitReached => Some(self.say("Terminal limit reached", "已达终端上限")),
             N::NoWorkspace => Some(self.say("No workspace open", "当前未打开工作区")),
             N::LaunchProfileUnavailable => {
                 Some(self.say("Couldn't create the terminal.", "没能创建终端。"))
@@ -264,6 +265,10 @@ impl Locale {
             N::NoTabAtPosition(position) => self.native_no_tab(position),
             N::CreateNotCreated => self.native_create_not_created().to_owned(),
             N::LaunchRequestTooLarge => self.launch_request_too_large().to_owned(),
+            N::TerminalLimitReached => say(
+                "This session reached its 1,024-terminal limit. Close some terminals to open new ones.",
+                "此会话已达到 1,024 个终端的上限，请关闭一些终端后再打开新终端。",
+            ),
             N::CreateOrderConflict => {
                 say("Couldn't create the Tab there.", "没能在这里创建标签页。")
             }

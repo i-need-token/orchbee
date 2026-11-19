@@ -2372,6 +2372,7 @@ mod workflow {
                 "terminal-runtime-unavailable"
             }
             WorkbenchCommandUnavailableReason::ServerBusy => "server-busy",
+            WorkbenchCommandUnavailableReason::TerminalLimitReached => "terminal-limit-reached",
             WorkbenchCommandUnavailableReason::ServiceUnavailable => "service-unavailable",
             // The CLI's closed failure vocabulary keeps one directory reason; the Server's named
             // causes reach interactive Clients, which show them beside the typed path.

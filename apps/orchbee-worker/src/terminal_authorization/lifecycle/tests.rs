@@ -314,6 +314,33 @@ fn known_disposal_survives_query_failure_and_blocks_new_effects() -> TestResult 
     Ok(())
 }
 
+/// A Retire forgets only a terminal this Worker recorded as Disposed. Afterwards every request
+/// naming it, the Close's own receipt and the Retire alike, reads what a never admitted terminal
+/// reads.
+#[test]
+fn retire_forgets_only_a_disposed_binding_and_late_requests_read_it_as_unknown() -> TestResult {
+    let mut kernel = kernel()?;
+    let mut retire = request(Action::Retire, 1, 1, 40)?;
+    retire.close_operation_id = OperationId::from_bytes([41; 16])?;
+    rejected(&mut kernel, retire, LifecycleRejection::LifecycleConflict)?;
+    let dispose = request(Action::Dispose, 1, 1, 30)?;
+    complete(&mut kernel, dispose, Outcome::Disposed)?;
+    assert_eq!(
+        kernel.admit_lifecycle(retire, 300, retire.target.host_epoch())?,
+        LifecycleAdmission::ResultReady
+    );
+    assert_eq!(
+        kernel.take_lifecycle_result().expect("retired").outcome(),
+        Outcome::Retired
+    );
+    let mut never_admitted = dispose;
+    never_admitted.authorization.terminal_id = TerminalId::from_bytes([77; 16])?;
+    for late in [dispose, retire, never_admitted] {
+        rejected(&mut kernel, late, LifecycleRejection::BindingUnavailable)?;
+    }
+    Ok(())
+}
+
 #[test]
 fn changed_owner_authority_identity_and_capability_are_effect_free() -> TestResult {
     let base = request(Action::Terminate, 1, 1, 30)?;

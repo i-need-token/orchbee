@@ -45,6 +45,7 @@ pub(crate) use terminal_selection::{
     BindingViewerPreparationError, PreparedBindingViewer, PreparedSendTarget,
 };
 mod target_lifecycle;
+mod terminal_retirement;
 pub(crate) use target_lifecycle::TargetLifecycle;
 mod agent_names;
 mod agent_registration;

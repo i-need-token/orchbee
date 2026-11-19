@@ -678,6 +678,7 @@ impl SessionCoordinator {
         if let Ok(prepared) = workbench.prepare_terminal_tab_close_publication(close_id, now) {
             let _closed = prepared.commit();
         }
+        self.retire_released_terminals();
         Ok(())
     }
 }

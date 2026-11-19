@@ -275,6 +275,10 @@ function failureNotice(
 	if (result.kind === 'blocked' && result.code === 'launch-request-too-large') {
 		return { descriptor: workbenchMessages.launchRequestTooLarge, lifetime: 'until-press' };
 	}
+	// The Session's terminal bound frees only as terminals close, so the words name that step.
+	if (result.kind === 'failed' && result.failure.code === 'terminal-limit-reached') {
+		return { descriptor: workbenchMessages.terminalLimitReached, lifetime: 'until-press' };
+	}
 	switch (result.kind) {
 		case 'blocked':
 			return {

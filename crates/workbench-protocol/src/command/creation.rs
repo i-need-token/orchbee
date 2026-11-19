@@ -101,6 +101,7 @@ impl WorkbenchCommand {
                     | Unavailable::TerminalBusy => true,
                     Unavailable::NoCompatibleWorker
                     | Unavailable::ServerBusy
+                    | Unavailable::TerminalLimitReached
                     | Unavailable::TerminalRuntimeUnavailable
                     | Unavailable::DirectoryUnavailable
                     | Unavailable::DirectoryMissing

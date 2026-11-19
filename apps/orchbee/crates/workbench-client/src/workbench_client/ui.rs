@@ -830,6 +830,7 @@ impl<'a> WorkbenchClientView<'a> {
             ClientNotice::CreateNotCreated => WorkbenchClientNotice::CreateNotCreated,
             ClientNotice::CreateOrderConflict => WorkbenchClientNotice::CreateOrderConflict,
             ClientNotice::LaunchRequestTooLarge => WorkbenchClientNotice::LaunchRequestTooLarge,
+            ClientNotice::TerminalLimitReached => WorkbenchClientNotice::TerminalLimitReached,
             ClientNotice::DuplicatePending => WorkbenchClientNotice::DuplicatePending,
             ClientNotice::DuplicateNotStarted => WorkbenchClientNotice::DuplicateNotStarted,
             ClientNotice::DuplicateOutcomeUnknown => WorkbenchClientNotice::DuplicateOutcomeUnknown,
@@ -5304,6 +5305,10 @@ const fn create_precommit_notice(outcome: &CreatePrecommitOutcome) -> ClientNoti
             reason: orchbee_workbench_protocol::WorkbenchRejectionReason::TabMoveOrderConflict,
             ..
         }) => ClientNotice::CreateOrderConflict,
+        CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Unavailable {
+            reason:
+                orchbee_workbench_protocol::WorkbenchCommandUnavailableReason::TerminalLimitReached,
+        }) => ClientNotice::TerminalLimitReached,
         CreatePrecommitOutcome::OutcomeUnknown => ClientNotice::ChangeOutcomeUnknown,
         CreatePrecommitOutcome::NotSubmitted
         | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Rejected { .. })

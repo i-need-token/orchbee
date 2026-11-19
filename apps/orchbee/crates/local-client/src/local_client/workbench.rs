@@ -723,6 +723,7 @@ fn classify_tab_create_outcome(
                 WorkbenchCommandUnavailableReason::RequestLedgerFull
                     | WorkbenchCommandUnavailableReason::NoCompatibleWorker
                     | WorkbenchCommandUnavailableReason::ServerBusy
+                    | WorkbenchCommandUnavailableReason::TerminalLimitReached
                     | WorkbenchCommandUnavailableReason::ServiceUnavailable
             ) =>
         {

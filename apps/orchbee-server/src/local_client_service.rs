@@ -22,7 +22,8 @@ use orchbee_connection_handshake::{
     AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, CANDIDATE_DEADLINE,
     CONFIGURED_COMMAND_SOURCE_EXITED, CohortIdentity, ConnectionKind, Decision, DrainResult,
     ExitResult, Extensions, ProductVersion, ReadError, RequestKind, RequestName,
-    STREAM_OUTCOME_UNKNOWN, Unsupported, encode_acceptor_frame, read_initiator_message,
+    STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED, Unsupported, encode_acceptor_frame,
+    read_initiator_message,
 };
 use orchbee_local_client_protocol::{
     LocalClientMessage, ReadMessageError, RejectionReason, read_message, write_message,
@@ -367,7 +368,9 @@ fn handle_candidate_control(
         control_slot_free: true,
         state: control.offer_state(),
     };
-    let (intent_unknown, names_source_exited) = match profile.decide(&message, load) {
+    let (intent_unknown, names_source_exited, names_terminal_limit) = match profile
+        .decide(&message, load)
+    {
         Decision::Accept(answer) => {
             let unknown = if answer.capabilities.contains(STREAM_OUTCOME_UNKNOWN) {
                 multiplex::IntentUnknown::ClosesStream
@@ -377,10 +380,11 @@ fn handle_candidate_control(
             let source_exited = answer
                 .capabilities
                 .contains(CONFIGURED_COMMAND_SOURCE_EXITED);
+            let terminal_limit = answer.capabilities.contains(TERMINAL_LIMIT_REACHED);
             if !send_handshake(&mut stream, &AcceptorMessage::Answer(answer)) {
                 return;
             }
-            (unknown, source_exited)
+            (unknown, source_exited, terminal_limit)
         }
         Decision::Reject(rejection) => {
             let _delivered = send_handshake(&mut stream, &AcceptorMessage::Rejection(rejection));
@@ -489,7 +493,8 @@ fn handle_candidate_control(
         ClientConnectionRegistration::new(Arc::clone(registry), generation);
     let workbench_connection = workbench
         .client_connection(generation)
-        .naming_source_exited(names_source_exited);
+        .naming_source_exited(names_source_exited)
+        .naming_terminal_limit(names_terminal_limit);
     if write_message(
         &mut stream,
         &LocalClientMessage::ClientAccepted { generation },

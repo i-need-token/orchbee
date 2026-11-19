@@ -384,6 +384,8 @@ fn compatible_unavailable(
         WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable => {
             matches!(action, WorkbenchAction::ProjectDissolveIfIdle { .. })
         }
+        // The Server names the terminal limit only for Tab and Panel creation, none of these.
+        WorkbenchCommandUnavailableReason::TerminalLimitReached => false,
     }
 }
 

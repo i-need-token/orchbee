@@ -59,6 +59,9 @@ impl PreparedLifecycleOperation {
                     }))?;
                 (control.kind, control.payload)
             }
+            TerminalLifecycleAction::Retire => {
+                return Err(io::Error::other("Retire is answered without the Host").into());
+            }
             action => {
                 let control = encode_lifecycle_control(&match action {
                     TerminalLifecycleAction::Terminate => {
@@ -69,8 +72,9 @@ impl PreparedLifecycleOperation {
                     }
                     TerminalLifecycleAction::Dispose => LifecycleControl::DisposeTerminal(target),
                     TerminalLifecycleAction::InventoryPage { .. }
-                    | TerminalLifecycleAction::InspectInventoryPage { .. } => {
-                        unreachable!("query matched above")
+                    | TerminalLifecycleAction::InspectInventoryPage { .. }
+                    | TerminalLifecycleAction::Retire => {
+                        unreachable!("matched above")
                     }
                 })?;
                 (control.kind, control.payload)
@@ -215,7 +219,8 @@ fn response_outcome(
             }
             TerminalLifecycleAction::Terminate
             | TerminalLifecycleAction::Force
-            | TerminalLifecycleAction::Dispose => {
+            | TerminalLifecycleAction::Dispose
+            | TerminalLifecycleAction::Retire => {
                 TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::HostRefused)
             }
         });
@@ -252,7 +257,8 @@ fn response_outcome(
         | TerminalLifecycleAction::Force
         | TerminalLifecycleAction::Dispose
         | TerminalLifecycleAction::InventoryPage { .. }
-        | TerminalLifecycleAction::InspectInventoryPage { .. } => {
+        | TerminalLifecycleAction::InspectInventoryPage { .. }
+        | TerminalLifecycleAction::Retire => {
             return Err(io::Error::other("unexpected lifecycle ACK target or action").into());
         }
     };

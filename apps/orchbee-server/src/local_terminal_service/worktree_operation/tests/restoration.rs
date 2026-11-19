@@ -10,8 +10,7 @@ use orchbee_workbench_protocol::{PanelNode, WorkbenchTerminalOutcome};
 use std::num::NonZeroU64;
 
 fn launch(fixture: &mut Fixture) -> AuthorizedTerminalLaunch {
-    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) =
-        read_message(&mut fixture.peer).unwrap()
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = fixture.next_request().unwrap()
     else {
         panic!("launch")
     };
@@ -84,7 +83,7 @@ fn add_shell(fixture: &mut Fixture, index: u8) {
 fn disposed_before_remove(fixture: &mut Fixture, expected: usize) -> WorktreeMutationRequest {
     let mut disposed = 0;
     loop {
-        match read_message(&mut fixture.peer).unwrap() {
+        match fixture.next_request().unwrap() {
             CapabilityNodeMessage::TerminalLifecycleRequest(request) => {
                 let outcome = match request.action {
                     TerminalLifecycleAction::InventoryPage { .. } => {
@@ -296,7 +295,7 @@ fn failed_remove_restores_original_slots_with_fresh_default_shells_and_keeps_par
             .set_read_timeout(Some(Duration::from_millis(40)))
             .unwrap();
         assert!(
-            read_message(&mut fixture.peer).is_err(),
+            fixture.next_request().is_err(),
             "no duplicated launch or Git request"
         );
     }
@@ -353,7 +352,7 @@ fn failed_checkout_verification_preserves_original_git_failure_and_starts_no_she
         .peer
         .set_read_timeout(Some(Duration::from_millis(40)))
         .unwrap();
-    assert!(read_message(&mut fixture.peer).is_err());
+    assert!(fixture.next_request().is_err());
 }
 
 fn checkout_not_found(stage: WorktreeMutationStage) -> Completion {
@@ -495,7 +494,7 @@ fn resumed_half_removal_settles_the_unregistered_residue_and_finishes_the_close(
         .peer
         .set_read_timeout(Some(Duration::from_millis(40)))
         .unwrap();
-    assert!(read_message(&mut fixture.peer).is_err());
+    assert!(fixture.next_request().is_err());
 }
 
 #[test]
@@ -530,7 +529,7 @@ fn unprovable_residue_is_not_resumable_and_keeps_the_held_workspace_for_explicit
         .peer
         .set_read_timeout(Some(Duration::from_millis(40)))
         .unwrap();
-    assert!(read_message(&mut fixture.peer).is_err(), "no Git replay");
+    assert!(fixture.next_request().is_err(), "no Git replay");
     // The explicit close the failure names ends the held Workspace on its own, even
     // after the hold outlasted the Close's original attempt budget.
     age_held_close(&fixture);
@@ -563,5 +562,5 @@ fn unprovable_residue_is_not_resumable_and_keeps_the_held_workspace_for_explicit
         );
         thread::sleep(Duration::from_millis(10));
     }
-    assert!(read_message(&mut fixture.peer).is_err(), "no Git replay");
+    assert!(fixture.next_request().is_err(), "no Git replay");
 }

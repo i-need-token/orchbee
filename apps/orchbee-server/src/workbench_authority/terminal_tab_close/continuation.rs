@@ -535,6 +535,10 @@ impl CloseContinuation {
                     parked: None,
                 }
             }
+            // No Close step retires; result validation pairs Retired only with Retire.
+            TerminalLifecycleOutcome::Retired => {
+                self.unknown(now, action, LifecycleUnknownReason::InvalidResponse);
+            }
             TerminalLifecycleOutcome::InventoryPage(page) => self.inventory_page(now, action, page),
             TerminalLifecycleOutcome::Rejected(reason) => match reason {
                 LifecycleRejection::LeaseExpired | LifecycleRejection::BindingUnavailable => {
@@ -624,9 +628,11 @@ impl CloseContinuation {
         reason: LifecycleUnknownReason,
     ) {
         let phase = match action {
-            // A query changes nothing, so its lost reply is only a failed read.
+            // A query changes nothing, so its lost reply is only a failed read. No Close step
+            // retires a binding.
             TerminalLifecycleAction::InventoryPage { .. }
-            | TerminalLifecycleAction::InspectInventoryPage { .. } => {
+            | TerminalLifecycleAction::InspectInventoryPage { .. }
+            | TerminalLifecycleAction::Retire => {
                 self.retry_step(now, BlockedReason::InventoryIncomplete);
                 return;
             }

@@ -575,5 +575,7 @@ mod window_title;
 
 mod configured_commands;
 
+mod terminal_limit;
+
 #[cfg(all(test, windows))]
 mod plugins;

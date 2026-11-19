@@ -95,6 +95,7 @@ fn maintenance_frees_one_of_eight_actual_grants_before_any_old_session_action() 
                             events.push("dispose");
                             TerminalLifecycleOutcome::Disposed
                         }
+                        TerminalLifecycleAction::Retire => TerminalLifecycleOutcome::Retired,
                         _ => panic!("settled fixture must not signal"),
                     };
                     reply(&mut peer, request, outcome);

@@ -119,6 +119,7 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
                                 events.push("dispose");
                                 TerminalLifecycleOutcome::Disposed
                             }
+                            TerminalLifecycleAction::Retire => TerminalLifecycleOutcome::Retired,
                             _ => panic!("settled fixture must not signal"),
                         };
                         reply(&mut peer, request, outcome);

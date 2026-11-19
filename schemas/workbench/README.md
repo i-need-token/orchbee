@@ -355,7 +355,12 @@ retirement, ledger reservation and response-delivery ordering belong to the Serv
 Top-level `denied`, `rejected`, and `unavailable` commit no new Tab for a new request identity.
 `WorkbenchRejectionReason` additionally admits `terminal-context-unavailable` and `tab-unavailable`.
 The reason domains are separate: `WorkbenchCommandUnavailableReason` admits `request-ledger-full`,
-`no-compatible-worker`, `server-busy`, `service-unavailable`, `terminal-busy`, and `terminal-runtime-unavailable`;
+`no-compatible-worker`, `server-busy`, `terminal-limit-reached`, `service-unavailable`, `terminal-busy`, and `terminal-runtime-unavailable`;
+a Server answers `terminal-limit-reached` to a Tab or Panel creation refused because the Session
+already holds its bound of terminals, and only to a Client whose `client-server` handshake answer
+lists that capability; any other Client reads `server-busy`. Its case lives in the
+[terminal-limit corpus](v1/workbench-command-terminal-limit-reached-conformance-v1.json), which the
+Rust and TypeScript command bindings also check, so the sealed command corpus keeps its bytes;
 `WorkbenchSnapshotUnavailableReason` admits only `service-unavailable`;
 `WorkbenchTerminalUnavailableReason` and `WorkbenchTerminalFailureReason` own the nested reasons above.
 The action union is named `WorkbenchAction` in both language bindings. The existing four actions

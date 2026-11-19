@@ -73,6 +73,9 @@ pub enum TerminalLifecycleAction {
     InspectInventoryPage {
         cursor: Option<LifecycleInventoryCursor>,
     },
+    /// Forgets a binding whose terminal the Worker already recorded as Disposed. Worker-local:
+    /// it never reaches the Host, and afterwards the binding answers as never issued.
+    Retire,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -149,6 +152,7 @@ pub enum TerminalLifecycleOutcome {
     TerminateAccepted,
     ForceAccepted,
     Disposed,
+    Retired,
     InventoryPage(LifecycleInventoryPage),
     Rejected(LifecycleRejection),
     HostFailure(LifecycleHostFailure),
@@ -170,7 +174,10 @@ impl TerminalLifecycleResult {
         use TerminalLifecycleAction as Action;
         use TerminalLifecycleOutcome as Outcome;
         if request.authorization.capability_version != TERMINAL_LIFECYCLE_CAPABILITY_VERSION
-            && matches!(request.action, Action::InspectInventoryPage { .. })
+            && matches!(
+                request.action,
+                Action::InspectInventoryPage { .. } | Action::Retire
+            )
         {
             return Err(ProtocolError::InvalidPayload);
         }
@@ -191,6 +198,7 @@ impl TerminalLifecycleResult {
                         | Outcome::HostFailure(LifecycleHostFailure::CleanupIncomplete)
                 ) || failed
             }
+            Action::Retire => matches!(outcome, Outcome::Retired) || failed,
             Action::InventoryPage { cursor } | Action::InspectInventoryPage { cursor } => {
                 if let Outcome::InventoryPage(page) = outcome {
                     validate_page(cursor, page)?;

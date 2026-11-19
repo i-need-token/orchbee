@@ -167,6 +167,34 @@ fn prepared_cleanup_captures_all_viewers_and_commit_releases_their_records() -> 
     Ok(())
 }
 
+/// One Host connection disposes more than 1,024 terminals over its life: retirement frees each
+/// disposed target's cell, so the Close after the bound still prepares its cleanup.
+#[test]
+fn retirement_frees_cleanup_cells_for_closes_past_the_binding_bound() -> TestResult {
+    let (host, _peer) = host()?;
+    let numbered = |index: u16| -> TestResult<HostTerminalIdentity> {
+        let mut bytes = [7; 16];
+        bytes[..2].copy_from_slice(&index.to_be_bytes());
+        Ok(HostTerminalIdentity::new(
+            HostCreationId::from_bytes(bytes)?,
+            orchbee_capability_node_protocol::HostEpoch::from_bytes([4; 16])?,
+            HostTerminalId::from_bytes(bytes)?,
+        ))
+    };
+    let bound = u16::try_from(crate::terminal_authorization::MAXIMUM_RETAINED_TERMINAL_BINDINGS)?;
+    for index in 0..bound {
+        let prepared = host.prepare_target_cleanup(numbered(index)?)?;
+        host.commit_target_cleanup(prepared);
+    }
+    assert!(host.prepare_target_cleanup(numbered(bound)?).is_err());
+    host.forget_retired_target(numbered(0)?);
+    let prepared = host.prepare_target_cleanup(numbered(bound)?)?;
+    host.commit_target_cleanup(prepared);
+    assert!(host.unavailable_terminal(numbered(bound)?.terminal_id()));
+    assert!(host.unavailable_terminal(numbered(1)?.terminal_id()));
+    Ok(())
+}
+
 #[test]
 fn target_cleanup_preserves_sibling_flight_and_seven_other_controllers() -> TestResult {
     let (host, _peer) = host()?;

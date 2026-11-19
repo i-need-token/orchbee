@@ -26,6 +26,8 @@ use crate::workbench_projection::PreparedProjectionAdvance;
 pub enum WorkbenchTabCreateRuntimeUnavailableReason {
     NoCompatibleWorker,
     ServerBusy,
+    /// The Session already retains its bound of terminals.
+    TerminalLimitReached,
 }
 
 impl From<WorkbenchTabCreateRuntimeUnavailableReason> for WorkbenchCommandUnavailableReason {
@@ -35,6 +37,9 @@ impl From<WorkbenchTabCreateRuntimeUnavailableReason> for WorkbenchCommandUnavai
                 Self::NoCompatibleWorker
             }
             WorkbenchTabCreateRuntimeUnavailableReason::ServerBusy => Self::ServerBusy,
+            WorkbenchTabCreateRuntimeUnavailableReason::TerminalLimitReached => {
+                Self::TerminalLimitReached
+            }
         }
     }
 }

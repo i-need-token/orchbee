@@ -372,6 +372,7 @@ fn classify_outcome(
                     | WorkbenchCommandUnavailableReason::NoCompatibleWorker
                     | WorkbenchCommandUnavailableReason::TerminalBusy
                     | WorkbenchCommandUnavailableReason::ServerBusy
+                    | WorkbenchCommandUnavailableReason::TerminalLimitReached
                     | WorkbenchCommandUnavailableReason::ServiceUnavailable
             ) =>
         {

@@ -553,6 +553,14 @@ impl super::CliText {
             (Locale::ZhCn, "command") if reason == Some("directory-unavailable") => {
                 "工作目录不可用：目录可能不存在或无法访问。请检查路径；未应用任何修改。\n".to_owned()
             }
+            // The Session's terminal bound frees only as terminals close, so retrying alone waits.
+            (Locale::EnUs, "command") if reason == Some("terminal-limit-reached") => {
+                "This session reached its 1,024-terminal limit. Close some terminals, then try again; nothing was applied.\n"
+                    .to_owned()
+            }
+            (Locale::ZhCn, "command") if reason == Some("terminal-limit-reached") => {
+                "此会话已达到 1,024 个终端的上限。请关闭一些终端后再试；未应用任何修改。\n".to_owned()
+            }
             (Locale::EnUs, "admission") if reason == Some("stopping") => {
                 "The local session is shutting down and accepts no new requests.\n".to_owned()
             }

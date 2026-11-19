@@ -159,11 +159,11 @@ fn retained_binding_capacity_has_exact_1023_1024_1025_boundaries() -> TestResult
         let mut kernel = kernel()?;
         for terminal in 1..limit {
             let operation = capacity_operation(request_kind, terminal, terminal, 1)?;
-            let _result = retain_pre_handoff_failure(&mut kernel, operation)?;
+            let _result = retain_counted_binding(&mut kernel, operation)?;
         }
 
         let boundary = capacity_operation(request_kind, limit, limit, 1)?;
-        let boundary_result = retain_pre_handoff_failure(&mut kernel, boundary.clone())?;
+        let boundary_result = retain_counted_binding(&mut kernel, boundary.clone())?;
 
         let overflow_terminal = limit + 1;
         let overflow = capacity_operation(request_kind, overflow_terminal, overflow_terminal, 1)?;
@@ -207,10 +207,10 @@ fn full_capacity_preserves_exact_replay_and_higher_fence_replacement() -> TestRe
     for request_kind in [RequestKind::Launch, RequestKind::Start] {
         let mut kernel = kernel()?;
         let first = capacity_operation(request_kind, 1, 1, 1)?;
-        let first_result = retain_pre_handoff_failure(&mut kernel, first.clone())?;
+        let first_result = retain_counted_binding(&mut kernel, first.clone())?;
         for terminal in 2..=limit {
             let operation = capacity_operation(request_kind, terminal, terminal, 1)?;
-            let _result = retain_pre_handoff_failure(&mut kernel, operation)?;
+            let _result = retain_counted_binding(&mut kernel, operation)?;
         }
 
         assert_eq!(
@@ -255,7 +255,7 @@ fn capacity_rejection_preserves_authority_and_start_identity_priority() -> TestR
     let limit = u16::try_from(MAXIMUM_RETAINED_TERMINAL_BINDINGS)?;
     for terminal in 1..=limit {
         let operation = capacity_operation(RequestKind::Launch, terminal, terminal, 1)?;
-        let _result = retain_pre_handoff_failure(&mut kernel, operation)?;
+        let _result = retain_counted_binding(&mut kernel, operation)?;
     }
 
     let cases = [
@@ -1328,12 +1328,21 @@ fn capacity_identity(value: u16) -> [u8; 16] {
     identity
 }
 
-fn retain_pre_handoff_failure(
+/// Retains a binding that counts against the bound: a Launch whose Host outcome is unknown may
+/// have made its terminal, and every Start names one. A Launch that definitively made none would
+/// not count.
+fn retain_counted_binding(
     kernel: &mut AuthorizedHostOperationKernel,
     operation: AuthorizedHostOperation,
-) -> Result<AuthorizedHostOperationResult, AuthorizationKernelError> {
+) -> Result<AuthorizedHostOperationResult, Box<dyn std::error::Error>> {
+    let launch = matches!(operation, AuthorizedHostOperation::Launch(_));
     let dispatch = expect_dispatch(admit(kernel, operation, NOW)?);
-    kernel.record_pre_handoff_failure(&dispatch, NOW)?;
+    if launch {
+        kernel.begin_host_handoff(&dispatch, NOW, host_epoch(6)?)?;
+        kernel.record_outcome_unknown(&dispatch)?;
+    } else {
+        kernel.record_pre_handoff_failure(&dispatch, NOW)?;
+    }
     Ok(take_required_result(kernel))
 }
 

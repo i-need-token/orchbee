@@ -307,6 +307,7 @@ pub(super) fn run(
                         effects.lock().unwrap().push(Effect::Dispose(target));
                         TerminalLifecycleOutcome::Disposed
                     }
+                    TerminalLifecycleAction::Retire => TerminalLifecycleOutcome::Retired,
                     _ => panic!("settled target needs no signal"),
                 };
                 CapabilityNodeMessage::TerminalLifecycleResult(

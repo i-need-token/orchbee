@@ -1,0 +1,22 @@
+{
+	"contractVersion": 1,
+	"capability": "terminal-limit-reached",
+	"valid": [
+		{
+			"name": "terminal-limit-reached",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "terminal-limit-reached"
+				}
+			}
+		}
+	],
+	"invalid": [],
+	"validJson": [],
+	"invalidJson": []
+}

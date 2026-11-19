@@ -66,6 +66,8 @@ const WorkbenchCommandUnavailableReasonSchema = z.enum([
 	'terminal-busy',
 	'terminal-runtime-unavailable',
 	'server-busy',
+	// Sent only to a Client whose handshake answer lists `terminal-limit-reached`.
+	'terminal-limit-reached',
 	'service-unavailable',
 	'directory-unavailable',
 	'directory-missing',

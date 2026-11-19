@@ -274,6 +274,13 @@ validation shares this pure transition. GUI and Rust consume `tab-creation-confo
 `WorkbenchTabGroupLabel` admits empty group names (0–512 Unicode scalar values), including `CreateGroup`, `CreateGroupForTabs`
 and `UpdateGroup`; `WorkbenchLabel` remains nonempty. See the [native group contract](../../apps/orchbee/docs/native-tab-groups.md#terminal-creation-and-duplication).
 
+A Tab, Workspace launch or Panel creation the Server refuses because the Session already holds its
+bound of terminals answers `unavailable` with `terminal-limit-reached`, which `admits_creation_outcome`
+admits beside `server-busy`. A Server sends that reason only when the Client's handshake answer
+lists `terminal-limit-reached`; any other Client, such as 0.1.0-beta.19, cannot decode it and reads
+`server-busy` for the same refusal. The sealed command corpus keeps its bytes, so the reason's case
+lives in `workbench-command-terminal-limit-reached-conformance-v1.json`, which both bindings check.
+
 ## Semantic event contract
 
 Closed `workbench.events` request/result kinds 55/56 have independent 256 KiB limits. Subscribe,

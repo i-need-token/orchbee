@@ -2,7 +2,11 @@
 //! start phases, preparing exact completion tokens before mutation. It issues authorized
 //! intents without selecting Workbench topology or executing Host operations.
 
-use std::{collections::BTreeMap, num::NonZeroU64, sync::Arc};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    num::NonZeroU64,
+    sync::Arc,
+};
 
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage,
@@ -26,11 +30,12 @@ mod adoption;
 mod create_inputs;
 mod launch_capture;
 mod outcomes;
+mod retirement;
 pub(crate) use adoption::AdoptionImport;
 pub(crate) use create_inputs::CreateInputs;
 pub(crate) use launch_capture::LaunchCapture;
 
-const MAXIMUM_TERMINAL_BINDINGS: usize = 1_024;
+pub(crate) const MAXIMUM_TERMINAL_BINDINGS: usize = 1_024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct WorkerPlacement {
@@ -324,6 +329,8 @@ pub(crate) enum RetainedBindingResolution<'coordinator> {
 pub(crate) struct TerminalCoordinator {
     bindings: BTreeMap<RequestId, TerminalBinding>,
     next_identity: Option<u128>,
+    /// Retired bindings whose Worker has not yet forgotten the terminal's Disposed record.
+    worker_retirements: VecDeque<retirement::WorkerRetirement>,
 }
 
 impl TerminalCoordinator {
@@ -331,6 +338,7 @@ impl TerminalCoordinator {
         Self {
             bindings: BTreeMap::new(),
             next_identity: Some(1),
+            worker_retirements: VecDeque::new(),
         }
     }
 
@@ -416,6 +424,8 @@ impl TerminalCoordinator {
         })
     }
 
+    /// Releases a popup's binding. A popup whose terminal was Disposed also queues the Worker
+    /// retirement of that Disposed record.
     pub(crate) fn release_popup(
         &mut self,
         reference: &RequestId,
@@ -428,7 +438,15 @@ impl TerminalCoordinator {
         {
             return false;
         }
-        self.bindings.remove(reference);
+        if let Some(binding) = self.bindings.remove(reference)
+            && let TerminalPhase::AwaitingStart(identity) | TerminalPhase::Started { identity, .. } =
+                binding.phase
+        {
+            self.queue_worker_retirement(retirement::WorkerRetirement::new(
+                binding.authorization,
+                identity,
+            ));
+        }
         true
     }
 
@@ -702,6 +720,12 @@ impl TerminalCoordinator {
         }
     }
 
+    /// Whether the coordinator retains its bound of bindings, so a create is refused until a
+    /// Close retires one.
+    pub(crate) fn at_binding_limit(&self) -> bool {
+        self.bindings.len() >= MAXIMUM_TERMINAL_BINDINGS
+    }
+
     /// Plans one creation whose launch carries `capture`, read before the caller took its locks.
     pub(crate) fn plan_create(
         &mut self,
@@ -728,7 +752,7 @@ impl TerminalCoordinator {
                 reason: CreateRejectedReason::WorkerConstraintUnsatisfied,
             }));
         }
-        if self.bindings.len() >= MAXIMUM_TERMINAL_BINDINGS {
+        if self.at_binding_limit() {
             return Err(ready(CreateOutcome::Unavailable {
                 reason: CreateUnavailableReason::ServerBusy,
             }));

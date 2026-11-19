@@ -1511,6 +1511,7 @@
 				"request-ledger-full",
 				"no-compatible-worker",
 				"server-busy",
+				"terminal-limit-reached",
 				"service-unavailable",
 				"terminal-busy",
 				"terminal-runtime-unavailable",

@@ -259,37 +259,6 @@ fn launch_read_re_resolves_route_and_revision_after_membership_moves() {
 }
 
 #[test]
-fn launch_read_hides_the_orphaned_retained_record_after_close() {
-    let mut coordinator = session();
-    let terminal_id = started_open(&mut coordinator, 3201, 3202);
-    assert!(matches!(
-        coordinator.terminal_launch_read(&terminal_id),
-        Outcome::Found { .. }
-    ));
-    let (context, tab, panel) = workspace_leaf(&mut coordinator);
-    let _command = close_leaf(&mut coordinator, context, tab, panel, 3203);
-
-    // The coordinator still retains the create fact — membership, not record
-    // retention, gates visibility, so the orphaned record reads as not-found.
-    assert!(
-        coordinator
-            .terminals
-            .has_retained_binding(&PresentationBinding {
-                terminal_id: WorkbenchTerminalId::parse(&terminal_id).unwrap(),
-                worker_id: WorkbenchWorkerId::parse(&format!(
-                    "{:032x}",
-                    u128::from_be_bytes([9; 16])
-                ))
-                .unwrap(),
-            })
-    );
-    assert_eq!(
-        coordinator.terminal_launch_read(&terminal_id),
-        Outcome::NotFound
-    );
-}
-
-#[test]
 fn launch_read_reports_not_tracked_for_a_visible_binding_without_a_coordinator_record() {
     let mut coordinator = session();
     // The Server-issued intent entry point — the same one `prepare_open` drives —

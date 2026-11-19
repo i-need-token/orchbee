@@ -245,12 +245,13 @@ impl SessionCoordinator {
                 return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
             }
         };
+        let at_terminal_limit = terminals.at_binding_limit();
         let mut terminal = match terminals.plan_create(request, Some(worker), Some(expiry), capture)
         {
             Ok(plan) => plan,
             Err(result) => {
                 return PreparedTerminalPanelCreate::Ready(
-                    match terminal_preflight_reason(&result) {
+                    match terminal_preflight_reason(&result, at_terminal_limit) {
                         Ok(reason) => admission.runtime_unavailable(reason.into()),
                         Err(reason) => admission.preflight_rejected(reason),
                     },

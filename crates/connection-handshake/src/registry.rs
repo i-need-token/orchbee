@@ -40,6 +40,11 @@ pub const STREAM_OUTCOME_UNKNOWN: &str = "stream-outcome-unknown";
 /// reads `unavailable` for that refusal, as its own release did.
 pub const CONFIGURED_COMMAND_SOURCE_EXITED: &str = "configured-command-source-exited";
 
+/// The `client-server` capability before a Server may refuse a terminal create with
+/// `terminal-limit-reached`, when the Session already retains its bound of terminals. A Client
+/// without it reads `server-busy` for that refusal, as its own release did.
+pub const TERMINAL_LIMIT_REACHED: &str = "terminal-limit-reached";
+
 /// The `worker-host` capability before a Worker may ask a Host to attach a Keeper and hold its
 /// terminals' handles there. No build offers it before the Worker uses the Keeper.
 pub const KEEPER: &str = "keeper";
@@ -119,6 +124,7 @@ impl ConnectionKind {
                 CONFIGURED_COMMAND_SOURCE_EXITED,
                 PROMPT_GATED_INPUT,
                 STREAM_OUTCOME_UNKNOWN,
+                TERMINAL_LIMIT_REACHED,
                 TERMINAL_RUNTIME,
                 UPDATE_CHECK,
             ],

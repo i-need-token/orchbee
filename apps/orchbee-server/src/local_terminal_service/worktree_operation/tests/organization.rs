@@ -37,8 +37,7 @@ fn opened() -> Completion {
 
 /// Starts the one shell the Server launches and returns the program it runs first, if any.
 fn complete_one_shell(fixture: &mut Fixture) -> Option<String> {
-    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) =
-        read_message(&mut fixture.peer).unwrap()
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = fixture.next_request().unwrap()
     else {
         panic!("one terminal launch")
     };
@@ -269,7 +268,7 @@ fn asynchronous_worktree_completion_uses_the_sources_current_project_and_regroup
         .set_read_timeout(Some(Duration::from_millis(50)))
         .unwrap();
     assert!(
-        read_message(&mut fixture.peer).is_err(),
+        fixture.next_request().is_err(),
         "regroup/dissolve must send neither PTY launch nor Git mutation requests"
     );
 }
@@ -648,7 +647,7 @@ fn delayed_worktree_result_cannot_resurrect_a_closed_or_closing_source() {
             .set_read_timeout(Some(Duration::from_millis(50)))
             .unwrap();
         assert!(
-            read_message(&mut fixture.peer).is_err(),
+            fixture.next_request().is_err(),
             "no first shell or replacement source may be launched"
         );
     }

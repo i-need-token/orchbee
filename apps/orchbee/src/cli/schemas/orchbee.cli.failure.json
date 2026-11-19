@@ -349,6 +349,7 @@
 				"server-busy",
 				"service-unavailable",
 				"terminal-busy",
+				"terminal-limit-reached",
 				"terminal-runtime-unavailable"
 			]
 		},

@@ -153,7 +153,8 @@ pub(super) fn drive_close_to_publication(
                     }
                     TerminalLifecycleAction::Force => TerminalLifecycleOutcome::ForceAccepted,
                     TerminalLifecycleAction::Dispose => TerminalLifecycleOutcome::Disposed,
-                    TerminalLifecycleAction::InspectInventoryPage { .. } => {
+                    TerminalLifecycleAction::InspectInventoryPage { .. }
+                    | TerminalLifecycleAction::Retire => {
                         panic!("conditional Close requires the dedicated idle-evidence fixture")
                     }
                 };

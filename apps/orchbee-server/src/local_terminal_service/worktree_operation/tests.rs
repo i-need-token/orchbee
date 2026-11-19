@@ -6,7 +6,8 @@ use crate::{
     worker_registry::{WorkerAdmission, WorkerRegistry},
 };
 use orchbee_capability_node_protocol::{
-    AbsoluteCwd, CapabilityNodeMessage, GitReference, WorktreeCheckout, WorktreeMutation,
+    AbsoluteCwd, CapabilityNodeMessage, GitReference, ReadMessageError, TerminalLifecycleAction,
+    TerminalLifecycleOutcome, TerminalLifecycleResult, WorktreeCheckout, WorktreeMutation,
     WorktreeMutationCompletion as Completion, WorktreeMutationEffect, WorktreeMutationError,
     WorktreeMutationFailure, WorktreeMutationJobAction, WorktreeMutationOutcome,
     WorktreeMutationPollOutcome, WorktreeMutationRequest, WorktreeMutationResult,
@@ -147,9 +148,31 @@ impl Fixture {
             operation_id: id(40),
         })
     }
+    /// Reads the next Worker request, answering each binding retirement a Close left behind.
+    fn next_request(&mut self) -> Result<CapabilityNodeMessage, ReadMessageError> {
+        loop {
+            match read_message(&mut self.peer)? {
+                CapabilityNodeMessage::TerminalLifecycleRequest(request)
+                    if request.action == TerminalLifecycleAction::Retire =>
+                {
+                    write_message(
+                        &mut self.peer,
+                        &CapabilityNodeMessage::TerminalLifecycleResult(
+                            TerminalLifecycleResult::new(
+                                request,
+                                TerminalLifecycleOutcome::Retired,
+                            )
+                            .unwrap(),
+                        ),
+                    )
+                    .unwrap();
+                }
+                message => return Ok(message),
+            }
+        }
+    }
     fn receive(&mut self) -> WorktreeMutationRequest {
-        let CapabilityNodeMessage::WorktreeMutationRequest(request) =
-            read_message(&mut self.peer).unwrap()
+        let CapabilityNodeMessage::WorktreeMutationRequest(request) = self.next_request().unwrap()
         else {
             panic!("only Git requests allowed")
         };
@@ -545,7 +568,7 @@ fn failed_remove_can_close_explicitly_without_repeating_git_and_pending_close_is
         .set_read_timeout(Some(Duration::from_millis(40)))
         .unwrap();
     assert!(
-        read_message(&mut fixture.peer).is_err(),
+        fixture.next_request().is_err(),
         "manual Close must not submit Git"
     );
 }
@@ -794,7 +817,7 @@ fn observed_source_open_then_group_close_retains_tombstones_without_git_deletion
         .set_read_timeout(Some(Duration::from_millis(50)))
         .unwrap();
     assert!(
-        read_message(&mut fixture.peer).is_err(),
+        fixture.next_request().is_err(),
         "group Close must not submit Git deletion"
     );
 }
@@ -939,7 +962,7 @@ fn group_owner_resumes_admission_failure_but_refuses_stop_or_removed_source() {
             .set_read_timeout(Some(Duration::from_millis(50)))
             .unwrap();
         assert!(
-            read_message(&mut fixture.peer).is_err(),
+            fixture.next_request().is_err(),
             "empty Workspace closure cannot issue Git or terminal effects"
         );
     }

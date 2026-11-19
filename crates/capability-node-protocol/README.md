@@ -534,7 +534,7 @@ held-listener behavior remain outside this crate's scope.
 Pre-admission rejection distinguishes wrong Worker, stale generation, expired lease, stale fence,
 conflicting same-fence replay, unsupported capability, and retained-binding capacity. A
 `CapacityExceeded` result is valid only for a previously unseen `TerminalId` after one Worker
-generation has retained 1,024 bindings; it inserts no tombstone and changes no binding. Host-side
+generation counts 1,024 bindings that still occupy a terminal; it inserts no tombstone and changes no binding. Host-side
 rejection and failure retain the observed Host epoch. `HostUnavailableBeforeHandoff` is a definite
 pre-effect failure;
 `OutcomeUnknown` is the conservative result when a dispatched request has no observable result,
@@ -665,7 +665,7 @@ crate depends on neither protocol.
 
 ## Authorization evidence
 
-No TLA+ model checks this authorization. Worker authorization/capacity implementation tests cover below-limit admission, the full threshold, rejection of a new identity, occupied-slot priority, result clearing, cached replay, higher-fence replacement only after the global slot is empty, rejection preservation and classification priority. Production retains exactly 1,024 bindings per Worker generation, with no release, TTL, LRU or eviction path; explicit retirement remains required before production. This sampled implementation evidence replaces the separate bounded capacity model and is not an exhaustive proof over all 1,024 entries.
+No TLA+ model checks this authorization. Worker authorization/capacity implementation tests cover below-limit admission, the full threshold, rejection of a new identity, occupied-slot priority, result clearing, cached replay, higher-fence replacement only after the global slot is empty, rejection preservation, classification priority and retirement. A Worker generation counts at most 1,024 bindings: a Disposed or definitively failed binding stops counting, and the Server's `Retire` forgets it; there is no TTL, LRU or eviction path. This sampled implementation evidence replaces the separate bounded capacity model and is not an exhaustive proof over all 1,024 entries.
 
 ## Verification
 
@@ -964,3 +964,18 @@ conditional Close asks first is the Server's own decision from its read of the t
 byte goldens, Worker receipt tests and the Server conditional-close witnesses cover this
 representation. Upgrade and roll back the matched native cohort together; no mixed-version safety
 bypass is supported.
+
+## Binding retirement step
+
+Action 7 `Retire` names a retained binding whose terminal the Worker recorded as Disposed, with the
+same authorization, fence and full Host identity as the Close step that disposed it; it carries no
+bytes after the tag. The Worker answers it without the Host: outcome tag 10 `Retired` (no payload)
+removes the binding, after which every request naming that terminal is rejected as
+`BindingUnavailable`, exactly like one the Worker never admitted. A Retire for a binding without a
+Disposed record is `LifecycleConflict` and keeps it; an expired lease is `LeaseExpired`. The Host
+epoch need not be current, because no Host request follows. `Retired` is legal only for Retire.
+Retire also admits the shared failure outcomes; the Worker itself answers only `Retired` or a
+refusal, and the Server's carrier may report a lost exchange as `OutcomeUnknown`. Only the current capability may carry
+action 7. The Server sends Retire only after it retired its own binding, so no request it issues
+can name the terminal again. Old cohorts reject tags 7 and 10; upgrade and roll back the matched
+native cohort together.

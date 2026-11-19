@@ -9,6 +9,12 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.launch.requestTooLarge',
 		defaultMessage: enUSWorkbenchMessages['workbench.launch.requestTooLarge'],
 	},
+	terminalLimitReached: {
+		description:
+			'The Session refused a new terminal because it already holds its bound of terminals; closing some frees room.',
+		id: 'workbench.launch.terminalLimitReached',
+		defaultMessage: enUSWorkbenchMessages['workbench.launch.terminalLimitReached'],
+	},
 	workspaceMoveToProject: {
 		description: 'Workspace grouping submenu.',
 		id: 'workbench.workspaces.moveToProject',

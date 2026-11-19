@@ -427,6 +427,12 @@ fn serve(
             let result = kernel
                 .take_lifecycle_result()
                 .ok_or_else(|| io::Error::other("Worker lifecycle result is missing"))?;
+            // A retired terminal is never named again, so its cleanup cell frees for another Close.
+            if result.outcome()
+                == orchbee_capability_node_protocol::TerminalLifecycleOutcome::Retired
+            {
+                host.forget_retired_target(request.target);
+            }
             if server_transport::send(
                 &server,
                 (disposition == HostOperationDisposition::ResultReady).then_some(&*host),

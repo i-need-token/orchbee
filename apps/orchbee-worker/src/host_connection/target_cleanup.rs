@@ -39,8 +39,9 @@ const DETACH_BACKLOG_LIMIT: usize = 8;
 
 #[derive(Default)]
 pub(super) struct RetiredTargets {
-    // At most one target per generation-local retained Close binding. Capacity is
-    // obtained before the request; the ACK path only overwrites an existing cell.
+    // At most one target per generation-local retained Close binding, freed when the Server
+    // retires the binding. Capacity is obtained before the request; the ACK path only overwrites
+    // an existing cell.
     targets: Vec<RemovedTarget>,
     /// Viewer and controller attachments detached in this Host epoch. The Host may still have
     /// sent events for them before it handled the Detach.
@@ -114,6 +115,21 @@ impl HostBrokerConnection {
         }
         if let Some(id) = prepared.target.controller {
             self.controllers.borrow_mut().remove(id);
+        }
+    }
+
+    /// Forgets the cleanup cell of a disposed terminal the Server retired. Nothing names that
+    /// terminal again, so its cell frees a place for another Close; an event that still arrived for
+    /// one of its old attachments would be dropped as unusable, which never ends the connection.
+    /// No prepared cleanup is outstanding here: preparation and commit share one Host slot.
+    pub(crate) fn forget_retired_target(&self, identity: HostTerminalIdentity) {
+        let mut retired = self.retired_targets.borrow_mut();
+        if let Some(index) = retired
+            .targets
+            .iter()
+            .position(|target| target.disposed && target.identity == identity)
+        {
+            retired.targets.swap_remove(index);
         }
     }
 

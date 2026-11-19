@@ -129,7 +129,8 @@ fn ack(request: TerminalLifecycleRequest) -> TestResult<Vec<u8>> {
         TerminalLifecycleAction::Force => LifecycleControl::ForceTerminateTerminalAccepted(target),
         TerminalLifecycleAction::Dispose => LifecycleControl::DisposeTerminalAccepted(target),
         TerminalLifecycleAction::InventoryPage { .. }
-        | TerminalLifecycleAction::InspectInventoryPage { .. } => panic!("mutation fixture"),
+        | TerminalLifecycleAction::InspectInventoryPage { .. }
+        | TerminalLifecycleAction::Retire => panic!("mutation fixture"),
     })?;
     wire(
         control.kind,

@@ -81,7 +81,7 @@ impl SessionCoordinator {
                 &capture,
             )
             .map_err(
-                |message| match tab_create::terminal_preflight_reason(&message) {
+                |message| match tab_create::terminal_preflight_reason(&message, false) {
                     Ok(WorkbenchTabCreateRuntimeUnavailableReason::NoCompatibleWorker) => {
                         Failure::WorkerUnavailable {}
                     }

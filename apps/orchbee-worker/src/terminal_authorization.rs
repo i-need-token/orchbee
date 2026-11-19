@@ -396,7 +396,14 @@ impl AuthorizedHostOperationKernel {
                 AdmissionRejection::ConflictingReplay,
             ));
         }
-        if existing_binding.is_none() && self.bindings.len() >= MAXIMUM_RETAINED_TERMINAL_BINDINGS {
+        if existing_binding.is_none()
+            && self
+                .bindings
+                .values()
+                .filter(|binding| binding.occupies_capacity())
+                .count()
+                >= MAXIMUM_RETAINED_TERMINAL_BINDINGS
+        {
             return Ok(AdmissionAction::Reject(
                 AdmissionRejection::CapacityExceeded,
             ));

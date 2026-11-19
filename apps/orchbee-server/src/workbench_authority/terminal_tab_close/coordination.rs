@@ -147,6 +147,41 @@ impl WorkbenchAuthority {
         record.continuation(index).map(CloseContinuation::status)
     }
 
+    /// Every retained close target whose terminal has ended, with the member binding that named
+    /// it: the exact runtime once its continuation knows that terminal Disposed, or no runtime for
+    /// an uncreated member once its Close is published.
+    pub fn ended_terminal_tab_close_targets(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &orchbee_workbench_protocol::PresentationBinding,
+            Option<WorkbenchTabCloseRuntimeTarget>,
+        ),
+    > {
+        self.ledger
+            .values()
+            .filter_map(|entry| match entry {
+                RetainedRequest::TabClose(record) => Some(record),
+                _ => None,
+            })
+            .flat_map(|record| {
+                (0..record.target_count()).filter_map(move |index| {
+                    let target = record.target(index)?;
+                    let ended = match target.runtime() {
+                        Some(_) => record.continuation(index).is_some_and(|continuation| {
+                            matches!(
+                                continuation.status(),
+                                orchbee_workbench_protocol::WorkbenchTabCloseStatus::DisposedAwaitingPublication { .. }
+                                    | orchbee_workbench_protocol::WorkbenchTabCloseStatus::Closed { .. }
+                            )
+                        }),
+                        None => record.is_closed(),
+                    };
+                    ended.then(|| (target.member().binding(), target.runtime()))
+                })
+            })
+    }
+
     #[must_use]
     pub fn terminal_tab_close_generation(
         &self,

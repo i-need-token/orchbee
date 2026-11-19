@@ -314,12 +314,13 @@ impl SessionCoordinator {
                 return PreparedTerminalTabCreate::Ready(admission.retire_composition_failure());
             }
         };
+        let at_terminal_limit = terminals.at_binding_limit();
         let mut terminal = match terminals.plan_create(request, Some(worker), Some(expiry), capture)
         {
             Ok(plan) => plan,
             Err(result) => {
                 return PreparedTerminalTabCreate::Ready(
-                    match terminal_preflight_reason(&result) {
+                    match terminal_preflight_reason(&result, at_terminal_limit) {
                         Ok(reason) => admission.runtime_unavailable(reason),
                         Err(reason) => admission.preflight_rejected(reason),
                     },
@@ -521,23 +522,28 @@ pub(super) fn pending_authorization_from_message(
     Some(command.authorization())
 }
 
+/// `at_terminal_limit` is whether the coordinator retained its bound of bindings when it planned
+/// the create, the one condition that refuses there before any other `server-busy` cause.
 pub(super) fn terminal_preflight_reason(
     result: &ServerMessage,
+    at_terminal_limit: bool,
 ) -> Result<WorkbenchTabCreateRuntimeUnavailableReason, WorkbenchRejectionReason> {
-    if matches!(result, ServerMessage::TerminalCreateResult(result) if result.outcome() == CreateOutcome::Rejected { reason: CreateRejectedReason::LaunchRequestTooLarge })
-    {
-        return Err(WorkbenchRejectionReason::LaunchRequestTooLarge);
-    }
-    if matches!(
-        result,
-        ServerMessage::TerminalCreateResult(result)
-            if result.outcome() == CreateOutcome::Unavailable {
-                reason: CreateUnavailableReason::NoCompatibleWorker,
-            }
-    ) {
-        Ok(WorkbenchTabCreateRuntimeUnavailableReason::NoCompatibleWorker)
-    } else {
-        Ok(WorkbenchTabCreateRuntimeUnavailableReason::ServerBusy)
+    let ServerMessage::TerminalCreateResult(result) = result else {
+        return Ok(WorkbenchTabCreateRuntimeUnavailableReason::ServerBusy);
+    };
+    match result.outcome() {
+        CreateOutcome::Rejected {
+            reason: CreateRejectedReason::LaunchRequestTooLarge,
+        } => Err(WorkbenchRejectionReason::LaunchRequestTooLarge),
+        CreateOutcome::Unavailable {
+            reason: CreateUnavailableReason::NoCompatibleWorker,
+        } => Ok(WorkbenchTabCreateRuntimeUnavailableReason::NoCompatibleWorker),
+        CreateOutcome::Unavailable {
+            reason: CreateUnavailableReason::ServerBusy,
+        } if at_terminal_limit => {
+            Ok(WorkbenchTabCreateRuntimeUnavailableReason::TerminalLimitReached)
+        }
+        _ => Ok(WorkbenchTabCreateRuntimeUnavailableReason::ServerBusy),
     }
 }
 

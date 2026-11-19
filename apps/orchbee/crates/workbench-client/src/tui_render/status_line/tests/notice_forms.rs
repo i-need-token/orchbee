@@ -30,6 +30,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
         N::CreateNotCreated,
         N::CreateOrderConflict,
         N::LaunchRequestTooLarge,
+        N::TerminalLimitReached,
         N::DuplicatePending,
         N::DuplicateNotStarted,
         N::DuplicateOutcomeUnknown,
@@ -209,6 +210,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             | N::CreateNotCreated
             | N::CreateOrderConflict
             | N::LaunchRequestTooLarge
+            | N::TerminalLimitReached
             | N::DuplicatePending
             | N::DuplicateNotStarted
             | N::DuplicateOutcomeUnknown

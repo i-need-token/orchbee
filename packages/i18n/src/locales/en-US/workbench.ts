@@ -1,6 +1,8 @@
 export const enUSWorkbenchMessages = {
 	'workbench.launch.requestTooLarge':
 		"Couldn't start the terminal; shorten the program's arguments or environment variables in Settings.",
+	'workbench.launch.terminalLimitReached':
+		'This session reached its 1,024-terminal limit. Close some terminals to open new ones.',
 	'workbench.workspaces.moveToProject': 'Move to Project',
 	'workbench.workspaces.createProject': 'New Project and Move',
 	'workbench.workspaces.ungroup': 'Remove from Project',

@@ -2,7 +2,6 @@
 //! lifecycle state before admitting reads or cleanup. It does not query the Worker or infer
 //! disposal from a missing Workbench member.
 
-use orchbee_capability_node_protocol::{TerminalId, WorkerId};
 use orchbee_server::{
     WorkbenchTabCloseMemberRuntime, WorkbenchTabCloseRuntimeTarget,
     WorkbenchTabCloseRuntimeUnavailableReason,
@@ -11,7 +10,7 @@ use orchbee_workbench_protocol::{
     PresentationBinding, WorkbenchRequestId, WorkbenchTabCloseStatus,
 };
 
-use super::SessionCoordinator;
+use super::{SessionCoordinator, terminal_retirement::physical_ids};
 use crate::terminal_coordinator::{
     BindingViewerTarget, RetainedRuntimeTargetError, TerminalCoordinator, WorkerPlacement,
 };
@@ -30,18 +29,21 @@ impl SessionCoordinator {
             .is_some_and(|authority| authority.has_terminal_tab_close(binding))
     }
 
+    /// A retained Close's evidence decides first, so a terminal it disposed stays Disposed after
+    /// its binding is retired; a binding with no Close is fenced once retired or closing.
     pub(crate) fn target_lifecycle(&self, target: BindingViewerTarget) -> TargetLifecycle {
         let Some(authority) = self.workbench.as_ref() else {
             return TargetLifecycle::Unfenced;
         };
-        if self.terminals.target_retired(target) {
-            return TargetLifecycle::Fenced;
-        }
         let Some(binding) = target_binding(target) else {
             return TargetLifecycle::Fenced;
         };
         let Some(close_id) = authority.terminal_tab_close_request_for_binding(&binding) else {
-            return TargetLifecycle::Unfenced;
+            return if self.terminals.target_retired(target) {
+                TargetLifecycle::Fenced
+            } else {
+                TargetLifecycle::Unfenced
+            };
         };
         let Some(retained) = authority.terminal_tab_close_target_for_binding(close_id, &binding)
         else {
@@ -78,12 +80,7 @@ impl SessionCoordinator {
         current_worker: Option<WorkerPlacement>,
     ) -> Result<WorkbenchTabCloseMemberRuntime, WorkbenchTabCloseRuntimeUnavailableReason> {
         let unavailable = WorkbenchTabCloseRuntimeUnavailableReason::TerminalRuntimeUnavailable;
-        let terminal =
-            u128::from_str_radix(binding.terminal_id.as_str(), 16).map_err(|_| unavailable)?;
-        let worker =
-            u128::from_str_radix(binding.worker_id.as_str(), 16).map_err(|_| unavailable)?;
-        let terminal = TerminalId::from_bytes(terminal.to_be_bytes()).map_err(|_| unavailable)?;
-        let worker = WorkerId::from_bytes(worker.to_be_bytes()).map_err(|_| unavailable)?;
+        let (terminal, worker) = physical_ids(binding).ok_or(unavailable)?;
         if terminals.is_definitively_uncreated(terminal, worker) {
             return Ok(WorkbenchTabCloseMemberRuntime::Uncreated {
                 binding: binding.clone(),

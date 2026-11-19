@@ -95,6 +95,7 @@ impl WorkbenchService {
             event_capture: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             view_lane: std::sync::Mutex::new(None),
             names_source_exited: false,
+            names_terminal_limit: false,
         }
     }
 
@@ -1038,6 +1039,9 @@ pub(crate) struct WorkbenchClientConnection<'a> {
     /// The Client's handshake answer lists `configured-command-source-exited`, so its configured
     /// commands may be refused with `source-exited`; any other Client reads `unavailable`.
     names_source_exited: bool,
+    /// The Client's handshake answer lists `terminal-limit-reached`, so a create the binding bound
+    /// refuses names that reason; any other Client reads `server-busy`.
+    names_terminal_limit: bool,
     view_lane: std::sync::Mutex<Option<orchbee_workbench_protocol::MultiplexLaneId>>,
     event_capture: Arc<std::sync::atomic::AtomicBool>,
     events: std::sync::Mutex<
@@ -1051,6 +1055,11 @@ impl WorkbenchClientConnection<'_> {
     /// Records whether the Client's handshake answer lists `configured-command-source-exited`.
     pub(crate) fn naming_source_exited(mut self, named: bool) -> Self {
         self.names_source_exited = named;
+        self
+    }
+    /// Records whether the Client's handshake answer lists `terminal-limit-reached`.
+    pub(crate) fn naming_terminal_limit(mut self, named: bool) -> Self {
+        self.names_terminal_limit = named;
         self
     }
     /// Forgets this connection's title listening. When it was in front, the Clients still listening
@@ -1136,7 +1145,7 @@ impl WorkbenchClientConnection<'_> {
         if changes {
             self.service.changes.notify();
         }
-        result
+        terminal_limit_for_client(result, self.names_terminal_limit)
     }
 
     fn execute_inner(
@@ -1379,5 +1388,26 @@ impl Drop for WorkbenchClientConnection<'_> {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .disconnect(self.generation);
         self.stop_title_listening();
+    }
+}
+
+/// The answer a Client reads. One whose handshake answer lacks `terminal-limit-reached` cannot
+/// decode that reason, so it reads `server-busy`, its own release's answer to a create the binding
+/// bound refuses; nothing was created either way, and no other outcome changes.
+fn terminal_limit_for_client(execution: WorkbenchExecution, named: bool) -> WorkbenchExecution {
+    match execution {
+        WorkbenchExecution::Response(WorkbenchResponse::Command(mut result))
+            if !named
+                && result.outcome
+                    == (WorkbenchCommandOutcome::Unavailable {
+                        reason: WorkbenchCommandUnavailableReason::TerminalLimitReached,
+                    }) =>
+        {
+            result.outcome = WorkbenchCommandOutcome::Unavailable {
+                reason: WorkbenchCommandUnavailableReason::ServerBusy,
+            };
+            WorkbenchExecution::Response(WorkbenchResponse::Command(result))
+        }
+        execution => execution,
     }
 }

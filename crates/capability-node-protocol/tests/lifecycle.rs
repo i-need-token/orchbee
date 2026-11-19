@@ -178,6 +178,11 @@ fn golden_frames() -> Vec<Vec<u8>> {
         }
     }
     frames.push(result_frame(&[3], &[6, 2]));
+    frames.push(frame(&request_payload(&[7])));
+    frames.push(result_frame(&[7], &[10]));
+    for tag in 1..=8 {
+        frames.push(result_frame(&[7], &[5, tag]));
+    }
     for tag in 1..=4 {
         frames.push(result_frame(&query_action(None), &[7, tag]));
     }
@@ -429,7 +434,7 @@ fn malformed_seal_tags_and_positive_fields_are_rejected() {
     for ordinal in [1, 32] {
         assert_eq!(LifecycleStepOrdinal::new(ordinal).unwrap().get(), ordinal);
     }
-    for action in [vec![0], vec![7], vec![4, 2], query_action(Some((0, 0)))] {
+    for action in [vec![0], vec![8], vec![4, 2], query_action(Some((0, 0)))] {
         assert!(decode_message(&frame(&request_payload(&action))).is_err());
     }
     for (group, last) in [(5, 8), (6, 2), (7, 4), (8, 3)] {
@@ -437,8 +442,9 @@ fn malformed_seal_tags_and_positive_fields_are_rejected() {
             assert!(decode_message(&result_frame(&query_action(None), &[group, reason])).is_err());
         }
     }
-    for tag in [0, 10, 255] {
-        assert!(decode_message(&result_frame(&[1], &[tag])).is_err());
+    // Retired answers only Retire, and tag 11 is unassigned.
+    for (action, tag) in [(1, 0), (1, 10), (3, 10), (7, 3), (1, 11), (1, 255)] {
+        assert!(decode_message(&result_frame(&[action], &[tag])).is_err());
     }
     for phase in [vec![0], vec![7], vec![2, 2], vec![3, 2], vec![5, 2]] {
         assert!(

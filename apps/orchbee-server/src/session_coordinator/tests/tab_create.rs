@@ -738,10 +738,11 @@ fn oversized_launch_capture_is_a_definite_non_retryable_rejection_without_a_comm
     else {
         panic!("admitted Tab creation")
     };
-    let result = match crate::session_coordinator::tab_create::terminal_preflight_reason(&refusal) {
-        Ok(reason) => admission.runtime_unavailable(reason),
-        Err(reason) => admission.preflight_rejected(reason),
-    };
+    let result =
+        match crate::session_coordinator::tab_create::terminal_preflight_reason(&refusal, false) {
+            Ok(reason) => admission.runtime_unavailable(reason),
+            Err(reason) => admission.preflight_rejected(reason),
+        };
     let outcome = serde_json::to_value(&result.outcome).unwrap();
     assert_eq!(
         outcome["kind"], "rejected",

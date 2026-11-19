@@ -2,6 +2,8 @@ import type { WorkbenchMessageId } from '../en-US';
 
 export const zhCNWorkbenchMessages = {
 	'workbench.launch.requestTooLarge': '没能启动终端，请在设置中缩短程序的参数或环境变量。',
+	'workbench.launch.terminalLimitReached':
+		'此会话已达到 1,024 个终端的上限，请关闭一些终端后再打开新终端。',
 	'workbench.workspaces.moveToProject': '移动到项目',
 	'workbench.workspaces.createProject': '新建项目并移入',
 	'workbench.workspaces.ungroup': '移出项目',

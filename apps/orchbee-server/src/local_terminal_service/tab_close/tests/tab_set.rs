@@ -120,8 +120,8 @@ fn run(service: &LocalTerminalService, stop: bool, budget: Duration, read: &Clos
     service.run_tab_sets(&AtomicBool::new(stop), budget, read);
 }
 
-/// Answers the next `count` lifecycle requests in order; each answer may first look at the
-/// Server.
+/// Answers the next `count` lifecycle requests other than binding retirement in order; each answer
+/// may first look at the Server. A retirement a Close left behind is answered as it arrives.
 fn serve(
     mut peer: UnixStream,
     count: usize,
@@ -132,8 +132,12 @@ fn serve(
 )> {
     thread::spawn(move || {
         let mut seen = Vec::with_capacity(count);
-        for _ in 0..count {
+        while seen.len() < count {
             let request = lifecycle(&mut peer);
+            if request.action == TerminalLifecycleAction::Retire {
+                reply(&mut peer, request, TerminalLifecycleOutcome::Retired);
+                continue;
+            }
             seen.push((request.action, request.target));
             let outcome = answer(&request);
             reply(&mut peer, request, outcome);

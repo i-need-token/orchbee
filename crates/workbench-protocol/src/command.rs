@@ -1197,6 +1197,9 @@ pub enum WorkbenchCommandUnavailableReason {
     TerminalBusy,
     TerminalRuntimeUnavailable,
     ServerBusy,
+    /// The Session already retains its bound of terminals; closing some lets a new one start.
+    /// Sent only to a Client whose handshake answer lists `terminal-limit-reached`.
+    TerminalLimitReached,
     ServiceUnavailable,
     DirectoryUnavailable,
     /// The Worker found nothing at a requested directory path.

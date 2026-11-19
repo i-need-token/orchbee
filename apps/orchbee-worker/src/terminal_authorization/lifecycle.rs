@@ -91,6 +91,27 @@ impl LifecycleReceipts {
 }
 
 impl TerminalAuthorizationBinding {
+    /// Whether the binding counts against the capacity bound: it may still name a Host terminal.
+    /// A terminal recorded Disposed, or a Launch that definitively created none, no longer does.
+    /// The Server stops counting a binding only after learning one of those facts from this
+    /// Worker, so its count of retained bindings never falls below this one.
+    pub(super) fn occupies_capacity(&self) -> bool {
+        if self
+            .lifecycle
+            .is_some_and(|receipts| receipts.known_disposed)
+        {
+            return false;
+        }
+        !matches!(
+            &self.cached_result,
+            Some(AuthorizedHostOperationResult::Launch(result)) if matches!(
+                result.outcome(),
+                orchbee_capability_node_protocol::TerminalLaunchOutcome::Rejected(..)
+                    | orchbee_capability_node_protocol::TerminalLaunchOutcome::Failed(..)
+            )
+        )
+    }
+
     fn lifecycle_identity(&self) -> Option<HostTerminalIdentity> {
         let operation = match &self.authority {
             BindingAuthority::Imported { identity, .. } => return Some(*identity),
@@ -129,6 +150,9 @@ impl AuthorizedHostOperationKernel {
         if let Some(reason) = self.lifecycle_association_rejection(request, epoch) {
             self.queue_lifecycle_rejection(request, reason)?;
             return Ok(LifecycleAdmission::ResultReady);
+        }
+        if request.action == TerminalLifecycleAction::Retire {
+            return self.retire(request, now);
         }
         if matches!(
             request.action,
@@ -185,6 +209,36 @@ impl AuthorizedHostOperationKernel {
         Ok(LifecycleAdmission::Dispatch(LifecycleDispatch { request }))
     }
 
+    /// Forgets a binding whose terminal this Worker recorded as Disposed, without the Host. The
+    /// Server sends it once nothing it holds can name the binding again; afterwards a request
+    /// naming the terminal is refused as `BindingUnavailable`, like one never admitted, and the
+    /// Server never issues that terminal ID again.
+    fn retire(
+        &mut self,
+        request: TerminalLifecycleRequest,
+        now: u64,
+    ) -> Result<LifecycleAdmission, AuthorizationKernelError> {
+        let terminal_id = request.authorization.terminal_id;
+        let disposed = self
+            .bindings
+            .get(&terminal_id)
+            .and_then(|binding| binding.lifecycle)
+            .is_some_and(|receipts| receipts.known_disposed);
+        let outcome = if expired(request, now) {
+            TerminalLifecycleOutcome::Rejected(LifecycleRejection::LeaseExpired)
+        } else if disposed {
+            TerminalLifecycleOutcome::Retired
+        } else {
+            TerminalLifecycleOutcome::Rejected(LifecycleRejection::LifecycleConflict)
+        };
+        let result = TerminalLifecycleResult::new(request, outcome)?;
+        if outcome == TerminalLifecycleOutcome::Retired {
+            self.bindings.remove(&terminal_id);
+        }
+        self.slot = Some(HostOperationSlot::Lifecycle(LifecycleSlot::Ready(result)));
+        Ok(LifecycleAdmission::ResultReady)
+    }
+
     fn lifecycle_association_rejection(
         &self,
         request: TerminalLifecycleRequest,
@@ -209,7 +263,11 @@ impl AuthorizedHostOperationKernel {
         let Some(identity) = binding.lifecycle_identity() else {
             return Some(LifecycleRejection::BindingUnavailable);
         };
-        if identity != request.target || request.target.host_epoch() != epoch {
+        // Retire touches no Host terminal, so a Host restart since Disposed does not refuse it.
+        if identity != request.target
+            || (request.action != TerminalLifecycleAction::Retire
+                && request.target.host_epoch() != epoch)
+        {
             return Some(LifecycleRejection::HostIdentityMismatch);
         }
         None

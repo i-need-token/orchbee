@@ -727,6 +727,9 @@ pub(crate) enum ClientNotice {
     CreateNotCreated,
     CreateOrderConflict,
     LaunchRequestTooLarge,
+    /// The Session refused a create because it retains its bound of terminals; closing some
+    /// lets a new one start.
+    TerminalLimitReached,
     DuplicatePending,
     DuplicateNotStarted,
     DuplicateOutcomeUnknown,

@@ -16,7 +16,7 @@ use orchbee_workbench_protocol::{
 use super::{LocalTerminalService, lease_expiry, placement};
 use crate::{
     session_coordinator::PostcommitCoordinationError,
-    worker_obcn_carrier::{WorkerRequestError, WorkerResponseFailure},
+    worker_obcn_carrier::{WorkerOperationRequest, WorkerRequestError, WorkerResponseFailure},
 };
 
 // Inert candidate failure yields at this cadence; it never renews the retained attempt.
@@ -252,7 +252,26 @@ impl LocalTerminalService {
             // The reservation re-derives the scanned step at the scan's instant, so a deadline
             // crossed in between cannot turn the chosen step into a mismatch.
             let Some((id, step, next, now)) = selected else {
-                return Ok(due);
+                // Idle: retire what Closes ended, then let the Worker forget one Disposed record.
+                coordinator.retire_released_terminals();
+                let retirement =
+                    worker
+                        .filter(|_| handle.is_some())
+                        .zip(expiry)
+                        .and_then(|(worker, expiry)| {
+                            coordinator.next_worker_retirement(worker, expiry)
+                        });
+                drop(coordinator);
+                drop(workers);
+                return Ok(match handle.zip(retirement) {
+                    Some((handle, request)) => {
+                        // Every answer ends it: Retired, or a refusal that leaves the Worker a
+                        // record it no longer counts.
+                        let _answer = handle.request(WorkerOperationRequest::Lifecycle(request));
+                        Some(Instant::now())
+                    }
+                    None => due,
+                });
             };
             *cursor = Some(id.clone());
             match next {

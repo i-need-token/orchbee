@@ -49,6 +49,7 @@ impl FieldError {
             | R::TerminalBusy
             | R::TerminalRuntimeUnavailable
             | R::ServerBusy
+            | R::TerminalLimitReached
             | R::ServiceUnavailable => None,
         }
     }

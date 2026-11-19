@@ -23,6 +23,7 @@ mod launch_read;
 mod multileaf_membership;
 mod panel_split;
 mod tab_create;
+mod terminal_retirement;
 mod terminal_selection;
 
 fn id(value: u128) -> RequestId {

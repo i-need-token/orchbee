@@ -52,6 +52,8 @@ pub(crate) enum WorkbenchClientNotice {
     CreateNotCreated,
     CreateOrderConflict,
     LaunchRequestTooLarge,
+    /// A create the Session refused at its terminal limit.
+    TerminalLimitReached,
     DuplicatePending,
     DuplicateNotStarted,
     DuplicateOutcomeUnknown,

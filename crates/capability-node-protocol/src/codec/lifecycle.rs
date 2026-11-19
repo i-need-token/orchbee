@@ -29,6 +29,7 @@ pub(super) fn encode_result(result: TerminalLifecycleResult) -> Vec<u8> {
         TerminalLifecycleOutcome::TerminateAccepted => bytes.push(1),
         TerminalLifecycleOutcome::ForceAccepted => bytes.push(2),
         TerminalLifecycleOutcome::Disposed => bytes.push(3),
+        TerminalLifecycleOutcome::Retired => bytes.push(10),
         TerminalLifecycleOutcome::InventoryPage(page) => {
             bytes.push(4);
             bytes.extend(page.inventory_generation.get().to_be_bytes());
@@ -99,6 +100,7 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalLifecycleResult, Pro
         1 => TerminalLifecycleOutcome::TerminateAccepted,
         2 => TerminalLifecycleOutcome::ForceAccepted,
         3 => TerminalLifecycleOutcome::Disposed,
+        10 => TerminalLifecycleOutcome::Retired,
         4 => {
             let inventory_generation = positive(reader.read_u64()?)?;
             let next_cursor = decode_cursor(&mut reader)?;
@@ -179,6 +181,7 @@ fn encode_request_body(bytes: &mut Vec<u8>, request: TerminalLifecycleRequest) {
             bytes.push(6);
             encode_cursor(bytes, cursor);
         }
+        TerminalLifecycleAction::Retire => bytes.push(7),
     }
 }
 
@@ -208,6 +211,9 @@ fn decode_request_body(
             TerminalLifecycleAction::InspectInventoryPage {
                 cursor: decode_cursor(reader)?,
             }
+        }
+        7 if capability_version == TERMINAL_LIFECYCLE_CAPABILITY_VERSION => {
+            TerminalLifecycleAction::Retire
         }
         2 => TerminalLifecycleAction::Force,
         3 => TerminalLifecycleAction::Dispose,

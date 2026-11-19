@@ -281,7 +281,11 @@
 				"apps/orchbee-server/src/terminal_coordinator.rs",
 				"apps/orchbee-server/src/terminal_coordinator/**",
 				"apps/orchbee-server/src/local_terminal_service.rs",
-				"apps/orchbee-server/tests/client_process/terminal_operations.rs"
+				"apps/orchbee-server/tests/client_process/terminal_operations.rs",
+				"apps/orchbee-server/src/session_coordinator/terminal_retirement.rs",
+				"apps/orchbee-server/src/session_coordinator/tab_close.rs",
+				"apps/orchbee-worker/src/terminal_authorization.rs",
+				"apps/orchbee-worker/src/terminal_authorization/**"
 			],
 			"requiredCoverage": [
 				"IssueCreate",
@@ -296,7 +300,31 @@
 				"Disconnect",
 				"ReplaceWorker",
 				"CompleteRejected",
-				"ImportBinding"
+				"ImportBinding",
+				"DisposeTerminal",
+				"PublishClose",
+				"RetireBinding",
+				"ForgetRetired"
+			],
+			"variants": [
+				{
+					"name": "replacement",
+					"constants": {
+						"MaxOperation": 3,
+						"MaxGeneration": 2,
+						"MaxTerminal": 1,
+						"CloseTerminals": false
+					}
+				},
+				{
+					"name": "refill",
+					"constants": {
+						"MaxOperation": 2,
+						"MaxGeneration": 1,
+						"MaxTerminal": 2,
+						"CloseTerminals": true
+					}
+				}
 			]
 		},
 		{
