@@ -738,6 +738,40 @@ fn claude_status_slot_above_the_prompt_box_follows_live_shapes() {
         );
     }
 }
+#[test]
+fn kimi_copilot_and_antigravity_follow_real_turn_captures() {
+    // Live rows from Kimi Code 2.5.3, GitHub Copilot CLI 1.0.114 and Antigravity CLI 1.5.12 in an empty
+    // scratch folder. Paths, account names and model plans are replaced; the rows are otherwise unchanged.
+    const KIMI_TRUST: &str = "  Trust this folder?\n  ↑↓ navigate · Enter select · Esc exit\n  C:\\work\\scratch-folder\n   ❯ Trust and continue\n     Exit\n";
+    const KIMI_TURN: &str = " ❯ reply with the word ok\n  🌒 · Tip: ask Kimi to schedule tasks, e.g. \"remind me at 5pm\"\n ╭──────────────────────────╮\n │ >                        │\n ╰──────────────────────────╯\n Model name · Plan thinking: high  C:\\work\\project\n                                                           context: 0% (0/977k)\n";
+    const KIMI_IDLE: &str = " ❯ reply with the word ok\n ● ok\n ╭──────────────────────────╮\n │ >                        │\n ╰──────────────────────────╯\n Model name · Plan thinking: high  C:\\work\\project\n                                                         context: 2% (15k/977k)\n";
+    const COPILOT_TRUST: &str = "│ Confirm folder trust\n│ Do you trust the files in this folder?\n│\n│ ❯ 1. Yes\n│\n│ ↑/↓ to navigate · pgup/pgdn to scroll · enter to select · esc to cancel\n";
+    const COPILOT_TURN: &str = " ❯ reply with the word ok                                             07:27\n ~\\work\\scratch  Run on: This computer\n╻▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n┃  \n╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n ● Working ctrl+c interrupt                  Model name · Plan\n";
+    const COPILOT_IDLE: &str = " ❯ Thought for 1s\n ● ok\n ~\\work\\scratch   Session: credits unavailable\n╻▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n┃  \n╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n Interactive · Manual Approval · / commands  Model name · Plan\n";
+    const ANTIGRAVITY_TRUST: &str = "Accessing workspace:\n\n  C:\\work\\scratch-folder\n\nDo you trust the contents of this project?\n\nAntigravity CLI requires permission to read, edit, and execute files here.\n\n> Yes, I trust this folder\n  No, exit\n\n  ↑/↓ Navigate · enter Confirm\n";
+    const ANTIGRAVITY_TURN: &str = "> reply with the word ok\n⣷  Generating...\n────────────────────────────────────────────────────────────────────────────────\n>\n────────────────────────────────────────────────────────────────────────────────\nesc to cancel                                     auto · Model name · high\nCtx: 0.00% │ Plan: - Wk: 0.00% │ 3P: - Wk: 0.00%\n";
+    const ANTIGRAVITY_IDLE: &str = "> reply with the word ok\n▸ Thought for 4s, 217 tokens\n  ok\n────────────────────────────────────────────────────────────────────────────────\n>\n────────────────────────────────────────────────────────────────────────────────\n? for shortcuts                                   auto · Model name · high\nCtx: 1.33% │ Plan: - Wk: 0.00% │ 3P: - Wk: 0.00%\n";
+    let engine = ScreenDetector::bundled().unwrap();
+    for (provider, screen, expected) in [
+        (Provider::Kimi, KIMI_TRUST, Blocked),
+        (Provider::Kimi, KIMI_TURN, Working),
+        (Provider::Kimi, KIMI_IDLE, Idle),
+        (Provider::Copilot, COPILOT_TRUST, Blocked),
+        (Provider::Copilot, COPILOT_TURN, Working),
+        (Provider::Copilot, COPILOT_IDLE, Idle),
+        (Provider::Antigravity, ANTIGRAVITY_TRUST, Blocked),
+        (Provider::Antigravity, ANTIGRAVITY_TURN, Working),
+        (Provider::Antigravity, ANTIGRAVITY_IDLE, Idle),
+    ] {
+        let detected = engine.detect(Some(provider), input(screen)).unwrap();
+        assert_eq!(detected.state, expected, "{screen}");
+        assert_eq!(
+            engine.explain(provider, input(screen)).unwrap().state,
+            expected
+        );
+    }
+}
+
 fn one(rules: &str) -> Manifest {
     Manifest::parse(Provider::Codex, &format!("id='codex'\n{rules}")).unwrap()
 }

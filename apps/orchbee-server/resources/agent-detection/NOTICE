@@ -8,7 +8,9 @@ grok.toml adds browser-authentication blockers and an uncertain-login guard, wit
 gemini.toml adds a folder-trust blocker and a composer idle rule, with updated version metadata.
 kilo.toml adds a prompt-footer idle rule, with updated version metadata.
 hermes.toml adds a busy-footer working rule and a composer idle rule, with updated version metadata.
-kimi.toml accepts an ellipsis character after the spinner status word, with updated version metadata.
+kimi.toml accepts an ellipsis character after the spinner status word, adds a moon-and-tip working rule, a composer idle rule and a folder-trust blocker, with updated version metadata.
+github-copilot.toml adds a working footer rule and a composer idle rule, with updated version metadata.
+antigravity.toml adds a project-trust blocker, a cancel-footer working rule and a composer idle rule, with updated version metadata.
 cline.toml reads the spinner status anywhere on the live screen and drops the catch-all working rule, with updated
 version metadata.
 claude.toml moves its background-agents rule to a bounded status slot above the prompt box, with updated version metadata.

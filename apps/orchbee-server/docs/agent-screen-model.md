@@ -43,6 +43,14 @@ captures.
 The status line under a Kimi Code 2.5 answer reads `⠋ Working…` with an ellipsis character, which
 the spinner rule accepts beside three dots.
 
+Kimi Code 2.5.3 animates a moon phase beside a rotating tip (`🌒 · Tip: …`) while a turn runs, and that line is
+working; the bare-glyph rule does not match it. Its composer's `│ >` row with the `context: N%` footer is idle only
+when no busy line is live, and its folder trust question is a blocker with its live choice footer. GitHub Copilot CLI
+1.0.114 shows `● Working ctrl+c interrupt` (the dot alternates) while a turn runs, and the `Interactive · <mode> ·
+/ commands` footer above its composer border when idle; its folder trust box is the existing selection blocker.
+Antigravity CLI 1.5.12 shows `esc to cancel` in its footer while a turn runs, its `? for shortcuts` footer beside the
+`>` composer row is idle, and its project trust question is a blocker.
+
 Hermes writes its state into the OSC title (`⏳`, `✓`, `⚠`). For a title that carries none, Orchbee
 adds two screen rules from Windows captures: the composer's `type to redirect this turn` or the
 footer's `enter interrupt` in the last three rows is working, and a `❯` composer row under a rule

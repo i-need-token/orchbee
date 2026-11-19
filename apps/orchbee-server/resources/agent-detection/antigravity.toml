@@ -1,7 +1,7 @@
 id = "agy"
-version = "2026.06.24.1"
+version = "2026.11.19.1"
 min_engine_version = 1
-updated_at = "2026-06-24T00:00:00Z"
+updated_at = "2026-11-19T00:00:00Z"
 aliases = ["antigravity", "antigravity-cli"]
 
 [[rules]]
@@ -12,6 +12,25 @@ region = "whole_recent"
 visible_blocker = true
 contains = ["requesting permission for:"]
 any = [{ contains = ["do you want to proceed?"] }, { contains = ["tab amend", "edit command"] }]
+
+# Orchbee: Antigravity CLI 1.5.12 asks whether to trust a new project folder before its first turn; the
+# question and its navigation footer are both required.
+[[rules]]
+id = "trust_project_blocker"
+state = "blocked"
+priority = 350
+region = "whole_recent"
+visible_blocker = true
+contains = ["do you trust the contents of this project?", "enter confirm"]
+
+# Orchbee: the footer reads `esc to cancel` while a turn runs.
+[[rules]]
+id = "esc_cancel_working"
+state = "working"
+priority = 95
+region = "bottom_non_empty_lines(3)"
+visible_working = true
+contains = ["esc to cancel"]
 
 [[rules]]
 id = "spinner_working"
@@ -28,3 +47,13 @@ priority = 90
 region = "bottom_non_empty_lines(5)"
 visible_working = true
 line_regex = ['(?i)·\s*[1-9][0-9]*\s+task']
+
+# Orchbee: the idle composer is the `>` row between two separator rows, under the `? for shortcuts` footer.
+[[rules]]
+id = "composer_idle"
+state = "idle"
+priority = 10
+region = "bottom_non_empty_lines(4)"
+visible_idle = true
+contains = ["? for shortcuts"]
+line_regex = ['^\s*>']

@@ -1,7 +1,7 @@
 id = "kimi"
-version = "2026.11.11.1"
+version = "2026.11.19.1"
 min_engine_version = 1
-updated_at = "2026-11-11T00:00:00Z"
+updated_at = "2026-11-19T00:00:00Z"
 aliases = ["kimi-code", "kimi code"]
 
 [[rules]]
@@ -92,3 +92,33 @@ priority = 90
 region = "whole_recent"
 visible_working = true
 line_regex = ['(?i)^\s*[\u2800-\u28FF]+\s*(thinking(\.\.\.|\u2026)|working(\.\.\.|\u2026)|using )']
+
+# Orchbee: Kimi Code 2.5.3 animates a moon phase followed by a rotating tip (`🌒 · Tip: …`) while a
+# turn runs. The bare-glyph rule above does not match that line, so this rule reads it in the live rows.
+[[rules]]
+id = "moon_tip_spinner_working"
+state = "working"
+priority = 105
+region = "bottom_non_empty_lines(8)"
+visible_working = true
+line_regex = ['^\s*(🌑|🌒|🌓|🌔|🌕|🌖|🌗|🌘)\s+·\s']
+
+# Orchbee: the composer's `│ >` row with the `context: N%` footer is idle only when no busy line is live;
+# the busy rules outrank it by priority.
+[[rules]]
+id = "composer_idle"
+state = "idle"
+priority = 10
+region = "bottom_non_empty_lines(6)"
+visible_idle = true
+line_regex = ['^\s*│ >', 'context: \d+(\.\d+)?% \(']
+
+# Orchbee: Kimi Code 2.5.3 asks whether to trust a new folder before its first turn; the question and
+# its live choice footer are both required.
+[[rules]]
+id = "trust_folder_blocker"
+state = "blocked"
+priority = 380
+region = "whole_recent"
+visible_blocker = true
+contains = ["trust this folder?", "enter select"]

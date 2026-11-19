@@ -1,7 +1,7 @@
 id = "copilot"
-version = "2026.08.29.1"
+version = "2026.11.19.1"
 min_engine_version = 1
-updated_at = "2026-08-29T00:00:00Z"
+updated_at = "2026-11-19T00:00:00Z"
 aliases = ["github-copilot", "ghcs"]
 
 [[rules]]
@@ -34,6 +34,25 @@ all = [
 		] },
 	] },
 ]
+
+# Orchbee: Copilot CLI 1.0.114 shows `● Working ctrl+c interrupt` while a turn runs; its dot alternates
+# between ● and ○.
+[[rules]]
+id = "working_footer"
+state = "working"
+priority = 105
+region = "bottom_non_empty_lines(3)"
+visible_working = true
+line_regex = ['^\s*[●○]\s+Working\s+ctrl\+c interrupt']
+
+# Orchbee: the idle composer shows `Interactive · <mode> · / commands` under its bottom border (`╹▀▀`).
+[[rules]]
+id = "composer_idle"
+state = "idle"
+priority = 10
+region = "bottom_non_empty_lines(4)"
+visible_idle = true
+line_regex = ['^\s*Interactive · [^·]+· / commands\b', '^\s*╹▀+']
 
 [[rules]]
 id = "background_agents_working"
