@@ -69,6 +69,7 @@ import type { WorkbenchConfiguredCommand } from '../types/workbench-configured-c
 import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
 import { WORKBENCH_SHORTCUTS, type WorkbenchShortcutBinding } from '../utils/workbench-shortcuts';
+import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
 
 interface UseWorkbenchActionsOptions {
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
@@ -101,6 +102,8 @@ interface UseWorkbenchActionsOptions {
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
+	/** Reports a refusal or failure of an Action a person invoked, unless a surface already said it. */
+	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
 	readonly runtime: ActionRuntime;
 	/** How the strip lays out Tabs now, which names the place after the active Tab. */
 	readonly tabStripOrientation: TabStripOrientation;
@@ -120,6 +123,8 @@ interface WorkbenchActions {
 		source: ActionInvocationSource,
 		details?: Pick<ActionInvocation, 'capabilities' | 'focus' | 'target'>,
 	) => ActionExecution<ActionOutputFor<WorkbenchActionCatalog, Id>>;
+	/** Runs an Action whose owner reports its own outcome, so no generic outcome notice is written. */
+	readonly invokeSelfReporting: WorkbenchActions['invoke'];
 	readonly invokeShortcut: (
 		binding: WorkbenchShortcutBinding,
 		source: ActionInvocationSource,
@@ -148,6 +153,7 @@ export function useWorkbenchActions({
 	onTerminalFontSizeChange,
 	projectWorkspaceRuntime,
 	projectWorkspaceState,
+	reportActionOutcome,
 	requestWorktreeForm,
 	runtime,
 	searchFilters,
@@ -343,10 +349,12 @@ export function useWorkbenchActions({
 							}
 							if (projectWorkspaceRuntime.getSnapshot().activeLocation.kind !== 'workspace') {
 								// A Tab needs a Workspace, and creating one explicitly has its own owner.
-								typedRuntime.execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined, {
-									scope,
-									source: context.source,
-								});
+								reportActionOutcome(context.source, () =>
+									typedRuntime.execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined, {
+										scope,
+										source: context.source,
+									}),
+								);
 								return { kind: 'unchanged' };
 							}
 							return onNewTerminal(context, input);
@@ -517,6 +525,7 @@ export function useWorkbenchActions({
 		panelFocusTrail,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
+		reportActionOutcome,
 		requestWorktreeForm,
 		runtime,
 		searchFilters,
@@ -541,13 +550,24 @@ export function useWorkbenchActions({
 		return () => registration.dispose();
 	}, [configuredCommandCatalog, configuredCommandKeys, configuredCommands, runtime, scope]);
 
-	const invoke = useMemoizedFn(
+	const invokeSelfReporting = useMemoizedFn(
 		<Id extends ActionCatalogId<WorkbenchActionCatalog>>(
 			actionId: Id,
 			input: ActionInputFor<WorkbenchActionCatalog, Id>,
 			source: ActionInvocationSource,
 			details?: Pick<ActionInvocation, 'capabilities' | 'focus' | 'target'>,
 		) => typedRuntime.execute(actionId, input, { ...details, scope, source }),
+	);
+	const invoke = useMemoizedFn(
+		<Id extends ActionCatalogId<WorkbenchActionCatalog>>(
+			actionId: Id,
+			input: ActionInputFor<WorkbenchActionCatalog, Id>,
+			source: ActionInvocationSource,
+			details?: Pick<ActionInvocation, 'capabilities' | 'focus' | 'target'>,
+		) =>
+			reportActionOutcome(source, () =>
+				typedRuntime.execute(actionId, input, { ...details, scope, source }),
+			),
 	);
 	const invokeShortcut = useMemoizedFn(
 		(binding: WorkbenchShortcutBinding, source: ActionInvocationSource) => {
@@ -562,7 +582,7 @@ export function useWorkbenchActions({
 					) {
 						return false;
 					}
-					typedRuntime.execute(definition.id, input, invocation);
+					reportActionOutcome(source, () => typedRuntime.execute(definition.id, input, invocation));
 					return true;
 				}
 				case 'actionsSearch':
@@ -574,7 +594,9 @@ export function useWorkbenchActions({
 					) {
 						return false;
 					}
-					typedRuntime.execute(definition.id, definition.input, invocation);
+					reportActionOutcome(source, () =>
+						typedRuntime.execute(definition.id, definition.input, invocation),
+					);
 					return true;
 				}
 				case 'selectTab1':
@@ -603,7 +625,9 @@ export function useWorkbenchActions({
 					) {
 						return false;
 					}
-					typedRuntime.execute(definition.id, definition.input, invocation);
+					reportActionOutcome(source, () =>
+						typedRuntime.execute(definition.id, definition.input, invocation),
+					);
 					return true;
 				}
 				case 'newWorkspace':
@@ -651,12 +675,14 @@ export function useWorkbenchActions({
 					) {
 						return false;
 					}
-					typedRuntime.execute(definition.id, undefined, invocation);
+					reportActionOutcome(source, () =>
+						typedRuntime.execute(definition.id, undefined, invocation),
+					);
 					return true;
 				}
 			}
 		},
 	);
 
-	return { focusAfterTabClose, invoke, invokeShortcut, scope };
+	return { focusAfterTabClose, invoke, invokeSelfReporting, invokeShortcut, scope };
 }

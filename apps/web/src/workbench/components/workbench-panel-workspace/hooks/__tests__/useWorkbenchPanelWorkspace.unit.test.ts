@@ -53,6 +53,7 @@ function HookProjection({
 		panelWorkspaceStore,
 		parentActionScope: actionRuntime.createScope('workbench'),
 		presentationAgentStatuses: new Map(),
+		reportActionOutcome: (_source, start) => start(),
 		shortcutLabelForAction: () => undefined,
 		terminalContextId: 'terminal-context-1',
 	});
@@ -85,6 +86,7 @@ function InteractiveHarness({
 		panelWorkspaceStore,
 		parentActionScope,
 		presentationAgentStatuses: new Map(),
+		reportActionOutcome: (_source, start) => start(),
 		shortcutLabelForAction: () => undefined,
 		terminalContextId: 'terminal-context-1',
 	});

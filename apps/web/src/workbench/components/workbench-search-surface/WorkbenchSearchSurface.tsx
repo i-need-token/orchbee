@@ -3,6 +3,7 @@ import { Dialog, DialogContent, Kbd, ProductIcon } from '@orchbee/ui/components'
 import * as React from 'react';
 
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from '../../constants/search-providers';
+import type { WorkbenchAuthorityNoticeView } from '../../hooks/useWorkbenchAuthorityNotice';
 import { WORKBENCH_SEARCH_FILTERS, type WorkbenchSearchFilter } from '../../types/workbench-search';
 import type {
 	WorkbenchSearchProvider,
@@ -22,6 +23,7 @@ interface WorkbenchSearchSurfaceProps {
 	/** The filters the window offers, in order; one filter shows no filter tabs. */
 	readonly filters?: readonly WorkbenchSearchFilter[] | undefined;
 	readonly providers?: readonly WorkbenchSearchProvider[] | undefined;
+	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly state: Exclude<WorkbenchSearchState, { readonly kind: 'closed' }>;
 	readonly update: React.Dispatch<WorkbenchSearchEvent>;
@@ -37,6 +39,7 @@ export function WorkbenchSearchSurface({
 	argumentPickerForAction = noArgumentPicker,
 	filters = WORKBENCH_SEARCH_FILTERS,
 	providers = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
+	reportActionOutcome,
 	shortcutLabelForAction,
 	state,
 	update,
@@ -45,6 +48,7 @@ export function WorkbenchSearchSurface({
 		argumentPickerForAction,
 		filters,
 		providers,
+		reportActionOutcome,
 		runtime: actionRuntime,
 		scope: actionScope,
 		shortcutLabelForAction,

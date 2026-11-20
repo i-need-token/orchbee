@@ -316,6 +316,10 @@ work unless it explicitly requests cancellation and owns that authority.
   invocation, while unresolved results enter their declared input-collection flow.
 - Different surfaces may present one execution differently, but they observe the same execution
   handle and terminal result.
+- A control, menu, shortcut, or Search invocation that ends `blocked`, `failed`, or `unsupported` is
+  presented by its surface as a localized message, except where the Action's own question or notice
+  already states the outcome. A surface that shows the same outcome in place may decline to repeat
+  it. Automation and programmatic invocations return the result to their caller only.
 - A hidden action is absent from user and automation enumeration.
 - Local enumeration does not make an action remotely invocable.
 

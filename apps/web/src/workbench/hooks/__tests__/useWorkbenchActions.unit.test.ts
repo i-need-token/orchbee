@@ -113,6 +113,7 @@ function WorkbenchActionsHarness({
 		openPanelNameEditor: () => undefined,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
+		reportActionOutcome: (_source, start) => start(),
 		requestWorktreeForm: () => Promise.resolve(null),
 		runtime,
 		searchFilters: WORKBENCH_SEARCH_FILTERS,

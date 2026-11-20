@@ -72,6 +72,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.update.unavailable':
 		'无法在此更新。请退出 Orchbee 后重新打开，或运行 orchbee update。',
 	'workbench.update.waiting': '此更新将在没有终端运行时生效。',
+	'workbench.actions.unavailable': '此操作现在不可用。',
 	'workbench.sidebar.environment.development': '开发版',
 	'workbench.sidebar.environment.test': '测试版',
 	'workbench.sidebar.environment.developmentCheckout': '开发版，构建自检出目录 {checkout}',

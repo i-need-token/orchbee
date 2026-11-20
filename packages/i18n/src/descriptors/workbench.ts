@@ -1162,6 +1162,12 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Notice after Update when switching could not start or was refused; advises quitting and reopening Orchbee or running orchbee update.',
 	},
+	actionUnavailable: {
+		id: 'workbench.actions.unavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.actions.unavailable'],
+		description:
+			'Notice after an Action the person invoked from a control, menu, or shortcut could not run because it is not available right now, such as a disabled or unregistered Action.',
+	},
 	updateWaiting: {
 		id: 'workbench.update.waiting',
 		defaultMessage: enUSWorkbenchMessages['workbench.update.waiting'],

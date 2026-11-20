@@ -319,6 +319,8 @@ interface WorkbenchView {
 	};
 	readonly cancelNameEditor: () => void;
 	readonly submitNameEditor: () => void;
+	/** Reports a refusal or failure of an Action a person invoked, unless a surface already said it. */
+	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
 	readonly updateNameEditor: (title: string) => void;
 	/** The active Workspace's context; null while no Workspace is open. */
 	readonly terminalContext: WorkbenchTerminalContext | null;
@@ -693,6 +695,7 @@ export function useWorkbench({
 		openPanelNameEditor: openNameEditor,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
+		reportActionOutcome: authorityNotice.reportActionOutcome,
 		requestWorktreeForm: worktreeForm.request,
 		runtime: actionRuntime,
 		searchFilters,
@@ -717,8 +720,11 @@ export function useWorkbench({
 	const createProject = useMemoizedFn((path: string) =>
 		actions.invoke(WORKBENCH_ACTION_IDS.createProject, { path }, 'button'),
 	);
+	const createNewFolderProject = useMemoizedFn((path: string) =>
+		actions.invokeSelfReporting(WORKBENCH_ACTION_IDS.createProject, { path }, 'button'),
+	);
 	const activateCreatedProject = useMemoizedFn((receipt: WorkbenchProjectCreationReceipt) =>
-		actions.invoke(
+		actions.invokeSelfReporting(
 			WORKBENCH_ACTION_IDS.activateWorkspace,
 			{ creationReceipt: receipt, workspaceId: receipt.workspaceId },
 			'button',
@@ -736,6 +742,7 @@ export function useWorkbench({
 	const projectCreation = useWorkbenchProjectCreation({
 		acquisition: projectFolderAcquisition,
 		activateCreatedProject,
+		createNewFolderProject,
 		createProject,
 		createWorkspaceAtDirectory: (projectId, path) =>
 			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, { projectId, path }, 'menu'),
@@ -850,7 +857,7 @@ export function useWorkbench({
 			activateLocation({ kind: 'workspace', workspaceId }, origin),
 	);
 	const invokeAgentNavigation = useMemoizedFn((input: WorkbenchAgentNavigationInput) =>
-		actions.invoke(WORKBENCH_ACTION_IDS.navigateAgent, input, 'button'),
+		actions.invokeSelfReporting(WORKBENCH_ACTION_IDS.navigateAgent, input, 'button'),
 	);
 	const navigateAgent = useWorkbenchAgentNavigation({
 		activeLocation: projectWorkspaceState.activeLocation,
@@ -927,7 +934,9 @@ export function useWorkbench({
 		) {
 			return false;
 		}
-		actionRuntime.execute(actionId, undefined, invocation);
+		authorityNotice.reportActionOutcome(invocation.source, () =>
+			actionRuntime.execute(actionId, undefined, invocation),
+		);
 		return true;
 	});
 	const shortcutScopeReference = useWorkbenchShortcuts(
@@ -941,6 +950,7 @@ export function useWorkbench({
 	return {
 		agentStart: agentDialogs.start,
 		closeAgentStart: agentDialogs.closeStart,
+		reportActionOutcome: authorityNotice.reportActionOutcome,
 		startAgent,
 		worktreeForm: worktreeForm.form,
 		authority: authorityNotice.authority,

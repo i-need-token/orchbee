@@ -532,6 +532,7 @@ export function Workbench({
 										panelWorkspaceStore={terminalContext.panelWorkspaceStore}
 										parentActionScope={view.actionScope}
 										presentationAgentStatuses={agentPresentation.presentationAgentStatuses}
+										reportActionOutcome={view.reportActionOutcome}
 										shortcutLabelForAction={shortcutLabelForAction}
 										terminalAutoFocusAllowed={view.terminalAutoFocusAllowed}
 										terminalContextId={terminalContext.terminalContextId}
@@ -573,6 +574,7 @@ export function Workbench({
 					argumentPickerForAction={view.searchArgumentPickerForAction}
 					filters={view.searchFilters}
 					providers={searchProviders}
+					reportActionOutcome={view.reportActionOutcome}
 					shortcutLabelForAction={shortcutLabelForAction}
 					state={view.searchState}
 					update={view.updateSearch}

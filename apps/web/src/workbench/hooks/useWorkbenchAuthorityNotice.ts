@@ -1,3 +1,4 @@
+import type { ActionExecution, ActionInvocationSource } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { useOrchbeeIntl, workbenchMessages, type IntlShape } from '@orchbee/i18n';
 import * as React from 'react';
@@ -5,6 +6,7 @@ import * as React from 'react';
 import {
 	isWorkbenchDirectoryRefusalNotice,
 	readWorkbenchCloseSubject,
+	workbenchActionOutcomeNotice,
 	workbenchCloseProgressNotice,
 	workbenchCloseResultNotice,
 	workbenchCloseWithdrawnNotice,
@@ -37,6 +39,14 @@ import { formatWorkbenchAgentProvider } from '../utils/workbench-agent-names';
 export interface WorkbenchAuthorityNoticeView {
 	readonly authority: WorkbenchAuthority;
 	readonly notice: { readonly message: string; readonly persistent: boolean } | null;
+	/**
+	 * Runs an Action invoked from a control, menu, or shortcut, and says its refusal or failure when no
+	 * surface did while it ran.
+	 */
+	readonly reportActionOutcome: <Execution extends ActionExecution<unknown>>(
+		source: ActionInvocationSource,
+		start: () => Execution,
+	) => Execution;
 	/** An Agent destination failed revalidation, so nothing moved; the TUI says the same. */
 	readonly reportAgentNavigationUnavailable: () => void;
 	readonly reportDuplicationStopped: (stop: WorkbenchTabDuplicationStop) => void;
@@ -208,7 +218,42 @@ export function useWorkbenchAuthorityNotice(
 	startAgentShortcutLabel?: string,
 ): WorkbenchAuthorityNoticeView {
 	const intl = useOrchbeeIntl();
-	const [notice, setNotice] = React.useState<WorkbenchAuthorityNotice | null>(null);
+	const [notice, setNoticeState] = React.useState<WorkbenchAuthorityNotice | null>(null);
+	const noticeRef = React.useRef<WorkbenchAuthorityNotice | null>(null);
+	/** Counts each notice written, so an Action's outcome can tell whether a surface already said what happened. */
+	const noticeWrites = React.useRef(0);
+	const setNotice = useMemoizedFn(
+		(update: React.SetStateAction<WorkbenchAuthorityNotice | null>) => {
+			// Resolved here, against the latest notice, so the write counter sees each notice as it is written.
+			const next = typeof update === 'function' ? update(noticeRef.current) : update;
+			noticeRef.current = next;
+			if (next !== null) noticeWrites.current += 1;
+			setNoticeState(next);
+		},
+	);
+	/**
+	 * Runs an Action a person invoked from a control, menu, or shortcut. A refusal or failure that no
+	 * surface said while the Action ran is said here, so it never reads as nothing happened.
+	 */
+	const reportActionOutcome = useMemoizedFn(
+		<Execution extends ActionExecution<unknown>>(
+			source: ActionInvocationSource,
+			start: () => Execution,
+		): Execution => {
+			// Automation and programmatic calls are not a person's control, so their caller owns any outcome.
+			if (source === 'automation' || source === 'programmatic') return start();
+			const writesBefore = noticeWrites.current;
+			const execution = start();
+			const say = (outcome: WorkbenchAuthorityNotice | null): void => {
+				if (outcome !== null && noticeWrites.current === writesBefore) setNotice(outcome);
+			};
+			void execution.completion.then(
+				(result) => say(workbenchActionOutcomeNotice(result)),
+				() => say({ descriptor: workbenchMessages.actionUnavailable, lifetime: 'until-press' }),
+			);
+			return execution;
+		},
+	);
 	const reportingAuthority = React.useMemo<WorkbenchAuthority>(
 		() => ({
 			minimumSplitPercent: authority.minimumSplitPercent,
@@ -338,7 +383,7 @@ export function useWorkbenchAuthorityNotice(
 					? undefined
 					: reportingConfiguredCommands(authority.configuredCommands, intl, setNotice),
 		}),
-		[authority, intl, projectWorkspaceRuntime],
+		[authority, intl, projectWorkspaceRuntime, setNotice],
 	);
 	const reportDuplicationStopped = useMemoizedFn((stop: WorkbenchTabDuplicationStop) => {
 		setNotice(workbenchTabDuplicationStoppedNotice(stop));
@@ -364,7 +409,7 @@ export function useWorkbenchAuthorityNotice(
 					current?.lifetime === 'until-press' || sameWords(current, next) ? current : next,
 				);
 			}),
-		[agentResumeNotices, intl],
+		[agentResumeNotices, intl, setNotice],
 	);
 	const agentStartNotices = authority.agentStartNotices;
 	const startNoticeFor = useMemoizedFn((failure: WorkbenchAgentStartFailure) =>
@@ -378,7 +423,7 @@ export function useWorkbenchAuthorityNotice(
 					current?.lifetime === 'until-press' || sameWords(current, next) ? current : next,
 				);
 			}),
-		[agentStartNotices, startNoticeFor],
+		[agentStartNotices, startNoticeFor, setNotice],
 	);
 	const withdrawDirectoryRefusal = useMemoizedFn(() => {
 		setNotice((current) =>
@@ -398,7 +443,7 @@ export function useWorkbenchAuthorityNotice(
 			window.removeEventListener('keydown', dismiss, true);
 			window.removeEventListener('pointerdown', dismiss, true);
 		};
-	}, [notice]);
+	}, [notice, setNotice]);
 	return {
 		authority: reportingAuthority,
 		notice:
@@ -408,6 +453,7 @@ export function useWorkbenchAuthorityNotice(
 						message: intl.formatMessage(notice.descriptor, notice.values),
 						persistent: notice.lifetime === 'until-press',
 					},
+		reportActionOutcome,
 		reportAgentNavigationUnavailable,
 		reportDuplicationStopped,
 		reportUpdateUnavailable,

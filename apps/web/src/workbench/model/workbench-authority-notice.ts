@@ -311,6 +311,37 @@ export function workbenchFailureNotice(
 	);
 }
 
+/** Refusals another surface already explains: a question asks first, and a repeated press or a newer navigation owns the outcome. */
+const ACTION_OUTCOMES_SAID_ELSEWHERE: ReadonlySet<string> = new Set([
+	'confirmation-required',
+	'duplicate-action-execution',
+	'route-acceptance-replaced',
+]);
+
+/** Blocks that mean the Action is not offered right now, not that a change did not apply. */
+const ACTION_UNAVAILABLE_CODES: ReadonlySet<string> = new Set([
+	'action-unavailable',
+	'host-capability-unavailable',
+]);
+
+/**
+ * What an Action invoked from a control, menu, or shortcut says when it was refused or failed and no
+ * surface has said so. Cancelled, completed, and unchanged results say nothing: the person chose the
+ * outcome, or the Action intends it.
+ */
+export function workbenchActionOutcomeNotice(
+	result: ActionResult<unknown>,
+): WorkbenchAuthorityNotice | null {
+	if (
+		result.kind === 'unsupported' ||
+		(result.kind === 'blocked' && ACTION_UNAVAILABLE_CODES.has(result.code))
+	) {
+		return { descriptor: workbenchMessages.actionUnavailable, lifetime: 'until-press' };
+	}
+	if (result.kind === 'blocked' && ACTION_OUTCOMES_SAID_ELSEWHERE.has(result.code)) return null;
+	return workbenchFailureNotice(result);
+}
+
 const DIRECTORY_REFUSAL_NOTICES = {
 	'directory-inaccessible': workbenchMessages.workspaceSetupDirectoryRefusedNoticeInaccessible,
 	'directory-missing': workbenchMessages.workspaceSetupDirectoryRefusedNoticeMissing,

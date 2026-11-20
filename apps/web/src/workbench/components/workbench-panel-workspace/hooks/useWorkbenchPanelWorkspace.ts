@@ -6,6 +6,7 @@ import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol'
 
 import type { WorkbenchSharedPanelTerminalCreate } from '../../../actions/createSharedPanelTerminal';
 import { WORKBENCH_ACTION_IDS } from '../../../actions/workbench-action-ids';
+import type { WorkbenchAuthorityNoticeView } from '../../../hooks/useWorkbenchAuthorityNotice';
 import { terminalCloseWarningValues } from '../../../model/terminal-close-impact';
 import {
 	WorkbenchTerminalBellEffectCoordinator,
@@ -65,6 +66,8 @@ interface UseWorkbenchPanelWorkspaceOptions {
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
 	readonly presentationAgentStatuses: ReadonlyMap<string, WorkbenchAgentStatusView>;
+	/** Reports a refusal or failure of an Action a person invoked, unless a surface already said it. */
+	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly terminalContextId: string;
 }
@@ -119,6 +122,7 @@ export function useWorkbenchPanelWorkspace({
 	panelWorkspaceStore,
 	parentActionScope,
 	presentationAgentStatuses,
+	reportActionOutcome,
 	shortcutLabelForAction,
 	terminalContextId,
 }: UseWorkbenchPanelWorkspaceOptions): WorkbenchPanelWorkspaceView {
@@ -247,7 +251,8 @@ export function useWorkbenchPanelWorkspace({
 		runtime: actionRuntime,
 		terminalContextId,
 	});
-	const executePanelAction = panelActions.execute;
+	const executePanelAction: typeof panelActions.execute = (actionId, input, source) =>
+		reportActionOutcome(source, () => panelActions.execute(actionId, input, source));
 	const commitSplitRatio = useMemoizedFn(
 		async (splitId: string, leadingWeight: number): Promise<void> => {
 			const tabId = store.getActiveTabId();
@@ -783,18 +788,22 @@ export function useWorkbenchPanelWorkspace({
 		renamePanel: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			const tabId = store.getActiveTabId();
 			if (tabId === null) return;
-			actionRuntime.execute(
-				WORKBENCH_ACTION_IDS.renamePanel,
-				{ kind: 'open', panelId, tabId, terminalContextId },
-				{ scope: panelActions.scope, source },
+			reportActionOutcome(source, () =>
+				actionRuntime.execute(
+					WORKBENCH_ACTION_IDS.renamePanel,
+					{ kind: 'open', panelId, tabId, terminalContextId },
+					{ scope: panelActions.scope, source },
+				),
 			);
 		},
 		closeActiveTerminal: (panelId, source: ActionInvocationSource = 'programmatic') => {
-			actionRuntime.execute(WORKBENCH_ACTION_IDS.closeActiveTerminal, undefined, {
-				scope: panelActions.scope,
-				source,
-				target: { id: panelId, type: 'panel' },
-			});
+			reportActionOutcome(source, () =>
+				actionRuntime.execute(WORKBENCH_ACTION_IDS.closeActiveTerminal, undefined, {
+					scope: panelActions.scope,
+					source,
+					target: { id: panelId, type: 'panel' },
+				}),
+			);
 		},
 		confirmClose: () => {
 			pendingConfirmationRef.current?.(true);
@@ -806,10 +815,12 @@ export function useWorkbenchPanelWorkspace({
 						await heldRestores.restore(presentationId, directory);
 					},
 		createTerminalTab: (source: ActionInvocationSource = 'programmatic') => {
-			actionRuntime.execute(
-				WORKBENCH_ACTION_IDS.createTerminal,
-				{ groupId: null },
-				{ scope: panelActions.scope, source },
+			reportActionOutcome(source, () =>
+				actionRuntime.execute(
+					WORKBENCH_ACTION_IDS.createTerminal,
+					{ groupId: null },
+					{ scope: panelActions.scope, source },
+				),
 			);
 		},
 		displayedRoot,

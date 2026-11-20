@@ -73,6 +73,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.update.unavailable':
 		"Couldn't update here. Quit Orchbee and open it again, or run orchbee update.",
 	'workbench.update.waiting': 'This update applies when no terminal is running.',
+	'workbench.actions.unavailable': "This isn't available right now.",
 	'workbench.sidebar.environment.development': 'Dev',
 	'workbench.sidebar.environment.test': 'Test',
 	'workbench.sidebar.environment.developmentCheckout':

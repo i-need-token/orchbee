@@ -33,6 +33,13 @@ interface UseWorkbenchProjectCreationOptions {
 	readonly activateCreatedProject: (
 		receipt: WorkbenchProjectCreationReceipt,
 	) => ActionExecution<void>;
+	/**
+	 * Opens the Project for the New Folder dialog. The dialog shows a failure in its own recovery,
+	 * so the outcome is not reported again.
+	 */
+	readonly createNewFolderProject: (
+		path: string,
+	) => ActionExecution<WorkbenchProjectCreationReceipt>;
 	readonly createWorkspaceAtDirectory: (
 		projectId: string,
 		path: string,
@@ -81,6 +88,7 @@ interface PathFormSubmission {
 export function useWorkbenchProjectCreation({
 	acquisition,
 	activateCreatedProject,
+	createNewFolderProject,
 	createProject,
 	createWorkspaceAtDirectory,
 	isCreatedProjectActive,
@@ -110,7 +118,7 @@ export function useWorkbenchProjectCreation({
 	const newFolder = useNewProjectFolder({
 		activateCreatedProject,
 		capability: acquisition?.newFolder,
-		createProject,
+		createProject: createNewFolderProject,
 		isCreatedProjectActive,
 		selectExisting: folderAcquisition.requestCreateProject,
 	});

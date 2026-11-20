@@ -127,6 +127,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 	): Promise<ActionResult<WorkbenchProjectCreationReceipt>> => {
 		const origin = projectWorkspaceRuntime.getSnapshot().activeLocation;
 		const handover = beginTerminalHandover?.();
+		let entered: ActionResult<unknown> | null = null;
 		const created = await authority.create(context, creation);
 		if (created.kind !== 'completed' || created.value === undefined) return created;
 		// Late completion never takes someone from where they have since gone, or from what they did next.
@@ -140,13 +141,16 @@ export function registerWorkbenchProjectWorkspaceActions({
 		if (
 			workbenchActiveLocationsEqual(origin, projectWorkspaceRuntime.getSnapshot().activeLocation)
 		) {
-			await enterWorkspace(context, created.value.workspaceId);
+			entered = await enterWorkspace(context, created.value.workspaceId);
 		}
 		// The first Workspace has already replaced the empty location, so this asks what is shown now.
 		const location = projectWorkspaceRuntime.getSnapshot().activeLocation;
 		if (location.kind === 'workspace' && location.workspaceId === created.value.workspaceId) {
 			handover?.complete();
 		}
+		// The Workspace exists even when entering it is refused, and that refusal is what the person must hear.
+		if (entered !== null && (entered.kind === 'blocked' || entered.kind === 'failed'))
+			return entered;
 		return created;
 	};
 	/** What closed was what the person acted from, so the keyboard goes to the terminal still shown. */

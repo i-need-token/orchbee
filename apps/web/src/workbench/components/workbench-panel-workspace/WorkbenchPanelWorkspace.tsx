@@ -7,6 +7,7 @@ import type { PanelWorkspaceStore } from './model/PanelWorkspaceStore';
 import type { WorkbenchAgentStatusView } from '../../utils/formatWorkbenchAgentStatus';
 import type { WorkbenchAuthority } from '../../types/workbench-authority';
 import type { WorkbenchTerminalSurface } from '../../types/workbench-terminal-surface';
+import type { WorkbenchAuthorityNoticeView } from '../../hooks/useWorkbenchAuthorityNotice';
 import { WorkbenchPanelCloseDialog } from './components/workbench-panel-close-dialog/WorkbenchPanelCloseDialog';
 import { WorkbenchPanelDragGhost } from './components/workbench-panel-drag-ghost/WorkbenchPanelDragGhost';
 import { WorkbenchPanelLayout } from './components/workbench-panel-layout/WorkbenchPanelLayout';
@@ -27,6 +28,8 @@ interface WorkbenchPanelWorkspaceProps {
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
 	readonly presentationAgentStatuses: ReadonlyMap<string, WorkbenchAgentStatusView>;
+	/** Reports a refusal or failure of an Action a person invoked, unless a surface already said it. */
+	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly terminalAutoFocusAllowed: boolean;
 	readonly terminalContextId: string;
@@ -42,6 +45,7 @@ export function WorkbenchPanelWorkspace({
 	panelWorkspaceStore,
 	parentActionScope,
 	presentationAgentStatuses,
+	reportActionOutcome,
 	shortcutLabelForAction,
 	terminalAutoFocusAllowed,
 	terminalContextId,
@@ -56,6 +60,7 @@ export function WorkbenchPanelWorkspace({
 		panelWorkspaceStore,
 		parentActionScope,
 		presentationAgentStatuses,
+		reportActionOutcome,
 		shortcutLabelForAction,
 		terminalContextId,
 	});

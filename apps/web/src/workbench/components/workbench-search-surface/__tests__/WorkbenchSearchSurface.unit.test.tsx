@@ -53,6 +53,7 @@ function SearchHarness({
 			actionScope={scope}
 			argumentPickerForAction={argumentPickerForAction}
 			providers={providers}
+			reportActionOutcome={(_source, start) => start()}
 			shortcutLabelForAction={() => undefined}
 			state={state}
 			update={update}

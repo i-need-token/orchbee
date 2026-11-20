@@ -43,6 +43,7 @@ it.each([true, false])(
 					? { selectExistingFolder: () => Promise.resolve({ kind: 'selected', path: '/chosen' }) }
 					: undefined,
 				activateCreatedProject: () => testAction<void>({ kind: 'completed' }).execute(),
+				createNewFolderProject: createProject,
 				createProject,
 				createWorkspaceAtDirectory,
 				isCreatedProjectActive: () => false,

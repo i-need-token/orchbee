@@ -60,6 +60,7 @@ describe('useWorkbenchSearchSurface', () => {
 					argumentPickerForAction: () => undefined,
 					filters: WORKBENCH_SEARCH_FILTERS,
 					providers,
+					reportActionOutcome: (_source, start) => start(),
 					runtime,
 					scope,
 					shortcutLabelForAction: () => undefined,

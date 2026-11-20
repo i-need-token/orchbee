@@ -4,6 +4,7 @@ import { useOrchbeeIntl, workbenchMessages, type IntlShape } from '@orchbee/i18n
 import type { ProductIconName } from '@orchbee/ui/components';
 import * as React from 'react';
 
+import type { WorkbenchAuthorityNoticeView } from '../../../hooks/useWorkbenchAuthorityNotice';
 import type { WorkbenchSearchFilter } from '../../../types/workbench-search';
 import type { WorkbenchSearchProvider } from '../../../types/workbench-search-provider';
 import { revealInScrollOwner } from '../../../utils/revealInScrollOwner';
@@ -28,6 +29,7 @@ interface UseWorkbenchSearchSurfaceOptions {
 	/** The filters the window offers, in order; one filter shows no filter tabs. */
 	readonly filters: readonly WorkbenchSearchFilter[];
 	readonly providers: readonly WorkbenchSearchProvider[];
+	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
@@ -115,6 +117,7 @@ export function useWorkbenchSearchSurface({
 	argumentPickerForAction,
 	filters: offeredFilters,
 	providers,
+	reportActionOutcome,
 	runtime,
 	scope,
 	shortcutLabelForAction,
@@ -216,7 +219,8 @@ export function useWorkbenchSearchSurface({
 			return;
 		}
 		update({ type: 'close' });
-		runtime.executePrepared(result.invocation.prepared);
+		const prepared = result.invocation.prepared;
+		reportActionOutcome('command-surface', () => runtime.executePrepared(prepared));
 	});
 	const invokePickerOption = useMemoizedFn((optionId: string) => {
 		if (
@@ -235,7 +239,7 @@ export function useWorkbenchSearchSurface({
 			return;
 		}
 		update({ type: 'close' });
-		runtime.executePrepared(prepared.invocation);
+		reportActionOutcome('command-surface', () => runtime.executePrepared(prepared.invocation));
 	});
 	const sections = React.useMemo<readonly WorkbenchSearchSectionView[]>(() => {
 		if (state.kind === 'picking-argument') {

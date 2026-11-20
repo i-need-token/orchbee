@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { ActionResult } from '@orchbee/actions';
+import type { ActionExecution, ActionResult } from '@orchbee/actions';
 import { OrchbeeI18nProvider, workbenchMessages } from '@orchbee/i18n';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
@@ -36,6 +36,34 @@ const STOPPED = FIXTURE_INTL.formatMessage(workbenchMessages.tabCloseFailed, {
 function I18nWrapper({ children }: { readonly children: ReactNode }) {
 	return createElement(OrchbeeI18nProvider, { locale: 'en-US' }, children);
 }
+
+function localeWrapper(locale: 'en-US' | 'zh-CN') {
+	return function LocaleWrapper({ children }: { readonly children: ReactNode }) {
+		return createElement(OrchbeeI18nProvider, { locale }, children);
+	};
+}
+
+/** An Action execution already settled as `result`, the way a refused button press settles. */
+function settledExecution(result: ActionResult<unknown>): ActionExecution<unknown> {
+	return {
+		cancel: () => undefined,
+		completion: Promise.resolve(result),
+		executionId: 'settled-execution',
+		getSnapshot: () => ({ progress: null, result, state: 'blocked' }),
+		subscribe: () => ({ dispose: () => undefined }),
+	};
+}
+
+const EXPECTED_NOTICE = {
+	'en-US': {
+		notApplied: "Couldn't apply the change.",
+		update: "Couldn't update here. Quit Orchbee and open it again, or run orchbee update.",
+	},
+	'zh-CN': {
+		notApplied: '没能应用这项更改。',
+		update: '无法在此更新。请退出 Orchbee 后重新打开，或运行 orchbee update。',
+	},
+} as const;
 
 /** Workspaces `sequences` in Recents, each in Directory 1 with one Tab numbered like it. */
 function workspacesSnapshot(revision: number, sequences: readonly number[]) {
@@ -182,6 +210,40 @@ describe('useWorkbenchAuthorityNotice', () => {
 				message: FIXTURE_INTL.formatMessage(workbenchMessages.tabCloseFailed, {
 					label: close.tabLabel,
 				}),
+				persistent: true,
+			});
+		},
+	);
+
+	it.each(['en-US', 'zh-CN'] as const)(
+		'says a refused button-run Action in %s, and keeps a notice a surface already wrote',
+		async (locale) => {
+			const authority = inertWorkbenchAuthority();
+			const runtime = createSnapshotRuntime(workspacesSnapshot(1, [1, 2]));
+			const refused = renderHook(() => useWorkbenchAuthorityNotice(authority, runtime), {
+				wrapper: localeWrapper(locale),
+			});
+			await act(async () => {
+				await refused.result.current.reportActionOutcome('button', () =>
+					settledExecution({ code: 'workspace-not-found', kind: 'blocked' }),
+				).completion;
+			});
+			expect(refused.result.current.notice).toEqual({
+				message: EXPECTED_NOTICE[locale].notApplied,
+				persistent: true,
+			});
+
+			const surfaced = renderHook(() => useWorkbenchAuthorityNotice(authority, runtime), {
+				wrapper: localeWrapper(locale),
+			});
+			await act(async () => {
+				await surfaced.result.current.reportActionOutcome('button', () => {
+					surfaced.result.current.reportUpdateUnavailable();
+					return settledExecution({ code: 'workspace-not-found', kind: 'blocked' });
+				}).completion;
+			});
+			expect(surfaced.result.current.notice).toEqual({
+				message: EXPECTED_NOTICE[locale].update,
 				persistent: true,
 			});
 		},
