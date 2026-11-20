@@ -78,6 +78,9 @@ describe('Windows Agent observation transport', () => {
 			const hints: unknown[] = [];
 			let identity = 0;
 			await transport.forwardSanitizedObservation('codex', observation, {
+				// A gate run inside an Orchbee terminal inherits its ORCHBEE_RUN_TOKEN and environment tag.
+				environment: {},
+				readOwner: async () => 'orchbee',
 				allocateIdentity: () => `windows-identity-${++identity}`,
 				discoverSockets: async () => [endpoint],
 				resolveTargets: async () => [{ tty: consoleTarget, visibility: 'unknown' }],
