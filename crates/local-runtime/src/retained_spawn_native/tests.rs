@@ -28,6 +28,8 @@ fn a_descriptor_open_across_exec_reaches_no_child() {
         &[OsStr::new("2")],
         &search_path(),
         Path::new("/"),
+        None,
+        false,
     )
     .unwrap();
     drop(kept);
@@ -61,6 +63,8 @@ fn a_child_runs_in_its_directory_with_its_arguments_and_exactly_its_environment(
         ],
         &environment,
         Path::new("/tmp"),
+        None,
+        false,
     )
     .unwrap();
     let status = ExitStatus::from_raw(wait(child, true).unwrap().unwrap());
@@ -77,6 +81,8 @@ fn a_missing_executable_starts_nothing() {
         &[],
         &search_path(),
         Path::new("/"),
+        None,
+        false,
     )
     .unwrap_err();
     assert_eq!(error.kind(), std::io::ErrorKind::NotFound);

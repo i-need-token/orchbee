@@ -96,8 +96,11 @@ pub(super) fn spawn(
     Ok(CommandChild::spawned(root))
 }
 
-/// The `NAME=value` entries the child receives.
-fn variables(command: &Command, environment: SpawnEnvironment) -> io::Result<Vec<CString>> {
+/// The variables the child receives, as name and value pairs.
+pub(super) fn variable_pairs(
+    command: &Command,
+    environment: SpawnEnvironment,
+) -> Vec<(OsString, OsString)> {
     let mut variables: Vec<(OsString, OsString)> = match environment {
         SpawnEnvironment::Inherited => std::env::vars_os().collect(),
         SpawnEnvironment::Cleared => Vec::new(),
@@ -109,6 +112,11 @@ fn variables(command: &Command, environment: SpawnEnvironment) -> io::Result<Vec
         }
     }
     variables
+}
+
+/// The `NAME=value` entries the child receives.
+fn variables(command: &Command, environment: SpawnEnvironment) -> io::Result<Vec<CString>> {
+    variable_pairs(command, environment)
         .into_iter()
         .map(|(name, value)| {
             let mut entry = name.into_vec();

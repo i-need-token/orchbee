@@ -10,7 +10,10 @@
 //! is reaped by its process ID.
 use std::{
     io,
-    os::unix::process::{CommandExt, ExitStatusExt},
+    os::{
+        fd::OwnedFd,
+        unix::process::{CommandExt, ExitStatusExt},
+    },
     process::{Child, Command, ExitStatus},
     thread,
     time::{Duration, Instant},
@@ -27,6 +30,8 @@ use rustix::{
 use super::CommandSpawnFailure;
 
 mod capture;
+#[cfg(target_os = "macos")]
+mod native;
 mod spawn;
 pub use capture::{run_unix_command, run_unix_command_exchange, run_unmasked_unix_command};
 pub use spawn::SpawnEnvironment;
@@ -72,6 +77,38 @@ impl CommandChild {
             reaped: false,
             settlement: Settlement::Running,
         })
+    }
+
+    /// Starts `command` with `streams` as its standard input, output and error, as the leader of a
+    /// new process group, in the environment `environment` names. On macOS the child starts through
+    /// the native adapter, so it inherits no descriptor but those three, however many threads of this
+    /// process create descriptors meanwhile. Elsewhere the standard library's spawn starts the same
+    /// child, since Linux creates its close-on-exec descriptors atomically.
+    pub fn spawn_with_streams(
+        command: Command,
+        environment: SpawnEnvironment,
+        streams: [OwnedFd; 3],
+    ) -> Result<Self, CommandSpawnFailure> {
+        #[cfg(target_os = "macos")]
+        {
+            native::spawn(&command, environment, streams)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let mut command = command;
+            if environment == SpawnEnvironment::Cleared {
+                // The child starts from exactly the variables the command sets, as the adapter
+                // starts it, so the two platforms agree when the caller clears its environment.
+                let set: Vec<_> = command
+                    .get_envs()
+                    .filter_map(|(name, value)| Some((name.to_owned(), value?.to_owned())))
+                    .collect();
+                command.env_clear().envs(set);
+            }
+            let [input, output, errors] = streams;
+            command.stdin(input).stdout(output).stderr(errors);
+            Self::spawn(command)
+        }
     }
 
     /// The owner of a root the `posix_spawn` launch started as the leader of its own group.

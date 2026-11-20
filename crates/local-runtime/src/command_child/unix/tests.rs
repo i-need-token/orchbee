@@ -152,3 +152,42 @@ fn an_unmasked_command_receives_exactly_the_environment_it_states() {
         "{text}"
     );
 }
+
+/// A command started with its own streams inherits no descriptor but those three, not even one
+/// another thread of this process left open without close-on-exec, and leads its own group. macOS
+/// only: Linux creates its descriptors close-on-exec, so this one would reach the child there.
+#[cfg(target_os = "macos")]
+#[test]
+fn a_command_with_its_own_streams_inherits_no_other_descriptor() {
+    use nix::unistd::{Pid as GroupPid, getpgid};
+    use std::{fs::File, io::Read, os::fd::OwnedFd};
+    // Open without close-on-exec, at a number no descriptor of the command takes.
+    let (kept, _peer) = std::os::unix::net::UnixStream::pair().unwrap();
+    let _leaked = rustix::io::fcntl_dupfd_cloexec(&kept, 40).unwrap();
+    rustix::io::fcntl_setfd(&_leaked, rustix::io::FdFlags::empty()).unwrap();
+    let (mut listing, writer) = std::io::pipe().unwrap();
+    let mut command = Command::new("/bin/sh");
+    command.args(["-c", "ls /dev/fd"]);
+    let mut child = CommandChild::spawn_with_streams(
+        command,
+        SpawnEnvironment::Cleared,
+        [
+            OwnedFd::from(File::open("/dev/null").unwrap()),
+            OwnedFd::from(writer),
+            OwnedFd::from(File::open("/dev/null").unwrap()),
+        ],
+    )
+    .unwrap();
+    let group = GroupPid::from_raw(child.id() as i32);
+    assert_eq!(getpgid(Some(group)).unwrap(), group);
+    let mut text = String::new();
+    listing.read_to_string(&mut text).unwrap();
+    let status = child.settle().unwrap();
+    assert!(status.success(), "{text}");
+    let descriptors: Vec<i32> = text.lines().map(|line| line.parse().unwrap()).collect();
+    assert!(descriptors.contains(&1), "{text}");
+    assert!(
+        descriptors.iter().all(|descriptor| *descriptor < 40),
+        "{text}"
+    );
+}

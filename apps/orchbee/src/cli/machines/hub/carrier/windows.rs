@@ -2,7 +2,11 @@
 //! open to end it, in the system folder.
 
 use orchbee_local_runtime::{CommandChild, CommandSpawnFailure};
-use std::{path::PathBuf, process::Command};
+use std::{
+    io::{PipeReader, PipeWriter},
+    path::PathBuf,
+    process::Command,
+};
 use winsafe::{HPROCESS, co, guard::CloseHandleGuard};
 
 /// The exit status the hub gives a carrier it ends.
@@ -16,8 +20,12 @@ pub(super) fn folder() -> Option<PathBuf> {
     winsafe::GetSystemDirectory().ok().map(PathBuf::from)
 }
 
-/// Starts the child inside its own Job.
-pub(super) fn spawn(command: Command) -> Result<CommandChild, CommandSpawnFailure> {
+/// Starts the child inside its own Job, with the hub's pipe ends as its standard streams.
+pub(super) fn spawn(
+    mut command: Command,
+    (input, output, errors): (PipeReader, PipeWriter, PipeWriter),
+) -> Result<CommandChild, CommandSpawnFailure> {
+    command.stdin(input).stdout(output).stderr(errors);
     CommandChild::spawn_contained(command)
 }
 

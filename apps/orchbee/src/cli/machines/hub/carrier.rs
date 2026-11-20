@@ -290,7 +290,7 @@ fn carry(shared: &Arc<Shared>, launch: &Launch, carrier: u64, route: &Route) -> 
     if ticket == [0; TICKET_BYTES] {
         return End::NotStarted { missing: false };
     }
-    let mut command = match launch.command(route, ticket) {
+    let command = match launch.command(route, ticket) {
         Ok(command) => command,
         Err(end) => return end,
     };
@@ -299,11 +299,7 @@ fn carry(shared: &Arc<Shared>, launch: &Launch, carrier: u64, route: &Route) -> 
     else {
         return End::NotStarted { missing: false };
     };
-    command
-        .stdin(child_input)
-        .stdout(child_output)
-        .stderr(child_errors);
-    let mut child = match platform::spawn(command) {
+    let mut child = match platform::spawn(command, (child_input, child_output, child_errors)) {
         Ok(child) => child,
         Err(failure) => {
             return End::NotStarted {

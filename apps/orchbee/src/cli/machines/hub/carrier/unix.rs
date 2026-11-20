@@ -1,12 +1,16 @@
 //! The macOS and Linux carrier child: started as the leader of its own process group, which the
-//! hub ends whole, in the root folder.
+//! hub ends whole, in the root folder, with the hub's pipes as its standard streams.
 
 use nix::{
     sys::signal::{SigSet, Signal, killpg},
     unistd::Pid,
 };
-use orchbee_local_runtime::{CommandChild, CommandSpawnFailure};
-use std::{path::PathBuf, process::Command};
+use orchbee_local_runtime::{CommandChild, CommandSpawnFailure, SpawnEnvironment};
+use std::{
+    io::{PipeReader, PipeWriter},
+    path::PathBuf,
+    process::Command,
+};
 
 /// The carrier's process group, whose ID its unreaped root keeps from being given away.
 pub(super) type Root = Pid;
@@ -16,17 +20,26 @@ pub(super) fn folder() -> Option<PathBuf> {
     Some(PathBuf::from("/"))
 }
 
-/// Starts the child as the leader of a new process group. A child keeps the signal mask of the
-/// thread that starts it, so this owner thread, in the hub that owns no signal, unblocks every
-/// signal first: `ssh`, its askpass helpers and a stand-in can then be interrupted and stopped.
-pub(super) fn spawn(command: Command) -> Result<CommandChild, CommandSpawnFailure> {
+/// Starts the child as the leader of a new process group, with the hub's pipe ends as its standard
+/// input, output and error, and exactly the variables `command` sets. On macOS the child inherits no
+/// other descriptor, whatever the hub's threads create meanwhile. The owner thread, in the hub that
+/// owns no signal, unblocks every signal first, so the child starts with an empty signal mask and
+/// `ssh`, its askpass helpers and a stand-in can be interrupted and stopped.
+pub(super) fn spawn(
+    command: Command,
+    (input, output, errors): (PipeReader, PipeWriter, PipeWriter),
+) -> Result<CommandChild, CommandSpawnFailure> {
     SigSet::empty()
         .thread_set_mask()
         .map_err(|error| CommandSpawnFailure {
             error: error.into(),
             created: false,
         })?;
-    CommandChild::spawn(command)
+    CommandChild::spawn_with_streams(
+        command,
+        SpawnEnvironment::Cleared,
+        [input.into(), output.into(), errors.into()],
+    )
 }
 
 /// The process group `child` leads.

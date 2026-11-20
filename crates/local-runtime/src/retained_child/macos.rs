@@ -42,6 +42,8 @@ impl Process {
             arguments,
             &environment,
             Path::new("/"),
+            None,
+            false,
         )?;
         Ok(Self { id, status: None })
     }

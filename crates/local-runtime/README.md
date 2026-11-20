@@ -225,10 +225,15 @@ private `src/retained_spawn_native.rs` adapter, this crate's second authored uns
 It otherwise keeps the standard library's launch: `/` as the working directory, the parent's
 environment without the relaunch protocol's variable (and with the given `PATH`), an empty signal
 mask and `SIGPIPE` at its default action, so a signal the spawning thread blocks still reaches the
-child. The executable must be an absolute path. Linux
-creates these descriptors close-on-exec atomically and keeps the standard library's spawn; Windows
-is unchanged. Short-lived commands, such as Git, `run_unix_command` and
-`run_unmasked_unix_command`, keep the standard library's spawn or the safe wrapper too, because they end before any caller waits on a peer end they might hold.
+child. The executable must be an absolute path. The hub's SSH carrier, which is long-lived and holds
+its pipes, starts through the same adapter when its caller uses `CommandChild::spawn_with_streams`
+(`src/command_child/unix/native.rs`): its own three pipes as the standard streams, a new process
+group, and exactly the environment and working directory its command sets, with no other descriptor.
+Linux creates these descriptors close-on-exec atomically and keeps the standard library's spawn for
+both paths; Windows is unchanged. Plugin processes the Worker starts with `CommandChild::spawn` still
+use the standard library's spawn. Short-lived commands, such as Git, `run_unix_command` and
+`run_unmasked_unix_command`, keep the standard library's spawn or the safe wrapper too, because they
+end before any caller waits on a peer end they might hold.
 
 - **Strings.** The executable, each argument and each `NAME=value` entry become owned NUL-terminated
   strings, refused with `InvalidInput` when one holds a NUL byte; the argument and environment
@@ -243,7 +248,9 @@ is unchanged. Short-lived commands, such as Git, `run_unix_command` and
 
 The adjacent safe test starts a child while a descriptor without close-on-exec is open and sees its
 peer close while the child still runs; checks the child's directory, argument boundaries, exact
-environment and exit status; and checks that a missing executable starts nothing.
+environment and exit status; and checks that a missing executable starts nothing. The macOS command
+test starts a command with its own streams while such a descriptor is open, and checks that the
+command sees no other descriptor and leads its own group.
 
 ## Data root
 

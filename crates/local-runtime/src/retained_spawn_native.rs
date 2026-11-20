@@ -5,14 +5,18 @@
 //! with Rust 1.97 through both its `posix_spawn` and its fork path), so a child it starts while a
 //! command's signal owner is armed keeps that owner's blocked signals. macOS marks a new socket or pipe close-on-exec only after
 //! creating it, so without that flag a descriptor another thread is creating at that moment would
-//! reach the child and outlive this process's own use of it. [`crate::retained_child`] is the only
-//! caller; the crate README's safety contract lists every invariant the unsafe blocks below rely on.
+//! reach the child and outlive this process's own use of it. [`crate::retained_child`] and the hub
+//! carrier's launch, through [`crate::command_child`], are the only callers; the crate README's
+//! safety contract lists every invariant the unsafe blocks below rely on.
 use nix::libc;
 use std::{
     ffi::{CStr, CString, OsStr, OsString},
     io,
     mem::MaybeUninit,
-    os::unix::ffi::OsStrExt,
+    os::{
+        fd::{AsRawFd, BorrowedFd},
+        unix::ffi::OsStrExt,
+    },
     path::Path,
     ptr,
 };
@@ -28,15 +32,19 @@ unsafe extern "C" {
 const NULL_DEVICE: &CStr = c"/dev/null";
 
 /// Starts `executable` with `arguments` after it in its argument vector, exactly `environment`,
-/// `directory` as its working directory, `/dev/null` as its three standard streams, an empty signal
-/// mask and `SIGPIPE` at its default action, whatever this thread blocks or ignores. It inherits no
-/// other descriptor. Returns the
-/// child's process identifier; the caller reaps it through [`wait`].
+/// `directory` as its working directory, an empty signal mask and `SIGPIPE` at its default action,
+/// whatever this thread blocks or ignores. Its three standard streams are the descriptors in
+/// `standard`, each at least 3 and duplicated onto 0 to 2 in order, or `/dev/null` when it is
+/// `None`. With `process_group`, the child leads a new process group whose identifier is its own.
+/// It inherits no other descriptor. Returns the child's process identifier; the caller reaps it
+/// through [`wait`].
 pub(crate) fn spawn(
     executable: &Path,
     arguments: &[&OsStr],
     environment: &[(OsString, OsString)],
     directory: &Path,
+    standard: Option<[BorrowedFd<'_>; 3]>,
+    process_group: bool,
 ) -> io::Result<u32> {
     let program = c_string(executable.as_os_str().as_bytes())?;
     let arguments = arguments
@@ -58,18 +66,30 @@ pub(crate) fn spawn(
     let environment_vector = pointers(&environment);
 
     let mut actions = FileActions::new()?;
-    actions.open_null(libc::STDIN_FILENO, libc::O_RDONLY)?;
-    actions.open_null(libc::STDOUT_FILENO, libc::O_WRONLY)?;
-    actions.open_null(libc::STDERR_FILENO, libc::O_WRONLY)?;
+    match standard {
+        None => {
+            actions.open_null(libc::STDIN_FILENO, libc::O_RDONLY)?;
+            actions.open_null(libc::STDOUT_FILENO, libc::O_WRONLY)?;
+            actions.open_null(libc::STDERR_FILENO, libc::O_WRONLY)?;
+        }
+        Some([input, output, errors]) => {
+            actions.duplicate(input, libc::STDIN_FILENO)?;
+            actions.duplicate(output, libc::STDOUT_FILENO)?;
+            actions.duplicate(errors, libc::STDERR_FILENO)?;
+        }
+    }
     actions.change_directory(&directory)?;
     let mut attributes = Attributes::new()?;
     attributes.empty_signal_mask()?;
     attributes.default_pipe_signal()?;
-    attributes.set_flags(
-        libc::POSIX_SPAWN_CLOEXEC_DEFAULT
-            | libc::POSIX_SPAWN_SETSIGMASK
-            | libc::POSIX_SPAWN_SETSIGDEF,
-    )?;
+    let mut flags = libc::POSIX_SPAWN_CLOEXEC_DEFAULT
+        | libc::POSIX_SPAWN_SETSIGMASK
+        | libc::POSIX_SPAWN_SETSIGDEF;
+    if process_group {
+        attributes.lead_process_group()?;
+        flags |= libc::POSIX_SPAWN_SETPGROUP;
+    }
+    attributes.set_flags(flags)?;
 
     let mut process: libc::pid_t = 0;
     // SAFETY: `program` and every string the two vectors point to outlive the call; both vectors
@@ -137,6 +157,15 @@ impl FileActions {
                 flags,
                 0,
             )
+        })
+    }
+
+    /// Duplicates `source` onto `target` in the child, where the copy is not close-on-exec.
+    fn duplicate(&mut self, source: BorrowedFd<'_>, target: libc::c_int) -> io::Result<()> {
+        // SAFETY: the object is initialized and not destroyed. The action records only the number
+        // of `source`, which the caller keeps open until the spawn that uses this action returns.
+        status(unsafe {
+            libc::posix_spawn_file_actions_adddup2(&raw mut self.0, source.as_raw_fd(), target)
         })
     }
 
@@ -208,6 +237,13 @@ impl Attributes {
                 signals.as_ptr(),
             ))
         }
+    }
+
+    /// Makes the child the leader of a new process group, whose identifier is its own; the flag
+    /// `POSIX_SPAWN_SETPGROUP` applies it.
+    fn lead_process_group(&mut self) -> io::Result<()> {
+        // SAFETY: the object is initialized and not destroyed; group 0 names the child itself.
+        status(unsafe { libc::posix_spawnattr_setpgroup(&raw mut self.0, 0) })
     }
 
     fn set_flags(&mut self, flags: libc::c_int) -> io::Result<()> {
