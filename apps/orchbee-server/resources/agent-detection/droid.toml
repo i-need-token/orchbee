@@ -1,7 +1,12 @@
 id = "droid"
-version = "2026.11.19.2"
-min_engine_version = 1
+version = "2026.11.19.3"
+min_engine_version = 4
 updated_at = "2026-11-19T00:00:00Z"
+
+# Orchbee: the composer is the `>` row under its mode line; the mode line is the area's top.
+[input_area]
+anchor = '^\s*>(\s|$)'
+above = ' · '
 
 [[rules]]
 id = "execute_selection_blocker"

@@ -1,6 +1,6 @@
 id = "deveco"
-version = "2026.11.19.2"
-min_engine_version = 1
+version = "2026.11.19.3"
+min_engine_version = 4
 updated_at = "2026-11-19T00:00:00Z"
 aliases = ["deveco-code"]
 
@@ -8,6 +8,11 @@ aliases = ["deveco-code"]
 # ●/○ bullets), then asks for a DevEco Studio path, then shows an agreements page that waits for
 # the user to accept. Its busy and idle screens were captured after the path question was answered
 # with Skip, because this machine has no DevEco Studio.
+
+# Orchbee: the bottom edge of the prompt box (`╹▀▀▀`) or of an empty square box (`└───┘`) is the anchor; the left bar or the top edge is the area's top.
+[input_area]
+anchor = '^\s*(╹▀{3,}|└─{3,})'
+above = '^\s*(┃|│|┌─{3,})'
 
 [[rules]]
 id = "workspace_trust_prompt"

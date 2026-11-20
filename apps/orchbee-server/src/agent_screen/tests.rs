@@ -764,6 +764,20 @@ fn kimi_copilot_and_antigravity_follow_real_turn_captures() {
             expected
         );
     }
+    for (provider, screen, row) in [
+        (Provider::Kimi, KIMI_TURN, 2),
+        (Provider::Kimi, KIMI_IDLE, 2),
+        (Provider::Copilot, COPILOT_TURN, 2),
+        (Provider::Copilot, COPILOT_IDLE, 3),
+        (Provider::Antigravity, ANTIGRAVITY_TURN, 2),
+        (Provider::Antigravity, ANTIGRAVITY_IDLE, 3),
+    ] {
+        assert_eq!(
+            engine.input_row(provider, input(screen)),
+            Some(row),
+            "{screen}"
+        );
+    }
 }
 
 #[test]
@@ -774,6 +788,7 @@ fn qoder_droid_codebuddy_deveco_and_mastracode_follow_real_turn_captures() {
     const QODER_TRUST: &str = " Do you trust the files in this folder?\n────────────────────────────────────────\n Please confirm this is your own project or from a trusted source. Once\n trusted, Qoder CLI can read, modify, and execute files here, and will load\n local configurations (commands, hooks, MCP servers, agents, skills, settings).\n\n C:\\work\\scratch\n\n  ❯ 1. Trust folder\n    2. Don't trust and exit\n\n ↑/↓ navigate · Enter select · Esc back\n";
     const QODER_WORKING: &str = " > Run the shell command echo ok and then tell me the output in one word.\n\n ⠏ Generating... (esc to cancel, 4s)                            ? for shortcuts\n────────────────────────────────────────\n Default Shift+Tab to Accept Edits                                    23 skills\n────────────────────────────────────────\n >   Type your message or @path/to/file\n────────────────────────────────────────\n Model name · ctx ░░░░░░░░░░ 2%\n";
     const QODER_IDLE: &str = "                                                                ? for shortcuts\n────────────────────────────────────────\n Default Shift+Tab to Accept Edits                                    23 skills\n────────────────────────────────────────\n >   Type your message or @path/to/file\n────────────────────────────────────────\n Model name · ctx ░░░░░░░░░░ 2%\n";
+    const QODER_FRESH: &str = "                Credits exhausted. Use /usage for details or /upgrade for more.\n────────────────────────────────────────────────────────────────────────────────\n Default Shift+Tab to Accept Edits                                    23 skills\n────────────────────────────────────────────────────────────────────────────────\n >   Type your message or @path/to/file\n────────────────────────────────────────────────────────────────────────────────\n Model name · ctx ░░░░░░░░░░ 0%\n";
     const DROID_TRUST: &str = "  Skills (…)  MCPs (0) ✗  Connectors (…)  AGENTS.md ✓\n╭────────────────────────────────────────╮\n│ Trust this folder?                     │\n│ C:\\work\\scratch                        │\n│ Droid will read, edit, and run files   │\n│ in this folder, and load any project   │\n╰────────────────────────────────────────╯\n> 1. Trust this folder\n  2. Exit without trusting\nEnter to confirm · Esc to exit\n";
     const DROID_WORKING: &str = " > Count from 1 to 40, one number per line. Don't use tools.\n ⡄ Thinking...  (Press ESC to stop)\n Auto (Med) · allow reversible comma… Model name (High)\n > Enter to steer · Ctrl+Enter to queue\n? for help\n";
     const DROID_FRESH: &str = " Auto (Med) · allow reversible comma… Model name (High)\n > Try \"Debug why users can't login\"\n? for help\n";
@@ -795,6 +810,7 @@ fn qoder_droid_codebuddy_deveco_and_mastracode_follow_real_turn_captures() {
         (Provider::Qoder, QODER_TRUST, Blocked),
         (Provider::Qoder, QODER_WORKING, Working),
         (Provider::Qoder, QODER_IDLE, Idle),
+        (Provider::Qoder, QODER_FRESH, Idle),
         (Provider::Droid, DROID_TRUST, Blocked),
         (Provider::Droid, DROID_WORKING, Working),
         (Provider::Droid, DROID_FRESH, Idle),
@@ -817,6 +833,29 @@ fn qoder_droid_codebuddy_deveco_and_mastracode_follow_real_turn_captures() {
         assert_eq!(
             engine.explain(provider, input(screen)).unwrap().state,
             expected
+        );
+    }
+    for (provider, screen, row) in [
+        (Provider::Qoder, QODER_WORKING, 5),
+        (Provider::Qoder, QODER_IDLE, 3),
+        (Provider::Qoder, QODER_FRESH, 3),
+        (Provider::Droid, DROID_WORKING, 2),
+        (Provider::Droid, DROID_FRESH, 0),
+        (Provider::Droid, DROID_IDLE, 3),
+        (Provider::CodeBuddy, CODEBUDDY_WORKING, 4),
+        (Provider::CodeBuddy, CODEBUDDY_FRESH, 0),
+        (Provider::CodeBuddy, CODEBUDDY_IDLE, 4),
+        (Provider::DevEco, DEVECO_WORKING, 0),
+        (Provider::DevEco, DEVECO_FRESH, 0),
+        (Provider::DevEco, DEVECO_IDLE, 2),
+        (Provider::Mastracode, MASTRACODE_WORKING, 2),
+        (Provider::Mastracode, MASTRACODE_FRESH, 1),
+        (Provider::Mastracode, MASTRACODE_IDLE, 2),
+    ] {
+        assert_eq!(
+            engine.input_row(provider, input(screen)),
+            Some(row),
+            "{screen}"
         );
     }
 }

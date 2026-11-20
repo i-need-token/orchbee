@@ -1,12 +1,17 @@
 id = "codebuddy"
-version = "2026.11.19.2"
-min_engine_version = 1
+version = "2026.11.19.3"
+min_engine_version = 4
 updated_at = "2026-11-19T00:00:00Z"
 aliases = ["codebuddy-code"]
 
 # CodeBuddy Code 2.x asks two startup questions before it accepts a message: a folder trust list
 # and, without a login, a login-method list. Both wait for a choice. A running turn shows a spinner
 # status line above the composer, and a finished turn shows the composer between two rules.
+
+# Orchbee: the composer is the `>` row between two separator rules; the first separator is the area's top.
+[input_area]
+anchor = '^\s*>(\s|$)'
+above = '^\s*─{8,}'
 
 [[rules]]
 id = "folder_trust_prompt"

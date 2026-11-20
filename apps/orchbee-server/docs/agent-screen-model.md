@@ -167,10 +167,7 @@ can end above it. It plays no part in state detection.
 
 Lines are the sampled live-screen rows from the top, with trailing whitespace removed, so a line's
 index is its screen row. Physical Explain computes the row from the same capture as its sample and
-returns it only when the request asks for it. Only OpenCode 2.x carries the table: the anchor is the
-prompt box's bottom edge (`╹▀▀▀`) and `above` its left bar (`┃`). Its transcript message boxes draw
-the bar without that bottom edge, so they never anchor, and a question that replaces the prompt box
-leaves the area unknown.
+returns it only when the request asks for it. Tables are bundled for OpenCode 2.x, DevEco Code, Copilot CLI, Kimi Code, Qoder CLI, Droid, CodeBuddy, Antigravity CLI and Mastracode. Each anchors on the frame of its own prompt: OpenCode and DevEco mark the bottom edge (`╹▀▀▀`) with the left bar (`┃`); Copilot CLI uses the same bottom edge with a top edge (`╻▄▄▄`); Kimi Code uses a rounded frame (`╰─╯` with `╭─╮` and `│`); DevEco's empty box uses a square frame (`└───┘`); Qoder CLI, CodeBuddy and Antigravity CLI put the `>` composer between separator rules; Droid puts its mode line above the `>` composer; and Mastracode puts the `→` composer between half-block edges. OpenCode's transcript message boxes draw the bar without the bottom edge, so they never anchor. Where no anchor matches, such as a question that replaces the prompt box, the area is unknown.
 
 ## Publication integration contract
 

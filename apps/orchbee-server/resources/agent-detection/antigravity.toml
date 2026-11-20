@@ -1,8 +1,13 @@
 id = "agy"
-version = "2026.11.19.1"
-min_engine_version = 1
+version = "2026.11.19.2"
+min_engine_version = 4
 updated_at = "2026-11-19T00:00:00Z"
 aliases = ["antigravity", "antigravity-cli"]
+
+# Orchbee: the composer is the `>` row between two separator rules; the first separator is the area's top.
+[input_area]
+anchor = '^\s*>(\s|$)'
+above = '^\s*─{8,}'
 
 [[rules]]
 id = "permission_prompt"

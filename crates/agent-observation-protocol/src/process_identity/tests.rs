@@ -1054,6 +1054,12 @@ fn recognition_matrix_rows_and_counterexamples() {
             interactive(P::Qoder, S::NativeImage),
         ),
         (
+            "bare versioned install",
+            r"{home}\.qoder\bin\qodercli\qodercli-1.1.93.exe",
+            Some(vec![r"{home}\.qoder\bin\qodercli\qodercli.exe"]),
+            interactive(P::Qoder, S::NativeImage),
+        ),
+        (
             "bare",
             "kimi.exe",
             Some(vec!["kimi"]),

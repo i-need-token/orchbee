@@ -1,8 +1,13 @@
 id = "kimi"
-version = "2026.11.19.1"
-min_engine_version = 1
+version = "2026.11.19.2"
+min_engine_version = 4
 updated_at = "2026-11-19T00:00:00Z"
 aliases = ["kimi-code", "kimi code"]
+
+# Orchbee: the bottom edge of the rounded prompt box is the anchor; its top edge and side bars are the area's top.
+[input_area]
+anchor = '^\s*╰─+╯'
+above = '^\s*(╭─+╮|│)'
 
 [[rules]]
 id = "current_approval_panel"

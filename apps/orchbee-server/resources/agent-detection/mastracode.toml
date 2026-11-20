@@ -1,9 +1,14 @@
 id = "mastracode"
-version = "2026.11.19.2"
-min_engine_version = 1
+version = "2026.11.19.3"
+min_engine_version = 4
 updated_at = "2026-11-19T00:00:00Z"
 
 # Orchbee: Mastracode 0.49.0 shows `• working  1s · esc to interrupt` above its composer while a turn runs.
+# Orchbee: the `→` composer sits between half-block edges; the upper edge is the area's top.
+[input_area]
+anchor = '^\s*→'
+above = '^\s*▄{5,}'
+
 [[rules]]
 id = "esc_interrupt_working"
 state = "working"

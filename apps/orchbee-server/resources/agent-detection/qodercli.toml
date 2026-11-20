@@ -1,8 +1,13 @@
 id = "qodercli"
-version = "2026.11.19.2"
-min_engine_version = 1
+version = "2026.11.19.3"
+min_engine_version = 4
 updated_at = "2026-11-19T00:00:00Z"
 aliases = ["qoderclicn", "qoder", "qodercn"]
+
+# Orchbee: the composer is the `>` row between two separator rules; the first separator is the area's top.
+[input_area]
+anchor = '^\s*>(\s|$)'
+above = '^\s*─{8,}'
 
 [[rules]]
 id = "confirmation_or_input_blocker"
@@ -93,4 +98,14 @@ priority = 10
 region = "bottom_non_empty_lines(7)"
 visible_idle = true
 contains = ["? for shortcuts"]
+line_regex = ['^\s*>\s', 'ctx\s+\S+\s+\d+%']
+
+# Orchbee: Qoder CLI 1.1.93 shows its mode line instead of the `? for shortcuts` hint on a fresh screen; the placeholder row marks the same idle composer.
+[[rules]]
+id = "composer_placeholder_idle"
+state = "idle"
+priority = 10
+region = "bottom_non_empty_lines(7)"
+visible_idle = true
+contains = ["type your message or @path/to/file"]
 line_regex = ['^\s*>\s', 'ctx\s+\S+\s+\d+%']

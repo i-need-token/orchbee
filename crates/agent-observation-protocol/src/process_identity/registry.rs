@@ -6,7 +6,7 @@ use super::mode::{AgentModeGrammar, grammar};
 use crate::AgentReportProvider;
 
 /// Registry data version; it changes whenever an entry's recognition meaning changes.
-pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 11;
+pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 12;
 
 /// How much a bare process name proves about its provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -264,7 +264,11 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 36] = {
         },
         entry(
             P::Qoder,
-            &[unique("qodercli"), unique("qoderclicn")],
+            &[
+                unique("qodercli"),
+                unique("qoderclicn"),
+                unique("qodercli-#"),
+            ],
             NONE,
             &grammar::QODER,
         ),
