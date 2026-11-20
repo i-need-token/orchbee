@@ -568,12 +568,6 @@ fn new_provider_rules_follow_redacted_windows_captures() {
             Blocked,
         ),
         (
-            P::CodeBuddy,
-            ">\n─────────\nmodel · ? for shortcuts",
-            "",
-            Unknown,
-        ),
-        (
             P::CommandCode,
             "Sign in to Command Code\n\n⠧ Complete login in your browser...\n│ API Key: Paste your API key... │\n\nAuthorize in browser, or paste API key here\n\nctrl+c to cancel",
             "",
@@ -762,6 +756,61 @@ fn kimi_copilot_and_antigravity_follow_real_turn_captures() {
         (Provider::Antigravity, ANTIGRAVITY_TRUST, Blocked),
         (Provider::Antigravity, ANTIGRAVITY_TURN, Working),
         (Provider::Antigravity, ANTIGRAVITY_IDLE, Idle),
+    ] {
+        let detected = engine.detect(Some(provider), input(screen)).unwrap();
+        assert_eq!(detected.state, expected, "{screen}");
+        assert_eq!(
+            engine.explain(provider, input(screen)).unwrap().state,
+            expected
+        );
+    }
+}
+
+#[test]
+fn qoder_droid_codebuddy_deveco_and_mastracode_follow_real_turn_captures() {
+    // Redacted excerpts of live screens from Qoder CLI 1.1.93, Droid v1.6.0, CodeBuddy Code 2.185.0 (the
+    // installed package), DevEco Code 0.3.0-stable and Mastra Code v0.49.0, each in an empty scratch folder.
+    // Paths, account names and model plans are replaced, and explanatory rows are left out.
+    const QODER_TRUST: &str = " Do you trust the files in this folder?\n────────────────────────────────────────\n Please confirm this is your own project or from a trusted source. Once\n trusted, Qoder CLI can read, modify, and execute files here, and will load\n local configurations (commands, hooks, MCP servers, agents, skills, settings).\n\n C:\\work\\scratch\n\n  ❯ 1. Trust folder\n    2. Don't trust and exit\n\n ↑/↓ navigate · Enter select · Esc back\n";
+    const QODER_WORKING: &str = " > Run the shell command echo ok and then tell me the output in one word.\n\n ⠏ Generating... (esc to cancel, 4s)                            ? for shortcuts\n────────────────────────────────────────\n Default Shift+Tab to Accept Edits                                    23 skills\n────────────────────────────────────────\n >   Type your message or @path/to/file\n────────────────────────────────────────\n Model name · ctx ░░░░░░░░░░ 2%\n";
+    const QODER_IDLE: &str = "                                                                ? for shortcuts\n────────────────────────────────────────\n Default Shift+Tab to Accept Edits                                    23 skills\n────────────────────────────────────────\n >   Type your message or @path/to/file\n────────────────────────────────────────\n Model name · ctx ░░░░░░░░░░ 2%\n";
+    const DROID_TRUST: &str = "  Skills (…)  MCPs (0) ✗  Connectors (…)  AGENTS.md ✓\n╭────────────────────────────────────────╮\n│ Trust this folder?                     │\n│ C:\\work\\scratch                        │\n│ Droid will read, edit, and run files   │\n│ in this folder, and load any project   │\n╰────────────────────────────────────────╯\n> 1. Trust this folder\n  2. Exit without trusting\nEnter to confirm · Esc to exit\n";
+    const DROID_WORKING: &str = " > Count from 1 to 40, one number per line. Don't use tools.\n ⡄ Thinking...  (Press ESC to stop)\n Auto (Med) · allow reversible comma… Model name (High)\n > Enter to steer · Ctrl+Enter to queue\n? for help\n";
+    const DROID_FRESH: &str = " Auto (Med) · allow reversible comma… Model name (High)\n > Try \"Debug why users can't login\"\n? for help\n";
+    const DROID_IDLE: &str = "   38\n   39\n   40\n Auto (Med) · allow reversible comma… Model name (High)\n >\n[⏱ 4s] ? for help\n";
+    const CODEBUDDY_TRUST: &str = "╭────────────────────────────────────────────╮\n│ Do you trust the files in this folder?     │\n│ C:\\work\\scratch                            │\n│   > 1. Trust folder only (scratch)         │\n│     2. Trust parent folder (scratch/**)    │\n│     4. No, exit (escape)                   │\n│ Enter to confirm • Esc to exit             │\n╰────────────────────────────────────────────╯\n";
+    const CODEBUDDY_WORKING: &str = "> Count from 1 to 40, one number per line. Don't use tools.\n✸ Waking… (0s · waiting for model)\n  └ Tip: Use Plan Mode to prepare for a complex request before making changes.\n    Press Shift+Tab twice to enable.\n────────────────────────────────────────\n>\n────────────────────────────────────────\nmodel-name · ← for agents · ? for shortcuts\n";
+    const CODEBUDDY_FRESH: &str = "────────────────────────────────────────\n>\n────────────────────────────────────────\nmodel-name · ← for agents · ? for shortcuts\n";
+    const CODEBUDDY_IDLE: &str = "  38\n  39\n  40\n✔ Worked for 6s\n────────────────────────────────────────\n>\n────────────────────────────────────────\nmodel-name · ← for agents · ? for shortcuts\n";
+    const DEVECO_TRUST: &str = "┌  Accessing workspace:\n│\n│  C:\\work\\scratch\n│\n│  Safety Check: Is this a project you created or one you trust?\n│\n◆\n│  ● Yes, I trust this folder\n│  ○ No, exit\n└\n";
+    const DEVECO_STUDIO: &str = "          Configure DevEco Studio Path (Requires version 6.1 or later)\n               > 1. Enter a custom path\n                 2. Skip (DevEco Studio Tools will be unavailable)\n\n                    Use Enter to Select, Up/Down to navigate\n\n  C:\\work\\scratch                        0.3.0-stable\n";
+    const DEVECO_FRESH: &str = "┌────────────────────────────────────────────────────────┐\n│ Ask anything... \"Fix broken tests\"                    │\n│                                                        │\n│ Build · Model name magpie                              │\n└────────────────────────────────────────────────────────┘\ntab agents  ctrl+p commands\n\n\n  C:\\work\\scratch                        0.3.0-stable\n";
+    const DEVECO_WORKING: &str = "  ┃\n  ┃\n  ┃  Build · Model name magpie\n  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n   ⬝⬝⬝■■■■■  esc cancel                            tab agents  ctrl+p commands\n";
+    const DEVECO_IDLE: &str = "     ▣  Build · Model name · 7.3s                    ▄\n                                                          Jump to earliest ↑\n  ┃\n  ┃  Build · Model name magpie\n  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n                                           18.7K (2%) · $0.00  ctrl+p commands\n";
+    const MASTRACODE_FRESH: &str = "Update available: v0.50.2 (current: v0.49.0). Run /update to update.\n▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n →\n▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n build · magpie/example-model · 0/70k 0%\n C:\\work\\scratch\n";
+    const MASTRACODE_WORKING: &str = "  Count from 1 to 40, one number per line. Don't use tools.\n • working  1s · esc to interrupt\n▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n →\n▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n build · magpie/example-model · 0/70k 0%\n C:\\work\\scratch\n";
+    const MASTRACODE_IDLE: &str = "  39\n  40\n▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n →\n▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n build · magpie/example-model 7s ✓ · 0/70k 0%\n C:\\work\\scratch\n";
+    let engine = ScreenDetector::bundled().unwrap();
+    for (provider, screen, expected) in [
+        (Provider::Qoder, QODER_TRUST, Blocked),
+        (Provider::Qoder, QODER_WORKING, Working),
+        (Provider::Qoder, QODER_IDLE, Idle),
+        (Provider::Droid, DROID_TRUST, Blocked),
+        (Provider::Droid, DROID_WORKING, Working),
+        (Provider::Droid, DROID_FRESH, Idle),
+        (Provider::Droid, DROID_IDLE, Idle),
+        (Provider::CodeBuddy, CODEBUDDY_TRUST, Blocked),
+        (Provider::CodeBuddy, CODEBUDDY_WORKING, Working),
+        (Provider::CodeBuddy, CODEBUDDY_FRESH, Idle),
+        (Provider::CodeBuddy, CODEBUDDY_IDLE, Idle),
+        (Provider::DevEco, DEVECO_TRUST, Blocked),
+        (Provider::DevEco, DEVECO_STUDIO, Blocked),
+        (Provider::DevEco, DEVECO_WORKING, Working),
+        (Provider::DevEco, DEVECO_FRESH, Idle),
+        (Provider::DevEco, DEVECO_IDLE, Idle),
+        (Provider::Mastracode, MASTRACODE_WORKING, Working),
+        (Provider::Mastracode, MASTRACODE_FRESH, Idle),
+        (Provider::Mastracode, MASTRACODE_IDLE, Idle),
     ] {
         let detected = engine.detect(Some(provider), input(screen)).unwrap();
         assert_eq!(detected.state, expected, "{screen}");

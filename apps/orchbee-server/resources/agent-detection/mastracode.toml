@@ -1,0 +1,23 @@
+id = "mastracode"
+version = "2026.11.19.2"
+min_engine_version = 1
+updated_at = "2026-11-19T00:00:00Z"
+
+# Orchbee: Mastracode 0.49.0 shows `• working  1s · esc to interrupt` above its composer while a turn runs.
+[[rules]]
+id = "esc_interrupt_working"
+state = "working"
+priority = 100
+region = "bottom_non_empty_lines(6)"
+visible_working = true
+line_regex = ['^\s*•\s+working\s+\d+s\s+·\s+esc to interrupt']
+
+# Orchbee: the idle composer is the `→` row between `▄` and `▀` rows, under a status line that names the mode
+# and model (`build · <model> · 0/70k 0%`). A finished turn adds its duration and a check mark to that line.
+[[rules]]
+id = "composer_idle"
+state = "idle"
+priority = 10
+region = "bottom_non_empty_lines(6)"
+visible_idle = true
+line_regex = ['^▄{5,}\s*$', '^\s*→', '^▀{5,}\s*$', '^\s*(build|plan|fast)\s+·\s+\S']

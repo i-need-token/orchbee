@@ -1,12 +1,13 @@
 id = "deveco"
-version = "2026.11.11.1"
+version = "2026.11.19.2"
 min_engine_version = 1
-updated_at = "2026-11-11T00:00:00Z"
+updated_at = "2026-11-19T00:00:00Z"
 aliases = ["deveco-code"]
 
 # DevEco Code 0.3.x first asks whether to trust the workspace (a list whose live choices carry
-# ●/○ bullets), then shows an agreements page that waits for the user to accept. Idle and
-# working screens have not been captured, so this file holds only those blockers.
+# ●/○ bullets), then asks for a DevEco Studio path, then shows an agreements page that waits for
+# the user to accept. Its busy and idle screens were captured after the path question was answered
+# with Skip, because this machine has no DevEco Studio.
 
 [[rules]]
 id = "workspace_trust_prompt"
@@ -26,3 +27,42 @@ line_regex = [
 	'^\s*\[[ xX✓]\] I have read and agree to the Terms of Use',
 	'Enter: agree and continue',
 ]
+
+# Orchbee: after the workspace trust, DevEco Code 0.3.0-stable asks for a DevEco Studio path before its
+# composer. The question and its navigation hint are both required.
+[[rules]]
+id = "studio_path_prompt"
+state = "blocked"
+priority = 300
+region = "bottom_non_empty_lines(10)"
+visible_blocker = true
+contains = ["configure deveco studio path", "use enter to select"]
+
+# Orchbee: a running turn shows a moving progress bar and `esc cancel` in its footer, beside
+# `ctrl+p commands`.
+[[rules]]
+id = "esc_cancel_working"
+state = "working"
+priority = 100
+region = "bottom_non_empty_lines(3)"
+visible_working = true
+line_regex = ['^\s*[⬝■]+\s+esc cancel']
+
+# Orchbee: a fresh composer shows its `Ask anything...` placeholder above the `ctrl+p commands` footer.
+[[rules]]
+id = "fresh_composer_idle"
+state = "idle"
+priority = 10
+region = "bottom_non_empty_lines(9)"
+visible_idle = true
+contains = ["ask anything", "ctrl+p commands"]
+
+# Orchbee: after a turn the footer shows the token usage and cost before `ctrl+p commands`. A running
+# turn shows the same footer beside `esc cancel`, so the busy rule above outranks it by priority.
+[[rules]]
+id = "usage_footer_idle"
+state = "idle"
+priority = 10
+region = "bottom_non_empty_lines(3)"
+visible_idle = true
+line_regex = ['\d[\d.]*[KMB]? \(\d+%\) · \$\d[\d.]*\s+ctrl\+p commands']
