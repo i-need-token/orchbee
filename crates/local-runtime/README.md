@@ -301,9 +301,13 @@ Only the top level holds what a person reads, edits, or keeps. Every writer that
 inside the root also writes `internal/version.json` when it is absent, so a root that holds anything
 Orchbee wrote records its layout. It writes the record under `internal/version.lock` as
 `version.pending` and moves it into place without replacing one another writer placed, so processes
-that start together on a fresh root, and every reader, find the record whole or absent, never empty. The record is `{"layout":1,"newestVersion":"<version>"}`, and
+that start together on a fresh root, and every reader of a record these writers placed, find the
+record whole or absent, never empty. The record is `{"layout":1,"newestVersion":"<version>"}`, and
 Desktop Main reads and writes the same shape; search for `data-root-version-record` before changing
-it. Later releases only add entries, which every rewrite keeps. `DataRoot::admit_layout` reads only
+it. Desktop Main creates the record exclusively and fills it in place, so a reader can find it empty
+or cut short for a moment: `read_record` reads it again for up to one second, while the record is
+empty or ends before its object does, and only then does the record stand as read. Later releases
+only add entries, which every rewrite keeps. `DataRoot::admit_layout` reads only
 this record and refuses a root whose `layout` is higher than `LAYOUT`, or whose record cannot be
 read, and every process that opens a root calls it before any other read: the Client before it
 dispatches any command that opens the root, and the Server and Worker before their first log
@@ -617,15 +621,18 @@ only for one read or probe, and a writer holds a record only while it moves it i
 Windows such a hold refuses the other side: a file another handle holds open cannot be replaced,
 even when that handle shares delete access; a file or folder held or pinned without delete sharing
 cannot be removed; and a record being moved into place cannot be opened by a reader that shares no
-delete access. A lock probe on either platform makes a taker's `try_lock` contend. So every atomic
-replacement, every removal in deletion, every read of a Session or layout record, the namespace
-lock's owners, deletion's activation and lifetime takes, and the Server's and the activator's
-lifetime takes (`acquire_past_probes`) try again every 5 ms for at most half a second
+delete access. An open of an object another handle is removing is refused with access denied for
+that moment. A lock probe on either platform makes a taker's `try_lock` contend. So every atomic
+replacement, every removal in deletion, every read or folder pin of a Session or layout record,
+the namespace lock's owners, deletion's activation and lifetime takes, and the Server's and the
+activator's lifetime takes (`acquire_past_probes`) try again every 5 ms for at most half a second
 (`MOMENTARY_HOLD`) before the refusal stands. A hold lasts well under a millisecond, tens of
 milliseconds on a loaded machine, so the bound outlasts it many times over while an owner's hold is
 still refused promptly, inside the 5 s deletion, 20 s start and 60 s stop deadlines; an operation
 nobody holds never waits. POSIX opens, renames and removals ignore open descriptors, so only the
-lock takes retry there.
+lock takes retry there. A listing (`SessionCatalog::list`) skips a Session folder that a deletion
+removed after the listing named it, since that Session is gone; a folder it cannot read or admit
+still fails the listing.
 
 The [Windows crash-recovery contract](docs/windows-crash-recovery.md) owns guards, interrupted
 publication, compatibility and evidence limits. Check the registered bounded model with:

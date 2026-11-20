@@ -64,14 +64,26 @@ pub(crate) fn outlast_momentary_hold<R>(
     }
 }
 
-/// Opens a published file to read. On Windows a writer moving a new version into place holds the
-/// file with delete access for that move, which refuses a reader that shares no delete access, so
-/// the read outlasts that hold.
-pub(crate) fn open_published(path: &Path) -> io::Result<File> {
+/// Whether opening failed only because another handle holds the object for a moment. On Windows
+/// access denied is one too: it is what an open gets while Windows completes the removal of an
+/// object another handle still holds.
+fn opening_held(error: &io::Error) -> bool {
+    held(error) || (cfg!(windows) && error.raw_os_error() == Some(5))
+}
+
+/// Opens a published file or a folder to read or pin, outlasting a momentary hold of it by another
+/// handle. A writer moving or removing an object holds it for that step, which refuses a reader
+/// that shares no delete access, so the open outlasts the step, as [`replace`] does for its move.
+pub(crate) fn outlast_open<R>(open: impl FnMut() -> io::Result<R>) -> io::Result<R> {
     outlast_momentary_hold(
-        |opened: &io::Result<File>| opened.as_ref().is_err_and(held),
-        || open_file(path, false, false),
+        |opened: &io::Result<R>| opened.as_ref().is_err_and(opening_held),
+        open,
     )
+}
+
+/// Opens a published file to read, outlasting a momentary hold; see [`outlast_open`].
+pub(crate) fn open_published(path: &Path) -> io::Result<File> {
+    outlast_open(|| open_file(path, false, false))
 }
 
 /// Removes a file, outlasting a reader's momentary hold of it, which refuses removal on Windows.

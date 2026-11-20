@@ -24,8 +24,10 @@ mod posix_recovery;
 pub(crate) mod record_migration;
 #[cfg(windows)]
 mod rendezvous;
+mod session_listing;
 mod session_name;
 mod session_store;
+mod version_record;
 
 struct Fixture(PathBuf);
 impl Fixture {

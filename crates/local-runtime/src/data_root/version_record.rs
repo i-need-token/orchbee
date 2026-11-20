@@ -8,6 +8,8 @@ use std::{
     fs::File,
     io::{self, Read},
     path::Path,
+    thread,
+    time::Duration,
 };
 
 /// The layout this build reads and writes.
@@ -16,6 +18,13 @@ pub const LAYOUT: u64 = 1;
 /// backups after.
 pub const PRODUCT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const RECORD_LIMIT: usize = 4096;
+/// How long a reader reads the record again while a writer is still filling it. Desktop Main
+/// creates `internal/version.json` exclusively and then writes it in place, so a reader can find it
+/// empty or cut short for a moment; past this window the record stands as read and is refused as
+/// before.
+const FILLING_WINDOW: Duration = Duration::from_secs(1);
+/// The wait between two reads of a record a writer is still filling.
+const FILLING_POLL: Duration = Duration::from_millis(10);
 
 /// Why this build refuses a data root, found before it reads anything else in the root.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -135,8 +144,41 @@ fn encode(entries: &serde_json::Map<String, serde_json::Value>) -> Vec<u8> {
 }
 
 /// Reads the record without creating anything, refusing an unsafe file as every storage owner
-/// refuses one.
+/// refuses one. A record a writer is still filling is read again for a moment, see
+/// [`read_record_with`].
 pub(crate) fn read_record(path: &Path) -> io::Result<Option<Vec<u8>>> {
+    read_record_with(path, thread::sleep)
+}
+
+/// [`read_record`] with `pause` as the wait between two reads. While the record is empty or cut
+/// short, the reader waits [`FILLING_POLL`] and reads again until [`FILLING_WINDOW`] has passed;
+/// then the record stands as read, and its caller refuses it as an unreadable record. Every other
+/// outcome, including a refusal for another reason, is returned at once.
+pub(crate) fn read_record_with(
+    path: &Path,
+    mut pause: impl FnMut(Duration),
+) -> io::Result<Option<Vec<u8>>> {
+    let mut waited = Duration::ZERO;
+    loop {
+        let bytes = read_record_once(path)?;
+        let filling = bytes.as_deref().is_some_and(is_filling);
+        if !filling || waited >= FILLING_WINDOW {
+            return Ok(bytes);
+        }
+        pause(FILLING_POLL);
+        waited += FILLING_POLL;
+    }
+}
+
+/// Whether `bytes` is what a writer leaves before it finishes the record: nothing, or a JSON prefix
+/// that ends before its object does. Any other content cannot be a prefix of a record.
+fn is_filling(bytes: &[u8]) -> bool {
+    bytes.is_empty()
+        || serde_json::from_slice::<serde_json::Value>(bytes).is_err_and(|error| error.is_eof())
+}
+
+/// One read of the record, without waiting for a writer.
+pub(crate) fn read_record_once(path: &Path) -> io::Result<Option<Vec<u8>>> {
     let file: File = match crate::private_filesystem::open_published(path) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),

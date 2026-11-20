@@ -7,6 +7,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    ffi::{OsStr, OsString},
     fs::{self, File, TryLockError},
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -320,42 +321,57 @@ impl Directory {
     /// file, which an interrupted activation or deletion leaves, is no Session.
     pub(crate) fn list(&self, deadline: Instant) -> io::Result<Vec<(String, CatalogRecord)>> {
         let mut records = Vec::new();
-        for entry in fs::read_dir(&self.path)? {
+        for leaf in self.listing()? {
             if Instant::now() >= deadline {
                 return Err(io::ErrorKind::TimedOut.into());
             }
-            let entry = entry?;
-            let leaf = entry.file_name();
-            let scope = leaf
-                .to_str()
-                .filter(|leaf| crate::session_name::valid(leaf))
-                .ok_or(io::ErrorKind::InvalidData)?;
-            let _pins = permissions::open_tree(&entry.path())?;
-            let mut holds_data = false;
-            for held in fs::read_dir(entry.path())? {
-                holds_data |= held?
-                    .file_name()
-                    .to_str()
-                    .is_none_or(|name| !is_record_guard(name));
-            }
-            if !holds_data {
-                continue;
-            }
-            let record = match self.read(scope) {
-                Ok(Some(record)) => CatalogRecord::Readable(record),
-                Ok(None) => CatalogRecord::Missing,
-                Err(error) if unusable(&error) => CatalogRecord::Unusable,
-                Err(error) if error.kind() == io::ErrorKind::InvalidData => {
-                    CatalogRecord::Unreadable
+            if let Some(listed) = self.listed(&leaf)? {
+                records.push(listed);
+                if records.len() > MAXIMUM_SESSIONS {
+                    return Err(io::ErrorKind::FileTooLarge.into());
                 }
-                Err(error) => return Err(error),
-            };
-            records.push((scope.to_owned(), record));
-            if records.len() > MAXIMUM_SESSIONS {
-                return Err(io::ErrorKind::FileTooLarge.into());
             }
         }
         Ok(records)
+    }
+    /// The names `sessions/` lists, in the order the listing gives them.
+    pub(crate) fn listing(&self) -> io::Result<Vec<OsString>> {
+        fs::read_dir(&self.path)?
+            .map(|entry| entry.map(|entry| entry.file_name()))
+            .collect()
+    }
+    /// The record of one listed name, or `None` when its folder holds no Session. A name that is
+    /// not a valid Session name fails the inventory as `InvalidData`. A folder a deletion removed
+    /// after the listing named it is gone, so it holds no Session and is skipped, not failed.
+    pub(crate) fn listed(&self, leaf: &OsStr) -> io::Result<Option<(String, CatalogRecord)>> {
+        let scope = leaf
+            .to_str()
+            .filter(|leaf| crate::session_name::valid(leaf))
+            .ok_or(io::ErrorKind::InvalidData)?;
+        let pins = permissions::outlast_open(|| permissions::open_tree(&self.folder(scope)));
+        let _pins = match pins {
+            Ok(pins) => pins,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let mut holds_data = false;
+        for held in fs::read_dir(self.folder(scope))? {
+            holds_data |= held?
+                .file_name()
+                .to_str()
+                .is_none_or(|name| !is_record_guard(name));
+        }
+        if !holds_data {
+            return Ok(None);
+        }
+        let record = match self.read(scope) {
+            Ok(Some(record)) => CatalogRecord::Readable(record),
+            Ok(None) => CatalogRecord::Missing,
+            Err(error) if unusable(&error) => CatalogRecord::Unusable,
+            Err(error) if error.kind() == io::ErrorKind::InvalidData => CatalogRecord::Unreadable,
+            Err(error) => return Err(error),
+        };
+        Ok(Some((scope.to_owned(), record)))
     }
     pub(crate) fn record_file(&self, scope: &str) -> io::Result<PathBuf> {
         self.record_path(scope, RECORD_FILE)

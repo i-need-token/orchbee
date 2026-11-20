@@ -4,7 +4,7 @@
 use super::{
     DataRoot, PRODUCT_VERSION,
     platform::create_below_roots,
-    version_record::{VersionRecord, read_record},
+    version_record::{VersionRecord, read_record, read_record_once},
 };
 use crate::{HeldLock, private_filesystem as permissions};
 use std::{
@@ -127,14 +127,16 @@ fn mark_settled(root: &DataRoot) {
 /// Processes that start together on a fresh root race to write it, and every one of them, and every
 /// reader, must find it whole: the first writer under the writer lock moves a complete record into
 /// place, never over a record another writer (Desktop Main among them) already placed, and every
-/// other writer settles the record it finds. An existing record was settled before any folder was
-/// created.
+/// other writer settles the record it finds. Desktop Main fills its record in place, so a record
+/// found empty is settled by [`read_record`], which waits for the fill. An existing record was
+/// settled before any folder was created.
 fn write_version_record(root: &DataRoot, roots: &[PathBuf]) -> io::Result<()> {
     let path = root.version_file();
     let _pins = create_below_roots(&root.internal(), roots)?;
-    if read_record(&path)?.is_none() {
+    // Only the record's presence matters here; the settling read below waits for its content.
+    if read_record_once(&path)?.is_none() {
         let _lock = version_lock(root)?;
-        if read_record(&path)?.is_none() {
+        if read_record_once(&path)?.is_none() {
             match publish_record(
                 root,
                 &path,

@@ -24,6 +24,8 @@ pub use platform::{create_private_directory, prepare_default_runtime_base};
 pub(crate) use state::create_state_directory;
 #[cfg(test)]
 pub(crate) use state::settle_version_record;
+#[cfg(test)]
+pub(crate) use version_record::read_record_with;
 #[cfg(windows)]
 use windows as platform;
 
