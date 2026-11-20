@@ -1,5 +1,12 @@
 # Rust Orchbee Server
 
+The private Rust Server of every Session. It owns the Workbench navigation authority and projection
+kernel, local Human Client and Client Connection admission, the Server-Worker process spine and its
+OBCN carrier, and the terminal coordinator. The emitted executable is named `orchbee-server`. Every
+release cohort ships it beside `orchbee`, `orchbee-worker` and `orchbee-terminal-host`, and the
+Desktop package bundles the same cohort, checking each file against `cohort.json`
+(`apps/desktop/scripts/package.mjs`). It participates in the root Cargo verification gate.
+
 ## Windows semantic events
 
 The Session journal records actual accepted topology, metadata, worktree, Agent and Client changes.
@@ -264,12 +271,6 @@ the failed start left no Host process, and otherwise exits after that answer (se
 [Worker's lazy Host startup](../orchbee-worker/README.md#managed-linux-lazy-host-startup)). The
 failure settles as a definite `terminal-runtime-unavailable` even when the registry already dropped
 the Worker, because no Host received the Launch, so the request is answered before this stop begins.
-
-Experimental, unshipped private Rust Server application. It owns the in-memory Workbench
-navigation authority and private projection kernel, the first POSIX local Server-Worker process spine and serialized post-admission
-OBCN carrier, local Human Client/Client Connection admission, and an in-memory terminal coordinator. The emitted
-executable is named `orchbee-server`; it participates in the root Cargo verification gate and is
-consumed by bare Linux `orchbee` development cohorts, but not Desktop, packaging, an installer, or a service manager.
 
 ## Managed Worker replacement
 
