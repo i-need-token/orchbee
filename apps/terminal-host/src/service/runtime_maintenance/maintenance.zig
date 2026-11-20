@@ -116,7 +116,7 @@ pub const Maintenance = struct {
                     terminal_id,
                     cleanup_failure,
                     self.nextCleanupRetryAt(),
-                ) catch unreachable;
+                ) catch continue;
                 continue;
             }
 
@@ -300,7 +300,12 @@ pub const Maintenance = struct {
             .{ .observed = runtime_observation.exitResult(completion.exit_result.?) }
         else
             .{ .unavailable = .observe_process };
-        _ = core.failureContained(terminal_id, observation) catch unreachable;
+        // Core refuses an exit result its lifecycle cannot validate. Containment still has to
+        // complete, so the process is recorded as unavailable instead of ending the Host.
+        _ = core.failureContained(terminal_id, observation) catch |err| {
+            runtime_observation.noteRefusedObservation(core, terminal_id, err);
+            _ = core.failureContained(terminal_id, .{ .unavailable = .observe_process }) catch return;
+        };
     }
 
     pub fn takeDueCleanupRetry(

@@ -79,8 +79,7 @@ const Handler = struct {
                 error.RuntimeResizeFailed => .{ .code = "resize-failed", .message = "PTY resize failed", .retryable = true },
                 error.RuntimeStateDiverged => host_failure.runtime_state_diverged,
                 error.TerminalRevisionOverflow => .{ .code = "resource-exhausted", .message = "terminal revision space is exhausted", .retryable = false },
-                error.TerminalRuntimeMissing => unreachable,
-                error.TerminalRuntimeUnavailable => coreError(error.InvalidPhase),
+                error.TerminalRuntimeMissing, error.TerminalRuntimeUnavailable => coreError(error.InvalidPhase),
                 error.UnsafeRuntimeAfterResizeFailure => .{ .code = "terminal-resize-failed", .message = "terminal state became unsafe after resize failure", .retryable = false },
                 else => coreError(@errorCast(err)),
             });
@@ -123,7 +122,7 @@ const Handler = struct {
         ) catch |err| {
             response.commitFailure(switch (err) {
                 error.RuntimeStateDiverged => host_failure.runtime_state_diverged,
-                error.TerminalRuntimeMissing => unreachable,
+                error.TerminalRuntimeMissing => coreError(error.InvalidPhase),
                 error.TerminalClearAlternateScreen => .{ .code = "terminal-clear-alternate-screen", .message = "prompt-preserving clear requires the primary screen", .retryable = false },
                 else => coreError(@errorCast(err)),
             });

@@ -42,6 +42,12 @@
 
 - Fence checks → excluded by the scope boundary above; `Rejected` +
   `NotNeeded` is reachable in-model only through `AttachRefused`.
+- Self-built encode failures: the attach answer is `Unavailable` with no progress, and an input
+  record that cannot be built is a determinate stop after the confirmed prefix, with the attachment
+  detached. Both reuse the shapes of the existing `LocalFault` branches, which the model covers as
+  `AttachLocalFault` and `InputLocalFault`. A built outcome the protocol refuses is answered
+  `OutcomeUnknown` with cleanup unconfirmed and logged as `send-outcome-unbuildable`; that fallback is
+  defensive and outside the model, since no current constructor produces an invalid outcome.
 - `exchange_fresh` per step → `SendAttach`/`SendInput`/`SendDetach` plus the
   response family: `*Exact`, `*Refused` (TypedFailure), `*Desync` (an intact
   answer that contradicts the stage: another message, an envelope outside its

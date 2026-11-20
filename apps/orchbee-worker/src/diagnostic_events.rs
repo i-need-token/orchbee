@@ -494,6 +494,24 @@ pub(crate) fn request_unprepared(site: Site, error: &(dyn Error + 'static)) {
     }
 }
 
+/// A terminal send whose outcome this Worker built and the protocol refused, so the request was
+/// answered with the conservative unknown outcome instead. At most one record a minute, with the
+/// number suppressed since the last.
+pub(crate) fn send_outcome_unbuildable() {
+    static SLOTS: SiteSlots = SiteSlots::new();
+    let fields = [("site", LogValue::Token(Site::Send.token()))];
+    #[cfg(test)]
+    note("send-outcome-unbuildable", &fields);
+    if let Some(suppressed) = SLOTS.admit(Site::Send) {
+        let [site] = fields;
+        log_event(
+            LogLevel::Warning,
+            "send-outcome-unbuildable",
+            &[site, ("suppressed", LogValue::Count(suppressed))],
+        );
+    }
+}
+
 /// Background jobs whose stop could not be proven when the serving loop ended. The loop's own end
 /// keeps its `exited` record; this one is written beside it.
 pub(crate) fn cleanup_unproven(error: &io::Error) {

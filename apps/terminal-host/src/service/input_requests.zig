@@ -109,7 +109,7 @@ const Handler = struct {
                 });
             },
             .core_rejected => |err| response.commitFailure(host_failure.fromCore(err)),
-            .runtime_missing => unreachable,
+            .runtime_missing => response.commitFailure(host_failure.fromCore(error.InvalidPhase)),
         }
     }
 
@@ -171,7 +171,7 @@ const Handler = struct {
                 });
             },
             .core_rejected => |err| response.commitFailure(host_failure.fromCore(err)),
-            .runtime_missing => unreachable,
+            .runtime_missing => response.commitFailure(host_failure.fromCore(error.InvalidPhase)),
         }
     }
 };

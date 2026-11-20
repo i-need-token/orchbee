@@ -49,8 +49,7 @@ pub fn handleAttach(
         request.request_resize_lease,
     ) catch |err| {
         response.commitFailure(switch (err) {
-            error.TerminalRuntimeMissing => unreachable,
-            error.TerminalRuntimeUnavailable => host_failure.fromCore(error.InvalidPhase),
+            error.TerminalRuntimeMissing, error.TerminalRuntimeUnavailable => host_failure.fromCore(error.InvalidPhase),
             else => host_failure.fromCore(@errorCast(err)),
         });
         return;
@@ -136,8 +135,7 @@ pub fn handleUpdateAttachmentInputCapability(
         request.input,
     ) catch |err| {
         response.commitFailure(switch (err) {
-            error.TerminalRuntimeMissing => unreachable,
-            error.TerminalRuntimeUnavailable => host_failure.fromCore(error.InvalidPhase),
+            error.TerminalRuntimeMissing, error.TerminalRuntimeUnavailable => host_failure.fromCore(error.InvalidPhase),
             else => host_failure.fromCore(@errorCast(err)),
         });
         return;

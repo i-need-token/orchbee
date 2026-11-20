@@ -64,7 +64,11 @@ unanswered, or `unreadable`, a whole frame it could not decode, answered as unre
 `request-unprepared` records, with its `site` and `error` kind, a terminal operation that failed
 before handoff because the Worker could not prepare it, such as a home folder lookup past its bound
 or a request too large for one Host record. Each of these two is
-written at most once a minute, the second for each site, with `suppressed`. `panicked`
+written at most once a minute, the second for each site, with `suppressed`.
+`send-outcome-unbuildable` records, with its `site` (`send`), a terminal send outcome this
+Worker built and the protocol refused: that request got the conservative unknown outcome,
+and the Worker kept serving. It is written at most once a minute, with `suppressed`.
+`panicked`
 records the `file` stem and `line` of a Worker panic, never its message. A panic on the serving
 thread ends the Worker, so it also writes the run's `exited` record, with `error` `other`, the site
 it was serving, `reason` `panic` and `peer` `none`; a panic on any other thread writes `panicked`

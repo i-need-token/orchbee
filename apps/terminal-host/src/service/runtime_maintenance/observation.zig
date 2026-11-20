@@ -153,13 +153,19 @@ pub fn synchronizeRuntimeCompletion(
     };
     if (completion.pty_drained and !terminal.ptyDrained()) {
         if (!terminal.childExited() or normal_completion_ready) {
-            _ = core.ptyDrained(terminal_id) catch unreachable;
+            _ = core.ptyDrained(terminal_id) catch |err| {
+                noteRefusedObservation(core, terminal_id, err);
+                return null;
+            };
         }
     }
     const after_drain = core.findTerminal(terminal_id).?;
     if (completion.child_exited and !after_drain.childExited()) {
         if (!after_drain.ptyDrained() or normal_completion_ready) {
-            _ = core.childExited(terminal_id, exitResult(completion.exit_result.?)) catch unreachable;
+            _ = core.childExited(terminal_id, exitResult(completion.exit_result.?)) catch |err| {
+                noteRefusedObservation(core, terminal_id, err);
+                return null;
+            };
         }
     }
     const updated_terminal = core.findTerminal(terminal_id).?;

@@ -83,14 +83,13 @@ pub const Context = struct {
     ) !?host_runtime_aggregate.HistoryAccess {
         return self.runtime_aggregate.historyAccess(connection_id, attachment_id) catch |err| {
             switch (err) {
-                error.InteractionAccessUnavailable => try self.addFailure(
+                error.InteractionAccessUnavailable, error.TerminalRuntimeMissing => try self.addFailure(
                     outgoing,
                     correlation_id,
                     "missing-resource",
                     "attachment has no readable history capability",
                     false,
                 ),
-                error.TerminalRuntimeMissing => unreachable,
             }
             return null;
         };
@@ -105,14 +104,13 @@ pub const Context = struct {
     ) !?host_runtime_aggregate.SelectionAccess {
         return self.runtime_aggregate.selectionAccess(connection_id, attachment_id) catch |err| {
             switch (err) {
-                error.InteractionAccessUnavailable => try self.addFailure(
+                error.InteractionAccessUnavailable, error.TerminalRuntimeMissing => try self.addFailure(
                     outgoing,
                     correlation_id,
                     "missing-resource",
                     "attachment has no readable history capability",
                     false,
                 ),
-                error.TerminalRuntimeMissing => unreachable,
             }
             return null;
         };
@@ -128,7 +126,7 @@ pub const Context = struct {
         if (preparation.accepted()) |accepted| return accepted;
         switch (preparation.*) {
             .core_rejected => |err| try self.addCoreFailure(outgoing, correlation_id, err),
-            .runtime_missing => unreachable,
+            .runtime_missing => try self.addCoreFailure(outgoing, correlation_id, error.InvalidPhase),
             .runtime_rejected => |err| {
                 const failure = host_failure.fromInput(err);
                 try host_response.appendFailure(

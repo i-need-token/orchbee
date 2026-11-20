@@ -105,8 +105,7 @@ pub fn handleUpdateTerminalConfiguration(
             error.InvalidConfiguration => .{ .code = "invalid-field", .message = "terminal configuration is invalid", .retryable = false },
             error.RuntimeStateDiverged => host_failure.runtime_state_diverged,
             error.TerminalRevisionOverflow => .{ .code = "resource-exhausted", .message = "terminal revision space is exhausted", .retryable = false },
-            error.TerminalRuntimeMissing => unreachable,
-            error.TerminalRuntimeUnavailable => host_failure.fromCore(error.InvalidPhase),
+            error.TerminalRuntimeMissing, error.TerminalRuntimeUnavailable => host_failure.fromCore(error.InvalidPhase),
             else => host_failure.fromCore(@errorCast(err)),
         });
         return;

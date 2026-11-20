@@ -30,7 +30,7 @@ use orchbee_terminal_protocol::{
     encode_attachment_control, encode_input_message, encode_transport_envelope,
 };
 
-use crate::diagnostic_events::{Anomaly, Site, host_unexpected};
+use crate::diagnostic_events::{Anomaly, Site, host_unexpected, send_outcome_unbuildable};
 use crate::host_connection::{
     HostBrokerConnection, HostExchange, HostFailure, PeerFailure, record_kind, response_envelope,
 };
@@ -207,12 +207,27 @@ fn apply(
     let input_deadline = Instant::now()
         .checked_add(INPUT_BUDGET)
         .ok_or_else(|| invalid("input deadline overflow"))?;
-    let command = encode_attachment_control(&AttachmentControl::AttachTerminal(AttachTerminal {
-        attachment_id,
-        capabilities: INPUT_CAPABILITIES,
-        request_resize_lease: false,
-        terminal_id,
-    }))?;
+    // A self-built Attach that cannot be encoded never reached the Host: it is answered as the
+    // local fault of the attach exchange, and the carrier is untouched.
+    let Ok(command) =
+        encode_attachment_control(&AttachmentControl::AttachTerminal(AttachTerminal {
+            attachment_id,
+            capabilities: INPUT_CAPABILITIES,
+            request_resize_lease: false,
+            terminal_id,
+        }))
+    else {
+        return respond(
+            &request,
+            TerminalSendOutcome::Unavailable {
+                reason: SendUnavailable::HostUnavailable,
+                progress: SendProgress::none(),
+                cleanup: SendCleanupStatus::NotNeeded,
+            },
+            host,
+            false,
+        );
+    };
     let not_started = || {
         respond(
             &request,
@@ -343,7 +358,22 @@ fn apply(
                 host_failed,
             );
         }
-        let (command, expected_bytes) = step_command(step, attachment_id, capability_revision)?;
+        // A record that cannot be built never left this Worker: a determinate stop, as for a
+        // record the Host never received, and the attachment is detached.
+        let Ok((command, expected_bytes)) = step_command(step, attachment_id, capability_revision)
+        else {
+            let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
+            return respond(
+                &request,
+                TerminalSendOutcome::Unavailable {
+                    reason: SendUnavailable::HostUnavailable,
+                    progress: SendProgress::stopped(index, accepted_encoded_bytes),
+                    cleanup,
+                },
+                host,
+                host_failed,
+            );
+        };
         // Input messages ride the raw-bytes encoding while every response is
         // still ControlJson.
         let input = match exchange_fresh(
@@ -781,10 +811,45 @@ fn respond(
         host.pacing.note_failure(protocol_fault());
         let _closed = host.stream().shutdown(Shutdown::Both);
     }
+    let progress = outcome.progress();
+    let result = match TerminalSendResult::new(request.request_id, outcome) {
+        Ok(result) => result,
+        Err(_) => {
+            send_outcome_unbuildable();
+            conservative_result(request, progress)?
+        }
+    };
     Ok(SendExecution {
-        result: TerminalSendResult::new(request.request_id, outcome)?,
+        result,
         host_failed,
     })
+}
+
+/// The answer for an outcome this Worker built that the protocol refuses. The input may have
+/// reached the Host, so the answer is unknown with cleanup unconfirmed, keeping the progress when
+/// it is itself valid. The Worker's own constructors produce valid outcomes today; this path keeps
+/// a refusal, now or later, from ending the Worker or the other requests it serves.
+fn conservative_result(
+    request: &TerminalSendRequest,
+    progress: SendProgress,
+) -> Result<TerminalSendResult, Box<dyn Error>> {
+    match TerminalSendResult::new(
+        request.request_id,
+        TerminalSendOutcome::OutcomeUnknown {
+            progress,
+            cleanup: SendCleanupStatus::Unconfirmed,
+        },
+    ) {
+        Ok(result) => Ok(result),
+        // Nothing accepted and nothing stopped is valid for every cleanup status.
+        Err(_) => Ok(TerminalSendResult::new(
+            request.request_id,
+            TerminalSendOutcome::OutcomeUnknown {
+                progress: SendProgress::none(),
+                cleanup: SendCleanupStatus::Unconfirmed,
+            },
+        )?),
+    }
 }
 
 /// A desynchronized or dead carrier: the stream is shut down so the pending

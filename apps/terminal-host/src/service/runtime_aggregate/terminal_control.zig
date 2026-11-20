@@ -3,6 +3,7 @@ const target_builtin = @import("builtin");
 const core_module = @import("terminal-host-core").state;
 const terminal_runtime = @import("terminal-host-engine").runtime;
 const contracts = @import("contracts.zig");
+const host_runtime_maintenance = @import("../runtime_maintenance/root.zig");
 
 const TerminalControl = contracts.TerminalControl;
 const TerminalControlError = contracts.TerminalControlError;
@@ -37,8 +38,11 @@ pub fn applyTerminalControl(
     // is committed either way: a refused observation leaves Core's last one, and the maintenance
     // pass fails this terminal alone if the engine still disagrees.
     if (self.observeRuntime(terminal_id, runtime)) |observation| {
-        std.debug.assert(observation.generation >= update.generation);
-        std.debug.assert(observation.revision >= update.revision);
+        // An observation older than the control's own commit contradicts it: fence this terminal
+        // and still return the committed control.
+        if (observation.generation < update.generation or observation.revision < update.revision) {
+            host_runtime_maintenance.recordRuntimeFailure(&self.core_state, terminal_id, .synchronize_worker);
+        }
     }
     return .{
         .attachment_id = attachment_id,

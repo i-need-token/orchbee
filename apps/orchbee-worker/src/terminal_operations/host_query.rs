@@ -30,5 +30,11 @@ pub(super) fn execute(
         .and_then(|host| host.query_process(deadline))
         .into_iter()
         .collect();
-    HostQueryResult { request, hosts }
+    let mut result = HostQueryResult { request, hosts };
+    // A Host reply the protocol refuses (connections out of kind order or over bound) is answered
+    // as a query the Host did not answer, so the Worker keeps serving.
+    if result.validate().is_err() {
+        result.hosts.clear();
+    }
+    result
 }

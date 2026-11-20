@@ -4,6 +4,7 @@ const core_module = @import("terminal-host-core").state;
 const model = @import("terminal-host-model");
 const terminal_configuration = model.configuration;
 const contracts = @import("contracts.zig");
+const host_runtime_maintenance = @import("../runtime_maintenance/root.zig");
 
 const ConfigurationUpdateError = contracts.ConfigurationUpdateError;
 const TerminalConfigurationUpdate = contracts.TerminalConfigurationUpdate;
@@ -66,21 +67,24 @@ pub fn updateTerminalConfiguration(
         }
     }
 
-    // All Core checks happen before the runtime mutation. HostService is
-    // single-owner, so these commits cannot fail without an invariant
-    // violation after the runtime has accepted the update.
+    // All Core checks happen before the runtime mutation. HostService is single-owner, so a
+    // refused commit here means Core and the runtime now disagree over this terminal alone:
+    // fence it and answer the request as a diverged runtime.
     _ = self.core_state.updateTerminalConfiguration(
         connection_id,
         terminal_id,
         configuration,
-    ) catch unreachable;
+    ) catch {
+        host_runtime_maintenance.recordRuntimeFailure(&self.core_state, terminal_id, .synchronize_worker);
+        return error.RuntimeStateDiverged;
+    };
     // The update is committed either way: a refused observation leaves Core's last one, and the
-    // maintenance pass fails this terminal alone if the engine still disagrees.
+    // maintenance pass fails this terminal alone if the engine still disagrees. An observation
+    // older than the committed update is the same divergence and is fenced the same way.
     if (self.observeRuntime(terminal_id, runtime)) |runtime_geometry| {
-        std.debug.assert(configurationObservationIsCompatible(
-            runtime_update.revision,
-            runtime_geometry.revision,
-        ));
+        if (!configurationObservationIsCompatible(runtime_update.revision, runtime_geometry.revision)) {
+            host_runtime_maintenance.recordRuntimeFailure(&self.core_state, terminal_id, .synchronize_worker);
+        }
     }
     const updated_terminal = self.core_state.findTerminal(terminal_id).?;
     return .{

@@ -46,7 +46,7 @@ pub fn handleTerminate(
         .graceful,
     ) catch |err| {
         response.commitFailure(switch (err) {
-            error.TerminalRuntimeMissing => unreachable,
+            error.TerminalRuntimeMissing => host_failure.fromCore(error.InvalidPhase),
             error.TerminationDispatchFailed => .{ .code = "termination-failed", .message = "platform termination request failed", .retryable = true },
             else => host_failure.fromCore(@errorCast(err)),
         });
@@ -86,7 +86,7 @@ pub fn handleForceTerminate(
         .force,
     ) catch |err| {
         response.commitFailure(switch (err) {
-            error.TerminalRuntimeMissing => unreachable,
+            error.TerminalRuntimeMissing => host_failure.fromCore(error.InvalidPhase),
             error.TerminationDispatchFailed => .{ .code = "termination-failed", .message = "platform force-termination request failed", .retryable = true },
             else => host_failure.fromCore(@errorCast(err)),
         });
@@ -125,7 +125,7 @@ pub fn handleDispose(
         terminal_id,
     ) catch |err| {
         response.commitFailure(switch (err) {
-            error.TerminalRuntimeMissing => unreachable,
+            error.TerminalRuntimeMissing => host_failure.fromCore(error.InvalidPhase),
             else => host_failure.fromCore(@errorCast(err)),
         });
         return;
