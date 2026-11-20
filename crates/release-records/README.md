@@ -14,7 +14,7 @@ has one parser.
   is also a safe store directory name; `lowercase_sha256` admits a digest in 64 lowercase
   hexadecimal digits.
 - `Pointer` is the store's `active.json`: format `1`, the `active` entry, the optional `previous`
-  rollback target, and `extensions`, which every rewrite keeps. Bytes that are not such a record
+  rollback target, and `extensions`, which every rewrite keeps. Its `noPath` member is `true` after an install with `--no-path`, and `Pointer::no_path` reads only that value. Bytes that are not such a record
   parse to `None`, which means no active version.
 - `Fallback` is the pointer's `extensions.fallback` member: the held versions, at most eight, and
   the `Move` that made an entry active, with `back`, `restore` and the bounded Client and Session

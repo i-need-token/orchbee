@@ -1,7 +1,8 @@
 //! The active-version pointer `active.json`: closed JSON naming the active version directory and,
 //! optionally, the rollback target, each bound to the lowercase SHA-256 of its `release.json`.
 //! `version` is the record's format and `extensions` the only open slot, which every rewrite keeps;
-//! its `fallback` member is the [fallback record](crate::Fallback).
+//! its `fallback` member is the [fallback record](crate::Fallback), and `noPath` records an install
+//! made with `--no-path`.
 //! Bytes that are not such a record mean no active version. The window pointer
 //! `desktop\active.json` has the same grammar: there `product` names a window version directory and
 //! `manifest` binds the SHA-256 of its `desktop-files.json`.
@@ -10,6 +11,9 @@ use crate::{
     tokens::{lowercase_sha256, valid_version},
 };
 use serde_json::{Map, Value};
+
+/// The `extensions` member that records an install made with `--no-path`.
+const NO_PATH: &str = "noPath";
 
 /// One version directory and the digest of the manifest verified when it was installed.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -105,6 +109,27 @@ impl Pointer {
             .insert(name.to_owned(), value);
     }
 
+    /// Whether the latest install ran without the PATH step, so a later update keeps it off. Only
+    /// the value `true` counts; any other content reads as absent.
+    pub fn no_path(&self) -> bool {
+        self.extension(NO_PATH) == Some(&Value::Bool(true))
+    }
+
+    /// Records, or clears, that the latest install ran without the PATH step. Clearing removes the
+    /// member, and `extensions` as well when nothing else is left in it.
+    pub fn set_no_path(&mut self, no_path: bool) {
+        if no_path {
+            self.set_extension(NO_PATH, Value::Bool(true));
+            return;
+        }
+        if let Some(extensions) = self.extensions.as_mut() {
+            extensions.remove(NO_PATH);
+        }
+        if self.extensions.as_ref().is_some_and(Map::is_empty) {
+            self.extensions = None;
+        }
+    }
+
     /// Whether `entry` is the active version or the rollback target.
     pub fn names(&self, entry: &Entry) -> bool {
         self.active == *entry || self.previous.as_ref() == Some(entry)
@@ -127,3 +152,6 @@ impl Pointer {
         text.into_bytes()
     }
 }
+
+#[cfg(test)]
+mod tests;

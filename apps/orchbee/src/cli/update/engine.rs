@@ -143,8 +143,11 @@ pub(super) fn run(
     report.version = Some(feed.version.clone());
     report.build_id = Some(feed.build_id.clone());
     let root = inputs.install_root.clone()?;
+    // A store whose latest install ran with `--no-path` keeps the PATH step off for its updates.
     let completion = Completion {
-        path: matches!(inputs.path, PathPolicy::Step) && complete::PATH_STEP_BUILT,
+        path: matches!(inputs.path, PathPolicy::Step)
+            && complete::PATH_STEP_BUILT
+            && !install::records_no_path(&root),
         allow_downgrade: inputs.channel.is_some(),
     };
     runtime(inputs, &source, &feed, &root, completion, context, report)?;
@@ -364,6 +367,7 @@ pub(super) fn install(
         context,
         report,
     )?;
+    install::record_no_path(&root, !inputs.completion.path)?;
     report.phase = "complete";
     Ok(())
 }

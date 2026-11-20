@@ -4,8 +4,8 @@
 //! pointer, not Server, Worker or Host behavior, the completion helper's own signature check, or a
 //! PATH step.
 use super::super::{
-    Error, Report, StorageCause, StorageReason, complete, engine,
-    install::Completion,
+    Context, Error, Report, StorageCause, StorageReason, complete, engine,
+    install::{Activation, Completion},
     signature::{TEST_TABLE, TrustedKey},
 };
 use super::install_fixture::{
@@ -35,17 +35,25 @@ fn install(root: &Path, source: &Path, allow_downgrade: bool) -> Run {
     install_with(root, source, TEST_TABLE, allow_downgrade)
 }
 
-/// One `install` of `source` that trusts `keys`.
-fn install_with(root: &Path, source: &Path, keys: &[TrustedKey], allow_downgrade: bool) -> Run {
+/// One `install` of `source` that trusts `keys`, completing with `activation` and asking for the
+/// PATH step as `path` says.
+fn install_as(
+    root: &Path,
+    source: &Path,
+    keys: &[TrustedKey],
+    allow_downgrade: bool,
+    activation: Activation,
+    path: bool,
+) -> Run {
     let inputs = engine::InstallInputs {
         directory: Ok(source.to_path_buf()),
         keys,
         install_root: Ok(root.to_path_buf()),
         probe: print_probe,
-        activation: in_process_completion,
+        activation,
         window_store: false,
         completion: Completion {
-            path: false,
+            path,
             allow_downgrade,
         },
     };
@@ -57,6 +65,18 @@ fn install_with(root: &Path, source: &Path, keys: &[TrustedKey], allow_downgrade
         report,
         storage_cause: context.storage_cause.take(),
     }
+}
+
+/// One `install` of `source` that trusts `keys`, completing in process without the PATH step.
+fn install_with(root: &Path, source: &Path, keys: &[TrustedKey], allow_downgrade: bool) -> Run {
+    install_as(
+        root,
+        source,
+        keys,
+        allow_downgrade,
+        in_process_completion,
+        false,
+    )
 }
 
 fn code(run: &Run) -> &'static str {
@@ -330,4 +350,165 @@ fn install_refuses_and_names_a_store_others_can_change_but_reads_an_open_source(
     let installed = install(&fixture.0.join("install"), &source, false);
     assert_eq!(code(&installed), "complete");
     assert!(installed.storage_cause.is_none());
+}
+
+/// A completion that moves the pointer and then fails, as a helper does when it stops after the
+/// move.
+fn moved_then_failed(
+    root: &Path,
+    version: &Path,
+    completion: Completion,
+    context: &mut Context,
+) -> Result<(), Error> {
+    in_process_completion(root, version, completion, context)?;
+    Err(Error::Activation)
+}
+
+/// A completion that fails before it moves the pointer.
+fn failed_before_move(
+    _root: &Path,
+    _version: &Path,
+    _completion: Completion,
+    _context: &mut Context,
+) -> Result<(), Error> {
+    Err(Error::Activation)
+}
+
+/// A completion that moves the pointer and then is cancelled.
+fn moved_then_cancelled(
+    root: &Path,
+    version: &Path,
+    completion: Completion,
+    context: &mut Context,
+) -> Result<(), Error> {
+    in_process_completion(root, version, completion, context)?;
+    Err(Error::Cancelled)
+}
+
+/// A completion that moves the pointer and then times out.
+fn moved_then_timed_out(
+    root: &Path,
+    version: &Path,
+    completion: Completion,
+    context: &mut Context,
+) -> Result<(), Error> {
+    in_process_completion(root, version, completion, context)?;
+    Err(Error::Timeout)
+}
+
+/// A completion that is cancelled before it moves the pointer.
+fn cancelled_before_move(
+    _root: &Path,
+    _version: &Path,
+    _completion: Completion,
+    _context: &mut Context,
+) -> Result<(), Error> {
+    Err(Error::Cancelled)
+}
+
+/// A completion that times out before it moves the pointer.
+fn timed_out_before_move(
+    _root: &Path,
+    _version: &Path,
+    _completion: Completion,
+    _context: &mut Context,
+) -> Result<(), Error> {
+    Err(Error::Timeout)
+}
+
+#[test]
+fn a_stopped_completion_is_unknown_only_when_it_moved_the_pointer() {
+    let fixture = Fixture::new();
+    let source = fixture.0.join("source");
+    stage_cohort(&source, "0.1.0");
+    let bytes = manifest(&source, |_| {});
+    publish_manifest(&source, &bytes, Some(&sign(&bytes)));
+    let cases: [(&str, Activation, &str, bool); 6] = [
+        (
+            "failed-before-move",
+            failed_before_move,
+            "activation",
+            false,
+        ),
+        (
+            "failed-after-move",
+            moved_then_failed,
+            "activation-unknown",
+            true,
+        ),
+        (
+            "cancelled-before-move",
+            cancelled_before_move,
+            "cancelled",
+            false,
+        ),
+        (
+            "cancelled-after-move",
+            moved_then_cancelled,
+            "activation-unknown",
+            true,
+        ),
+        (
+            "timed-out-before-move",
+            timed_out_before_move,
+            "timeout",
+            false,
+        ),
+        (
+            "timed-out-after-move",
+            moved_then_timed_out,
+            "activation-unknown",
+            true,
+        ),
+    ];
+    for (name, activation, expected, moved) in cases {
+        let root = fixture.0.join(name);
+        let run = install_as(&root, &source, TEST_TABLE, false, activation, false);
+        assert_eq!(code(&run), expected, "{name}");
+        assert_eq!(pointer(&root).is_some(), moved, "{name}");
+    }
+}
+
+#[test]
+fn an_install_records_a_no_path_install_and_one_with_the_path_step_clears_the_record() {
+    let fixture = Fixture::new();
+    let source = fixture.0.join("source");
+    let root = fixture.0.join("install");
+    stage_cohort(&source, "0.1.0");
+    let bytes = manifest(&source, |_| {});
+    publish_manifest(&source, &bytes, Some(&sign(&bytes)));
+    // An install with the PATH step writes no member. A test build's pointer also carries the
+    // fallback record, so only the `noPath` member is checked.
+    let with_path = install_as(
+        &root,
+        &source,
+        TEST_TABLE,
+        false,
+        in_process_completion,
+        true,
+    );
+    assert_eq!(code(&with_path), "complete");
+    let raw = fs::read(root.join("active.json")).unwrap();
+    assert!(!String::from_utf8_lossy(&raw).contains("noPath"));
+    assert!(!pointer(&root).unwrap().no_path());
+    let no_path = install_as(
+        &root,
+        &source,
+        TEST_TABLE,
+        false,
+        in_process_completion,
+        false,
+    );
+    assert_eq!(code(&no_path), "complete");
+    assert!(pointer(&root).unwrap().no_path());
+    let again = install_as(
+        &root,
+        &source,
+        TEST_TABLE,
+        false,
+        in_process_completion,
+        true,
+    );
+    assert_eq!(code(&again), "complete");
+    assert!(!pointer(&root).unwrap().no_path());
 }

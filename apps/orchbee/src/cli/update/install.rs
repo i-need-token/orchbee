@@ -75,7 +75,9 @@ const DIAGNOSTIC_LIMIT: usize = 1024;
 /// Runs the published copy's completion helper; its exit status `3` is the lower-version refusal,
 /// or `version-held` when the pointer, read again, holds the version. Any other failure keeps the
 /// helper's first standard-error line, which names the cause, such as a PATH step that could not
-/// finish.
+/// finish. A helper stopped by a cancellation or a deadline has ended and answers `cancelled` or
+/// `timeout`; `activate` reads the pointer afterwards, since the helper may have moved it first. A
+/// helper not confirmed to have ended is `activation-unknown`.
 pub(super) fn run_completion(
     root: &Path,
     version: &Path,
@@ -406,9 +408,45 @@ fn verify_file(root: &Path, artifact: &Artifact, context: &mut Context) -> Resul
     Ok(())
 }
 
+/// Whether the store's pointer names `entry` as the active version, read without the writer lock.
+fn names_active(root: &Path, entry: &Entry) -> bool {
+    current_pointer(root).is_some_and(|pointer| pointer.active == *entry)
+}
+
+/// Whether the store's pointer records an install made with `--no-path`, read without the writer
+/// lock. An update keeps the PATH step off for such a store.
+pub(super) fn records_no_path(root: &Path) -> bool {
+    current_pointer(root).is_some_and(|pointer| pointer.no_path())
+}
+
+/// Records on the pointer whether the install that just activated ran without the PATH step: an
+/// install made with `--no-path` sets the member that keeps later updates off the PATH step, and an
+/// install with it clears the member. Nothing is written when the pointer already says so, so an
+/// install without the member writes nothing new. The version is active by now, so a write that
+/// fails is `activation-unknown`; a retry of the install writes the record.
+pub(super) fn record_no_path(root: &Path, no_path: bool) -> Result<(), Error> {
+    if records_no_path(root) == no_path {
+        return Ok(());
+    }
+    let mut store = ReleaseStore::acquire(root).map_err(|_| Error::ActivationUnknown)?;
+    let mut pointer = store
+        .pointer()
+        .ok()
+        .flatten()
+        .and_then(|bytes| Pointer::parse(&bytes))
+        .ok_or(Error::ActivationUnknown)?;
+    pointer.set_no_path(no_path);
+    store
+        .replace_pointer(&pointer.encode())
+        .map_err(|_| Error::ActivationUnknown)
+}
+
 /// Runs `activation` for a published version, then reads the pointer to confirm that it names
 /// that version. The completing Client takes the writer lock itself, so none is held here. A
-/// completion that claims success while the pointer names another version is unconfirmed.
+/// completion that claims success while the pointer names another version is unconfirmed. A
+/// failure, cancellation or deadline is reported as having moved nothing, which holds only while
+/// the pointer does not name the version, so a completion that moved it and then failed or was
+/// stopped is unconfirmed too.
 pub(super) fn activate(
     root: &Path,
     version: &Path,
@@ -419,16 +457,21 @@ pub(super) fn activate(
     report: &mut Report,
 ) -> Result<(), Error> {
     context.check()?;
-    activation(root, version, completion, context)?;
     let entry = Entry {
         product: release.version.clone(),
         manifest: release.identity.clone(),
     };
-    report.activated = read_pointer(root)
-        .ok()
-        .flatten()
-        .and_then(|bytes| Pointer::parse(&bytes))
-        .is_some_and(|pointer| pointer.active == entry);
+    let was_active = names_active(root, &entry);
+    if let Err(error) = activation(root, version, completion, context) {
+        let moved = !was_active && names_active(root, &entry);
+        let unconfirmed = matches!(error, Error::Activation | Error::Cancelled | Error::Timeout);
+        return Err(if moved && unconfirmed {
+            Error::ActivationUnknown
+        } else {
+            error
+        });
+    }
+    report.activated = names_active(root, &entry);
     if report.activated {
         Ok(())
     } else {

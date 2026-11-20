@@ -452,7 +452,8 @@ to upgrade" and keeps `update` withheld.
    `versions/<version>/`, and then run that copy's `orchbee --complete-install-v1`, passing on
    `--no-path` and `--allow-downgrade`. The completing Client, never the one that downloaded it,
    writes `active.json`, performs the PATH step, and refreshes what its version owns outside the
-   store. `update` always performs the PATH step. A failed completion leaves the pointer where it
+   store. `update` performs the PATH step unless the store's latest install ran with `--no-path`,
+   which the pointer's `noPath` member records. A failed completion leaves the pointer where it
    was.
 6. **Lower version.** A version that SemVer orders below the active one is never installed without
    the person's choice: `install` refuses it with `downgrade-refused` before anything is copied,
