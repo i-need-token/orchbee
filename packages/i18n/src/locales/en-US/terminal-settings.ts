@@ -230,7 +230,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.permission.allow': 'Allow',
 	'terminal.settings.page.resumeAgents.label': 'Resume Agent conversations after restart',
 	'terminal.settings.page.resumeAgents.description':
-		'Reopens Claude Code on Windows, and Agents started with a conversation ID.',
+		'Reopens Claude Code on Windows; other Agents need a conversation ID.',
 	'terminal.settings.page.profiles.add': 'Add profile',
 	'terminal.settings.page.profiles.edit': 'Edit',
 	'terminal.settings.page.profiles.done': 'Done',

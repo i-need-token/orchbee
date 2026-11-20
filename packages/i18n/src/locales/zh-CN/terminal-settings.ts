@@ -219,7 +219,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.permission.allow': '允许',
 	'terminal.settings.page.resumeAgents.label': '重启后恢复智能体会话',
 	'terminal.settings.page.resumeAgents.description':
-		'重启后恢复 Windows 上的 Claude Code，以及带会话 ID 启动的 Agent。',
+		'重启后恢复 Windows 上的 Claude Code；其他 Agent 需带会话 ID 启动。',
 	'terminal.settings.page.profiles.add': '添加启动配置',
 	'terminal.settings.page.profiles.edit': '编辑',
 	'terminal.settings.page.profiles.done': '完成',
