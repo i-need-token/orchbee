@@ -49,7 +49,7 @@ const TRANSFER_GRACE: Duration = Duration::from_secs(10);
 
 /// The archive transfer's own time limit in seconds, apart from the command's deadline: the time
 /// the signed size takes at the floor plus the slack, never more than the ceiling. 25 MB may take
-/// about 113 minutes on a link that stays above the floor.
+/// about 112 minutes on a link that stays above the floor.
 fn transfer_seconds(size: u64) -> u64 {
     size.div_ceil(FLOOR_BYTES_PER_SECOND)
         .saturating_add(TRANSFER_SLACK_SECONDS)

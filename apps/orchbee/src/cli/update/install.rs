@@ -5,7 +5,7 @@ use super::{
     Context, Error, Report,
     acquire::Source,
     manifest::{Artifact, Release, own_platform},
-    platform,
+    path_limit, platform,
     signature::{DOCUMENT_LIMIT, MANIFEST_LIMIT},
 };
 use crate::release_store::{ReleaseStore, open_release_file, read_pointer};
@@ -33,6 +33,15 @@ const PROGRAMS: [CohortArtifact; 4] = [
     CohortArtifact::Worker,
     CohortArtifact::TerminalHost,
 ];
+
+/// Whether every program of `versions\<version>` under `root` fits the Windows program path limit.
+/// A program too long to start would activate and then fail, so the update checks this first.
+pub(super) fn programs_fit(root: &Path, version: &str) -> bool {
+    let directory = root.join("versions").join(version);
+    PROGRAMS
+        .iter()
+        .all(|program| path_limit::program_fits(&directory.join(program.file_name())))
+}
 
 /// Builds the version check of a verified staged Client.
 pub(super) type Probe = fn(client: &Path) -> Command;

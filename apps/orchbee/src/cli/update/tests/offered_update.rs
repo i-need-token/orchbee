@@ -776,3 +776,53 @@ fn the_automatic_helper_skips_the_path_step_and_refreshes_only_a_launcher_that_e
     );
     assert!(!bin.exists());
 }
+
+/// An unpack stand-in that ends with `failure` and writes nothing.
+fn ends_with(failure: Error) -> impl Fn(&Path, &mut Context) -> Result<(), Error> {
+    move |_, _| Err(failure)
+}
+
+#[test]
+fn an_unpack_that_is_cancelled_or_timed_out_is_settled_and_one_with_an_unknown_end_is_kept() {
+    let fixture = Fixture::new();
+    let root = fixture.0.join("install");
+    let (older, older_manifest) = release(&fixture, "older", "0.1.0", "test");
+    let (_, newer_manifest) = release(&fixture, "newer", "0.2.0", "test");
+    install(&fixture, &older, false);
+    let active = entry_for("0.1.0", &older_manifest);
+    let folder = root.join(archive::FOLDER);
+    let archive_bytes = b"the archive bytes the feed signs".to_vec();
+    offer(&fixture, "0.2.0", &newer_manifest, &archive_bytes, |_| {});
+    serve(&fixture, &archive_bytes);
+    // A settled end leaves no child writing, so the download folder is removed as usual.
+    for (name, failure, code) in [
+        ("cancelled", Error::Cancelled, "cancelled"),
+        ("timed out", Error::Timeout, "timeout"),
+    ] {
+        let run = update(&fixture, None, &ends_with(failure));
+        assert_eq!(run.code(), code, "{name}: {}", run.rendered);
+        assert!(
+            run.report.published.is_none() && !run.report.activated,
+            "{name}"
+        );
+        assert!(run.report.cleanup_pending.is_none(), "{name}");
+        assert_eq!(names(&folder), ["download.lock"], "{name}");
+        assert_eq!(names(&root.join("versions")), ["0.1.0"], "{name}");
+        assert_eq!(pointer(&root).unwrap().active, active, "{name}");
+    }
+    // An unknown end may leave a child writing, so the archive and `unpacked\` stay beside the
+    // lock and the folder is named for cleanup.
+    let run = update(&fixture, None, &ends_with(Error::PhysicalUnknown));
+    assert_eq!(run.code(), "physical-unknown", "{}", run.rendered);
+    assert_eq!(
+        run.report.cleanup_pending.as_deref(),
+        Some(folder.as_path())
+    );
+    assert_eq!(
+        names(&folder),
+        [archive::ARCHIVE, "download.lock", "unpacked"]
+    );
+    assert!(run.report.published.is_none() && !run.report.activated);
+    assert_eq!(names(&root.join("versions")), ["0.1.0"]);
+    assert_eq!(pointer(&root).unwrap().active, active);
+}

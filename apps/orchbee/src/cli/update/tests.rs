@@ -13,6 +13,8 @@ mod offered_update;
 #[cfg(windows)]
 mod offline_install;
 #[cfg(windows)]
+mod path_limit;
+#[cfg(windows)]
 mod path_value;
 #[cfg(windows)]
 mod retention;

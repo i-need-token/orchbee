@@ -173,6 +173,11 @@ fn runtime(
     if matches!(decide(root, feed, completion, context, report)?, Next::Done) {
         return Ok(());
     }
+    // A program too long to start would activate and then fail, so the refusal comes before the
+    // download folder is taken and before anything is published.
+    if !install::programs_fit(root, &feed.version) {
+        return Err(Error::InstallLocation);
+    }
     report.phase = "download";
     let mut download = Download::acquire(root, context, &mut report.cleanup_pending)?;
     let result = (|| {

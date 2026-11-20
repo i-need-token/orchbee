@@ -21,7 +21,7 @@ use super::{
     answer,
     archive::{Download, Unpack},
     feed::{Window, WindowOffer},
-    output, own_directory, platform, settle_with, start,
+    output, own_directory, path_limit, platform, settle_with, start,
     window_files::{self, Rules, WindowFile, WindowFiles},
 };
 use crate::{
@@ -293,6 +293,11 @@ fn install(
     let destination = store
         .version_path(&list.version)
         .map_err(|error| context.storage(&desktop, &error))?;
+    // A window program too long to start would activate and then fail to open, so the refusal
+    // comes before anything is published or activated.
+    if !executables_fit(&destination, list) {
+        return Err(Error::InstallLocation);
+    }
     if destination
         .try_exists()
         .map_err(|error| context.storage(&destination, &error))?
@@ -324,6 +329,15 @@ fn install(
     report.activated = true;
     report.phase = "complete";
     Ok(())
+}
+
+/// Whether every executable of the window version at `directory` fits the Windows program path
+/// limit. Only executables start as programs; other listed files are read in place.
+fn executables_fit(directory: &Path, list: &WindowFiles) -> bool {
+    list.files
+        .iter()
+        .filter(|file| file.executable)
+        .all(|file| path_limit::program_fits(&at(directory, &file.path)))
 }
 
 /// Stages the list and every listed file and link, then publishes the stage as

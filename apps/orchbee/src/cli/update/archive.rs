@@ -11,7 +11,7 @@
 //! it finishes, so a run that crashed leaves at most one of each for the next run to remove. The
 //! folder and its lock file stay, like `install.lock`. The lock is always taken before
 //! `install.lock`, and `install` never takes it.
-use super::{Context, Error, acquire::Source, feed::Archive, platform};
+use super::{Context, Error, acquire::Source, feed::Archive, path_limit, platform};
 use orchbee_local_runtime::{CommandFailure, PrivateCache, private_filesystem as permissions};
 use sha2::{Digest, Sha256};
 use std::{
@@ -91,6 +91,8 @@ impl Download {
     /// requires its length and SHA-256 to equal the signed ones.
     ///
     /// # Errors
+    /// `install-location` when `unpacked\` is too long for `tar` to start in, and
+    /// `download-unavailable` without a runnable system tar; both come before the transfer.
     /// `checksum` when the bytes differ from the signed archive; the transfer's own failure
     /// otherwise.
     pub fn fetch(
@@ -99,6 +101,12 @@ impl Download {
         archive: &Archive,
         context: &mut Context,
     ) -> Result<Verified, Error> {
+        // `tar` starts in `unpacked\`, so that folder must fit as a working directory. Both checks
+        // run before the transfer, so an update that cannot unpack downloads nothing.
+        if !path_limit::directory_fits(&self.folder.join(UNPACKED)) {
+            return Err(Error::InstallLocation);
+        }
+        require_tar(context)?;
         let path = self.folder.join(ARCHIVE);
         let mut file = permissions::open_file(&path, true, true)
             .map_err(|error| context.storage(&path, &error))?;
@@ -187,6 +195,19 @@ fn create_private_folder(path: &Path) -> io::Result<()> {
         use std::os::unix::fs::DirBuilderExt;
         fs::DirBuilder::new().mode(0o700).create(path)
     }
+}
+
+/// Runs the system tar with `--version`, as `require_curl` runs curl, so a missing or unusable tar is
+/// refused before the transfer rather than after the whole archive has arrived.
+fn require_tar(context: &mut Context) -> Result<(), Error> {
+    let mut command = platform::tar_command().map_err(|_| Error::DownloadUnavailable)?;
+    command.arg("--version");
+    let result = platform::execute_contained(command, context).map_err(|_| Error::Download)?;
+    // No tar.exe in the system folder: the same answer as a missing curl.exe.
+    if matches!(result.failure, Some(CommandFailure::SpawnUnavailable)) {
+        return Err(Error::DownloadUnavailable);
+    }
+    context.command_result(&result)
 }
 
 /// The system `tar.exe` command that unpacks `..\archive.zip` into `unpacked`, its working

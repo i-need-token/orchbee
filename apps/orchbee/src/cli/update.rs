@@ -16,6 +16,7 @@ mod feed;
 mod install;
 mod installed;
 mod manifest;
+mod path_limit;
 mod path_step;
 #[cfg(windows)]
 mod path_value;

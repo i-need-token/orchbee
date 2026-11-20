@@ -147,8 +147,8 @@ impl super::CliText {
                 "无法安全解包、暂存或发布此版本。",
             ),
             "install-location" if cfg!(windows) => (
-                "Invalid ORCHBEE_INSTALL_DIR or LOCALAPPDATA installation location.",
-                "ORCHBEE_INSTALL_DIR 或 LOCALAPPDATA 安装位置无效。",
+                "Invalid installation location, or a folder path too long for Windows to start Orchbee's programs. Check ORCHBEE_INSTALL_DIR or LOCALAPPDATA, or choose a shorter folder. Nothing was changed.",
+                "安装位置无效，或文件夹路径过长，Windows 无法启动 Orchbee 的程序。请检查 ORCHBEE_INSTALL_DIR 或 LOCALAPPDATA，或选择更短的文件夹。未做任何改动。",
             ),
             "install-location" => (
                 "Invalid ORCHBEE_INSTALL_DIR or HOME installation location.",
