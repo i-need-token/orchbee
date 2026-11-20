@@ -292,10 +292,6 @@ physical emulator delivery. The configuration watcher cases also retain confirme
 and pointer-release state while updating live bindings, their hints and both sidebar profiles
 together.
 
-The [integration settlement cases](../crates/workbench-client/src/native_settings/integrations/tests.rs)
-cover unknown results of a change that may have begun, definite refusals before start, unlisted
-Agents after Refresh and the diagnosis split between definite findings and unknown results.
-
 `SettingsCommitPublication.tla/.cfg` bounds two Clients that each edit their own key through
 the Server and one external editor that ignores the lock, changing values or breaking the syntax
 twice. An edit holds the Server's reload admission from its read to its publication, and the
