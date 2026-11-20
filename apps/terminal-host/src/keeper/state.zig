@@ -7,7 +7,9 @@
 const std = @import("std");
 const handshake = @import("terminal-host-handshake");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
-const thread_sync = @import("terminal-host-platform").thread_sync;
+const platform = @import("terminal-host-platform");
+const thread_sync = platform.thread_sync;
+const monotonic = platform.monotonic;
 const handles = @import("handles_windows.zig");
 const requests = @import("requests.zig");
 
@@ -151,14 +153,20 @@ pub const Table = struct {
     pending_connections: usize = 0,
     host_connections: usize = 0,
     worker_connected: bool = false,
+    /// The clock the idle span is counted on, read under the lock.
+    clock: monotonic.Timer,
+    /// When the Keeper last became idle: stamped at the change that made it idle, and null while it
+    /// is not, so the span starts there even when no listener pass observed that change.
+    idle_since_ns: ?u64 = null,
 
-    /// Creates each connection slot's wake event.
+    /// Creates each connection slot's wake event, and starts the idle span: the Keeper starts idle.
     pub fn init(self: *Table) error{SystemResources}!void {
-        self.* = .{};
+        self.* = .{ .clock = monotonic.Timer.start() catch return error.SystemResources };
         errdefer self.deinit();
         for (&self.connections) |*slot| {
             slot.wake = handles.createWakeEvent() orelse return error.SystemResources;
         }
+        self.settleIdle();
     }
 
     pub fn deinit(self: *Table) void {
@@ -204,6 +212,7 @@ pub const Table = struct {
                 if (self.findHostByPid(slot.pid) != null) return .{ .refused = .wrong_role };
                 if (self.worker_connected) return .{ .refused = .capacity };
                 self.worker_connected = true;
+                self.settleIdle();
                 slot.kind = .worker;
                 self.pending_connections -= 1;
                 return .{ .admitted = .worker };
@@ -230,6 +239,7 @@ pub const Table = struct {
             .host => self.host_connections -= 1,
         }
         slot.* = .{ .wake = slot.wake };
+        self.settleIdle();
     }
 
     // Lifecycle, called with the lock held.
@@ -237,6 +247,22 @@ pub const Table = struct {
     /// Whether the Keeper holds nothing, has no Host registered, and has no Worker connected.
     pub fn idle(self: *const Table) bool {
         return self.holding_count == 0 and self.registered_hosts == 0 and !self.worker_connected;
+    }
+
+    /// Whether the Keeper has been idle for at least `span_ns`, from the change that made it idle.
+    pub fn idleFor(self: *const Table, span_ns: u64) bool {
+        const since = self.idle_since_ns orelse return false;
+        return self.clock.read() -| since >= span_ns;
+    }
+
+    /// Stamps the change that made the Keeper idle, or clears the stamp while it is not. Each change
+    /// to what `idle` reads calls this under the lock, so the stamp never lags behind a change.
+    fn settleIdle(self: *Table) void {
+        if (!self.idle()) {
+            self.idle_since_ns = null;
+        } else if (self.idle_since_ns == null) {
+            self.idle_since_ns = self.clock.read();
+        }
     }
 
     pub fn holdingCount(self: *const Table) u32 {
@@ -257,6 +283,7 @@ pub const Table = struct {
             slot.closing = true;
             handles.signal(slot.wake.?);
         };
+        self.settleIdle();
     }
 
     // Requests, called with the lock held; `requests.zig` applies each.
@@ -269,6 +296,7 @@ pub const Table = struct {
         request: message.Request.Body,
         effects: *Effects,
     ) error{OutOfMemory}!Body {
+        defer self.settleIdle();
         return requests.apply(self, arena, peer, request, effects);
     }
 
@@ -305,6 +333,7 @@ pub const Table = struct {
         self.hosts[index] = null;
         self.host_generations[index] +%= 1;
         self.registered_hosts -= 1;
+        self.settleIdle();
         return .{ .handle = host.handle, .wait = host.wait };
     }
 

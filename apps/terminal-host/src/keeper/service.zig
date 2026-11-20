@@ -19,7 +19,7 @@ const pipe_instance_limit = 255;
 const accept_slice_ms = 100;
 const accept_failure_delay_ns = 100 * std.time.ns_per_ms;
 /// The Keeper ends after it has held nothing, with no Host registered and no Worker connected, for
-/// this long, counted from its start.
+/// this long, counted from the most recent change that made it so, or from its start.
 pub const empty_exit_ns = 30 * std.time.ns_per_s;
 /// Each connection thread reads one frame, of at most 1 MiB, into its own heap arena.
 const connection_stack_bytes = 256 * 1024;
@@ -57,7 +57,6 @@ pub fn run(allocator: std.mem.Allocator, options: Options) (StartError || error{
         .allocator = allocator,
         .server = &server,
         .table = table,
-        .clock = monotonic.Timer.start() catch return error.SystemResources,
     };
     listener.run();
 }
@@ -66,9 +65,6 @@ const Listener = struct {
     allocator: std.mem.Allocator,
     server: *local_ipc.LocalServer,
     table: *state.Table,
-    clock: monotonic.Timer,
-    /// When the Keeper last became empty; it starts empty.
-    empty_since_ns: ?u64 = 0,
 
     fn run(self: *Listener) noreturn {
         while (true) {
@@ -124,29 +120,18 @@ const Listener = struct {
         monotonic.sleep(accept_failure_delay_ns);
     }
 
-    /// Ends the Keeper once it is drained and holds nothing, or after it has been empty for 30
-    /// seconds; a control reply still in flight is let finish first.
+    /// Ends the Keeper once it is drained and holds nothing, or after it has been idle for 30
+    /// seconds; a control reply still in flight is let finish first. The decision and the stop share
+    /// one lock hold, so no connection can be admitted between them.
     fn checkLife(self: *Listener) void {
         self.table.lock();
-        // Read under the lock, or the start could precede a change this pass observes.
-        const now = self.clock.read();
         const lifecycle = self.table.lifecycle;
-        const empty = self.table.idle();
         const drained = lifecycle == .draining and self.table.holdingCount() == 0;
+        const expired = self.table.idleFor(empty_exit_ns);
         const replying = self.table.pending_connections > 0;
+        const ending = lifecycle != .stopping and (drained or expired) and !replying;
+        if (ending) self.table.stop();
         self.table.unlock();
-        if (lifecycle == .stopping) return;
-        if (!empty) {
-            self.empty_since_ns = null;
-        } else if (self.empty_since_ns == null) {
-            self.empty_since_ns = now;
-        }
-        const expired = if (self.empty_since_ns) |since| now -| since >= empty_exit_ns else false;
-        if ((drained or expired) and !replying) {
-            self.table.lock();
-            self.table.stop();
-            self.table.unlock();
-            std.process.exit(0);
-        }
+        if (ending) std.process.exit(0);
     }
 };
