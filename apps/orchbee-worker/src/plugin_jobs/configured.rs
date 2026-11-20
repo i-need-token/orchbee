@@ -1,7 +1,9 @@
 //! Configured jobs have their own receipt identity; they never enter plugin history.
 use super::{Inner, MAX_LOGS, MAX_RUNNING, Outcome, Refusal, running};
 use orchbee_capability_node_protocol::{ConfiguredCommandIntent, OperationId};
+use orchbee_local_runtime::{CommandChild, CommandSpawnFailure};
 use std::{
+    process::Command,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -146,21 +148,15 @@ fn run(
 ) -> bool {
     #[cfg(test)]
     let started = std::time::Instant::now();
-    use orchbee_local_runtime::CommandChild;
-    use std::process::Stdio;
     // The execution machine chooses its command processor, not a source cwd/PATH.
     let Some(mut command) = shell::command(&intent.command) else {
         let _delivered = spawned.send(Err(false));
         return true;
     };
-    command
-        .current_dir(&intent.directory)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+    command.current_dir(&intent.directory);
     super::process::clear_context(&mut command);
     command.envs(intent.environment);
-    let mut child = match CommandChild::spawn(command) {
+    let mut child = match spawn_configured(command) {
         Ok(child) => child,
         Err(failure) => {
             #[cfg(test)]
@@ -193,6 +189,53 @@ fn run(
         }
     }
 }
+
+/// Starts the configured command as the leader of its own process group, with the null device as
+/// each standard stream. On macOS the native adapter starts it, so it inherits no descriptor but
+/// those three, however many threads of this process create descriptors meanwhile.
+#[cfg(target_os = "macos")]
+fn spawn_configured(command: Command) -> Result<CommandChild, CommandSpawnFailure> {
+    use orchbee_local_runtime::SpawnEnvironment;
+    use std::{fs::OpenOptions, io, os::fd::OwnedFd};
+    let not_created = |error: io::Error| CommandSpawnFailure {
+        error,
+        created: false,
+    };
+    // Opened as the standard library opens `Stdio::null()`: input to read, each output to write.
+    let input = OpenOptions::new()
+        .read(true)
+        .open("/dev/null")
+        .map_err(not_created)?;
+    let output = OpenOptions::new()
+        .write(true)
+        .open("/dev/null")
+        .map_err(not_created)?;
+    let errors = OpenOptions::new()
+        .write(true)
+        .open("/dev/null")
+        .map_err(not_created)?;
+    CommandChild::spawn_with_streams(
+        command,
+        SpawnEnvironment::Inherited,
+        [
+            OwnedFd::from(input),
+            OwnedFd::from(output),
+            OwnedFd::from(errors),
+        ],
+    )
+}
+
+/// Elsewhere the standard library's spawn starts the same command with the same null streams.
+#[cfg(not(target_os = "macos"))]
+fn spawn_configured(mut command: Command) -> Result<CommandChild, CommandSpawnFailure> {
+    use std::process::Stdio;
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    CommandChild::spawn(command)
+}
+
 pub(super) fn settle(inner: &mut Inner) {
     for record in &mut inner.commands {
         if record.join.as_ref().is_some_and(JoinHandle::is_finished) {

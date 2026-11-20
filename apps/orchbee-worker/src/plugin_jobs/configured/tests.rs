@@ -91,3 +91,38 @@ fn expired_spawn_confirmation_stays_unknown_after_late_completion_without_replay
         Outcome::Refused(Refusal::PhysicalUnknown)
     );
 }
+
+/// Pins the macOS route: a configured command must not inherit a descriptor the Worker holds
+/// without close-on-exec, which the standard library's spawn would pass on.
+#[cfg(target_os = "macos")]
+#[test]
+fn configured_command_inherits_no_descriptor_the_worker_holds() {
+    use nix::sys::socket::{AddressFamily, SockFlag, SockType, socket};
+    use std::os::fd::AsRawFd;
+    let held = socket(
+        AddressFamily::Unix,
+        SockType::Stream,
+        SockFlag::empty(),
+        None,
+    )
+    .unwrap();
+    let directory = std::env::temp_dir().join(format!("orchbee-configured-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let (inherited, ran) = (directory.join("inherited"), directory.join("ran"));
+    let mut command = intent();
+    command.command = format!(
+        "[ -S /dev/fd/{} ] && : > '{}'; : > '{}'; exit 0",
+        held.as_raw_fd(),
+        inherited.display(),
+        ran.display(),
+    );
+    let (spawned, _observed) = mpsc::channel();
+    assert!(run(command, &AtomicBool::new(false), spawned));
+    let (inherited, ran) = (inherited.exists(), ran.exists());
+    std::fs::remove_dir_all(&directory).unwrap();
+    assert!(ran, "the configured command did not run");
+    assert!(
+        !inherited,
+        "the configured command inherited a descriptor the Worker held"
+    );
+}

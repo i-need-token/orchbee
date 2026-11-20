@@ -230,8 +230,8 @@ its pipes, starts through the same adapter when its caller uses `CommandChild::s
 (`src/command_child/unix/native.rs`): its own three pipes as the standard streams, a new process
 group, and exactly the environment and working directory its command sets, with no other descriptor.
 Linux creates these descriptors close-on-exec atomically and keeps the standard library's spawn for
-both paths; Windows is unchanged. Plugin processes the Worker starts with `CommandChild::spawn` still
-use the standard library's spawn. Short-lived commands, such as Git, `run_unix_command` and
+every such path; Windows is unchanged. The Worker's configured commands take the same macOS route,
+with `/dev/null` as each standard stream. Short-lived commands, such as Git, `run_unix_command` and
 `run_unmasked_unix_command`, keep the standard library's spawn or the safe wrapper too, because they
 end before any caller waits on a peer end they might hold.
 

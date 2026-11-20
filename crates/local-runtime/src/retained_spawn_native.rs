@@ -5,9 +5,10 @@
 //! with Rust 1.97 through both its `posix_spawn` and its fork path), so a child it starts while a
 //! command's signal owner is armed keeps that owner's blocked signals. macOS marks a new socket or pipe close-on-exec only after
 //! creating it, so without that flag a descriptor another thread is creating at that moment would
-//! reach the child and outlive this process's own use of it. [`crate::retained_child`] and the hub
-//! carrier's launch, through [`crate::command_child`], are the only callers; the crate README's
-//! safety contract lists every invariant the unsafe blocks below rely on.
+//! reach the child and outlive this process's own use of it. [`crate::retained_child`], the hub
+//! carrier's launch and the Worker's configured command, through [`crate::command_child`], are the
+//! only callers; the crate README's safety contract lists every invariant the unsafe blocks below
+//! rely on.
 use nix::libc;
 use std::{
     ffi::{CStr, CString, OsStr, OsString},

@@ -78,10 +78,11 @@ environment values, such as the source terminal's folder, arrive as written and 
 text; a shell path that holds `=` is refused as unavailable.
 
 A `shell` command leads its own process group, and its owner thread unblocks every signal before it
-starts, so the command and its children can be stopped. When the shell exits, the members left in
-its group get `SIGKILL`. When the Session stops first, the group gets `SIGTERM`, then `SIGKILL` once
-the shell has exited or two seconds have passed. Either way the command counts as ended only once no
-member is left. A program that leaves the group, such as one that calls `setsid` to become a
+starts, so the command and its children can be stopped. On macOS it starts through the native
+adapter, so no descriptor reaches it except its three standard streams, which are the null device.
+When the shell exits, the members left in its group get `SIGKILL`. When the Session stops first, the
+group gets `SIGTERM`, then `SIGKILL` once the shell has exited or two seconds have passed. Either
+way the command counts as ended only once no member is left. A program that leaves the group, such as one that calls `setsid` to become a
 daemon, is not stopped. `plugin-action` commands are refused with `source-unavailable` before any
 effect, because plugin stores exist only on Windows.
 
