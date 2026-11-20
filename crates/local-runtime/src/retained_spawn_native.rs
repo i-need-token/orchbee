@@ -6,9 +6,9 @@
 //! command's signal owner is armed keeps that owner's blocked signals. macOS marks a new socket or pipe close-on-exec only after
 //! creating it, so without that flag a descriptor another thread is creating at that moment would
 //! reach the child and outlive this process's own use of it. [`crate::retained_child`], the hub
-//! carrier's launch and the Worker's configured command, through [`crate::command_child`], are the
-//! only callers; the crate README's safety contract lists every invariant the unsafe blocks below
-//! rely on.
+//! carrier's launch, the Worker's configured command and a Session start's detached child, through
+//! [`crate::command_child`], are the only callers; the crate README's safety contract lists every
+//! invariant the unsafe blocks below rely on.
 use nix::libc;
 use std::{
     ffi::{CStr, CString, OsStr, OsString},

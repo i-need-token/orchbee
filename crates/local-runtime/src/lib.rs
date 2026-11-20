@@ -216,6 +216,8 @@ mod session_path;
 pub use session_path::spawn_session_server;
 
 mod command_child;
+#[cfg(target_os = "macos")]
+pub use command_child::DetachedChild;
 pub use command_child::{CommandChild, CommandSpawnFailure};
 #[cfg(unix)]
 pub use command_child::{

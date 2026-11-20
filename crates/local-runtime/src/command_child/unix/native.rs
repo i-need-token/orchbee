@@ -1,7 +1,8 @@
 //! Starts one command through the reviewed native adapter on macOS, so the child receives its three
 //! standard streams and no other descriptor, however many threads of this process create
 //! descriptors meanwhile. The root leads a new process group, as
-//! [`CommandChild::spawn`](super::CommandChild::spawn) places it.
+//! [`CommandChild::spawn`](super::CommandChild::spawn) places it, and [`spawn_detached`] starts a
+//! child whose owner may leave it running.
 use super::{CommandChild, SpawnEnvironment, spawn::variable_pairs};
 use crate::{CommandSpawnFailure, retained_spawn_native};
 use rustix::process::Pid;
@@ -13,15 +14,15 @@ use std::{
     process::Command,
 };
 
-/// Starts `command` with its three `streams` as its standard input, output and error, in the
-/// environment `environment` names and in the working directory it sets, or this process's when it
-/// sets none. A relative program is refused, because the adapter starts an absolute path and
-/// searches for none.
-pub(super) fn spawn(
+/// Starts `command` as the leader of its own process group, with its three `streams` as its standard
+/// input, output and error, in the environment `environment` names and in the working directory it
+/// sets, or this process's when it sets none, and answers the child's process identifier. A relative
+/// program is refused, because the adapter starts an absolute path and searches for none.
+fn start(
     command: &Command,
     environment: SpawnEnvironment,
     [input, output, errors]: [OwnedFd; 3],
-) -> Result<CommandChild, CommandSpawnFailure> {
+) -> Result<u32, CommandSpawnFailure> {
     let not_created = |error: io::Error| CommandSpawnFailure {
         error,
         created: false,
@@ -51,6 +52,16 @@ pub(super) fn spawn(
         true,
     )
     .map_err(not_created)?;
+    Ok(id)
+}
+
+/// Starts `command` as [`start`] does, as the owner of a group root that a `CommandChild` settles.
+pub(super) fn spawn(
+    command: &Command,
+    environment: SpawnEnvironment,
+    streams: [OwnedFd; 3],
+) -> Result<CommandChild, CommandSpawnFailure> {
+    let id = start(command, environment, streams)?;
     let root = i32::try_from(id)
         .ok()
         .and_then(Pid::from_raw)
@@ -59,6 +70,16 @@ pub(super) fn spawn(
             created: true,
         })?;
     Ok(CommandChild::spawned(root))
+}
+
+/// Starts `command` as [`spawn`] does, for a child its owner may leave running: the caller waits for
+/// its identifier, and nothing signals or reaps it when the caller drops its owner.
+pub(super) fn spawn_detached(
+    command: &Command,
+    environment: SpawnEnvironment,
+    streams: [OwnedFd; 3],
+) -> io::Result<u32> {
+    start(command, environment, streams).map_err(|failure| failure.error)
 }
 
 /// `stream` itself when it is at least 3, or a copy of it at or above 3. The adapter duplicates the

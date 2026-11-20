@@ -132,16 +132,17 @@ On macOS and Linux, `run_unix_command` runs one command to its end, the Unix cou
 `run_windows_command`: standard input is null, both outputs are drained on their own threads to
 the caller's bound, and the owner is polled every 10 ms until the command ends, the deadline passes
 or the caller's interruption check answers true, which settles the whole group before the result.
-`run_unmasked_unix_command` runs the same loop for a caller whose thread blocks signals, such as
-the Client's release commands on macOS, which capture `SIGINT` and `SIGTERM` to settle their
-children: the command starts through nix's safe `posix_spawn` wrapper with an empty signal mask,
-`SIGPIPE` at its default action, standard input from `/dev/null` and its outputs duplicated onto
-the drained pipes, as the leader of its own process group. The standard library's spawn would pass
-the blocked mask on, so the group's `SIGTERM` could not end it before the grace. The caller states
-whether the environment is inherited or cleared, since `Command` does not report `env_clear`, and
-a command that sets a working directory is refused. The Client's install, update and automatic
-helper run the staged Client's version check, the published copy's completion, `curl` and `tar`
-through it on macOS.
+`run_unmasked_unix_command` runs the same loop for a caller whose thread blocks signals, such as the
+Client's release commands on macOS, which capture `SIGINT` and `SIGTERM` to settle their children:
+the command starts through nix's safe `posix_spawn` wrapper with an empty signal mask, `SIGPIPE` at
+its default action, standard input from `/dev/null` and its outputs duplicated onto the drained
+pipes, as the leader of its own process group. On macOS it also passes
+`POSIX_SPAWN_CLOEXEC_DEFAULT`, so the command inherits no descriptor but its three standard streams.
+The standard library's spawn would pass the blocked mask on, so the group's `SIGTERM` could not end
+it before the grace. The caller states whether the environment is inherited or cleared, since
+`Command` does not report `env_clear`, and a command that sets a working directory is refused. The
+Client's install, update and automatic helper run the staged Client's version check, the published
+copy's completion, `curl` and `tar` through it on macOS.
 
 On Windows, a program Orchbee itself chooses from the system folder, such as `cmd.exe` or Windows
 PowerShell, is named by its full path from `windows_system_program`, which reads the folder from
@@ -229,11 +230,16 @@ child. The executable must be an absolute path. The hub's SSH carrier, which is 
 its pipes, starts through the same adapter when its caller uses `CommandChild::spawn_with_streams`
 (`src/command_child/unix/native.rs`): its own three pipes as the standard streams, a new process
 group, and exactly the environment and working directory its command sets, with no other descriptor.
-Linux creates these descriptors close-on-exec atomically and keeps the standard library's spawn for
-every such path; Windows is unchanged. The Worker's configured commands take the same macOS route,
-with `/dev/null` as each standard stream. Short-lived commands, such as Git, `run_unix_command` and
-`run_unmasked_unix_command`, keep the standard library's spawn or the safe wrapper too, because they
-end before any caller waits on a peer end they might hold.
+The Client's Session start and installs on macOS can outlive the Client, so they start through
+`DetachedChild`, which starts the same way with the streams they name. Dropping a `DetachedChild`
+signals nothing and reaps nothing: its child keeps running, and a child not yet waited for stays a
+zombie until this process exits. Linux creates these descriptors close-on-exec atomically and keeps
+the standard library's spawn for every such path; Windows is unchanged. The Worker's configured
+commands take the same macOS route, with `/dev/null` as each standard stream.
+`run_unmasked_unix_command` starts through the safe wrapper with `POSIX_SPAWN_CLOEXEC_DEFAULT` on
+macOS, so its command inherits no descriptor but its three standard streams. `run_unix_command` keeps
+the standard library's spawn, so a command it runs can inherit a descriptor that another thread
+created without close-on-exec, and keeps it until the command's process group settles.
 
 - **Strings.** The executable, each argument and each `NAME=value` entry become owned NUL-terminated
   strings, refused with `InvalidInput` when one holds a NUL byte; the argument and environment
@@ -243,14 +249,15 @@ end before any caller waits on a peer end they might hold.
   returns. `posix_spawn_file_actions_addchdir_np`, which libc does not declare for Apple targets,
   is declared locally with its macOS 10.15 signature.
 - **Waits.** `waitpid` runs only for an identifier this process spawned and has not reaped, with
-  `EINTR` retried. The safe owner keeps the first status it reads and never waits again, because a
-  reaped identifier may later name another process.
+  `EINTR` retried. The safe owners, `CommandChild` and `DetachedChild`, keep the first status they
+  read and never wait again, because a reaped identifier may later name another process.
 
 The adjacent safe test starts a child while a descriptor without close-on-exec is open and sees its
 peer close while the child still runs; checks the child's directory, argument boundaries, exact
 environment and exit status; and checks that a missing executable starts nothing. The macOS command
 test starts a command with its own streams while such a descriptor is open, and checks that the
-command sees no other descriptor and leads its own group.
+command sees no other descriptor and leads its own group. An unmasked command is checked the same
+way, and a `DetachedChild` is checked to keep running after its drop and to report its status.
 
 ## Data root
 

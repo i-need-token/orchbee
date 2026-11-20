@@ -4,7 +4,9 @@
 //! blocks `SIGINT` and `SIGTERM` to capture them would ignore both, and its group's settlement could
 //! only end it by `SIGKILL` after the grace. The root leads a new process group, as
 //! [`CommandChild::spawn`](super::CommandChild::spawn) places it, and reads `/dev/null` as its
-//! input.
+//! input. On macOS it also passes `POSIX_SPAWN_CLOEXEC_DEFAULT`, since that system sets
+//! close-on-exec only after a descriptor exists, so the child receives its three standard streams
+//! and no other descriptor, however many threads of this process create descriptors meanwhile.
 use super::CommandChild;
 use crate::CommandSpawnFailure;
 use nix::{
@@ -71,7 +73,8 @@ pub(super) fn spawn(
         attributes.set_flags(
             PosixSpawnFlags::POSIX_SPAWN_SETPGROUP
                 | PosixSpawnFlags::POSIX_SPAWN_SETSIGMASK
-                | PosixSpawnFlags::POSIX_SPAWN_SETSIGDEF,
+                | PosixSpawnFlags::POSIX_SPAWN_SETSIGDEF
+                | close_other_descriptors(),
         )?;
         attributes.set_pgroup(nix::unistd::Pid::from_raw(0))?;
         attributes.set_sigmask(&SigSet::empty())?;
@@ -94,6 +97,19 @@ pub(super) fn spawn(
         created: true,
     })?;
     Ok(CommandChild::spawned(root))
+}
+
+/// The flag that closes every descriptor but the standard streams on exec. macOS needs it, since its
+/// descriptors are close-on-exec only once created; Linux creates them close-on-exec already.
+fn close_other_descriptors() -> PosixSpawnFlags {
+    #[cfg(target_os = "macos")]
+    {
+        PosixSpawnFlags::from_bits_retain(nix::libc::POSIX_SPAWN_CLOEXEC_DEFAULT)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        PosixSpawnFlags::empty()
+    }
 }
 
 /// The variables the child receives, as name and value pairs.

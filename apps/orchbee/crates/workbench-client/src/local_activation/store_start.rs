@@ -26,15 +26,19 @@ use orchbee_local_runtime::{
     ModeCheckedLocalSessionRendezvous, RendezvousError, SessionScope, private_filesystem,
 };
 #[cfg(target_os = "macos")]
-use std::os::unix::process::CommandExt;
+use orchbee_local_runtime::{DetachedChild, SpawnEnvironment};
+#[cfg(target_os = "macos")]
+use std::os::fd::OwnedFd;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
+#[cfg(windows)]
+use std::process::{Child, Stdio};
 use std::{
     cmp::Ordering,
     fs::File,
     io::{self, Read},
     path::{Path, PathBuf},
-    process::{Command, ExitStatus, Stdio},
+    process::{Command, ExitStatus},
     thread,
     time::{Duration, Instant},
 };
@@ -376,7 +380,8 @@ fn install_own(own_client: &Path, no_path: bool, deadline: Instant) -> bool {
 
 /// Starts this Client's `install [--no-path] --format json` detached in the background while
 /// joining an already-running Session on macOS, so the store, its `~/.local/bin` link, and
-/// `desktop/` advance to this bundle's version without delaying the join.
+/// `desktop/` advance to this bundle's version without delaying the join. It starts through a
+/// `DetachedChild` with null standard streams, which inherits no descriptor but those three.
 #[cfg(target_os = "macos")]
 fn spawn_install_own(own_client: &Path, no_path: bool) {
     let mut command = Command::new(own_client);
@@ -387,12 +392,10 @@ fn spawn_install_own(own_client: &Path, no_path: bool) {
     command
         .args(["--format", "json"])
         .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)
-        .current_dir("/")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .process_group(0);
-    match command.spawn() {
+        .current_dir("/");
+    match null_streams().and_then(|streams| {
+        DetachedChild::spawn_with_streams(command, SpawnEnvironment::Inherited, streams)
+    }) {
         Ok(mut child) => {
             drop(thread::Builder::new().spawn(move || {
                 let _ = child.wait();
@@ -416,13 +419,58 @@ fn spawn_install_own(own_client: &Path, no_path: bool) {
     }
 }
 
+/// The child `wait_for` watches: a `DetachedChild` on macOS and the standard library's child on
+/// Windows.
+#[cfg(target_os = "macos")]
+type Watched = DetachedChild;
+#[cfg(windows)]
+type Watched = Child;
+
+/// Starts `command` with `output` as its standard output, null standard input and error, and no
+/// console window. The command is consumed here, so the parent keeps no copy of `output`.
+#[cfg(windows)]
+fn start_watched(mut command: Command, output: Stdio) -> io::Result<Watched> {
+    command
+        .stdin(Stdio::null())
+        .stdout(output)
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW);
+    command.spawn()
+}
+
+/// Starts `command` as a `DetachedChild` with `output` as its standard output and null standard
+/// input and error, so it inherits no descriptor but those three.
+#[cfg(target_os = "macos")]
+fn start_watched(command: Command, output: OwnedFd) -> io::Result<Watched> {
+    let streams = [null_device(false)?, output, null_device(true)?];
+    DetachedChild::spawn_with_streams(command, SpawnEnvironment::Inherited, streams)
+}
+
+/// The null device, opened for reading or for writing as the standard library's `Stdio::null` opens
+/// it for each standard stream.
+#[cfg(target_os = "macos")]
+fn null_device(write: bool) -> io::Result<OwnedFd> {
+    let device = File::options()
+        .read(!write)
+        .write(write)
+        .open("/dev/null")?;
+    Ok(OwnedFd::from(device))
+}
+
+/// Null standard input, output and error for a child that outlives this Client.
+#[cfg(target_os = "macos")]
+fn null_streams() -> io::Result<[OwnedFd; 3]> {
+    Ok([null_device(false)?, null_device(true)?, null_device(true)?])
+}
+
 /// Runs `command`, which inherits this process's environment, so it selects the same Session and
 /// store, except the relaunch protocol's variable, which no process a Client starts receives, and
 /// waits for it until `deadline`; `pins` hold its program in place until it exists. It gets null
 /// standard input and error, a bounded standard output, and a working folder no version owns, since
 /// a Session it starts outlives this Client: the system folder on Windows, where it also gets no
 /// console window, and `/` on macOS, where it leads a process group of its own, so a terminal's
-/// interrupt meant for this Client never reaches it.
+/// interrupt meant for this Client never reaches it. On macOS it starts as a `DetachedChild`, which
+/// inherits no descriptor but those three streams.
 fn wait_for(mut command: Command, pins: Vec<File>, deadline: Instant) -> Run {
     #[cfg(windows)]
     let Ok(directory) = winsafe::GetSystemDirectory() else {
@@ -430,23 +478,20 @@ fn wait_for(mut command: Command, pins: Vec<File>, deadline: Instant) -> Run {
     };
     #[cfg(target_os = "macos")]
     let directory = "/";
+    #[cfg(windows)]
     let Ok((mut reader, writer)) = ChildOutputReader::pipe() else {
+        return Run::Failed;
+    };
+    #[cfg(target_os = "macos")]
+    let Ok((mut reader, writer)) = ChildOutputReader::pipe_descriptor() else {
         return Run::Failed;
     };
     command
         .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)
-        .current_dir(directory)
-        .stdin(Stdio::null())
-        .stdout(writer)
-        .stderr(Stdio::null());
-    #[cfg(windows)]
-    command.creation_flags(CREATE_NO_WINDOW);
-    #[cfg(target_os = "macos")]
-    command.process_group(0);
-    let spawned = command.spawn();
-    // The command holds the parent's copy of the output pipe's writer; the image is mapped once
+        .current_dir(directory);
+    // The parent's copy of the output pipe's writer leaves with the start; the image is mapped once
     // the process exists, so the pins have done their part.
-    drop(command);
+    let spawned = start_watched(command, writer);
     drop(pins);
     let Ok(mut child) = spawned else {
         return Run::Failed;

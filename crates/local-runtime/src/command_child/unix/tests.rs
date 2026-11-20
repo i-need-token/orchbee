@@ -191,3 +191,75 @@ fn a_command_with_its_own_streams_inherits_no_other_descriptor() {
         "{text}"
     );
 }
+
+/// An unmasked command inherits no descriptor but its three standard streams, not even one another
+/// thread of this process left open without close-on-exec. macOS only: Linux creates its descriptors
+/// close-on-exec, so this one would not reach the command there.
+#[cfg(target_os = "macos")]
+#[test]
+fn an_unmasked_command_inherits_no_other_descriptor() {
+    // Open without close-on-exec, at a number no descriptor of the command takes.
+    let (kept, _peer) = std::os::unix::net::UnixStream::pair().unwrap();
+    let leaked = rustix::io::fcntl_dupfd_cloexec(&kept, 40).unwrap();
+    rustix::io::fcntl_setfd(&leaked, rustix::io::FdFlags::empty()).unwrap();
+    let mut command = Command::new("/bin/sh");
+    command.args(["-c", "ls /dev/fd"]);
+    let output =
+        run_unmasked_unix_command(command, SpawnEnvironment::Cleared, 1024, None, || Ok(false));
+    let text = String::from_utf8_lossy(&output.stdout).into_owned();
+    assert!(output.failure.is_none(), "{text}");
+    let descriptors: Vec<i32> = text.lines().map(|line| line.parse().unwrap()).collect();
+    assert!(descriptors.contains(&1), "{text}");
+    assert!(
+        descriptors.iter().all(|descriptor| *descriptor < 40),
+        "{text}"
+    );
+}
+
+/// A detached child keeps running after its owner drops it: dropping signals nothing, so the child
+/// still writes its output, and the pipe closes only when the child ends. macOS only.
+#[cfg(target_os = "macos")]
+#[test]
+fn a_dropped_detached_child_keeps_running() {
+    use std::{fs::File, io::Read, os::fd::OwnedFd};
+    let (mut reader, writer) = std::io::pipe().unwrap();
+    let mut command = Command::new("/bin/sh");
+    command.args(["-c", "/bin/sleep 1; echo survived"]);
+    // Released, not waited for: the owner's drop signals nothing and reaps nothing.
+    {
+        let _child = DetachedChild::spawn_with_streams(
+            command,
+            SpawnEnvironment::Cleared,
+            [
+                OwnedFd::from(File::open("/dev/null").unwrap()),
+                OwnedFd::from(writer),
+                OwnedFd::from(File::options().write(true).open("/dev/null").unwrap()),
+            ],
+        )
+        .unwrap();
+    }
+    let mut text = String::new();
+    reader.read_to_string(&mut text).unwrap();
+    assert_eq!(text, "survived\n");
+}
+
+/// A detached child reports the status it ended with, and keeps it for later reads. macOS only.
+#[cfg(target_os = "macos")]
+#[test]
+fn a_detached_child_reports_the_status_it_ended_with() {
+    use std::{fs::File, os::fd::OwnedFd};
+    let mut command = Command::new("/bin/sh");
+    command.args(["-c", "exit 3"]);
+    let mut child = DetachedChild::spawn_with_streams(
+        command,
+        SpawnEnvironment::Cleared,
+        [
+            OwnedFd::from(File::open("/dev/null").unwrap()),
+            OwnedFd::from(File::options().write(true).open("/dev/null").unwrap()),
+            OwnedFd::from(File::options().write(true).open("/dev/null").unwrap()),
+        ],
+    )
+    .unwrap();
+    assert_eq!(child.wait().unwrap().code(), Some(3));
+    assert_eq!(child.try_wait().unwrap().unwrap().code(), Some(3));
+}

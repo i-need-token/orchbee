@@ -8,6 +8,9 @@
 //! A root started by the standard library is reaped through its `Child`; one started by the
 //! `posix_spawn` launch in `spawn.rs`, which clears the signal mask the standard library passes on,
 //! is reaped by its process ID.
+//!
+//! `DetachedChild`, for a child that must outlive its owner, is the one owner that signals and
+//! reaps nothing on drop.
 use std::{
     io,
     os::{
@@ -28,6 +31,8 @@ use rustix::{
 };
 
 use super::CommandSpawnFailure;
+#[cfg(target_os = "macos")]
+use crate::retained_spawn_native;
 
 mod capture;
 #[cfg(target_os = "macos")]
@@ -213,6 +218,65 @@ impl CommandChild {
             }
             sleep_before(deadline)?;
         }
+    }
+}
+
+/// A command started on macOS through the native adapter, for a child its owner may leave running:
+/// it leads a new process group and inherits no descriptor but its three standard streams, as
+/// [`CommandChild::spawn_with_streams`] starts it. Dropping it signals nothing and reaps nothing, so
+/// the child keeps running; a child not yet waited for stays a zombie until this process exits, as
+/// with the standard library's `Child`.
+#[cfg(target_os = "macos")]
+pub struct DetachedChild {
+    process: u32,
+    status: Option<ExitStatus>,
+}
+
+#[cfg(target_os = "macos")]
+impl DetachedChild {
+    /// Starts `command` with `streams` as its standard input, output and error, in the environment
+    /// `environment` names and in the working directory it sets, or this process's when it sets
+    /// none. A relative program is refused.
+    pub fn spawn_with_streams(
+        command: Command,
+        environment: SpawnEnvironment,
+        streams: [OwnedFd; 3],
+    ) -> io::Result<Self> {
+        let process = native::spawn_detached(&command, environment, streams)?;
+        Ok(Self {
+            process,
+            status: None,
+        })
+    }
+
+    /// The child's process identifier, which is also the identifier of its group.
+    pub fn id(&self) -> u32 {
+        self.process
+    }
+
+    /// The child's status once it has ended, or `None` while it runs. Keeps the first status read.
+    pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+        if let Some(status) = self.status {
+            return Ok(Some(status));
+        }
+        let Some(raw) = retained_spawn_native::wait(self.process, false)? else {
+            return Ok(None);
+        };
+        let status = ExitStatus::from_raw(raw);
+        self.status = Some(status);
+        Ok(Some(status))
+    }
+
+    /// Waits until the child ends and answers its status. Keeps the first status read.
+    pub fn wait(&mut self) -> io::Result<ExitStatus> {
+        if let Some(status) = self.status {
+            return Ok(status);
+        }
+        let raw = retained_spawn_native::wait(self.process, true)?
+            .ok_or_else(|| io::Error::other("a blocking wait reported no status"))?;
+        let status = ExitStatus::from_raw(raw);
+        self.status = Some(status);
+        Ok(status)
     }
 }
 
