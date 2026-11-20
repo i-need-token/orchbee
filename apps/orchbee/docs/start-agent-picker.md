@@ -65,8 +65,8 @@ and "N more not found or not checked" for some of each. Opened, or listed by a q
 heading follows the rows it lists the same way: "Not found", "Not checked", or "Not found or not
 checked". A provider in Recent never repeats in another group. Any query also searches the folded
 providers. Each row shows the product name and, in secondary text, its command, "not found", or
-"can't check" for a command the Server cannot check, such as a generic one (`agent` for Cursor,
-`snow` for Snow CLI), or one a completed lookup could not settle. The cursor starts on the most
+"can't check" for a generic command such as `snow` for Snow CLI, or one a completed lookup could
+not settle. The cursor starts on the most
 recent provider, else the first installed one, and a later catalog never moves it off the provider
 it rests on. While a lookup runs, a provider it is still checking is listed nowhere: there is no
 folded row, a query or an opened fold lists the providers already known, and the status row says

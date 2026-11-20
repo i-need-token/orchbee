@@ -71,7 +71,7 @@ impl StartableAgent {
     pub fn executable(self) -> &'static str {
         match self.0 {
             "claude-code" => "claude",
-            "cursor" => "agent",
+            "cursor" => "cursor-agent",
             "qodercli" => "qoder",
             "antigravity" => "agy",
             "github-copilot" => "copilot",
@@ -83,9 +83,8 @@ impl StartableAgent {
     }
 
     /// Whether finding [`executable`](Self::executable) on a search path says the provider is
-    /// installed. A command the registry classes as generic for any provider, such as Cursor's
-    /// `agent` or `snow`, may belong to another program, so such a provider can be started but
-    /// not checked, and its command is never looked up.
+    /// installed. A command the registry classes as generic, such as `snow`, may belong to
+    /// another program, so the catalog skips its search-path lookup.
     #[must_use]
     pub fn checkable(self) -> bool {
         let command = self.executable();

@@ -61,7 +61,8 @@ Its idle rule needs the prompt-box bottom with the key-hint footer ending in `co
 directly beneath it, without an interrupt hint, progress squares or question footer. The start
 screen centres the box above notices and tips, so the rule reads the whole screen instead of its
 last rows. An open command list covers both rows and stays unknown, as does a pane narrow enough to
-wrap the footer. Its `Kilo CLI` title carries no state.
+wrap the footer. A live retry notice directly below the composer also marks working.
+Its `Kilo CLI` title carries no state.
 
 Orchbee authored the AtomCode, CodeBuddy Code, DevEco Code, Mastracode, Reasonix, Snow CLI, MiniMax Code, MothX, Prime Agent and J-Code
 rules from Windows captures. Where the CLI writes its state into the OSC title,
@@ -72,8 +73,8 @@ the title to the shell, and titles that only name the session carry no state, so
 braille or glyph spinner status with elapsed time, or a footer interrupt hint, is working, and the
 CLI's composer or key-hint footer without it is idle. Elapsed time past a minute has several
 units, such as MothX's `1m02s`. A startup question that waits for an answer is a visible
-blocker: workspace trust (Qoder CLI, Droid, MiMo Code, DevEco Code, CodeBuddy Code), sign-in or login method (Command
-Code, CodeBuddy Code), the agreements page and Studio path question (DevEco Code), telemetry or trace sharing (Reasonix,
+blocker: workspace trust (Qoder CLI, Droid, MiMo Code, DevEco Code, CodeBuddy Code, Command Code),
+sign-in or login method (Command Code, CodeBuddy Code), the agreements page and Studio path question (DevEco Code), telemetry or trace sharing (Reasonix,
 Prime Agent) and J-Code's y/n/d setup questions. Each needs its live choices or empty answer row, so
 an answered question stays unknown. Only Snow's tool confirmation has been observed; the other CLIs
 ran the captured shell command without asking, so their approval screens have no rule apart from

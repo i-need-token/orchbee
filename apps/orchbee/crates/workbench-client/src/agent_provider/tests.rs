@@ -49,7 +49,6 @@ fn startup_commands_come_only_from_the_canonical_mapping() {
         assert!(executable(id).is_some(), "missing startup command for {id}");
     }
     assert_eq!(executable("claude-code"), Some("claude"));
-    assert_eq!(executable("cursor"), Some("agent"));
     assert_eq!(executable("github-copilot"), Some("copilot"));
     assert_eq!(executable("amp"), Some("amp"));
     assert_eq!(executable("maki"), Some("maki"));

@@ -1,7 +1,7 @@
 id = "command-code"
-version = "2026.11.12.1"
+version = "2026.11.20.1"
 min_engine_version = 1
-updated_at = "2026-11-12T00:00:00Z"
+updated_at = "2026-11-20T00:00:00Z"
 aliases = ["commandcode"]
 
 # Command Code without a login opens a sign-in screen that waits for browser authorization or a
@@ -24,6 +24,16 @@ visible_blocker = true
 contains = ["sign in to command code", "paste your api key"]
 regex = ['(?m)^ctrl\+c to cancel\s*\z']
 not = [{ contains = ["authentication cancelled"] }]
+
+# The folder trust menu ends with a distinct navigation footer while it owns the input.
+[[rules]]
+id = "folder_trust_blocker"
+state = "blocked"
+priority = 300
+region = "bottom_non_empty_lines(24)"
+visible_blocker = true
+contains = ["do you trust the files in this folder?"]
+regex = ['(?im)^[ \t]*↑/↓ to navigate · enter to select · esc to exit\s*\z']
 
 [[rules]]
 id = "status_row_working"

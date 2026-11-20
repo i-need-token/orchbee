@@ -9,7 +9,7 @@ fn a_start_runs_the_catalog_command_with_its_fixed_arguments_and_launch_session(
     let rows: &[(&str, &[&str])] = &[
         ("claude-code", &["claude"]),
         ("codex", &["codex"]),
-        ("cursor", &["agent"]),
+        ("cursor", &["cursor-agent"]),
         ("qodercli", &["qoder"]),
         ("antigravity", &["agy"]),
         ("kiro", &["kiro-cli"]),

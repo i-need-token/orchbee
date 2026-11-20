@@ -334,6 +334,11 @@ fn new_provider_rules_follow_redacted_windows_captures() {
         "{}       esc interrupt        tab agents  ctrl+p commands\n{kilo_tail}",
         kilo_box("abc")
     );
+    let kilo_retry = format!(
+        "{}   ⬝[Provider] The model is temporarily rate-limited upstream. ... (\n    expand) [retrying attempt #1]",
+        kilo_box("")
+    );
+    let kilo_after_retry = format!("{kilo_retry}\n{kilo_typed}");
     let kilo_menu = format!(
         "                   Commands                      esc\n       ┃  Ask a    Suggested\n       ╹▀▀▀▀▀▀▀    System                        ▀▀▀▀▀▀▀\n                   Hide tips         ctrl+x h    ommands\n       ● Move y    Reload Reload config, skills, agents, and commands f\n{kilo_tail}"
     );
@@ -424,6 +429,8 @@ fn new_provider_rules_follow_redacted_windows_captures() {
         (P::Kilo, &kilo_home, "Kilo CLI", Idle),
         (P::Kilo, &kilo_typed, "Kilo CLI", Idle),
         (P::Kilo, &kilo_busy, "Kilo CLI", Working),
+        (P::Kilo, &kilo_retry, "Kilo CLI", Working),
+        (P::Kilo, &kilo_after_retry, "Kilo CLI", Idle),
         (P::Kilo, &kilo_menu, "Kilo CLI", Unknown), // The command list covers the footer.
         (P::Kilo, &kilo_clipped, "Kilo CLI", Unknown), // No footer under the box.
         (P::Kilo, "the docs say ctrl+p commands", "", Unknown),
@@ -650,6 +657,7 @@ fn cline_and_command_code_states_follow_redacted_windows_captures() {
     let cline_launch = "PS C:\\src\\app> & (Get-Command 'cline' -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1)";
     const CC_BOX: &str =
         "─────────\n❯ Ask your question...\n─────────\n  ? for shortcuts · taste off (byok)";
+    const CC_TRUST: &str = "Do you trust the files in this folder?\n\n❯ 1. Yes, proceed\n  2. No, exit\n↑/↓ to navigate · enter to select · esc to exit";
     const CC_ECHO: &str = "❯ Count slowly from 1 to 40, one number per line, with a short sentence after\n  each number.\n\n";
     let cc_home = format!(
         "   ███████ ███████\n\n# Command Code v1.88.5\n# models: provider/model · provider (byok)\n# ~\\src\\app\n\n{CC_BOX}"
@@ -685,6 +693,8 @@ fn cline_and_command_code_states_follow_redacted_windows_captures() {
         (P::CommandCode, &cc_done, Idle),
         (P::CommandCode, &cc_stopped, Idle),
         (P::CommandCode, cc_typed, Idle),
+        (P::CommandCode, CC_TRUST, Blocked),
+        (P::CommandCode, &format!("{CC_TRUST}\n\n{CC_BOX}"), Idle),
         (P::CommandCode, "PS C:\\src\\app> command-code", Unknown),
         (
             P::CommandCode,

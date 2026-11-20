@@ -45,8 +45,8 @@ pub struct ProviderChoice {
     pub product: &'static str,
     pub command: &'static str,
     /// Whether finding `command` on PATH says the provider is installed
-    /// ([`StartableAgent::checkable`]): a generic command such as Cursor's `agent` or `snow` can
-    /// be started but not checked.
+    /// ([`StartableAgent::checkable`]). The catalog skips the search-path lookup for generic
+    /// commands such as `snow`.
     pub checkable: bool,
 }
 

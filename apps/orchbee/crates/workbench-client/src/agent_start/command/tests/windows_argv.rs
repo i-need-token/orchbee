@@ -47,11 +47,11 @@ fn actual_windows_programs_receive_literal_arguments() {
         format!("@echo off\r\nnode.exe \"{}\" %*\r\n", script.display()),
     )
     .unwrap();
-    for name in ["agent.cmd", "qoder.cmd"] {
+    for name in ["cursor-agent.cmd", "qoder.cmd"] {
         fs::copy(&batch, fixture.0.join(name)).unwrap();
     }
     // A regression must fail locally, never launch a real historical install.
-    for name in ["cursor-agent.cmd", "qodercli.cmd"] {
+    for name in ["agent.cmd", "qodercli.cmd"] {
         fs::write(fixture.0.join(name), b"@exit /b 23\r\n").unwrap();
     }
     let path = std::env::join_paths(

@@ -77,7 +77,7 @@ fn a_first_lookup_absorbs_refreshes_and_a_failed_later_one_keeps_its_rows() {
     let ids: Vec<_> = first.agents.iter().map(|row| row.provider_id).collect();
     assert_eq!(ids, STARTABLE_AGENT_PROVIDER_IDS);
     assert_eq!(state(&first, "codex"), AgentRowState::Checking);
-    assert_eq!(state(&first, "cursor"), AgentRowState::CantCheck);
+    assert_eq!(state(&first, "cursor"), AgentRowState::Checking);
     assert_eq!(state(&first, "snow"), AgentRowState::CantCheck);
     let openclaw = first
         .agents
@@ -87,7 +87,7 @@ fn a_first_lookup_absorbs_refreshes_and_a_failed_later_one_keeps_its_rows() {
     let (ticket, Action::Start { commands }) = exchange(&catalog, start) else {
         panic!("a lookup opens with a Start");
     };
-    assert_eq!(commands.len(), STARTABLE_AGENT_PROVIDER_IDS.len() - 2);
+    assert_eq!(commands.len(), STARTABLE_AGENT_PROVIDER_IDS.len() - 1);
     assert!(commands.iter().any(|command| command == "claude"));
     for generic in ["agent", "snow"] {
         assert!(
@@ -119,6 +119,7 @@ fn a_first_lookup_absorbs_refreshes_and_a_failed_later_one_keeps_its_rows() {
     let position = |name: &str| commands.iter().position(|command| command == name).unwrap();
     results[position("codex")] = AgentProbeResult::Found;
     results[position("claude")] = AgentProbeResult::Unavailable;
+    results[position("cursor-agent")] = AgentProbeResult::Found;
     let completed = answer(
         &catalog,
         ticket,
@@ -136,7 +137,7 @@ fn a_first_lookup_absorbs_refreshes_and_a_failed_later_one_keeps_its_rows() {
     assert_eq!(state(&completed, "codex"), AgentRowState::Found);
     assert_eq!(state(&completed, "claude-code"), AgentRowState::Unknown);
     assert_eq!(state(&completed, "gemini"), AgentRowState::NotFound);
-    assert_eq!(state(&completed, "cursor"), AgentRowState::CantCheck);
+    assert_eq!(state(&completed, "cursor"), AgentRowState::Found);
     assert_eq!(catalog.next(now), Step::Wait(None));
 
     // 2 s floor: a refresh sooner is ignored; one at the floor starts a later lookup, during
@@ -202,7 +203,7 @@ fn generation_changes_worker_loss_and_failed_first_lookups_end_as_the_model_says
         (LookupStatus::Failed, None)
     );
     assert_eq!(state(&failed, "codex"), AgentRowState::Unknown);
-    assert_eq!(state(&failed, "cursor"), AgentRowState::CantCheck);
+    assert_eq!(state(&failed, "snow"), AgentRowState::CantCheck);
 
     // Generation change: the new Worker is looked up at once, and the older lookup's answer is
     // ignored.

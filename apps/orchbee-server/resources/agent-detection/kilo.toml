@@ -1,7 +1,7 @@
 id = "kilo"
-version = "2026.11.11.1"
+version = "2026.11.20.1"
 min_engine_version = 1
-updated_at = "2026-11-11T00:00:00Z"
+updated_at = "2026-11-20T00:00:00Z"
 aliases = ["kilo-code", "kilo code"]
 
 [[rules]]
@@ -45,6 +45,17 @@ priority = 100
 region = "whole_recent"
 visible_working = true
 contains = ["esc interrupt"]
+
+# Kilo replaces the interrupt hint with a retry notice below the composer during backoff.
+[[rules]]
+id = "retry_footer_working"
+state = "working"
+priority = 100
+region = "bottom_non_empty_lines(6)"
+visible_working = true
+regex = [
+	'(?m)^[ \t]*╹▀{3,}[ \t]*\r?\n[ \t]*⬝(?:[^\r\n]*\r?\n){0,2}[^\r\n]*\[retrying attempt #[1-9]\d*\]\s*\z',
+]
 
 # Orchbee extension: Kilo CLI 7.8 is built on OpenCode 1.x, whose rules above have no idle rule.
 # Idle needs the prompt-box bottom with the key-hint footer that ends in "commands" on the row

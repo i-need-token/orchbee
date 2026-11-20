@@ -119,8 +119,8 @@ reuse it rather than keeping their own tables.
   package's install root. `hermes` is shared too: a `uv` tool install proves it by its
   `hermes-agent` root, and the native Windows installer by `AppData\Local\hermes\bin`, where the
   bundled Python that the launcher starts runs `hermes.exe` itself as its script. The same classes decide which startable providers a search-path lookup
-  can check: `StartableAgent::checkable` is false when the start command is a generic alias of any
-  provider, so Cursor (`agent`) and Snow are never looked up. Command Code's `cmd` command is never
+  can check. Cursor starts and is checked with its unique `cursor-agent` alias. Snow uses the
+  generic `snow`, which the lookup skips. Command Code's `cmd` command is never
   an alias. Desktop and IDE application names that share a report label (`cursor`, `kiro`, `qoder`,
   `antigravity`) are not process aliases. Entries also list package entries, bundled runtimes, and
   allowed Python modules. Claude's entry also lists the native installer's version root,

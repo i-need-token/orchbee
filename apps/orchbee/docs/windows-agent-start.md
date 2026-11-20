@@ -81,11 +81,11 @@ Worker's [Agent probe](../../orchbee-worker/README.md#agent-probe-job); the Clie
 again. Found means found on the `PATH` a new shell on the Session's machine starts with: on
 Windows before its profile runs, on macOS after an interactive login shell's startup files have
 run. Either is a hint, never proof: a provider listed as not found still starts, and once
-it runs the Server lists it as found. A command that the process-identity registry classes as
-generic is never checked: [Cursor uses `agent`](https://prod.cursor.com/docs/cli/installation), but
-other providers can install the same basename, and Snow CLI's `snow` is a common word that
-unrelated programs also use. The picker lists these providers as "can't check" and still starts
-them using their existing launch mapping. The picker lists each provider by its product name, has
+it runs the Server lists it as found. Cursor starts and is checked with the `cursor-agent` alias
+from its [CLI installation](https://prod.cursor.com/docs/cli/installation). Grok can supply its
+own `agent` on the same machine. The catalog skips checks for generic commands such as Snow CLI's
+`snow`. The picker shows "can't check" for these providers and starts them with their catalog
+command. The picker lists each provider by its product name, has
 no name field, and after current-draw admission passes the focused Panel ID, or the first Panel of
 a Tab it created, to the same single-submit owner. No caller context environment variable or
 subprocess adapter is introduced.
@@ -344,8 +344,8 @@ After each process sample, startup reads the Server's identity result and run an
 reserved Terminal, and its foreground follows the
 [process-info rule](native-cli-query.md#windows-interpretation-and-agent-input-preflight); startup
 selects nothing from its own sample. A published run naming another provider reports
-`agent-provider-mismatch`, such as Grok answering Cursor's generic `agent` name; ambiguity reports
-`agent-runtime-ambiguous` and a missing root `agent-exited`. Readiness also requires the published
+`agent-provider-mismatch`. An ambiguous run reports `agent-runtime-ambiguous` and a missing root
+reports `agent-exited`. Readiness also requires the published
 run to name the requested provider. A settling Server, or a failed or mismatched read, selects no
 foreground for that step and startup keeps polling within its budget.
 
