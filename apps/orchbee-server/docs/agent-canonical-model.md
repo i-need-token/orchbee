@@ -143,7 +143,11 @@ required snapshot provider exactly once — outside any `AgentState` lock and un
 panic catch — releases every guard, then projects and maps. `execute_prepared` is the
 production entry: `local_terminal_service/agent_drain_read.rs` is the caller-owned
 provider, and it holds its outer registry -> coordinator guards through the provider's
-own final fold. The `execute` fixture helper in `src/agent_service/tests.rs` supplies a raw snapshot
+own final fold. The provider then omits each session whose every presentation attachment sits on a
+presentation that an accepted Tab, Panel, set, Workspace or group Close is removing. That is a
+read-time projection: the canonical state, the registration facts and the revision are unchanged,
+and the session returns when that Close stops. The `execute` fixture helper in
+`src/agent_service/tests.rs` supplies a raw snapshot
 through that same executor; it makes no production freshness claim.
 A declined or panicked provider maps to the
 requesting operation's correlated `runtime-unavailable` arm — never an

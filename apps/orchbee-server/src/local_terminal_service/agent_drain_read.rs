@@ -53,6 +53,7 @@
 //! `retry` is a supplied pacing duration for the `Backpressure` busy
 //! result only; it is a private body parameter, not a product setting.
 
+use std::collections::BTreeSet;
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -98,8 +99,25 @@ pub(crate) fn agent_drain_prepare(
         agents,
         deadline,
         retry,
-        |_, snapshot| Ok(snapshot),
+        |guard, mut snapshot| {
+            let removing = guard.agent_removing_presentations();
+            hide_removing_sessions(&mut snapshot, &removing);
+            Ok(snapshot)
+        },
     )
+}
+
+/// Drops each session whose every presentation attachment sits on a presentation an accepted Close
+/// is removing, so `agent list` and the Agent reads answer for it as for an absent Agent. The
+/// canonical state and its revision are untouched, so a Close that stops restores the session.
+fn hide_removing_sessions(snapshot: &mut AgentRuntimeSnapshot, removing: &BTreeSet<String>) {
+    snapshot.sessions.retain(|session| {
+        session.presentation_attachments.is_empty()
+            || session
+                .presentation_attachments
+                .iter()
+                .any(|attachment| !removing.contains(attachment.presentation_id.as_str()))
+    });
 }
 
 pub(super) fn agent_drain_finish<R>(

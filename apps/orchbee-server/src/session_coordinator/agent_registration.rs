@@ -7,8 +7,9 @@ use crate::terminal_coordinator::{RetainedBindingResolution, TerminalPhase};
 use orchbee_capability_node_protocol::{
     HostTerminalIdentity, TerminalId as CapabilityTerminalId, WorkerGeneration, WorkerId,
 };
-use orchbee_server::WorkbenchTerminalInvariantError;
+use orchbee_server::{WorkbenchAuthority, WorkbenchTerminalInvariantError};
 use orchbee_workbench_protocol::{PresentationBinding, TerminalPresentationId};
+use std::collections::BTreeSet;
 
 /// Product bound carried by the Agent registration projection. The committed
 /// membership model already bounds visible presentations; this second bound keeps the
@@ -95,6 +96,15 @@ impl SessionCoordinator {
         bindings: &[PresentationBinding],
     ) -> Result<Vec<RegistrationFact>, WorkbenchTerminalInvariantError> {
         self.agent_registration_filtered(|binding| bindings.contains(binding), bindings.len())
+    }
+
+    /// Presentations whose terminals an accepted Close is removing. The Agent reads hide the
+    /// sessions bound only to them until the Close publishes; the registration facts stay unchanged.
+    pub(crate) fn agent_removing_presentations(&self) -> BTreeSet<String> {
+        self.workbench.as_ref().map_or_else(
+            BTreeSet::new,
+            WorkbenchAuthority::agent_removing_presentations,
+        )
     }
 
     fn agent_registration_filtered(

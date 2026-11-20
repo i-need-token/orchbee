@@ -43,17 +43,23 @@ use crate::{
 };
 use orchbee_agent_observation_protocol::{
     AgentGetOutcome, AgentLifecycle, AgentListOutcome, AgentPresentationVisibility,
-    AgentReadRequest, AgentReadResult, AgentSafeInteger, AgentSessionId, AgentUnavailableReason,
-    ObapRequestId,
+    AgentReadRequest, AgentReadResult, AgentSafeInteger, AgentSessionId,
+    AgentSessionRejectionReason, AgentUnavailableReason, ObapRequestId,
 };
 use orchbee_capability_node_protocol::{
     AgentDrainEntry, AgentDrainReply, CapabilityNodeMessage, HostCreationId, HostEpoch,
-    HostLaunchAccepted, HostLaunchState, HostTerminalId, HostTerminalIdentity, TerminalLaunchMode,
-    TerminalLaunchOutcome, TerminalLaunchResult, WorkerGeneration, WorkerId, read_message,
-    write_message,
+    HostLaunchAccepted, HostLaunchState, HostTerminalId, HostTerminalIdentity,
+    LifecycleInventoryPage, LifecycleTargetObservation, LifecycleTerminalPhase, TerminalLaunchMode,
+    TerminalLaunchOutcome, TerminalLaunchResult, TerminalLifecycleAction, TerminalLifecycleOutcome,
+    TerminalLifecycleResult, WorkerGeneration, WorkerId, read_message, write_message,
 };
 use orchbee_client_server_protocol::RequestId;
 use orchbee_local_worker_protocol::WorkerId as LspWorkerId;
+use orchbee_server::{CloseContinuationNext, CloseStepObservation};
+use orchbee_workbench_protocol::{
+    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    WorkbenchRequestId, WorkbenchTabClosePhase, WorkbenchTabCloseStatus,
+};
 
 const WORKER_BYTES: [u8; 16] = [9; 16];
 const RETRY: Duration = Duration::from_millis(1);
@@ -421,6 +427,257 @@ fn drain_read_serves_the_canonical_member() {
     assert_eq!(attachment.generation.as_str(), "01".repeat(16));
     assert!(attachment.navigable);
     assert_eq!(attachment.visibility, AgentPresentationVisibility::Visible);
+}
+
+/// One fresh read through the production drain provider.
+fn read_via_pump(
+    service: &LocalTerminalService,
+    agents: &AgentService,
+    request: AgentReadRequest,
+) -> Result<AgentReadResult, AgentReadFault> {
+    agents.execute_prepared_for_test(request, || {
+        agent_drain_prepare(
+            service.workers.as_ref(),
+            &service.coordinator,
+            agents,
+            Instant::now() + WINDOW,
+            RETRY,
+        )
+    })
+}
+
+/// Drives an admitted Tab Close to its accepted Terminate: the Host still reports the terminal
+/// running, Terminate is accepted, and the Close is left waiting out its grace.
+fn accept_terminate(coordinator: &mut SessionCoordinator, close: &WorkbenchCommand) {
+    let mut now = Instant::now();
+    for _ in 0..16 {
+        let step = coordinator
+            .close_authority()
+            .unwrap()
+            .next_terminal_tab_close_step_target(&close.request_id, now)
+            .unwrap();
+        let (action, step_ordinal) = match step.next() {
+            CloseContinuationNext::WaitUntil(until) => {
+                now = until;
+                continue;
+            }
+            CloseContinuationNext::Lifecycle {
+                action,
+                step_ordinal,
+            } => (action, step_ordinal),
+            other => panic!("unexpected close step {other:?}"),
+        };
+        let target = step.target().expect("lifecycle step target").clone();
+        let token = coordinator
+            .reserve_close_lifecycle_step_for_target(
+                &close.request_id,
+                target,
+                action,
+                step_ordinal,
+                now,
+                lease_expiry().unwrap(),
+            )
+            .unwrap()
+            .expect("announced lifecycle step must reserve");
+        coordinator
+            .close_authority()
+            .unwrap()
+            .confirm_terminal_tab_close_step_admitted(&close.request_id, &token, now)
+            .unwrap();
+        let outcome = match action {
+            TerminalLifecycleAction::InventoryPage { .. } => {
+                TerminalLifecycleOutcome::InventoryPage(LifecycleInventoryPage {
+                    inventory_generation: NonZeroU64::MIN,
+                    next_cursor: None,
+                    returned_count: 1,
+                    target: Some(LifecycleTargetObservation {
+                        revision: 3,
+                        phase: LifecycleTerminalPhase::Running {
+                            terminate_requested: false,
+                        },
+                    }),
+                })
+            }
+            TerminalLifecycleAction::Terminate => TerminalLifecycleOutcome::TerminateAccepted,
+            other => panic!("unexpected lifecycle step {other:?}"),
+        };
+        let result = TerminalLifecycleResult::new(token.request(), outcome).unwrap();
+        coordinator
+            .close_authority()
+            .unwrap()
+            .settle_terminal_tab_close_step(
+                &close.request_id,
+                token,
+                now,
+                CloseStepObservation::Result(&result),
+            )
+            .unwrap();
+        if matches!(action, TerminalLifecycleAction::Terminate) {
+            return;
+        }
+    }
+    panic!("Terminate was never admitted");
+}
+
+/// The owner's report: once a Tab Close is accepted and its Terminate is accepted while the
+/// Agent's process still runs, that Agent leaves `agent list` and every `agent` read at once, with
+/// or without ended sessions. The Close is still waiting out its grace.
+#[test]
+fn accepted_terminate_removes_the_closing_agent_from_list_and_get() {
+    let workers = registry();
+    let generation = admit_generation(&workers);
+    let owner = register(&workers, generation);
+    let service = LocalTerminalService::workspace_fixture(workers);
+    let presentation = open_member(&service, generation);
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
+    agents
+        .native_admit_carrier(carrier(generation), Instant::now())
+        .unwrap()
+        .unwrap();
+
+    let (peer, owner_thread) = spawn_owner(owner);
+    let (close_tx, close_rx) = mpsc::channel();
+    let calls = AtomicU64::new(0);
+    // One exchange per read below: the first carries the correlation hint, the rest are empty.
+    let peer_thread = scripted_peer(
+        peer,
+        6,
+        move |request| {
+            let reply = match calls.fetch_add(1, Ordering::SeqCst) {
+                0 => AgentDrainReply::new(
+                    request.token,
+                    request.acknowledged,
+                    1,
+                    vec![AgentDrainEntry::Event {
+                        sequence: NonZeroU64::MIN,
+                        identity: host_identity(),
+                        payload: hint_json(1, 1),
+                    }],
+                ),
+                _ => {
+                    assert_eq!(request.acknowledged, 0);
+                    AgentDrainReply::new(request.token, request.acknowledged, 1, Vec::new())
+                }
+            };
+            reply.unwrap()
+        },
+        close_rx,
+    );
+
+    // The hint alone mints no member; the rich observation joins it, and the member is listed.
+    let (items, _) = listed(read_via_pump(&service, &agents, list_request(1)).unwrap());
+    assert!(items.is_empty(), "a held hint alone cannot mint a member");
+    assert!(
+        agents
+            .admit_hook_envelope(&envelope_json(1, 1), 1000.0)
+            .unwrap()
+    );
+    agents.advance_hook_settlement(50.0, 1050.0).unwrap();
+    let (items, _) = listed(read_via_pump(&service, &agents, list_request(2)).unwrap());
+    assert_eq!(items, vec!["desktop:agent:session:2".to_string()]);
+    let AgentReadResult::Get { result, .. } =
+        read_via_pump(&service, &agents, get_request(3, "desktop:agent:session:2")).unwrap()
+    else {
+        panic!("expected a get result")
+    };
+    let AgentGetOutcome::Found { session, .. } = result.outcome else {
+        panic!("expected the session to be found")
+    };
+    assert_eq!(
+        session.snapshot.presentation_attachments[0]
+            .presentation_id
+            .as_str(),
+        presentation
+    );
+
+    // Admit the Tab Close and accept its Terminate while the Agent's process keeps running.
+    let mut coordinator = service.coordinator.lock().unwrap();
+    let snapshot = coordinator.close_authority().unwrap().snapshot().clone();
+    let terminal_context_id = snapshot.navigation.workspaces[0]
+        .terminal_context_id
+        .clone();
+    let tab_id = snapshot
+        .terminal_contexts
+        .iter()
+        .find(|context| context.terminal_context_id == terminal_context_id)
+        .unwrap()
+        .tabs[0]
+        .tab_id
+        .clone();
+    let close = WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse("33333333333333333333333333333333").unwrap(),
+        session_id: snapshot.session_id,
+        expected_revision: snapshot.revision,
+        action: WorkbenchAction::TabClose {
+            terminal_context_id,
+            tab_id,
+        },
+    };
+    let accepted = coordinator
+        .execute_terminal_tab_close(
+            close.clone(),
+            Some(WorkerPlacement {
+                worker_id: cnp_worker(),
+                generation: WorkerGeneration::new(generation),
+            }),
+            true,
+            Instant::now(),
+        )
+        .unwrap();
+    assert!(matches!(
+        accepted.outcome,
+        WorkbenchCommandOutcome::TabCloseAccepted { .. }
+    ));
+    accept_terminate(&mut coordinator, &close);
+    assert!(
+        matches!(
+            coordinator
+                .close_authority()
+                .unwrap()
+                .terminal_tab_close_status(&close.request_id),
+            Some(WorkbenchTabCloseStatus::Closing {
+                phase: WorkbenchTabClosePhase::WaitingGrace,
+            })
+        ),
+        "an accepted Terminate leaves the Close waiting out its grace"
+    );
+    drop(coordinator);
+
+    // The Agent is absent from the list, from the ended list and from its target.
+    let (items, _) = listed(read_via_pump(&service, &agents, list_request(4)).unwrap());
+    assert!(
+        items.is_empty(),
+        "a closing Agent leaves agent list at once"
+    );
+    let ended = AgentReadRequest::List {
+        request_id: request_id(5),
+        include_ended: true,
+        limit: AgentSafeInteger::new(50),
+        cursor: None,
+    };
+    let (items, _) = listed(read_via_pump(&service, &agents, ended).unwrap());
+    assert!(items.is_empty(), "nor does it appear among ended sessions");
+    let AgentReadResult::Get { result, .. } =
+        read_via_pump(&service, &agents, get_request(6, "desktop:agent:session:2")).unwrap()
+    else {
+        panic!("expected a get result")
+    };
+    assert!(matches!(
+        result.outcome,
+        AgentGetOutcome::Rejected {
+            reason: AgentSessionRejectionReason::NotFound,
+        }
+    ));
+
+    // The peer stays open until every exchange is in hand; the owner then exits on the close.
+    close_tx.send(()).unwrap();
+    peer_thread.join().unwrap();
+    assert_eq!(owner_thread.join().unwrap(), WorkerWireExit::PeerClosed);
 }
 
 /// `NoCarrier` is the only true-none read: with a completed member on the

@@ -297,6 +297,24 @@ impl WorkbenchAuthority {
         removing.retain(|terminal| membership.live.contains(terminal));
         removing
     }
+
+    /// The presentations of the terminals an accepted Close is removing, by the same rule the
+    /// physical Agent side uses. The canonical Agent read hides a session bound only to them.
+    pub fn agent_removing_presentations(&self) -> BTreeSet<String> {
+        let membership = ReportMembership::read(self.snapshot());
+        let removing = self.removing_terminals(&membership);
+        membership
+            .presentations
+            .iter()
+            .filter(|(_, binding)| {
+                binding
+                    .as_ref()
+                    .is_some_and(|binding| removing.contains(&key(binding)))
+            })
+            .map(|(presentation, _)| presentation.clone())
+            .collect()
+    }
+
     fn panel_agent_outcome(
         &mut self,
         request: &PanelAgentRequest,
