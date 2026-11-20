@@ -107,6 +107,8 @@ imports, other categories, unknown fields, duplicates, hints, changed configurat
 process errors, signals and timeouts fail. Counts, globs, ignores and artificial entries never grant
 acceptance. Raw stdout, stderr and exit/signal/error results remain separate from the aggregate result
 in the printed external log directory, including when the aggregate accepts a raw strict exit one.
+A run whose complete and strict raw exits are both zero removes that directory, since nothing in it
+needs review.
 
 Each package owns its admitted purpose, real development consumers, next integration owner and
 removal conditions in `dependency-retentions.json` and its README. Consumer file presence is

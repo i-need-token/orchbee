@@ -1,6 +1,14 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { closeSync, mkdtempSync, openSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+	closeSync,
+	mkdtempSync,
+	openSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -437,9 +445,8 @@ function main() {
 	const logRoot = mkdtempSync(join(tmpdir(), 'orchbee-dependencies-'));
 	writeFileSync(
 		join(logRoot, 'OWNER.json'),
-		`${JSON.stringify({ owner: 'invoking verification task', pid: process.pid, purpose: 'raw dependency analysis and aggregate decision', release: 'invoker removes after final diagnosis/review/recovery consumer' }, null, 2)}\n`,
+		`${JSON.stringify({ owner: 'invoking verification task', pid: process.pid, purpose: 'raw dependency analysis and aggregate decision', release: 'the gate removes it when both raw runs exit zero; otherwise the invoker removes it once reviewed or diagnosed' }, null, 2)}\n`,
 	);
-	process.stdout.write(`[dependencies] raw stdout/stderr/results: ${logRoot}\n`);
 	try {
 		const before = readRetentionPolicy(root);
 		const full = captureKnip(root, logRoot, 'full');
@@ -462,11 +469,15 @@ function main() {
 		process.stdout.write(
 			`[dependencies] aggregate ACCEPTED; full raw exit=${full.status}; strict raw exit=${strict.status}${strict.status === 1 ? ' (still nonzero; exact reviewed retentions)' : ''}\n`,
 		);
+		// Both raw runs exited zero, so nothing is left to diagnose or review and the raw logs go. An
+		// accepted strict exit one keeps them as the evidence of its reviewed retentions.
+		if (strict.status === 0) rmSync(logRoot, { force: true, recursive: true });
 	} catch (error) {
 		writeFileSync(
 			join(logRoot, 'aggregate.json'),
 			`${JSON.stringify({ accepted: false, reason: String(error) }, null, 2)}\n`,
 		);
+		process.stderr.write(`[dependencies] raw stdout/stderr/results: ${logRoot}\n`);
 		throw error;
 	}
 }
