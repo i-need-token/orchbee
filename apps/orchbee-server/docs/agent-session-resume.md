@@ -6,6 +6,11 @@ one-shot notice when a resume is given up, carry-forward of a delivered referenc
 [process sources](#process-source) that need no hook: Claude Code's own run table, on Windows, and
 the conversation id bound on the Agent process's own command line.
 
+Since the user-facing Agent integration was removed, a hook candidate comes only from an
+integration a user enabled in an earlier version. Every other user resumes only through those two
+process sources: Claude Code on Windows, and an Agent started with its conversation id on its
+command line, such as `codex resume <id>`. The setting's description says so.
+
 ## Outcome and scope
 
 A user runs supported Agents in Panels, and the managed Server restarts from its checkpoint. Each

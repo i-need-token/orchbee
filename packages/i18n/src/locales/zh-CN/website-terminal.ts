@@ -37,7 +37,7 @@ export const zhCNWebsiteTerminalMessages = {
 		'八个分类，按 <code>/</code> 搜索，16 个主题，浅色和深色可以分别选择。改动保存在 <code>config.toml</code> 里。',
 	'website.terminal.highlight.leave.title': '离开，再回来',
 	'website.terminal.highlight.leave.body':
-		'离开界面，终端继续运行。再次运行 <code>orchbee</code>，一切都在原处。会话恢复时，其中的 Agent 也会一并恢复。',
+		'离开界面，终端继续运行。再次运行 <code>orchbee</code>，一切都在原处。在 Windows 上恢复会话时，其中的 Claude Code 对话也会一并恢复。',
 	'website.terminal.highlight.size.title': '任意窗口大小',
 	'website.terminal.highlight.size.body':
 		'100 列 × 24 行起为完整布局；不足 60 列时切换为适合窄窗口的紧凑布局。任何尺寸下 <code>Ctrl+b</code> <code>b</code> 都可以收起侧边栏。',

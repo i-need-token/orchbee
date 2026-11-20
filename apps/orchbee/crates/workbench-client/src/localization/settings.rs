@@ -264,8 +264,8 @@ impl Locale {
                 "选择完成后立即复制文字。",
             ),
             Row::ResumeAgents => self.setting(
-                "Reopens Claude Code and Codex conversations in place after restart.",
-                "重启后在原面板中恢复 Claude Code 和 Codex 的会话。",
+                "Reopens Claude Code on Windows, and Agents started with a conversation ID.",
+                "重启后恢复 Windows 上的 Claude Code，以及带会话 ID 启动的 Agent。",
             ),
             Row::RestoreOutput => self.setting(
                 "Shows recent output after a restart. Kept locally; may hold secrets.",
