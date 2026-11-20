@@ -39,7 +39,9 @@ use orchbee_terminal_protocol::{
 };
 
 use crate::diagnostic_events::Site;
-use crate::host_connection::{HostBrokerConnection, HostExchange, NotStarted, exchange};
+use crate::host_connection::{
+    HostBrokerConnection, HostExchange, HostFailure, NotStarted, exchange,
+};
 use crate::worker_identity::fresh_identity;
 
 mod graphics_decode;
@@ -95,19 +97,28 @@ const fn not_started(action: TerminalViewerAction) -> TerminalViewerOutcome {
     }
 }
 
-/// An unexpected answer refuses this request and closes its viewer, which a later cleanup
-/// detaches; every other failure still ends the connection.
+/// A failure of one viewer request refuses that request and closes its viewer, which a later
+/// cleanup detaches. An unexpected answer is one such failure, and so is any other failure the
+/// Worker met while building or checking the request's messages. Only a Host connection failure
+/// still ends the connection.
 fn contain(
     error: Box<dyn Error>,
     host: &HostBrokerConnection,
     attachment: orchbee_capability_node_protocol::OperationId,
 ) -> Result<TerminalViewerOutcome, Box<dyn Error>> {
-    let answer = error.downcast::<UnexpectedAnswer>()?;
-    crate::diagnostic_events::host_unexpected(
-        host.pacing.site(),
-        answer.kind,
-        crate::diagnostic_events::Anomaly::Answer,
-    );
+    if HostFailure::find(error.as_ref()).is_some() {
+        return Err(error);
+    }
+    match error.downcast::<UnexpectedAnswer>() {
+        Ok(answer) => crate::diagnostic_events::host_unexpected(
+            host.pacing.site(),
+            answer.kind,
+            crate::diagnostic_events::Anomaly::Answer,
+        ),
+        Err(error) => {
+            crate::diagnostic_events::request_unprepared(host.pacing.site(), error.as_ref());
+        }
+    }
     host.viewers.borrow_mut().close(attachment);
     Ok(TerminalViewerOutcome::Rejected(
         ViewerRejection::HostRejected,
@@ -1072,10 +1083,19 @@ fn read_rows(
         .maximum_bytes
         .min(host.negotiated_limits().row_window_bytes)
         .min(carrier_payload);
-    let command = encode_row_access_control(&RowAccessControl::ReadRows(ReadRows {
+    let command = match encode_row_access_control(&RowAccessControl::ReadRows(ReadRows {
         maximum_bytes: effective_maximum,
         ..read
-    }))?;
+    })) {
+        Ok(command) => command,
+        // A row read the Worker cannot encode never reached the Host, so only it is refused.
+        Err(error) => {
+            crate::diagnostic_events::request_unprepared(host.pacing.site(), &error);
+            return Ok(TerminalViewerOutcome::RowsRejected(
+                ViewerRowsRejectedReason::InvalidField,
+            ));
+        }
+    };
     let response = exchange_rows(
         host,
         server,
@@ -1219,7 +1239,16 @@ fn selection_changed_exchange(
     id: AttachmentId,
     control: &SelectionControl,
 ) -> Result<TerminalViewerOutcome, Box<dyn Error>> {
-    let encoded = encode_selection_control(control)?;
+    let encoded = match encode_selection_control(control) {
+        Ok(encoded) => encoded,
+        // A gesture the Worker cannot encode never reached the Host, so only it is refused.
+        Err(error) => {
+            crate::diagnostic_events::request_unprepared(host.pacing.site(), &error);
+            return Ok(TerminalViewerOutcome::Rejected(
+                ViewerRejection::HostRejected,
+            ));
+        }
+    };
     let response =
         match selection_round_trip(host, server, correlation, encoded.kind, &encoded.payload)? {
             SelectionReply::Answer(response) => response,

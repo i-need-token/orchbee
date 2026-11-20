@@ -742,7 +742,7 @@ The checked model governs the complete broker lifecycle. The single-operation ex
 integrated request loop below refine its Host effect and bounded result-delivery boundaries.
 The executable now invokes both after its two handshakes; restart recovery remains unimplemented.
 
-The accepted `HostBrokerConnection` epoch is immutable. Host loss before handoff fails closed; replacing Host requires teardown and a fresh Worker/Host handshake. Deterministic tests check epoch preservation and handshake-only installation, including the kernel’s defensive `HostIdentityChanged` result. There is no in-place hot replacement.
+The accepted `HostBrokerConnection` epoch is immutable. The epoch is a `HostEpoch`, whose constructors refuse all-zero bytes and which the handshake admits only through them, so converting its bytes back cannot fail. Host loss before handoff fails closed; replacing Host requires teardown and a fresh Worker/Host handshake. Deterministic tests check epoch preservation and handshake-only installation, including the kernel’s defensive `HostIdentityChanged` result. There is no in-place hot replacement.
 
 | Field        | Modeled broker contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -876,7 +876,19 @@ Windows handoff is prepared, and a Launch, Start or lifecycle step the operation
 admission, including an occupied slot. A Launch, Start or lifecycle step the Worker cannot prepare,
 such as one too large for a Host record, fails before handoff with a `request-unprepared` record. A
 message only a Worker sends answers no Server request, so it is dropped unanswered with a
-`server-unexpected` record. Once a request is dispatched, the kernel's own phase checks and the
+`server-unexpected` record.
+Input, semantic input, paste and resize requests are checked before they are encoded: each value the
+Host encoder receives is already inside the bound it checks (`ControlInput` at most 4,096 bytes
+against the 1 MiB write bound; `PasteContent` at most 256 KiB, the paste bound; resize geometry and
+semantic input under the same predicates on decode and on encode), and each payload fits its
+envelope bound. Input above the negotiated input limit is answered `HostRejected`, and a semantic
+input the Host codec refuses is answered `HostInputInvalid`, both before any encode. If an encode
+still fails there, only that request is answered: `HostInputInvalid` for a semantic input, and
+`HostRejected` for input, paste and resize. Nothing reaches the Host, the grant stays as it was,
+the Worker keeps serving, and the failure is logged as `request-unprepared`, at most once a minute
+per site.
+
+Once a request is dispatched, the kernel's own phase checks and the
 taking of its result stay fatal: every dispatched path settles the slot before it returns, the loop
 is serialized, and Host events never touch the kernel, so a failure there is the Worker's own broken
 invariant, not a peer's. A whole frame the Worker cannot decode, such as a request kind newer
@@ -944,6 +956,15 @@ Host refused only that request; after `FrameApplied`, `NeedSnapshot`, Poll or an
 releases the viewer and its lease with it, because that answer can come from containment, which
 has already closed the viewer in the Worker. Both clients then recover the pane as from a lost
 viewer.
+
+A viewer request whose messages the Worker cannot build or check, or whose answer breaks its
+contract, refuses that request and closes its viewer, which a later cleanup detaches. Two requests
+refuse only themselves and keep the viewer, because nothing reached the Host for them: a selection
+gesture the Worker cannot encode answers `HostRejected`, and a row read it cannot encode answers
+`RowsRejected` with `InvalidField`. The Server rule above for demand, history, rows-applied and
+selection requests assumes a Host refusal, so a contained failure of one of them is the exception to
+it. Only a failure of a connection itself still ends the connection: a Host connection failure,
+including lost Host framing, or a Server connection failure.
 
 A request reaches its first exchange within its two-second record read, so these answers need a
 Worker stalled for seconds; later steps of one request and its cleanup meet the limit sooner, and a
@@ -1054,7 +1075,9 @@ nothing and is dropped with a `contract` record, and an `ApplicationSignal` reac
 is unexpected rather than silently dropped. Bell and Clipboard routing is unchanged.
 
 The queue retains at most 1,024 entries and 4 MiB of encoded bytes. Overflow evicts the oldest
-sequence, covering it with a merged leading `Gap` that consumes its own slot and bytes. Replies
+sequence, covering it with a merged leading `Gap` that consumes its own slot and bytes.
+Each queued entry carries at most 4,096 payload bytes, and a page is cut with the same entry-byte
+arithmetic its reply validator applies, so every page taken from the queue passes that validation. Replies
 page by both an entry count of 480 and 8,165 encoded entry bytes; a successful send commits the
 watermark captured at request time, for both `Ok(false)` and `Ok(true)` write results. A request
 acknowledging above the offered watermark, or fenced to another Worker or generation, is declined

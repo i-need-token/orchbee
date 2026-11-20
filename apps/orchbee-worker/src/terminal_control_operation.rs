@@ -73,6 +73,14 @@ const fn not_started(action: &Action) -> Outcome {
         | Action::HostColors { .. } => Rejection::HostInputUnavailable,
     })
 }
+
+/// Answers a request whose message the Worker cannot encode. Nothing reached the Host, so only
+/// this request is refused and the grant stays as it was.
+fn unencodable(error: &(dyn Error + 'static), rejection: Rejection) -> Outcome {
+    diagnostic_events::request_unprepared(Site::Control, error);
+    Outcome::Rejected(rejection)
+}
+
 /// An unexpected answer refuses this request and releases its viewer's controller, so a Client
 /// that wants control again acquires it anew and nothing is replayed; every other failure still
 /// ends the connection.
@@ -298,33 +306,47 @@ fn apply(
             if bytes.as_bytes().len() > usize::try_from(host.negotiated_limits().input_bytes)? {
                 return Ok(Outcome::Rejected(Rejection::HostRejected));
             }
-            let command = encode_input_message(&InputMessage::WriteInput(WriteInput {
+            let command = match encode_input_message(&InputMessage::WriteInput(WriteInput {
                 attachment_id: id,
                 capability_revision: revision,
                 bytes: bytes.as_bytes().to_vec(),
-            }))?;
+            })) {
+                Ok(command) => command,
+                Err(error) => return Ok(unencodable(&error, Rejection::HostRejected)),
+            };
             (command.kind, command.payload, PayloadEncoding::RawBytes)
         }
         Action::SemanticInput { input, .. } => {
             let Some(message) = controlled_semantic_input(input, id, revision) else {
                 return Ok(Outcome::Rejected(Rejection::HostInputInvalid));
             };
-            let command = encode_input_message(&message)?;
+            let command = match encode_input_message(&message) {
+                Ok(command) => command,
+                Err(error) => return Ok(unencodable(&error, Rejection::HostInputInvalid)),
+            };
             (command.kind, command.payload, PayloadEncoding::RawBytes)
         }
         Action::Resize { geometry, .. } => {
-            let command = encode_resize_control(&ResizeControl::ResizeTerminal(ResizeTerminal {
-                attachment_id: id,
-                geometry: host_geometry(*geometry),
-            }))?;
+            let command =
+                match encode_resize_control(&ResizeControl::ResizeTerminal(ResizeTerminal {
+                    attachment_id: id,
+                    geometry: host_geometry(*geometry),
+                })) {
+                    Ok(command) => command,
+                    Err(error) => return Ok(unencodable(&error, Rejection::HostRejected)),
+                };
             (command.kind, command.payload, PayloadEncoding::ControlJson)
         }
         Action::Paste { content, .. } => {
-            let command = encode_input_message(&InputMessage::PasteAutoInput(PasteAutoInput {
-                attachment_id: id,
-                capability_revision: revision,
-                content: content.as_bytes().to_vec(),
-            }))?;
+            let command =
+                match encode_input_message(&InputMessage::PasteAutoInput(PasteAutoInput {
+                    attachment_id: id,
+                    capability_revision: revision,
+                    content: content.as_bytes().to_vec(),
+                })) {
+                    Ok(command) => command,
+                    Err(error) => return Ok(unencodable(&error, Rejection::HostRejected)),
+                };
             (command.kind, command.payload, PayloadEncoding::RawBytes)
         }
         Action::Acquire
