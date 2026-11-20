@@ -29,15 +29,19 @@ Session started as administrator.
 The reverse direction depends on the bind. `LocalListener::bind` proves a client by
 opening its process and that process's token, and an elevated process's access list grants
 only Administrators and SYSTEM, which a standard token holds for deny only, so a listener
-bound by a standard process refuses the same user's elevated clients; Sessions and Workers
-bind this way. `LocalListener::bind_admitting_elevated` keeps the same descriptor and label
+bound by a standard process refuses the same user's elevated clients; Workers bind this way.
+`LocalListener::bind_admitting_elevated` keeps the same descriptor and label
 but proves a client by the token it opened the pipe with: the accepting thread calls
 `ImpersonateNamedPipeClient`, reads the user through the effective-token pseudo handle,
 which opens no object and so meets no access check, and reverts before the comparison. The
 client's identification-level open guarantees that the thread can only query that token.
 Such a listener admits this user's clients at every level its label lets in, an elevated
 client of a standard listener among them, and still refuses another user's. `require_same_user`
-proves the peer again the way admission did.
+proves the peer again the way admission did. A Session's Client endpoint binds like the machine
+endpoints, with `bind_admitting_elevated`, so a standard Session admits its own user's
+administrator Clients, such as a Win32-OpenSSH shell, which an administrator account receives
+elevated. A Session started as administrator keeps its High label, so standard Clients are still
+refused at the open.
 
 | Field        | Contract                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

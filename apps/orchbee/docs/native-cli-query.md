@@ -2164,7 +2164,9 @@ stderr then says that the Session runs as administrator and to run `orchbee serv
 administrator terminal; `server stop` adds the same line to its `unavailable` answer, and the TUI
 shows it as its startup failure. Kind, exit code, details and the JSON document stay those of the
 row. Every other `denied` from the local runtime says only that the local Session refused this
-connection.
+connection. A Session started at standard integrity admits its own user's administrator Clients,
+such as a shell over Win32-OpenSSH, which an administrator account receives elevated; the
+elevated-Session rule above stays.
 
 `resource` is `project|workspace|tab|panel|terminal|schema`; `stage` is
 `cohort|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|agent-read|platform|wait`.

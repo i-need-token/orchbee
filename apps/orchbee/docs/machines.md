@@ -1284,9 +1284,10 @@ never an answer. `PATH` stays as the view has it, an
 ### Admission and requests
 
 The endpoint admits only the current user: its DACL grants access to the hub's own token user
-alone, it refuses remote clients, and every accepted connection proves that the client process's
-token user equals the hub's before a byte is read, as [`local-ipc`](../../../crates/local-ipc/README.md)
-does for Session endpoints. The `OBHS` frame must arrive within 2 seconds of the accept.
+alone, it refuses remote clients, and every accepted connection proves, by the token the client
+opened the pipe with, that the client's token user equals the hub's before a byte is read, as
+[`local-ipc`](../../../crates/local-ipc/README.md) does for machine and Session Client endpoints.
+The `OBHS` frame must arrive within 2 seconds of the accept.
 
 | Request                        | Answer                                                                                                                                                                                                                                                                                             |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

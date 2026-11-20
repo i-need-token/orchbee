@@ -118,6 +118,10 @@ pub(crate) fn start(
     identity: ServerIdentity,
     terminals: Arc<LocalTerminalService>,
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
+    // An administrator shell of this user, such as a Win32-OpenSSH session, is a Client too.
+    #[cfg(windows)]
+    let listener = UnixListener::bind_admitting_elevated(endpoint)?;
+    #[cfg(unix)]
     let listener = UnixListener::bind(endpoint)?;
     #[cfg(unix)]
     fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))?;
@@ -740,5 +744,6 @@ pub(crate) mod tests;
 
 #[cfg(windows)]
 fn bind_managed(endpoint: ManagedEndpoint<'_>) -> io::Result<UnixListener> {
-    UnixListener::bind(endpoint)
+    // An administrator shell of this user, such as a Win32-OpenSSH session, is a Client too.
+    UnixListener::bind_admitting_elevated(endpoint)
 }
