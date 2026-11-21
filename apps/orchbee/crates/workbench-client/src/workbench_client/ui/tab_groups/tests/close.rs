@@ -561,9 +561,9 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                         let projection = view.action_menu().unwrap();
                         let scope = projection.tabs.unwrap().rows[row];
                         if projection.source.context_menu() {
-                            locale.menu_object_action(&action, Some(scope))
+                            action.object_title(locale, Some(scope))
                         } else {
-                            locale.menu_tab_action(&action, scope)
+                            action.scoped_title(locale, scope)
                         }
                     };
                     assert!(menu.contains(&label), "{menu}");

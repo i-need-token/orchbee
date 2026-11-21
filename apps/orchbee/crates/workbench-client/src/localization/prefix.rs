@@ -1,6 +1,5 @@
 //! Localized descriptions of prefix actions; key bindings remain owned by the input model.
 
-use super::Locale;
 /// Localization keys retained by input owners for mode-specific descriptions
 /// and status hints. Global shortcut discovery uses action metadata instead.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -102,14 +101,4 @@ pub(super) const fn zh_cn_prefix_desc(desc: PrefixDesc) -> Option<&'static str> 
         PrefixDesc::CopyExit => "退出复制模式（Esc 也取消搜索）",
         _ => return None,
     })
-}
-
-impl Locale {
-    /// The action menu's Leave row.
-    pub(super) const fn client_detach_label(self) -> &'static str {
-        match self {
-            Self::EnUs => "Leave view; terminals keep running",
-            Self::ZhCn => "离开界面；终端继续运行",
-        }
-    }
 }

@@ -1,7 +1,8 @@
 //! Action definitions shared by bindings, menus, capability policy, and discovery.
 //!
 //! These are plain typed intents. Execution owners keep exact targets, availability, and effects;
-//! [`crate::action_projection`] projects their stable identity and discovery metadata.
+//! [`crate::action_projection`] declares each menu action's title, stable identity and discovery
+//! metadata.
 
 use crate::localization::{BackendAction, PanelDirection};
 
@@ -282,97 +283,6 @@ pub enum KeyRow {
     Copy(crate::localization::PrefixDesc),
     /// A key of the focused sidebar.
     Sidebar(crate::machine_picker::SidebarCommand),
-}
-
-impl From<&MenuAction> for crate::localization::MenuLabel {
-    fn from(action: &MenuAction) -> Self {
-        match action {
-            MenuAction::SplitPanel(value) => Self::SplitPanel(*value),
-            MenuAction::Zoom => Self::Zoom,
-            MenuAction::Copy => Self::Copy,
-            MenuAction::CopySelection => Self::CopySelection,
-            MenuAction::Takeover => Self::Takeover,
-            MenuAction::ClosePane => Self::ClosePane,
-            MenuAction::MovePanel(value) => Self::MovePanel(*value),
-            MenuAction::NewTab => Self::NewTab,
-            MenuAction::NewTabWithProfile(_) => Self::NewTabWithProfile,
-            MenuAction::TabCreation => Self::TabCreation,
-            MenuAction::NewTabToRight => Self::NewTabToRight,
-            MenuAction::NewTabInGroup => Self::NewTabInGroup,
-            MenuAction::DuplicateTab => Self::DuplicateTab,
-            MenuAction::MoveTabPrevious => Self::MoveTabPrevious,
-            MenuAction::MoveTabNext => Self::MoveTabNext,
-            MenuAction::MoveTabFirst => Self::MoveTabFirst,
-            MenuAction::MoveTabLast => Self::MoveTabLast,
-            MenuAction::SelectTab => Self::SelectTab,
-            MenuAction::SelectAllTabs => Self::SelectAllTabs,
-            MenuAction::ClearTabSelection => Self::ClearTabSelection,
-            MenuAction::PinTab => Self::PinTab,
-            MenuAction::UnpinTab => Self::UnpinTab,
-            MenuAction::ManageGroups => Self::ManageGroups,
-            MenuAction::CreateGroup => Self::CreateGroup,
-            MenuAction::RenameGroup => Self::RenameGroup,
-            MenuAction::ChooseGroupColor => Self::ChooseGroupColor,
-            MenuAction::GroupColor(value) => Self::GroupColor(*value),
-            MenuAction::JoinGroup(_) => Self::JoinGroup,
-            MenuAction::RemoveFromGroup => Self::RemoveFromGroup,
-            MenuAction::Ungroup => Self::Ungroup,
-            MenuAction::RenameTab => Self::RenameTab,
-            MenuAction::RenamePanel => Self::RenamePanel,
-            MenuAction::FindInTerminal => Self::FindInTerminal,
-            MenuAction::ClearTerminal => Self::ClearTerminal,
-            MenuAction::LastPanel => Self::LastPanel,
-            MenuAction::CloseSelectedTabs => Self::CloseSelectedTabs,
-            MenuAction::CloseOtherTabs => Self::CloseOtherTabs,
-            MenuAction::CloseTrailingTabs => Self::CloseTrailingTabs,
-            MenuAction::CloseGroup => Self::CloseGroup,
-            MenuAction::CloseTab => Self::CloseTab,
-            MenuAction::QuickWorkspace => Self::QuickWorkspace,
-            MenuAction::WorkspaceAtDirectory => Self::WorkspaceAtDirectory,
-            MenuAction::RenameWorkspace => Self::RenameWorkspace,
-            MenuAction::RenameProject => Self::RenameProject,
-            MenuAction::WorkspaceProjects => Self::WorkspaceProjects,
-            MenuAction::WorkspaceCreation => Self::WorkspaceCreation,
-            MenuAction::WorkspaceWorktrees => Self::WorkspaceWorktrees,
-            MenuAction::WorkspaceInFolder(_) => Self::WorkspaceInFolder,
-            MenuAction::CreateWorkspaceProject => Self::CreateWorkspaceProject,
-            MenuAction::LeaveWorkspaceProject => Self::LeaveWorkspaceProject,
-            MenuAction::JoinWorkspaceProject(_) => Self::JoinWorkspaceProject,
-            MenuAction::OpenWorktreeAt(_) => Self::OpenWorktreeAt,
-            MenuAction::RemoveWorktree => Self::RemoveWorktree,
-            MenuAction::DeleteWorkspace => Self::DeleteWorkspace,
-            MenuAction::DeleteProject => Self::DeleteProject,
-            MenuAction::CloseProjectWorkspaces => Self::CloseProjectWorkspaces,
-            MenuAction::CloseWorkspace => Self::CloseWorkspace,
-            MenuAction::NewWorkspace => Self::NewWorkspace,
-            MenuAction::NewWorktree => Self::NewWorktree,
-            MenuAction::OpenWorktree => Self::OpenWorktree,
-            MenuAction::Settings => Self::Settings,
-            MenuAction::Update => Self::Update,
-            MenuAction::Machines => Self::Machines,
-            MenuAction::Sidebar => Self::Sidebar,
-            MenuAction::Navigator => Self::Navigator,
-            MenuAction::StartAgent => Self::StartAgent,
-            MenuAction::StartAgentInTab(_) => Self::StartAgentInTab,
-            MenuAction::MoreAgents => Self::MoreAgents,
-            MenuAction::OpenNotificationTarget => Self::OpenNotificationTarget,
-            MenuAction::ReleasePointer => Self::ReleasePointer,
-            MenuAction::Detach => Self::Detach,
-            MenuAction::NextTab => Self::NextTab,
-            MenuAction::PreviousTab => Self::PreviousTab,
-            MenuAction::NextWorkspace => Self::NextWorkspace,
-            MenuAction::PreviousWorkspace => Self::PreviousWorkspace,
-            MenuAction::FocusPanel(direction) => Self::FocusPanel(*direction),
-            MenuAction::ResizePanel(direction) => Self::ResizePanel(*direction),
-            MenuAction::NextAgent => Self::NextAgent,
-            MenuAction::PreviousAgent => Self::PreviousAgent,
-            MenuAction::FocusSidebar => Self::FocusSidebar,
-            MenuAction::AgentConfirmations => Self::AgentConfirmations,
-            MenuAction::AgentConfirmation(answer) => Self::AgentConfirmation(*answer),
-            MenuAction::ConfiguredCommand(_) => Self::ConfiguredCommand,
-            MenuAction::Key(_) => Self::Key,
-        }
-    }
 }
 
 impl MenuAction {

@@ -74,9 +74,10 @@ pub fn render_tab_drag_preview(
     }
 }
 
+use crate::client_actions::MenuAction;
 use crate::{
     client_view::{ClientAction, ClientView},
-    localization::{Locale, MenuLabel, TooltipLabel},
+    localization::{Locale, TooltipLabel},
     terminal_text::{sanitize_terminal_text, truncate_display},
     tui_hit_map::{ProjectedPointer, TooltipContent},
     tui_theme::{Role, Theme},
@@ -161,7 +162,7 @@ pub(super) fn strip_tooltip(
             Vec::new(),
         ),
         groups::StripPart::Close => Some(TooltipContent::Action {
-            label: locale.menu_action(MenuLabel::CloseSelectedTabs).to_owned(),
+            label: MenuAction::CloseSelectedTabs.title(locale).to_owned(),
             key: active
                 .then(|| super::tooltip::action_key(view, ClientAction::RequestCloseTab, theme))
                 .flatten(),
@@ -216,7 +217,7 @@ pub(super) fn strip_glyph_tooltips(
 /// The create control names its action and the key that does the same.
 pub(super) fn create_tooltip(view: &ClientView, locale: Locale, theme: &Theme) -> TooltipContent {
     TooltipContent::Action {
-        label: locale.menu_action(MenuLabel::NewTab).to_owned(),
+        label: MenuAction::NewTab.title(locale).to_owned(),
         key: super::tooltip::action_key(view, ClientAction::CreateTab, theme),
     }
 }

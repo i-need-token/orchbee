@@ -17,12 +17,13 @@ use ratatui::{
 };
 
 use super::groups::{self, Kind, PartCue, Token};
+use crate::client_actions::MenuAction;
 use crate::{
     client_view::{
         ClientView,
         tab_list::{Paint, Row},
     },
-    localization::{Locale, MenuLabel},
+    localization::Locale,
     terminal_text::truncate_display,
     tui_hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, ListScrollTarget,
@@ -136,7 +137,7 @@ pub(in crate::tui_render) fn render(
         }
     };
     let action = source.clone().map(|source| TouchAction {
-        label: locale.menu_action(MenuLabel::NewTab),
+        label: MenuAction::NewTab.title(locale),
         kind: ActionKind::Secondary,
         enabled: true,
         target: InteractionTarget::TabCreate(source),
@@ -778,7 +779,7 @@ fn paint_close(
         target,
         &interaction,
         crate::tui_hit_map::TooltipContent::Action {
-            label: locale.menu_action(MenuLabel::CloseSelectedTabs).to_owned(),
+            label: MenuAction::CloseSelectedTabs.title(locale).to_owned(),
             key: crate::tui_render::tooltip::action_key(
                 view,
                 crate::client_view::ClientAction::RequestCloseTab,

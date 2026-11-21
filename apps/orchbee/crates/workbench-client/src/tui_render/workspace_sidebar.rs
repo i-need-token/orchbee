@@ -1989,8 +1989,8 @@ pub(super) fn render(
                 rect,
                 &target,
                 TooltipContent::Action {
-                    label: locale
-                        .menu_action(&crate::action_menu::MenuAction::CloseWorkspace)
+                    label: crate::action_menu::MenuAction::CloseWorkspace
+                        .title(locale)
                         .to_owned(),
                     key: current_row(view, row)
                         .then(|| {

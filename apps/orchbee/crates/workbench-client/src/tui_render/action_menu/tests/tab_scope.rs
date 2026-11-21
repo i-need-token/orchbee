@@ -140,7 +140,7 @@ fn applied_color_check_and_paired_palette_chip_survive_a_different_provisional_c
                             &buffer,
                             swatch + 3,
                             rect.y,
-                            locale.menu_action(&MenuAction::GroupColor(*color)),
+                            MenuAction::GroupColor(*color).title(locale),
                         );
                         for x in rect.x..rect.right() {
                             assert!(
@@ -197,7 +197,7 @@ fn typed_single_and_selected_scopes_paint_explicit_rows_and_title_the_tab() {
                         &buffer,
                         rect.x + 1,
                         rect.y,
-                        &locale.menu_object_action(action, Some(actual)),
+                        &action.object_title(locale, Some(actual)),
                     );
                 }
                 let expected_pin = match (locale, selected) {
@@ -229,15 +229,15 @@ fn typed_single_and_selected_scopes_paint_explicit_rows_and_title_the_tab() {
                 assert!(border.contains("Build"), "{border}");
                 assert!(!border.contains(locale.menu_title()), "{border}");
                 assert_eq!(
-                    locale.menu_tab_action(&MenuAction::RenameTab, scope),
-                    locale.menu_action(&MenuAction::RenameTab)
+                    MenuAction::RenameTab.scoped_title(locale, scope),
+                    MenuAction::RenameTab.title(locale)
                 );
                 assert_ne!(
-                    locale.menu_tab_action(
-                        &MenuAction::PinTab,
+                    MenuAction::PinTab.scoped_title(
+                        locale,
                         TabMenuScope::Selected(NonZeroUsize::new(2).unwrap())
                     ),
-                    locale.menu_tab_action(&MenuAction::PinTab, TabMenuScope::Addressed)
+                    MenuAction::PinTab.scoped_title(locale, TabMenuScope::Addressed)
                 );
                 let title = tab_title(&menu.view().unwrap(), locale, &theme, 40);
                 assert_eq!(title, "Build");

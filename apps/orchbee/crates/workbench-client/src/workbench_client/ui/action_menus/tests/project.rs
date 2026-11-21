@@ -845,9 +845,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                 assert!(!text.contains(&format!("{}/{}", selected_row + 1, action_count)));
                 assert!(!text.contains("Enter"));
                 if width >= 80 {
-                    assert!(
-                        text.contains(&locale.menu_object_action(&MenuAction::DeleteProject, None))
-                    );
+                    assert!(text.contains(&MenuAction::DeleteProject.object_title(locale, None)));
                 }
                 if width == 20 {
                     let hits = hits.finish();
@@ -866,8 +864,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                         .unwrap();
                     let selected = text.lines().nth(usize::from(row)).unwrap();
                     assert!(
-                        selected
-                            .contains(&locale.menu_object_action(&MenuAction::DeleteProject, None))
+                        selected.contains(&MenuAction::DeleteProject.object_title(locale, None))
                             || selected.contains(theme.glyphs.ellipsis)
                     );
                 }

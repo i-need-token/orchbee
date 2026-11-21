@@ -365,10 +365,7 @@ fn saved_launch_rows_localize_names_and_keep_existing_menu_geometry_and_cancel()
                 "·",
                 ">"
             ),
-            format!(
-                "{} · PowerShell 中文",
-                locale.menu_action(&MenuAction::NewTab)
-            )
+            format!("{} · PowerShell 中文", MenuAction::NewTab.title(locale))
         );
         for (width, height) in [(120, 40), (80, 24), (72, 18), (48, 10), (14, 4)] {
             for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
@@ -488,7 +485,7 @@ fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discove
                     let buffer = terminal.backend().buffer();
                     let text = visible_buffer_text(buffer);
                     // A `+` menu is titled by what its rows create, never by the title it was given.
-                    let new_workspace = locale.menu_action(&MenuAction::NewWorkspace);
+                    let new_workspace = MenuAction::NewWorkspace.title(locale);
                     assert_eq!(text.contains("QZX"), !context);
                     assert_eq!(text.contains(new_workspace), context);
                     assert_eq!(text.contains("Esc"), !context);
@@ -756,7 +753,7 @@ fn assert_bound_row_layout(
     assert_eq!(buffer[(padding, row.y)].symbol(), " ");
     let label_right = chord_x - ROW_BINDING_GAP;
     let label_budget = usize::from(label_right - marker_end);
-    let full_label = locale.menu_action(&MenuAction::Machines);
+    let full_label = MenuAction::Machines.title(locale);
     let label = truncate_display(full_label, label_budget, theme.glyphs.ellipsis);
     assert!(display_width(&label) <= label_budget);
     assert_eq!(display_width(full_label) > label_budget, expect_truncated);
@@ -905,10 +902,7 @@ fn global_tab_and_panel_rows_render_the_current_binding_for_each_localized_actio
                 .into_iter()
                 .next()
                 .expect("the keyboard action has an effective binding");
-            assert!(
-                text.contains(locale.menu_action(action)),
-                "{locale:?}: {text}"
-            );
+            assert!(text.contains(action.title(locale)), "{locale:?}: {text}");
             assert!(text.contains(&chord), "{locale:?}: {text}");
         }
     }

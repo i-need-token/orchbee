@@ -558,18 +558,18 @@ fn title(measured: &Measured<'_>, area: Rect, locale: Locale, theme: &Theme) -> 
                 usize::from(area.width.saturating_sub(6)),
             )
         } else if matches!(menu.source, MenuTarget::TabProfiles(_)) {
-            locale
-                .menu_action(crate::localization::MenuLabel::NewTab)
+            crate::action_menu::MenuAction::NewTab
+                .title(locale)
                 .to_owned()
         } else if matches!(menu.source, MenuTarget::AgentConfirmations { .. }) {
             // Opened by its key, the answers say what they are about.
-            locale
-                .menu_action(crate::localization::MenuLabel::AgentConfirmations)
+            crate::action_menu::MenuAction::AgentConfirmations
+                .title(locale)
                 .to_owned()
         } else if matches!(menu.source, MenuTarget::Create(_)) {
             // Every row of a `+` menu creates a Workspace; a Project's name would read as adding one.
-            locale
-                .menu_action(crate::localization::MenuLabel::NewWorkspace)
+            crate::action_menu::MenuAction::NewWorkspace
+                .title(locale)
                 .to_owned()
         } else if menu.context_menu && !menu.title.is_empty() {
             sanitize_terminal_text(menu.title).into_owned()
@@ -1031,11 +1031,12 @@ fn action_matches_query(
     label: &str,
     binding: Option<&str>,
 ) -> bool {
-    let aliases = crate::action_projection::menu_metadata(action.clone())
+    let aliases = action
+        .declaration()
         .action
         .search_aliases
         .iter()
-        .map(|alias| locale.menu_search_alias(*alias))
+        .map(|alias| locale.words(*alias))
         .collect::<Vec<_>>()
         .join(" ");
     let candidate = format!("{label} {aliases} {}", binding.unwrap_or_default());
@@ -1204,9 +1205,7 @@ fn render_row(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
-    let primary_role = crate::action_projection::menu_metadata(action.clone())
-        .tone
-        .content_role(Role::TextPrimary);
+    let primary_role = action.declaration().tone.content_role(Role::TextPrimary);
     let marker_width = u16::try_from(display_width(theme.glyphs.navigation_marker).max(1))
         .unwrap_or(u16::MAX)
         .min(row.width.saturating_sub(1));
@@ -1469,11 +1468,11 @@ fn action_label(
             | MenuAction::JoinGroup(_)
     );
     let text = if source.context_menu() {
-        locale.menu_object_action(action, scope)
+        action.object_title(locale, scope)
     } else {
         scope.map_or_else(
-            || locale.menu_action(action).to_owned(),
-            |scope| locale.menu_tab_action(action, scope),
+            || action.title(locale).to_owned(),
+            |scope| action.scoped_title(locale, scope),
         )
     };
     if let MenuAction::Key(row) = action {
@@ -1488,7 +1487,7 @@ fn action_label(
         Some(agent),
     ) = (action, label)
     {
-        return locale.confirmation_agent_type(agent);
+        return action.title_naming(locale, agent);
     }
     if let MenuAction::NewTabWithProfile(profile) = action {
         let name = locale.launch_profile_label(profile.name.as_deref());

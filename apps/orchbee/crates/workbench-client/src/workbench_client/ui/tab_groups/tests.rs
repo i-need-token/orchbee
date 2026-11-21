@@ -776,9 +776,9 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                         "{label} uses the selection surface: {text}"
                     );
                 }
-                assert!(text.contains(&locale.menu_tab_action(
-                    &MenuAction::PinTab,
-                    TabMenuScope::Selected(NonZeroUsize::new(3).unwrap()),
+                assert!(text.contains(&MenuAction::PinTab.scoped_title(
+                    locale,
+                    TabMenuScope::Selected(NonZeroUsize::new(3).unwrap())
                 )));
                 crate::tui_render::test_capture::capture_screen(
                     &mut terminal,

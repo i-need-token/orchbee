@@ -1,31 +1,35 @@
 use super::*;
+use crate::client_actions::MenuAction;
 
 #[test]
 fn dynamic_menu_input_keeps_one_semantic_identity() {
     use orchbee_workbench_protocol::TabGroupColor;
     for candidate in [MenuAction::NewTabToRight, MenuAction::NewTabInGroup] {
         assert_eq!(
-            menu_metadata(MenuAction::NewTab).action.identity,
-            menu_metadata(candidate).action.identity
+            MenuAction::NewTab.declaration().action.identity,
+            candidate.declaration().action.identity
         );
     }
     assert_eq!(
-        menu_metadata(MenuAction::GroupColor(TabGroupColor::Blue))
+        MenuAction::GroupColor(TabGroupColor::Blue)
+            .declaration()
             .action
             .identity,
-        menu_metadata(MenuAction::GroupColor(TabGroupColor::Red))
+        MenuAction::GroupColor(TabGroupColor::Red)
+            .declaration()
             .action
             .identity
     );
     assert_eq!(
-        menu_metadata(MenuAction::JoinGroup(0)).action.identity,
-        menu_metadata(MenuAction::JoinGroup(u16::MAX))
+        MenuAction::JoinGroup(0).declaration().action.identity,
+        MenuAction::JoinGroup(u16::MAX)
+            .declaration()
             .action
             .identity
     );
     assert_eq!(
-        menu_metadata(MenuAction::MoveTabPrevious).action.identity,
-        menu_metadata(MenuAction::MoveTabLast).action.identity
+        MenuAction::MoveTabPrevious.declaration().action.identity,
+        MenuAction::MoveTabLast.declaration().action.identity
     );
 }
 
@@ -38,7 +42,7 @@ fn sidebar_delete_and_tab_close_intents_share_destructive_tone_without_status_ro
         .chain(crate::action_menu::TAB_ACTIONS)
     {
         assert_eq!(
-            menu_metadata(action.clone()).tone == super::ActionTone::Destructive,
+            action.declaration().tone == super::ActionTone::Destructive,
             // Dissolving a Project keeps every Workspace, so it is not destructive.
             matches!(
                 action,
@@ -52,7 +56,7 @@ fn sidebar_delete_and_tab_close_intents_share_destructive_tone_without_status_ro
         );
     }
     assert_eq!(
-        menu_metadata(MenuAction::CloseGroup).tone,
+        MenuAction::CloseGroup.declaration().tone,
         super::ActionTone::Destructive
     );
     for legacy in [
@@ -62,23 +66,23 @@ fn sidebar_delete_and_tab_close_intents_share_destructive_tone_without_status_ro
         MenuAction::Ungroup,
         MenuAction::GroupColor(orchbee_workbench_protocol::TabGroupColor::Red),
     ] {
-        assert_eq!(menu_metadata(legacy).tone, super::ActionTone::Ordinary);
+        assert_eq!(legacy.declaration().tone, super::ActionTone::Ordinary);
     }
 }
 
 #[test]
 fn native_only_tab_operations_do_not_claim_narrower_gui_contracts() {
     assert_eq!(
-        menu_metadata(MenuAction::SelectAllTabs).action.identity,
+        MenuAction::SelectAllTabs.declaration().action.identity,
         ActionIdentity::BuiltIn("orchbee.native.tab-selection.all")
     );
     assert_eq!(
-        menu_metadata(MenuAction::ClearTabSelection).action.identity,
+        MenuAction::ClearTabSelection.declaration().action.identity,
         ActionIdentity::BuiltIn("orchbee.native.tab-selection.clear")
     );
     assert_ne!(
-        menu_metadata(MenuAction::SelectAllTabs).action.identity,
-        menu_metadata(MenuAction::SelectTab).action.identity
+        MenuAction::SelectAllTabs.declaration().action.identity,
+        MenuAction::SelectTab.declaration().action.identity
     );
 }
 
@@ -132,7 +136,7 @@ fn reused_cross_client_ids_match_the_shared_action_identity_registry() {
     }
     // Every GUI-namespace literal the projection mints reuses a registered GUI identity, and
     // the registry names no identity the native projection has stopped reusing.
-    let projected: std::collections::BTreeSet<_> = include_str!("../action_projection.rs")
+    let projected: std::collections::BTreeSet<_> = include_str!("menu.rs")
         .split('"')
         .filter(|segment| {
             (segment.starts_with("workbench.") || segment.starts_with("tabs."))

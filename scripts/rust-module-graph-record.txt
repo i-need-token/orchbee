@@ -113,10 +113,8 @@ cycle apps/orchbee/crates/workbench-client lib localization -> machine_status
 cycle apps/orchbee/crates/workbench-client lib localization -> release_update
 cycle apps/orchbee/crates/workbench-client lib localization -> terminal_title
 cycle apps/orchbee/crates/workbench-client lib localization -> workbench_state
-cycle apps/orchbee/crates/workbench-client lib localization::action_menu -> localization::tab_menu
 cycle apps/orchbee/crates/workbench-client lib localization::agent_board -> localization::shell
 cycle apps/orchbee/crates/workbench-client lib localization::shell -> localization::agent_board
-cycle apps/orchbee/crates/workbench-client lib localization::tab_menu -> localization::action_menu
 cycle apps/orchbee/crates/workbench-client lib machine_agents -> machine_discovery
 cycle apps/orchbee/crates/workbench-client lib machine_agents -> machine_observation
 cycle apps/orchbee/crates/workbench-client lib machine_discovery -> machine_carrier

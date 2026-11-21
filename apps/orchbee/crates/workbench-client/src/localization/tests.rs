@@ -32,20 +32,14 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
 
     let locale = Locale::ZhCn;
     let count = NonZeroUsize::new(2).unwrap();
-    assert_eq!(locale.menu_action(&MenuAction::PinTab), "固定标签页");
+    assert_eq!(MenuAction::PinTab.title(locale), "固定标签页");
+    assert_eq!(MenuAction::CloseSelectedTabs.title(locale), "关闭标签页…");
     assert_eq!(
-        locale.menu_action(&MenuAction::CloseSelectedTabs),
-        "关闭标签页…"
-    );
-    assert_eq!(
-        locale.menu_tab_action(
-            &MenuAction::CloseSelectedTabs,
-            TabMenuScope::Selected(count)
-        ),
+        MenuAction::CloseSelectedTabs.scoped_title(locale, TabMenuScope::Selected(count)),
         "关闭所选 2 个标签页…"
     );
     assert_eq!(
-        locale.menu_tab_action(&MenuAction::CloseGroup, TabMenuScope::Group(count)),
+        MenuAction::CloseGroup.scoped_title(locale, TabMenuScope::Group(count)),
         "关闭分组（2 个标签页）…"
     );
     assert_eq!(
