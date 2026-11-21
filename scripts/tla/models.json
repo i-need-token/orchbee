@@ -640,7 +640,6 @@
 				"crates/local-runtime/src/**",
 				"apps/orchbee/src/local_startup**",
 				"apps/orchbee/crates/workbench-client/src/local_activation*",
-				"apps/orchbee/tests/local_startup*",
 				"apps/orchbee-server/src/local_worker_service*",
 				"apps/orchbee-server/src/local_worker_service/**",
 				"apps/orchbee-worker/src/worker_connection*",
