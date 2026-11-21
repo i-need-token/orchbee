@@ -2,21 +2,47 @@
 
 ## Ownership and admission
 
-| Content                                                                            | Authority                                                               |
-| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Synchronized project value, capabilities, installation, and first use              | `README.md` and `README.zh-CN.md`                                       |
-| Public package capability, API, installation, and usage                            | `packages/*/README.md`                                                  |
-| Current package-owned behavior, architecture, integration, and maintenance         | Markdown under `packages/<package>/docs/`                               |
-| AI-agent project map, hard rules, and standard links                               | `CLAUDE.md`                                                             |
-| Repository-wide standards and cross-workspace architecture                         | `docs/UPPER-KEBAB-CASE.md` or `docs/<engineering-domain>/kebab-case.md` |
-| Workspace identity, responsibility, runtime, stability, and non-goals              | The owning workspace's `project.json`                                   |
-| Product interactions, screen composition, named components, and business decisions | The owning application or package                                       |
+| Content                                                                            | Authority                                                                    |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Synchronized project value, capabilities, installation, and first use              | `README.md` and `README.zh-CN.md`                                            |
+| What a package is responsible for, its decisions, and how to change it             | The owning package's Markdown, under [Package documents](#package-documents) |
+| Behavior, parameters, limits, defaults, exit codes, and fields                     | The code, help text, or schema that declares them                            |
+| AI-agent project map, hard rules, and standard links                               | `CLAUDE.md`                                                                  |
+| Repository-wide standards and cross-workspace architecture                         | `docs/UPPER-KEBAB-CASE.md` or `docs/<engineering-domain>/kebab-case.md`      |
+| Workspace identity, responsibility, runtime, stability, and non-goals              | The owning workspace's `project.json`                                        |
+| Product interactions, screen composition, named components, and business decisions | The owning application or package                                            |
 
 - Prefer omission: create or retain documentation only when it has a recurring consumer, clear authority, and verification path.
 - Admit content to `docs/` only when it governs repository operation, multiple workspaces, or a workspace boundary.
 - Never use a repository standard to inventory one owner's behavior, source tree, screen measurements, or roadmap.
 - Name a concrete path, package, command, configuration key, or rule ID only when required to apply or verify the rule.
 - Give each fact or rule one authority; link to it instead of duplicating it.
+
+## Package documents
+
+A package document is any tracked Markdown outside `docs/`, `proposals/`, and the repository root.
+It keeps only what its reader cannot get from the code, the help text, or a schema:
+
+- what the package is responsible for and what it never does;
+- a decision with its reason and the alternative it rejected;
+- facts the code cannot show: operating-system and third-party behavior, and measured numbers;
+- a contract between processes or languages that has no single declaration in code; and
+- how to make the usual change, such as which file to edit to add a key.
+
+It does not hold:
+
+- behavior restated from the code;
+- lists of parameters, limits, defaults, exit codes, or fields that a declaration already holds;
+- lists of tests, claim-to-evidence tables, or paragraphs that say what tests cover;
+- maps of child modules and source paths; or
+- status, history, and plans.
+
+A code change edits a package document only when it changes something the document states under the
+five kept kinds. A reason that explains one piece of code belongs in a comment at that code.
+
+Product copy that ships is not a package document: the root `README` pair,
+`apps/orchbee/docs/cli-agent-skill.md` with its `zh-CN` twin, and any Markdown a binary embeds keep
+the form their reader or consumer needs.
 
 ## Writing contract
 
@@ -40,7 +66,7 @@
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `docs/` root                 | Contains only cross-repository standards indexed by `CLAUDE.md`; filenames use `UPPER-KEBAB-CASE.md`.                                                                      |
 | `docs/<engineering-domain>/` | Covers one stable discipline across workspace boundaries; filenames use `kebab-case.md`. New domains need review and lint-contract admission.                              |
-| `packages/<package>/docs/`   | Contains package-owned references; filenames use `kebab-case.md`.                                                                                                          |
+| `packages/<package>/docs/`   | Contains [package documents](#package-documents); filenames use `kebab-case.md`.                                                                                           |
 | `<owner>/docs/experience/`   | Contains schema-backed package-local experience Manifests under [`frontend/experience-components.md`](frontend/experience-components.md); filenames use `kebab-case.json`. |
 
 - Never store one product's or package's behavior under `docs/<product>/` or `docs/<package>/`.

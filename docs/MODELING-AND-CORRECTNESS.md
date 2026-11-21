@@ -7,47 +7,23 @@ claims, selecting evidence for failure consequences, state-space complexity, and
 boundaries. Consider every applicable risk, but do not accumulate methods merely because a feature
 uses async work, cancellation, gestures, or several files.
 
-| Behavior                                                                                  | Required record and evidence                                                                        |
+| Behavior                                                                                  | Required evidence                                                                                   |
 | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | Local presentation without new domain state or transitions                                | Existing component contract and meaningful evidence under [`TESTING.md`](TESTING.md)                |
 | Bounded local completion or cancellation within established ownership and effect policies | Types and focused tests for relevant stale results, cancellation, failures, and cleanup             |
 | Owned domain state, interacting transitions, persistence, or process coordination         | A compact model of state, ownership, invariants, and relevant traces, with deterministic core tests |
 | A risk in [Correctness escalation](#correctness-escalation)                               | The evidence selected for each affected claim and uncovered failure risk                            |
 
-- Put public behavior in the owning package README and internal maintenance contracts beside the owner.
-- Types, transitions, and behavior-focused tests can form the complete modeling record. Add prose only
-  for decisions, assumptions, or boundaries they do not already explain; do not duplicate them in a
-  separate model document or per-change manifest.
+- Types, transitions, and behavior-focused tests are the model. Add prose only for a decision,
+  assumption, or boundary they do not explain, under
+  [package documents](DOCUMENTATION.md#package-documents); never restate them in a model document
+  or per-change manifest.
 - Keep reusable cross-workspace rules in `docs/`; package behavior remains with its owner.
 
 Existing owner-specific evidence obligations and maintained model registrations remain in force.
 Changing the general selection policy does not retire a model, weaken a property, or remove an
 already-required check. Such changes need a separate claim-specific justification and acceptance
 under the owning lifecycle.
-
-## Modeling record
-
-Maintain one discoverable record with concrete domain names and types. Use only applicable fields
-and link to their existing owners. Types and tests may supply the decisions and cases; do not create
-empty headings, repeated prose, or N/A rows solely to reproduce this table.
-
-| Field           | Required content                                                                   | Completion evidence                                                  |
-| --------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Problem         | Actor, context, trigger, desired outcome, constraints, and non-goals               | One observable problem statement                                     |
-| Inputs          | Trusted and untrusted inputs plus absence semantics                                | Named input types and validation boundary                            |
-| Data            | Entities, identifiers, relationships, ownership, lifecycle, and canonical form     | Named domain types                                                   |
-| Outputs         | Success variants, failures, semantic events, side effects, cancellation, and no-op | Named output types                                                   |
-| Invariants      | Facts that remain true before and after every operation                            | Assertions or invariant tests                                        |
-| Decisions       | Independent dimensions that change the result                                      | Decision table or behavior-focused test cases                        |
-| Model           | Extractor, normalizer, policy, builder, state machine, or workflow                 | Selected shape and principal public operation                        |
-| Transitions     | States, events, guards, next state, derived state, commands, and cancellation      | Transition rules or tests for stateful behavior                      |
-| Dependencies    | Time, storage, network, process, DOM, and other capabilities                       | Minimal capability interfaces                                        |
-| Ownership       | Authoritative state owner and allowed writers                                      | One owner for each mutable fact                                      |
-| Verification    | Core cases, integration boundaries, and real interaction paths                     | Decision-mapped deterministic tests independent of the production UI |
-| Correctness     | Claims, trust boundary, refinement mappings, evidence, limits, and exclusions      | Required for owned state, transitions, or a correctness risk trigger |
-| Reference scope | Version, environment, adopted behavior, observable projection, and exclusions      | Required only for compatibility or replication                       |
-
-Another maintainer must be able to derive the public domain operation, claims, and test cases without inspecting the intended UI. For correctness-gated behavior, the same record is the correctness case and must show what is claimed, which executable artifact supports each claim, and what remains outside the claim.
 
 ## Domain contract
 
@@ -321,17 +297,13 @@ A compatibility or replication claim needs a versioned parity contract.
 
 ## Traceability and change discipline
 
-Maintain discoverable claim-to-evidence mappings through existing contracts, stable test names, and
-imports. Use explicit rows for formal or differential evidence, cross-owner refinement, or mappings
-that cannot otherwise be recovered; do not create a second inventory for ordinary local tests.
-
-| Claim              | Contract owner           | Selected evidence and mapping                             | Limits                 |
-| ------------------ | ------------------------ | --------------------------------------------------------- | ---------------------- |
-| Domain-named claim | Owning reference or type | Stable check names and their connection to implementation | Bounds and assumptions |
+Types, stable test names, and imports carry the link between a claim and its evidence. Do not keep a
+claim-to-evidence table or an inventory of tests in a document. A formal model or differential
+suite states its bounds and trust assumptions in its own source or registration.
 
 - Give each claim requiring automated evidence under [test admission](TESTING.md#unit-test-admission-and-removal) an executable witness at the lowest effective layer; existing compiler, contract, and behavior checks can supply it.
 - Map each selected formal property and theorem to an owned claim; omit unused method columns.
-- Record relevant bounds and trust assumptions; remove stale mappings with removed behavior.
+- Remove a model, property, or theorem together with the behavior it described.
 - Treat coverage percentages as diagnostics, not traceability.
 
 For every counterexample:
@@ -357,10 +329,9 @@ Update the abstract model or proof before relying on changed production behavior
 
 Every implementation follows the same evidence contract:
 
-- Before production edits, retrieve the owning record, identify any reference dependency closure, list state, events, outputs, invariants, assumptions, selected evidence, and affected refinement links.
+- Before production edits, read the owning types, tests, and models, and identify any reference dependency closure and affected refinement links.
 - Reproduce an existing defect as a minimal semantic trace.
 - Run focused checks at useful feedback boundaries and the applicable root gate at completion; reuse unchanged valid evidence and preserve counterexamples before another patch.
-- Review the affected mappings between the contract, selected evidence, and implementation.
 - Completion reports name checked claims, bounds, reference revision, executed evidence, and exclusions; file inspection, generated code, examples, or screenshots alone never establish completeness.
 
 ## Integration and implementation
@@ -404,24 +375,21 @@ The applicable gate or selected evidence command must fail on:
 - a failed property, unreachable required generator class, or non-replayable generated failure;
 - a deterministic trace mismatch or result-affecting uncontrolled timing;
 - a differential mismatch inside the declared parity scope; or
-- missing traceability for a changed claim.
+- a registered model whose source or trigger file no longer exists.
 
 Pin tools and configurations, cap resources, fail fast, and retain actionable counterexamples. Do not use retries. External reference capture and environment-specific exploration remain maintenance verification until their inputs are pinned and provisioned; run them before compatibility releases without making the merge gate depend on ambient external state.
 
 Production integration is ready when:
 
-- the modeling record, including its types and tests, defines the applicable behavior, ownership, invariants, cases, and unresolved decisions;
+- the types and tests define the applicable behavior, ownership, invariants, and cases;
 - deterministic core tests pass without the production UI; and
 - every relevant failure risk has selected evidence and explicit limits.
 
 A feature is complete when:
 
-- the owning authority describes current behavior without task history;
 - the selected core, workflow, integration, browser, accessibility, and correctness evidence protects the affected claims;
 - regression evidence satisfies [`TESTING.md`](TESTING.md#regression-coverage) at the lowest effective layer;
-- the claim-to-evidence mappings have no unexplained gaps or stale claims;
 - prototypes, duplicate state, and obsolete flags are removed;
-- every change-triggered correctness command selected by the modeling record passes without
-  retries;
+- every change-triggered correctness command passes without retries;
 - the [applicable root gate](VERIFICATION.md#merge-gate) passes without retries; and
 - the completion report states checked claims, bounds, reference revision, evidence, and exclusions without unbounded claims such as “fully verified” or “perfect replica.”
