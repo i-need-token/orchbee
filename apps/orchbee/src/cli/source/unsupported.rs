@@ -44,7 +44,7 @@ pub(super) fn acquire_file(
 
 pub(super) fn acquire_stdin(
     _paste: bool,
-    _deadline: Instant,
+    _deadline: &mut Instant,
     _signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
     Err(unavailable())
@@ -53,7 +53,7 @@ pub(super) fn acquire_stdin(
 pub(in crate::cli) fn acquire_document(
     _path: Option<&str>,
     _limit: usize,
-    _deadline: Instant,
+    _deadline: &mut Instant,
     _signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
     Err(unavailable())

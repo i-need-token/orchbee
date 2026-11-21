@@ -11,7 +11,7 @@ use std::io;
 pub(super) fn acquire_document(
     path: Option<&str>,
     limit: usize,
-    deadline: std::time::Instant,
+    deadline: &mut std::time::Instant,
     signals: &mut super::ArmedSignals,
 ) -> Result<Vec<u8>, super::SourceFailure> {
     crate::cli::source::acquire_document(path, limit, deadline, signals)

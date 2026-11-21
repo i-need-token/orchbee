@@ -185,8 +185,8 @@ pub(super) struct Reader {
     first: bool,
 }
 impl Reader {
-    pub(super) fn start() -> io::Result<Self> {
-        ByteReader::start().map(Self::over)
+    pub(super) fn start(cancelled: &dyn Fn() -> bool) -> io::Result<Self> {
+        ByteReader::start(cancelled).map(Self::over)
     }
     #[cfg(all(test, windows))]
     pub(super) fn with_input(input: std::process::Stdio) -> io::Result<Self> {

@@ -77,16 +77,17 @@ pub(crate) fn run(command: &LayoutApplyCommand, format: OutputFormat, locale: Lo
 
 fn execute(
     command: &LayoutApplyCommand,
-    work_deadline: Instant,
-    deadline: Instant,
+    mut work_deadline: Instant,
+    mut deadline: Instant,
     signals: &mut ArmedSignals,
     receipt: &mut receipt::Receipt,
 ) -> Result<(), Failure> {
     signals.check_before(work_deadline)?;
+    let requested = work_deadline;
     let bytes = source::acquire_document(
         command.file.as_deref(),
         template::MAX_BYTES,
-        work_deadline,
+        &mut work_deadline,
         signals,
     )
     .map_err(|failure| match failure {
@@ -94,6 +95,8 @@ fn execute(
         SourceFailure::Timeout { .. } => error(FailureKind::Timeout, "input-unavailable"),
         SourceFailure::Cancelled { .. } => error(FailureKind::Cancelled, "input-unavailable"),
     })?;
+    // A Windows stdin helper's start moved the work deadline; settlement keeps its allowance.
+    deadline += work_deadline.saturating_duration_since(requested);
     let plan = template::parse(&bytes)
         .map_err(|error| self::error(FailureKind::InvalidUsage, error.reason()))?
         .plan();

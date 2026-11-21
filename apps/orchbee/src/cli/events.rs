@@ -3,7 +3,7 @@ use super::{
     Failure, FailureKind, Output,
     command_interrupt::{ArmedSignals, Finish},
     failure_output, output, query, results,
-    terminal_stream::relay::Relay,
+    terminal_stream::relay::{self, Relay},
 };
 use crate::cli_text::CliText;
 use crate::{
@@ -37,35 +37,32 @@ pub(crate) fn run(command: &Command, format: OutputFormat, locale: Locale) -> Ou
             );
         }
     };
-    let mut relay = if command.wait {
-        None
+    // The relay is ready before any budget below starts.
+    let relay = if command.wait {
+        Ok(None)
     } else {
-        match Relay::start() {
-            Ok(relay) => Some(relay),
-            Err(_) => {
-                return failure_output(
-                    Failure::new(FailureKind::InternalFailure),
-                    Some(format),
-                    locale,
-                );
-            }
-        }
+        Relay::start(&|| signal.requested()).map(Some)
     };
-    let result = execute(command, format, locale, &signal, relay.as_mut());
-    drop(relay);
-    let mut result = result.unwrap_or_else(|failure| {
-        let failure = if failure.details.is_none() {
-            failure
-                .failure_schema("orchbee.cli.failure.events")
-                .details(serde_json::Map::from_iter([(
-                    "stage".into(),
-                    json!("events"),
-                )]))
-        } else {
-            failure
-        };
-        failure_output(failure, Some(format), locale)
-    });
+    let mut result = match relay {
+        Ok(mut relay) => {
+            let result = execute(command, format, locale, &signal, relay.as_mut());
+            drop(relay);
+            result.unwrap_or_else(|failure| {
+                let failure = if failure.details.is_none() {
+                    failure
+                        .failure_schema("orchbee.cli.failure.events")
+                        .details(serde_json::Map::from_iter([(
+                            "stage".into(),
+                            json!("events"),
+                        )]))
+                } else {
+                    failure
+                };
+                failure_output(failure, Some(format), locale)
+            })
+        }
+        Err(error) => failure_output(relay::failure(&error), Some(format), locale),
+    };
     match signal.finish() {
         Ok(Finish::Clear) => {}
         Ok(Finish::Cancelled { finalization }) => {
@@ -346,13 +343,7 @@ fn emit(
         .record(&bytes, Instant::now() + Duration::from_secs(3), &|| {
             signal.requested()
         })
-        .map_err(|error| {
-            Failure::new(match error.kind() {
-                std::io::ErrorKind::Interrupted => FailureKind::Cancelled,
-                std::io::ErrorKind::TimedOut => FailureKind::Timeout,
-                _ => FailureKind::InternalFailure,
-            })
-        })
+        .map_err(|error| relay::failure(&error))
 }
 
 struct Tracker {

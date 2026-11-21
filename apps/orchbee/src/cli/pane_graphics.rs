@@ -74,11 +74,11 @@ fn execute(
     if let CommandAction::Stream(spec) = &command.action {
         return stream::run(command, spec, format, locale, signals);
     }
-    let deadline =
+    let mut deadline =
         Instant::now() + Duration::from_millis(u64::from(command.timeout_ms.unwrap_or(5_000)));
     signals.check_before(deadline)?;
     let image = match &command.action {
-        CommandAction::Set(input) => Some(upload::acquire(input, deadline, signals)?),
+        CommandAction::Set(input) => Some(upload::acquire(input, &mut deadline, signals)?),
         _ => None,
     };
     signals.check_before(deadline)?;

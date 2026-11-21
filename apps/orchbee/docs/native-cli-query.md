@@ -24,7 +24,7 @@ Plugin catalog/runtime commands, configured commands and named-Session commands 
 
 Terminal selection, copy and link workflows share bounded buffer validation and exact link-activation receipts. Their execution capabilities are checked before signal registration or Session discovery; link activation still detaches its viewer before submitting its one effect.
 
-Terminal observation, control, attachment and Pane graphics share protocol, framing, acknowledgement and cleanup workflows. Windows adapters own the stdin helper and stdout relay processes; macOS and Linux adapters read the inherited stdin and write the inherited stdout in place, each read or write gated by a zero-timeout poll, writes bounded by `PIPE_BUF`, and never switch the shared descriptors to nonblocking mode. Shared polling interprets their actual byte, EOF and exit observations. A host that does not admit a command refuses before terminal admission, signal registration or helper creation; macOS admits all of these commands, and Linux none. Pane graphics and the terminal streams observe interrupts through the CLI interrupt-pair port, which delegates to the existing Windows guard or the macOS signal producer.
+Terminal observation, control, attachment and Pane graphics share protocol, framing, acknowledgement and cleanup workflows. Windows adapters own the stdin helper and stdout relay processes, and a command starts its budgets only after its helpers report ready; macOS and Linux adapters read the inherited stdin and write the inherited stdout in place, each read or write gated by a zero-timeout poll, writes bounded by `PIPE_BUF`, and never switch the shared descriptors to nonblocking mode. Shared polling interprets their actual byte, EOF and exit observations. A host that does not admit a command refuses before terminal admission, signal registration or helper creation; macOS admits all of these commands, and Linux none. Pane graphics and the terminal streams observe interrupts through the CLI interrupt-pair port, which delegates to the existing Windows guard or the macOS signal producer.
 
 Agent waits, names and retained close operations share exchange, cancellation settlement and presentation owners. Omitted wait options use the unchanged defaults from named platform policy owners. The CLI interrupt-pair port delegates to the existing Linux or Windows signal producer; the held Client Connection is still dropped before its single finish arbitration. Windows waits retain contiguous history and optional Client evidence, while Linux waits retain sampled canonical observations and their existing output fields. List/Get dispatch and canonical result rendering compile in the same owners on every host. macOS keeps its bounded canonical list path without signal registration; unavailable read capabilities refuse before signal or Session effects.
 
@@ -1166,9 +1166,13 @@ catalogRevision}` — the catalog-private revision, distinct from the Workbench
 
 Windows pipe acquisition owns one hidden, noninteractive Windows PowerShell reader
 resolved from the OS system directory. Only the inherited stdin handle is passed;
-source bytes never become script or argument text. The fixed script copies at most
-the source limit plus one byte into a private output pipe. The CLI polls under the
-existing deadline and interrupt guard, and kills/reaps the child on success and handled failures.
+source bytes never become script or argument text. The fixed script reports ready on
+its standard error, then copies at most the source limit plus one byte into a private
+output pipe. The reader's start, from spawn to that report, moves the command's
+deadline later by its own length, for the read and every later step; it has its own
+20-second allowance, after which acquisition is `timeout`, and the interrupt guard
+ends it. The CLI then polls under the moved deadline and interrupt guard, and
+kills/reaps the child on success and handled failures.
 It does not change the caller's pipe mode or leave a blocking reader thread behind.
 The shared send workflow keeps source arbitration, one submission and receipt projection together.
 Linux and Windows retain their existing send routes. macOS takes the Linux route, declared `--file`
@@ -1179,7 +1183,7 @@ scheduling boundaries, not hard real-time guarantees.
 
 The adapter uses the already admitted `winsafe` system-directory and `winapi-util`
 handle-type bindings at their existing locked versions, with no authored unsafe code.
-States are admitted -> reading -> complete/failed/timed-out/cancelled -> child-reaped;
+States are admitted -> starting -> reading -> complete/failed/timed-out/cancelled -> child-reaped;
 only complete can reach submission. `source/input.rs` owns opaque-byte/paste routing:
 file/stdin is not restricted to UTF-8. This algorithm and finish projection compile through the common source facade; the Unix port (with its Linux signalfd and macOS kqueue captures) and the Windows port retain acquisition and signal ownership, and `source_finalization/` retains the original emit-time release. Windows tests exercise real reader processes
 for EOF, limits, and timeout, and inject a signal observation to test cancellation;
@@ -1197,7 +1201,8 @@ one paste record and, with `--enter`, a separate trailing Enter record.
   and own no request identity.
 - **One shared budget.** The absolute 5-second deadline sampled at command entry covers
   source setup, materialization, and the entire send lifecycle; it is never reset or
-  renewed. A deadline check precedes every source wait and every read — including a
+  renewed. Only the Windows pipe reader's start moves it later, by that start's own
+  length. A deadline check precedes every source wait and every read — including a
   read whose wait ended at the deadline — and also arbitrates the completion boundary
   itself: an end of input observed after the budget closed is `timeout`, never a clean
   record. No runtime admission runs after it expires.

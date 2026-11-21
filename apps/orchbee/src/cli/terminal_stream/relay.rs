@@ -1,4 +1,5 @@
 //! Bounded acknowledged records and cleanup over one native stdout relay.
+use crate::cli::{Failure, FailureKind};
 use std::{
     io, thread,
     time::{Duration, Instant},
@@ -10,6 +11,10 @@ mod platform;
 #[path = "relay/unix.rs"]
 mod platform;
 trait NativeRelay {
+    /// Waits until the relay can take records; a relay that writes in place can at once.
+    fn ready(&mut self, _cancelled: &dyn Fn() -> bool) -> io::Result<()> {
+        Ok(())
+    }
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize>;
     fn read_ack(&mut self, bytes: &mut [u8]) -> io::Result<usize>;
     fn stop(&mut self) -> io::Result<()>;
@@ -19,18 +24,23 @@ pub(in crate::cli) struct Relay {
     healthy: bool,
 }
 impl Relay {
-    pub(in crate::cli) fn start() -> io::Result<Self> {
-        platform::start().map(|native| Self {
-            native,
-            healthy: true,
-        })
+    /// Starts the relay and returns once it can take records. Its start belongs to no record's
+    /// budget, so callers sample their deadlines afterwards.
+    pub(in crate::cli) fn start(cancelled: &dyn Fn() -> bool) -> io::Result<Self> {
+        Self::once_ready(platform::start()?, cancelled)
     }
     #[cfg(all(test, windows))]
     pub(super) fn with_output(output: std::process::Stdio) -> io::Result<Self> {
-        platform::with_output(output).map(|native| Self {
+        Self::once_ready(platform::with_output(output)?, &|| false)
+    }
+    fn once_ready(native: Box<dyn NativeRelay>, cancelled: &dyn Fn() -> bool) -> io::Result<Self> {
+        // A relay that never becomes ready is still stopped and reaped on drop.
+        let mut relay = Self {
             native,
             healthy: true,
-        })
+        };
+        relay.native.ready(cancelled)?;
+        Ok(relay)
     }
     pub(in crate::cli) fn healthy(&self) -> bool {
         self.healthy
@@ -80,6 +90,15 @@ impl Drop for Relay {
     fn drop(&mut self) {
         let _ = self.native.stop();
     }
+}
+/// The command failure that a relay or stdin reader error stands for: an interruption is a
+/// cancellation and an exhausted budget a timeout; every other fault is internal.
+pub(in crate::cli) fn failure(error: &io::Error) -> Failure {
+    Failure::new(match error.kind() {
+        io::ErrorKind::Interrupted => FailureKind::Cancelled,
+        io::ErrorKind::TimedOut => FailureKind::Timeout,
+        _ => FailureKind::InternalFailure,
+    })
 }
 fn check(deadline: Instant, cancelled: &dyn Fn() -> bool) -> io::Result<()> {
     if cancelled() {

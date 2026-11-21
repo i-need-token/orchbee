@@ -138,7 +138,7 @@ fn echoed_value(failure: &SourceFailure) -> Option<&str> {
 /// The literal payload bytes a successful materialization produced —
 /// whichever record variant the routing rule chose.
 fn materialized_bytes(input: &TerminalSendInput, signals: &mut dyn SignalWatch) -> (Vec<u8>, bool) {
-    match materialize(input, deadline(), signals)
+    match materialize(input, &mut deadline(), signals)
         .expect("materialize")
         .into_owned()
     {
@@ -206,11 +206,11 @@ fn file_record_boundaries() {
     assert_eq!(bytes.len(), BOUND);
     assert!(!enter);
     // BOUND bytes + --enter crosses the bound by one.
-    let failure = materialize(&file_input(&path, true), deadline(), &mut watch).unwrap_err();
+    let failure = materialize(&file_input(&path, true), &mut deadline(), &mut watch).unwrap_err();
     assert_eq!(cause(&failure), SendSourceCause::Oversize { limit: BOUND });
     // BOUND+1 bytes crosses outright.
     let path = write_file(&dir, "over", &vec![b'z'; BOUND + 1]);
-    let failure = materialize(&file_input(&path, false), deadline(), &mut watch).unwrap_err();
+    let failure = materialize(&file_input(&path, false), &mut deadline(), &mut watch).unwrap_err();
     assert_eq!(cause(&failure), SendSourceCause::Oversize { limit: BOUND });
 }
 
@@ -222,7 +222,7 @@ fn file_source_routing() {
     let dir = workspace("file-route");
     let mut watch = IdleWatch;
     let path = write_file(&dir, "text", b"plain utf-8\n");
-    let materialized = materialize(&file_input(&path, false), deadline(), &mut watch)
+    let materialized = materialize(&file_input(&path, false), &mut deadline(), &mut watch)
         .expect("small text")
         .into_owned();
     assert!(
@@ -231,7 +231,7 @@ fn file_source_routing() {
     );
     // Valid UTF-8 over the text bound routes to bytes.
     let path = write_file(&dir, "large-text", &vec![b'x'; 4097]);
-    let materialized = materialize(&file_input(&path, false), deadline(), &mut watch)
+    let materialized = materialize(&file_input(&path, false), &mut deadline(), &mut watch)
         .expect("large text")
         .into_owned();
     assert!(
@@ -240,7 +240,7 @@ fn file_source_routing() {
     );
     // Invalid UTF-8 under the text bound also routes to bytes.
     let path = write_file(&dir, "binary", &[0xff, 0x00, 0xfe]);
-    let materialized = materialize(&file_input(&path, false), deadline(), &mut watch)
+    let materialized = materialize(&file_input(&path, false), &mut deadline(), &mut watch)
         .expect("binary")
         .into_owned();
     assert!(
@@ -262,7 +262,8 @@ fn file_source_paste_boundaries() {
     assert_eq!(content.len(), PASTE_BOUND);
     assert!(enter, "--enter stays a separate flag on paste");
     let path = write_file(&dir, "over", &vec![b'p'; PASTE_BOUND + 1]);
-    let failure = materialize(&file_input_paste(&path, false), deadline(), &mut watch).unwrap_err();
+    let failure =
+        materialize(&file_input_paste(&path, false), &mut deadline(), &mut watch).unwrap_err();
     assert_eq!(
         cause(&failure),
         SendSourceCause::Oversize { limit: PASTE_BOUND }
@@ -282,12 +283,12 @@ fn file_oversize_echoes_its_declared_path() {
     let mut watch = IdleWatch;
     // The read loop hits BOUND+1.
     let path = write_file(&dir, "over", &vec![b'z'; BOUND + 1]);
-    let failure = materialize(&file_input(&path, false), deadline(), &mut watch).unwrap_err();
+    let failure = materialize(&file_input(&path, false), &mut deadline(), &mut watch).unwrap_err();
     assert_eq!(cause(&failure), SendSourceCause::Oversize { limit: BOUND });
     assert_eq!(echoed_value(&failure), Some(path.as_str()));
     // BOUND + --enter overflows after a complete read — same echo.
     let path = write_file(&dir, "fold-over", &vec![b'y'; BOUND]);
-    let failure = materialize(&file_input(&path, true), deadline(), &mut watch).unwrap_err();
+    let failure = materialize(&file_input(&path, true), &mut deadline(), &mut watch).unwrap_err();
     assert_eq!(cause(&failure), SendSourceCause::Oversize { limit: BOUND });
     assert_eq!(echoed_value(&failure), Some(path.as_str()));
 }
@@ -302,12 +303,12 @@ fn file_source_rejects_invalid_and_unsupported() {
     assert_eq!(bytes, [0xff, 0xfe, 0xfd, 0x00]);
     // Empty.
     let path = write_file(&dir, "empty", b"");
-    let failure = materialize(&file_input(&path, false), deadline(), &mut watch).unwrap_err();
+    let failure = materialize(&file_input(&path, false), &mut deadline(), &mut watch).unwrap_err();
     assert_eq!(cause(&failure), SendSourceCause::Empty);
     // A directory is not a regular file.
     let failure = materialize(
         &file_input(dir.to_str().expect("dir path"), false),
-        deadline(),
+        &mut deadline(),
         &mut watch,
     )
     .unwrap_err();
@@ -317,7 +318,7 @@ fn file_source_rejects_invalid_and_unsupported() {
     mkfifo(&fifo_path, Mode::S_IRUSR | Mode::S_IWUSR).expect("mkfifo");
     let failure = materialize(
         &file_input(fifo_path.to_str().expect("fifo path"), false),
-        deadline(),
+        &mut deadline(),
         &mut watch,
     )
     .unwrap_err();
@@ -325,7 +326,7 @@ fn file_source_rejects_invalid_and_unsupported() {
     // A missing path is unreadable, never not-regular.
     let failure = materialize(
         &file_input("/nonexistent-obsrc-source-path", false),
-        deadline(),
+        &mut deadline(),
         &mut watch,
     )
     .unwrap_err();
@@ -337,10 +338,10 @@ fn source_deadline_elapses_cleanly() {
     let dir = workspace("file-timeout");
     let path = write_file(&dir, "data", b"payload");
     let mut watch = IdleWatch;
-    let past = Instant::now()
+    let mut past = Instant::now()
         .checked_sub(Duration::from_millis(1))
         .expect("past deadline");
-    match materialize(&file_input(&path, false), past, &mut watch) {
+    match materialize(&file_input(&path, false), &mut past, &mut watch) {
         Err(SourceFailure::Timeout {
             source: InputSource::File,
         }) => {}
@@ -355,7 +356,7 @@ fn signal_read_error_is_internal_not_none() {
     let dir = workspace("file-err");
     let path = write_file(&dir, "data", b"payload");
     let mut watch = ErrWatch;
-    match materialize(&file_input(&path, false), deadline(), &mut watch) {
+    match materialize(&file_input(&path, false), &mut deadline(), &mut watch) {
         Err(SourceFailure::Standard(Failure {
             kind: FailureKind::InternalFailure,
             ..
@@ -369,7 +370,7 @@ fn mid_read_signal_selects_typed_cancellation() {
     let dir = workspace("file-int");
     let path = write_file(&dir, "data", b"payload");
     let mut watch = ScriptedSignal(15);
-    match materialize(&file_input(&path, false), deadline(), &mut watch) {
+    match materialize(&file_input(&path, false), &mut deadline(), &mut watch) {
         Err(SourceFailure::Cancelled {
             source: InputSource::File,
             signal: 15,

@@ -341,12 +341,13 @@ fn execute(
         } else {
             invocation::MAXIMUM_SEND_BYTES_BYTES
         };
-        let bytes = source::acquire_document(path, limit, context.deadline, &mut context.signals)
-            .map_err(|error| match error {
-            source::SourceFailure::Cancelled { .. } => mapped(Error::Cancelled),
-            source::SourceFailure::Timeout { .. } => mapped(Error::Timeout),
-            source::SourceFailure::Standard(_) => INPUT_SOURCE,
-        })?;
+        let bytes =
+            source::acquire_document(path, limit, &mut context.deadline, &mut context.signals)
+                .map_err(|error| match error {
+                    source::SourceFailure::Cancelled { .. } => mapped(Error::Cancelled),
+                    source::SourceFailure::Timeout { .. } => mapped(Error::Timeout),
+                    source::SourceFailure::Standard(_) => INPUT_SOURCE,
+                })?;
         if path.is_some() {
             let index = arguments
                 .iter()

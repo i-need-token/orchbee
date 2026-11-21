@@ -35,6 +35,8 @@ mod client_control;
 pub(crate) mod configured_commands;
 pub(crate) mod events;
 pub(crate) mod pane_graphics;
+#[cfg(windows)]
+mod powershell_helper;
 mod stdin_bytes;
 pub(crate) use client_control::run as run_client_control;
 mod agent_projection;

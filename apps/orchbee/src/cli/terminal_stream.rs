@@ -30,10 +30,6 @@ pub(crate) fn run(command: &TerminalObserveCommand, locale: Locale) -> Output {
     {
         return crate::cli::failure_output(failure, None, locale);
     }
-    let started = Instant::now();
-    let total = command
-        .timeout_ms
-        .map(|ms| started + Duration::from_millis(u64::from(ms)));
     let failure_output = |failure: Failure| Output {
         status: failure.kind.exit_code(),
         stdout: Vec::new(),
@@ -44,10 +40,15 @@ pub(crate) fn run(command: &TerminalObserveCommand, locale: Locale) -> Output {
         Ok(signal) => signal,
         Err(_) => return failure_output(Failure::new(FailureKind::InternalFailure)),
     };
-    let mut relay = match relay::Relay::start() {
+    let mut relay = match relay::Relay::start(&|| signal.requested()) {
         Ok(relay) => relay,
-        Err(_) => return failure_output(Failure::new(FailureKind::InternalFailure)),
+        Err(error) => return failure_output(relay::failure(&error)),
     };
+    // The relay's start belongs to no budget; admission and the total start once it is ready.
+    let started = Instant::now();
+    let total = command
+        .timeout_ms
+        .map(|ms| started + Duration::from_millis(u64::from(ms)));
     let gate = Gate {
         cancelled: &|| signal.requested(),
         wake: signal.poll_fd(),
@@ -275,13 +276,9 @@ fn emit(
 ) -> Result<(), Failure> {
     let bytes = output::encode_record(&envelope(record))
         .map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;
-    relay.record(&bytes, deadline, cancelled).map_err(|error| {
-        Failure::new(match error.kind() {
-            std::io::ErrorKind::Interrupted => FailureKind::Cancelled,
-            std::io::ErrorKind::TimedOut => FailureKind::Timeout,
-            _ => FailureKind::InternalFailure,
-        })
-    })
+    relay
+        .record(&bytes, deadline, cancelled)
+        .map_err(|error| relay::failure(&error))
 }
 
 /// One stream record in the shared envelope: its `kind` and the attachment `source` sit beside

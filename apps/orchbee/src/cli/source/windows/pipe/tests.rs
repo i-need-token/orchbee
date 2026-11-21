@@ -19,7 +19,7 @@ fn input(payload: Vec<u8>, paste: bool) -> Result<Vec<u8>, SourceFailure> {
     let result = acquire(
         File::from(OwnedHandle::from(reader)),
         limit_for(paste),
-        Instant::now() + Duration::from_secs(5),
+        &mut (Instant::now() + Duration::from_secs(5)),
         &mut Signals(usize::MAX),
     );
     let _ = producer.join().expect("producer");
@@ -60,11 +60,11 @@ fn real_windows_pipe_enforces_byte_and_paste_boundaries() {
 #[test]
 fn stalled_pipe_times_out_and_releases_the_inherited_reader() {
     let (reader, mut writer) = io::pipe().expect("pipe");
-    let started = Instant::now();
+    let mut deadline = Instant::now() + Duration::from_millis(200);
     let result = acquire(
         File::from(OwnedHandle::from(reader)),
         limit_for(false),
-        started + Duration::from_millis(200),
+        &mut deadline,
         &mut Signals(usize::MAX),
     );
     assert!(matches!(
@@ -73,7 +73,7 @@ fn stalled_pipe_times_out_and_releases_the_inherited_reader() {
             source: InputSource::Stdin
         })
     ));
-    assert!(started.elapsed() < Duration::from_secs(5));
+    assert!(deadline.elapsed() < Duration::from_secs(5));
     assert!(writer.write_all(b"after timeout").is_err(), "reader leaked");
 }
 
@@ -83,7 +83,7 @@ fn stalled_pipe_cancellation_reaps_the_reader() {
     let result = acquire(
         File::from(OwnedHandle::from(reader)),
         limit_for(false),
-        Instant::now() + Duration::from_secs(5),
+        &mut (Instant::now() + Duration::from_secs(5)),
         &mut Signals(8),
     );
     assert!(matches!(

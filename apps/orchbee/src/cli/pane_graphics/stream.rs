@@ -9,7 +9,7 @@ use crate::{
     cli::{
         console_interrupt::SignalWatch,
         stdin_bytes::{Poll, Reader},
-        terminal_stream::relay::Relay,
+        terminal_stream::relay::{self, Relay},
     },
     invocation::pane_graphics::LayerSpec,
     localization::Locale,
@@ -31,13 +31,16 @@ pub(super) fn run(
     if io::stdin().is_terminal() {
         return Err(Failure::new(FailureKind::InvalidUsage));
     }
+    // Both helpers are ready before the deadline and the admission budget start.
+    let mut input =
+        Reader::start(&|| signals.requested()).map_err(|error| relay::failure(&error))?;
+    let mut relay =
+        Relay::start(&|| signals.requested()).map_err(|error| relay::failure(&error))?;
     let deadline = command
         .timeout_ms
         .map(|ms| Instant::now() + Duration::from_millis(u64::from(ms)));
     let admission = deadline.unwrap_or_else(|| Instant::now() + Duration::from_secs(5));
     signals.check_before(admission)?;
-    let mut input = Reader::start().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    let mut relay = Relay::start().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let (mut client, snapshot) = query::stream_snapshot(admission, signals.poll_fd())?;
     let target = resolve(command, &snapshot)?;
     let stream_id = query::request_id()?;
@@ -313,11 +316,5 @@ fn emit(
         .record(&bytes, Instant::now() + Duration::from_secs(3), &|| {
             signals.requested()
         })
-        .map_err(|error| {
-            Failure::new(match error.kind() {
-                io::ErrorKind::Interrupted => FailureKind::Cancelled,
-                io::ErrorKind::TimedOut => FailureKind::Timeout,
-                _ => FailureKind::InternalFailure,
-            })
-        })
+        .map_err(|error| relay::failure(&error))
 }

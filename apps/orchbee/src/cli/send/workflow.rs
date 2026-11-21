@@ -37,7 +37,8 @@ struct SendAnswer {
 
 /// The whole send invocation — cohort, discovery, admission, snapshot,
 /// source materialization, and the send exchange — shares this one
-/// absolute ceiling, sampled once at command entry.
+/// absolute ceiling, sampled once at command entry. A Windows stdin pipe
+/// helper's start moves it later by the start's length.
 const SEND_BUDGET: Duration = Duration::from_secs(5);
 
 /// How the command fails. `Failure` keeps the existing
@@ -158,7 +159,7 @@ fn input_source(input: &TerminalSendInput) -> source::InputSource {
 /// command samples at entry. The session is fully dropped before the
 /// typed answer is mapped.
 fn execute(target: SendTarget<'_>, input: &TerminalSendInput) -> Result<SendAnswer, SendError> {
-    let deadline = Instant::now()
+    let mut deadline = Instant::now()
         .checked_add(SEND_BUDGET)
         .ok_or_else(|| SendError::Failure(Failure::new(FailureKind::InternalFailure)))?;
     // Grammar and target syntax were validated before this command ran;
@@ -170,7 +171,7 @@ fn execute(target: SendTarget<'_>, input: &TerminalSendInput) -> Result<SendAnsw
                 .map_err(SendError::Failure)?;
             let mut armed = ArmedSignals::arm()
                 .map_err(|_| SendError::Failure(Failure::new(FailureKind::InternalFailure)))?;
-            match source::materialize(input, deadline, &mut armed) {
+            match source::materialize(input, &mut deadline, &mut armed) {
                 // A captured signal was already consumed mid-read: the
                 // first-read signo selects cancellation and the held
                 // mask travels with the output as the owed finalization.

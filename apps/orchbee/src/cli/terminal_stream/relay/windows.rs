@@ -1,16 +1,17 @@
 //! Windows stdout helper ownership and native pipes; payload remains literal pipe data.
 use super::NativeRelay;
+use crate::cli::powershell_helper;
 use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader};
 use std::{
     io::{self, IsTerminal, Read, Write},
     os::windows::process::CommandExt,
-    path::PathBuf,
-    process::{Child, Command, Stdio},
+    process::{Child, Stdio},
 };
 const SCRIPT: &str = r#"$ErrorActionPreference='Stop'; try {
 $i=[Console]::OpenStandardInput(); $o=[Console]::OpenStandardOutput(); $a=[Console]::OpenStandardError()
 $console=-not [Console]::IsOutputRedirected; $utf8=[Text.UTF8Encoding]::new($false,$true)
 if ($console) { [Console]::OutputEncoding=[Text.Encoding]::Unicode }
+$a.WriteByte(2); $a.Flush()
 $header=[byte[]]::new(4)
 while ($true) {
   $pos=0
@@ -31,19 +32,10 @@ struct Relay {
 }
 impl Relay {
     fn spawn(output: Stdio, console: bool) -> io::Result<Self> {
-        let executable = PathBuf::from(winsafe::GetSystemDirectory().map_err(io::Error::other)?)
-            .join("WindowsPowerShell/v1.0/powershell.exe");
         let (input, child_input) = ChildInputWriter::pipe()?;
         let (ack, child_ack) = ChildOutputReader::pipe()?;
-        let mut command = Command::new(executable);
+        let mut command = powershell_helper::command(SCRIPT)?;
         command
-            .args([
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                SCRIPT,
-            ])
             .stdin(child_input)
             .stdout(output)
             .stderr(child_ack)
@@ -65,6 +57,10 @@ pub(super) fn with_output(output: Stdio) -> io::Result<Box<dyn NativeRelay>> {
     Relay::spawn(output, false).map(|native| Box::new(native) as Box<dyn NativeRelay>)
 }
 impl NativeRelay for Relay {
+    // The readiness report precedes every acknowledgement on the same stream.
+    fn ready(&mut self, cancelled: &dyn Fn() -> bool) -> io::Result<()> {
+        powershell_helper::await_ready(&mut self.ack, cancelled)
+    }
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         self.input.write(bytes)
     }

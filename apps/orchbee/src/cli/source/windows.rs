@@ -64,15 +64,16 @@ impl SignalWatch for ArmedSignals {
     }
 }
 
-/// Acquire a document through the same cancellable raw-byte boundary as terminal input.
+/// Acquire a document through the same cancellable raw-byte boundary as terminal input. A pipe
+/// helper's start moves `deadline` later by its length.
 pub(in crate::cli) fn acquire_document(
     path: Option<&str>,
     limit: usize,
-    deadline: Instant,
+    deadline: &mut Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
     match path {
-        Some(path) => acquire_file_limit(path, limit, deadline, signals),
+        Some(path) => acquire_file_limit(path, limit, *deadline, signals),
         None => acquire_stdin_limit(limit, deadline, signals),
     }
 }
@@ -107,14 +108,14 @@ fn acquire_file_limit(
 }
 pub(super) fn acquire_stdin(
     paste: bool,
-    deadline: Instant,
+    deadline: &mut Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
     acquire_stdin_limit(limit_for(paste), deadline, signals)
 }
 fn acquire_stdin_limit(
     limit: usize,
-    deadline: Instant,
+    deadline: &mut Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
     let stdin = io::stdin();
@@ -131,7 +132,7 @@ fn acquire_stdin_limit(
     if kind.is_pipe() {
         return pipe::acquire(file, limit, deadline, signals);
     }
-    read_regular(file, InputSource::Stdin, None, limit, deadline, signals)
+    read_regular(file, InputSource::Stdin, None, limit, *deadline, signals)
 }
 fn read_regular(
     mut file: File,

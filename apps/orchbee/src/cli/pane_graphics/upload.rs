@@ -9,9 +9,10 @@ use orchbee_workbench_protocol::{
     MAXIMUM_GRAPHICS_SET_BYTES, PaneGraphicsFormat, PaneGraphicsFrame, PaneGraphicsPlacement,
 };
 use std::time::Instant;
+/// A Windows stdin pipe helper's start moves `deadline` later by its length.
 pub(super) fn acquire(
     input: &Input,
-    deadline: Instant,
+    deadline: &mut Instant,
     signals: &mut Signals,
 ) -> Result<SetSpec, Failure> {
     let path = match input {

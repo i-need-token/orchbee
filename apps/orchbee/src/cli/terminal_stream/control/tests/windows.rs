@@ -64,6 +64,26 @@ fn control_orders_chunks_resize_receipts_and_exact_cleanup_without_replay() -> T
         let viewer = ViewerId::parse(&route.attachment_id.to_text())?;
         let expected_viewer = viewer.clone();
         let (mut output, child_output) = ChildOutputReader::pipe()?;
+        // As in the command, both helpers are ready before the Session connection and every
+        // budget.
+        let relay_started = Instant::now();
+        let mut relay = TimedRelay {
+            relay: relay::Relay::with_output(child_output)?,
+            started,
+        };
+        eprintln!(
+            "control client relay-ready elapsed={:?} start={:?}",
+            started.elapsed(),
+            relay_started.elapsed()
+        );
+        let (mut writer, child_input) = ChildInputWriter::pipe()?;
+        let reader_started = Instant::now();
+        let mut reader = input::Reader::with_input(child_input)?;
+        eprintln!(
+            "control client reader-ready elapsed={:?} start={:?}",
+            started.elapsed(),
+            reader_started.elapsed()
+        );
         let server = FakeServer::start(move |mut stream| {
             let mut stage = "handshake";
             let mut stage_started = Instant::now();
@@ -291,24 +311,6 @@ fn control_orders_chunks_resize_receipts_and_exact_cleanup_without_replay() -> T
             wake: None,
             total: Some(Instant::now() + STEP),
         };
-        let relay_started = Instant::now();
-        let mut relay = TimedRelay {
-            relay: relay::Relay::with_output(child_output)?,
-            started,
-        };
-        eprintln!(
-            "control client relay-spawned elapsed={:?} spawn={:?}",
-            started.elapsed(),
-            relay_started.elapsed()
-        );
-        let (mut writer, child_input) = ChildInputWriter::pipe()?;
-        let reader_started = Instant::now();
-        let mut reader = input::Reader::with_input(child_input)?;
-        eprintln!(
-            "control client reader-spawned elapsed={:?} spawn={:?}",
-            started.elapsed(),
-            reader_started.elapsed()
-        );
         let mut ndjson =
             b"{\"type\":\"terminal.input\",\"text\":\"must-not-send\",\"extra\":1}\n".to_vec();
         ndjson.extend(serde_json::to_vec(

@@ -71,7 +71,8 @@ A split primary follows its source primary's cwd or inherited directory; childre
 primary or the same inherited directory. An unbound primary never borrows a child's runtime.
 Explicit cwd wins. Every intended member must reach Started before readiness and old-Tab Close.
 
-One workflow retains every request and known effect within one total deadline. A binding receipt
+One workflow retains every request and known effect within one total deadline; only a Windows stdin
+pipe reader's start moves that deadline, and its recovery reserve, later by the start's length. A binding receipt
 permits only that exact unbound-to-bound change in the owned tree, plus the launch failure the
 Server records on that binding in its next revision when the launch fails; that member reports
 `launch-failed`, and recovery still closes the owned Tab. No concurrent topology or label edit is

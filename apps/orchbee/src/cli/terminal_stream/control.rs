@@ -29,7 +29,6 @@ pub(crate) fn run(command: &TerminalControlCommand, locale: Locale) -> Output {
     {
         return crate::cli::failure_output(failure, None, locale);
     }
-    let started = Instant::now();
     let output = |failure: Option<Failure>| Output {
         status: failure.as_ref().map_or(0, |f| f.kind.exit_code()),
         stdout: Vec::new(),
@@ -42,10 +41,14 @@ pub(crate) fn run(command: &TerminalControlCommand, locale: Locale) -> Output {
         Ok(s) => s,
         Err(_) => return output(Some(Failure::new(FailureKind::InternalFailure))),
     };
-    let mut relay = match relay::Relay::start() {
+    let mut relay = match relay::Relay::start(&|| signal.requested()) {
         Ok(r) => r,
-        Err(_) => return output(Some(Failure::new(FailureKind::InternalFailure))),
+        Err(error) => return output(Some(relay::failure(&error))),
     };
+    // Neither helper's start belongs to a budget; admission and the total start once both are
+    // ready. A failed input start still ends with the closed record.
+    let input = input::Reader::start(&|| signal.requested());
+    let started = Instant::now();
     let gate = Gate {
         cancelled: &|| signal.requested(),
         wake: signal.poll_fd(),
@@ -58,7 +61,18 @@ pub(crate) fn run(command: &TerminalControlCommand, locale: Locale) -> Output {
         client: None,
         viewer: None,
     };
-    let result = control(command, started + STEP, &gate, &mut connection, &mut relay);
+    let result = input
+        .map_err(|error| relay::failure(&error))
+        .and_then(|mut input| {
+            control(
+                command,
+                started + STEP,
+                &gate,
+                &mut connection,
+                &mut relay,
+                &mut input,
+            )
+        });
     let cleanup = connection.cleanup();
     let (reason, mut failure) = match result {
         Ok(reason) => (reason, None),
@@ -90,6 +104,7 @@ fn control(
     gate: &Gate<'_>,
     connection: &mut Connection,
     relay: &mut relay::Relay,
+    input: &mut input::Reader,
 ) -> Result<&'static str, Failure> {
     let deadline = admission.min(gate.step()?);
     let snapshot = query::stream_snapshot(deadline, gate.wake);
@@ -154,9 +169,7 @@ fn control(
     },"width":geometry.columns(),"height":geometry.rows()}),
         gate,
     )?;
-    let mut input =
-        input::Reader::start().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    controller.drive(&mut input)
+    controller.drive(input)
 }
 
 pub(super) struct Controller<'a, 'g> {

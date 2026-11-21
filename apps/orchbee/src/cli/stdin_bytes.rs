@@ -13,6 +13,10 @@ pub(in crate::cli) enum Poll {
     Eof,
 }
 trait NativeReader {
+    /// Waits until the reader can deliver bytes; a reader that polls in place can at once.
+    fn ready(&mut self, _cancelled: &dyn Fn() -> bool) -> io::Result<()> {
+        Ok(())
+    }
     fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize>;
     fn try_wait(&mut self) -> io::Result<Option<ExitStatus>>;
 }
@@ -21,13 +25,21 @@ pub(in crate::cli) struct Reader {
     eof: bool,
 }
 impl Reader {
-    /// Reads the invocation's inherited stdin; the caller's descriptor flags never change.
-    pub(in crate::cli) fn start() -> io::Result<Self> {
-        platform::start().map(|native| Self { native, eof: false })
+    /// Reads the invocation's inherited stdin; the caller's descriptor flags never change. Returns
+    /// once the reader can deliver bytes; its start belongs to no read's budget.
+    pub(in crate::cli) fn start(cancelled: &dyn Fn() -> bool) -> io::Result<Self> {
+        Self::once_ready(platform::start()?, cancelled)
     }
     #[cfg(all(test, windows))]
     pub(in crate::cli) fn with_input(input: std::process::Stdio) -> io::Result<Self> {
-        platform::with_input(input).map(|native| Self { native, eof: false })
+        Self::once_ready(platform::with_input(input)?, &|| false)
+    }
+    fn once_ready(
+        mut native: Box<dyn NativeReader>,
+        cancelled: &dyn Fn() -> bool,
+    ) -> io::Result<Self> {
+        native.ready(cancelled)?;
+        Ok(Self { native, eof: false })
     }
     pub(in crate::cli) fn poll(&mut self, buffer: &mut [u8]) -> io::Result<Poll> {
         if buffer.is_empty() {

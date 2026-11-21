@@ -67,6 +67,17 @@ fn history_demands_exact_windows_flush_before_ack_and_restore_before_live() -> T
     let started = Instant::now();
     let window = decode_terminal_render_row_window(&rows())?.route();
     let (mut output, child_output) = ChildOutputReader::pipe()?;
+    // As in the command, the relay is ready before the Session connection and every budget.
+    let relay_started = Instant::now();
+    let mut relay = TimedRelay {
+        relay: relay::Relay::with_output(child_output)?,
+        started,
+    };
+    eprintln!(
+        "history client relay-ready elapsed={:?} start={:?}",
+        started.elapsed(),
+        relay_started.elapsed()
+    );
     let epoch = window.host_epoch;
     let server = FakeServer::start(move |mut stream| {
         let mut stage = "handshake";
@@ -207,16 +218,6 @@ fn history_demands_exact_windows_flush_before_ack_and_restore_before_live() -> T
         wake: None,
         total: Some(Instant::now() + STEP),
     };
-    let relay_started = Instant::now();
-    let mut relay = TimedRelay {
-        relay: relay::Relay::with_output(child_output)?,
-        started,
-    };
-    eprintln!(
-        "history client relay-spawned elapsed={:?} spawn={:?}",
-        started.elapsed(),
-        relay_started.elapsed()
-    );
     let mut frame = decode_terminal_text_frame(SNAPSHOT)?;
     frame.route.attachment_id = window.attachment_id;
     frame.route.host_epoch = window.host_epoch;

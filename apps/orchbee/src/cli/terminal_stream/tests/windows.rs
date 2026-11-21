@@ -32,6 +32,14 @@ fn observe_repeated_frames_flush_before_ack_reset_and_detach_once() -> TestResul
     let route = inspect_terminal_frame_route(SNAPSHOT)?;
     let viewer = ViewerId::parse(&route.attachment_id.to_text())?;
     let (mut output, child_output) = ChildOutputReader::pipe()?;
+    // As in the command, the relay is ready before the Session connection and every budget.
+    let relay_started = Instant::now();
+    let mut relay = relay::Relay::with_output(child_output)?;
+    eprintln!(
+        "observe client relay-ready elapsed={:?} start={:?}",
+        started.elapsed(),
+        relay_started.elapsed()
+    );
     let server = FakeServer::start(move |mut stream| {
         let mut stage = "handshake";
         let mut stage_started = Instant::now();
@@ -152,13 +160,6 @@ fn observe_repeated_frames_flush_before_ack_reset_and_detach_once() -> TestResul
         wake: None,
         total: Some(Instant::now() + CLIENT_BUDGET),
     };
-    let relay_started = Instant::now();
-    let mut relay = relay::Relay::with_output(child_output)?;
-    eprintln!(
-        "observe client relay-spawned elapsed={:?} spawn={:?}",
-        started.elapsed(),
-        relay_started.elapsed()
-    );
     let client_result = observe_frames(
         connection.client.as_mut().unwrap(),
         &viewer,

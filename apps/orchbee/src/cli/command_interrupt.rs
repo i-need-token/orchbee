@@ -53,11 +53,12 @@ impl ArmedSignals {
 }
 
 /// Reads one complete `--file` path or noninteractive stdin document of at most `limit` bytes
-/// under this signal watch, as `terminal send` reads its declared source.
+/// under this signal watch, as `terminal send` reads its declared source. A Windows stdin pipe
+/// helper's start moves `deadline` later by its length.
 pub(super) fn acquire_document(
     path: Option<&str>,
     limit: usize,
-    deadline: Instant,
+    deadline: &mut Instant,
     signals: &mut ArmedSignals,
 ) -> Result<Vec<u8>, SourceFailure> {
     super::source::acquire_document(path, limit, deadline, signals)

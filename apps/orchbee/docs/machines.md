@@ -413,7 +413,8 @@ selection determine the destination. The routed command runs with the private
 not start one there. Output bytes, diagnostics and exit status
 are returned in a bounded reply, never reconstructed from SSH diagnostics.
 
-Local input has a 60-second bound, and reaching `online` 90 seconds: a hub start, then the hub's
+Local input has a 60-second bound, which a Windows stdin pipe reader's start moves later by its
+own length, and reaching `online` 90 seconds: a hub start, then the hub's
 own 60-second attempt. Execution honors the command's own deadline, including explicit forever
 waits: the route has no deadline of its own, and the hub's expiry never ends a route in flight
 ([lifetime](#lifetime)). Only an interrupt, a lost link, or a hub stopped or replaced on purpose,

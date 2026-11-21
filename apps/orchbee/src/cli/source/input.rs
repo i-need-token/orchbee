@@ -15,15 +15,16 @@ use std::{borrow::Cow, time::Instant};
 /// bytes are verbatim: UTF-8 validity is never required and NUL bytes pass
 /// through; `--enter` on `Bytes` folds one CR into the record's bound,
 /// while on `Paste` it stays a separate flag the executor turns into a
-/// trailing Enter record.
+/// trailing Enter record. A Windows stdin pipe helper's start moves `deadline` later by its
+/// length.
 pub(crate) fn materialize<'a>(
     input: &'a TerminalSendInput,
-    deadline: Instant,
+    deadline: &mut Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Cow<'a, TerminalSendInput>, SourceFailure> {
     let (mut bytes, enter, paste, option, value) = match input {
         TerminalSendInput::File { path, enter, paste } => (
-            acquire_file(path, *paste, deadline, signals)?,
+            acquire_file(path, *paste, *deadline, signals)?,
             *enter,
             *paste,
             "--file",

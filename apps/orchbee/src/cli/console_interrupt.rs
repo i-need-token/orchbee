@@ -60,7 +60,7 @@ pub(super) enum Finish {
 pub(super) fn acquire_document(
     path: Option<&str>,
     limit: usize,
-    deadline: Instant,
+    deadline: &mut Instant,
     signals: &mut ArmedSignals,
 ) -> Result<Vec<u8>, SourceFailure> {
     platform::acquire_document(path, limit, deadline, signals)

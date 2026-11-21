@@ -42,6 +42,12 @@ No payload is interpolated into a command. Child stdin uses a synchronous pipe h
 switching an overlapped IPC handle to blocking mode is insufficient for standard child readers. On stalled output or any exit, the owner stops and joins
 the child. This cannot retract bytes already delivered to the downstream reader.
 
+Each helper child reports ready once its standard streams are open. Admission, the `--timeout`
+bound and every exchange and flush ceiling start only after every helper of the invocation has
+reported ready, so a slow PowerShell start on a loaded machine never consumes them. A helper start
+has its own 20-second allowance and ends at Ctrl+C; a helper that never reports ready ends the
+invocation as a timeout.
+
 macOS writes each record to the inherited stdout in place, behind a zero-timeout `POLLOUT` and in
 writes of at most `PIPE_BUF` bytes, and reads control commands from the inherited stdin the same
 way; no helper process runs. Ctrl+C or `SIGTERM` reaches the stream through the CLI interrupt-pair
@@ -57,7 +63,9 @@ A failed admission or resize still releases the owned Viewer; it never retargets
 
 Stdin is UTF-8 NDJSON governed by `orchbee.terminal.control.input`. A separate invocation-owned
 hidden PowerShell byte reader uses a fixed script, nonblocking parent pipe and bounded buffer.
-The owner kills and waits for both reader and output relay on every exit. Blank lines are ignored;
+It starts after the output relay and before admission. A reader that fails to start still ends
+the stream with its terminal record. The owner kills and waits for both reader and output relay
+on every exit. Blank lines are ignored;
 a first-line BOM, CRLF and a final unterminated line are accepted. One line is limited to 2 MiB;
 a framing overflow terminates the invocation. Other invalid records emit a typed rejection and
 allow the next record. Unknown/duplicate fields reject before any command effect.

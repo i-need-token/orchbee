@@ -4,7 +4,7 @@
 
 use super::{InputSource, SignalWatch, SourceFailure, usage};
 use crate::{
-    cli::{Failure, FailureKind},
+    cli::{Failure, FailureKind, powershell_helper},
     invocation::SendSourceCause,
 };
 use orchbee_local_ipc::ChildOutputReader;
@@ -12,8 +12,7 @@ use std::{
     fs::File,
     io::{self, Read},
     os::windows::process::CommandExt,
-    path::PathBuf,
-    process::{Child, Command, Stdio},
+    process::{Child, Stdio},
     thread,
     time::{Duration, Instant},
 };
@@ -21,6 +20,7 @@ use std::{
 const CADENCE: Duration = Duration::from_millis(2);
 const READER: &str = r#"$ErrorActionPreference='Stop'; try {
     $inputStream=[Console]::OpenStandardInput(); $outputStream=[Console]::OpenStandardOutput()
+    $statusStream=[Console]::OpenStandardError(); $statusStream.WriteByte(2); $statusStream.Flush()
     $buffer=New-Object byte[] 8192; $remaining=__LIMIT__
     while ($remaining -gt 0) {
         $count=$inputStream.Read($buffer,0,[Math]::Min($buffer.Length,$remaining))
@@ -45,7 +45,7 @@ fn unreadable() -> SourceFailure {
     usage("--stdin", None, SendSourceCause::Unreadable)
 }
 
-fn check(deadline: Instant, signals: &mut dyn SignalWatch) -> Result<(), SourceFailure> {
+fn interrupted(signals: &mut dyn SignalWatch) -> Result<(), SourceFailure> {
     if let Some(signal) = signals
         .take()
         .map_err(|_| SourceFailure::Standard(Failure::new(FailureKind::InternalFailure)))?
@@ -55,6 +55,11 @@ fn check(deadline: Instant, signals: &mut dyn SignalWatch) -> Result<(), SourceF
             signal,
         });
     }
+    Ok(())
+}
+
+fn check(deadline: Instant, signals: &mut dyn SignalWatch) -> Result<(), SourceFailure> {
+    interrupted(signals)?;
     if Instant::now() >= deadline {
         return Err(SourceFailure::Timeout {
             source: InputSource::Stdin,
@@ -63,30 +68,45 @@ fn check(deadline: Instant, signals: &mut dyn SignalWatch) -> Result<(), SourceF
     Ok(())
 }
 
+/// Reads the inherited pipe through the helper. The helper's start belongs to no budget, so
+/// `deadline` moves later by as long as the start took, for this read and every later step.
 pub(super) fn acquire(
     file: File,
     limit: usize,
-    deadline: Instant,
+    deadline: &mut Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
-    check(deadline, signals)?;
-    let system = winsafe::GetSystemDirectory().map_err(|_| unreadable())?;
-    let executable = PathBuf::from(system).join("WindowsPowerShell/v1.0/powershell.exe");
+    check(*deadline, signals)?;
     let (mut output, writer) = ChildOutputReader::pipe().map_err(|_| unreadable())?;
-    check(deadline, signals)?;
-    let mut command = Command::new(executable);
+    let (mut status, child_status) = ChildOutputReader::pipe().map_err(|_| unreadable())?;
+    check(*deadline, signals)?;
+    let mut command =
+        powershell_helper::command(&READER.replace("__LIMIT__", &(limit + 1).to_string()))
+            .map_err(|_| unreadable())?;
     command
-        .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command"])
-        .arg(READER.replace("__LIMIT__", &(limit + 1).to_string()))
         .stdin(Stdio::from(file))
         .stdout(writer)
-        .stderr(Stdio::null())
+        .stderr(child_status)
         .creation_flags(0x0800_0000);
+    let spawned = Instant::now();
     let mut child = ReaderChild(command.spawn().map_err(|_| unreadable())?);
-    // Command can retain stdio handles after spawn; retire the parent writer
+    // Command can retain stdio handles after spawn; retire the parent writers
     // now so EOF reflects the child's lifetime, not this builder's lifetime.
     drop(command);
-    collect(&mut output, &mut child, limit, deadline, signals)
+    while !powershell_helper::poll_ready(&mut status, spawned).map_err(|error| {
+        if error.kind() == io::ErrorKind::TimedOut {
+            SourceFailure::Timeout {
+                source: InputSource::Stdin,
+            }
+        } else {
+            unreadable()
+        }
+    })? {
+        interrupted(signals)?;
+        thread::sleep(CADENCE);
+    }
+    *deadline += spawned.elapsed();
+    collect(&mut output, &mut child, limit, *deadline, signals)
 }
 
 fn collect(
