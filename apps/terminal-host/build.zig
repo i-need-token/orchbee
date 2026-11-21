@@ -951,24 +951,61 @@ pub fn build(builder: *std.Build) void {
         black_box_transport_module.addImport("terminal-host-platform", platform_module);
         black_box_transport_module.addImport("terminal-protocol", protocol_module);
         black_box_transport_module.addIncludePath(builder.path("src/transport"));
+        const handover_move_support_module = builder.createModule(.{
+            .root_source_file = builder.path("src/service/__tests__/handover_move_support.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        handover_move_support_module.addImport("terminal-protocol", protocol_module);
+        handover_move_support_module.addImport("terminal-host-control", control_module);
+        handover_move_support_module.addImport("terminal-host-core", core_module);
+        handover_move_support_module.addImport("terminal-host-engine", engine_module);
+        handover_move_support_module.addImport("terminal-host-model", model_module);
+        handover_move_support_module.addImport("terminal-host-platform", platform_module);
+        handover_move_support_module.addImport("terminal-host-service", service_module);
+        handover_move_support_module.addImport("terminal-host-keeper-protocol", keeper_protocol_module);
+        handover_move_support_module.addImport("terminal-host-handshake", handshake_module);
+        handover_move_support_module.addImport("keeper-support", keeper_support_module);
+        handover_move_support_module.addImport("black-box-transport", black_box_transport_module);
+        handover_move_support_module.addImport("build-options", build_options_module);
+        handover_move_support_module.addImport("ghostty-vt", ghostty_vt_module);
+        // The black-box moves run real probe programs, which report their state in the window title.
+        const handover_probe_module = builder.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        handover_probe_module.addCSourceFile(.{
+            .file = builder.path("src/service/__tests__/handover_probe_windows.c"),
+            .flags = authored_c_flags,
+        });
+        const handover_probe = builder.addExecutable(.{
+            .name = "terminal-host-handover-probe",
+            .root_module = handover_probe_module,
+        });
+        const handover_black_box_options = builder.addOptions();
+        handover_black_box_options.addOption([]const u8, "build_root", builder.pathFromRoot("."));
+        handover_black_box_options.addOptionPath("probe", handover_probe.getEmittedBin());
+        // The pause measurement fills 100 MB of history, so only a run that asks for it measures.
+        const measure_handover_pause = builder.option(
+            bool,
+            "handover-pause",
+            "Also measure the pause of moves during a flood and at up to 100 MB of history (ReleaseSafe)",
+        ) orelse false;
+        handover_black_box_options.addOption(bool, "measure_pause", measure_handover_pause);
+        // A Debug Host runs Ghostty's integrity checks on every page, so it neither measures the pause
+        // that ships nor fills 100 MB of history inside the test's bounds.
+        const handover_pause_in_debug: ?*std.Build.Step = if (measure_handover_pause and optimize == .Debug)
+            &builder.addFail("-Dhandover-pause measures the build mode that ships: add -Doptimize=ReleaseSafe").step
+        else
+            null;
         const handover_test_module = builder.createModule(.{
             .root_source_file = builder.path("src/service/__tests__/handover_move_test.zig"),
             .target = target,
             .optimize = optimize,
         });
-        handover_test_module.addImport("terminal-protocol", protocol_module);
-        handover_test_module.addImport("terminal-host-control", control_module);
-        handover_test_module.addImport("terminal-host-core", core_module);
-        handover_test_module.addImport("terminal-host-engine", engine_module);
-        handover_test_module.addImport("terminal-host-model", model_module);
-        handover_test_module.addImport("terminal-host-platform", platform_module);
-        handover_test_module.addImport("terminal-host-service", service_module);
-        handover_test_module.addImport("terminal-host-keeper-protocol", keeper_protocol_module);
-        handover_test_module.addImport("terminal-host-handshake", handshake_module);
-        handover_test_module.addImport("keeper-support", keeper_support_module);
-        handover_test_module.addImport("black-box-transport", black_box_transport_module);
-        handover_test_module.addImport("build-options", build_options_module);
-        handover_test_module.addImport("ghostty-vt", ghostty_vt_module);
+        handover_test_module.addImport("handover-move-support", handover_move_support_module);
+        handover_test_module.addOptions("handover_black_box_options", handover_black_box_options);
         handover_test_module.addIncludePath(builder.path("src/transport"));
         handover_test_module.addCSourceFile(.{
             .file = builder.path("src/transport/local_ipc_windows.c"),
@@ -980,6 +1017,7 @@ pub fn build(builder: *std.Build) void {
             .root_module = handover_test_module,
         });
         handover_tests.root_module.link_libc = true;
+        if (handover_pause_in_debug) |refusal| handover_tests.step.dependOn(refusal);
         test_compile_step.dependOn(&handover_tests.step);
         const run_handover_tests = builder.addSystemCommand(&.{
             "node",
@@ -991,10 +1029,46 @@ pub fn build(builder: *std.Build) void {
         run_handover_tests.addArtifactArg(executable);
         const handover_test_step = builder.step(
             "test-handover",
-            "Run the moves between two Host processes through a real Keeper",
+            "Run the moves between two Host processes through a real Keeper, the black-box moves included",
         );
         handover_test_step.dependOn(&run_handover_tests.step);
         test_step.dependOn(&run_handover_tests.step);
+
+        // The black-box moves alone, for a focused run and for measuring the pause; the package test
+        // runs them in the move witnesses' executable instead, so it compiles the Host's test graph
+        // once for both.
+        const handover_black_box_module = builder.createModule(.{
+            .root_source_file = builder.path("src/service/__tests__/handover_black_box_test.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        handover_black_box_module.addImport("handover-move-support", handover_move_support_module);
+        handover_black_box_module.addOptions("handover_black_box_options", handover_black_box_options);
+        handover_black_box_module.addIncludePath(builder.path("src/transport"));
+        handover_black_box_module.addCSourceFile(.{
+            .file = builder.path("src/transport/local_ipc_windows.c"),
+            .flags = authored_c_flags,
+        });
+        handover_black_box_module.linkSystemLibrary("advapi32", .{});
+        const handover_black_box_tests = builder.addTest(.{
+            .name = "terminal-host-handover-black-box-tests",
+            .root_module = handover_black_box_module,
+        });
+        handover_black_box_tests.root_module.link_libc = true;
+        if (handover_pause_in_debug) |refusal| handover_black_box_tests.step.dependOn(refusal);
+        const run_handover_black_box_tests = builder.addSystemCommand(&.{
+            "node",
+            builder.pathFromRoot("scripts/run-keeper-link-test.mjs"),
+            "--test-executable",
+        });
+        run_handover_black_box_tests.addArtifactArg(handover_black_box_tests);
+        run_handover_black_box_tests.addArg("--host-executable");
+        run_handover_black_box_tests.addArtifactArg(executable);
+        const handover_black_box_step = builder.step(
+            "test-handover-black-box",
+            "Run the moves between two Host processes of the built executable with real programs",
+        );
+        handover_black_box_step.dependOn(&run_handover_black_box_tests.step);
     }
     const focused_cli_tests = builder.addTest(.{
         .name = "terminal-host-cli-tests",

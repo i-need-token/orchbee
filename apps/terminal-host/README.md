@@ -530,6 +530,15 @@ with its input and proposed upstream fix.
 The real PTY reader drains the PTY and discards what it reads, so only the pass commits output and
 it stays seeded; committing real PTY reads, Worker IPC, and history requests are outside it.
 
+On Windows x64, `test` also moves terminals running real probe programs between two processes of
+the built Host; `test-handover-black-box` runs those moves alone. With `-Dhandover-pause=true`, in
+the release build mode, they also measure the pause of a move, from the quiesce request to the
+claim's answer, during a flood and at up to 100 MB of history:
+
+```sh
+(cd apps/terminal-host && zig build test-handover-black-box -Doptimize=ReleaseSafe -Dhandover-pause=true)
+```
+
 `format:check` also enforces the package boundary rule that every hand-written production Zig file
 under `src/` stays at or below 500 physical lines. Scenario catalogs under `__tests__/` and
 `*_test.zig` files are exempt.

@@ -92,6 +92,12 @@ the public root, depend on a reverse module edge, or call an untyped callback in
   `keeper_black_box_support.zig` holds the native client and Win32 calls, and
   `keeper_stand_in.zig` is the stand-in Host that copies of the test executable run; the built
   Keeper stays a separate child process observed only through its launcher ABI and Local IPC.
+- `src/service/__tests__/handover_black_box_test.zig` refines the moves between Hosts the same way:
+  both Hosts and the Keeper are processes of the built executable, observed only through Local IPC,
+  and its terminals run the adjacent probe programs of `handover_probe_windows.c`. It lives beside
+  the move witnesses, whose Host A runs in the test instead, because it shares their fixture, the
+  named test module `handover-move-support`, and runs in their executable, so the package test
+  compiles the Host's test graph once for both.
 - Production roots do not publish codec implementation namespaces for white-box tests. When a
   boundary needs such a seam, its root exposes it only under a `builtin.is_test`-guarded `testing`
   namespace.

@@ -695,7 +695,20 @@ pub fn testCreatePayloadWithConfiguration(
     arguments: []const []const u8,
     configuration: ?TerminalConfigurationWire,
 ) ![]u8 {
-    return createPayload(creation_id, executable, arguments, configuration, true);
+    return createPayload(creation_id, executable, arguments, configuration, .{ .columns = 80, .rows = 24 });
+}
+
+pub const TestGeometry = struct { columns: u16, rows: u16 };
+
+/// A creation of `geometry`, with 8 × 16 pixel cells.
+pub fn testCreatePayloadSized(
+    creation_id: []const u8,
+    executable: []const u8,
+    arguments: []const []const u8,
+    configuration: ?TerminalConfigurationWire,
+    geometry: TestGeometry,
+) ![]u8 {
+    return createPayload(creation_id, executable, arguments, configuration, geometry);
 }
 
 /// A creation without geometry, which leaves the terminal awaiting its `StartTerminal`.
@@ -704,7 +717,7 @@ pub fn testAwaitingCreatePayload(
     executable: []const u8,
     arguments: []const []const u8,
 ) ![]u8 {
-    return createPayload(creation_id, executable, arguments, null, false);
+    return createPayload(creation_id, executable, arguments, null, null);
 }
 
 pub fn testStartPayload(terminal_id: core_module.TerminalId) ![]u8 {
@@ -721,7 +734,7 @@ fn createPayload(
     executable: []const u8,
     arguments: []const []const u8,
     configuration: ?TerminalConfigurationWire,
-    with_geometry: bool,
+    geometry: ?TestGeometry,
 ) ![]u8 {
     const environment = [_]EnvironmentWire{};
     const features = [_]u16{22};
@@ -733,14 +746,14 @@ fn createPayload(
         .environmentOverlay = &.{},
         .launch = .{
             .arguments = arguments,
-            .cellPixelHeight = @as(?u16, if (with_geometry) 16 else null),
-            .cellPixelWidth = @as(?u16, if (with_geometry) 8 else null),
-            .columns = @as(?u16, if (with_geometry) 80 else null),
+            .cellPixelHeight = @as(?u16, if (geometry != null) 16 else null),
+            .cellPixelWidth = @as(?u16, if (geometry != null) 8 else null),
+            .columns = @as(?u16, if (geometry) |size| size.columns else null),
             .configuration = configuration,
             .currentDirectory = @as(?[]const u8, null),
             .environment = &environment,
             .executable = executable,
-            .rows = @as(?u16, if (with_geometry) 24 else null),
+            .rows = @as(?u16, if (geometry) |size| size.rows else null),
             .terminalProfile = .{
                 .colorScheme = "dark",
                 .defaultBackgroundRgb = 0,

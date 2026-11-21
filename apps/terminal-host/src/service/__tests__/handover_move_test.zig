@@ -7,7 +7,13 @@
 //! restored copy has its own identity on the new Host, named `copy` here.
 
 const std = @import("std");
-const support = @import("handover_move_support.zig");
+const support = @import("handover-move-support");
+
+// The black-box moves, whose Host A is a process too, run in this executable, so the package test
+// compiles the Host's test graph once for both.
+test {
+    _ = @import("handover_black_box_test.zig");
+}
 
 const Fixture = support.Fixture;
 const MessageKind = support.MessageKind;
@@ -211,9 +217,8 @@ test "a resume left unanswered keeps the terminal stopped until the Worker resum
 test "a quiesce held inside a sequence is refused as mid-sequence and the terminal reads on" {
     var f = try Fixture.create();
     defer f.destroy();
-    // A program silent for three seconds and then one line: a console renders its program's
-    // output, so a program's own partial sequence never reaches the reader, and the witness
-    // leaves Host A's parser inside one instead while no output comes.
+    // A program silent for three seconds and then one line, while the witness leaves Host A's
+    // parser inside a sequence; the black-box run refuses a program stopped inside its own.
     const command = try std.fmt.allocPrint(f.arena(), "{s} -n 4 127.0.0.1 >nul & echo reads-on", .{f.ping});
     const id = try f.createTerminalWith(.a, f.comspec, &.{ "/c", command });
     try f.idle(300);
@@ -345,16 +350,16 @@ test "a fatal end of either Host mid-move ends no program the other serves" {
     // Host B ends while it holds the restored copy: the old Host resumes through the Keeper.
     const first = try f.createTerminal(.a, long_running);
     _ = try f.restored(.a, .b, first, try f.quiesced(.a, first, .b, 30), 30);
-    f.killB();
+    f.killHost(.b);
     try std.testing.expect(f.running(first));
     try f.resumed(.a, first, "resumed");
     try f.awaitHandoverState(.a, first, null, 1000);
 
     // The next Host B ends while its terminal is quiesced: the restored copy claims it.
-    try f.startB();
+    try f.startHost(.b);
     const second = try f.createTerminal(.b, long_running);
     const second_on_a = try f.restored(.b, .a, second, try f.quiesced(.b, second, .a, 30), 30);
-    f.killB();
+    f.killHost(.b);
     try std.testing.expect(f.running(second));
     try expectKind(try f.claim(.a, second_on_a), MessageKind.claim_terminal);
     _ = try f.awaitHolding(second_on_a, f.identity(.a), 5000);
@@ -367,11 +372,11 @@ test "neither Host's exit ends a program the other serves" {
     // Host B exits holding a moved copy: its teardown drops it.
     const first = try f.createTerminal(.b, long_running);
     const first_on_a = try f.moveUntilDrop(.b, .a, first);
-    try std.testing.expectEqual(@as(u32, 0), try f.exitB());
+    try std.testing.expectEqual(@as(u32, 0), try f.exitHost(.b));
     try std.testing.expect(f.running(first_on_a));
 
     // Host A exits holding a restored copy and a moved one; its own terminal ends with it.
-    try f.startB();
+    try f.startHost(.b);
     const second = try f.createTerminal(.b, long_running);
     _ = try f.restored(.b, .a, second, try f.quiesced(.b, second, .a, 30), 30);
     const third = try f.createTerminal(.a, long_running);

@@ -1,7 +1,7 @@
 //! The reader's undoable stop through a real PTY. On Windows the engine suite runs this on system
-//! ConHost and the bundled ConPTY suite on the pinned bundle. A console renders a program's output
-//! before the reader sees it, so there a sequence is cut only where the console's writes and the
-//! reader's batches split it; a program stopping inside its own sequence is witnessed on POSIX.
+//! ConHost and the bundled ConPTY suite on the pinned bundle. A program stopping inside its own
+//! sequence is witnessed here on POSIX, and on the pinned bundle by the black-box moves between
+//! Host processes, where the console passes the partial sequence through to the reader.
 const harness = @import("runtime_harness.zig");
 const screen_text = @import("screen_text.zig");
 const std = harness.std;
@@ -214,7 +214,7 @@ test "reader pause during a flood parks within the quiesce bound and loses nothi
 }
 
 test "a pause while the program stops inside a sequence never parks, and withdrawing it loses nothing" {
-    // A console renders the program's output, so its partial sequence never reaches the reader.
+    // The program is a POSIX shell; `handover_black_box_test.zig` witnesses one on the pinned bundle.
     if (builtin.os.tag == .windows) return error.SkipZigTest;
     var output: RecordedOutput = .{};
     defer output.deinit();

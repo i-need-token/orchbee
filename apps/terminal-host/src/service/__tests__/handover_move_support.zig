@@ -1,8 +1,9 @@
-//! The fixture of the moves between two Hosts. Host A is a Host service in this process, as in the
-//! Keeper link witnesses, with real terminals on the pinned conpty that the runner stages beside
-//! this executable, so a witness can read its screens and feed its parser. Host B is the built Host
-//! executable that the runner stages beside it, and the Keeper is that executable's `keep`. The
-//! test is the Worker of the Keeper and of both Hosts, so it reads every answer and event of both.
+//! The fixture of the moves between two Hosts. Host B is the built Host executable that the runner
+//! stages beside this executable, with real terminals on the pinned conpty staged there, and the
+//! Keeper is that executable's `keep`. Host A is either a Host service in this process, as in the
+//! Keeper link witnesses, so a witness can read its screens and feed its parser, or, for the
+//! black-box run, a second process of the built Host. The test is the Worker of the Keeper and of
+//! both Hosts, so it reads every answer and event of both.
 
 const std = @import("std");
 const harness = @import("service_harness.zig");
@@ -45,7 +46,24 @@ pub fn report(comptime format: []const u8, arguments: anytype) void {
     std.debug.print("handover: " ++ format ++ "\n", arguments);
 }
 
-pub const Side = enum { a, b };
+pub const Side = enum {
+    a,
+    b,
+
+    pub fn other(self: Side) Side {
+        return if (self == .a) .b else .a;
+    }
+};
+
+/// Where Host A runs: a Host service in this process, or a process of the built Host.
+pub const HostKind = enum { service, process };
+
+/// A terminal's launch beyond its program: its size and its scrollback bound.
+pub const Launch = struct {
+    columns: u16 = 80,
+    rows: u16 = 24,
+    scrollback_bytes: ?usize = null,
+};
 
 pub const Record = struct {
     side: Side,
@@ -92,7 +110,8 @@ const Keeper = struct {
     worker: support.Session,
 };
 
-const HostB = struct {
+/// A Host that runs as a process of the built Host, reached as its Worker.
+const HostProcess = struct {
     child: std.process.Child,
     handle: HANDLE,
     identity: message.Process,
@@ -102,6 +121,12 @@ const HostB = struct {
     pending: std.ArrayList(u8) = .empty,
     /// False once the connection closed, as it does when the Host ends.
     open: bool = true,
+
+    fn close(self: *HostProcess) void {
+        if (!self.open) return;
+        self.open = false;
+        self.client.close();
+    }
 };
 
 pub const Fixture = struct {
@@ -117,47 +142,61 @@ pub const Fixture = struct {
     /// The system's `PING.EXE`, beside its command processor.
     ping: []u8,
     keeper: ?Keeper = null,
-    service: HostService,
+    a_kind: HostKind,
+    /// Host A while it runs in this process; never initialized when Host A is a process.
+    service: HostService = undefined,
     connection: ConnectionState = .awaiting_hello,
-    a_live: bool = true,
-    b: ?HostB = null,
+    /// Whether the Host service in this process still runs; false when Host A is a process.
+    a_live: bool,
+    /// The Hosts that run as processes, by side.
+    hosts: [2]?HostProcess = .{ null, null },
     records: std.ArrayList(Record) = .empty,
     terminals: std.ArrayList(Terminal) = .empty,
     /// A restored copy's identity, which names the processes of the terminal it was moved from.
     aliases: std.ArrayList(struct { id: TerminalId, of: TerminalId }) = .empty,
     next_correlation: usize = 0,
     next_creation: usize = 0,
+    /// Whether a wait polls without sleeping, so that a timed step is not rounded up to the
+    /// system timer's tick, about 16 ms on Windows.
+    spin: bool = false,
 
     pub fn create() !*Fixture {
-        const self = try allocate();
+        return createWith(.service);
+    }
+
+    pub fn createWith(a_kind: HostKind) !*Fixture {
+        const self = try allocate(a_kind);
         errdefer self.destroy();
-        self.service.admitSession(true, true);
-        try harness.testHandshake(&self.service, &self.connection, "4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d");
+        if (a_kind == .service) {
+            self.service.admitSession(true, true);
+            try harness.testHandshake(&self.service, &self.connection, "4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d");
+        }
         try self.startKeeper();
-        try self.attach(.a);
-        try self.startB();
-        try self.warmUp();
+        switch (a_kind) {
+            .service => try self.attach(.a),
+            .process => try self.startHost(.a),
+        }
+        try self.startHost(.b);
+        try self.warmUp(&.{ .a, .b });
         const baseline = try self.counts();
         report("handle baselines after warm-up: A {d}, B {d}, Keeper {d}", .{ baseline.a, baseline.b, baseline.keeper });
         return self;
     }
 
-    /// Runs and disposes one short terminal on each Host, so the handles a Host or the Keeper
-    /// opens once, on its first terminal, are in every baseline a witness takes.
-    fn warmUp(self: *Fixture) !void {
-        const terminals = [_]struct { side: Side, id: TerminalId }{
-            .{ .side = .a, .id = try self.createTerminal(.a, 2) },
-            .{ .side = .b, .id = try self.createTerminal(.b, 2) },
-        };
-        for (terminals) |item| {
-            _ = try self.awaitExitCode(item.side, item.id, 10_000);
-            try self.awaitEnded(item.id, 10_000);
-            try self.dispose(item.side, item.id);
-            self.unwatch(item.id);
+    /// Runs and disposes one short terminal on each of the Hosts, so the handles a Host or the
+    /// Keeper opens once, on its first terminal, are in every baseline a witness takes.
+    pub fn warmUp(self: *Fixture, sides: []const Side) !void {
+        var ids: [2]TerminalId = undefined;
+        for (sides, 0..) |side, index| ids[index] = try self.createTerminal(side, 2);
+        for (sides, 0..) |side, index| {
+            _ = try self.awaitExitCode(side, ids[index], 10_000);
+            try self.awaitEnded(ids[index], 10_000);
+            try self.dispose(side, ids[index]);
+            self.unwatch(ids[index]);
         }
     }
 
-    fn allocate() !*Fixture {
+    fn allocate(a_kind: HostKind) !*Fixture {
         const allocator = std.testing.allocator;
         if (!job_assigned) {
             // Every process this test starts ends with it.
@@ -182,15 +221,18 @@ pub const Fixture = struct {
             .host_path = host_path,
             .comspec = comspec,
             .ping = ping,
-            .service = HostService.init(allocator),
+            .a_kind = a_kind,
+            .a_live = a_kind == .service,
         };
+        if (a_kind == .service) self.service = HostService.init(allocator);
         return self;
     }
 
     pub fn destroy(self: *Fixture) void {
         report("witness ran {d} ms", .{self.timer.read() / ms});
         self.endA() catch |err| report("Host A teardown failed: {s}", .{@errorName(err)});
-        self.killB();
+        self.killHost(.a);
+        self.killHost(.b);
         self.endKeeper();
         for (self.terminals.items) |item| {
             _ = support.CloseHandle(item.program);
@@ -211,7 +253,8 @@ pub const Fixture = struct {
         return self.arena_state.allocator();
     }
 
-    /// Host A's `exit`: its session ends and its service tears down every terminal.
+    /// The `exit` of Host A in this process: its session ends and its service tears down every
+    /// terminal. A process Host ends by `exitHost` or `killHost`.
     pub fn endA(self: *Fixture) !void {
         if (!self.a_live) return;
         self.a_live = false;
@@ -260,8 +303,8 @@ pub const Fixture = struct {
         const scratch = self.arena();
         try worker.offer(scratch);
         try expectTag(try keeperCall(&worker, scratch, .{ .hello = .worker }), .hello);
-        try expectTag(try keeperCall(&worker, scratch, .{ .register_host = self.self_process }), .register_host);
-        if (self.b) |host| try expectTag(try keeperCall(&worker, scratch, .{ .register_host = host.identity }), .register_host);
+        if (self.a_kind == .service) try expectTag(try keeperCall(&worker, scratch, .{ .register_host = self.self_process }), .register_host);
+        for (self.hosts) |slot| if (slot) |host| try expectTag(try keeperCall(&worker, scratch, .{ .register_host = host.identity }), .register_host);
         self.keeper = .{
             .child = child,
             .handle = child.id.?,
@@ -290,18 +333,26 @@ pub const Fixture = struct {
 
     /// Ends the Keeper, waits until each live Host reports it lost, then attaches a new one.
     pub fn replaceKeeper(self: *Fixture) !void {
+        try self.loseKeeper();
+        try self.startKeeper();
+        if (self.live(.a)) try self.attach(.a);
+        if (self.live(.b)) try self.attach(.b);
+    }
+
+    /// Ends the Keeper and waits until each live Host reports it lost.
+    pub fn loseKeeper(self: *Fixture) !void {
         const lost_a = self.events(.a, MessageKind.keeper_lost);
         const lost_b = self.events(.b, MessageKind.keeper_lost);
         self.endKeeper();
-        if (self.a_live) _ = try self.awaitEvent(.a, MessageKind.keeper_lost, lost_a + 1, 10_000);
-        if (self.bLive()) _ = try self.awaitEvent(.b, MessageKind.keeper_lost, lost_b + 1, 10_000);
-        try self.startKeeper();
-        if (self.a_live) try self.attach(.a);
-        if (self.bLive()) try self.attach(.b);
+        if (self.live(.a)) _ = try self.awaitEvent(.a, MessageKind.keeper_lost, lost_a + 1, 10_000);
+        if (self.live(.b)) _ = try self.awaitEvent(.b, MessageKind.keeper_lost, lost_b + 1, 10_000);
     }
 
-    /// Starts Host B as the Worker would, admitted by the Keeper, and attaches the Keeper there.
-    pub fn startB(self: *Fixture) !void {
+    /// Starts a Host process as the Worker would, admitted by the Keeper, and attaches the Keeper
+    /// there. Host A runs as a process only in a fixture made for it.
+    pub fn startHost(self: *Fixture, side: Side) !void {
+        std.debug.assert(side == .b or self.a_kind == .process);
+        std.debug.assert(self.hosts[@intFromEnum(side)] == null);
         var random: [16]u8 = undefined;
         self.io.random(&random);
         const endpoint = std.fmt.bytesToHex(random, .lower);
@@ -319,34 +370,32 @@ pub const Fixture = struct {
         var client = try connectWorker(self.allocator, directory, &endpoint);
         errdefer client.close();
         const epoch = try hello(self.allocator, &client);
-        self.b = .{ .child = child, .handle = child.id.?, .identity = process, .endpoint = endpoint, .client = client, .epoch = epoch };
-        try self.attach(.b);
+        self.hosts[@intFromEnum(side)] = .{ .child = child, .handle = child.id.?, .identity = process, .endpoint = endpoint, .client = client, .epoch = epoch };
+        try self.attach(side);
     }
 
-    pub fn bLive(self: *const Fixture) bool {
-        const host = self.b orelse return false;
+    /// Whether the Host still runs: the service while it serves, a process while its connection
+    /// is open.
+    pub fn live(self: *const Fixture, side: Side) bool {
+        if (side == .a and self.a_kind == .service) return self.a_live;
+        const host = self.hosts[@intFromEnum(side)] orelse return false;
         return host.open;
     }
 
-    /// Host B's fatal end: the process is terminated, so no teardown of its own runs.
-    pub fn killB(self: *Fixture) void {
-        if (self.b) |*host| {
-            closeB(host);
+    /// A process Host's fatal end: the process is terminated, so no teardown of its own runs.
+    pub fn killHost(self: *Fixture, side: Side) void {
+        const slot = &self.hosts[@intFromEnum(side)];
+        if (slot.*) |*host| {
+            host.close();
             if (support.WaitForSingleObject(host.handle, 0) != support.WAIT_OBJECT_0) host.child.kill(self.io) else _ = host.child.wait(self.io) catch {};
             host.pending.deinit(self.allocator);
         }
-        self.b = null;
+        slot.* = null;
     }
 
-    fn closeB(host: *HostB) void {
-        if (!host.open) return;
-        host.open = false;
-        host.client.close();
-    }
-
-    /// Host B's `exit` on a control connection; returns the Host's exit code.
-    pub fn exitB(self: *Fixture) !u32 {
-        const host = &self.b.?;
+    /// A process Host's `exit` on a control connection; returns the Host's exit code.
+    pub fn exitHost(self: *Fixture, side: Side) !u32 {
+        const host = &self.hosts[@intFromEnum(side)].?;
         var control = try transport.connectBefore(self.allocator, "", &host.endpoint, 5 * std.time.ns_per_s);
         defer control.close();
         const frame = try handshake.encode.initiatorFrame(self.arena(), .{ .request = .{
@@ -360,15 +409,13 @@ pub const Fixture = struct {
             try self.tick();
         }
         const code = support.exitCode(host.handle) orelse return error.HostStillRunning;
-        self.killB();
+        self.killHost(side);
         return code;
     }
 
     pub fn identity(self: *const Fixture, side: Side) message.Process {
-        return switch (side) {
-            .a => self.self_process,
-            .b => self.b.?.identity,
-        };
+        if (side == .a and self.a_kind == .service) return self.self_process;
+        return self.hosts[@intFromEnum(side)].?.identity;
     }
 
     pub fn attach(self: *Fixture, side: Side) !void {
@@ -395,8 +442,8 @@ pub const Fixture = struct {
         }
     }
 
-    /// One pass of each Host's work: Host A's dispatch-thread turn, as its session loop takes it,
-    /// and whatever Host B has sent.
+    /// One pass of each Host's work: the dispatch-thread turn of Host A in this process, as its
+    /// session loop takes it, and whatever each process Host has sent.
     pub fn pump(self: *Fixture) !void {
         if (self.a_live) {
             self.service.maintain();
@@ -418,23 +465,23 @@ pub const Fixture = struct {
             defer outgoing.deinit();
             try self.collect(.a, outgoing.records());
         }
-        if (self.b) |*host| try self.readB(host);
+        for (&self.hosts, [_]Side{ .a, .b }) |*slot, side| if (slot.*) |*host| try self.readHost(side, host);
     }
 
-    fn readB(self: *Fixture, host: *HostB) !void {
+    fn readHost(self: *Fixture, side: Side, host: *HostProcess) !void {
         if (!host.open) return;
         while (true) {
-            const readable = host.client.waitReadable() catch return closeB(host);
+            const readable = host.client.waitReadable() catch return host.close();
             if (!readable) break;
             var buffer: [64 * 1024]u8 = undefined;
-            const length = host.client.read(&buffer) catch return closeB(host);
-            if (length == 0) return closeB(host);
+            const length = host.client.read(&buffer) catch return host.close();
+            if (length == 0) return host.close();
             try host.pending.appendSlice(self.allocator, buffer[0..length]);
         }
         while (host.pending.items.len >= protocol.transport_envelope_header_bytes) {
             const total = try protocol.transportRecordLength(host.pending.items[0..protocol.transport_envelope_header_bytes]);
             if (host.pending.items.len < total) break;
-            try self.collect(.b, &.{host.pending.items[0..total]});
+            try self.collect(side, &.{host.pending.items[0..total]});
             const rest = host.pending.items.len - total;
             std.mem.copyForwards(u8, host.pending.items[0..rest], host.pending.items[total..]);
             host.pending.shrinkRetainingCapacity(rest);
@@ -443,7 +490,7 @@ pub const Fixture = struct {
 
     pub fn tick(self: *Fixture) !void {
         try self.pump();
-        monotonic.sleep(5 * ms);
+        if (self.spin) std.Thread.yield() catch {} else monotonic.sleep(5 * ms);
     }
 
     /// Waits `duration_ms` while both Hosts go on working.
@@ -455,26 +502,23 @@ pub const Fixture = struct {
     pub fn request(self: *Fixture, side: Side, kind: u16, encoding: protocol.PayloadEncoding, payload: []const u8) ![16]u8 {
         const correlation = harness.testIdentifier(0x4d, self.next_correlation);
         self.next_correlation += 1;
-        switch (side) {
-            .a => {
-                // As the session loop does, read nothing while the held-request limit is reached.
-                const deadline = self.timer.read() + 20 * std.time.ns_per_s;
-                while (!self.service.acceptsRequests()) {
-                    if (self.timer.read() > deadline) return error.CreationNeverSettled;
-                    try self.tick();
-                }
-                const record = try protocol.encodeTransportEnvelope(self.allocator, kind, encoding, payload, correlation, harness.serviceCore(&self.service).epoch.bytes, false, false);
-                defer self.allocator.free(record);
-                var outgoing = try self.service.handle(&self.connection, record);
-                defer outgoing.deinit();
-                try self.collect(.a, outgoing.records());
-            },
-            .b => {
-                const host = &self.b.?;
-                const record = try protocol.encodeTransportEnvelope(self.allocator, kind, encoding, payload, correlation, host.epoch, false, false);
-                defer self.allocator.free(record);
-                try host.client.writeAll(record);
-            },
+        if (side == .a and self.a_kind == .service) {
+            // As the session loop does, read nothing while the held-request limit is reached.
+            const deadline = self.timer.read() + 20 * std.time.ns_per_s;
+            while (!self.service.acceptsRequests()) {
+                if (self.timer.read() > deadline) return error.CreationNeverSettled;
+                try self.tick();
+            }
+            const record = try protocol.encodeTransportEnvelope(self.allocator, kind, encoding, payload, correlation, harness.serviceCore(&self.service).epoch.bytes, false, false);
+            defer self.allocator.free(record);
+            var outgoing = try self.service.handle(&self.connection, record);
+            defer outgoing.deinit();
+            try self.collect(.a, outgoing.records());
+        } else {
+            const host = &self.hosts[@intFromEnum(side)].?;
+            const record = try protocol.encodeTransportEnvelope(self.allocator, kind, encoding, payload, correlation, host.epoch, false, false);
+            defer self.allocator.free(record);
+            try host.client.writeAll(record);
         }
         return correlation;
     }
@@ -560,9 +604,16 @@ pub const Fixture = struct {
 
     /// A terminal running `executable`, held by the Keeper once it runs.
     pub fn createTerminalWith(self: *Fixture, side: Side, executable: []const u8, arguments: []const []const u8) !TerminalId {
+        return self.createTerminalLaunched(side, executable, arguments, .{});
+    }
+
+    /// A terminal running `executable` with `launch`'s size and scrollback bound, held by the
+    /// Keeper once it runs.
+    pub fn createTerminalLaunched(self: *Fixture, side: Side, executable: []const u8, arguments: []const []const u8, launch: Launch) !TerminalId {
         const creation = std.fmt.bytesToHex(harness.testIdentifier(0xc8, self.next_creation), .lower);
         self.next_creation += 1;
-        const payload = try harness.testCreatePayload(&creation, executable, arguments);
+        const configuration: ?harness.TerminalConfigurationWire = if (launch.scrollback_bytes) |bytes| .{ .scrollbackBytes = bytes } else null;
+        const payload = try harness.testCreatePayloadSized(&creation, executable, arguments, configuration, .{ .columns = launch.columns, .rows = launch.rows });
         defer std.testing.allocator.free(payload);
         const record = try self.call(side, MessageKind.create_terminal, .control_json, payload, 20_000);
         if (record.kind == MessageKind.typed_failure) {
@@ -850,15 +901,20 @@ pub const Fixture = struct {
 
     // ---- handle counts ----
 
-    /// Host A shares this process with the test, so its count leaves out the two handles the test
-    /// holds for each terminal it watches.
+    /// A Host in this process shares it with the test, so its count leaves out the two handles the
+    /// test holds for each terminal it watches. A Host or Keeper that is not running counts 0.
     pub fn counts(self: *const Fixture) !Counts {
         const watching: u32 = @intCast(2 * self.terminals.items.len);
         return .{
-            .a = try handleCount(windows.GetCurrentProcess()) - watching,
-            .b = if (self.b) |host| try handleCount(host.handle) else 0,
+            .a = if (self.a_kind == .service) try handleCount(windows.GetCurrentProcess()) - watching else try self.processCount(.a),
+            .b = try self.processCount(.b),
             .keeper = if (self.keeper) |keeper| try handleCount(keeper.handle) else 0,
         };
+    }
+
+    fn processCount(self: *const Fixture, side: Side) !u32 {
+        const host = self.hosts[@intFromEnum(side)] orelse return 0;
+        return handleCount(host.handle);
     }
 
     /// Waits until each handle count that `expected` names is back at its baseline.
