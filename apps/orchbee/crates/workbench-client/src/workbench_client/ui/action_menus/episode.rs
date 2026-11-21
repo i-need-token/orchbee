@@ -5,6 +5,8 @@
 //! This module is the episode's only writer. The UI composition evaluates availability and target
 //! validity against the other owners, advances navigation, and drives the worktree lane.
 
+// module-layer: state
+
 use crate::action_menu::{
     ActionMenu, MenuAction, MenuAnchor, MenuInputContext, MenuTarget, MenuView, RetainedMenu,
 };

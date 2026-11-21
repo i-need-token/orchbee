@@ -1,4 +1,7 @@
 //! A bounded independent projection/control lane. Canonical Pane state is never modified.
+
+// module-layer: workflow
+
 use crate::{
     local_client::{LocalClient, LocalClientOrigin, LocalOperationClock},
     terminal_events::{

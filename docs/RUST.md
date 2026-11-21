@@ -148,9 +148,10 @@ semantic review still own module contents and boundaries. The
 
 A member that states its [lateral-import contract](MODULE-BOUNDARIES.md#native-source-trees) as
 layers keeps it in `docs/module-layers.md`. The first table under `## Layers` lists layer IDs from
-lowest to highest, or the section links to another member's contract to reuse its table. Tables
-under `## Module assignment` map module paths to layers; a descendant inherits the nearest assigned
-ancestor's layer. `pnpm lint:rust-modules` reads the file, reports cycles and upward references,
+lowest to highest, or the section links to another member's contract to reuse its table. A module
+names its layer in a `// module-layer: <id>` line in the comment block that opens its file, or its
+body when it is inline; a module without the line inherits the nearest assigned ancestor's layer.
+`pnpm lint:rust-modules` reads the contract and those lines, reports cycles and upward references,
 and fails on any that the [Rust module record](LINTING.md#rust-module-record) does not list; its
 [fixtures](../scripts/rust-module-graph.test.mjs) exercise graph extraction, contract parsing, and
 the record rule.

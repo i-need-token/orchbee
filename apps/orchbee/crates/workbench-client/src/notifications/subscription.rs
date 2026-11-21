@@ -1,4 +1,7 @@
 //! UI-owned notification delivery consumes the shared event stream without a bridge thread.
+
+// module-layer: workflow
+
 use crate::local_client::{LocalClientOrigin, LocalOperationClock, multiplex::StreamEvent};
 use orchbee_workbench_protocol::Notification;
 use orchbee_workbench_protocol::{

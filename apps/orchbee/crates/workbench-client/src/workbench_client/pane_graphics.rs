@@ -1,4 +1,7 @@
 //! Complete immutable canvases, visible source scope and one cancellable read owner.
+
+// module-layer: workflow
+
 use super::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome};
 use super::{ClientPanel, ClientPresentation};
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};

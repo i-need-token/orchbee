@@ -2,6 +2,9 @@
 //! verbs that start or relay to the local Session, and the link helper's token rights and Session
 //! starts. Every other command writes none, so reads and the offline commands create no directory.
 //! Records carry only tokens, counts and exit statuses.
+
+// module-layer: workflow
+
 use crate::local_activation::StartupFailure;
 use orchbee_local_runtime::{LogLevel, LogRole, LogValue, install_diagnostic_log, log_event};
 

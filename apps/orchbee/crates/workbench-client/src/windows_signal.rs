@@ -1,6 +1,9 @@
 //! One process-wide console interrupt dispatcher and one scoped owner. The
 //! final arbitration CAS transfers the owner into the output finalizer when
 //! cancellation wins; late signals otherwise keep the default exit behavior.
+
+// module-layer: workflow
+
 use std::{
     io,
     sync::{

@@ -1,4 +1,7 @@
 //! Empty-Session startup intent and retained invocation evidence. Server owns all commits.
+
+// module-layer: state
+
 use crate::workbench_projection::{ClientContextLocation, ClientMemberTarget};
 use crate::workbench_projection::{ClientContextTabs, project_native_context_tabs};
 use crate::workbench_state::CarrierFailure;

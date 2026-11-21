@@ -1,4 +1,7 @@
 //! One configured checkout destination policy for the CLI and native Worktree form.
+
+// module-layer: values
+
 use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchDirectoryPathError};
 use std::path::Path;
 

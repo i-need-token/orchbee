@@ -2,6 +2,9 @@
 //! emitting explicit backend or shell actions. It does not own canonical Workbench membership,
 //! physical terminal state, or Server command settlement.
 
+// module-layer: state
+// Binding resolution moves to `input`.
+
 /// Wide hosts show the sidebar by default: the default width still docks beside usable content.
 pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 =
     crate::sidebar_width::SidebarWidth::DEFAULT.docked_host_columns();

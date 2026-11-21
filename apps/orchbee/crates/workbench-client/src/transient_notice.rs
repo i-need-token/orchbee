@@ -1,4 +1,7 @@
 //! One bounded coalesced notice lifetime; receipts and pending operations keep their own owners.
+
+// module-layer: state
+
 use std::time::{Duration, Instant};
 
 const LIFETIME: Duration = Duration::from_secs(4);

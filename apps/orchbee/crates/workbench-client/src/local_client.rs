@@ -1,5 +1,9 @@
 //! Production transport boundary for the native application.
 
+// module-layer: workflow
+// The only doorway to the sibling transport's handles. State owners read exchange values through
+// `exchange_values`.
+
 pub use orchbee_local_client::{
     LocalClient, LocalClientConnectError, LocalClientOrigin, LocalOperationClock,
     OutcomeUnknownReason, SubmissionError, exchange_wake_fault, exchange_wake_ready,

@@ -1,6 +1,8 @@
 //! Appearance facts observed from the outer host terminal; probing stays with
 //! `terminal_host_appearance`.
 
+// module-layer: values
+
 /// The outer host's observed background polarity, independent of the System theme fallback.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum HostAppearance {

@@ -1,6 +1,8 @@
 //! Recognized interactive Agent identities and their canonical command names. The startable
 //! catalog itself lives in `orchbee-agent-observation-protocol`, which the Server reads too.
 
+// module-layer: values
+
 pub use orchbee_agent_observation_protocol::STARTABLE_AGENT_PROVIDER_IDS as CANONICAL_IDS;
 pub use orchbee_agent_observation_protocol::normalize_agent_report_label as reported_label;
 use orchbee_agent_observation_protocol::{AgentReportProvider, StartableAgent};

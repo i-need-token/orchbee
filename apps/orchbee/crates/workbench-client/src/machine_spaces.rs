@@ -1,4 +1,7 @@
 //! Complete canonical Workspace metadata and local Git checkpoints. No paint-time I/O.
+
+// module-layer: workflow
+
 use crate::local_client::LocalClient;
 use crate::local_client::cancellation::Cancellation;
 use crate::machine_observation::{check, request_id, snapshot};

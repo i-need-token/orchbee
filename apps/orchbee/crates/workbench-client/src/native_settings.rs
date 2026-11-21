@@ -1,5 +1,8 @@
 //! The Settings page: every change is one edit the Server applies at once. Storage, transport
 //! and live application remain separate owners.
+
+// module-layer: state
+
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{

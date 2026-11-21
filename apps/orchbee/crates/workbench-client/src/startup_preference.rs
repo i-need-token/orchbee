@@ -1,4 +1,7 @@
 //! Client-owned last displayed position; canonical membership remains authoritative.
+
+// module-layer: state
+
 use crate::workbench_projection::{
     ClientContextLocation, ClientContextTabs, ClientMemberTarget, ClientProjectionError,
     preferred_workspace_location, project_native_context_tabs,

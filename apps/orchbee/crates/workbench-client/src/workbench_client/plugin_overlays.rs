@@ -1,4 +1,7 @@
 //! One cancellable read/close job, with submission identity owned before the thread receives it.
+
+// module-layer: workflow
+
 use crate::local_client::{
     LocalClientOrigin, LocalOperationClock,
     workbench::panel_close::{WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission},

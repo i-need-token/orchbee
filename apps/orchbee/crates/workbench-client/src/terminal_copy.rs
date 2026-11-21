@@ -1,5 +1,8 @@
 //! Pure buffer-coordinate copy policies over validated physical row mappings.
 //! This domain owns no viewer, input, selection, clipboard or process state.
+
+// module-layer: values
+
 use crate::terminal_buffer_text::Segment;
 pub use crate::terminal_buffer_text::{TerminalTextPoint, TerminalTextRange};
 use orchbee_terminal_protocol::TerminalTextWindowRow;

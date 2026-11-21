@@ -1,4 +1,7 @@
 //! Identity-based machine selection and painted input ownership; no storage or network effects.
+
+// module-layer: state
+
 use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
 use crate::localization::Locale;
 use crate::machine_discovery::overview::{Context, Observation};

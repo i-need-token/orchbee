@@ -3,6 +3,8 @@
 //! transport I/O and cannot mint Server membership or infer physical cleanup from a missing
 //! projection.
 
+// module-layer: state
+
 use crate::client_view::ClientAction;
 use crate::exchange_values::workbench::WorkbenchTabCreateCommit;
 use crate::workbench_projection::{

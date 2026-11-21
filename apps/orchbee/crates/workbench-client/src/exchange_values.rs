@@ -1,6 +1,8 @@
 //! Request and outcome values of Client Connection exchanges that Client state owners build and
 //! settle. Transport handles, clocks, and submission stay behind `local_client`.
 
+// module-layer: values
+
 pub(crate) mod workbench {
     pub(crate) use orchbee_local_client::workbench::{
         WorkbenchTabCloseAccepted, WorkbenchTabClosePrecommit, WorkbenchTabCreateCommit,

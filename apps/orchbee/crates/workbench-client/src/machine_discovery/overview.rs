@@ -1,5 +1,8 @@
 //! Settled discovery values: one saved machine's row observation and the bounded overview of its
 //! canonical navigation. Discovery produces them; Client state holds them.
+
+// module-layer: values
+
 use crate::client_context::{ClientContextLocation, ClientContextTarget};
 use crate::terminal_text::sanitize_terminal_text;
 use orchbee_machine_protocol::{

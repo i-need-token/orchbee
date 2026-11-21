@@ -1,5 +1,8 @@
 //! The TUI's hold on the machine hub, the hub's state of each saved machine, and one read-only
 //! observer per Machine the hub reads `online`. The UI alone owns selection.
+
+// module-layer: workflow
+
 mod credentials;
 mod hub;
 pub(crate) mod overview;

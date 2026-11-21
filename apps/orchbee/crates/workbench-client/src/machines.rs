@@ -1,4 +1,7 @@
 //! Saved endpoint identity and catalog policy; enabled does not imply connected.
+
+// module-layer: state
+
 mod store;
 use orchbee_local_runtime::SessionName;
 use serde_json::{Value, json};

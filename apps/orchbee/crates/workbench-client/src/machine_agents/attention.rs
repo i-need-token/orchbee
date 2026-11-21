@@ -1,4 +1,7 @@
 //! Endpoint-qualified Client acknowledgements; complete reads never mark changed versions seen.
+
+// module-layer: state
+
 use super::checkpoint::{Checkpoint, MAXIMUM_ROWS};
 use crate::machines::Choice;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;

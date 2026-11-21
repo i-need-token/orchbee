@@ -2,6 +2,8 @@
 //! operation evidence when that task exits. It owns no canonical UI state and does not discard
 //! known commits or pending closes merely because the connection ended.
 
+// module-layer: workflow
+
 use super::TerminalStatus;
 use crate::local_client::LocalClient;
 use crate::workbench_projection::ClientTerminalBinding;

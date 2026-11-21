@@ -1,5 +1,8 @@
 //! One complete read model joins canonical sessions to exact physical Agent incarnations.
 //! It owns neither source, Client acknowledgement state, nor any terminal effect.
+
+// module-layer: values
+
 use crate::{machine_agents, workbench_client::ClientContextLocation};
 use orchbee_agent_observation_protocol::{
     AgentLifecycle, AgentNameTarget, AgentObservationFreshness, AgentReportProvider,

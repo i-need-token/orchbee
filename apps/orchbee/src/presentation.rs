@@ -2,6 +2,8 @@
 //! status values. It performs no I/O or command execution and does not own structured CLI
 //! result rendering.
 
+// module-layer: presentation
+
 use crate::{
     invocation::{Invocation, UsageFailure},
     localization::Locale,

@@ -1,5 +1,8 @@
 //! Settled Agent observation values: one machine's bounded Agent rows, their exact targets,
 //! and the checkpoint that fences them. Observation jobs produce them; Client state holds them.
+
+// module-layer: values
+
 use crate::client_context::ClientContextTarget;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{

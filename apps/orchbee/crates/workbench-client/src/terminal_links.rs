@@ -1,4 +1,7 @@
 //! Bounded plain-link policy and viewport regions over validated physical glyphs.
+
+// module-layer: values
+
 use crate::terminal_buffer_text::{Segment, TerminalTextPoint, segments};
 use orchbee_terminal_protocol::{TerminalProjectionRow, TerminalTextWindowRow};
 use std::ops::Range;

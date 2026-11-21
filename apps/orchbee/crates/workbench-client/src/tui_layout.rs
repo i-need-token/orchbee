@@ -1,4 +1,7 @@
 //! Deterministic shell and pane geometry; no terminal or shared-layout mutations.
+
+// module-layer: presentation
+
 mod divider;
 mod pane_geometry;
 mod resize;

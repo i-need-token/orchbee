@@ -5,6 +5,8 @@
 //! maps the semantic roles of `docs/tui/visual-foundations.md` to concrete values, and quantizes
 //! them once to the detected color level.
 
+// module-layer: values
+
 use crate::terminal_events::keys::KeyLabelGlyphs;
 use ratatui::{
     style::{Color, Modifier, Style},

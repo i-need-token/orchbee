@@ -1,6 +1,8 @@
 //! Control-state vocabulary of the shared components: surface, focus, pointer, navigation, current,
 //! checked, availability, and operation states, combined into one [`InteractionState`].
 
+// module-layer: values
+
 use crate::tui_theme::Role;
 
 /// The base surface owned by a control's compositor.

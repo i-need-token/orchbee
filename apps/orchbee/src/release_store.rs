@@ -1,5 +1,8 @@
 //! Client-owned release store: immutable version directories, the active-version pointer and
 //! their writer lock; install and update workflows own validation, activation and retention.
+
+// module-layer: workflow
+
 mod store;
 #[cfg(not(windows))]
 use unix as platform;

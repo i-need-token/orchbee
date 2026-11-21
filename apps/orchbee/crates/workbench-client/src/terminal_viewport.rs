@@ -12,6 +12,8 @@
 //! Contract: `docs/native-terminal-viewport.md` and
 //! `formal/tla/TerminalClientViewport.tla`.
 
+// module-layer: state
+
 use std::{collections::VecDeque, num::NonZeroU64, time::Duration, time::Instant};
 
 use orchbee_client_server_protocol::{ViewerRowsRejectedReason, ViewportRowOrigin};

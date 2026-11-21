@@ -1,4 +1,7 @@
 //! Noncapturing paint of the one visible notification card.
+
+// module-layer: presentation
+
 use crate::{
     client_view::notifications::State,
     tui_hit_map::ProjectedPointer,

@@ -1,5 +1,8 @@
 //! Remote navigation lane: a shared-connection control subscription whose steps the UI owner
 //! advances.
+
+// module-layer: workflow
+
 mod lane;
 pub(in crate::workbench_client) use lane::{
     ClientControlLane, CommandCompletion, CommandFailure, Sample,

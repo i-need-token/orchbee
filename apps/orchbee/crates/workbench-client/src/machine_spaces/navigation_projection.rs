@@ -1,6 +1,9 @@
 //! Active-Client topology bridges slow metadata reads without promoting a pending move to authority.
 //! The Client state supplies its topology and pending move as a value; this projection never
 //! reads that state.
+
+// module-layer: values
+
 use super::checkpoint::{Checkpoint, ProjectSummary, Row};
 use crate::client_context::{ClientContextLocation, ClientContextTarget};
 use orchbee_workbench_protocol::{

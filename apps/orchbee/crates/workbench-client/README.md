@@ -40,7 +40,7 @@ passes it in.
 
 Modules inside the crate follow the [module layers](docs/module-layers.md): each module's layer,
 the allowed reference direction, state ownership, and component placement.
-The [TUI components](docs/tui-components.md) reference inventories the shared primitives and
+The [TUI components](docs/tui-components.md) reference places the shared primitives and
 recurring compositions.
 
 ## Background threads

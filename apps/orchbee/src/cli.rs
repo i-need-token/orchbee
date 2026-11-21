@@ -2,6 +2,9 @@
 //! structured failures, and process outcomes. It does not own command grammar, canonical
 //! Workbench state, or physical terminal execution.
 
+// module-layer: composition
+// Per-command effects and text move out to `workflow` and `presentation` modules.
+
 use crate::cli_text::CliText;
 mod agent_list;
 pub(crate) mod agent_manifests;

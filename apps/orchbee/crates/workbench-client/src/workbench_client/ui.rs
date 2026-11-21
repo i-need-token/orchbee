@@ -3,6 +3,8 @@
 //! decisions without becoming canonical Workbench authority or performing protocol exchanges
 //! on the UI thread.
 
+// module-layer: composition
+
 mod action_menus;
 mod agent_attention;
 mod agent_confirmations;

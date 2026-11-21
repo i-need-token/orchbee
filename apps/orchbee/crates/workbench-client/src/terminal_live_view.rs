@@ -1,4 +1,7 @@
 //! Client-local cropping of a live physical grid; never changes terminal size, demand or control.
+
+// module-layer: presentation
+
 use orchbee_terminal_protocol::TerminalTextFrame;
 use ratatui::layout::Rect;
 

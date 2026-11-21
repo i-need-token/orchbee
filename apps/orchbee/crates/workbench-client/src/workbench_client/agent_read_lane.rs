@@ -2,6 +2,8 @@
 //! The worker owns only its logical lane, sequential read state and cancellation wake.
 //! Physical admission and reconnect belong to the connection actor.
 
+// module-layer: workflow
+
 use orchbee_local_ipc::AsLocalIo;
 
 use crate::background_thread::BackgroundThread;

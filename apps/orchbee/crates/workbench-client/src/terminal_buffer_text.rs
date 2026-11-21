@@ -1,4 +1,7 @@
 //! Pure physical glyph traversal over fully validated retained-buffer rows.
+
+// module-layer: values
+
 use orchbee_terminal_protocol::TerminalTextWindowRow;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

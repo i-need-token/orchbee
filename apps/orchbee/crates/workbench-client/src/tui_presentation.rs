@@ -5,6 +5,8 @@
 //! only names the verdict and classifies an evaluated geometry block as refusal
 //! before admission or suspension after admission.
 
+// module-layer: values
+
 /// Presentation lifetime for one Client-owned TUI surface incarnation.
 ///
 /// The phase is independent of the exact token published by a successful

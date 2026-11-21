@@ -1,6 +1,9 @@
 //! Owns locale selection and the localized presentation boundary for this executable.
 //! Feature modules own human-facing copy; domain and protocol identifiers stay unchanged.
 
+// module-layer: values
+// Locale detection from the environment moves to `composition`.
+
 mod action_menu;
 pub(crate) use action_menu::{MenuHeading, MenuRowNote, MenuUnavailable};
 mod agent_confirmation;

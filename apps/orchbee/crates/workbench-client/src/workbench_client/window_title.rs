@@ -1,4 +1,7 @@
 //! UI-owned title state consumes the shared connection subscription without a bridge thread.
+
+// module-layer: workflow
+
 use crate::local_client::{LocalClientOrigin, LocalOperationClock, multiplex::StreamEvent};
 use orchbee_workbench_protocol::{
     ProtocolVersion, SessionId, WindowTitleAction, WindowTitleContext, WindowTitleOutcome,

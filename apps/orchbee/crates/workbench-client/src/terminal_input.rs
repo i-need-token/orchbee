@@ -1,6 +1,8 @@
 //! Routes decoded host events to current Client capture owners and terminal forwarding.
 //! Workbench owns the input port and feature state; terminal events own pure byte parsing.
 
+// module-layer: input
+
 use crate::client_view::ClientView;
 pub use crate::terminal_events::{
     DecodedItem, DecodedKind, HostReply, LegacyDecoder, MouseAction, MouseButton, MouseEvent,

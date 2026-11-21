@@ -6,6 +6,8 @@
 //! contribute only admission and cancellation adapters; no terminal-control
 //! capability enters here.
 
+// module-layer: workflow
+
 mod browser;
 pub(crate) mod context;
 mod lane;

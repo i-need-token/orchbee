@@ -1,4 +1,7 @@
 //! Bounded physical Agent checkpoints and UI-owned cross-machine observation jobs.
+
+// module-layer: workflow
+
 use crate::local_client::LocalClient;
 use crate::local_client::cancellation::Cancellation;
 use crate::machine_discovery::display_label;

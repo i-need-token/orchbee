@@ -1,6 +1,8 @@
 //! Shared local-startup verdicts; raw causes and execution stay with activation.
 //! This vocabulary is independent of CLI output, TUI selection and localized copy.
 
+// module-layer: values
+
 /// The single local-startup verdict vocabulary shared below activation and its UI adapters.
 /// The activation core itself only ever emits `Cohort`, `Runtime`, `Refused`,
 /// `SocketPathTooLong`, `RecoveryRequired`, `RecoveryBlocked`, `ServerNotStarted`, one of the

@@ -1,6 +1,9 @@
 //! Owns CLI help and human-result formatting over the lower locale value.
 //! Grammar, failure details and terminal escaping stay here; machine envelope fields are unchanged.
 
+// module-layer: presentation
+// It never reaches back into `cli`.
+
 mod client_control;
 mod client_layout;
 mod help;

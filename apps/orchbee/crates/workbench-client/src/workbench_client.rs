@@ -3,6 +3,8 @@
 //! and Worker retains physical execution; retiring this Client does not terminate its retained
 //! terminals.
 
+// module-layer: composition
+
 mod agent_catalog;
 mod client_control;
 mod command_notice;

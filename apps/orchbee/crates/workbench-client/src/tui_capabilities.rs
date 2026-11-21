@@ -1,4 +1,7 @@
 //! Composition policy for optional host effects. Shared state and protocol operations stay available.
+
+// module-layer: values
+
 use crate::client_actions::ClientAction;
 
 pub use crate::host_capabilities::Capability;

@@ -3,6 +3,8 @@
 //! content is a render-only image of each bookmark's last committed window. `history_restore`
 //! captures and restores choices through the ordinary viewport gates.
 
+// module-layer: state
+
 use crate::terminal_content::{ContentSource, SnapshotMember, TerminalScreen};
 use crate::terminal_viewport::{ReadingPosition, ViewportWindow};
 use crate::workbench_state::{PaneRef, WorkbenchClientState};

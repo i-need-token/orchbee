@@ -1,4 +1,7 @@
 //! Pure machine-qualified Agent list projection, independent of network and input ownership.
+
+// module-layer: state
+
 use super::checkpoint::Row;
 use crate::client_context::{ClientContextLocation, ClientContextTarget};
 use crate::machine_discovery::overview::display_label;

@@ -1,4 +1,7 @@
 //! Attachment-local selection commands and complete Host-owned text admission.
+
+// module-layer: state
+
 mod export;
 mod record;
 use orchbee_client_server_protocol::{

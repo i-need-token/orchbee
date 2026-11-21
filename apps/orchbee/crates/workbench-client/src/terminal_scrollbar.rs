@@ -1,6 +1,8 @@
 //! Validated scrollbar observations and the integer cell geometry every Client scrollbar shares.
 //! This projection owns no terminal history: all positions come from a frame or served window.
 
+// module-layer: values
+
 use std::num::NonZeroU64;
 
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};

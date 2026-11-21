@@ -5,6 +5,8 @@
 //! each Presentation to its Workbench placement for notification names and terminal titles.
 //! Canonical Agent state stays Server-owned; nothing here synthesizes status of its own.
 
+// module-layer: state
+
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 
 mod names;

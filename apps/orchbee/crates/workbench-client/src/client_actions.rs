@@ -4,6 +4,8 @@
 //! [`crate::action_projection`] declares each menu action's title, stable identity and discovery
 //! metadata.
 
+// module-layer: values
+
 use crate::localization::{BackendAction, PanelDirection};
 
 /// Plain Client view intent; executable menu captures and their proofs remain with Workbench.

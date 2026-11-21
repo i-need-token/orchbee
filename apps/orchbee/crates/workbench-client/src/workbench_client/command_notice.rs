@@ -4,6 +4,8 @@
 //! Client-local notices belong to `ClientView`; Settings and link notices take precedence in the
 //! view model and keep their own owners.
 
+// module-layer: state
+
 use crate::localization::{NoticeContext, WorkbenchClientNotice};
 use std::time::Instant;
 

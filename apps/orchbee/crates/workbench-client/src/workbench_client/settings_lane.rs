@@ -1,5 +1,8 @@
 //! Settings observes pushed snapshots in revision order and submits each explicit edit exactly
 //! once.
+
+// module-layer: workflow
+
 use crate::{
     local_client::{
         LocalClientOrigin, LocalOperationClock,

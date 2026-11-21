@@ -2,6 +2,8 @@
 //! waiting, and transfer of the prepared surface into the TUI. It does not own Server lifetime
 //! after activation or define terminal mode restoration policy.
 
+// module-layer: composition
+
 use crate::{
     client_view::ClientView,
     local_activation,

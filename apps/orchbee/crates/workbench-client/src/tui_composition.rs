@@ -5,6 +5,8 @@
 //! settlement and input dispatch; revision tokens and presentation readiness
 //! remain with the selected owner and are sampled separately for each item.
 
+// module-layer: values
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkbenchCaptureOwner {
     Settings,

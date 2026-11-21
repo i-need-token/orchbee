@@ -1,6 +1,8 @@
 //! Bound immutable live pixels by canonical presentation identity.
 //! These images never participate in attachment, input, selection, or feedback.
 
+// module-layer: state
+
 use crate::localization::ClientProjectionStatus;
 use crate::terminal_projection::TerminalProjection;
 use crate::workbench_projection::ClientTerminalBinding;

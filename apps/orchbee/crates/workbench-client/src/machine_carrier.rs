@@ -3,6 +3,9 @@
 //! through the handshake. The carrier judges no byte. It builds wherever the hub does, and starts
 //! only where the `SavedMachines` capability holds; `apps/orchbee/docs/machines.md#session-carrier`
 //! owns the rules.
+
+// module-layer: workflow
+
 mod carry;
 
 pub(crate) use carry::Hub;

@@ -2,6 +2,8 @@
 //! carries meaning, while this projection owns spacing, columns and wrapping;
 //! rendering never queries a terminal or reads configuration or environment.
 
+// module-layer: presentation
+
 use unicode_segmentation::UnicodeSegmentation;
 
 pub(crate) const WIDTH: usize = 78;

@@ -1,4 +1,7 @@
 //! Common bounded, cancellable observation lifecycle for Agent and Workspace consumers.
+
+// module-layer: workflow
+
 pub(crate) mod outcome;
 use crate::background_thread::BackgroundThread;
 use crate::local_client::LocalClient;

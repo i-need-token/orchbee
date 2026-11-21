@@ -1,4 +1,7 @@
 //! The shared reminder policy consumes exact physical command facts once, even while disabled.
+
+// module-layer: state
+
 use orchbee_terminal_protocol::TerminalCommandCompletion;
 use orchbee_workbench_protocol::{CompletionReminderMode, UserSettingsValues};
 use std::{

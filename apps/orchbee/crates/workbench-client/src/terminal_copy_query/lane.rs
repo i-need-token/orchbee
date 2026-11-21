@@ -1,5 +1,7 @@
 //! Owned connection, cancellation, worker, and outcome lane for copy queries.
 
+// module-layer: workflow
+
 use std::{
     sync::{
         Arc,

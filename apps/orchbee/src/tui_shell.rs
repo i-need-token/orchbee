@@ -2,6 +2,8 @@
 //! drawing, and transfer of mode or draw receipts to feature owners. It does not own canonical
 //! Workbench state or treat transport observations as painted output.
 
+// module-layer: composition
+
 mod divider;
 mod machines;
 mod measurement;

@@ -1,4 +1,7 @@
 //! One bounded Windows graphics surface shares the fixed backend's frame and restoration lease.
+
+// module-layer: workflow
+
 use crate::{
     pane_canvas::{Canvas as PaneGraphicsCanvas, Draw as PaneGraphicsDraw},
     terminal_graphics::{Facts, Reply},

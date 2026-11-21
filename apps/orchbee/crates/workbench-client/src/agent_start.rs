@@ -10,6 +10,8 @@
 //! Presentation, process-wide signals, and surface generations remain with their
 //! callers.
 
+// module-layer: workflow
+
 use std::time::Instant;
 
 use crate::agent_runtime::startup::send;

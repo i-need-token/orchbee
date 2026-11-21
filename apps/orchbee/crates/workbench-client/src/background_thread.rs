@@ -2,6 +2,8 @@
 //! jobs follow: a stop request never waits, a deadline wait joins only a thread that has already
 //! ended, and dropping an owner never blocks.
 
+// module-layer: workflow
+
 use std::{
     io,
     thread::{self, JoinHandle},

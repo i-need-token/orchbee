@@ -22,6 +22,8 @@
 //! The dispatcher owns one `PointerState`; the shell feeds it the painted
 //! map and the capture flag settled by the lifecycle layer.
 
+// module-layer: input
+
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 

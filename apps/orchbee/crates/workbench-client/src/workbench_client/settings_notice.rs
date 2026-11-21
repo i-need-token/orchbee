@@ -1,6 +1,8 @@
 //! The Settings outcome notice. Edits apply without a success notice, so every notice reports a
 //! refusal or a failure and stays until the next outcome replaces it or the surface clears it.
 
+// module-layer: state
+
 use crate::localization::SettingsNotice as Notice;
 
 #[derive(Default)]

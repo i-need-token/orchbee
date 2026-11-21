@@ -1,6 +1,9 @@
 //! The optional position cache: platform storage identity, load, and the single background writer.
 //! The TUI is the record's only writer: a load keeps an earlier record migrated in memory, and the
 //! writer backs it up and persists the migration under its lock before its first replacement.
+
+// module-layer: workflow
+
 use super::{MAXIMUM_BYTES, Position, Record, Schema, decode, decode_record};
 use crate::background_thread::BackgroundThread;
 use orchbee_local_runtime::{OpenedRecord, VersionedFile};

@@ -1,6 +1,9 @@
 //! Why a saved machine refused this Client. The refusal rides inside the `io::Error` that a
 //! connection attempt returns, so discovery keeps it after the attempt's thread ends and the
 //! picker and notices name the side that must change.
+
+// module-layer: values
+
 use std::{error::Error, fmt, io};
 
 /// A definitive refusal: retrying cannot clear it until the user changes one side.

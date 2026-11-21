@@ -1,4 +1,7 @@
 //! Windows Client attention: one bounded observation lane and local paint acknowledgements.
+
+// module-layer: workflow
+
 use std::{
     collections::BTreeSet,
     time::{Duration, Instant},

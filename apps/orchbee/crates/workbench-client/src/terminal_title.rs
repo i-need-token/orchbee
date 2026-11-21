@@ -2,6 +2,8 @@
 //! console default title or a launch path names. The activity-prefix rule itself belongs to the
 //! Workbench protocol, which the Server shares.
 
+// module-layer: values
+
 use orchbee_workbench_protocol::strip_terminal_title;
 
 /// The name a terminal title shows in human output, in the words native chrome uses. Pass the raw

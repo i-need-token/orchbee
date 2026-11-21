@@ -1,5 +1,7 @@
 //! Correlated, single-flight copy motion and search reads on an independent connection.
 
+// module-layer: state
+
 use crate::{
     terminal_content::ContentSource,
     terminal_copy::{

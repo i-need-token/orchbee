@@ -1,5 +1,8 @@
 //! Translate console records into the existing terminal byte decoder. The
 //! decoder remains the only owner of bindings, paste, modal input, and mouse.
+
+// module-layer: workflow
+
 use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
 use orchbee_machine_protocol::wipe;
 mod records;

@@ -1,4 +1,7 @@
 //! Single joined clipboard adapter; platform-specific ownership stays outside copy state.
+
+// module-layer: workflow
+
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]

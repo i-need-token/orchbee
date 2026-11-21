@@ -2,6 +2,9 @@
 //! need, without catalog or UI ownership. Nothing here compares a product version, protocol,
 //! or cohort across machines: the remote Session judges this Client through the handshake a hub
 //! Session stream carries.
+
+// module-layer: workflow
+
 use crate::machine_credentials::{Remembering, Store};
 use base64::Engine as _;
 use std::{

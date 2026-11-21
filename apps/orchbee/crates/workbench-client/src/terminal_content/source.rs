@@ -1,5 +1,7 @@
 //! Painted terminal provenance and exact Workbench membership checks shared by read-only users.
 
+// module-layer: state
+
 use std::num::NonZeroU64;
 
 use orchbee_client_server_protocol::HostTerminalId;

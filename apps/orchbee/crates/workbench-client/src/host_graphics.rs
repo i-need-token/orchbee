@@ -1,6 +1,8 @@
 //! Window geometry and graphics facts measured from the outer host terminal; the device adapter
 //! and the probes stay with `terminal_device` and `terminal_graphics`.
 
+// module-layer: values
+
 use orchbee_workbench_protocol::{
     PaneGraphicsCapabilities, PaneGraphicsCellPixels, PaneGraphicsTransport,
 };

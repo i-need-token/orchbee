@@ -5,6 +5,9 @@
 //! or formats prose, so `cli_text` depends on these values instead of on the commands that
 //! produce them.
 
+// module-layer: values
+// Moving an outcome between owners never changes its token, exit code, or document shape.
+
 use orchbee_agent_observation_protocol::AgentSafeInteger;
 use serde_json::{Map, Value, json};
 

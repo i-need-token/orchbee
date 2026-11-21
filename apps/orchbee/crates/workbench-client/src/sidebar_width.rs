@@ -1,5 +1,7 @@
 //! Bounded sidebar width preference and its keyboard resize steps; no geometry projection.
 
+// module-layer: values
+
 /// The narrowest content a docked sidebar leaves beside itself: the Compact viewport minimum.
 pub(crate) const COMPACT_MINIMUM_COLUMNS: u16 = 60;
 

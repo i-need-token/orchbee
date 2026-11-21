@@ -1,4 +1,7 @@
 //! Bounded Worktree commands share the Client carrier and retain joined domain cancellation.
+
+// module-layer: workflow
+
 use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
 use crate::workbench_state::worktree_launch::{
     Discovery, Origin, Plan, WorktreeNotice, WorktreeToken,

@@ -1,6 +1,8 @@
 //! Encode fixed-viewport frame diffs and an owned software cursor through the admitted writer.
 //! The base-cell cache excludes the cursor; host cursor colors and shape are never changed.
 
+// module-layer: workflow
+
 use std::{
     borrow::Cow,
     io::{self, Write},

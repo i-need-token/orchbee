@@ -2,6 +2,8 @@
 //! and bounded explicit or panic-path restoration. It does not own the Workbench connection or
 //! infer that dropping a UI surface restores the host terminal.
 
+// module-layer: workflow
+
 use std::{
     fmt, io,
     io::Write as _,

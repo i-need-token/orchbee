@@ -2,6 +2,8 @@
 //! handoffs, and atomic admission with Client state. It performs no protocol I/O and does not
 //! let stale replies or expired leases authorize a different attachment or operation.
 
+// module-layer: state
+
 use crate::workbench_projection::ClientContextTabs;
 use crate::workbench_state::{
     AttachTarget, AttachmentKey, BootstrapTarget, CarrierFailure, CleanupContinuation,

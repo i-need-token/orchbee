@@ -1,4 +1,7 @@
 //! Conservative live-tail presentation: only a proved empty suffix may reveal retained rows.
+
+// module-layer: presentation
+
 use crate::terminal_viewport::ViewportWindow;
 use orchbee_terminal_protocol::{
     MouseTracking, TerminalFrameRoute, TerminalRowWindowRoute, TerminalTextFrame, TerminalTextRow,

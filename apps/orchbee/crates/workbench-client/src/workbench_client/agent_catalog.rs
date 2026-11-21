@@ -3,6 +3,9 @@
 //! then one frame whenever it changes. The lane keeps no catalog. A stream that ends or cannot
 //! open opens again after a delay, and nothing is polled: the only other request is the refresh
 //! an opened picker asks for, whose lookup reaches the stream like any other change.
+
+// module-layer: workflow
+
 use crate::agent_board::AgentCatalogEvent;
 use crate::local_client::{
     LocalClientOrigin, LocalOperationClock,

@@ -1,5 +1,8 @@
 //! Deterministic menu capture, selection and successful-draw authority.
 //! WorkbenchClientUi alone owns target validation and navigation; this unit cannot execute actions.
+
+// module-layer: state
+
 use crate::client_actions::PrefixAction;
 use crate::client_view::{
     Binding, ClientAction, KeyCode, KeyEvent, KeyKind, Modifiers, PanelDirection,

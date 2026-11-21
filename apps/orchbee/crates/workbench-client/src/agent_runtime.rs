@@ -1,5 +1,8 @@
 //! Application-owned Agent execution ports and shared observation facts.
 //! Native startup consumes this boundary; CLI adapters reuse its pure facts and cancellation.
+
+// module-layer: workflow
+
 use orchbee_agent_observation_protocol::{AgentSafeInteger, AgentSessionDetail, ObapRequestId};
 use orchbee_local_ipc::{LocalIo as BorrowedFd, PollFd, PollFlags, PollTimeout, poll};
 use std::time::Duration;

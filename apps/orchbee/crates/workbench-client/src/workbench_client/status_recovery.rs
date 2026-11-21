@@ -2,6 +2,8 @@
 //! task is absent, preserving its origin and recovery mailbox seed. It does not replay close
 //! mutations or replace the Server's retained status authority.
 
+// module-layer: composition
+
 use super::{ClientTask, WorkbenchClient, connection};
 use crate::background_thread::BackgroundThread;
 use crate::workbench_state;

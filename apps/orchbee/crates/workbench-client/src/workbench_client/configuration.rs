@@ -1,5 +1,8 @@
 //! A Client-owned publication watcher. Only the UI owner installs a validated key snapshot, and
 //! names its configured commands from the Server's catalog read after it.
+
+// module-layer: workflow
+
 use crate::{
     client_view::{ClientView, Notice},
     local_client::{LocalClientOrigin, LocalOperationClock},

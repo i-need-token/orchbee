@@ -2,6 +2,8 @@
 //! observations, and exact generation or revision feedback decisions. It does not read transport
 //! bytes, paint the frame, or treat projection state as Server authority.
 
+// module-layer: state
+
 use orchbee_client_server_protocol::{
     Geometry, TerminalViewerAction as Feedback, ViewerId, ViewerSnapshotReason as Reason,
 };

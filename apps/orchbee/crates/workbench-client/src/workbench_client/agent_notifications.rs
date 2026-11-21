@@ -1,4 +1,7 @@
 //! Pure logical-time policy for Client-owned physical Agent notifications.
+
+// module-layer: values
+
 use std::collections::BTreeMap;
 
 const MAXIMUM_OBSERVATIONS: usize = 4096;

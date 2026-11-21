@@ -7,6 +7,8 @@
 //! joins every job within the workflow's existing bounded I/O and release
 //! contract.
 
+// module-layer: workflow
+
 use std::{
     sync::{
         Arc, Mutex,

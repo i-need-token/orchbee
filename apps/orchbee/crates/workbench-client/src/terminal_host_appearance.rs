@@ -1,5 +1,7 @@
 //! One bounded outer-terminal default-color probe; replies never enter pane or editor input.
 
+// module-layer: workflow
+
 use crate::host_appearance::{HostAppearance, HostColors};
 pub(crate) use crate::terminal_events::appearance::{ColorReply, ColorTarget};
 use std::fmt;

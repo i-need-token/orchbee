@@ -2,6 +2,8 @@
 //! cancellation input, progress rendering, and explicit mode restoration. It does not activate
 //! a Session or enter the connected Workbench event loop.
 
+// module-layer: workflow
+
 #[cfg(unix)]
 use std::{fs::File, io::Read};
 use std::{

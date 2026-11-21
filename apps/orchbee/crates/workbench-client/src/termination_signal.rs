@@ -2,6 +2,8 @@
 //! control-interrupt adapter. It signals the application's shutdown path without restoring
 //! terminal modes or terminating owned resources itself.
 
+// module-layer: workflow
+
 use std::io;
 
 #[cfg(unix)]

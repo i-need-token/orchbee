@@ -4,6 +4,8 @@
 //! or presentation policy. Callers provide one exact painted source and a cancellation guard;
 //! the reader owns the temporary attachment, content fence, read budgets, and one Detach attempt.
 
+// module-layer: workflow
+
 use std::time::Instant;
 
 mod reader;

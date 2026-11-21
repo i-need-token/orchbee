@@ -4,6 +4,8 @@
 //! clipboard effects stay in the native UI adapter. This core owns only the
 //! volatile episode's cursor, search draft, selection intent and busy gates.
 
+// module-layer: state
+
 use std::num::NonZeroU64;
 
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};

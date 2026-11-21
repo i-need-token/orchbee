@@ -1,5 +1,8 @@
 //! Identity-only Client navigation locations shared by view selection and Workbench projection.
 //! This value grants no snapshot, terminal attachment or mutation authority.
+
+// module-layer: values
+
 use orchbee_workbench_protocol::{SessionId, WorkbenchTerminalContextId, WorkbenchWorkspaceId};
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]

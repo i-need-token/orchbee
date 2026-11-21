@@ -2,6 +2,9 @@
 //! selected native device adapter. It does not enter raw mode, take an alternate screen, or
 //! decide application startup policy.
 
+// module-layer: workflow
+// Admission failures move to `values`.
+
 use std::{fmt, io};
 
 pub use crate::host_graphics::WindowDimensions;

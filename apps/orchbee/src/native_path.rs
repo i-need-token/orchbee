@@ -1,6 +1,8 @@
 //! Native path spelling for people and machines. Text keeps the platform separators and escapes
 //! controls; machine fields keep the exact native representation instead of a lossy string.
 
+// module-layer: workflow
+
 use std::path::Path;
 
 use serde_json::Value;

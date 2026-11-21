@@ -3,6 +3,8 @@
 //! into display lines by the one shared rule. It does not mutate source text or parse canonical
 //! protocol identities from rendered labels.
 
+// module-layer: values
+
 use std::borrow::Cow;
 mod escape;
 pub use escape::{escape, quoted, unquoted};

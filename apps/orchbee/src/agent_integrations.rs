@@ -3,6 +3,8 @@
 //! process once every Session, and so every Worker, has stopped, so hooks that earlier versions
 //! wrote are still removed.
 
+// module-layer: values
+
 pub(crate) use orchbee_agent_integration::{IntegrationId, Refusal, State, Verdict};
 
 pub(crate) mod model {

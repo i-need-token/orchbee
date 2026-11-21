@@ -128,13 +128,21 @@ describe('production module graph', () => {
 });
 
 describe('workspace report', () => {
-	it('reports cycles, upward references, unassigned modules, and stale rows without failing', () => {
+	it('reports cycles, upward references, and unassigned modules without failing', () => {
 		const root = fixture({
 			'Cargo.toml': MANIFEST,
 			'crates/demo/Cargo.toml': '[package]\nname = "demo"\n',
 			'crates/demo/src/lib.rs': 'mod high;\nmod loose;\nmod low;\n',
-			'crates/demo/src/high.rs': 'pub(crate) fn top() { super::low::base(); }\n',
+			'crates/demo/src/high.rs': [
+				'//! The higher module.',
+				'',
+				'// module-layer: top',
+				'',
+				'pub(crate) fn top() { super::low::base(); }',
+				'',
+			].join('\n'),
 			'crates/demo/src/low.rs': [
+				'// module-layer: base',
 				'pub(crate) fn base() {}',
 				'pub(crate) fn climb() { crate::high::top(); }',
 				'',
@@ -151,14 +159,6 @@ describe('workspace report', () => {
 				'| --- | --- |',
 				'| `base` | Lower modules |',
 				'| `top` | Higher modules |',
-				'',
-				'## Module assignment',
-				'',
-				'| Module | Layer |',
-				'| --- | --- |',
-				'| `gone` | `base` |',
-				'| `high` | `top` |',
-				'| `low` | `base` |',
 				'',
 			].join('\n'),
 		});
@@ -177,33 +177,47 @@ describe('workspace report', () => {
 			[['low', 'high', 1]],
 		);
 		assert.deepEqual(result.layers.unassigned, ['loose']);
-		assert.deepEqual(result.layers.stale, ['gone']);
 		const text = formatReport(report);
 		assert.match(text, /^ {2}warning: 2 module cycle\(s\)/mu);
 		assert.doesNotMatch(text, /^error:/mu);
 	});
 
-	it('rejects malformed contracts and reuses a linked layer table', () => {
+	it('rejects malformed layer lines and contracts and reuses a linked layer table', () => {
 		const layers = '## Layers\n\n| Layer |\n| --- |\n| `base` |\n| `top` |\n';
-		const malformed = parseLayerContract(
-			`${layers}\n## Module assignment\n\n| Module | Layer |\n| --- | --- |\n| \`a\` | \`middle\` |\n| \`b\` | \`top\` |\n| \`b\` | \`base\` |\n`,
-			'malformed.md',
-		);
+		const root = fixture({
+			'Cargo.toml': MANIFEST,
+			'crates/demo/Cargo.toml': '[package]\nname = "demo"\n',
+			'crates/demo/src/lib.rs': [
+				'mod a;',
+				'mod b;',
+				'mod c;',
+				'mod inline {',
+				'    // module-layer: top',
+				'    pub(crate) fn top() {}',
+				'}',
+				'',
+			].join('\n'),
+			'crates/demo/src/a.rs': '//! Docs.\n\n// module-layer: middle\n',
+			'crates/demo/src/b.rs': '// module-layer: top\n// module-layer: base\n',
+			'crates/demo/src/c.rs': 'pub(crate) fn c() {}\n// module-layer: base\n',
+			'crates/demo/docs/module-layers.md': layers,
+		});
+		const malformed = analyzeWorkspace(root);
 		assert.deepEqual(malformed.problems, [
-			'malformed.md: `a` uses unknown layer `middle`',
-			'malformed.md: duplicate assignment for `b`',
+			'crates/demo/src/b.rs:2 second module-layer line of one module',
+			'crates/demo/src/c.rs:2 module-layer line outside the comment block that opens a module',
+			'crates/demo/src/a.rs:3 `a` uses unknown layer `middle`',
 		]);
+		// `b` and the inline module took a layer; the two refused lines assigned nothing.
+		assert.deepEqual(malformed.results[0].layers.unassigned, ['a', 'c']);
 		const linked = parseLayerContract(
-			'## Layers\n\nSee [shared layers](shared.md#layers).\n\n## Module assignment\n\n| Module | Layer |\n| --- | --- |\n| `a` | `top` |\n',
+			'## Layers\n\nSee [shared layers](shared.md#layers).\n',
 			'linked.md',
 			(target) => (target === 'shared.md' ? { markdown: layers, label: 'shared.md' } : undefined),
 		);
 		assert.deepEqual(linked.problems, []);
 		assert.deepEqual([...linked.layers.keys()], ['base', 'top']);
-		const missing = parseLayerContract(
-			'## Layers\n\nSee [nothing](absent.md).\n\n## Module assignment\n',
-			'missing.md',
-		);
+		const missing = parseLayerContract('## Layers\n\nSee [nothing](absent.md).\n', 'missing.md');
 		assert.deepEqual(missing.problems, [
 			'missing.md: "## Layers" has neither a layer table nor a link to a contract with one',
 		]);
@@ -223,8 +237,10 @@ function recordedWorkspace() {
 		'crates/plain/src/d.rs': 'pub(crate) fn d() {}\n',
 		'crates/layered/Cargo.toml': '[package]\nname = "layered"\n',
 		'crates/layered/src/lib.rs': 'mod high;\nmod low;\n',
-		'crates/layered/src/high.rs': 'pub(crate) fn top() { crate::low::base(); }\n',
-		'crates/layered/src/low.rs': 'mod first;\nmod second;\npub(crate) fn base() {}\n',
+		'crates/layered/src/high.rs':
+			'// module-layer: top\npub(crate) fn top() { crate::low::base(); }\n',
+		'crates/layered/src/low.rs':
+			'// module-layer: base\nmod first;\nmod second;\npub(crate) fn base() {}\n',
 		'crates/layered/src/low/first.rs': 'pub(crate) fn climb() { crate::high::top(); }\n',
 		'crates/layered/src/low/second.rs': 'pub(crate) fn rest() {}\n',
 		'crates/layered/docs/module-layers.md': [
@@ -234,13 +250,6 @@ function recordedWorkspace() {
 			'| --- |',
 			'| `base` |',
 			'| `top` |',
-			'',
-			'## Module assignment',
-			'',
-			'| Module | Layer |',
-			'| --- | --- |',
-			'| `high` | `top` |',
-			'| `low` | `base` |',
 			'',
 		].join('\n'),
 	});

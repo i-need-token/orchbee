@@ -5,6 +5,8 @@
 //! contract in `schemas/machine` owns every byte. It builds wherever the hub does; whether this
 //! host runs saved machines at all is the `SavedMachines` capability's decision.
 
+// module-layer: workflow
+
 mod answer;
 mod attach;
 mod control;

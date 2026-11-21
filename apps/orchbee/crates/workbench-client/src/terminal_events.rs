@@ -1,6 +1,8 @@
 //! Deterministic host event decoding and typed terminal replies, independent of dispatch,
 //! Client view state, terminal admission and physical effects.
 
+// module-layer: values
+
 pub(crate) mod appearance;
 pub(crate) mod decoder;
 pub(crate) mod graphics;

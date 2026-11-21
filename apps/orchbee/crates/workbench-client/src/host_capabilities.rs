@@ -1,6 +1,8 @@
 //! Names optional host effects and their current platform admission.
 //! View action selection and feature state stay with the composition owner.
 
+// module-layer: values
+
 #[cfg(not(windows))]
 pub(crate) mod unix;
 

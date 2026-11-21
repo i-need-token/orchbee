@@ -1,4 +1,7 @@
 //! Windows selected-Presentation observations on an isolated, cancellable read lane.
+
+// module-layer: workflow
+
 use super::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome, ROUND_FRESH_FOR};
 use super::{ClientPanel, ClientPresentation};
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};

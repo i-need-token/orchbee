@@ -6,6 +6,8 @@
 //! shares. `argv`, `scan`, and `dispatch` run one parse; feature children own their commands'
 //! operands; the option and `failure` children hold the decoders and failures those parsers share.
 
+// module-layer: values
+
 pub(crate) mod operation;
 mod panel_agent;
 mod panel_metadata;

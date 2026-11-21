@@ -1,4 +1,7 @@
 //! Machine picker pointer handling: releases and wheel movement on painted picker targets.
+
+// module-layer: input
+
 use super::{
     Control, DrawnPickerList, DrawnPickerTarget, Mode, Picker, PickerAction, SidebarWindow,
 };

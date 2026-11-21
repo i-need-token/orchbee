@@ -17,7 +17,7 @@ import {
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '..');
 export const CONTRACT_PATH = 'docs/module-layers.md';
 const LAYERS_HEADING = 'Layers';
-const ASSIGNMENT_HEADING = 'Module assignment';
+const LAYER_LINE = /^\/\/\s*module-layer:(.*)$/u;
 const SUMMARY_CYCLE_LIMIT = 4;
 const SUMMARY_MEMBER_LIMIT = 10;
 const SAMPLE_LIMIT = 3;
@@ -515,6 +515,7 @@ function loadSourceFile(state, file) {
 		original,
 		text,
 		starts: lineStarts(original),
+		layerLines: new Set(),
 		productionLines: physicalLines(original) - removedLines,
 	};
 	state.files.set(file, loaded);
@@ -535,6 +536,7 @@ function attachScope(state, module, source, scopeStart, scopeEnd, directory, fil
 			createModule(declaration.name, module, path.join(directory, declaration.name));
 		module.children.set(declaration.name, child);
 		if (declaration.inline) {
+			recordLayer(state, child, source, declaration.bodyStart, declaration.bodyEnd);
 			attachScope(
 				state,
 				child,
@@ -568,11 +570,72 @@ function attachScope(state, module, source, scopeStart, scopeEnd, directory, fil
 	}
 }
 
+/**
+ * Finds the `// module-layer: <id>` lines that open a module's text: its file, or the body of an
+ * inline module. The opening block is every line before the first one that is neither blank, a
+ * comment, nor an inner attribute. Each entry holds the layer ID and the line's index in the text.
+ */
+function openingLayerLines(text) {
+	const found = [];
+	for (const [index, line] of text.split('\n').entries()) {
+		const trimmed = line.trim();
+		if (trimmed !== '' && !trimmed.startsWith('//') && !trimmed.startsWith('#![')) break;
+		const match = LAYER_LINE.exec(trimmed);
+		if (match !== null) found.push({ index, layer: match[1].trim() });
+	}
+	return found;
+}
+
+/**
+ * Records the layer that the text from `start` to `end` assigns to its module. A module names one
+ * layer, and the files of one module agree on it.
+ */
+function recordLayer(state, module, source, start, end) {
+	const file = normalizeSeparators(path.relative(state.root, source.file));
+	const firstLine = lineAt(source.starts, start);
+	const found = openingLayerLines(source.original.slice(start, end)).map(({ index, layer }) => ({
+		layer,
+		line: firstLine + index,
+	}));
+	for (const { line } of found) source.layerLines.add(line);
+	const [first, second] = found;
+	if (first === undefined) return;
+	if (second !== undefined) {
+		state.layerProblems.push(`${file}:${second.line} second module-layer line of one module`);
+	}
+	if (module.parent === undefined) {
+		state.layerProblems.push(
+			`${file}:${first.line} a crate root takes no layer; its modules name their own`,
+		);
+	} else if (module.layer === undefined) {
+		module.layer = { id: first.layer, location: `${file}:${first.line}` };
+	} else if (module.layer.id !== first.layer) {
+		state.layerProblems.push(
+			`${file}:${first.line} \`${moduleKey(module)}\` is \`${first.layer}\` here and \`${module.layer.id}\` at ${module.layer.location}`,
+		);
+	}
+}
+
+/** Reports every module-layer line that opens neither a module file nor an inline module. */
+function strayLayerLines(state) {
+	for (const source of state.files.values()) {
+		const file = normalizeSeparators(path.relative(state.root, source.file));
+		for (const [index, line] of source.original.split('\n').entries()) {
+			if (LAYER_LINE.test(line.trim()) && !source.layerLines.has(index + 1)) {
+				state.layerProblems.push(
+					`${file}:${index + 1} module-layer line outside the comment block that opens a module`,
+				);
+			}
+		}
+	}
+}
+
 function loadModuleFile(state, module, file, modRs) {
 	// A platform `cfg_attr(path)` variant adds a file to the same module; never count one twice.
 	if (module.files.has(file)) return;
 	module.files.add(file);
 	const source = loadSourceFile(state, file);
+	recordLayer(state, module, source, 0, source.original.length);
 	module.productionLines += source.productionLines;
 	attachScope(
 		state,
@@ -832,20 +895,18 @@ function layerTable(lines, label, problems) {
 /**
  * Reads a module-layer contract. The first table under `## Layers` lists layer IDs from lowest to
  * highest; without a table, the section's first link to another contract reuses that contract's
- * layer table. Tables under `## Module assignment` map module paths to layer IDs.
+ * layer table. Each module names its layer in its own file; see `openingLayerLines`.
  * `readLinked(target)` returns `{ markdown, label }` for a relative Markdown link, or `undefined`.
  */
 export function parseLayerContract(markdown, label, readLinked = () => undefined) {
 	const problems = [];
-	const layerLines = markdownSection(markdown, LAYERS_HEADING);
-	const assignmentLines = markdownSection(markdown, ASSIGNMENT_HEADING);
-	if (layerLines === undefined) problems.push(`${label}: missing "## ${LAYERS_HEADING}" section`);
-	if (assignmentLines === undefined)
-		problems.push(`${label}: missing "## ${ASSIGNMENT_HEADING}" section`);
-	if (problems.length > 0) return { problems };
-	let layers = layerTable(layerLines, label, problems);
+	const section = markdownSection(markdown, LAYERS_HEADING);
+	if (section === undefined) {
+		return { problems: [`${label}: missing "## ${LAYERS_HEADING}" section`] };
+	}
+	let layers = layerTable(section, label, problems);
 	if (layers.size === 0) {
-		const link = /\]\(([^)#\s]+\.md)(?:#[^)\s]*)?\)/u.exec(layerLines.join('\n'));
+		const link = /\]\(([^)#\s]+\.md)(?:#[^)\s]*)?\)/u.exec(section.join('\n'));
 		const linked = link === null ? undefined : readLinked(link[1]);
 		const linkedLines =
 			linked === undefined ? undefined : markdownSection(linked.markdown, LAYERS_HEADING);
@@ -855,19 +916,28 @@ export function parseLayerContract(markdown, label, readLinked = () => undefined
 		problems.push(
 			`${label}: "## ${LAYERS_HEADING}" has neither a layer table nor a link to a contract with one`,
 		);
+	return { problems, layers };
+}
+
+/**
+ * Maps each module that names a layer to that layer. A descendant without a line inherits its
+ * nearest assigned ancestor's layer, which `assignedKey` resolves.
+ */
+function moduleAssignments(modules, contract, problems) {
 	const assignments = new Map();
-	for (const cells of tableRows(assignmentLines)) {
-		const module = codeToken(cells[0]);
-		const layer = codeToken(cells[1]);
-		if (module === undefined || layer === undefined) {
-			problems.push(`${label}: assignment row "${cells.join(' | ')}" needs code module and layer`);
-		} else if (!layers.has(layer)) {
-			problems.push(`${label}: \`${module}\` uses unknown layer \`${layer}\``);
-		} else if (assignments.has(module)) {
-			problems.push(`${label}: duplicate assignment for \`${module}\``);
-		} else assignments.set(module, layer);
+	for (const module of modules) {
+		if (module.layer === undefined) continue;
+		if (contract === undefined) {
+			problems.push(
+				`${module.layer.location} names a layer, but its member has no ${CONTRACT_PATH}`,
+			);
+		} else if (!contract.layers.has(module.layer.id)) {
+			problems.push(
+				`${module.layer.location} \`${moduleKey(module)}\` uses unknown layer \`${module.layer.id}\``,
+			);
+		} else assignments.set(moduleKey(module), module.layer.id);
 	}
-	return { problems, layers, assignments };
+	return assignments;
 }
 
 function assignedKey(assignments, modulePath) {
@@ -893,7 +963,6 @@ function markDownwardLinks(cycles, { layers, assignments }) {
 
 function layerFindings(root, references, contract, repositoryRoot) {
 	const { layers, assignments } = contract;
-	const existing = new Set([...walkModules(root)].map(moduleKey));
 	const violations = new Map();
 	for (const reference of references) {
 		const from = assignedKey(assignments, reference.from.path);
@@ -936,7 +1005,6 @@ function layerFindings(root, references, contract, repositoryRoot) {
 				(left, right) => left.from.localeCompare(right.from) || left.to.localeCompare(right.to),
 			),
 		unassigned: [...root.children.keys()].filter((name) => !assignments.has(name)).toSorted(),
-		stale: [...assignments.keys()].filter((key) => !existing.has(key)).toSorted(),
 	};
 }
 
@@ -985,21 +1053,27 @@ export function workspaceMembers(repositoryRoot) {
  * between distinct modules, each with its source location.
  */
 export function buildModuleGraph(repositoryRoot, rootFile) {
-	const state = { root: repositoryRoot, files: new Map(), unresolved: [] };
+	const state = { root: repositoryRoot, files: new Map(), unresolved: [], layerProblems: [] };
 	const root = createModule('', undefined, path.dirname(rootFile));
 	loadModuleFile(state, root, rootFile, true);
+	strayLayerLines(state);
 	collectUses(root);
 	const references = [];
 	collectReferences(root, references);
-	return { root, references, unresolved: state.unresolved };
+	return { root, references, unresolved: state.unresolved, layerProblems: state.layerProblems };
 }
 
 /** Builds the production module graph and findings for one crate target. */
 export function analyzeTarget(repositoryRoot, memberDirectory, rootFile, contract) {
-	const { root, references, unresolved } = buildModuleGraph(repositoryRoot, rootFile);
+	const { root, references, unresolved, layerProblems } = buildModuleGraph(
+		repositoryRoot,
+		rootFile,
+	);
 	const modules = [...walkModules(root)];
 	const cycles = siblingCycles(root, references, repositoryRoot);
-	if (contract !== undefined) markDownwardLinks(cycles, contract);
+	const assignments = moduleAssignments(modules, contract, layerProblems);
+	const layered = contract === undefined ? undefined : { layers: contract.layers, assignments };
+	if (layered !== undefined) markDownwardLinks(cycles, layered);
 	return {
 		member: normalizeSeparators(path.relative(repositoryRoot, memberDirectory)),
 		target: path.basename(rootFile, '.rs') === 'main' ? 'bin' : 'lib',
@@ -1008,11 +1082,10 @@ export function analyzeTarget(repositoryRoot, memberDirectory, rootFile, contrac
 		modulePaths: modules.map(moduleKey).filter((key) => key !== ''),
 		productionLines: subtreeLines(root),
 		unresolvedModules: unresolved,
+		layerProblems,
 		cycles,
 		layers:
-			contract === undefined
-				? undefined
-				: layerFindings(root, references, contract, repositoryRoot),
+			layered === undefined ? undefined : layerFindings(root, references, layered, repositoryRoot),
 	};
 }
 
@@ -1053,6 +1126,7 @@ export function analyzeWorkspace(repositoryRoot, selectedMembers = []) {
 			const result = analyzeTarget(repositoryRoot, member, rootFile, contract);
 			if (contract !== undefined) result.layers.contract = contract.path;
 			problems.push(...result.unresolvedModules.map((entry) => `unresolved module file: ${entry}`));
+			problems.push(...result.layerProblems);
 			results.push(result);
 		}
 	}
@@ -1101,7 +1175,6 @@ export function formatReport({ results, problems }, { details = false } = {}) {
 				);
 			if (layers.unassigned.length > 0)
 				findings.push(`${layers.unassigned.length} unassigned top-level module(s)`);
-			if (layers.stale.length > 0) findings.push(`${layers.stale.length} stale assignment(s)`);
 		}
 		if (findings.length > 0) lines.push(`  warning: ${findings.join('; ')}`);
 		const cycles = details ? result.cycles : result.cycles.slice(0, SUMMARY_CYCLE_LIMIT);
@@ -1115,7 +1188,6 @@ export function formatReport({ results, problems }, { details = false } = {}) {
 		if (layers === undefined) continue;
 		lines.push(`  layer contract: ${layers.contract}`);
 		if (layers.unassigned.length > 0) lines.push(`  unassigned: ${layers.unassigned.join(', ')}`);
-		if (layers.stale.length > 0) lines.push(`  stale: ${layers.stale.join(', ')}`);
 		if (!details) continue;
 		for (const entry of layers.violations) {
 			lines.push(

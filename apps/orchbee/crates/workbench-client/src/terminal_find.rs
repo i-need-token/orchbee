@@ -4,6 +4,8 @@
 //! search it still expects and the last settled matches. Content reads, viewport movement,
 //! notices and paint stay in the native UI adapter, which passes the clock in.
 
+// module-layer: state
+
 use std::{num::NonZeroU64, time::Duration, time::Instant};
 
 use crate::{

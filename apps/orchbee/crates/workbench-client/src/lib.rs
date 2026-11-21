@@ -96,6 +96,7 @@ mod worktree_destination;
 /// item. A nested module appears only where an owner's children export the same names. Every
 /// other item stays inside its private implementation module.
 pub mod application {
+    // module-layer: composition
     pub mod agent_provider {
         pub use crate::agent_provider::{
             CANONICAL_IDS, ProviderChoice, choice, choices, executable, integration_id,

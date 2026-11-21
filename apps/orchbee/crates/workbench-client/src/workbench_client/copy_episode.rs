@@ -6,6 +6,8 @@
 //! The composition root holds the copy query driver and cancels it whenever an episode begins or
 //! ends; this owner never reaches the driver.
 
+// module-layer: state
+
 use crate::terminal_content::ContentSource;
 use crate::terminal_copy::TerminalTextPoint;
 use crate::terminal_copy_mode::{

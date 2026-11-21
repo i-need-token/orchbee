@@ -1,6 +1,8 @@
 //! Coalesce worker notifications for the single UI waiter without owning input,
 //! payloads, or acknowledgements. Mailbox state remains the delivery authority.
 
+// module-layer: state
+
 #[cfg(unix)]
 use orchbee_local_ipc::LocalStream;
 #[cfg(windows)]

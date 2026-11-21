@@ -4,6 +4,8 @@
 //! endpoint therefore gets at most one probe: after any settlement, a late
 //! reply can be consumed by the input decoder but can never reopen admission.
 
+// module-layer: workflow
+
 #[cfg(windows)]
 use std::io;
 use std::{

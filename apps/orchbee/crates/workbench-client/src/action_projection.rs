@@ -5,6 +5,8 @@
 //! identity and its discovery metadata. Availability is supplied by the owning UI snapshot; it is
 //! never inferred here.
 
+// module-layer: values
+
 use crate::localization::Words;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

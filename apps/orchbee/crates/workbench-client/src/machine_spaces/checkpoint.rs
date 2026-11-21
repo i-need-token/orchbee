@@ -1,5 +1,8 @@
 //! Settled Workspace observation values: canonical Workspace metadata rows, their last known
 //! Git facts, and the checkpoint that fences them. Readers produce them; Client state holds them.
+
+// module-layer: values
+
 use crate::client_context::ClientContextTarget;
 use orchbee_workbench_protocol::{
     GitDivergence, MetadataTokens, SessionId, WorkbenchDirectoryPath, WorkbenchProjectId,

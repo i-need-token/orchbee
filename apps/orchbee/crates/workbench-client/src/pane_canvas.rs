@@ -1,6 +1,9 @@
 //! Complete immutable pane graphics canvases pinned to one revision, the draw facts that name
 //! them, and the shared pixel sampling every renderer uses; validation only, no reads or
 //! presentation.
+
+// module-layer: values
+
 use orchbee_workbench_protocol::{
     MAXIMUM_GRAPHICS_LAYERS_PER_PANE, MAXIMUM_GRAPHICS_RESIDENT_BYTES, PaneGraphicsLayer,
     PaneGraphicsTarget, PresentationBinding, Snapshot, WorkbenchRevision, graphics_rgba_bytes,

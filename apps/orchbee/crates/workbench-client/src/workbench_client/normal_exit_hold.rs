@@ -4,6 +4,8 @@
 //! it leaves membership. A pane still present at the bound returns to the ordinary settlement
 //! presentation. Holds never change attachment, input, selection, membership or Server state.
 
+// module-layer: state
+
 use crate::localization::TerminalEnd;
 use orchbee_terminal_protocol::ExitResult;
 use std::time::{Duration, Instant};

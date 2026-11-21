@@ -2,6 +2,10 @@
 //! viewport geometry, and visual roles. It paints and reports what was drawn without owning
 //! feature transitions, input admission, or backend effects.
 
+// module-layer: presentation
+// Primitives and recurring compositions stay as the shared component layer; business surfaces
+// move to their features.
+
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Position, Rect},

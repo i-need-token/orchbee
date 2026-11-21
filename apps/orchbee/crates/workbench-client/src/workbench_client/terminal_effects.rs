@@ -1,4 +1,7 @@
 //! Bounded external-effect FIFO, cancelled before dispatch and never replayed afterwards.
+
+// module-layer: workflow
+
 use crate::workbench_state::PaneRef;
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use std::{

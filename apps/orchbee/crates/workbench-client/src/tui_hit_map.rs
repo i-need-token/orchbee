@@ -5,6 +5,9 @@
 //! complete successful draw. Pointer input resolves gestures against that published map and hands
 //! each candidate frame an immutable [`PointerProjection`] for transient hover and press state.
 
+// module-layer: presentation
+// Regions carry owners' painted witnesses, so the map sits above `state`.
+
 use ratatui::layout::Rect;
 
 use orchbee_workbench_protocol::WorkbenchTabId;

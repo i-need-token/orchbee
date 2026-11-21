@@ -1,6 +1,8 @@
 //! Workbench input capabilities and current pointer/capture facts. The input dispatcher consumes
 //! this contract; the port owns no byte decoder, terminal lifecycle writer or dispatch loop.
 
+// module-layer: input
+
 mod action;
 mod capture;
 mod drag_sources;

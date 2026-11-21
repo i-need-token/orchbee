@@ -10,6 +10,8 @@
 //! sequence, the store's start included, then runs again, so a Client opened
 //! during a stop starts the next Session instead of failing.
 
+// module-layer: workflow
+
 use crate::local_client::{CLIENT_VERSION, LocalClient, LocalClientConnectError, client_offer};
 use crate::startup_status::RefusedVersions;
 use orchbee_connection_handshake::RejectionReason as Refusal;

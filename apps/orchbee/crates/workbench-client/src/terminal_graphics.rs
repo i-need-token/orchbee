@@ -1,4 +1,7 @@
 //! Bounded host graphics facts; the interactive shell activates the probe for its admitted terminal.
+
+// module-layer: workflow
+
 pub use crate::terminal_events::graphics::Reply;
 use std::time::{Duration, Instant};
 
