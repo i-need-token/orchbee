@@ -1,9 +1,8 @@
 # Workbench Client Runtime
 
 Status: accepted implementation and correctness contract for the TUI Workbench Client runtime.
-Native Move runtime has deterministic integration and Linux cohort process evidence. This remains
-an unpublished local development path. Native Close has the bounded Linux process evidence below;
-packaging and production recovery remain separate work.
+This remains an unpublished local development path. Native Close has the bounded Linux process
+evidence below; packaging and production recovery remain separate work.
 
 [Native context selection](native-context-selection.md) owns Workspace navigation, per-Client Tab/Panel
 selection memory and the current-context projection extension. Its location identity, Empty selection and retained
@@ -433,26 +432,47 @@ consumer is integrated; this boundary alone does not establish whole Close deliv
 
 ## Close model scope and refinement
 
-Close behavior is governed by the canonical membership implementation boundary above and the [Server Close contract](../../orchbee-server/docs/terminal-tab-close.md). Native state/mailbox generated tests and connection/projection traces exercise active/inactive removal, Empty, stale completion, peer changes, Create/Move/Refresh barriers and cleanup. The retained pane-incarnation model covers only identity fencing and late cleanup; it does not claim exhaustive Close composition or prove the Server/Worker implementation.
+Close behavior is governed by the canonical membership implementation boundary above and the [Server Close contract](../../orchbee-server/docs/terminal-tab-close.md). Native state/mailbox generated tests and connection/projection traces exercise active/inactive removal, Empty, stale completion, peer changes, Create/Refresh barriers and cleanup. The retained pane-incarnation model covers only identity fencing and late cleanup; it does not claim exhaustive Close composition or prove the Server/Worker implementation.
 
-## Accepted Move integration and identity rules
+## Move Tab keys and identity rules
 
-The native Move projector, mailbox, adapter, state, key and UI consumers implement the accepted
-rules below. Their deterministic evidence is separate from full cohort process acceptance.
-[Server ownership and evidence](../../orchbee-server/docs/workbench-authority.md#accepted-canonical-tab-move-model)
-fix the reference-derived bootstrap composition, pure commit and rollout boundary.
+`Ctrl+b <` and `Ctrl+b >` run the global menu's Move Tab Previous and Move Tab Next rows on the
+current Tab. A key and its row are one invocation: the same availability rule, the same
+`tabs.configure` `move-tab` operation, the same setup transaction and the same statuses. The Client
+keeps no second move flow and never sends `tab.move` or `tab.move-index`.
+[Native groups](native-tab-groups.md#shared-authority-and-receipts) owns the operation and its
+receipt check, and [Native action menus](native-action-menus.md) owns the row rule.
 
-Move targets the active selected Tab only, from Ready, SelectedWithoutAttachment or
-RetryableAttachUnavailable with a live carrier and exact cache/selection identity.
-`Ctrl+b <` and `Ctrl+b >` move toward previous/next among the Tabs pinned as the active one, by the
-rule of the global menu's Move Tab rows: with no other such Tab the key submits nothing, and past
-either end of them it wraps to the other end. Wire previous/next never wrap. A wrap that lands on
-the boundary between pinned and unpinned Tabs, the last pinned or first unpinned place, submits
-`tab.move-index` at that boundary, because `last` and `first` address the whole order; every other
-move submits `tab.move` with its direction. Move admission allocates no attachment generation;
-when its active target survives the validating projection, settlement preserves viewer/controller,
-terminal projection and historical Ready proof. Ordinary frame
-invalidation still does not add a fresh-frame prerequisite to Create.
+A key therefore gives its row's result in every position. A Tab moves only among the Tabs pinned as
+it is: with none to pass the key submits nothing and shows nothing, and past either end of them it
+wraps to the other end as `first` or `last`, which also takes the Tab out of its group. Beside a Tab
+of another group one step changes membership before order: a grouped Tab leaves its group where it
+stands, and an ungrouped Tab joins the neighbouring group where it stands, or passes the whole group
+when that group is collapsed. The Client computes none of these results. It names the Tab, the
+direction and whether the neighbouring group is collapsed, and installs what the Server's rule made
+of them.
+
+Settlement is the setup transaction's. The receipt must be `tabs-configured` at the checked
+successor of the baseline revision. At that revision the whole Snapshot must equal the baseline
+with its context replaced by `configure_tabs`; a later revision passes the shared strict identity
+validator instead. Admission allocates no attachment generation, and a surviving target keeps its
+viewer, controller, terminal projection and historical Ready proof. A refusal shows the Tab
+configuration's not-applied status, a commit whose Snapshot cannot be read shows the
+committed-snapshot-unavailable status until a refresh installs it, and an unknown outcome is never
+retried. No move-specific phase, notice or recovery record exists.
+
+Only one Tab configuration is in flight at a time, so a press made before the previous move
+installed cannot be submitted at once, and dropping it would lose a keystroke. Such presses are
+serialized instead. A Move Tab press waits in the held-invocation slot described below while this
+Client's own Tab configuration is in flight, or while a publication refresh or landing switch holds
+the projection. Presses held together form one run of at most 32, and each press renews the run's
+five-second bound. Every tick submits the oldest press once the change before it has installed, so
+each request is computed from the order then installed and carries that revision: the run sends one
+request at a time, in press order, and none of its own requests can refuse another as stale. A
+change that is refused or whose outcome is unknown ends the run, so later presses never act on an
+order the person did not see; its status says so. A committed change that cannot be shown ends the
+run the same way. A run that outlives its bound ends with the localized busy notice, and a press
+beyond the run's limit is refused with the same notice.
 
 Tab ID and `AttachmentKey { generation, tab_id }` are authoritative. An index is derived from one
 accepted cache vector and may be retained only while that vector is frozen. Cache replacement
@@ -464,7 +484,7 @@ For `[A,B,C] -> [B,A,C]`, active A moves from index 0 to 1 and
 `[Started(A),Unavailable(B),BindingOnly(C)]` becomes
 `[Unavailable(B),Started(A),BindingOnly(C)]`; attachment identity does not change.
 
-Ordinary Refresh/Move installation is limited to its matching stable phase or exact explicit
+Ordinary Refresh installation is limited to its matching stable phase or exact explicit
 recovery. Starting, Creating, CreateCommittedNeedDetach, Switching and Retired prohibit ordinary
 replacement. Correlated CreateSnapshot validates the retained commit before staging old cleanup.
 Explicit Create ProjectionUnavailable recovery validates the same facts and samples a fresh
@@ -472,51 +492,14 @@ operation budget for candidate cleanup and installation. Started may continue to
 budget; non-Started installs without Attach. Cold Bootstrap owns initial installation. These exceptions never admit a second structural
 flight or allow ordinary refresh to impersonate CreateSnapshot.
 
-One admission-time `structural_mutation_pending` Move flight spans queued marker, command I/O,
-SnapshotRead, typed event and UI settlement. Under the same mailbox/canonical-state lock, reject
-Move if Create/Switch/Refresh/Move is queued, active, in flight or awaiting UI. Once admitted, reject
-new structural markers until exact UI settlement or retirement; explicit recovery continues to
-block order-dependent operations. Earlier Switch/Refresh similarly freezes the cache through its
+One structural flight spans queued marker, command I/O, SnapshotRead, typed event and UI
+settlement. Under the same mailbox/canonical-state lock, a structural command is refused while Create, Switch, Refresh or another structural flight is queued,
+active, in flight or awaiting UI. Earlier Switch/Refresh similarly freezes the cache through its
 setup/cleanup/UI settlement. FIFO alone is insufficient: never construct Switch(B, old index 1)
-behind Move(B, first). Input/Resize/Poll/causal feedback keep existing generation/Tab-ID FIFO rules;
-later effects cannot execute while Move awaits semantic settlement. `n`, `p` and numbers use latest
-applied order; while Switching, n/p anchor to its desired Tab ID and the frozen vector.
+behind a move of B to the first place. Input/Resize/Poll/causal feedback keep existing
+generation/Tab-ID FIFO rules. `n`, `p` and numbers use latest applied order; while Switching, n/p
+anchor to its desired Tab ID and the frozen vector.
 
-Use the existing injected monotonic clock and one request cursor. Sample before lock and compute
-`sampled_at.checked_add(50s)` once; overflow refuses unchanged. Nonblocking lock/re-sample discipline
-refuses at `now >= deadline`, including equality and contention across expiry, without extending
-the deadline. Atomically check phase, exact target, queue capacity, exclusivity and identity
-availability, then capture request ID, baseline, context, Tab, direction, deadline and flight.
-Any initial time/queue/target/identity refusal preserves cursor, marker, cache, attachment,
-selection, projection and navigator. No second cursor is allowed.
-
-| Transition                                          | Guard and result                                                                                                                               | Structural fence / effects                                                                                                                                                   |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Drain then submit                                   | Earlier FIFO and causal feedback finish truthfully; submit before deadline                                                                     | One 50-second budget covers drain, Move and validating Snapshot; existing earlier deadlines remain earlier                                                                   |
-| Definite precommit                                  | Action-compatible Denied/Rejected/Unavailable, or proven local not-submitted expiry; TabUnavailable reads one Snapshot                         | Exact UI settlement shows notice and clears flight; a validated removal uses common membership settlement                                                                    |
-| No-op                                               | `Unchanged.revision = baseline`                                                                                                                | No Snapshot; exact UI settlement clears flight without identity/cache change                                                                                                 |
-| Known commit                                        | Exact context/Tab and `TabMoved.revision = checked(baseline + 1)`                                                                              | Retain commit; allocate one Snapshot ID from same cursor at execution; exhaustion retires without replay or cursor rewind                                                    |
-| Snapshot available                                  | Revision at least committed; exact expected full baseline permutation at committed revision; shared strict higher-revision validation above it | Bounded typed event; preserve target or enter common cleanup; exact atomic installation releases fence                                                                       |
-| Snapshot definitely denied/unavailable after commit | Move is known committed, canonical projection unavailable                                                                                      | Enter MoveProjectionUnavailable with old historical cache, prior stable phase, viewer/controller/generation and Ready proof retained                                         |
-| Explicit recovery                                   | `Ctrl+b w` admits one Refresh using its own existing 50-second transport/deposit split                                                         | Require at least known commit revision and exact permutation there or allowed later history; remap and restore prior phase; repeated definite unavailable preserves recovery |
-| Corrupt/ambiguous exchange                          | Wrong correlation/kind/outcome, impossible revision, corrupt projection or possible handoff then ambiguity                                     | Retire mixed carrier without new-ID replay; known commit remains known                                                                                                       |
-| Exit/retirement                                     | Exact existing carrier lifecycle                                                                                                               | Releases waiting executor; retirement is not successful completion                                                                                                           |
-
-Typed deposit itself must precede `now >= deadline`, using outside-lock sampling, nonblocking lock
-and exact event-key/deadline revalidation. If a safe complete typed event cannot be deposited,
-retire the outstanding transport flight. After deposit the transport budget is finished: UI
-semantic settlement has no synthetic wall-clock limit, and the fence remains until exact
-consumption or carrier/Exit retirement. Late consumption must not expire an already deposited
-result. UI-loop progress remains an environmental assumption, not a new fairness guarantee.
-Move transport has no Detach reserve, renewed Snapshot budget or Move retry. A surviving target
-needs no attachment cleanup/setup. A later projection that removes the target instead enters the
-common membership continuation described below.
-
-MoveProjectionUnavailable blocks selection/Create/Move until recovery succeeds. Input/Poll and
-controlling Resize may continue because target identity is unchanged. Recovery submits only Snapshot,
-never Open, Create, Start or Move. A surviving target preserves its attachment; validated removal
-uses common exact cleanup and optional successor setup. Identity exhaustion or corrupt/ambiguous
-recovery retires.
 Fresh startup still joins the retained Open reference/outcome and selects current snapshot
 `tabs[0]`: after moving B before bootstrap A, new Clients select B and existing Clients keep their
 active ID. Failed/unavailable/unknown anchor outcome fails before Snapshot; a Started anchor with
@@ -562,57 +545,8 @@ keyed on the actual queued/leased command rather than UI observation bookkeeping
 Poll result or clearing its observed serial never permits a second ordinary Poll early nor
 permanently blocks the next probe; setup and bootstrap Poll keys stay outside this occupancy.
 
-Move uses common cleanup and installation. Controlled UI/carrier tests cover transport/FIFO ordering, known-commit preservation, later active-target removal, exact cleanup, fallback and Empty. Combined native integration remains separate evidence. The exact committed revision requires the full expected permutation; only a later revision may remove the moved target. Preserve immutable survivor identities and creator provenance, then choose the historical-ordinal neighbor or Empty. Raw absence never proves Gone.
-
-Retain the exact known Move commit before any fallible membership continuation. An attached removal
-keeps the frozen old cache/key until the common owner settles exact cleanup; its one post-transport
-budget is 45 seconds forward plus 5 seconds cleanup reserve. No-viewer replacement uses the same
-exclusive state/mailbox installation plans directly. The plans atomically install cache, provenance,
-optional desired key and prevalidated Move finish facts; failed or dropped plans change neither
-membership nor cursors, while known commits remain retained. Fresh replacement uses the shared
-generation cursor; Empty preserves it. The exact Move flight stays fenced through cleanup settlement.
-Old-key Input and Resize queued after Move are discarded before controller lookup or sequence allocation once
-replacement/Empty is installed. Validate the current lease first, then discard only when both the
-actual attachment and desired key differ from the queued key; earlier pre-Switch Input and Resize still drain
-through its owned old controller after desired advances. A surviving Move target likewise continues
-to send on the same controller.
-
-Definite `TabUnavailable` requests one Snapshot within the original Move transport budget, without
-inventing a commit. Its trusted rejection revision is a lower bound for that sequential Snapshot,
-in addition to ordinary canonical validation; it supplies no permutation expectation. Available
-membership uses the common continuation. Typed Unavailable retains the ordinary refusal notice and
-old stable core, clears the exact flight, and permits later ordinary explicit Refresh; it creates
-neither committed recovery nor automatic retry. Known-commit Unavailable instead keeps the existing
-MoveProjectionUnavailable structural fence and ordinary Ready effects. Explicit recovery carries
-the original Move expectation into the common Refresh cleanup/install and never replays Move.
-Concrete evidence must distinguish Snapshot revision below/equal/above the retained refusal revision, no-viewer
-installation, attached cleanup before Empty/real successor Ready, queued stale Input, exact reply
-correlation, 45/50-second boundaries, late typed UI consumption, and retained A versus newer B.
-The refusal floor refines reachable sequential model reads: `ReceiveMoveTabUnavailable` follows
-removal and `ReadAvailableSnapshot` observes the nondecreasing Server revision. It is not a separate
-checked refusal-floor invariant; concrete wire boundary tests own that defensive check.
-At exactly the refusal revision, a Snapshot containing the refused target contradicts the observed
-absence and retires as authority divergence without retaining a commit or installing membership.
-Higher revisions still use ordinary canonical validation; no historical removed-ID registry is added.
-The actual Server checks expected revision before target lookup, so ordinary peer removal after a
-valid native baseline normally yields RevisionMismatch. TabUnavailable exercises defensive handling
-of an action-compatible reply, not the main peer-removal race. Same-revision absence consistency is
-a concrete reply refinement, not a newly checked model property.
-
-`state/move_tab.rs` retains the exact commit before fallible continuation and validates refusal
-revision facts. `ui/move_membership.rs` consumes the actual Move result, while the existing common
-membership owner settles Detached and commits both installation plans under the reply mutex.
-`ui/tests/move_membership.rs` covers delayed typed-result consumption, exact old cleanup, 45/50-second
-boundaries, wrong generation, direct no-viewer installation, and ordinary refusal recovery.
-`connection/native/tests/tab_move.rs` drives real carrier Move/Snapshot/Detach through Empty or a
-successor's Attach/Resize/Poll/frame-feedback/Ready; a following Snapshot is the FIFO witness that
-old Input and Resize emitted no request. It also checks still-owned pre-Switch Input/Resize and Snapshot-only committed
-recovery. Run `cargo test --locked -p orchbee --bin orchbee workbench_client::` for these state and
-consumer checks. Full native binary tests also require the existing Server, Worker and terminal-host
-process binaries. These checks do not construct a Gone proof or establish complete Close integration.
-
 Deterministic tests own strict 0..256 identity/shape and exact
-same/create/Move revision checks, reused created ID before overlay, immutable tuple/binding/
+same/create revision checks, reused created ID before overlay, immutable tuple/binding/
 Presentation-label refusal, all three stable phases, generated create/rename/move histories with
 shrinking/replay, historical Ready, stale UI, admission races and recovery. Fake-clock/carrier tests
 own checked-add overflow, deadline minus one/equality/plus one, lock contention, prior deadline,
@@ -628,8 +562,7 @@ identity. `workbench_projection/tests/reorder.rs` checks every cache length from
 selected reverse/rotation histories, structural-ID uniqueness, immutable-member refusal and
 created-member lookup after later moves. `label_evolution.rs` compares generated histories with an
 independent sorted-membership oracle. Exact commit-prefix and same-revision equality checks remain
-required. These checks establish the pure projection boundary; Move command runtime integration
-and cohort process acceptance have separate evidence below.
+required. These checks establish the pure projection boundary only.
 
 State replacement now prepares provenance by Tab ID and resolves the phase-required selected and
 committed identities before installing the cache. `state/tests/reorder.rs` checks all six historical
@@ -646,13 +579,12 @@ and values; `ORCHBEE_NATIVE_REORDER_REPLAY` accepts the emitted comma-separated 
 and `m:from:to` trace. Snapshot-only creates exercise BindingOnly; correlated creator overlays have
 separate deterministic evidence. Run these checks with
 `cargo test --locked -p orchbee --bin orchbee workbench_client::` on Unix. This evidence does not
-establish Move mailbox admission, transport deadlines, exact Move-commit permutation, or live PTY
-continuity; the separate Move integration and process checks below own those boundaries.
+establish mailbox admission, transport deadlines, exact receipt checks, or live PTY continuity.
 
 ## Scope and owners
 
-This record fixes the native Client consumer of the canonical OBWP `tab.create`, `tab.move`, and
-Panel-tree projection contracts, plus the `Ctrl+b c`, `<`, `>`, `n`, `p`, `1` through `9`, `h`, `j`, `k`,
+This record fixes the native Client consumer of the canonical OBWP `tab.create`, `tabs.configure`
+`move-tab`, and Panel-tree projection contracts, plus the `Ctrl+b c`, `<`, `>`, `n`, `p`, `1` through `9`, `h`, `j`, `k`,
 `l`, and `w` actions. It preserves the existing one sequential admitted Client carrier, one OBCS viewer, one combined input-and-resize controller at
 most, bounded command/event storage, and TUI restoration boundary.
 
@@ -746,7 +678,7 @@ fn validate_created_tab(
 ) -> Result<(ClientContextTabs, usize), ClientProjectionDivergence>;
 ```
 
-The accepted Move refinement replaces the legacy `validate_append_only_refresh` prefix policy:
+The accepted reorder refinement replaces the legacy `validate_append_only_refresh` prefix policy:
 require the same Session/context and reject lower revision; same revision requires exact equality of
 the complete projection, including order and labels. At greater revision the shared canonical
 membership rule applies: overlap of any current and candidate Panel, Presentation or Terminal
@@ -797,15 +729,10 @@ through ordinary refresh without a Create barrier. The owning
 [group contract](native-tab-groups.md#terminal-creation-and-duplication) describes the follow;
 single-Create and recovery rules remain unchanged.
 
-`MovedTabExpectation` retains committed revision, context, Tab ID and the move's direction among the
-Tabs pinned as the moved one; `validate_moved_tab` places it in the baseline as the move submitted
-it. It validates the admitted baseline's checked successor and refuses an impossible
-committed no-op. At that revision it requires the exact full-vector permutation with both labels
-unchanged; above it the shared strict identity validator admits later supported history. The
-`workbench_projection/tests/moved_tab.rs` corpus checks first/middle/last positions, all four wire
-directions, singleton and 255/256 boundaries, wrong commits and immutable-member divergence.
-The Move result and explicit recovery state transitions consume this validator; their mailbox,
-transport and real UI evidence is recorded below.
+The projector owns no Tab-move expectation. A Tab move is a Tab configuration, and its receipt
+check belongs to the setup transaction: at the commit revision the whole Snapshot must equal the
+baseline with `configure_tabs` applied, and above it the shared strict identity validator admits
+later supported history.
 
 The projector accepts empty Workspaces and an empty Workbench. `NoWorkspace` has no Context ID and is not persisted. Cold startup and refresh still enforce the phase-specific active-member invariant before any viewer attachment.
 
@@ -1169,11 +1096,11 @@ measured geometry and uses the setup catch-up rule below for subsequent observat
 admits one catch-up Resize before polling resumes. Read-only viewers never send Resize.
 
 Structural flows share one recovery fence table in `crates/workbench-client/src/workbench_state/recovery_fence.rs`.
-A known Move, Panel or Rename commit whose canonical projection has not installed yet keeps a
+A known Panel or Rename commit whose canonical projection has not installed yet keeps a
 recovery record, and an uncertain Rename keeps its operation. Another mutation waits for every
 projection recovery. Context removal and Workspace Close also wait for an uncertain Rename. Context
-selection and retired-membership repair wait for Move and Rename recovery and an uncertain Rename,
-but not Panel recovery. Workspace setup authority waits only for Move and Rename recovery. An
+selection and retired-membership repair wait for Rename recovery and an uncertain Rename,
+but not Panel recovery. Workspace setup authority waits only for Rename recovery. An
 installed canonical refresh resolves every projection recovery at once. Flows name their fence
 instead of listing records, so a new recovery kind is decided in that table once.
 
@@ -1378,7 +1305,7 @@ A definite Snapshot denied/unavailable before candidate staging enters `Projecti
 It retains the committed tuple, revision, terminal outcome and reserved generation 1 together with
 the exact old validated cache, viewer/controller, active selection and projection/feedback. Those old
 facts are diagnostic only: the structural fence remains active, so Input, Resize, ordinary Poll,
-selection, Create and Move are unavailable. `Ctrl+b w` may admit the explicit recovery below; exit
+selection, Create and Tab moves are unavailable. `Ctrl+b w` may admit the explicit recovery below; exit
 remains available. A valid recovery stages a candidate before cleanup and installation. A
 valid-but-inconsistent snapshot is authority divergence and retires the carrier, as do malformed,
 miscorrelated, or transport-ambiguous responses; none licenses a guessed Detach.
@@ -1705,15 +1632,13 @@ associated logical generation later proves stale.
 
 A current definite denied/unavailable result keeps cache, active ID and terminal projection and
 sets refresh failure; definite unavailability during explicit recovery preserves that recovery.
-The accepted Move refinement applies the strict projector and ID-authoritative replacement rule.
+Refresh applies the strict projector and ID-authoritative replacement rule.
 Lower revision, same-revision difference, missing/duplicate old ID, changed immutable tuple/binding/
 Presentation label, Session/context mismatch or loss of the phase-required active identity retires.
 Higher-revision supported reorder and Tab-label changes are valid. Success prepares provenance by
 ID, atomically replaces cache/provenance, preserves active ID and derives its new index.
-ProjectionUnavailable additionally validates retained create facts. MoveProjectionUnavailable
-requires the known committed permutation at its revision, or allowed later history, before
-restoring the retained stable phase without attachment effects. No push or freshness between reads
-is claimed.
+ProjectionUnavailable additionally validates retained create facts. No push or freshness between
+reads is claimed.
 
 The navigator rows are one per canonical ordered member:
 
@@ -1749,9 +1674,8 @@ one-column clipping, an active token after many Tabs, and exact canonical data a
 The stable English and Chinese status strings are below. Ordinary control is silent: a Ready
 Controlling Tab shows no status at rest and ordinary terminal passthrough has no status bar, while
 view-only input stays explicit at rest. `Ctrl+b` replaces the status with prefix hints and does not
-reveal readiness. Ordinary Move admission refusal preserves
-the existing notice without reacquiring the mailbox; the local-busy row applies to the other
-structural admission paths.
+reveal readiness. The local-busy row applies to every structural admission refusal, including a
+Move Tab key the Client could not admit.
 
 | Semantic state                    | en-US                                                    | zh-CN                                             |
 | --------------------------------- | -------------------------------------------------------- | ------------------------------------------------- |
@@ -1852,7 +1776,7 @@ dispatcher consume this buffer; command admission remains with the mailbox trans
 
 ## Native Rename consumer
 
-The Rename submission consumer uses the concrete shared Move/Rename pending mutation in state and
+The Rename submission consumer uses the shared pending mutation slot in state and
 mailbox. Under the existing mailbox lock, it replans the exact visible draft, prepares request and
 serial candidates, and installs the operation, marker and cursor only after all refusals pass.
 Typed result correlation and flight stage are checked before the joint state/membership commit.
@@ -1866,7 +1790,7 @@ available when projection validation fails or Snapshot is unavailable. This oper
 is consumed by the mailbox/executor/UI flow; preparation itself does not allocate identities, submit a
 command, install membership or create another flight/cleanup owner.
 
-Rename's last-settled receipt follows Move's latest UI-consumed known commit, not Create's latest
+Rename's last-settled receipt is its latest UI-consumed known commit, not Create's latest
 successful membership install. A survives B admission, queueing, refusal, precommit and no-op.
 Worker-known B coexists with state A until exact B UI consumption retains B, before any fallible
 membership continuation. Projection unavailability retains B plus recovery B and the historical
@@ -1923,7 +1847,7 @@ There is no extra resume gesture, second stdin reader or transport-budget renewa
 
 Enter captures one fixed 50-second budget before locking. Phase, shown token, complete/valid input,
 captured authority, capacity, cursor and exclusivity validate before atomic request/marker admission.
-Use a concrete Move/Rename enum in the existing structural mutation slot; Close's flight checks
+Rename occupies the existing structural mutation slot; Close's flight checks
 exclude it reciprocally. Editing/cancellation/refusal burns no request identity. Unchanged text is
 still submitted once for Server authority. Pure Rename preserves attachment and Ready facts.
 
@@ -2031,13 +1955,12 @@ between OBWP and OBCS with checked exact textual parity; no protocol crate depen
 
 ## Claim/evidence matrix
 
-The matrix summarizes the current Client evidence. The Move-specific record above and refinement
-checks below extend the original Create/selection/Refresh models; append-only checks alone do not
-establish reorder preservation.
+The matrix summarizes the current Client evidence. The refinement checks extend the original
+Create/selection/Refresh models; append-only checks alone do not establish reorder preservation.
 
 | Claim                                                                                                                       | Lowest evidence                                                                                                     | Additional witness                                                                            | Limits                                                                                       |
 | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Strict 0..256 projection and identity-preserving refresh                                                                    | exhaustive partition/unit cases and corpus-derived fixtures                                                         | generated create/rename/move histories and exact commit-permutation tests                     | Higher revisions may reorder and rename Tabs; immutable member facts survive.                |
+| Strict 0..256 projection and identity-preserving refresh                                                                    | exhaustive partition/unit cases and corpus-derived fixtures                                                         | generated create/rename/move histories                                                        | Higher revisions may reorder and rename Tabs; immutable member facts survive.                |
 | Canonical split-tree projection preserves leaf/split/slot identity and orientation                                          | `projects_split_tree_and_directional_leaf_neighbors` plus strict structural-ID checks                               | canonical snapshot projection through the real `ClientTabView`                                | Canonical pin/group metadata and bound and unbound primary/child Presentations are accepted. |
 | Local Panel focus keeps the Tab and switches to the exact selected leaf binding                                             | `panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding` plus WorkbenchClientUi switch admission    | existing Switch cleanup/Attach lifecycle and renderer tree traversal                          | One viewer is attached at a time; inactive leaves do not show a second live frame.           |
 | Panel split/close/move submit through structural admission and settle exact commit, refusal, unknown, and membership repair | `native/tests/panel.rs` mailbox/worker settlement cases plus exact split/move candidate validators                  | local-client outcome classification tests and the common membership cleanup/install lifecycle | Provisional key bindings may change; close relies on the ordinary publication path.          |
@@ -2047,7 +1970,7 @@ establish reorder preservation.
 | Rapid switch cleanup/generation/first-frame/geometry gate                                                                   | controlled implementation tests plus deterministic core traces                                                      | real PTY active-token + Ready checkpoints                                                     | Controlled traces do not prove arbitrary Create/refresh interleavings or physical pixels.    |
 | Refresh single-pending generation fence/identity/active preservation and navigator toggle                                   | controlled implementation tests plus deterministic stale-event tests                                                | two-Client/process refresh witness                                                            | No push or inter-read freshness.                                                             |
 | Peer publication demand retained through Busy/Full admission and installed without manual refresh or a second mutation      | controlled implementation tests plus deterministic mailbox/UI debt tests                                            | real two-Client PTY/Server/Worker/Host publication witness                                    | One observer Client and one committed change; no push or concurrent-publication claim.       |
-| Move preserves the selected terminal and exact known commit                                                                 | controlled implementation tests, mailbox/state, worker and actual WorkbenchClientUi/outer retirement traces         | two Linux cohort Move scenarios                                                               | PTY shell continuity does not independently prove absence of viewer reattachment.            |
+| Move Tab keys send the menu's Tab configuration, keep the viewer and run repeats in press order                             | raw-key real-dispatcher carrier test, the rows-and-keys rule test and the held-run UI tests                         | Linux cohort Move scenarios over ungrouped Tabs                                               | The process scenarios cover neither grouped nor pinned Tabs.                                 |
 | Total setup termination                                                                                                     | fake monotonic clock at Empty/NeedSnapshot/Blocked/Busy and cleanup reserve boundaries                              | PTY uses named Ready/unavailable checkpoints, never sleep                                     | Does not prove Host eventually responds successfully.                                        |
 | Safe exact label rendering                                                                                                  | pure sanitizer/layout/backend byte tests                                                                            | PTY numeric labels and active marker                                                          | OS font/pixel fidelity is excluded.                                                          |
 | Platform dependency boundary                                                                                                | Windows target `check/test` for help/version/unavailability plus Cargo metadata assertion; Unix build/tests for TUI | Linux real PTY                                                                                | No Windows TUI claim.                                                                        |
@@ -2064,37 +1987,18 @@ human operations in one Workbench Client. It covers Ready-to-second-`c`, fresh c
 generations, preservation of each Tab's provenance, rejection of reuse of the first committed
 tuple, and re-entry after a definite precommit refusal.
 
-The Move mailbox captures one request ID, unchanged attachment key,
-baseline, direction, and deadline in `MoveOperation`. Its structural fence spans queued,
-in-flight, and awaiting-UI stages, and releases only when the exact typed UI settlement is
-deposited. Timely result placement permits deadline-free UI consumption. Admission refuses
-deadline, capacity, identity, and target failures without consuming an identity or attachment
-generation. Deterministic mailbox tests cover these cuts, including lock contention and a
-second Move queued before the first worker acknowledgment is consumed.
-
-`state/move_tab.rs` retains pending operation, committed recovery and exact settled-commit records
-over the unchanged stable attachment phase. `MoveProjectionUnavailable` is an explicit display/state
-kind; its recovery record blocks Create, Switch and Move while preserving Ready input, Poll, Resize,
-controller and historical frame state. Raw `Ctrl+b w` admits fresh Snapshot-only recovery, validates
-the original Move expectation and remaps the selected ID without an attachment generation or setup.
-The outer worker join retains both Create and Move known-commit handoffs.
-
-Six focused state tests cover controlling and read-only historical Ready, both unattached phases,
-nonfirst selection, definite refusal, singleton no-op, corruption and higher-revision recovery.
-The combined canonical-state/mailbox trace settles Move A, queues B before A's worker reply is read,
-then retires and recognizes only A's exact commit without replacing B. The real WorkbenchClientUi/carrier test
-drives raw Move and `w` keys, renders the reordered active position, exercises input/Poll/Resize during
-explicit unavailability, rejects structural actions, and permits only SnapshotRead during recovery.
-Nine worker transport tests separately check cutoff placement, deadline-free UI settlement, exact
-request allocation, retained viewer authority and known commits across transport/retirement cuts.
-An actual WorkbenchClientUi contention regression holds the mailbox through admission expiry and requires
-the refusal to return before unlocking, preserving the notice, viewer and identity cursor. Ordinary
-Move refusal therefore performs no second lock acquisition. A separate outer WorkbenchClient test
-interrupts a postcommit Snapshot read, joins the worker and verifies the exact retained Move commit
-and first retirement cause after finalization.
+`move_tab_keys_send_the_menu_configuration_and_land_its_result` sends raw `Ctrl+b >` and `Ctrl+b <`
+bytes through the real input dispatcher and carrier: the Server side receives `tabs.configure`
+`move-tab` for the current Tab, answers with what `configure_tabs` makes of it — joining the
+neighbouring group in place, and wrapping to the end out of a group — and the Client lands that
+result on the viewer it already had, which still accepts input.
+`move_tab_rows_are_enabled_exactly_when_the_configuration_moves_the_tab` holds the keys to the
+rows' rule, and `ui/tab_groups/tests/move_keys.rs` owns the held run: press order, one request at a
+time, the refusal that ends it and the bound that ends it with the busy notice.
 
 At runtime source `f2467e8e`, the native binary suite passed 311 tests with one ignored, and the
-complete `local_startup_process` target passed all 23 tests on Linux under WSL. Its two Move
+complete `local_startup_process` target passed all 23 tests on Linux under WSL. That run predates
+the keys' use of `tabs.configure`; over ungrouped Tabs the expected orders are the same. Its two Move
 scenarios exercise six Move steps over three Tabs, both directions and boundary wrap, distinct shell
 PIDs, fresh output and Resize, independent peer selection and explicit refresh, and canonical-first
 reopen followed by revisiting surviving terminals. Ordered completed-frame observers require one
@@ -2237,7 +2141,7 @@ envelope, unchanged Session, nondecreasing revision, the current context id abse
 canonical navigation owner, the preferred surviving Workspace projecting, the removed context's creation provenance
 carrying no `Pending`/`OutcomeUnknown`, and every structural guard quiet — no pending mutation,
 commit, setup, cleanup handoff, retired attempt, in-flight Create/Close or live
-Read/Poll/Move ownership. Only `Removed` mints a
+Read/Poll ownership. Only `Removed` mints a
 `ContextRemovalPermit{generation, removed, landing, revision}`; it lives as a bounded private
 field inside the prepared candidate, never on ambient Client state, and is spent exactly once
 by the install it authorizes. `Divergent` — wrong session, regressed revision, malformed navigation
@@ -2328,7 +2232,7 @@ unbound selection is refined below, and children are not flattened into layout l
 
 Same-revision refresh and return to a retained context compare the complete group metadata. A
 higher canonical revision may update group/pin chrome while preserving unchanged Panel/binding
-identities, viewer/controller ownership, frame and history. Exact Create/Move/Split/PanelMove/Rename
+identities, viewer/controller ownership, frame and history. Exact Create/Split/PanelMove/Rename
 receipts also preserve unrelated group/pin metadata; a new Tab starts ungrouped and unpinned.
 Workbench owns canonical metadata, Workbench Client owns selection and attachments, and rendering
 only derives labels. No group metadata change alone starts or disposes a terminal attachment.
@@ -2339,9 +2243,7 @@ unchanged. Existing terminal-text sanitization, cell-width clipping and semantic
 to the complete annotation. Group color is retained canonically, without inventing an ANSI color
 meaning in chrome. Empty groups do not create a selectable terminal row.
 
-A definite `tab-move-order-conflict` retains selection and attachment and shows a localized notice
-explaining that the move would break pin/group order. It settles the pending move through the
-existing owner, without mutation retry or retirement. Evidence covers metadata validation, exact
+Evidence covers metadata validation, exact
 receipt tampering, same-revision refusal, higher-revision viewer-preserving refresh, actual native
 wire startup/context selection, clipping and pointer geometry. No new wire schema, dependency or
 persistence is added. Matched-source rollout/rollback leaves canonical data unchanged; actual

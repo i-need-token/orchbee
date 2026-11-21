@@ -17,7 +17,7 @@ use orchbee_workbench_protocol::{
     WorkbenchCommandUnavailableReason, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
     WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase,
-    WorkbenchTabCloseStatus, WorkbenchTabMoveDirection,
+    WorkbenchTabCloseStatus,
 };
 use std::collections::BTreeSet;
 
@@ -856,13 +856,18 @@ fn panel_planning_is_refused_while_any_structure_guard_is_active() {
     // A pending Tab move blocks panel planning (structural mutual exclusion).
     let mut state = ready(2);
     let move_operation = state
-        .plan_move(
+        .plan_tab_configuration(
+            orchbee_workbench_protocol::TabConfiguration::MoveTab {
+                tab_id: state.tab(0).unwrap().tab_id().clone(),
+                direction: orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next,
+                adjacent_group_collapsed: false,
+            },
             workbench_request_id(70_031),
-            WorkbenchTabMoveDirection::Next,
-            Instant::now() + OPERATION_TOTAL,
+            1,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
         )
         .unwrap();
-    assert!(state.begin_move(move_operation));
+    state.begin_setup(move_operation);
     assert!(
         state
             .plan_panel(

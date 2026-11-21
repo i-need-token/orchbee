@@ -136,7 +136,6 @@ impl Locale {
             // The change landed but this window cannot show it until the person refreshes; the
             // status line offers the refresh key beside it.
             Phase::ProjectionUnavailable
-            | Phase::MoveProjectionUnavailable
             | Phase::PanelProjectionUnavailable
             | Phase::RenameProjectionUnavailable => {
                 self.say("Couldn't show the latest change.", "没能显示最新的更改。")
@@ -322,8 +321,6 @@ impl Locale {
                 "没能开始工作树操作。",
             ),
             N::RenameNotRenamed => say("Couldn't rename the Tab.", "没能重命名标签页。"),
-            N::MoveNotMoved => say("Couldn't move the Tab.", "没能移动标签页。"),
-            N::MoveOrderConflict => say("Couldn't move the Tab there.", "没能把标签页移到这里。"),
             N::PanelNotApplied => say("Couldn't change the Panel.", "没能更改面板。"),
             N::DialogRefused => self.presentation_notice(false).to_owned(),
             N::ModalOwnsInput => say("Close the open dialog first.", "请先关闭当前对话框。"),

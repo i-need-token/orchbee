@@ -2,7 +2,6 @@ use crate::workbench_state::CarrierFailure;
 mod close_interaction;
 mod close_recovery;
 mod close_retirement;
-mod move_refinements;
 mod rename_interaction;
 mod request_scoped_unknown;
 mod retired_membership;
@@ -394,17 +393,26 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     Ok(())
 }
 
+/// Raw `Ctrl+B >` and `Ctrl+B <` bytes through the real dispatcher: each key sends the menu's Tab
+/// configuration for the current Tab and lands what the Server's own rule makes of it, on the
+/// viewer it already had. `>` beside a group joins the group in place, which no order-only move
+/// expresses; `<` from the first place wraps to the end and leaves the group.
 #[test]
-fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_input_viewer()
--> TestResult {
-    for unavailable in [false, true] {
+fn move_tab_keys_send_the_menu_configuration_and_land_its_result() -> TestResult {
+    use orchbee_workbench_protocol::{
+        TabConfiguration, TabGroup, TabGroupColor, WorkbenchTabGroupId, WorkbenchTabMoveDirection,
+        configure_tabs,
+    };
+    for (keys, direction, current_grouped) in [
+        (b"\x02>".as_slice(), WorkbenchTabMoveDirection::Next, false),
+        (b"\x02<".as_slice(), WorkbenchTabMoveDirection::Last, true),
+    ] {
         let geometry = fixture_geometry()?;
         let teardown = Arc::new(AtomicBool::new(false));
         let server_teardown = Arc::clone(&teardown);
         let (poll_sent, poll_seen) = mpsc::sync_channel(0);
         let (release_poll, poll_released) = mpsc::sync_channel(0);
         let (input_sent, input_seen) = mpsc::sync_channel(1);
-        let (resize_sent, resize_seen) = mpsc::sync_channel(1);
         let server = FakeServer::start(move |stream| {
             let mut stream = UnixStream::primary_lane(stream);
             let WorkbenchSnapshotOutcome::Available { mut snapshot } =
@@ -428,7 +436,16 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
                 TerminalPresentationId::parse(CREATED_PRESENTATION_ID).map_err(io::Error::other)?;
             primary_presentation.binding.as_mut().unwrap().terminal_id =
                 TerminalId::parse(CREATED_TAB_ID).map_err(io::Error::other)?;
-            snapshot.terminal_contexts[0].tabs.push(second);
+            let context = &mut snapshot.terminal_contexts[0];
+            context.tabs.push(second);
+            let group_id =
+                WorkbenchTabGroupId::parse(CREATED_PANEL_ID).map_err(io::Error::other)?;
+            context.groups.push(TabGroup {
+                group_id: group_id.clone(),
+                label: "Group".into(),
+                color: TabGroupColor::Blue,
+            });
+            context.tabs[usize::from(!current_grouped)].group_id = Some(group_id);
             serve_native_controlling_frame_with_snapshot(
                 &mut stream,
                 geometry,
@@ -461,36 +478,46 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
             let WorkbenchRequest::Command(command) =
                 read_workbench_request_absorbing_probes(&mut stream).map_err(io::Error::other)?
             else {
-                return Err(io::Error::other("expected Move"));
+                return Err(io::Error::other("expected the Tab configuration"));
             };
             assert_eq!(command.expected_revision, WorkbenchRevision::new(1));
-            assert!(
-                matches!(&command.action, WorkbenchAction::TabMove { tab_id, direction: orchbee_workbench_protocol::WorkbenchTabMoveDirection::Last, .. } if tab_id.as_str() == ID)
+            let WorkbenchAction::TabsConfigure {
+                terminal_context_id,
+                operation,
+            } = &command.action
+            else {
+                return Err(io::Error::other("a Move Tab key must send tabs.configure"));
+            };
+            assert_eq!(terminal_context_id.as_str(), ID);
+            assert_eq!(
+                operation,
+                &TabConfiguration::MoveTab {
+                    tab_id: WorkbenchTabId::parse(ID).map_err(io::Error::other)?,
+                    direction,
+                    adjacent_group_collapsed: false,
+                }
             );
+            let configured = configure_tabs(&snapshot.terminal_contexts[0], operation, None)
+                .map_err(|reason| io::Error::other(format!("{reason:?}")))?
+                .ok_or_else(|| io::Error::other("the key must change the Tabs"))?;
             write_workbench_response(
                 &mut stream,
                 &WorkbenchResponse::Command(WorkbenchCommandResult {
                     protocol_version: ProtocolVersion,
                     request_id: command.request_id,
-                    outcome: WorkbenchCommandOutcome::TabMoved {
+                    outcome: WorkbenchCommandOutcome::TabsConfigured {
                         revision: WorkbenchRevision::new(2),
-                        terminal_context_id: WorkbenchTerminalContextId::parse(ID)
-                            .map_err(io::Error::other)?,
-                        tab_id: WorkbenchTabId::parse(ID).map_err(io::Error::other)?,
+                        group_id: None,
                     },
                 }),
             )
             .map_err(io::Error::other)?;
             snapshot.revision = WorkbenchRevision::new(2);
-            snapshot.terminal_contexts[0].tabs.swap(0, 1);
+            snapshot.terminal_contexts[0] = configured;
             respond_with_read(
                 &mut stream,
-                if unavailable {
-                    WorkbenchSnapshotOutcome::Denied {}
-                } else {
-                    WorkbenchSnapshotOutcome::Available {
-                        snapshot: snapshot.clone(),
-                    }
+                WorkbenchSnapshotOutcome::Available {
+                    snapshot: snapshot.clone(),
                 },
             )?;
             loop {
@@ -500,8 +527,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
                 }
                 let mut request_reader = std::io::Cursor::new(magic).chain(&mut stream);
                 if magic == *b"OBWP" {
-                    // Reads and probes are both expected here: the logical recovery read and
-                    // poll-carried publication probes are served from the same latest snapshot.
+                    // Poll-carried publication probes are served from the same latest snapshot.
                     let (request_id, known) = match read_workbench_request(&mut request_reader)
                         .map_err(io::Error::other)?
                     {
@@ -510,9 +536,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
                             (request.request_id, Some(request.known_revision))
                         }
                         _ => {
-                            return Err(io::Error::other(
-                                "recovery must submit only Workbench reads",
-                            ));
+                            return Err(io::Error::other("one key must send one configuration"));
                         }
                     };
                     let outcome = WorkbenchSnapshotOutcome::Available {
@@ -585,27 +609,12 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
                             .map_err(io::Error::other)?;
                             input_sent.send(()).map_err(io::Error::other)?;
                         }
-                        TerminalControlAction::Resize {
-                            attachment_id,
-                            geometry,
-                            ..
-                        } if attachment_id == &binding_viewer_id()? => {
-                            write_server_message(
-                                &mut stream,
-                                &ServerMessage::TerminalControlResult(TerminalControlResult::new(
-                                    request.request_id().clone(),
-                                    TerminalControlOutcome::Resized {
-                                        geometry: *geometry,
-                                    },
-                                )),
-                            )
-                            .map_err(io::Error::other)?;
-                            resize_sent.send(()).map_err(io::Error::other)?;
-                        }
-                        _ => return Err(io::Error::other("unexpected Move attachment effect")),
+                        _ => return Err(io::Error::other("unexpected attachment effect")),
                     },
                     Err(_) => return Ok(()),
-                    Ok(_) => return Err(io::Error::other("Move must retain the existing viewer")),
+                    Ok(_) => {
+                        return Err(io::Error::other("a Tab move must keep the existing viewer"));
+                    }
                 }
             }
         })?;
@@ -622,81 +631,41 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
         dispatch_input(
             &mut input_dispatcher,
             &mut view,
-            b"\x02<",
+            keys,
             &mut workbench_client,
             Instant::now(),
             |_, _| Ok::<(), std::convert::Infallible>(()),
         )?;
         assert_eq!(view.overlay(), None);
         release_poll.send(())?;
-        assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
-            let native = workbench_client.view();
-            if unavailable {
-                native.phase() == DisplayPhase::MoveProjectionUnavailable
-            } else {
-                native.active_position() == Some(2)
-            }
-        }));
-        assert_eq!(workbench_client.status(), TerminalStatus::Controlling);
-        let rendered = if unavailable {
-            render_workbench_client(&workbench_client, &view)?
+        // The moved Tab stays current: in its neighbour's group in place, or ungrouped at the end.
+        // The active position counts from one.
+        let (position, grouped) = if current_grouped {
+            (2, false)
         } else {
-            render_prefix_client(&workbench_client, &view)?
+            (1, true)
         };
-        if unavailable {
-            assert!(
-                rendered.contains(&workbench_client.view().phase_status_text(Locale::EnUs)),
-                "{rendered}"
-            );
-            assert!(
-                rendered.contains(&crate::terminal_events::keys::tests::host_label(
-                    "Ctrl+b w refresh"
-                )),
-                "{rendered}"
-            );
-        } else {
-            assert_ready_prefix_client(
-                &workbench_client,
-                &rendered,
-                2,
-                TerminalStatus::Controlling,
-            );
-        }
+        assert!(
+            spin_with_draw(&mut workbench_client, |workbench_client| {
+                let native = workbench_client.view();
+                native.active_position() == Some(position)
+                    && native
+                        .tab(position - 1)
+                        .is_some_and(|tab| tab.group().is_some() == grouped)
+            }),
+            "{keys:?} must land the configured Tabs"
+        );
+        let rendered = render_prefix_client(&workbench_client, &view)?;
+        assert_ready_prefix_client(
+            &workbench_client,
+            &rendered,
+            position,
+            TerminalStatus::Controlling,
+        );
         assert!(TerminalInputPort::forward(&mut workbench_client, b"still attached").is_ok());
         assert!(spin_with_draw(&mut workbench_client, |_| input_seen
             .try_recv()
             .is_ok()));
-        if unavailable {
-            for action in [
-                ClientAction::CreateTab,
-                ClientAction::MoveNextTab,
-                ClientAction::SelectNextTab,
-            ] {
-                assert_eq!(
-                    TerminalInputPort::apply_client_action(&mut workbench_client, action.into()),
-                    Some(ClientActionDisposition::KeepNavigator)
-                );
-            }
-            workbench_client.observe_geometry(Geometry::new(100, 24, 8, 16)?);
-            assert!(spin_with_draw(&mut workbench_client, |_| resize_seen
-                .try_recv()
-                .is_ok()));
-            let mut input_dispatcher = InputDispatcher::default();
-            dispatch_input(
-                &mut input_dispatcher,
-                &mut view,
-                b"\x02w",
-                &mut workbench_client,
-                Instant::now(),
-                |_, _| Ok::<(), std::convert::Infallible>(()),
-            )?;
-            assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
-                let native = workbench_client.view();
-                native.phase() == DisplayPhase::Ready && native.active_position() == Some(2)
-            }));
-            assert_eq!(workbench_client.status(), TerminalStatus::Controlling);
-        }
-        // All Move assertions precede the client's explicit carrier shutdown.
         teardown.store(true, Ordering::SeqCst);
         drop(workbench_client);
         server.finish()?;

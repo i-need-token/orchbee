@@ -1703,7 +1703,6 @@ fn native_phase_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> {
             vec![StatusAction::CreateTab]
         }
         DisplayPhase::ProjectionUnavailable
-        | DisplayPhase::MoveProjectionUnavailable
         | DisplayPhase::PanelProjectionUnavailable
         | DisplayPhase::RenameProjectionUnavailable => vec![StatusAction::Refresh],
         DisplayPhase::Switching

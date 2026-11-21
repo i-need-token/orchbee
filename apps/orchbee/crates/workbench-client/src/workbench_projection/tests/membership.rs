@@ -88,22 +88,3 @@ fn later_created_projection_can_omit_the_committed_target_and_old_members() {
     missing_at_commit.tabs.remove(2);
     assert!(validate_created_tab(&current, &expected, missing_at_commit).is_err());
 }
-
-#[test]
-fn later_move_projection_keeps_commit_when_target_has_been_removed() {
-    let current = projected(3, 10);
-    let expected = MovedTabExpectation::new(
-        WorkbenchRevision::new(11),
-        current.terminal_context_id().unwrap().clone(),
-        current.tabs[1].tab_id.clone(),
-        WorkbenchTabMoveDirection::Last,
-    );
-    let mut later = current.clone();
-    later.revision = WorkbenchRevision::new(12);
-    later.tabs.remove(1);
-    let validated = validate_moved_tab(&current, &expected, later.clone()).unwrap();
-    assert_eq!(validated.candidate, later);
-    assert_eq!(validated.moved_index, None);
-    later.revision = WorkbenchRevision::new(11);
-    assert!(validate_moved_tab(&current, &expected, later).is_err());
-}

@@ -14,7 +14,6 @@ mod create_projection;
 mod generated;
 mod location_labels;
 mod membership;
-mod move_tab;
 mod navigation_memory;
 mod pane_identity_compatibility;
 mod panel;
@@ -346,7 +345,6 @@ fn focused_viewer_loss_parks_beside_every_owner_and_keeps_the_owner() {
         "explicit refresh",
         "rename",
         "setup draft",
-        "move",
         "panel split",
         "setup in flight",
         "workspace close in flight",
@@ -374,16 +372,6 @@ fn focused_viewer_loss_parks_beside_every_owner_and_keeps_the_owner() {
             "setup draft" => {
                 let intent = workspace_setup::group_intent(&state, "Group");
                 assert!(state.open_setup_draft(intent).is_some());
-            }
-            "move" => {
-                let operation = state
-                    .plan_move(
-                        WorkbenchRequestId::parse(&id(800)).unwrap(),
-                        orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next,
-                        Instant::now() + OPERATION_TOTAL,
-                    )
-                    .unwrap();
-                assert!(state.begin_move(operation));
             }
             "panel split" => {
                 let operation = state
@@ -438,7 +426,6 @@ fn focused_viewer_loss_parks_beside_every_owner_and_keeps_the_owner() {
             "panel close" => state.view().panel_close_confirmation().is_some(),
             "rename" => state.rename_draft().is_some(),
             "setup draft" => state.setup_draft().is_some(),
-            "move" => state.pending_move().is_some(),
             "panel split" => state.pending_panel().is_some(),
             "setup in flight" => state.setup_blocks_structure(),
             "workspace close in flight" => state.workspace_close_blocks_structure(),

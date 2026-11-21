@@ -5,9 +5,7 @@
 use super::TerminalStatus;
 use crate::local_client::LocalClient;
 use crate::workbench_projection::ClientTerminalBinding;
-use crate::workbench_state::{
-    PendingCloseResult, PendingCreateCommit, PendingMoveCommit, PendingPanelCommit,
-};
+use crate::workbench_state::{PendingCloseResult, PendingCreateCommit, PendingPanelCommit};
 use orchbee_client_server_protocol::{
     Geometry, SessionId as ObcsSessionId, TerminalId as ObcsTerminalId,
     TerminalViewerAction as Viewer, WorkerId as ObcsWorkerId,
@@ -33,7 +31,6 @@ pub(super) fn run_native(
 pub(super) struct ClientConnectionExit {
     unavailable_poll: Option<crate::workbench_state::retired_membership::UnavailablePoll>,
     pending_create: Option<PendingCreateCommit>,
-    pending_move: Option<PendingMoveCommit>,
     pending_panel: Option<PendingPanelCommit>,
     pending_close: Option<PendingCloseResult>,
     pending_rename: Option<crate::workbench_state::tab_rename::RenameWorkerEvidence>,
@@ -95,7 +92,6 @@ impl ClientConnectionExit {
 
     const fn new(
         pending_create: Option<PendingCreateCommit>,
-        pending_move: Option<PendingMoveCommit>,
         pending_panel: Option<PendingPanelCommit>,
         pending_close: Option<PendingCloseResult>,
         pending_rename: Option<crate::workbench_state::tab_rename::RenameWorkerEvidence>,
@@ -103,7 +99,6 @@ impl ClientConnectionExit {
         Self {
             unavailable_poll: None,
             pending_create,
-            pending_move,
             pending_panel,
             pending_close,
             pending_rename,
@@ -119,13 +114,6 @@ impl ClientConnectionExit {
     }
 
     #[cfg(test)]
-    pub(super) fn into_pending_commits(
-        self,
-    ) -> (Option<PendingCreateCommit>, Option<PendingMoveCommit>) {
-        (self.pending_create, self.pending_move)
-    }
-
-    #[cfg(test)]
     pub(super) fn into_pending_close(self) -> Option<PendingCloseResult> {
         self.pending_close
     }
@@ -133,7 +121,6 @@ impl ClientConnectionExit {
     pub(super) fn into_pending_results(self) -> PendingWorkerResults {
         PendingWorkerResults {
             create: self.pending_create,
-            moved: self.pending_move,
             panel: self.pending_panel,
             close: self.pending_close,
             renamed: self.pending_rename,
@@ -143,7 +130,6 @@ impl ClientConnectionExit {
 
 pub(super) struct PendingWorkerResults {
     pub(super) create: Option<PendingCreateCommit>,
-    pub(super) moved: Option<PendingMoveCommit>,
     pub(super) panel: Option<PendingPanelCommit>,
     pub(super) close: Option<PendingCloseResult>,
     pub(super) renamed: Option<crate::workbench_state::tab_rename::RenameWorkerEvidence>,

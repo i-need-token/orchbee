@@ -6,7 +6,7 @@
 use super::WorkbenchClientState;
 use super::{
     Arc, CarrierFailure, ClientActionDisposition, CommandMailbox, ModalPresentation,
-    MoveAdmissionError, MutationResult, OperationDeadlines, RefreshDecision, UiReply,
+    MutationAdmissionError, MutationResult, OperationDeadlines, RefreshDecision, UiReply,
     WorkbenchClientUi, WorkbenchClientView,
 };
 use crate::workbench_client::input::{RenameDraftToken, RenameEdit, RenameInputContext};
@@ -249,7 +249,7 @@ impl WorkbenchClientUi {
         };
         match mailbox.try_enqueue_rename_for(state, token.0, deadline, &self.clock) {
             Ok(_) => ClientActionDisposition::DismissNavigator,
-            Err(MoveAdmissionError::Closed(closed)) => {
+            Err(MutationAdmissionError::Closed(closed)) => {
                 self.retire(closed.failure());
                 ClientActionDisposition::KeepNavigator
             }

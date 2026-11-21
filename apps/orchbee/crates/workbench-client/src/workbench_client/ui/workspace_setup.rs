@@ -7,7 +7,7 @@ use super::{
 };
 use crate::client_view::ClientActionDisposition;
 use crate::workbench_client::mailbox::{
-    CommandMailbox, MoveAdmissionError, MutationResult, RefreshSettlement, UiReply,
+    CommandMailbox, MutationAdmissionError, MutationResult, RefreshSettlement, UiReply,
 };
 pub(crate) use crate::workbench_state::workspace_setup::WorkspaceCreationPreview;
 pub(crate) use crate::workbench_state::workspace_setup::{
@@ -402,7 +402,7 @@ impl WorkbenchClientUi {
         }
         match mailbox.try_enqueue_setup_for(state, token, deadlines, &self.clock) {
             Ok(()) => ClientActionDisposition::KeepNavigator,
-            Err(MoveAdmissionError::Closed(closed)) => {
+            Err(MutationAdmissionError::Closed(closed)) => {
                 self.retire(closed.failure());
                 ClientActionDisposition::KeepNavigator
             }
@@ -477,6 +477,11 @@ impl WorkbenchClientUi {
             | SetupResult::LaunchRequestTooLarge
             | SetupResult::Stale
             | SetupResult::ConfirmationRequired) => {
+                self.end_held_tab_moves();
+                let Some(state) = self.state.as_mut() else {
+                    self.retire(CarrierFailure::Protocol);
+                    return true;
+                };
                 let unknown = matches!(result, SetupResult::OutcomeUnknown);
                 let stale = matches!(result, SetupResult::Stale);
                 let too_large = matches!(result, SetupResult::LaunchRequestTooLarge);

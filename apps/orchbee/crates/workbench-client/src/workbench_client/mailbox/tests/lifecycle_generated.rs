@@ -1,7 +1,7 @@
 use super::super::{
     AdmissionError, COMMAND_CAPACITY, CausalSettlement, CommandLease, CommandMailbox, CreateMarker,
     CreatePrecommitOutcome, DesiredInstall, EventDeadline, EventError, MailboxClock,
-    MailboxMembership, MoveAdmissionError, MutationResult, PanelSettlement, QueuedCommand,
+    MailboxMembership, MutationAdmissionError, MutationResult, PanelSettlement, QueuedCommand,
     RefreshSettlement, StructuralMutationFlight, SwitchMarker, Tagged, UiCorrelation, UiReply,
     UiReplyKind, UiReplyTransaction, UiWaitKey, WorkerEvent,
 };
@@ -2198,7 +2198,7 @@ impl Trace {
                     kind = candidate;
                     operation = Some(planned);
                 }
-                Err(MoveAdmissionError::Build("inadmissible")) => {
+                Err(MutationAdmissionError::Build("inadmissible")) => {
                     require(
                         cursor_snapshot(&self.mailbox) == before,
                         "refused Panel admission burned a cursor",
@@ -2257,7 +2257,7 @@ impl Trace {
             },
         );
         require(
-            matches!(duplicate, Err(MoveAdmissionError::Busy)),
+            matches!(duplicate, Err(MutationAdmissionError::Busy)),
             "a second Panel was admitted while the first was pending",
         )?;
         let refresh = self.mailbox.try_enqueue_refresh_for(
@@ -4064,7 +4064,7 @@ impl Trace {
             },
         ) {
             Ok(operation) => operation,
-            Err(MoveAdmissionError::Busy) | Err(MoveAdmissionError::Build(_)) => {
+            Err(MutationAdmissionError::Busy) | Err(MutationAdmissionError::Build(_)) => {
                 // No desired attachment: a reply under a foreign wait key still must close the
                 // mailbox, keeping the probe destructive without a pending operation.
                 let serial = self.mailbox.lock().next_ui_wait_serial + 1;

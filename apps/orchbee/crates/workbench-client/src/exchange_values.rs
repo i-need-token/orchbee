@@ -4,8 +4,7 @@
 pub(crate) mod workbench {
     pub(crate) use orchbee_local_client::workbench::{
         WorkbenchTabCloseAccepted, WorkbenchTabClosePrecommit, WorkbenchTabCreateCommit,
-        WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest, WorkbenchTabMoveCommit,
-        WorkbenchTabMovePrecommit, WorkbenchWorkspaceCloseAccepted,
+        WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest, WorkbenchWorkspaceCloseAccepted,
     };
 
     pub(crate) mod label_rename {

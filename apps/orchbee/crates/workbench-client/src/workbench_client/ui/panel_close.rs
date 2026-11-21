@@ -8,7 +8,7 @@ use super::{ActionBuildError, ModalPresentation, WorkbenchClientUi, WorkbenchCli
 use crate::workbench_state::{self, OPERATION_TOTAL};
 use crate::{
     client_view::{ClientActionDisposition, ClientKey},
-    workbench_client::mailbox::MoveAdmissionError,
+    workbench_client::mailbox::MutationAdmissionError,
 };
 use std::sync::Arc;
 
@@ -168,7 +168,7 @@ impl WorkbenchClientUi {
         );
         match result {
             Ok(_) => CloseSubmission::Submitted,
-            Err(MoveAdmissionError::Closed(closed)) => {
+            Err(MutationAdmissionError::Closed(closed)) => {
                 self.retire(closed.failure());
                 CloseSubmission::Ended
             }

@@ -10,16 +10,16 @@ use crate::local_client::workbench::WorkbenchTabCreateRequest;
 use crate::local_client::{LocalClientShutdown, LocalOperationClock};
 use crate::terminal_projection::TerminalProjection;
 use crate::workbench_client::mailbox::{
-    CausalSettlement, CommandMailbox, CreateMarker, EventError, MoveSettlement, MutationResult,
-    PanelSettlement, PollKey, QueuedCommand, RefreshSettlement, SwitchMarker, Tagged, TakenEvent,
-    UiReply, WorkerEvent,
+    CausalSettlement, CommandMailbox, CreateMarker, EventError, MutationResult, PanelSettlement,
+    PollKey, QueuedCommand, RefreshSettlement, SwitchMarker, Tagged, TakenEvent, UiReply,
+    WorkerEvent,
 };
 use crate::workbench_state::{
     AttachmentKey, CarrierFailure, CleanupContinuation, CreateOperation, CreateOperationKey,
-    CreateProjectionDecision, FrameIdentity, MoveDecision, MoveOperation, MoveResult,
-    OPERATION_TOTAL, OperationDeadlines, PaneKey, PaneRef, PanelDecision, PanelOperation,
-    PanelRequestKind, PanelResult, PendingCreateCommit, PendingMoveCommit, PendingPanelCommit,
-    ReadyDecision, RefreshDecision, SetupEventDisposition, WorkbenchClientState,
+    CreateProjectionDecision, FrameIdentity, OPERATION_TOTAL, OperationDeadlines, PaneKey, PaneRef,
+    PanelDecision, PanelOperation, PanelRequestKind, PanelResult, PendingCreateCommit,
+    PendingPanelCommit, ReadyDecision, RefreshDecision, SetupEventDisposition,
+    WorkbenchClientState,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControllerId, Geometry, HostEpoch as ObcsHostEpoch, ServerMessage,
@@ -41,8 +41,8 @@ use orchbee_workbench_protocol::{
     WorkbenchLabel, WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchPublicationDocument,
     WorkbenchPublicationOutcome, WorkbenchPublicationResult, WorkbenchRequest, WorkbenchRequestId,
     WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
-    WorkbenchSplitId, WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalContextId,
-    WorkbenchTerminalGeometry, WorkerId, read_workbench_request, write_workbench_response,
+    WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchTerminalGeometry,
+    WorkerId, read_workbench_request, write_workbench_response,
 };
 use std::{
     error::Error,
@@ -385,14 +385,6 @@ impl Harness {
         Self::start_inner(steps, initial_geometry, None, None, IDENTITY_SEED, None)
     }
 
-    pub(super) fn start_with_identity_seed(
-        steps: Vec<WireKind>,
-        initial_geometry: Geometry,
-        identity_seed: u128,
-    ) -> TestResult<Self> {
-        Self::start_inner(steps, initial_geometry, None, None, identity_seed, None)
-    }
-
     pub(super) fn start_with_ceiling_clock(
         steps: Vec<WireKind>,
         initial_geometry: Geometry,
@@ -681,14 +673,6 @@ impl Harness {
             .map(ClientConnectionExit::into_pending_create)
     }
 
-    pub(super) fn finish_after_worker_failure_with_pending_commits(
-        self,
-        expected: CarrierFailure,
-    ) -> TestResult<(Option<PendingCreateCommit>, Option<PendingMoveCommit>)> {
-        self.finish_after_worker_failure_with_exit(expected)
-            .map(ClientConnectionExit::into_pending_commits)
-    }
-
     fn finish_after_worker_failure_with_exit(
         mut self,
         expected: CarrierFailure,
@@ -713,14 +697,6 @@ impl Harness {
         self.carrier.abort();
         self.carrier.finish()?;
         Ok(exit)
-    }
-
-    pub(super) fn close_with_pending_move(self) -> TestResult<Option<PendingMoveCommit>> {
-        self.mailbox.close(CarrierFailure::Closed);
-        self.shutdown.close()?;
-        self.carrier.abort();
-        self.finish_after_worker_failure_with_pending_commits(CarrierFailure::Closed)
-            .map(|(_create, moved)| moved)
     }
 
     pub(super) fn close_with_pending_panel(self) -> TestResult<Option<PendingPanelCommit>> {
@@ -835,7 +811,6 @@ pub(super) enum UiEvent {
         generation: u64,
         decision: RefreshDecision,
     },
-    Move(MoveDecision),
     Panel(PanelDecision),
     Membership(RefreshDecision),
     PaneDetached,
@@ -1150,88 +1125,6 @@ impl UiDriver {
             )
             .map_err(|error| test_error(&format!("context selection admission failed: {error:?}")))?
             .ok_or_else(|| test_error("context selection expired at admission"))
-    }
-
-    // This seam checks worker transport; canonical Move settlement is covered by the state owner.
-    pub(super) fn admit_move_transport(
-        &mut self,
-        direction: WorkbenchTabMoveDirection,
-    ) -> TestResult<MoveOperation> {
-        self.admit_move_using(direction, false)
-    }
-
-    pub(super) fn admit_move(
-        &mut self,
-        direction: WorkbenchTabMoveDirection,
-    ) -> TestResult<MoveOperation> {
-        self.admit_move_using(direction, true)
-    }
-
-    fn admit_move_using(
-        &mut self,
-        direction: WorkbenchTabMoveDirection,
-        canonical: bool,
-    ) -> TestResult<MoveOperation> {
-        let clock = self.clock.clone();
-        let deadline = clock
-            .now()
-            .checked_add(OPERATION_TOTAL)
-            .ok_or_else(|| test_error("Move deadline overflow"))?;
-        let mailbox = Arc::clone(&self.mailbox);
-        let state = self.state_mut();
-        mailbox
-            .try_enqueue_move_for(
-                state,
-                deadline,
-                &clock,
-                |state, request_id| {
-                    Ok::<_, &'static str>(MoveOperation::new(
-                        request_id,
-                        state.desired().unwrap().anchor().clone(),
-                        state.cache().clone(),
-                        direction,
-                        deadline,
-                    ))
-                },
-                |state, operation| {
-                    if !canonical || state.begin_move(operation.clone()) {
-                        Ok(())
-                    } else {
-                        Err("canonical Move admission failed")
-                    }
-                },
-            )
-            .map_err(|error| test_error(&format!("Move transport admission failed: {error:?}")))
-    }
-
-    pub(super) fn settle_move_transport(
-        &mut self,
-        taken: TakenEvent,
-    ) -> TestResult<(MoveOperation, MoveResult)> {
-        self.settle_move_transport_decision(taken, MoveDecision::Continue)
-    }
-
-    pub(super) fn settle_move_transport_decision(
-        &mut self,
-        taken: TakenEvent,
-        decision: MoveDecision,
-    ) -> TestResult<(MoveOperation, MoveResult)> {
-        let (wait_key, event) = taken.into_parts();
-        let WorkerEvent::MoveResult { operation, outcome } = event else {
-            return Err(test_error("expected typed Move result"));
-        };
-        let wait = wait_key.ok_or_else(|| test_error("Move wait key absent"))?;
-        require_applied(self.mailbox.deposit_ui_reply_before(
-            &wait,
-            &self.clock,
-            |_transaction| {
-                Ok(UiReply::Move(MoveSettlement::new(
-                    decision,
-                    self.state().desired().cloned(),
-                )))
-            },
-        ))?;
-        Ok((operation, outcome))
     }
 
     // This seam checks worker transport; canonical Panel settlement is covered by the
@@ -1690,8 +1583,7 @@ impl UiDriver {
                     crate::workbench_state::MembershipResultKey::Close(_) => {
                         Err(test_error("use the exact Close transport consumer"))
                     }
-                    crate::workbench_state::MembershipResultKey::Move(_)
-                    | crate::workbench_state::MembershipResultKey::Panel(_) => {
+                    crate::workbench_state::MembershipResultKey::Panel(_) => {
                         Ok(UiEvent::Membership(decision))
                     }
                 }
@@ -1700,51 +1592,6 @@ impl UiDriver {
             | WorkerEvent::MembershipGone { .. }
             | WorkerEvent::CloseResult { .. } => {
                 Err(test_error("use the exact Close transport consumer"))
-            }
-            WorkerEvent::MoveResult { operation, outcome } => {
-                let wait = wait_key.ok_or_else(|| test_error("Move wait key"))?;
-                let mailbox = Arc::clone(&self.mailbox);
-                let clock = self.clock.clone();
-                let state = self.state_mut();
-                let prepared = state.prepare_move(&operation, outcome);
-                let membership = prepared.membership_candidate().is_some();
-                let deadlines = membership
-                    .then(|| OperationDeadlines::from_sample(clock.now()))
-                    .flatten();
-                let mut decision = None;
-                require_applied(mailbox.deposit_ui_reply_before(&wait, &clock, |transaction| {
-                    let settled = if membership {
-                        let (operation, prepared) = state.retain_prepared_move_membership(prepared)?;
-                        let deadlines = deadlines.ok_or(CarrierFailure::Deadline)?;
-                        if transaction.observed_at() >= deadlines.forward_cutoff() { return Err(CarrierFailure::Deadline); }
-                        if state.has_attachments() {
-                            MoveDecision::Cleanup(state.stage_move_membership_cleanup(operation.request_id(), prepared, deadlines)?)
-                        } else {
-                            let install = prepared.selected_tab_id().map_or(crate::workbench_client::mailbox::DesiredInstall::Empty,
-                                |tab| match prepared.focus_panel_id() {
-                                    Some(panel) => crate::workbench_client::mailbox::DesiredInstall::Fresh {
-                                        tab_id: tab.clone(),
-                                        panel: panel.clone(),
-                                    },
-                                    None => crate::workbench_client::mailbox::DesiredInstall::Empty,
-                                });
-                            let desired = transaction.prepare_desired_install(install)?;
-                            let plan = state.prepare_move_membership_install(operation.request_id(), prepared, desired.desired().map(|pane| pane.anchor().clone()), Some(deadlines))?;
-                            let installed = plan.commit();
-                            desired.commit();
-                            match installed {
-                                crate::workbench_state::MembershipInstallDecision::Attach(target) => MoveDecision::AttachRecovered(target),
-                                crate::workbench_state::MembershipInstallDecision::Preserved => MoveDecision::Continue,
-                                _ => MoveDecision::SettledWithoutAttachment,
-                            }
-                        }
-                    } else { state.apply_prepared_move(prepared) };
-                    decision = Some(settled.clone());
-                    Ok(UiReply::Move(MoveSettlement::new(settled, state.desired().cloned())))
-                }))?;
-                Ok(UiEvent::Move(
-                    decision.ok_or_else(|| test_error("Move decision"))?,
-                ))
             }
             WorkerEvent::PanelResult { operation, outcome } => {
                 let wait = wait_key.ok_or_else(|| test_error("Panel wait key"))?;

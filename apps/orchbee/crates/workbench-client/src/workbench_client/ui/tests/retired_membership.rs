@@ -77,7 +77,7 @@ fn ready_with_cache(
 fn retire(ui: &mut WorkbenchClientUi, evidence: Option<UnavailablePoll>, clean: bool) {
     ui.retire(CarrierFailure::Protocol);
     ui.finish_retired_peer_join(evidence, clean);
-    ui.finalize_retirement(None, None, None, CloseWorkerReturn::Returned(None));
+    ui.finalize_retirement(None, None, CloseWorkerReturn::Returned(None));
     ui.release_mailbox();
 }
 
@@ -412,7 +412,7 @@ fn unavailable_present_and_invalid_candidates_preserve_origin_for_fresh_explicit
         assert_eq!(ui.state.as_ref().unwrap().cache(), &baseline);
         assert!(mailbox.execution_fence(&lease).desired().key().is_none());
         ui.finish_retired_peer_join(None, true);
-        ui.finalize_retirement(None, None, None, CloseWorkerReturn::Returned(None));
+        ui.finalize_retirement(None, None, CloseWorkerReturn::Returned(None));
         ui.release_mailbox();
         let (retry, clock, deadline) = ui.begin_retired_membership_recovery().unwrap();
         let retry_lease = retry.try_recv().unwrap().unwrap();
@@ -462,7 +462,7 @@ fn cancelled_old_reply_cannot_install_into_a_later_explicit_attempt() {
     let stale = first.take_event_before(&clock).unwrap().unwrap();
     ui.retire(CarrierFailure::Closed);
     ui.finish_retired_peer_join(None, true);
-    ui.finalize_retirement(None, None, None, CloseWorkerReturn::Returned(None));
+    ui.finalize_retirement(None, None, CloseWorkerReturn::Returned(None));
     ui.release_mailbox();
     let (second, _, _) = ui.begin_retired_membership_recovery().unwrap();
     let cursor = second.cursors();
@@ -1128,7 +1128,7 @@ fn every_retirement_names_disconnected_and_leaves_its_full_fact_to_the_pane() {
     for failure in [CarrierFailure::Closed, CarrierFailure::OutcomeUnknown] {
         let (mut ui, _mailbox, _clock, _elapsed) = super::ready::ready_ui();
         ui.retire(failure);
-        ui.finalize_retirement(None, None, None, CloseWorkerReturn::Returned(None));
+        ui.finalize_retirement(None, None, CloseWorkerReturn::Returned(None));
         let outcome_unknown = failure == CarrierFailure::OutcomeUnknown;
         assert_eq!(
             ui.view().retirement(),

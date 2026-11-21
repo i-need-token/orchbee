@@ -29,15 +29,15 @@ mod client_control;
 mod client_layout;
 use super::mailbox::{
     AdmissionError, CausalSettlement, CommandMailbox, CreateMarker, CreatePrecommitOutcome,
-    EventError, MoveAdmissionError, MutationResult, QueuedCommand, RefreshSettlement, SwitchMarker,
-    Tagged, UiReply, ViewportOutcome, WorkerEvent,
+    EventError, MutationAdmissionError, MutationResult, QueuedCommand, RefreshSettlement,
+    SwitchMarker, Tagged, UiReply, ViewportOutcome, WorkerEvent,
 };
 use crate::workbench_state::{
     AttachmentKey, CarrierFailure, ClientNotice, ClientPhaseKind, ClientTabView as StateTabView,
     ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
     CreateTerminalProvenance, FrameIdentity, NavigatorRefreshStatus, OperationDeadlines, PaneKey,
-    PaneRef, PanelRequestKind, PendingCreateCommit, PendingMoveCommit, PendingPanelCommit,
-    RefreshDecision, SelectionPlan, SetupEventDisposition, WorkbenchClientState,
+    PaneRef, PanelRequestKind, PendingCreateCommit, PendingPanelCommit, RefreshDecision,
+    SelectionPlan, SetupEventDisposition, WorkbenchClientState,
     WorkbenchClientView as ClientStateView,
 };
 use crate::{
@@ -72,7 +72,6 @@ mod control_takeover;
 mod history_positions;
 mod history_restore;
 mod membership;
-mod move_membership;
 mod navigator;
 mod panel;
 mod panel_close;
@@ -565,7 +564,6 @@ impl<'a> WorkbenchClientView<'a> {
             ClientPhaseKind::Creating => DisplayPhase::Creating,
             ClientPhaseKind::CreateCommittedNeedDetach => DisplayPhase::CreateCommittedNeedDetach,
             ClientPhaseKind::ProjectionUnavailable => DisplayPhase::ProjectionUnavailable,
-            ClientPhaseKind::MoveProjectionUnavailable => DisplayPhase::MoveProjectionUnavailable,
             ClientPhaseKind::PanelProjectionUnavailable => DisplayPhase::PanelProjectionUnavailable,
             ClientPhaseKind::RenameProjectionUnavailable => {
                 DisplayPhase::RenameProjectionUnavailable
@@ -835,8 +833,6 @@ impl<'a> WorkbenchClientView<'a> {
             ClientNotice::DuplicateNotStarted => WorkbenchClientNotice::DuplicateNotStarted,
             ClientNotice::DuplicateOutcomeUnknown => WorkbenchClientNotice::DuplicateOutcomeUnknown,
             ClientNotice::ChangeOutcomeUnknown => WorkbenchClientNotice::ChangeOutcomeUnknown,
-            ClientNotice::MoveNotMoved => WorkbenchClientNotice::MoveNotMoved,
-            ClientNotice::MoveOrderConflict => WorkbenchClientNotice::MoveOrderConflict,
             ClientNotice::PanelNotApplied => WorkbenchClientNotice::PanelNotApplied,
             ClientNotice::RenameNotRenamed => WorkbenchClientNotice::RenameNotRenamed,
             ClientNotice::CloseRequestNotApplied => WorkbenchClientNotice::CloseRequestNotApplied,
@@ -1969,15 +1965,11 @@ impl WorkbenchClientUi {
         }
         match (state.phase_kind(), state.controller_mode()) {
             (
-                ClientPhaseKind::Ready
-                | ClientPhaseKind::MoveProjectionUnavailable
-                | ClientPhaseKind::RenameProjectionUnavailable,
+                ClientPhaseKind::Ready | ClientPhaseKind::RenameProjectionUnavailable,
                 Some(ControllerMode::Controlling(_)),
             ) => TerminalStatus::Controlling,
             (
-                ClientPhaseKind::Ready
-                | ClientPhaseKind::MoveProjectionUnavailable
-                | ClientPhaseKind::RenameProjectionUnavailable,
+                ClientPhaseKind::Ready | ClientPhaseKind::RenameProjectionUnavailable,
                 Some(ControllerMode::ReadOnly),
             ) => TerminalStatus::ReadOnly,
             (ClientPhaseKind::Retired, _) => match self.retirement {
@@ -2025,12 +2017,6 @@ impl WorkbenchClientUi {
             .as_ref()
             .and_then(WorkbenchClientState::committed_target)
             .is_some()
-    }
-
-    #[cfg(test)]
-    pub(super) fn move_retirement_for_test(&self) -> Option<(&PendingMoveCommit, CarrierFailure)> {
-        let state = self.state.as_ref()?;
-        Some((state.retained_move_for_test()?, state.retired_failure()?))
     }
 
     #[cfg(test)]
@@ -2097,13 +2083,11 @@ impl WorkbenchClientUi {
     pub(super) fn finalize_retirement(
         &mut self,
         pending_create: Option<PendingCreateCommit>,
-        pending_move: Option<PendingMoveCommit>,
         pending_panel: Option<PendingPanelCommit>,
         close_return: crate::workbench_state::CloseWorkerReturn,
     ) -> bool {
         if self.retirement_finalized {
             return pending_create.is_none()
-                && pending_move.is_none()
                 && pending_panel.is_none()
                 && matches!(
                     close_return,
@@ -2120,18 +2104,15 @@ impl WorkbenchClientUi {
             .unwrap_or(CarrierFailure::WorkerExited);
         let accepted = match self.state.as_mut() {
             Some(state) => {
-                let move_accepted =
-                    pending_move.is_none_or(|pending| state.retain_pending_move(pending));
                 let panel_accepted =
                     pending_panel.is_none_or(|pending| state.retain_pending_panel(pending));
                 let close_accepted = state.finalize_close_worker(close_return).is_ok();
                 state.release_joined_close_references();
                 state.finalize_retirement(failure, pending_create)
-                    && move_accepted
                     && panel_accepted
                     && close_accepted
             }
-            None => pending_create.is_none() && pending_move.is_none() && pending_panel.is_none(),
+            None => pending_create.is_none() && pending_panel.is_none(),
         };
         let failure = self
             .state
@@ -3388,12 +3369,10 @@ impl WorkbenchClientUi {
             // Without a current Workspace the key starts one instead; the Shell enters it.
             ClientAction::CreateTab if self.view().no_current_workspace() => self.create_tab(),
             ClientAction::CreateTab => self.structure_action(StructureAction::CreateTab),
-            ClientAction::MovePreviousTab => self.structure_action(StructureAction::MoveTab(
-                WorkbenchTabMoveDirection::Previous,
-            )),
-            ClientAction::MoveNextTab => {
-                self.structure_action(StructureAction::MoveTab(WorkbenchTabMoveDirection::Next))
+            ClientAction::MovePreviousTab => {
+                self.request_tab_move(WorkbenchTabMoveDirection::Previous)
             }
+            ClientAction::MoveNextTab => self.request_tab_move(WorkbenchTabMoveDirection::Next),
             ClientAction::SelectPreviousContext => self.select_context(false),
             ClientAction::SelectNextContext => self.select_context(true),
             ClientAction::SelectNextTab
@@ -3844,52 +3823,18 @@ impl WorkbenchClientUi {
         ClientActionDisposition::LayoutChanged
     }
 
-    fn move_tab(&mut self, direction: WorkbenchTabMoveDirection) -> ClientActionDisposition {
-        // Capture the entire transport budget before attempting the admission mutex.
-        let Some(deadline) = self
-            .clock
-            .now()
-            .checked_add(crate::workbench_state::OPERATION_TOTAL)
-        else {
-            return ClientActionDisposition::KeepNavigator;
+    /// A Move Tab key runs the global menu's Move Tab left or Move Tab right row for the current
+    /// Tab: the same request, result and feedback. Returns whether a request went out.
+    fn move_tab(&mut self, direction: WorkbenchTabMoveDirection) -> bool {
+        let row = if direction == WorkbenchTabMoveDirection::Previous {
+            crate::action_menu::MenuAction::MoveTabPrevious
+        } else {
+            crate::action_menu::MenuAction::MoveTabNext
         };
-        let (Some(mailbox), Some(state)) =
-            (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
-        else {
-            return ClientActionDisposition::KeepNavigator;
-        };
-        let result = mailbox.try_enqueue_move_for(
-            state,
-            deadline,
-            &self.clock,
-            |state, request_id| {
-                // The Move Tab rows' rule decides whether the key moves anything; with nothing to
-                // move, as for a Tab alone among the Tabs pinned as it is, the key stays silent.
-                let index = state.active().ok_or(ActionBuildError::Busy)?.index();
-                if !matches!(tab_groups::tab_move(state, index, direction), Some(Ok(_))) {
-                    return Err(ActionBuildError::NoOp);
-                }
-                state
-                    .plan_move(request_id, direction, deadline)
-                    .ok_or(ActionBuildError::Busy)
-            },
-            |state, operation| {
-                state
-                    .begin_move(operation.clone())
-                    .then_some(())
-                    .ok_or(ActionBuildError::Busy)
-            },
-        );
-        match result {
-            Ok(_) => ClientActionDisposition::DismissNavigator,
-            Err(MoveAdmissionError::Closed(closed)) => {
-                self.retire(closed.failure());
-                ClientActionDisposition::KeepNavigator
-            }
-            // A deadline refusal can return while another thread still holds the mailbox.
-            // Preserve local state and do not reacquire that lock to update a notice.
-            Err(_) => ClientActionDisposition::KeepNavigator,
-        }
+        let _kept = self.apply_tab_menu(row, None);
+        self.state
+            .as_ref()
+            .is_some_and(WorkbenchClientState::tab_configuration_in_flight)
     }
 
     fn panel_operation(&mut self, kind: PanelRequestKind) -> ClientActionDisposition {
@@ -3943,7 +3888,7 @@ impl WorkbenchClientUi {
         );
         match result {
             Ok(_) => ClientActionDisposition::DismissNavigator,
-            Err(MoveAdmissionError::Closed(closed)) => {
+            Err(MutationAdmissionError::Closed(closed)) => {
                 self.retire(closed.failure());
                 ClientActionDisposition::KeepNavigator
             }
@@ -4261,9 +4206,6 @@ impl WorkbenchClientUi {
             WorkerEvent::CloseResult { operation, outcome } => {
                 return self.apply_close_event(mailbox, wait_key, operation, outcome);
             }
-            WorkerEvent::MoveResult { operation, outcome } => {
-                return self.apply_move_event(mailbox, wait_key, operation, outcome);
-            }
             WorkerEvent::PanelResult { operation, outcome } => {
                 return self.apply_panel_event(mailbox, wait_key, operation, outcome);
             }
@@ -4335,7 +4277,6 @@ impl WorkbenchClientUi {
                 | WorkerEvent::WorkspaceCloseResult { .. }
                 | WorkerEvent::ControlTakeoverResult { .. }
                 | WorkerEvent::RenameResult { .. }
-                | WorkerEvent::MoveResult { .. }
                 | WorkerEvent::PanelResult { .. }
                 | WorkerEvent::CloseReconciliationSnapshot { .. }
                 | WorkerEvent::MembershipGone { .. }

@@ -574,13 +574,18 @@ fn context_selection_close_confirmation_and_mutation_are_busy_without_allocating
     assert!(state.context_selection_deadlines().is_none());
     state.cancel_close_confirmation();
     let operation = state
-        .plan_move(
+        .plan_tab_configuration(
+            orchbee_workbench_protocol::TabConfiguration::MoveTab {
+                tab_id: state.tab(0).unwrap().tab_id().clone(),
+                direction: orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next,
+                adjacent_group_collapsed: false,
+            },
             workbench_request_id(300),
-            orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next,
-            Instant::now() + OPERATION_TOTAL,
+            1,
+            deadlines(),
         )
         .unwrap();
-    assert!(state.begin_move(operation));
+    state.begin_setup(operation);
     assert!(!state.start_context_selection(1, true, deadlines()));
     assert!(state.context_selection_deadlines().is_none());
 }

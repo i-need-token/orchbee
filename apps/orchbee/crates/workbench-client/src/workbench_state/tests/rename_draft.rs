@@ -160,10 +160,15 @@ fn rename_draft_and_structural_admission_are_mutually_exclusive() {
     assert!(!state.start_pending_refresh(1));
     assert!(
         state
-            .plan_move(
+            .plan_tab_configuration(
+                orchbee_workbench_protocol::TabConfiguration::MoveTab {
+                    tab_id: state.tab(0).unwrap().tab_id().clone(),
+                    direction: orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next,
+                    adjacent_group_collapsed: false,
+                },
                 WorkbenchRequestId::parse(&id(100)).unwrap(),
-                orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next,
-                Instant::now() + OPERATION_TOTAL
+                1,
+                OperationDeadlines::from_sample(Instant::now()).unwrap(),
             )
             .is_none()
     );

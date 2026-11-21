@@ -19,7 +19,6 @@ mod context_selection;
 mod generated;
 mod lifecycle_generated;
 mod membership;
-mod move_tab;
 mod panel;
 mod switch_membership;
 mod tab_close;

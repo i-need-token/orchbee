@@ -10,7 +10,6 @@ pub enum DisplayPhase {
     Creating,
     CreateCommittedNeedDetach,
     ProjectionUnavailable,
-    MoveProjectionUnavailable,
     PanelProjectionUnavailable,
     RenameProjectionUnavailable,
     Switching,
@@ -59,8 +58,6 @@ pub(crate) enum WorkbenchClientNotice {
     DuplicateOutcomeUnknown,
     /// A structural change ran on the Server and its outcome is unknown.
     ChangeOutcomeUnknown,
-    MoveNotMoved,
-    MoveOrderConflict,
     PanelNotApplied,
     RenameNotRenamed,
     TerminalClearUnconfirmed,

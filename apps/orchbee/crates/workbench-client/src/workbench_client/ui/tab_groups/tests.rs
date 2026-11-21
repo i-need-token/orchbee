@@ -13,6 +13,7 @@ mod creation;
 
 mod close;
 mod interaction;
+mod move_keys;
 mod presentation;
 
 fn grouped() -> Snapshot {

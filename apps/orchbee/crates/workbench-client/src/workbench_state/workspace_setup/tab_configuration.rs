@@ -40,6 +40,17 @@ impl WorkbenchClientState {
             deadlines,
         })
     }
+
+    /// Whether this Client's own Tab configuration is on its way: sent, with no result yet.
+    pub(crate) fn tab_configuration_in_flight(&self) -> bool {
+        self.setup.uncertain.is_none()
+            && self.setup.pending.as_ref().is_some_and(|operation| {
+                matches!(
+                    operation.command.action,
+                    WorkbenchAction::TabsConfigure { .. }
+                )
+            })
+    }
 }
 
 impl SetupOperation {

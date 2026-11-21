@@ -12,6 +12,10 @@
 //! A confirmed Tab or Panel close waits the same way while another close's status read or
 //! exchange, or a refresh, holds the slot its submission needs: its confirmation stays open and
 //! armed, and the close goes out as soon as the slot is free, within the same bound.
+//!
+//! The Move Tab keys are serialized: a press made while this Client's earlier Tab change is still
+//! on its way waits as well, and the presses held together run oldest first, one request at a
+//! time, each against the order the one before it produced.
 
 use super::WorkbenchClientUi;
 use super::worktree_launch::WorktreeMode;
@@ -33,6 +37,10 @@ use std::time::{Duration, Instant};
 /// a response to the key, so it ends with a refusal instead.
 const HOLD: Duration = Duration::from_secs(5);
 
+/// Tab moves held together. A longer run is no longer something a person follows press by press,
+/// so the next press is refused as busy.
+const MAXIMUM_HELD_TAB_MOVES: usize = 32;
+
 /// An invocation whose effect waits for the refresh slot, or a confirmed close for the slot its
 /// submission needs.
 #[derive(Clone, Debug)]
@@ -53,6 +61,8 @@ pub(super) enum HeldIntent {
     Context { next: bool },
     /// A Tab or Panel action of the current Workspace, resolved against the landed projection.
     Structure(StructureAction),
+    /// Move Tab key presses, oldest first. Each runs once the change before it is installed.
+    TabMoves(VecDeque<WorkbenchTabMoveDirection>),
     /// The drawn Tab or Panel close confirmation was confirmed.
     Close(ConfirmedClose),
     /// Last Panel, whose target is chosen from the focus history once the projection settled.
@@ -112,7 +122,6 @@ pub(super) enum StructureAction {
     FocusPanel(WorkbenchPanelId),
     /// `SelectTab`, `SelectNextTab` or `SelectPreviousTab`; terminal input waits with it.
     SelectTab(ClientAction),
-    MoveTab(WorkbenchTabMoveDirection),
     Panel(PanelRequestKind),
     CreateTab,
     /// A new Tab whose shell runs this Agent as its first command.
@@ -408,7 +417,6 @@ impl WorkbenchClientUi {
                 ClientActionDisposition::KeepNavigator
             }
             StructureAction::SelectTab(_)
-            | StructureAction::MoveTab(_)
             | StructureAction::Panel(_)
             | StructureAction::CreateTab
             | StructureAction::CreateAgentTab(_)
@@ -416,6 +424,63 @@ impl WorkbenchClientUi {
         };
         self.hold_intent(HeldIntent::Structure(action));
         disposition
+    }
+
+    /// A Move Tab key: runs the menu's Move Tab row for the current Tab, or holds the press while
+    /// a background read, the user's own landing switch or this Client's earlier Tab change still
+    /// settles. Presses held together keep their order and are not replaced by one another, so
+    /// fast repeats lose none and the strip only ever shows an order the Server committed.
+    pub(super) fn request_tab_move(
+        &mut self,
+        direction: WorkbenchTabMoveDirection,
+    ) -> ClientActionDisposition {
+        let until = self.clock.now() + HOLD;
+        if let Some(Hold {
+            intent: HeldIntent::TabMoves(run),
+            until: bound,
+        }) = &mut self.held_intents.held
+        {
+            if run.len() < MAXIMUM_HELD_TAB_MOVES {
+                run.push_back(direction);
+                *bound = until;
+                return ClientActionDisposition::DismissNavigator;
+            }
+            if let Some(state) = self.state.as_mut() {
+                state.set_notice(ClientNotice::LocalBusy);
+            }
+            return ClientActionDisposition::KeepNavigator;
+        }
+        if self.tab_move_waits() {
+            self.hold_intent(HeldIntent::TabMoves(VecDeque::from([direction])));
+            return ClientActionDisposition::DismissNavigator;
+        }
+        if self.move_tab(direction) {
+            ClientActionDisposition::DismissNavigator
+        } else {
+            ClientActionDisposition::KeepNavigator
+        }
+    }
+
+    /// What a Move Tab key press waits out: the next move is computed from the installed order.
+    fn tab_move_waits(&self) -> bool {
+        self.settling_for_user_action()
+            || self
+                .state
+                .as_ref()
+                .is_some_and(WorkbenchClientState::tab_configuration_in_flight)
+    }
+
+    /// The Tab change the held presses followed did not land and said so; they end with it
+    /// instead of acting on an order the user has not seen change.
+    pub(super) fn end_held_tab_moves(&mut self) {
+        if self
+            .held_intents
+            .held
+            .as_ref()
+            .is_some_and(|held| matches!(held.intent, HeldIntent::TabMoves(_)))
+        {
+            self.held_intents.held = None;
+        }
     }
 
     /// Steps back to the last focused Panel, or holds the step while a background read or the
@@ -434,7 +499,6 @@ impl WorkbenchClientUi {
             StructureAction::Focus(direction) => self.move_panel_focus(direction),
             StructureAction::FocusPanel(panel) => self.move_panel_focus_to(&panel),
             StructureAction::SelectTab(action) => self.select_tab(action),
-            StructureAction::MoveTab(direction) => self.move_tab(direction),
             StructureAction::Panel(kind) => self.panel_operation(kind),
             StructureAction::CreateTab => self.create_tab(),
             StructureAction::CreateAgentTab(provider) => self.create_agent_tab(provider),
@@ -455,16 +519,23 @@ impl WorkbenchClientUi {
     pub(super) fn replay_held_intent(&mut self) -> bool {
         self.lapse_destination_uncertainty();
         let mut changed = false;
-        if let Some((until, close)) = self.held_intents.held.as_ref().map(|held| {
+        if let Some((until, close, tab_moves)) = self.held_intents.held.as_ref().map(|held| {
             let close = match held.intent {
                 HeldIntent::Close(close) => Some(close),
                 _ => None,
             };
-            (held.until, close)
+            let tab_moves = matches!(held.intent, HeldIntent::TabMoves(_));
+            (held.until, close, tab_moves)
         }) {
-            // A confirmed close waits for its busy slot up to its bound; any other held action
-            // waits while the background read or landing switch settles.
-            if self.settling_for_user_action() || (close.is_some() && self.clock.now() >= until) {
+            // A confirmed close waits for its busy slot up to its bound; Tab moves also wait for
+            // this Client's Tab change in flight; any other held action waits while the
+            // background read or landing switch settles.
+            let settling = if tab_moves {
+                self.tab_move_waits()
+            } else {
+                self.settling_for_user_action()
+            };
+            if settling || (close.is_some() && self.clock.now() >= until) {
                 if self.clock.now() >= until {
                     self.held_intents.held = None;
                     // A confirmation that already ended said why; the close it held goes with it.
@@ -516,6 +587,25 @@ impl WorkbenchClientUi {
                     HeldIntent::Structure(action) => {
                         let disposition = self.apply_structure_action(action);
                         self.held_intents.layout_replayed |= disposition.changes_layout();
+                        changed = true;
+                    }
+                    HeldIntent::TabMoves(mut run) => {
+                        // A change that was accepted but could not be shown blocks the next one
+                        // and says so; the presses behind it end there.
+                        let shown = self
+                            .state
+                            .as_ref()
+                            .is_some_and(|state| !state.setup_blocks_structure());
+                        if shown
+                            && let Some(direction) = run.pop_front()
+                            && self.move_tab(direction)
+                            && !run.is_empty()
+                        {
+                            self.held_intents.held = Some(Hold {
+                                intent: HeldIntent::TabMoves(run),
+                                until,
+                            });
+                        }
                         changed = true;
                     }
                     HeldIntent::Close(close) => {

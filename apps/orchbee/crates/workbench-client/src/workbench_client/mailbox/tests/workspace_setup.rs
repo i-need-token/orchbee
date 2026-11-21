@@ -218,7 +218,7 @@ fn setup_mutex_wait_is_inside_original_admission_budget_without_relocking_on_exp
             deadlines,
             worker_clock.as_ref(),
         );
-        assert!(matches!(result, Err(MoveAdmissionError::Deadline)));
+        assert!(matches!(result, Err(MutationAdmissionError::Deadline)));
         assert_eq!(state.setup_draft().unwrap().token(), token);
     });
     reached.recv_timeout(Duration::from_secs(1)).unwrap();

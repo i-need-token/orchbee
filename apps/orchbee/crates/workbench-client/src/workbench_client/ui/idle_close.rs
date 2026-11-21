@@ -9,7 +9,7 @@
 //! Client always presents the confirmation and sends nothing.
 
 use super::{ActionBuildError, WorkbenchClientUi};
-use crate::workbench_client::mailbox::{CloseAdmissionError, MoveAdmissionError};
+use crate::workbench_client::mailbox::{CloseAdmissionError, MutationAdmissionError};
 use crate::workbench_state::{
     CloseConfirmationToken, ControllerMode, OPERATION_TOTAL, PanelCloseConfirmationToken,
     WorkbenchClientState,
@@ -71,7 +71,7 @@ impl WorkbenchClientUi {
                         .map_err(|_| ActionBuildError::Busy)
                 },
             ) {
-                Err(MoveAdmissionError::Closed(closed)) => Some(closed),
+                Err(MutationAdmissionError::Closed(closed)) => Some(closed),
                 _ => None,
             },
         };

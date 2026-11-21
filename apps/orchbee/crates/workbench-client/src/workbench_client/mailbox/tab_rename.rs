@@ -4,10 +4,10 @@
 
 use super::{
     BarrierFence, BarrierKind, COMMAND_CAPACITY, CommandMailbox, EventDeadline, EventError,
-    Instant, MailboxClock, MailboxClosed, MailboxState, MembershipResultKey, MoveAdmissionError,
-    MutationResult, PaneKey, PendingRefreshStage, QueuedCommand, QueuedRecord, RefreshDecision,
-    StructuralMutationFlight, UiCorrelation, UiWaitKey, WorkbenchRequestId, WorkerEvent,
-    workbench_identity_candidate,
+    Instant, MailboxClock, MailboxClosed, MailboxState, MembershipResultKey,
+    MutationAdmissionError, MutationResult, PaneKey, PendingRefreshStage, QueuedCommand,
+    QueuedRecord, RefreshDecision, StructuralMutationFlight, UiCorrelation, UiWaitKey,
+    WorkbenchRequestId, WorkerEvent, workbench_identity_candidate,
 };
 use crate::workbench_state::WorkbenchClientState;
 use crate::workbench_state::rename_draft::DraftToken;
@@ -113,7 +113,7 @@ impl CommandMailbox {
         token: DraftToken,
         deadline: Instant,
         clock: &dyn MailboxClock,
-    ) -> Result<RenameOperation, MoveAdmissionError<()>> {
+    ) -> Result<RenameOperation, MutationAdmissionError<()>> {
         self.try_enqueue_rename_for_using(canonical, token, deadline, clock)
     }
     pub(super) fn try_enqueue_rename_for_using(
@@ -122,11 +122,11 @@ impl CommandMailbox {
         token: DraftToken,
         deadline: Instant,
         clock: &dyn MailboxClock,
-    ) -> Result<RenameOperation, MoveAdmissionError<()>> {
+    ) -> Result<RenameOperation, MutationAdmissionError<()>> {
         let (mut state, _) = self
             .lock_before(deadline, clock)
-            .ok_or(MoveAdmissionError::Deadline)?;
-        Self::ensure_open(&state).map_err(MoveAdmissionError::Closed)?;
+            .ok_or(MutationAdmissionError::Deadline)?;
+        Self::ensure_open(&state).map_err(MutationAdmissionError::Closed)?;
         if state.desired.awaiting_bootstrap()
             || state.desired.key().is_none()
             || state.structural_mutation_pending.is_some()
@@ -139,22 +139,22 @@ impl CommandMailbox {
                 .iter()
                 .any(|record| record.command.barrier().is_some())
         {
-            return Err(MoveAdmissionError::Busy);
+            return Err(MutationAdmissionError::Busy);
         }
         if state.queue.len() == COMMAND_CAPACITY {
-            return Err(MoveAdmissionError::Full);
+            return Err(MutationAdmissionError::Full);
         }
         let (cursor, request_id) = workbench_identity_candidate(state.identity_cursor)
-            .ok_or(MoveAdmissionError::IdentityExhausted)?;
+            .ok_or(MutationAdmissionError::IdentityExhausted)?;
         let serial = state
             .next_command_serial
             .checked_add(1)
-            .ok_or(MoveAdmissionError::IdentityExhausted)?;
+            .ok_or(MutationAdmissionError::IdentityExhausted)?;
         let operation = canonical
             .plan_rename(token, request_id, deadline)
-            .ok_or(MoveAdmissionError::Build(()))?;
+            .ok_or(MutationAdmissionError::Build(()))?;
         if state.desired.key().map(PaneKey::anchor) != Some(operation.target()) {
-            return Err(MoveAdmissionError::InvalidTarget);
+            return Err(MutationAdmissionError::InvalidTarget);
         }
         let flight = Box::new(RenameFlight {
             serial,
@@ -164,7 +164,7 @@ impl CommandMailbox {
         });
         let marker = RenameMarker(operation.clone());
         if !canonical.begin_rename(operation.clone()) {
-            return Err(MoveAdmissionError::Build(()));
+            return Err(MutationAdmissionError::Build(()));
         }
         state.identity_cursor = cursor;
         state.next_command_serial = serial;

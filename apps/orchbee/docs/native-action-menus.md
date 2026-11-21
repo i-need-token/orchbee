@@ -398,7 +398,7 @@ Server's own Tab configuration rule to the current Workspace, and a Tab moves on
 pinned as it is. Moving left from the first of those Tabs wraps to their end, and moving right from
 the last wraps to their start, as the GUI's move backward and forward do, so those rows refuse only a
 Tab with none to pass: only one Tab, no other pinned Tab or no other unpinned Tab. `Ctrl+b <` and
-`Ctrl+b >` ask the same rule: they wrap the same way and stay silent where the row is disabled. Moving to the start or end also shows that an ungrouped Tab
+`Ctrl+b >` run the Previous and Next rows themselves: a key gives its row's result in every position, group edges included, and stays silent where the row is disabled. Moving to the start or end also shows that an ungrouped Tab
 already stands there; a grouped Tab there stays enabled, because the move takes it out of its group. Copy mode shows Terminal disconnected as Clear terminal does,
 unless the focused Panel shows a launch failure, which Copy mode then presents. Other global actions
 follow these sections. Ordinary confirmed Close retains its compatibility behavior; sidebar

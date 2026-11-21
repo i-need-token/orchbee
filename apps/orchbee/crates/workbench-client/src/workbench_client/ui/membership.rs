@@ -159,7 +159,6 @@ impl WorkbenchClientUi {
             Ok(match cleanup.result() {
                 MembershipResultKey::Refresh(_)
                 | MembershipResultKey::Create(_)
-                | MembershipResultKey::Move(_)
                 | MembershipResultKey::Panel(_) => UiReply::Membership(settlement),
                 MembershipResultKey::Switch(_) => UiReply::Switch(settlement),
                 MembershipResultKey::Rename(id) => {

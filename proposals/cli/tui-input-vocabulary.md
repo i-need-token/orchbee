@@ -43,7 +43,7 @@ dismissal from the accepted initial contract:
 | `a`                   | `workspace.create` through the staged setup wizard                    | Workbench mutation |
 | `e`                   | `workspace.primary-directory.accept` for an Empty Workspace           | Workbench mutation |
 | `r` / `R`             | `workspace.rename` / `project.rename` through the rename editor       | Workbench mutation |
-| `<` / `>`             | `tab.move` previous / next                                            | Workbench mutation |
+| `<` / `>`             | `tabs.configure` `move-tab` previous / next                           | Workbench mutation |
 | `,`                   | `tab.rename` through the rename editor                                | Workbench mutation |
 | `x`                   | `tab.close` after the drawn confirmation                              | Workbench mutation |
 | `w`                   | Toggle the navigator overlay; refresh performs a Server snapshot read | Client-local       |

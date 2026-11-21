@@ -771,14 +771,10 @@ impl WorkbenchClient {
         let mut retired_poll = None;
         let workspace_close_return;
         let takeover_return;
-        let (
-            pending_create,
-            pending_move,
-            pending_panel,
-            close_return,
-            rename_return,
-            setup_return,
-        ) = match self.task.take() {
+        let (pending_create, pending_panel, close_return, rename_return, setup_return) = match self
+            .task
+            .take()
+        {
             // Retirement and reconnection still wait for the connection task's pending results.
             Some(ClientTask::Native(mut task)) => {
                 match task.join().map_or(Err(()), |joined| joined.map_err(drop)) {
@@ -793,7 +789,6 @@ impl WorkbenchClient {
                         let pending = returned.into_pending_results();
                         (
                             pending.create,
-                            pending.moved,
                             pending.panel,
                             crate::workbench_state::CloseWorkerReturn::Returned(pending.close),
                             pending.renamed,
@@ -816,7 +811,7 @@ impl WorkbenchClient {
                         let setup = match &self.backend {
                             ClientBackend::Native(native) => native.setup_worker_loss(),
                         };
-                        (None, None, None, evidence, renamed, setup)
+                        (None, None, evidence, renamed, setup)
                     }
                 }
             }
@@ -831,7 +826,6 @@ impl WorkbenchClient {
         let queued_workspace_close_return = native.workspace_close_worker_loss();
         let queued_takeover_return = native.takeover_worker_loss();
         let clean_return = pending_create.is_none()
-            && pending_move.is_none()
             && pending_panel.is_none()
             && rename_return.is_none()
             && setup_return.is_none()
@@ -874,8 +868,7 @@ impl WorkbenchClient {
             takeover_accepted,
             queued_takeover_accepted,
         );
-        let _accepted =
-            native.finalize_retirement(pending_create, pending_move, pending_panel, close_return);
+        let _accepted = native.finalize_retirement(pending_create, pending_panel, close_return);
         // The Agent lanes' blocked thread joins precede mailbox release —
         // draining lane outcomes is over before the mailbox can retire.
         native.release_agent_lane();

@@ -8,7 +8,6 @@ pub(in crate::workbench_client::ui) mod idle_close;
 pub(in crate::workbench_client::ui) mod input_provenance;
 pub(in crate::workbench_client) mod membership;
 pub(in crate::workbench_client::ui) mod modal_pointer_roundtrip;
-mod move_membership;
 pub(in crate::workbench_client::ui) mod normal_exit_hold;
 pub(in crate::workbench_client::ui) mod panel_input;
 pub(in crate::workbench_client::ui) mod panel_reports;

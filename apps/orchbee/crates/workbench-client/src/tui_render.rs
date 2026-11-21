@@ -1894,7 +1894,6 @@ fn render_native_workbench(
             } else if matches!(
                 native.phase(),
                 DisplayPhase::Ready
-                    | DisplayPhase::MoveProjectionUnavailable
                     | DisplayPhase::PanelProjectionUnavailable
                     | DisplayPhase::RenameProjectionUnavailable
             ) && native.projection_status() != ClientProjectionStatus::FrameAvailable
@@ -2439,7 +2438,6 @@ fn render_leaf(
         } else if matches!(
             native.phase(),
             DisplayPhase::Ready
-                | DisplayPhase::MoveProjectionUnavailable
                 | DisplayPhase::PanelProjectionUnavailable
                 | DisplayPhase::RenameProjectionUnavailable
         ) {

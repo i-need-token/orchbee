@@ -250,7 +250,6 @@ impl<'a> RetainedView<'a> {
             | ClientPhaseKind::Creating
             | ClientPhaseKind::CreateCommittedNeedDetach
             | ClientPhaseKind::ProjectionUnavailable
-            | ClientPhaseKind::MoveProjectionUnavailable
             | ClientPhaseKind::PanelProjectionUnavailable
             | ClientPhaseKind::RenameProjectionUnavailable
             | ClientPhaseKind::SelectedWithoutAttachment

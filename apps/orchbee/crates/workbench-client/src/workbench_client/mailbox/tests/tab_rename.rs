@@ -56,10 +56,15 @@ fn rename_actual_admission_captures_once_and_closes_draft_with_shared_fence() {
     assert!(state.open_rename_draft().is_none());
     assert!(
         state
-            .plan_move(
+            .plan_tab_configuration(
+                orchbee_workbench_protocol::TabConfiguration::MoveTab {
+                    tab_id: state.tab(0).unwrap().tab_id().clone(),
+                    direction: orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next,
+                    adjacent_group_collapsed: false,
+                },
                 WorkbenchRequestId::parse(&id(200)).unwrap(),
-                orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next,
-                deadline
+                1,
+                OperationDeadlines::from_sample(base).unwrap(),
             )
             .is_none()
     );

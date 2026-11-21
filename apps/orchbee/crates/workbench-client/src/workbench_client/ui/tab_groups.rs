@@ -4,7 +4,6 @@ use super::{ClientActionDisposition, OperationDeadlines, WorkbenchClientState, W
 use crate::action_menu::{MenuAction, MenuTarget, MenuUnavailable, TabMenuScope};
 use crate::workbench_projection::ClientTab;
 use crate::workbench_state::workspace_setup::SetupIntent;
-use crate::workbench_state::wrapped_tab_move;
 use orchbee_workbench_protocol::{
     TabConfiguration, TabGroupColor, WorkbenchTabGroupId, WorkbenchTabGroupLabel, WorkbenchTabId,
     WorkbenchTabIdSet, WorkbenchTabMoveDirection, configure_tabs,
@@ -117,11 +116,26 @@ pub(super) const fn tab_move_direction(action: &MenuAction) -> Option<WorkbenchT
     }
 }
 
+/// Previous from the first of `count` Tabs wraps to the last place, and Next from the last wraps
+/// to the first, as the GUI's move backward and forward do. It applies over the Tabs pinned as
+/// the moving one.
+const fn wrapped_tab_move(
+    direction: WorkbenchTabMoveDirection,
+    index: usize,
+    count: usize,
+) -> WorkbenchTabMoveDirection {
+    match direction {
+        WorkbenchTabMoveDirection::Previous if index == 0 => WorkbenchTabMoveDirection::Last,
+        WorkbenchTabMoveDirection::Next if index + 1 >= count => WorkbenchTabMoveDirection::First,
+        other => other,
+    }
+}
+
 /// The move a Move Tab row requests for the Tab at `index`, or why the Server's own configuration
 /// rule would leave the Tabs unchanged. Previous and Next wrap within the Tabs pinned as this one,
-/// so they refuse only a Tab with none to pass. The row, its move and the `<` and `>` keys all ask
-/// here, so an enabled row always moves the Tab or takes it out of its group, and a key with nothing
-/// to move stays silent. A move the local Workspace cannot judge stays available for the Server.
+/// so they refuse only a Tab with none to pass. The `<` and `>` keys run the rows themselves, so
+/// an enabled row always moves the Tab or takes it out of its group, and a key with nothing to
+/// move stays silent. A move the local Workspace cannot judge stays available for the Server.
 pub(super) fn tab_move(
     state: &WorkbenchClientState,
     index: usize,

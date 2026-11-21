@@ -25,7 +25,6 @@ impl WorkbenchClient {
                 native.finalize_retirement(
                     None,
                     None,
-                    None,
                     workbench_state::CloseWorkerReturn::Returned(None),
                 );
                 native.release_mailbox();
@@ -59,7 +58,6 @@ impl WorkbenchClient {
                 native.finish_retired_peer_join(None, true);
                 native.close(workbench_state::CarrierFailure::WorkerExited);
                 native.finalize_retirement(
-                    None,
                     None,
                     None,
                     workbench_state::CloseWorkerReturn::Returned(None),

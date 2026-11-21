@@ -17,7 +17,6 @@ pub(crate) enum MembershipResultKey {
     Create(super::CreateOperationKey),
     Close(super::CloseFlightKey),
     Switch(PaneKey),
-    Move(WorkbenchRequestId),
     Panel(WorkbenchRequestId),
     Rename(WorkbenchRequestId),
 }
@@ -232,7 +231,6 @@ pub(crate) struct PreparedMembershipInstall<'a> {
 
 enum MembershipMutationCompletion {
     None,
-    Move,
     Panel,
     Rename(WorkbenchRequestId),
 }
@@ -279,10 +277,6 @@ impl PreparedMembershipInstall<'_> {
             self.state.settled_create = Some(committed);
         }
         match self.mutation_completion {
-            MembershipMutationCompletion::Move => {
-                self.state.pending_mutation = None;
-                self.state.move_recovery = None;
-            }
             MembershipMutationCompletion::Panel => {
                 self.state.pending_mutation = None;
                 self.state.panel_recovery = None;
@@ -1050,12 +1044,6 @@ impl WorkbenchClientState {
                 }
                 None
             }
-            MembershipResultKey::Move(request_id) => {
-                if !self.move_membership_is_current(request_id) {
-                    return Err(CarrierFailure::Protocol);
-                }
-                None
-            }
             MembershipResultKey::Panel(request_id) => {
                 if !self.panel_membership_is_current(request_id) {
                     return Err(CarrierFailure::Protocol);
@@ -1072,9 +1060,6 @@ impl WorkbenchClientState {
             false,
         )?;
         plan.refresh_generation = refresh_generation;
-        if matches!(cleanup.result(), MembershipResultKey::Move(_)) {
-            plan.mutation_completion = MembershipMutationCompletion::Move;
-        }
         if matches!(cleanup.result(), MembershipResultKey::Panel(_)) {
             plan.mutation_completion = MembershipMutationCompletion::Panel;
         }
@@ -1103,7 +1088,6 @@ impl WorkbenchClientState {
                     }
                     MembershipResultKey::Close(_)
                     | MembershipResultKey::Rename(_)
-                    | MembershipResultKey::Move(_)
                     | MembershipResultKey::Panel(_)
                     | MembershipResultKey::Switch(_) => false,
                 };
@@ -1128,9 +1112,6 @@ impl WorkbenchClientState {
                 (match &pending.cleanup.result {
                     MembershipResultKey::Refresh(generation) => {
                         self.pending_refresh_generation() == Some(*generation)
-                    }
-                    MembershipResultKey::Move(request_id) => {
-                        self.move_membership_is_current(request_id)
                     }
                     MembershipResultKey::Panel(request_id) => {
                         self.panel_membership_is_current(request_id)
@@ -1372,62 +1353,6 @@ impl WorkbenchClientState {
         }
         let mut plan = self.prepare_membership_install(prepared, desired, deadlines)?;
         plan.refresh_generation = Some(generation);
-        Ok(plan)
-    }
-
-    pub(crate) fn stage_move_membership_cleanup(
-        &mut self,
-        request_id: &WorkbenchRequestId,
-        prepared: PreparedMembershipCandidate,
-        deadlines: OperationDeadlines,
-    ) -> Result<MembershipCleanup, CarrierFailure> {
-        if !self.invariant_holds()
-            || !self.move_membership_is_current(request_id)
-            || self.pending_membership.is_some()
-            || self.cache != prepared.baseline
-            || self.desired != prepared.baseline_desired
-            || prepared.preserves_selection()
-            || !self.membership_cleanup_ready()
-        {
-            return Err(CarrierFailure::Protocol);
-        }
-        let old = self
-            .desired
-            .as_ref()
-            .map(|key| key.anchor().clone())
-            .ok_or(CarrierFailure::Protocol)?;
-        let selected = self.active().cloned().ok_or(CarrierFailure::Protocol)?;
-        if selected.key().anchor() != &old {
-            return Err(CarrierFailure::Protocol);
-        }
-        let cleanup = MembershipCleanup {
-            result: MembershipResultKey::Move(request_id.clone()),
-            old,
-            deadlines,
-            installs_candidate: true,
-            close_marker: None,
-            closed_proof: None,
-        };
-        self.pending_membership = Some(PendingMembership {
-            cleanup: cleanup.clone(),
-            prepared: Some(prepared),
-        });
-        self.phase = ClientPhase::ReconcilingMembership(selected);
-        Ok(cleanup)
-    }
-
-    pub(crate) fn prepare_move_membership_install(
-        &mut self,
-        request_id: &WorkbenchRequestId,
-        prepared: PreparedMembershipCandidate,
-        desired: Option<AttachmentKey>,
-        deadlines: Option<OperationDeadlines>,
-    ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
-        if !self.move_membership_is_current(request_id) || self.pending_membership.is_some() {
-            return Err(CarrierFailure::Protocol);
-        }
-        let mut plan = self.prepare_membership_install(prepared, desired, deadlines)?;
-        plan.mutation_completion = MembershipMutationCompletion::Move;
         Ok(plan)
     }
 

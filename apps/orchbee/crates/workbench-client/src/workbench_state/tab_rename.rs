@@ -72,13 +72,6 @@ impl super::WorkbenchClientState {
             }
         }
     }
-    pub(crate) fn pending_move(&self) -> Option<&super::MoveOperation> {
-        match &self.pending_mutation {
-            Some(super::PendingMutation::Move(operation)) => Some(operation),
-            _ => None,
-        }
-    }
-
     pub(crate) fn pending_rename(&self) -> Option<&RenameOperation> {
         match &self.pending_mutation {
             Some(super::PendingMutation::Rename(operation)) => Some(operation),

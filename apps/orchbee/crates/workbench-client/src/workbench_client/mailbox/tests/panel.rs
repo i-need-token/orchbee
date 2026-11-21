@@ -133,7 +133,7 @@ fn admit_panel(
     clock: &dyn MailboxClock,
     deadline: Instant,
     kind: PanelRequestKind,
-) -> Result<PanelOperation, MoveAdmissionError<()>> {
+) -> Result<PanelOperation, MutationAdmissionError<()>> {
     mailbox.try_enqueue_panel_for_using(
         state,
         deadline,
@@ -148,7 +148,7 @@ fn admit_move(
     state: &mut WorkbenchClientState,
     clock: &dyn MailboxClock,
     deadline: Instant,
-) -> Result<PanelOperation, MoveAdmissionError<()>> {
+) -> Result<PanelOperation, MutationAdmissionError<()>> {
     admit_panel(
         mailbox,
         state,
@@ -292,7 +292,10 @@ fn panel_admission_marks_queue_and_fences_identity() {
             Ok(())
         },
     );
-    assert!(matches!(invalid, Err(MoveAdmissionError::InvalidTarget)));
+    assert!(matches!(
+        invalid,
+        Err(MutationAdmissionError::InvalidTarget)
+    ));
     assert!(
         !committed,
         "rejected admission must not invoke the commit closure"
@@ -325,7 +328,7 @@ fn panel_admission_marks_queue_and_fences_identity() {
                 direction: PanelDirection::Left,
             },
         ),
-        Err(MoveAdmissionError::Busy)
+        Err(MutationAdmissionError::Busy)
     ));
     mailbox.close(CarrierFailure::Closed);
     assert!(matches!(
@@ -336,7 +339,7 @@ fn panel_admission_marks_queue_and_fences_identity() {
             deadline,
             PanelRequestKind::Close,
         ),
-        Err(MoveAdmissionError::Closed(_))
+        Err(MutationAdmissionError::Closed(_))
     ));
 }
 
@@ -698,7 +701,7 @@ fn panel_membership_cleanup_holds_flight_until_exact_install() {
             base + Duration::from_secs(50),
             PanelRequestKind::Close,
         ),
-        Err(MoveAdmissionError::Busy)
+        Err(MutationAdmissionError::Busy)
     ));
     let detached_wait = mailbox
         .publish_event_before_using(

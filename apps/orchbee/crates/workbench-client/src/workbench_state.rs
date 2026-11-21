@@ -35,7 +35,6 @@ pub(crate) use context_selection::ClientContextView;
 pub(crate) use field_window::{FieldWindow, field_window};
 mod create_membership;
 mod membership;
-mod move_tab;
 mod navigation_memory;
 mod panel;
 mod panel_close;
@@ -55,9 +54,6 @@ pub(crate) use create_membership::{CreateOriginKind, PreparedCreateSnapshot};
 pub(crate) use membership::PreparedMembershipInstall;
 pub(crate) use membership::{
     MembershipCleanup, MembershipInstallDecision, MembershipResultKey, PreparedMembershipCandidate,
-};
-pub(crate) use move_tab::{
-    MoveDecision, MoveOperation, MoveResult, PendingMoveCommit, wrapped_tab_move,
 };
 #[cfg(test)]
 pub(crate) use panel::PanelPrecommit;
@@ -703,7 +699,6 @@ pub(crate) enum ClientPhaseKind {
     Creating,
     CreateCommittedNeedDetach,
     ProjectionUnavailable,
-    MoveProjectionUnavailable,
     PanelProjectionUnavailable,
     RenameProjectionUnavailable,
     Switching,
@@ -733,11 +728,9 @@ pub(crate) enum ClientNotice {
     DuplicatePending,
     DuplicateNotStarted,
     DuplicateOutcomeUnknown,
-    /// A Tab create, rename or move, or a Panel split, move or close, ran on the Server and its
+    /// A Tab create or rename, or a Panel split, move or close, ran on the Server and its
     /// outcome is unknown. The layout is read again; the notice stays until the next keypress.
     ChangeOutcomeUnknown,
-    MoveNotMoved,
-    MoveOrderConflict,
     RenameNotRenamed,
     CloseRequestNotApplied,
     WorkspaceCloseUnavailable,
@@ -1327,7 +1320,6 @@ pub(crate) enum SelectionPlan {
 }
 
 enum PendingMutation {
-    Move(MoveOperation),
     Panel(PanelOperation),
     Rename(tab_rename::RenameOperation),
 }
@@ -1395,8 +1387,6 @@ pub(crate) struct WorkbenchClientState {
     publication_debt: PublicationDebt,
     refresh_status: Option<NavigatorRefreshStatus>,
     pending_mutation: Option<PendingMutation>,
-    move_recovery: Option<PendingMoveCommit>,
-    settled_move: Option<PendingMoveCommit>,
     panel_recovery: Option<PendingPanelCommit>,
     settled_panel: Option<PendingPanelCommit>,
     settled_rename: Option<tab_rename::PendingRenameCommit>,
@@ -1546,8 +1536,6 @@ impl WorkbenchClientState {
             publication_debt: PublicationDebt::Clean,
             refresh_status: None,
             pending_mutation: None,
-            move_recovery: None,
-            settled_move: None,
             panel_recovery: None,
             settled_panel: None,
             settled_rename: None,
@@ -1571,9 +1559,6 @@ impl WorkbenchClientState {
     pub(crate) const fn phase_kind(&self) -> ClientPhaseKind {
         if self.rename_recovery.is_some() && !matches!(&self.phase, ClientPhase::Retired(_)) {
             return ClientPhaseKind::RenameProjectionUnavailable;
-        }
-        if self.move_recovery.is_some() && !matches!(&self.phase, ClientPhase::Retired(_)) {
-            return ClientPhaseKind::MoveProjectionUnavailable;
         }
         if self.panel_recovery.is_some() && !matches!(&self.phase, ClientPhase::Retired(_)) {
             return ClientPhaseKind::PanelProjectionUnavailable;
@@ -3390,9 +3375,7 @@ impl WorkbenchClientState {
         }
 
         let active = self.active().cloned();
-        let validated = if let Some(pending) = &self.move_recovery {
-            pending.validate_projection(candidate)
-        } else if let Some(pending) = &self.panel_recovery {
+        let validated = if let Some(pending) = &self.panel_recovery {
             pending.validate_projection(candidate)
         } else if let Some(pending) = &self.rename_recovery {
             pending
@@ -3448,7 +3431,6 @@ impl WorkbenchClientState {
         let baseline_phase = self.phase_kind();
         match baseline_phase {
             ClientPhaseKind::Ready
-            | ClientPhaseKind::MoveProjectionUnavailable
             | ClientPhaseKind::PanelProjectionUnavailable
             | ClientPhaseKind::RenameProjectionUnavailable
             | ClientPhaseKind::SelectedWithoutAttachment
@@ -4327,8 +4309,7 @@ impl WorkbenchClientState {
         {
             return false;
         }
-        if !self.move_invariant_holds()
-            || !self.panel_invariant_holds()
+        if !self.panel_invariant_holds()
             || !self.rename_invariant_holds()
             || !self.setup_invariant_holds()
             || !self.workspace_close_invariant_holds()

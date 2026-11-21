@@ -255,7 +255,6 @@ fn directory_actions_only_replace_a_live_empty_panel() {
             Phase::Creating,
             Phase::CreateCommittedNeedDetach,
             Phase::ProjectionUnavailable,
-            Phase::MoveProjectionUnavailable,
             Phase::RenameProjectionUnavailable,
             Phase::Switching,
             Phase::SelectedWithoutAttachment,

@@ -645,15 +645,21 @@ fn move_tab_rows_are_enabled_exactly_when_the_configuration_moves_the_tab() {
         .try_recv()
         .unwrap()
         .expect("the key's move is queued");
-    let QueuedCommand::Move(marker) = lease.record() else {
-        panic!("move lane");
+    let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+        panic!("setup lane");
     };
-    let placement = marker.operation().placement().unwrap();
-    assert_eq!(
-        placement,
-        crate::workbench_projection::TabMovePlacement::Boundary(2)
-    );
-    assert_eq!(placement.destination(0, 3), Some(1));
+    let orchbee_workbench_protocol::WorkbenchAction::TabsConfigure { operation, .. } =
+        &marker.0.command.action
+    else {
+        panic!("Tab configuration");
+    };
+    let state = ui.state.as_ref().unwrap();
+    let context = state.cache().canonical_context().unwrap();
+    let moved = orchbee_workbench_protocol::configure_tabs(context, operation, None)
+        .unwrap()
+        .unwrap();
+    assert_eq!(moved.tabs[1].tab_id, context.tabs[0].tab_id);
+    assert!(moved.tabs[1].pinned);
 }
 
 #[test]

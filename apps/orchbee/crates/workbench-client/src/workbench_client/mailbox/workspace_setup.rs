@@ -4,7 +4,7 @@
 
 use super::{
     BarrierFence, BarrierKind, COMMAND_CAPACITY, CommandMailbox, EventDeadline, EventError,
-    MailboxClock, MailboxClosed, MailboxState, MembershipResultKey, MoveAdmissionError,
+    MailboxClock, MailboxClosed, MailboxState, MembershipResultKey, MutationAdmissionError,
     MutationResult, PaneKey, QueuedCommand, QueuedRecord, RefreshFlight, StructuralMutationFlight,
     UiCorrelation, UiWaitKey, WorkerEvent, workbench_identity_candidate,
 };
@@ -151,7 +151,7 @@ impl CommandMailbox {
         token: SetupToken,
         deadlines: OperationDeadlines,
         clock: &dyn MailboxClock,
-    ) -> Result<(), MoveAdmissionError<()>> {
+    ) -> Result<(), MutationAdmissionError<()>> {
         self.try_enqueue_setup_for_using(canonical, token, deadlines, clock)
     }
     pub(super) fn try_enqueue_setup_for_using(
@@ -160,7 +160,7 @@ impl CommandMailbox {
         token: SetupToken,
         deadlines: OperationDeadlines,
         clock: &dyn MailboxClock,
-    ) -> Result<(), MoveAdmissionError<()>> {
+    ) -> Result<(), MutationAdmissionError<()>> {
         self.enqueue_setup(
             canonical,
             deadlines,
@@ -176,7 +176,7 @@ impl CommandMailbox {
         operation: orchbee_workbench_protocol::TabConfiguration,
         deadlines: OperationDeadlines,
         clock: &dyn MailboxClock,
-    ) -> Result<(), MoveAdmissionError<()>> {
+    ) -> Result<(), MutationAdmissionError<()>> {
         self.enqueue_setup(
             canonical,
             deadlines,
@@ -192,10 +192,10 @@ impl CommandMailbox {
         request: &crate::workbench_state::workspace_setup::WorkspaceOrganizationRequest,
         deadlines: OperationDeadlines,
         clock: &dyn MailboxClock,
-    ) -> Result<(), MoveAdmissionError<()>> {
+    ) -> Result<(), MutationAdmissionError<()>> {
         let deadlines = deadlines.bounded_by(request.deadline());
         if clock.now() >= deadlines.forward_cutoff() {
-            return Err(MoveAdmissionError::Deadline);
+            return Err(MutationAdmissionError::Deadline);
         }
         self.enqueue_setup(
             canonical,
@@ -212,7 +212,7 @@ impl CommandMailbox {
         operation: orchbee_workbench_protocol::NavigationConfiguration,
         deadlines: OperationDeadlines,
         clock: &dyn MailboxClock,
-    ) -> Result<(), MoveAdmissionError<()>> {
+    ) -> Result<(), MutationAdmissionError<()>> {
         self.enqueue_setup(
             canonical,
             deadlines,
@@ -232,11 +232,11 @@ impl CommandMailbox {
             orchbee_workbench_protocol::WorkbenchRequestId,
             u64,
         ) -> Option<SetupOperation>,
-    ) -> Result<(), MoveAdmissionError<()>> {
+    ) -> Result<(), MutationAdmissionError<()>> {
         let (mut state, _) = self
             .lock_before(deadlines.forward_cutoff(), clock)
-            .ok_or(MoveAdmissionError::Deadline)?;
-        Self::ensure_open(&state).map_err(MoveAdmissionError::Closed)?;
+            .ok_or(MutationAdmissionError::Deadline)?;
+        Self::ensure_open(&state).map_err(MutationAdmissionError::Closed)?;
         if state.desired.awaiting_bootstrap()
             || state.desired.key() != canonical.desired()
             || state.structural_mutation_pending.is_some()
@@ -248,23 +248,23 @@ impl CommandMailbox {
                 .iter()
                 .any(|entry| entry.command.barrier().is_some())
         {
-            return Err(MoveAdmissionError::Busy);
+            return Err(MutationAdmissionError::Busy);
         }
         if state.queue.len() == COMMAND_CAPACITY {
-            return Err(MoveAdmissionError::Full);
+            return Err(MutationAdmissionError::Full);
         }
         let (cursor, request_id) = workbench_identity_candidate(state.identity_cursor)
-            .ok_or(MoveAdmissionError::IdentityExhausted)?;
+            .ok_or(MutationAdmissionError::IdentityExhausted)?;
         let serial = state
             .next_command_serial
             .checked_add(1)
-            .ok_or(MoveAdmissionError::IdentityExhausted)?;
+            .ok_or(MutationAdmissionError::IdentityExhausted)?;
         let generation = state
             .refresh_generation
             .checked_add(1)
-            .ok_or(MoveAdmissionError::IdentityExhausted)?;
+            .ok_or(MutationAdmissionError::IdentityExhausted)?;
         let operation =
-            plan(canonical, request_id, generation).ok_or(MoveAdmissionError::Build(()))?;
+            plan(canonical, request_id, generation).ok_or(MutationAdmissionError::Build(()))?;
         let flight = Box::new(SetupFlight {
             serial,
             desired: canonical.desired().cloned(),
@@ -277,7 +277,7 @@ impl CommandMailbox {
         });
         let marker = WorkspaceSetupMarker(operation.clone());
         if clock.now() >= deadlines.forward_cutoff() {
-            return Err(MoveAdmissionError::Deadline);
+            return Err(MutationAdmissionError::Deadline);
         }
         canonical.begin_setup(operation);
         state.identity_cursor = cursor;

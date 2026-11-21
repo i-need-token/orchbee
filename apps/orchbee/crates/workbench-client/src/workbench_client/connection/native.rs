@@ -25,8 +25,7 @@ use crate::workbench_state::{
     AttachTarget, BootstrapTarget, CarrierFailure, CleanupContinuation, ControllerMode,
     CreateOperation, CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity,
     OperationDeadlines, PaneFault, PaneKey, PaneRef, PendingCloseResult, PendingCreateCommit,
-    PendingMoveCommit, ReadyDecision, ReconcileStep, ReconcileTarget, RefreshDecision,
-    SetupEventDisposition,
+    ReadyDecision, ReconcileStep, ReconcileTarget, RefreshDecision, SetupEventDisposition,
 };
 use orchbee_client_server_protocol::{
     ControlRejectedReason, ControlUnavailableReason, Geometry, HistoryDemand, ProjectionDemand,
@@ -57,7 +56,6 @@ mod control_takeover;
 mod current_directory;
 mod quick_workspace;
 mod startup_directory;
-mod tab_move;
 mod tab_rename;
 mod workspace_close;
 mod workspace_setup;
@@ -102,7 +100,6 @@ pub(super) fn run_at(
     }
     let returned = ClientConnectionExit::new(
         executor.pending_create.take(),
-        executor.pending_move.take(),
         executor.pending_panel.take(),
         executor.pending_close.take(),
         executor.pending_rename.take(),
@@ -149,7 +146,6 @@ struct ClientExecutor {
     publications: Option<crate::local_client::multiplex::Subscription>,
     _viewer_ready: Option<crate::local_client::multiplex::ViewerReadyWatch>,
     pending_create: Option<PendingCreateCommit>,
-    pending_move: Option<PendingMoveCommit>,
     pending_panel: Option<crate::workbench_state::PendingPanelCommit>,
     pending_close: Option<PendingCloseResult>,
     pending_rename: Option<crate::workbench_state::tab_rename::RenameWorkerEvidence>,
@@ -383,7 +379,6 @@ impl ClientExecutor {
             workbench_baseline: None,
             publications,
             pending_create: None,
-            pending_move: None,
             pending_panel: None,
             pending_close: None,
             pending_rename: None,
@@ -943,9 +938,6 @@ impl ClientExecutor {
                     }
                     QueuedCommand::Create(_) => Err(CarrierFailure::Protocol),
                     QueuedCommand::Refresh(marker) => self.run_refresh(&lease, marker.clone()),
-                    QueuedCommand::Move(marker) => {
-                        self.run_move(&lease, marker.operation().clone())
-                    }
                     QueuedCommand::Panel(marker) => {
                         self.run_panel(&lease, marker.operation().clone())
                     }

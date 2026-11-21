@@ -8,9 +8,8 @@ use crate::workbench_state::{
     CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation, CloseReconciliationMarker,
     CloseResult, ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
     CreateTerminalProvenance, FocusLanding, FrameIdentity, MembershipCleanup, MembershipResultKey,
-    MoveDecision, MoveOperation, MoveResult, OperationDeadlines, PaneKey, PaneRef,
-    PendingRefreshStage, ReadyDecision, ReconcileStep, ReconcileTarget, RefreshDecision,
-    SetupEventDisposition,
+    OperationDeadlines, PaneKey, PaneRef, PendingRefreshStage, ReadyDecision, ReconcileStep,
+    ReconcileTarget, RefreshDecision, SetupEventDisposition,
 };
 use crate::{
     exchange_values::workbench::{
@@ -262,7 +261,6 @@ pub(super) enum QueuedCommand {
     Switch(SwitchMarker),
     Create(CreateMarker),
     Refresh(RefreshMarker),
-    Move(MoveMarker),
     Panel(PanelMarker),
     Rename(RenameMarker),
     WorkspaceSetup(Box<WorkspaceSetupMarker>),
@@ -287,7 +285,6 @@ impl QueuedCommand {
             Self::Switch(_) => "switch",
             Self::Create(_) => "create",
             Self::Refresh(_) => "refresh",
-            Self::Move(_) => "move",
             Self::Panel(_) => "panel",
             Self::Rename(_) => "rename",
             Self::WorkspaceSetup(_) => "workspace-setup",
@@ -355,34 +352,12 @@ impl ReconcileMarker {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct MoveMarker {
-    operation: MoveOperation,
-}
-
-impl MoveMarker {
-    pub(super) const fn new(operation: MoveOperation) -> Self {
-        Self { operation }
-    }
-    pub(super) const fn operation(&self) -> &MoveOperation {
-        &self.operation
-    }
-    fn barrier(&self) -> BarrierFence {
-        BarrierFence {
-            kind: BarrierKind::Move,
-            forward_cutoff: self.operation.deadline(),
-            total: self.operation.deadline(),
-        }
-    }
-}
-
 impl QueuedCommand {
     fn barrier(&self) -> Option<BarrierFence> {
         match self {
             Self::Switch(marker) => Some(marker.barrier()),
             Self::Create(marker) => Some(marker.barrier()),
             Self::Refresh(marker) => Some(marker.barrier()),
-            Self::Move(marker) => Some(marker.barrier()),
             Self::Panel(marker) => Some(marker.barrier()),
             Self::Rename(marker) => Some(marker.barrier()),
             Self::WorkspaceSetup(marker) => Some(marker.barrier()),
@@ -420,7 +395,6 @@ pub(super) enum BarrierKind {
     Switch,
     Create,
     Refresh,
-    Move,
     Panel,
     Rename,
     Close,
@@ -661,7 +635,6 @@ enum UiCorrelation {
     Attachment(PaneRef),
     Create(CreateOperationKey),
     Refresh(u64),
-    Move(WorkbenchRequestId),
     Panel(WorkbenchRequestId),
     Rename(WorkbenchRequestId),
     Close(CloseFlightKey),
@@ -681,7 +654,6 @@ enum UiReplyKind {
     CommitRetained,
     CreateProjection,
     Refresh,
-    Move,
     Panel,
     Rename,
     Close,
@@ -766,10 +738,6 @@ pub(super) enum WorkerEvent {
     CloseResult {
         operation: CloseOperation,
         outcome: CloseResult,
-    },
-    MoveResult {
-        operation: MoveOperation,
-        outcome: MoveResult,
     },
     PanelResult {
         operation: crate::workbench_state::PanelOperation,
@@ -989,7 +957,6 @@ impl WorkerEvent {
                     MembershipResultKey::Close(_) => UiReplyKind::CloseReconciliation,
                     MembershipResultKey::Refresh(_)
                     | MembershipResultKey::Create(_)
-                    | MembershipResultKey::Move(_)
                     | MembershipResultKey::Panel(_) => UiReplyKind::Membership,
                     MembershipResultKey::Switch(_) => UiReplyKind::Switch,
                     MembershipResultKey::Rename(_) => UiReplyKind::Rename,
@@ -998,10 +965,6 @@ impl WorkerEvent {
             Self::CloseResult { operation, .. } => (
                 UiCorrelation::Close(operation.key().clone()),
                 UiReplyKind::Close,
-            ),
-            Self::MoveResult { operation, .. } => (
-                UiCorrelation::Move(operation.request_id().clone()),
-                UiReplyKind::Move,
             ),
             Self::PanelResult { operation, .. } => (
                 UiCorrelation::Panel(operation.request_id().clone()),
@@ -1102,7 +1065,6 @@ pub(super) enum UiReply {
     Switch(RefreshSettlement),
     Membership(RefreshSettlement),
     Close(CloseFlightKey),
-    Move(MoveSettlement),
     Panel(PanelSettlement),
     BootstrapApplied(Option<BootstrapTarget>),
     SetupConfigurationSettled(SetupEventDisposition),
@@ -1116,27 +1078,6 @@ pub(super) enum UiReply {
     FeedbackSettled(SetupEventDisposition),
     Ready(ReadyDecision),
     CleanupApplied(CleanupContinuation),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct MoveSettlement {
-    decision: MoveDecision,
-    desired: Option<PaneKey>,
-}
-
-impl MoveSettlement {
-    pub(super) fn new(decision: MoveDecision, desired: impl Into<Option<PaneKey>>) -> Self {
-        Self {
-            decision,
-            desired: desired.into(),
-        }
-    }
-    pub(super) const fn decision(&self) -> &MoveDecision {
-        &self.decision
-    }
-    pub(super) const fn desired(&self) -> Option<&PaneKey> {
-        self.desired.as_ref()
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1170,7 +1111,6 @@ impl UiReply {
             Self::Switch(_) => UiReplyKind::Switch,
             Self::Membership(_) => UiReplyKind::Membership,
             Self::Close(_) => UiReplyKind::Close,
-            Self::Move(_) => UiReplyKind::Move,
             Self::Panel(_) => UiReplyKind::Panel,
             Self::Rename(_) => UiReplyKind::Rename,
             Self::BootstrapApplied(_) => UiReplyKind::BootstrapApplied,
@@ -1294,7 +1234,7 @@ pub(super) enum AdmissionError<BuildError> {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub(super) enum MoveAdmissionError<BuildError> {
+pub(super) enum MutationAdmissionError<BuildError> {
     Closed(MailboxClosed),
     Deadline,
     Busy,
@@ -1338,26 +1278,10 @@ struct RefreshFlight {
     stage: PendingRefreshStage,
 }
 
-struct MoveFlight {
-    serial: u64,
-    operation: MoveOperation,
-    stage: PendingRefreshStage,
-}
-
 enum StructuralMutationFlight {
-    Move(Box<MoveFlight>),
     Panel(Box<PanelFlight>),
     Rename(Box<RenameFlight>),
     Setup(Box<SetupFlight>),
-}
-
-impl StructuralMutationFlight {
-    fn as_move(&self) -> Option<&MoveFlight> {
-        match self {
-            Self::Move(flight) => Some(flight),
-            Self::Panel(_) | Self::Rename(_) | Self::Setup(_) => None,
-        }
-    }
 }
 
 struct MailboxState {
@@ -1785,7 +1709,6 @@ impl CommandMailbox {
             QueuedCommand::Switch(_)
             | QueuedCommand::Create(_)
             | QueuedCommand::Refresh(_)
-            | QueuedCommand::Move(_)
             | QueuedCommand::Panel(_)
             | QueuedCommand::Rename(_)
             | QueuedCommand::WorkspaceSetup(_)
@@ -2273,113 +2196,6 @@ impl CommandMailbox {
         result
     }
 
-    pub(super) fn try_enqueue_move_for<Canonical, BuildError>(
-        &self,
-        canonical: &mut Canonical,
-        deadline: Instant,
-        clock: &dyn MailboxClock,
-        build: impl FnOnce(&Canonical, WorkbenchRequestId) -> Result<MoveOperation, BuildError>,
-        commit: impl FnOnce(&mut Canonical, &MoveOperation) -> Result<(), BuildError>,
-    ) -> Result<MoveOperation, MoveAdmissionError<BuildError>> {
-        self.try_enqueue_move_for_using(canonical, deadline, clock, build, commit)
-    }
-
-    fn try_enqueue_move_for_using<Canonical, BuildError>(
-        &self,
-        canonical: &mut Canonical,
-        deadline: Instant,
-        clock: &dyn MailboxClock,
-        build: impl FnOnce(&Canonical, WorkbenchRequestId) -> Result<MoveOperation, BuildError>,
-        commit: impl FnOnce(&mut Canonical, &MoveOperation) -> Result<(), BuildError>,
-    ) -> Result<MoveOperation, MoveAdmissionError<BuildError>> {
-        let (mut state, _) = self
-            .lock_before(deadline, clock)
-            .ok_or(MoveAdmissionError::Deadline)?;
-        Self::ensure_open(&state).map_err(MoveAdmissionError::Closed)?;
-        if state.desired.key().is_none()
-            || state.structural_mutation_pending.is_some()
-            || state.close_pending()
-            || state.refresh_flight.is_some()
-            || state
-                .queue
-                .iter()
-                .any(|record| record.command.barrier().is_some())
-        {
-            return Err(MoveAdmissionError::Busy);
-        }
-        if state.queue.len() == COMMAND_CAPACITY {
-            return Err(MoveAdmissionError::Full);
-        }
-        let (cursor, request_id) = workbench_identity_candidate(state.identity_cursor)
-            .ok_or(MoveAdmissionError::IdentityExhausted)?;
-        let serial = state
-            .next_command_serial
-            .checked_add(1)
-            .ok_or(MoveAdmissionError::IdentityExhausted)?;
-        let operation = build(canonical, request_id.clone()).map_err(MoveAdmissionError::Build)?;
-        if operation.request_id() != &request_id
-            || operation.deadline() != deadline
-            || state.desired.key().map(PaneKey::anchor) != Some(operation.target())
-            || operation
-                .baseline()
-                .tab_index(operation.target().tab_id())
-                .is_none()
-        {
-            return Err(MoveAdmissionError::InvalidTarget);
-        }
-        let flight = Box::new(MoveFlight {
-            serial,
-            operation: operation.clone(),
-            stage: PendingRefreshStage::Queued,
-        });
-        commit(canonical, &operation).map_err(MoveAdmissionError::Build)?;
-        state.identity_cursor = cursor;
-        state.next_command_serial = serial;
-        state.structural_mutation_pending = Some(StructuralMutationFlight::Move(flight));
-        state.queue.push_back(QueuedRecord {
-            serial,
-            command: QueuedCommand::Move(MoveMarker::new(operation.clone())),
-            retry_at: None,
-        });
-        self.changed.notify_all();
-        Ok(operation)
-    }
-
-    pub(super) fn mark_move_in_flight(
-        &self,
-        operation: &MoveOperation,
-    ) -> Result<MutationResult, MailboxClosed> {
-        let mut state = self.lock();
-        Self::ensure_open(&state)?;
-        let active_serial = state.active_lease.map(|lease| lease.serial);
-        match state.structural_mutation_pending.as_mut() {
-            Some(StructuralMutationFlight::Move(flight))
-                if flight.operation == *operation
-                    && flight.stage == PendingRefreshStage::Queued
-                    && active_serial == Some(flight.serial) =>
-            {
-                flight.stage = PendingRefreshStage::InFlight;
-                self.changed.notify_all();
-                Ok(MutationResult::Applied)
-            }
-            _ => Ok(MutationResult::Stale),
-        }
-    }
-
-    pub(super) fn publish_move_result_before(
-        &self,
-        operation: MoveOperation,
-        outcome: MoveResult,
-        deadline: Instant,
-        clock: &dyn MailboxClock,
-    ) -> Result<UiWaitKey, EventError> {
-        self.publish_event_before(
-            WorkerEvent::MoveResult { operation, outcome },
-            EventDeadline::PlacementOnly(deadline),
-            clock,
-        )
-    }
-
     /// The position of the first queue record whose deferral has expired —
     /// deferred background work never blocks ready live work behind it.
     fn ready_position(state: &MailboxState, now: Instant) -> Option<usize> {
@@ -2506,7 +2322,6 @@ impl CommandMailbox {
                 | QueuedCommand::Refresh(_)
                 | QueuedCommand::ReconcileClose(_)
                 | QueuedCommand::ReconcilePanes(_)
-                | QueuedCommand::Move(_)
                 | QueuedCommand::Panel(_)
                 | QueuedCommand::Rename(_)
                 | QueuedCommand::WorkspaceSetup(_)
@@ -2736,26 +2551,6 @@ impl CommandMailbox {
                 generation,
                 stage: PendingRefreshStage::AwaitingUi,
             });
-        }
-        if let WorkerEvent::MoveResult { operation, .. } = &event {
-            let valid = deadline == EventDeadline::PlacementOnly(operation.deadline())
-                && state
-                    .structural_mutation_pending
-                    .as_ref()
-                    .and_then(StructuralMutationFlight::as_move)
-                    .is_some_and(|flight| {
-                        flight.operation == *operation
-                            && flight.stage == PendingRefreshStage::InFlight
-                            && event_anchor_serial == Some(flight.serial)
-                    });
-            if !valid {
-                return Err(self.close_protocol(&mut state));
-            }
-            if let Some(StructuralMutationFlight::Move(flight)) =
-                state.structural_mutation_pending.as_mut()
-            {
-                flight.stage = PendingRefreshStage::AwaitingUi;
-            }
         }
         if let WorkerEvent::PanelResult { operation, .. } = &event
             && !state.place_panel_result(operation, deadline, event_anchor_serial)
@@ -3125,30 +2920,6 @@ impl CommandMailbox {
         {
             return Err(self.close_protocol(state));
         }
-        let move_request = match &wait_key.correlation {
-            UiCorrelation::Move(request) => Some((request, None)),
-            UiCorrelation::Membership(MembershipResultKey::Move(request), old) => {
-                Some((request, Some(old)))
-            }
-            _ => None,
-        };
-        if let Some((request, old)) = move_request
-            && !state
-                .structural_mutation_pending
-                .as_ref()
-                .and_then(StructuralMutationFlight::as_move)
-                .is_some_and(|flight| {
-                    flight.operation.request_id() == request
-                        && flight.stage == PendingRefreshStage::AwaitingUi
-                        && state.active_lease.map(|lease| lease.serial) == Some(flight.serial)
-                        && state.event_anchor_serial == Some(flight.serial)
-                        && state.desired.key().map(PaneKey::anchor)
-                            == Some(flight.operation.target())
-                        && old.is_none_or(|old| old == flight.operation.target())
-                })
-        {
-            return Err(self.close_protocol(state));
-        }
         if !state.rename_reply_current(&wait_key.correlation)
             || !state.setup_reply_current(&wait_key.correlation)
             || !state.panel_reply_current(&wait_key.correlation)
@@ -3193,19 +2964,6 @@ impl CommandMailbox {
             UiReply::Switch(_) => {
                 // Publication and the pre-closure check already sealed this exact UI settlement.
                 state.switch_handoff = None;
-            }
-            UiReply::Move(settlement) => {
-                let valid = matches!(&wait_key.correlation, UiCorrelation::Move(request_id)
-                if state.structural_mutation_pending.as_ref().and_then(StructuralMutationFlight::as_move).is_some_and(|flight| {
-                    flight.operation.request_id() == request_id
-                        && flight.stage == PendingRefreshStage::AwaitingUi
-                }));
-                if !valid || state.desired.key() != settlement.desired() {
-                    return Err(self.close_protocol(state));
-                }
-                if !matches!(settlement.decision(), MoveDecision::Cleanup(_)) {
-                    state.structural_mutation_pending = None;
-                }
             }
             UiReply::Panel(settlement) => {
                 let valid = matches!(&wait_key.correlation, UiCorrelation::Panel(request_id)
@@ -3252,7 +3010,6 @@ impl CommandMailbox {
                     UiCorrelation::Membership(MembershipResultKey::Refresh(generation), _) => {
                         Some(*generation)
                     }
-                    UiCorrelation::Membership(MembershipResultKey::Move(_), _) => None,
                     UiCorrelation::Membership(MembershipResultKey::Panel(_), _) => None,
                     _ => {
                         return Err(self.close_protocol(state));
@@ -4204,11 +3961,6 @@ impl CommandMailbox {
     #[cfg(test)]
     pub(super) fn event_waiting_for_test(&self) -> bool {
         matches!(self.lock().event, EventCell::Event(_))
-    }
-
-    #[cfg(test)]
-    pub(super) fn hold_lock_for_test(&self) -> impl Drop + '_ {
-        self.lock()
     }
 
     #[cfg(test)]

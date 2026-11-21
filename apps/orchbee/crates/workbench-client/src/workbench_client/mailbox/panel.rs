@@ -4,10 +4,10 @@
 
 use super::{
     BarrierFence, BarrierKind, COMMAND_CAPACITY, CommandMailbox, EventDeadline, EventError,
-    Instant, MailboxClock, MailboxClosed, MailboxState, MembershipResultKey, MoveAdmissionError,
-    MutationResult, PaneKey, PendingRefreshStage, QueuedCommand, QueuedRecord,
-    StructuralMutationFlight, UiCorrelation, UiWaitKey, WorkbenchRequestId, WorkerEvent,
-    workbench_identity_candidate,
+    Instant, MailboxClock, MailboxClosed, MailboxState, MembershipResultKey,
+    MutationAdmissionError, MutationResult, PaneKey, PendingRefreshStage, QueuedCommand,
+    QueuedRecord, StructuralMutationFlight, UiCorrelation, UiWaitKey, WorkbenchRequestId,
+    WorkerEvent, workbench_identity_candidate,
 };
 use crate::workbench_state::{PanelDecision, PanelOperation, PanelResult};
 
@@ -70,7 +70,7 @@ impl CommandMailbox {
         clock: &dyn MailboxClock,
         build: impl FnOnce(&Canonical, WorkbenchRequestId) -> Result<PanelOperation, BuildError>,
         commit: impl FnOnce(&mut Canonical, &PanelOperation) -> Result<(), BuildError>,
-    ) -> Result<PanelOperation, MoveAdmissionError<BuildError>> {
+    ) -> Result<PanelOperation, MutationAdmissionError<BuildError>> {
         self.try_enqueue_panel_for_using(canonical, deadline, clock, build, commit)
     }
 
@@ -81,11 +81,11 @@ impl CommandMailbox {
         clock: &dyn MailboxClock,
         build: impl FnOnce(&Canonical, WorkbenchRequestId) -> Result<PanelOperation, BuildError>,
         commit: impl FnOnce(&mut Canonical, &PanelOperation) -> Result<(), BuildError>,
-    ) -> Result<PanelOperation, MoveAdmissionError<BuildError>> {
+    ) -> Result<PanelOperation, MutationAdmissionError<BuildError>> {
         let (mut state, _) = self
             .lock_before(deadline, clock)
-            .ok_or(MoveAdmissionError::Deadline)?;
-        Self::ensure_open(&state).map_err(MoveAdmissionError::Closed)?;
+            .ok_or(MutationAdmissionError::Deadline)?;
+        Self::ensure_open(&state).map_err(MutationAdmissionError::Closed)?;
         if state.desired.key().is_none()
             || state.structural_mutation_pending.is_some()
             || state.close_pending()
@@ -95,18 +95,19 @@ impl CommandMailbox {
                 .iter()
                 .any(|record| record.command.barrier().is_some())
         {
-            return Err(MoveAdmissionError::Busy);
+            return Err(MutationAdmissionError::Busy);
         }
         if state.queue.len() == COMMAND_CAPACITY {
-            return Err(MoveAdmissionError::Full);
+            return Err(MutationAdmissionError::Full);
         }
         let (cursor, request_id) = workbench_identity_candidate(state.identity_cursor)
-            .ok_or(MoveAdmissionError::IdentityExhausted)?;
+            .ok_or(MutationAdmissionError::IdentityExhausted)?;
         let serial = state
             .next_command_serial
             .checked_add(1)
-            .ok_or(MoveAdmissionError::IdentityExhausted)?;
-        let operation = build(canonical, request_id.clone()).map_err(MoveAdmissionError::Build)?;
+            .ok_or(MutationAdmissionError::IdentityExhausted)?;
+        let operation =
+            build(canonical, request_id.clone()).map_err(MutationAdmissionError::Build)?;
         if operation.request_id() != &request_id
             || operation.deadline() != deadline
             || state.desired.key().map(PaneKey::anchor) != Some(operation.target())
@@ -125,14 +126,14 @@ impl CommandMailbox {
                 )
                 .is_none_or(|tab| tab.panel_index(operation.panel_id()).is_none())
         {
-            return Err(MoveAdmissionError::InvalidTarget);
+            return Err(MutationAdmissionError::InvalidTarget);
         }
         let flight = Box::new(PanelFlight {
             serial,
             operation: operation.clone(),
             stage: PendingRefreshStage::Queued,
         });
-        commit(canonical, &operation).map_err(MoveAdmissionError::Build)?;
+        commit(canonical, &operation).map_err(MutationAdmissionError::Build)?;
         state.identity_cursor = cursor;
         state.next_command_serial = serial;
         state.structural_mutation_pending = Some(StructuralMutationFlight::Panel(flight));
