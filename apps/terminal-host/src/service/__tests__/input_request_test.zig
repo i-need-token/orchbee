@@ -1457,6 +1457,98 @@ test "a prompt line refused by the gate names its reason and types nothing" {
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
     try std.testing.expectEqual(@as(usize, 0), inputEntryCount(runtime));
 }
+test "screen gate: a key refused on the wire names its rule and types nothing; a hold is accepted empty" {
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const arguments: []const []const u8 = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const create_payload = try testCreatePayload("6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d", executable, arguments);
+    defer std.testing.allocator.free(create_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c");
+    var created = try testRequest(&service, &connection, MessageKind.create_terminal, .control_json, create_payload, [_]u8{0x6d} ** 16);
+    defer created.deinit();
+    const terminal_id = serviceCore(&service).terminalKeys()[0];
+    const attachment_id = core_module.AttachmentId.fromBytes([_]u8{0x6e} ** 16);
+    var attachment_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    const attach_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":true,\"read\":true,\"resize\":true}},\"requestResizeLease\":true,\"terminalId\":\"{s}\"}}",
+        .{
+            identifierText(attachment_id, &attachment_buffer),
+            identifierText(terminal_id, &terminal_buffer),
+        },
+    );
+    defer std.testing.allocator.free(attach_payload);
+    var attached = try testRequest(&service, &connection, MessageKind.attach_terminal, .control_json, attach_payload, [_]u8{0x6e} ** 16);
+    defer attached.deinit();
+    const runtime = findRuntime(&service, terminal_id).?;
+    var sample = try runtime.sampleProcesses(std.testing.allocator);
+    defer sample.deinit();
+    const root = for (sample.processes) |process| {
+        if (process.pid == sample.root_pid) break process;
+    } else return error.TestUnexpectedResult;
+
+    const Gated = struct {
+        fn payload(attachment: core_module.AttachmentId, pid: u32, creation_time: u64) [64]u8 {
+            var bytes: [64]u8 = @splat(0);
+            @memcpy(bytes[0..16], &attachment.bytes);
+            std.mem.writeInt(u64, bytes[16..24], 1, .little);
+            bytes[24] = 1;
+            std.mem.writeInt(u32, bytes[28..32], pid, .little);
+            // A generation this terminal never reaches: the frame is never the screen.
+            std.mem.writeInt(u64, bytes[32..40], std.math.maxInt(u64), .little);
+            std.mem.writeInt(u64, bytes[56..64], creation_time, .little);
+            return bytes;
+        }
+    };
+    const Failure = struct { code: []const u8, message: []const u8, retryable: bool };
+    const cases = [_]struct { payload: [64]u8, code: []const u8 }{
+        // The Host's own process sample decides whether the named process runs here.
+        .{ .payload = Gated.payload(attachment_id, root.pid, root.creation_time +% 1), .code = "screen-agent-gone" },
+        .{ .payload = Gated.payload(attachment_id, root.pid, root.creation_time), .code = "screen-changed" },
+    };
+    for (cases, 0..) |case, index| {
+        var refused = try testRequest(&service, &connection, MessageKind.screen_gated_key_input, .raw_bytes, &case.payload, [_]u8{0x70 + @as(u8, @intCast(index))} ** 16);
+        defer refused.deinit();
+        try std.testing.expectEqual(@as(usize, 1), refused.records().len);
+        const envelope = try protocol.validateTransportEnvelope(refused.records()[0]);
+        try std.testing.expectEqual(MessageKind.typed_failure, envelope.kind);
+        const failure = try control_wire.decode(Failure, std.testing.allocator, envelope.payload);
+        defer failure.deinit();
+        try std.testing.expectEqualStrings(case.code, failure.value.code);
+        try std.testing.expect(!failure.value.retryable);
+        try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+        try std.testing.expectEqual(@as(usize, 0), inputEntryCount(runtime));
+    }
+
+    var hold: [64]u8 = @splat(0);
+    @memcpy(hold[0..16], &attachment_id.bytes);
+    std.mem.writeInt(u64, hold[16..24], 1, .little);
+    hold[25] = 1;
+    var held = try testRequest(&service, &connection, MessageKind.screen_gated_key_input, .raw_bytes, &hold, [_]u8{0x7f} ** 16);
+    defer held.deinit();
+    try std.testing.expectEqual(@as(usize, 1), held.records().len);
+    const accepted = try protocol.validateTransportEnvelope(held.records()[0]);
+    try std.testing.expectEqual(MessageKind.input_accepted, accepted.kind);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), inputEntryCount(runtime));
+}
 test "InputAccepted stays queue-admission-only while terminal replies queue ahead of the client entry" {
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
         try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")

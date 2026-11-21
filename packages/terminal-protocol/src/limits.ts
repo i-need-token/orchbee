@@ -24,6 +24,8 @@ export const PROTOCOL_LIMITS = {
 	maxPendingInputBytes: 4 * 1024 * 1024,
 	// A PromptLineInput needs its prompt this old; a younger one is refused as retryable `settling`.
 	promptLineQuietMilliseconds: 100,
+	// A ScreenGatedKeyInput is refused while a person's input is younger than this on the Host's clock.
+	screenGateQuietMilliseconds: 3000,
 	maxPtyReadBatchBytes: 256 * 1024,
 	maxRowWindowBytes: 44 * 1024 * 1024,
 	maxRowWindowRows: 4096,

@@ -395,6 +395,71 @@ A Host that serves `PromptLineInput` lists the capability `prompt-gated-input` i
 handshake answer. A Worker whose Host answer lacks it refuses an idle-prompt send before any
 attachment; it never types the line as ordinary input.
 
+`ScreenGatedKeyInput` (kind 85, raw-bytes request answered by `InputAccepted`) types one key from
+a closed list only while the screen is still the frame its sender decided on. Its sender read that
+frame earlier and concluded that the key answers what the frame shows; the Host makes the check and
+the write one step. It carries the 24-byte authority header and is exactly 64 bytes:
+
+| Bytes   | Field                                                                                                                    |
+| ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `24`    | Key: `1` is Enter. No other key is defined.                                                                              |
+| `25`    | Flags: bit `0` is hold.                                                                                                  |
+| `26-27` | Reserved zero.                                                                                                           |
+| `28-31` | Process ID of the program the key answers.                                                                               |
+| `32-39` | Generation of the frame the sender decided on.                                                                           |
+| `40-47` | Content revision of that frame.                                                                                          |
+| `48-55` | First-seen revision: content revision of the frame where the sender first saw what it answers. Never after the revision. |
+| `56-63` | Creation time of that process, as the Host's process sample reports it.                                                  |
+
+Unknown flag bits or nonzero reserved bytes are rejected. A key request has a defined key, a
+nonzero process ID and generation, and a first-seen revision at or before its revision. A hold sets
+bit `0` and every byte after the flags to zero, and names no key. The Worker is the only intended
+sender; no TypeScript producer exists.
+
+A person's input is every client input except a focus report, pointer motion with no button held,
+and a screen-gated key. It counts whether or not it encodes to bytes: a click a program does not
+track still shows a person at the terminal. The Host records the content revision and its own
+monotonic time of the latest one.
+
+The Host types the key only when all of these hold:
+
+1. The terminal runs and takes client input.
+2. A process sample taken for this request lists the named process ID with the named creation
+   time; a failed sample refuses.
+3. The terminal's generation and content revision equal the named ones, and no reader batch is
+   between its parse and its commit.
+4. No screen-gated key was typed on this revision.
+5. No other client queue entry is pending. Host terminal replies do not count.
+6. No person's input was recorded at or after the first-seen revision.
+7. The latest person's input is at least the quiet time old on the Host's clock:
+   `screen_gate_quiet_milliseconds` in the constant registry's `protocol_limits`, 3000 ms. The
+   sender cannot shorten it, and the Host never waits for it.
+
+Rules 3 to 7 are checked at preparation and again at publication, under the terminal and input
+locks that also order output commits and input writes, so no output and no input fits between the
+check and the write. The process sample is taken once, before those locks. An admitted key is
+queued as one client entry holding its press and release under the terminal's current keyboard
+mode; `acceptedBytes` reports its length. It is not a person's input.
+
+A hold types nothing and is accepted with `acceptedBytes` zero. It is recorded as a person's input
+on the current screen, so rule 6 refuses every key decided before it: a sender that must stop
+sends a hold and knows, from its answer, that no earlier key of its own can still be typed.
+
+A refusal types nothing and reserves no queue position. It is a non-retryable `TypedFailure` with
+no `reason` member, and its code names the first rule that failed: `screen-agent-gone` (rule 2),
+`screen-changed` (rule 3), `screen-already-typed` (rule 4), `screen-input-pending` (rule 5),
+`screen-person-input` (rule 6) and `screen-person-recent` (rule 7). A root that has exited fails
+`invalid-phase` like other input. The sender never resends a refused key; it reads the screen
+again and decides again.
+
+A Host that serves `ScreenGatedKeyInput` lists the capability `screen-gated-input` in its
+`worker-host` handshake answer. A Worker whose Host answer lacks it sends no gated key and never
+types the key as ordinary input.
+
+A terminal the Host did not launch itself, such as one restored from a
+[Host handover](#host-handover), starts with a person's input recorded on every revision, so the
+Host refuses gated keys there until a person acts in it.
+
 ## Host handover
 
 Kinds 90 to 105 move a running Windows terminal from one Terminal Host to another through the
@@ -484,7 +549,7 @@ H3's release.
 | `41-58`  | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56`, `TerminalMetadataChanged=57`, `TerminalApplicationSignal=58` |
 | `60-68`  | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                                                                                     |
 | `70-78`  | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                            |
-| `79-84`  | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`, `PromptLineInput=84`                                                                                                                                                                                                                                                                                  |
+| `79-85`  | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`, `PromptLineInput=84`, `ScreenGatedKeyInput=85`                                                                                                                                                                                                                                                        |
 | `90-105` | Host handover                              | `AttachKeeper=90`, `DetachKeeper=91`, `KeeperLost=92`, `KeeperUnresponsive=93`, `TerminalUnheld=94`, `QuiesceTerminal=95`, `ReadHandoverRecord=96`, `HandoverRecordChunk=97`, `ResumeTerminal=98`, `DropTerminal=99`, `ImportTerminal=100`, `WriteHandoverRecord=101`, `HandoverRecordWritten=102`, `RestoreTerminal=103`, `ClaimTerminal=104`, `DiscardImport=105`                                                               |
 
 Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames and
@@ -1027,6 +1092,7 @@ The handshake may select smaller transport payload bounds. It never raises these
 | `WriteInput` raw payload               |           1 MiB + 24 B |
 | `PasteAutoInput` raw payload           |         256 KiB + 32 B |
 | `PromptLineInput` raw payload          |         256 KiB + 32 B |
+| `ScreenGatedKeyInput` raw payload      |                   64 B |
 | Largest semantic input payload         |           1 MiB + 32 B |
 | Pending ordered input per terminal     |                  4 MiB |
 | Scrollback configuration per terminal  |        1,000,000,000 B |

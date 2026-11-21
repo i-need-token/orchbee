@@ -10,6 +10,11 @@ include!(concat!(env!("OUT_DIR"), "/fingerprints.rs"));
 /// prompt. A peer without it gets no gated send and no ungated fallback.
 pub const PROMPT_GATED_INPUT: &str = "prompt-gated-input";
 
+/// The `worker-host` capability before a Worker may send a `ScreenGatedKeyInput`. A Host without
+/// it gets no gated key and no ungated fallback. The registry declares it; no build offers it
+/// before its Worker sends gated keys.
+pub const SCREEN_GATED_INPUT: &str = "screen-gated-input";
+
 /// The `client-server` capability before a Client may ask physical Explain to place the Agent's
 /// input area. A Server without it never receives the flag.
 pub const AGENT_INPUT_AREA: &str = "agent-input-area";
@@ -139,7 +144,9 @@ impl ConnectionKind {
     #[must_use]
     pub fn declared_capabilities(self) -> CapabilitySet {
         match self {
-            Self::WorkerHost => capability_set(&[HANDOVER, KEEPER, PROMPT_GATED_INPUT]),
+            Self::WorkerHost => {
+                capability_set(&[HANDOVER, KEEPER, PROMPT_GATED_INPUT, SCREEN_GATED_INPUT])
+            }
             Self::ClientServer | Self::Keeper | Self::MachineHub | Self::MachineLink => {
                 self.capabilities()
             }

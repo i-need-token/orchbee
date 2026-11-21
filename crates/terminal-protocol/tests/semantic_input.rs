@@ -1,4 +1,8 @@
-use std::{error::Error, io, num::NonZeroU64};
+use std::{
+    error::Error,
+    io,
+    num::{NonZeroU32, NonZeroU64},
+};
 
 use orchbee_terminal_protocol::{
     EncodedInputMessage, Envelope, FOCUS_INPUT_BYTES, InputMessage, KEY_INPUT_HEADER_BYTES,
@@ -6,9 +10,11 @@ use orchbee_terminal_protocol::{
     MAXIMUM_PASTE_AUTO_INPUT_PAYLOAD_BYTES, MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES,
     MOUSE_INPUT_BYTES, MessageRole, MouseAction, MouseButton, PASTE_AUTO_INPUT_HEADER_BYTES,
     PASTE_INPUT_HEADER_BYTES, PROMPT_LINE_INPUT_HEADER_BYTES, PasteAutoInput, PasteInput,
-    PayloadEncoding, PromptLineInput, ProtocolError, ProtocolErrorCode, TEXT_INPUT_HEADER_BYTES,
-    TerminalKeyCode, TextInput, decode_input_message, decode_transport_envelope,
-    encode_input_message, encode_transport_envelope,
+    PayloadEncoding, PromptLineInput, ProtocolError, ProtocolErrorCode,
+    SCREEN_GATED_KEY_INPUT_BYTES, ScreenGatedAction, ScreenGatedKey, ScreenGatedKeyInput,
+    ScreenGatedKeyRequest, ScreenGatedProcess, TEXT_INPUT_HEADER_BYTES, TerminalKeyCode, TextInput,
+    decode_input_message, decode_transport_envelope, encode_input_message,
+    encode_transport_envelope,
 };
 
 const KEY_FIXTURE: &[u8] = include_bytes!("../../../schemas/terminal/v1/fixtures/key-input.bin");
@@ -23,6 +29,8 @@ const PASTE_AUTO_FIXTURE: &[u8] =
     include_bytes!("../../../schemas/terminal/v1/fixtures/paste-auto-input.bin");
 const PROMPT_LINE_FIXTURE: &[u8] =
     include_bytes!("../../../schemas/terminal/v1/fixtures/prompt-line-input.bin");
+const SCREEN_GATED_KEY_FIXTURE: &[u8] =
+    include_bytes!("../../../schemas/terminal/v1/fixtures/screen-gated-key-input.bin");
 
 #[test]
 fn every_canonical_semantic_input_decodes_and_reencodes_byte_for_byte() -> Result<(), Box<dyn Error>>
@@ -109,6 +117,14 @@ fn canonical_payloads_retain_complete_semantic_input_facts() -> Result<(), Box<d
     assert_authority(line.attachment_id.to_text(), line.capability_revision);
     assert!(line.right_arrow);
     assert_eq!(line.content, "codex resume '中文'");
+
+    let InputMessage::ScreenGatedKeyInput(gated) =
+        decode_input_message(85, MessageRole::Request, SCREEN_GATED_KEY_FIXTURE)?
+    else {
+        return Err(fixture_error("screen-gated fixture decoded to the wrong variant").into());
+    };
+    assert_authority(gated.attachment_id.to_text(), gated.capability_revision);
+    assert_eq!(gated.action, ScreenGatedAction::Key(fixture_gated_key()?));
     Ok(())
 }
 
@@ -602,7 +618,100 @@ fn semantic_input_composes_with_the_transport_envelope() -> Result<(), Box<dyn E
     Ok(())
 }
 
-fn fixture_cases() -> [(u16, &'static [u8]); 7] {
+/// The message can only ever type Enter on one named frame for one named process, or hold.
+#[test]
+fn screen_gated_key_input_admits_one_closed_key_request_or_an_empty_hold()
+-> Result<(), Box<dyn Error>> {
+    let mut unknown_flag = SCREEN_GATED_KEY_FIXTURE.to_vec();
+    unknown_flag[25] = 1 << 1;
+    assert_payload_code(85, &unknown_flag, ProtocolErrorCode::UnknownRequiredFlag);
+    for offset in 26..28 {
+        let mut reserved = SCREEN_GATED_KEY_FIXTURE.to_vec();
+        reserved[offset] = 1;
+        assert_payload_code(85, &reserved, ProtocolErrorCode::UnknownRequiredFlag);
+    }
+    assert_code(
+        decode_input_message(85, MessageRole::Request, &SCREEN_GATED_KEY_FIXTURE[..63]),
+        ProtocolErrorCode::Truncated,
+    );
+    let mut longer = SCREEN_GATED_KEY_FIXTURE.to_vec();
+    longer.push(0);
+    assert_payload_code(85, &longer, ProtocolErrorCode::LengthMismatch);
+
+    // Any key code but Enter, a missing process or generation, and a first-seen revision after
+    // the frame are all refused.
+    for key in [0, 2, 0x0d, 0x1b, b'y', 0xff] {
+        let mut other_key = SCREEN_GATED_KEY_FIXTURE.to_vec();
+        other_key[24] = key;
+        assert_payload_code(85, &other_key, ProtocolErrorCode::InvalidField);
+    }
+    let mut no_process = SCREEN_GATED_KEY_FIXTURE.to_vec();
+    write_u32(&mut no_process, 28, 0)?;
+    assert_payload_code(85, &no_process, ProtocolErrorCode::InvalidField);
+    let mut no_generation = SCREEN_GATED_KEY_FIXTURE.to_vec();
+    write_u64(&mut no_generation, 32, 0)?;
+    assert_payload_code(85, &no_generation, ProtocolErrorCode::InvalidField);
+    let mut first_after = SCREEN_GATED_KEY_FIXTURE.to_vec();
+    write_u64(&mut first_after, 48, 42)?;
+    assert_payload_code(85, &first_after, ProtocolErrorCode::InvalidField);
+
+    let attachment_id = fixture_attachment_id()?;
+    let capability_revision =
+        NonZeroU64::new(7).ok_or_else(|| fixture_error("fixture revision is zero"))?;
+    let input = |action| {
+        InputMessage::ScreenGatedKeyInput(ScreenGatedKeyInput {
+            attachment_id,
+            capability_revision,
+            action,
+        })
+    };
+    let key = input(ScreenGatedAction::Key(fixture_gated_key()?));
+    assert_eq!(
+        encode_input_message(&key)?.payload,
+        SCREEN_GATED_KEY_FIXTURE
+    );
+    let mut backwards = fixture_gated_key()?;
+    backwards.first_revision = backwards.revision + 1;
+    assert_code(
+        encode_input_message(&input(ScreenGatedAction::Key(backwards))),
+        ProtocolErrorCode::InvalidField,
+    );
+
+    // A hold carries the authority and its flag, and nothing else.
+    let hold = encode_input_message(&input(ScreenGatedAction::Hold))?;
+    assert_eq!(hold.payload.len(), SCREEN_GATED_KEY_INPUT_BYTES);
+    assert_eq!(hold.payload[25], 1);
+    assert!(
+        hold.payload[26..].iter().all(|byte| *byte == 0) && hold.payload[24] == 0,
+        "a hold names no key, process or frame"
+    );
+    assert_eq!(
+        decode_input_message(85, MessageRole::Request, &hold.payload)?,
+        input(ScreenGatedAction::Hold)
+    );
+    for offset in [24, 28, 32, 40, 48, 56] {
+        let mut named = hold.payload.clone();
+        named[offset] = 1;
+        assert_payload_code(85, &named, ProtocolErrorCode::InvalidField);
+    }
+    Ok(())
+}
+
+fn fixture_gated_key() -> Result<ScreenGatedKeyRequest, io::Error> {
+    Ok(ScreenGatedKeyRequest {
+        key: ScreenGatedKey::Enter,
+        process: ScreenGatedProcess {
+            pid: NonZeroU32::new(4242).ok_or_else(|| fixture_error("fixture pid is zero"))?,
+            creation_time: 133_769_000_000_000_000,
+        },
+        generation: NonZeroU64::new(3)
+            .ok_or_else(|| fixture_error("fixture generation is zero"))?,
+        revision: 41,
+        first_revision: 40,
+    })
+}
+
+fn fixture_cases() -> [(u16, &'static [u8]); 8] {
     [
         (34, KEY_FIXTURE),
         (35, TEXT_FIXTURE),
@@ -611,6 +720,7 @@ fn fixture_cases() -> [(u16, &'static [u8]); 7] {
         (38, PASTE_FIXTURE),
         (39, PASTE_AUTO_FIXTURE),
         (84, PROMPT_LINE_FIXTURE),
+        (85, SCREEN_GATED_KEY_FIXTURE),
     ]
 }
 

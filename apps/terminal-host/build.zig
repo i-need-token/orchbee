@@ -995,6 +995,12 @@ pub fn build(builder: *std.Build) void {
     powershell_history_tests.root_module.link_libc = true;
     builder.step("test-powershell-history", "Run real PowerShell history checks for Orchbee-submitted lines")
         .dependOn(&addTestRun(builder, powershell_history_tests, test_home).step);
+    const screen_gate_step = builder.step("test-screen-gate", "Run the screen-gated key decision table and its wire refusals");
+    for ([_]*std.Build.Module{ engine_test_module, service_test_module }) |module| {
+        const screen_gate_tests = builder.addTest(.{ .root_module = module, .filters = &.{"screen gate:"} });
+        screen_gate_tests.root_module.link_libc = true;
+        screen_gate_step.dependOn(&addTestRun(builder, screen_gate_tests, test_home).step);
+    }
     const input_tests = builder.addTest(.{
         .root_module = engine_test_module,
         .filters = &.{"programmatic key"},
@@ -1106,6 +1112,7 @@ pub fn build(builder: *std.Build) void {
         .{ "paste_input_fixture", "paste-input-fixture", "Canonical PasteInput fixture path" },
         .{ "paste_auto_input_fixture", "paste-auto-input-fixture", "Canonical PasteAutoInput fixture path" },
         .{ "prompt_line_input_fixture", "prompt-line-input-fixture", "Canonical PromptLineInput fixture path" },
+        .{ "screen_gated_key_input_fixture", "screen-gated-key-input-fixture", "Canonical ScreenGatedKeyInput fixture path" },
     }) |fixture| {
         conformance_options.addOption([]const u8, fixture[0], readFixture(
             builder,

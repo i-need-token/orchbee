@@ -178,6 +178,7 @@ pub const TerminalRuntime = opaque {
     pub const preparePasteInput = InputHandle.preparePasteInput;
     pub const preparePasteAutoInput = InputHandle.preparePasteAutoInput;
     pub const preparePromptLineInput = InputHandle.preparePromptLineInput;
+    pub const prepareScreenGatedKeyInput = InputHandle.prepareScreenGatedKeyInput;
     pub const prepareSemanticInput = InputHandle.prepareSemanticInput;
     pub const prepareAttachmentSemanticInput = InputHandle.prepareAttachmentSemanticInput;
     pub const prepareAttachmentInputRepair = InputHandle.prepareAttachmentInputRepair;

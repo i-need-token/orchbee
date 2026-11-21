@@ -385,6 +385,16 @@
 		"content": "codex resume '中文'",
 		"rightArrow": true
 	},
+	"screenGatedKeyInput": {
+		"attachmentId": "22222222222222222222222222222222",
+		"capabilityRevision": "7",
+		"firstRevision": "40",
+		"generation": "3",
+		"key": "enter",
+		"processCreationTime": "133769000000000000",
+		"processId": 4242,
+		"revision": "41"
+	},
 	"selectionExportChunk": {
 		"attachmentId": "22222222222222222222222222222222",
 		"bytesBase64": "AP+AYQ==",

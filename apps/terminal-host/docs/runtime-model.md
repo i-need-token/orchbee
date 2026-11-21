@@ -2710,6 +2710,41 @@ The witness submits each line as its sender does, waiting out one `settling` ref
 PowerShell starts with `-NoProfile`, every line the test types carries the Orchbee run marker, and
 the first one turns PSReadLine history saving off.
 
+## Screen-gated input
+
+`ScreenGatedKeyInput` types one key only while the screen is still the frame its sender decided
+on; the [protocol reference](../../../schemas/terminal/references/protocol.md) owns its payload,
+its seven rules, and its refusal codes. `engine/runtime/screen_gate.zig` holds the rules as one
+pure check over the named frame, the terminal's facts and an input record.
+
+The input mutex owns the input record: the revision and monotonic time of the latest person's
+input, and the revision the last gated key was typed on. Publication of a client entry writes the
+record under the same lock that queues the entry, and a client input that encodes to no bytes
+writes it when it commits. A focus report and pointer motion with no button held leave it alone;
+a gated key records only where it was typed. A runtime that this Host launched starts with no
+person's input. Any other runtime starts with one on every revision and no time, which refuses
+every gated key until a person acts there: the Host cannot know what was typed before it held the
+terminal.
+
+Preparation samples the terminal's processes before it takes a lock, because a sample is too
+slow to hold the terminal mutex for; a failed sample refuses like a missing process. It then
+takes the terminal mutex and the input mutex, checks the frame, the record, the queue and the
+quiet time (`protocol.Limits.screen_gate_quiet_milliseconds`, 3000 ms), and reserves one client
+FIFO position holding the encoded press and release. Publication takes both mutexes again and
+repeats every rule except the process sample, with the reservation counted as the only pending
+entry. Every committed reader batch advances the content revision under the terminal mutex, and
+the reader marks a batch between its parse and its commit, so output cannot arrive between the
+check and the write without changing what the check reads. The Host never sleeps or retries: a
+refusal is final for that key.
+
+A hold is a client input of no bytes. Its commit writes the input record like any other person's
+input and queues nothing, which makes rule 6 refuse every key whose first-seen revision is at or
+before the screen the hold arrived on.
+
+`zig build test-screen-gate` runs the decision table for every rule at preparation and at
+publication through the real queue, and the wire refusals with the platform's real process
+sample.
+
 ## Correlated shell observation and row origin
 
 The runtime's terminal mutex owns one `command_observation` tracker. Its oldest-row tracked Ghostty pin fences numeric row coordinates: eviction, screen replacement or origin movement increments a checked positive output epoch. Allocation failure blocks capture; epoch exhaustion never wraps. Projection generation separately fences geometry/reflow. There is no retained command history.

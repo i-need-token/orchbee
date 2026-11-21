@@ -43,6 +43,9 @@ const pasteAutoInputFixture = fileURLToPath(
 const promptLineInputFixture = fileURLToPath(
 	new URL('../../../schemas/terminal/v1/fixtures/prompt-line-input.bin', import.meta.url),
 );
+const screenGatedKeyInputFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/screen-gated-key-input.bin', import.meta.url),
+);
 const terminalFailedFixture = fileURLToPath(
 	new URL('../../../schemas/terminal/v1/fixtures/terminal-failed.json', import.meta.url),
 );
@@ -80,6 +83,7 @@ const child = spawn(
 		`-Dpaste-input-fixture=${pasteInputFixture}`,
 		`-Dpaste-auto-input-fixture=${pasteAutoInputFixture}`,
 		`-Dprompt-line-input-fixture=${promptLineInputFixture}`,
+		`-Dscreen-gated-key-input-fixture=${screenGatedKeyInputFixture}`,
 		`-Dterminal-failed-fixture=${terminalFailedFixture}`,
 		`-Dcontrol-fixture=${controlFixture}`,
 		`-Dutf8-bom-fixture=${utf8BomFixture}`,

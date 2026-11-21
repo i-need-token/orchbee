@@ -39,6 +39,16 @@ fn promptUnconfirmed(reason: []const u8, retryable: bool) InputFailure {
     };
 }
 
+/// A screen-gated key was refused and nothing was typed. The code names the
+/// first rule that failed; the sender reads the screen again and never retries.
+fn screenRefused(code: []const u8) InputFailure {
+    return .{
+        .code = code,
+        .message = "the screen gate did not hold; nothing was typed",
+        .retryable = false,
+    };
+}
+
 pub fn semanticInputMessage(kind: u16) []const u8 {
     return switch (kind) {
         MessageKind.focus_input => "FocusInput payload is invalid",
@@ -47,6 +57,7 @@ pub fn semanticInputMessage(kind: u16) []const u8 {
         MessageKind.paste_input => "PasteInput payload is invalid",
         MessageKind.paste_auto_input => "PasteAutoInput payload is invalid",
         MessageKind.prompt_line_input => "PromptLineInput payload is invalid",
+        MessageKind.screen_gated_key_input => "ScreenGatedKeyInput payload is invalid",
         MessageKind.text_input => "TextInput payload is invalid",
         else => "semantic input payload is invalid",
     };
@@ -69,6 +80,12 @@ pub fn fromInput(rejection: host_input_admission.Rejection) InputFailure {
         .prompt_input_pending => promptUnconfirmed("input-pending", false),
         .prompt_changed => promptUnconfirmed("changed", false),
         .prompt_settling => promptUnconfirmed("settling", true),
+        .screen_agent_gone => screenRefused("screen-agent-gone"),
+        .screen_changed => screenRefused("screen-changed"),
+        .screen_already_typed => screenRefused("screen-already-typed"),
+        .screen_input_pending => screenRefused("screen-input-pending"),
+        .screen_person_input => screenRefused("screen-person-input"),
+        .screen_person_recent => screenRefused("screen-person-recent"),
     };
 }
 

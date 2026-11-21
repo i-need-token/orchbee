@@ -19,6 +19,7 @@ const focus_input_fixture = options.focus_input_fixture;
 const paste_input_fixture = options.paste_input_fixture;
 const paste_auto_input_fixture = options.paste_auto_input_fixture;
 const prompt_line_input_fixture = options.prompt_line_input_fixture;
+const screen_gated_key_input_fixture = options.screen_gated_key_input_fixture;
 const row_window_fixture = options.row_window_fixture;
 const terminal_failed_fixture = options.terminal_failed_fixture;
 const control_fixture = options.control_fixture;
@@ -544,6 +545,7 @@ const ProtocolLimitsFixture = struct {
     pending_input_bytes: u64,
     prompt_line_quiet_milliseconds: u64,
     pty_read_batch_bytes: u64,
+    screen_gate_quiet_milliseconds: u64,
     raw_payload_bytes: u64,
     row_window_bytes: u64,
     row_window_rows: u64,
@@ -2258,6 +2260,23 @@ test "canonical TypeScript semantic-input fixtures conform in Zig" {
     try std.testing.expectEqual(@as(u64, 7), decoded_prompt_line.capability_revision);
     try std.testing.expect(prompt_line.right_arrow);
     try std.testing.expectEqualStrings("codex resume '中文'", prompt_line.content);
+
+    const decoded_screen_gated = try protocol.validateSemanticInput(
+        protocol.MessageKind.screen_gated_key_input,
+        screen_gated_key_input_fixture,
+    );
+    const screen_gated = switch (decoded_screen_gated.input) {
+        .screen_gated_key => |value| value.key,
+        else => return error.TestUnexpectedResult,
+    };
+    try std.testing.expectEqual(@as(u64, 7), decoded_screen_gated.capability_revision);
+    try std.testing.expectEqual(protocol.ScreenGatedKeyRequest{
+        .key = .enter,
+        .process = .{ .pid = 4242, .creation_time = 133_769_000_000_000_000 },
+        .generation = 3,
+        .revision = 41,
+        .first_revision = 40,
+    }, screen_gated);
 
     const decoded_mouse = try protocol.validateSemanticInput(
         protocol.MessageKind.mouse_input,

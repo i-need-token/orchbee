@@ -705,6 +705,16 @@
 		},
 		{
 			"event_encoding": null,
+			"kind": 85,
+			"name": "ScreenGatedKeyInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
 			"kind": 90,
 			"name": "AttachKeeper",
 			"request": {
@@ -874,6 +884,7 @@
 		"optional_features": 64,
 		"pending_input_bytes": 4194304,
 		"prompt_line_quiet_milliseconds": 100,
+		"screen_gate_quiet_milliseconds": 3000,
 		"pty_read_batch_bytes": 262144,
 		"row_window_bytes": 46137344,
 		"row_window_rows": 4096,

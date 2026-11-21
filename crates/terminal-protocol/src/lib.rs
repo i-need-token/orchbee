@@ -88,8 +88,9 @@ pub use identity::{
 };
 pub use input::{
     EncodedInputMessage, FOCUS_INPUT_KIND, InputAccepted, InputMessage, KEY_INPUT_KIND,
-    MAXIMUM_WRITE_INPUT_PAYLOAD_BYTES, MOUSE_INPUT_KIND, PROMPT_LINE_INPUT_KIND, TEXT_INPUT_KIND,
-    WRITE_INPUT_HEADER_BYTES, WriteInput, decode_input_message, encode_input_message,
+    MAXIMUM_WRITE_INPUT_PAYLOAD_BYTES, MOUSE_INPUT_KIND, PROMPT_LINE_INPUT_KIND,
+    SCREEN_GATED_KEY_INPUT_KIND, TEXT_INPUT_KIND, WRITE_INPUT_HEADER_BYTES, WriteInput,
+    decode_input_message, encode_input_message,
 };
 pub use inventory::{
     ColorScheme, EncodedInventoryControl, FailureContainment, InventoryControl, ListTerminals,
@@ -118,7 +119,8 @@ pub use limits::{
     MAXIMUM_TERMINAL_PROFILE_FEATURES, MAXIMUM_TERMINAL_RESPONSE_BYTES, MAXIMUM_TEXT_CELL_BYTES,
     MAXIMUM_TRANSPORT_RECORD_BYTES, MAXIMUM_TYPED_FAILURE_CODE_BYTES,
     MAXIMUM_TYPED_FAILURE_MESSAGE_BYTES, PROMPT_LINE_QUIET_MILLISECONDS,
-    TERMINAL_THEME_PALETTE_ENTRIES, TRANSPORT_ENVELOPE_HEADER_BYTES,
+    SCREEN_GATE_QUIET_MILLISECONDS, TERMINAL_THEME_PALETTE_ENTRIES,
+    TRANSPORT_ENVELOPE_HEADER_BYTES,
 };
 pub use message::{
     MESSAGE_CONTRACTS, MessageContract, MessageRole, PayloadEncoding, RequestMessageContract,
@@ -184,7 +186,9 @@ pub use semantic_input::{
     FOCUS_INPUT_BYTES, FocusInput, KEY_INPUT_HEADER_BYTES, KeyAction, KeyInput, MOUSE_INPUT_BYTES,
     MouseAction, MouseButton, MouseInput, PASTE_AUTO_INPUT_HEADER_BYTES, PASTE_INPUT_HEADER_BYTES,
     PROMPT_LINE_INPUT_HEADER_BYTES, PasteAutoInput, PasteInput, PromptLineInput,
-    TEXT_INPUT_HEADER_BYTES, TerminalKeyCode, TerminalModifiers, TextInput,
+    SCREEN_GATED_KEY_INPUT_BYTES, ScreenGatedAction, ScreenGatedKey, ScreenGatedKeyInput,
+    ScreenGatedKeyRequest, ScreenGatedProcess, TEXT_INPUT_HEADER_BYTES, TerminalKeyCode,
+    TerminalModifiers, TextInput,
 };
 pub use terminal_configuration::{
     EncodedTerminalConfigurationControl, SetTerminalDefaults, TerminalConfiguration,

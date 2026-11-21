@@ -103,6 +103,7 @@ pub fn createWithOptionsUsingSpawner(
         .input_queue = .init(allocator),
         .input_ownership = .init(allocator),
         .kitty_temp_directory = resources.kitty_temp_directory,
+        .screen_gate_input = .launched,
         .cell_pixel_width = resolved_options.cell_pixel_width,
         .viewport_geometry = .{
             .cell_pixel_height = resolved_options.cell_pixel_height,

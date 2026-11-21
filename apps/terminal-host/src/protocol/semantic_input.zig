@@ -149,6 +149,41 @@ pub const PromptLineInput = struct {
     right_arrow: bool,
 };
 
+/// The keys a screen-gated input may type. The list is closed so this path
+/// can never type anything else.
+pub const ScreenGatedKey = enum(u8) {
+    enter = 1,
+};
+
+/// The process a screen-gated key is meant for, as the Host's own process
+/// sample reports it.
+pub const ProcessIdentity = struct {
+    pid: u32,
+    creation_time: u64,
+};
+
+/// One key that the Host types only while the screen is still the frame the
+/// sender read, the process it answers still runs here, and no person has
+/// acted since the sender first saw what it answers.
+pub const ScreenGatedKeyRequest = struct {
+    key: ScreenGatedKey,
+    process: ProcessIdentity,
+    /// Generation and content revision of the frame the sender decided on.
+    generation: u64,
+    revision: u64,
+    /// Content revision of the frame in which the sender first saw what it
+    /// answers; never after `revision`.
+    first_revision: u64,
+};
+
+/// A screen-gated request either types one key or is a hold. A hold types
+/// nothing and counts as a person's action on the current screen, so every
+/// key decided before it is refused.
+pub const ScreenGatedKeyInput = union(enum) {
+    key: ScreenGatedKeyRequest,
+    hold,
+};
+
 pub const SemanticInput = union(enum) {
     focus: FocusInput,
     key: KeyInput,
@@ -156,5 +191,6 @@ pub const SemanticInput = union(enum) {
     paste: PasteInput,
     paste_auto: PasteAutoInput,
     prompt_line: PromptLineInput,
+    screen_gated_key: ScreenGatedKeyInput,
     text: TextInput,
 };

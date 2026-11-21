@@ -86,6 +86,12 @@ only if the screen it holds is still the captured one. This copies
 checks at publication, holding the terminal lock and then the input lock, so no output batch and
 no other input can land between the check and the write.
 
+The Host's half is built. The
+[protocol reference](../../schemas/terminal/references/protocol.md) owns the message, its rules and
+its refusal codes as `ScreenGatedKeyInput`, and the
+[runtime model](../../apps/terminal-host/docs/runtime-model.md#screen-gated-input) owns how the
+Host keeps them; what follows states the design and its reasons. No Worker sends the message yet.
+
 The message names the key, the frame the Server matched by its generation and content revision,
 the revision of the frame in which the Server first saw this prompt, and the Agent process by its
 process id and creation time. The Host requires all of:

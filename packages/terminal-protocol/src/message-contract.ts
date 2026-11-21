@@ -4,6 +4,7 @@ export const MessageKind = {
 	stageTerminalOutput: 82,
 	terminalOutputStaged: 83,
 	promptLineInput: 84,
+	screenGatedKeyInput: 85,
 	attachKeeper: 90,
 	detachKeeper: 91,
 	keeperLost: 92,
@@ -159,6 +160,12 @@ export const MESSAGE_CONTRACTS = {
 	[MessageKind.promptLineInput]: {
 		eventEncoding: null,
 		name: 'PromptLineInput',
+		request: { payloadEncoding: raw, successKind: MessageKind.inputAccepted },
+		responseEncoding: null,
+	},
+	[MessageKind.screenGatedKeyInput]: {
+		eventEncoding: null,
+		name: 'ScreenGatedKeyInput',
 		request: { payloadEncoding: raw, successKind: MessageKind.inputAccepted },
 		responseEncoding: null,
 	},
@@ -706,11 +713,13 @@ type ControlRequestKind = Exclude<
 	RequestKindForEncoding<typeof PayloadEncoding.controlJson>,
 	(typeof WORKER_ONLY_CONTROL_REQUEST_KINDS)[number]
 >;
-// Staged output and prompt lines are raw bytes too, but only the Worker sends them; no
-// TypeScript producer encodes either, so neither is a client input request here.
+// Staged output, prompt lines and screen-gated keys are raw bytes too, but only the Worker sends
+// them; no TypeScript producer encodes any, so none is a client input request here.
 type InputRequestKind = Exclude<
 	RequestKindForEncoding<typeof PayloadEncoding.rawBytes>,
-	typeof MessageKind.stageTerminalOutput | typeof MessageKind.promptLineInput
+	| typeof MessageKind.stageTerminalOutput
+	| typeof MessageKind.promptLineInput
+	| typeof MessageKind.screenGatedKeyInput
 >;
 
 export function isKnownMessageKind(value: number): value is MessageKind {
@@ -728,6 +737,7 @@ export function isInputRequestKind(kind: MessageKind): kind is InputRequestKind 
 	return (
 		kind !== MessageKind.stageTerminalOutput &&
 		kind !== MessageKind.promptLineInput &&
+		kind !== MessageKind.screenGatedKeyInput &&
 		MESSAGE_CONTRACTS[kind].request?.payloadEncoding === PayloadEncoding.rawBytes
 	);
 }

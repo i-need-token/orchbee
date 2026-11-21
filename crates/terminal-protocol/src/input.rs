@@ -15,11 +15,12 @@ use crate::{
     },
     limits::MAXIMUM_INPUT_BYTES,
     semantic_input::{
-        FocusInput, KeyInput, MouseInput, PasteAutoInput, PasteInput, PromptLineInput, TextInput,
-        decode_focus_input, decode_key_input, decode_mouse_input, decode_paste_auto_input,
-        decode_paste_input, decode_prompt_line_input, decode_text_input, encode_focus_input,
-        encode_key_input, encode_mouse_input, encode_paste_auto_input, encode_paste_input,
-        encode_prompt_line_input, encode_text_input,
+        FocusInput, KeyInput, MouseInput, PasteAutoInput, PasteInput, PromptLineInput,
+        ScreenGatedKeyInput, TextInput, decode_focus_input, decode_key_input, decode_mouse_input,
+        decode_paste_auto_input, decode_paste_input, decode_prompt_line_input,
+        decode_screen_gated_key_input, decode_text_input, encode_focus_input, encode_key_input,
+        encode_mouse_input, encode_paste_auto_input, encode_paste_input, encode_prompt_line_input,
+        encode_screen_gated_key_input, encode_text_input,
     },
     terminal_fact::{bounded_u32, canonical_u64},
 };
@@ -33,6 +34,7 @@ pub const FOCUS_INPUT_KIND: u16 = 37;
 const PASTE_INPUT_KIND: u16 = 38;
 const PASTE_AUTO_INPUT_KIND: u16 = 39;
 pub const PROMPT_LINE_INPUT_KIND: u16 = 84;
+pub const SCREEN_GATED_KEY_INPUT_KIND: u16 = 85;
 pub const WRITE_INPUT_HEADER_BYTES: usize = INPUT_AUTHORITY_HEADER_BYTES;
 pub const MAXIMUM_WRITE_INPUT_PAYLOAD_BYTES: usize = WRITE_INPUT_HEADER_BYTES + MAXIMUM_INPUT_BYTES;
 
@@ -61,6 +63,7 @@ pub enum InputMessage {
     PasteInput(PasteInput),
     PasteAutoInput(PasteAutoInput),
     PromptLineInput(PromptLineInput),
+    ScreenGatedKeyInput(ScreenGatedKeyInput),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -105,6 +108,9 @@ pub fn decode_input_message(
         }
         (PROMPT_LINE_INPUT_KIND, MessageRole::Request) => {
             decode_prompt_line_input(payload).map(InputMessage::PromptLineInput)
+        }
+        (SCREEN_GATED_KEY_INPUT_KIND, MessageRole::Request) => {
+            decode_screen_gated_key_input(payload).map(InputMessage::ScreenGatedKeyInput)
         }
         // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
@@ -157,6 +163,11 @@ pub fn encode_input_message(value: &InputMessage) -> Result<EncodedInputMessage,
             PROMPT_LINE_INPUT_KIND,
             MessageRole::Request,
             encode_prompt_line_input(line)?,
+        ),
+        InputMessage::ScreenGatedKeyInput(key) => (
+            SCREEN_GATED_KEY_INPUT_KIND,
+            MessageRole::Request,
+            encode_screen_gated_key_input(*key)?,
         ),
     };
     Ok(EncodedInputMessage {

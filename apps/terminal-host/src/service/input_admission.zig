@@ -28,6 +28,14 @@ pub const Rejection = enum {
     prompt_input_pending,
     prompt_changed,
     prompt_settling,
+    /// The screen gate could not confirm the frame the sender read; each
+    /// value names the first rule the terminal failed.
+    screen_agent_gone,
+    screen_changed,
+    screen_already_typed,
+    screen_input_pending,
+    screen_person_input,
+    screen_person_recent,
     resource_exhausted,
     sequence_exhausted,
     terminal_exited,
@@ -52,6 +60,12 @@ pub fn fromRuntimeError(err: anyerror) Rejection {
         error.PromptInputPending => .prompt_input_pending,
         error.PromptChanged => .prompt_changed,
         error.PromptSettling => .prompt_settling,
+        error.ScreenAgentGone => .screen_agent_gone,
+        error.ScreenChanged => .screen_changed,
+        error.ScreenAlreadyTyped => .screen_already_typed,
+        error.ScreenInputPending => .screen_input_pending,
+        error.ScreenPersonInput => .screen_person_input,
+        error.ScreenPersonRecent => .screen_person_recent,
         else => .encoding_failed,
     };
 }

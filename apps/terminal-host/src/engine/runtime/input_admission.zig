@@ -8,6 +8,7 @@ const failure_ops = @import("failure.zig");
 const input_commit_ops = @import("input_commit.zig");
 const linefeed = @import("linefeed.zig");
 const prompt_line_input_ops = @import("prompt_line_input.zig");
+const screen_gated_key_input_ops = @import("screen_gated_key_input.zig");
 const scrollback_compression_ops = @import("scrollback_compression.zig");
 
 pub fn enqueueInput(self: *state.State, bytes: []const u8) !void {
@@ -270,6 +271,7 @@ pub fn prepareSemanticInput(
         .paste => |value| preparePasteInput(self, value.text, value.bracketed, maximum_bytes),
         .paste_auto => |value| preparePasteAutoInput(self, value.content, maximum_bytes),
         .prompt_line => |value| prompt_line_input_ops.prepare(self, value, maximum_bytes),
+        .screen_gated_key => |value| screen_gated_key_input_ops.prepare(self, value, maximum_bytes),
         .text => |value| prepareTextInput(self, value.text, maximum_bytes),
     };
 }
@@ -331,6 +333,7 @@ fn prepareMouseEncodedInputLocked(
     if (bytes.len == 0) return .{
         .bytes = null,
         .mouse_input_epoch = mouse_input_epoch,
+        .pointer_hover = isTransientMouseHover(input),
         .reservation = null,
         .runtime = self,
     };
@@ -352,6 +355,7 @@ fn prepareMouseEncodedInputLocked(
     return .{
         .bytes = copy,
         .mouse_input_epoch = mouse_input_epoch,
+        .pointer_hover = isTransientMouseHover(input),
         .reservation = reservation,
         .runtime = self,
     };

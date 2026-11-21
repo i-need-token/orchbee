@@ -79,6 +79,7 @@ const focusInputPath = path.join(fixturesDirectory, `focus-input.bin`);
 const pasteInputPath = path.join(fixturesDirectory, `paste-input.bin`);
 const pasteAutoInputPath = path.join(fixturesDirectory, `paste-auto-input.bin`);
 const promptLineInputPath = path.join(fixturesDirectory, `prompt-line-input.bin`);
+const screenGatedKeyInputPath = path.join(fixturesDirectory, `screen-gated-key-input.bin`);
 const selectionExportChunkPath = path.join(fixturesDirectory, `selection-export-chunk.bin`);
 const terminalFailedPath = path.join(fixturesDirectory, `terminal-failed.json`);
 const controlConformancePath = path.join(fixturesDirectory, `control-conformance.json`);
@@ -95,6 +96,26 @@ const otherGenerationConformancePath = path.join(
 	`other-generation-conformance.json`,
 );
 const checkOnly = process.argv.includes('--check');
+
+/**
+ * ScreenGatedKeyInput has no TypeScript codec: only the Worker sends it. This writes the reference
+ * layout of a key request directly: attachment ID, capability revision, key, flags, two reserved
+ * zero bytes, process ID, generation, revision, first-seen revision, process creation time.
+ */
+function screenGatedKeyInputFixture(record) {
+	const keys = { enter: 1 };
+	const bytes = new Uint8Array(64);
+	const view = new DataView(bytes.buffer);
+	bytes.set(Buffer.from(record.attachmentId, 'hex'), 0);
+	view.setBigUint64(16, BigInt(record.capabilityRevision), true);
+	view.setUint8(24, keys[record.key]);
+	view.setUint32(28, record.processId, true);
+	view.setBigUint64(32, BigInt(record.generation), true);
+	view.setBigUint64(40, BigInt(record.revision), true);
+	view.setBigUint64(48, BigInt(record.firstRevision), true);
+	view.setBigUint64(56, BigInt(record.processCreationTime), true);
+	return bytes;
+}
 
 /**
  * PromptLineInput has no TypeScript codec: only the Worker sends it. This writes the reference
@@ -2453,6 +2474,7 @@ const pasteAutoInputBytes = encodeOrThrow(
 	'paste auto input',
 );
 const promptLineInputBytes = promptLineInputFixture(canonical.promptLineInput);
+const screenGatedKeyInputBytes = screenGatedKeyInputFixture(canonical.screenGatedKeyInput);
 const selectionExportChunkBytes = encodeOrThrow(
 	encodeSelectionExportChunk({
 		attachmentId: canonical.selectionExportChunk.attachmentId,
@@ -2514,6 +2536,7 @@ if (checkOnly) {
 	await compareFile(pasteInputPath, pasteInputBytes);
 	await compareFile(pasteAutoInputPath, pasteAutoInputBytes);
 	await compareFile(promptLineInputPath, promptLineInputBytes);
+	await compareFile(screenGatedKeyInputPath, screenGatedKeyInputBytes);
 	await compareFile(selectionExportChunkPath, selectionExportChunkBytes);
 	await compareFile(terminalFailedPath, terminalFailedBytes);
 	await compareFile(controlConformancePath, controlConformanceBytes);
@@ -2535,6 +2558,7 @@ if (checkOnly) {
 	await writeFile(pasteInputPath, pasteInputBytes);
 	await writeFile(pasteAutoInputPath, pasteAutoInputBytes);
 	await writeFile(promptLineInputPath, promptLineInputBytes);
+	await writeFile(screenGatedKeyInputPath, screenGatedKeyInputBytes);
 	await writeFile(selectionExportChunkPath, selectionExportChunkBytes);
 	await writeFile(terminalFailedPath, terminalFailedBytes);
 	await writeFile(controlConformancePath, controlConformanceBytes);

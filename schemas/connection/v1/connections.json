@@ -67,7 +67,8 @@
 			"capabilities": [
 				{ "name": "handover", "addedIn": "0.1.0-beta.16" },
 				{ "name": "keeper", "addedIn": "0.1.0-beta.16" },
-				{ "name": "prompt-gated-input", "addedIn": "0.1.0" }
+				{ "name": "prompt-gated-input", "addedIn": "0.1.0" },
+				{ "name": "screen-gated-input", "addedIn": "0.1.0-beta.22" }
 			],
 			"fingerprintInputs": [
 				"apps/terminal-host/src/control",

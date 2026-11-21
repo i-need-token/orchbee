@@ -287,6 +287,49 @@ pub fn validatePromptLineInput(bytes: []const u8) ProtocolError!DecodedSemanticI
     };
 }
 
+/// A fixed 64-byte record. Byte 24 is the key and byte 25 the flags, whose
+/// bit 0 marks a hold; a hold names no key, process or frame.
+pub fn validateScreenGatedKeyInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
+    if (bytes.len < 64) return error.Truncated;
+    if (bytes.len != 64) return error.LengthMismatch;
+    var reader = Reader.init(bytes, 0);
+    const attachment_id = try copyIdentifier(try reader.readBytes(16));
+    const capability_revision = try reader.readInt(u64);
+    if (capability_revision == 0) return error.InvalidField;
+    const key_code = try reader.readInt(u8);
+    const flags = try reader.readInt(u8);
+    const reserved = try reader.readInt(u16);
+    const pid = try reader.readInt(u32);
+    const generation = try reader.readInt(u64);
+    const revision = try reader.readInt(u64);
+    const first_revision = try reader.readInt(u64);
+    const creation_time = try reader.readInt(u64);
+    if (flags & ~@as(u8, 1) != 0 or reserved != 0) return error.UnknownRequiredFlag;
+    if (flags & 1 != 0) {
+        if (key_code != 0 or pid != 0 or generation != 0 or revision != 0 or
+            first_revision != 0 or creation_time != 0) return error.InvalidField;
+        return .{
+            .attachment_id = attachment_id,
+            .capability_revision = capability_revision,
+            .input = .{ .screen_gated_key = .hold },
+        };
+    }
+    const key = std.enums.fromInt(terminal_input.ScreenGatedKey, key_code) orelse
+        return error.InvalidField;
+    if (pid == 0 or generation == 0 or first_revision > revision) return error.InvalidField;
+    return .{
+        .attachment_id = attachment_id,
+        .capability_revision = capability_revision,
+        .input = .{ .screen_gated_key = .{ .key = .{
+            .key = key,
+            .process = .{ .pid = pid, .creation_time = creation_time },
+            .generation = generation,
+            .revision = revision,
+            .first_revision = first_revision,
+        } } },
+    };
+}
+
 pub fn validateMouseInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
     if (bytes.len < 40) return error.Truncated;
     if (bytes.len != 40) return error.LengthMismatch;
@@ -385,6 +428,7 @@ pub fn validateSemanticInput(kind: u16, bytes: []const u8) ProtocolError!Decoded
         MessageKind.paste_input => validatePasteInput(bytes),
         MessageKind.paste_auto_input => validatePasteAutoInput(bytes),
         MessageKind.prompt_line_input => validatePromptLineInput(bytes),
+        MessageKind.screen_gated_key_input => validateScreenGatedKeyInput(bytes),
         else => error.UnknownRequiredMessage,
     };
 }

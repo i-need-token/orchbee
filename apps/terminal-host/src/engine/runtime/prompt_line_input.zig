@@ -5,11 +5,11 @@ const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
 const terminal_input = @import("terminal-input");
 const terminal_input_encoding = @import("../input_encoding.zig");
-const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const clock = @import("clock.zig");
 const failure_ops = @import("failure.zig");
 const input_admission_ops = @import("input_admission.zig");
+const key_tap = @import("key_tap.zig");
 const prepared_input = @import("prepared_input.zig");
 const process_io_ops = @import("process_io.zig");
 const prompt_gate = @import("prompt_gate.zig");
@@ -64,8 +64,7 @@ pub fn prepare(
     return prepared;
 }
 
-/// The paste follows the terminal's bracketed-paste mode; each key is a press
-/// and its release, so a release-reporting keyboard mode sees no held key.
+/// The paste follows the terminal's bracketed-paste mode; each key is a tap.
 fn encodeLocked(
     self: *state.State,
     input: terminal_input.PromptLineInput,
@@ -79,30 +78,10 @@ fn encodeLocked(
     );
     var line: std.ArrayList(u8) = .fromOwnedSlice(paste);
     errdefer line.deinit(self.allocator);
-    if (input.right_arrow) _ = try appendKey(self, &line, "ArrowRight");
-    if (try appendKey(self, &line, "Enter") == 0) return error.InvalidKey;
+    if (input.right_arrow) _ = try key_tap.append(self, &line, "ArrowRight");
+    if (try key_tap.append(self, &line, "Enter") == 0) return error.InvalidKey;
     if (line.items.len > maximum_bytes) return error.InputLimitExceeded;
     return line.toOwnedSlice(self.allocator);
-}
-
-fn appendKey(self: *state.State, line: *std.ArrayList(u8), name: []const u8) !usize {
-    const key = try terminal_input_encoding.parseKey(name);
-    var press_bytes: usize = 0;
-    for ([_]terminal_input.KeyAction{ .press, .release }) |action| {
-        var buffer: [contracts.max_key_encoded_bytes]u8 = undefined;
-        const encoded = try terminal_input_encoding.encodeKey(&buffer, &self.terminal, key, .{
-            .action = action,
-            .composing = false,
-            .consumed_modifiers = .{},
-            .key = name,
-            .modifiers = .{},
-            .text = "",
-            .unshifted_codepoint = 0,
-        });
-        if (action == .press) press_bytes = encoded.len;
-        try line.appendSlice(self.allocator, encoded);
-    }
-    return press_bytes;
 }
 
 fn inputFacts(self: *state.State) prompt_gate.InputFacts {

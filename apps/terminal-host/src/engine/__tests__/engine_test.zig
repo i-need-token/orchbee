@@ -16,6 +16,7 @@ comptime {
     _ = @import("program_status_test.zig");
     _ = @import("projection_test.zig");
     _ = @import("prompt_gate_test.zig");
+    _ = @import("screen_gate_test.zig");
     _ = @import("prompt_gate_witness_test.zig");
     _ = @import("projection_wrap_topology_test.zig");
     _ = @import("reader_pause_test.zig");

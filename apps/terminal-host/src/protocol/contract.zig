@@ -85,6 +85,7 @@ pub const Limits = struct {
     /// A prompt's input start must be this old before a prompt line may be
     /// typed; a younger one is refused as retryable `settling`.
     pub const prompt_line_quiet_milliseconds: usize = 100;
+    pub const screen_gate_quiet_milliseconds: usize = 3000;
     pub const pty_read_batch_bytes: usize = 256 * 1024;
     pub const row_window_bytes: usize = 44 * 1024 * 1024;
     pub const row_window_rows = 4096;
@@ -310,6 +311,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
         M.paste_input => requestOnly("PasteInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.paste_auto_input => requestOnly("PasteAutoInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.prompt_line_input => requestOnly("PromptLineInput", .semantic_input, .raw_bytes, M.input_accepted),
+        M.screen_gated_key_input => requestOnly("ScreenGatedKeyInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.snapshot_frame => eventOnly("SnapshotFrame", .terminal_frame),
         M.delta_frame => eventOnly("DeltaFrame", .terminal_frame),
         M.frame_applied => requestAndResponse(

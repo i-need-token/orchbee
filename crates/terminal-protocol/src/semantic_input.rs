@@ -2,7 +2,7 @@
 //! preserving their attachment capability prefix. Terminal mode interpretation, PTY byte
 //! generation, and input admission remain Host responsibilities.
 
-use std::num::NonZeroU64;
+use std::num::{NonZeroU32, NonZeroU64};
 
 use crate::{
     AttachmentId, ProtocolError, ProtocolErrorCode,
@@ -18,12 +18,15 @@ pub const TEXT_INPUT_HEADER_BYTES: usize = 28;
 pub const PASTE_INPUT_HEADER_BYTES: usize = 32;
 pub const PASTE_AUTO_INPUT_HEADER_BYTES: usize = 32;
 pub const PROMPT_LINE_INPUT_HEADER_BYTES: usize = 32;
+pub const SCREEN_GATED_KEY_INPUT_BYTES: usize = 64;
 pub const MOUSE_INPUT_BYTES: usize = 40;
 pub const FOCUS_INPUT_BYTES: usize = 28;
 
 const KEY_FLAGS_MASK: u8 = 0b11;
 const PASTE_FLAGS_MASK: u8 = 0b1;
 const PROMPT_LINE_FLAGS_MASK: u8 = 0b1;
+const SCREEN_GATED_HOLD_FLAG: u8 = 0b1;
+const SCREEN_GATED_ENTER: u8 = 1;
 const MODIFIER_FLAGS_MASK: u16 = 0x03ff;
 const MOUSE_BUTTON_FLAGS_MASK: u16 = 0x07ff;
 const MAXIMUM_UNICODE_CODEPOINT: u32 = 0x10_ffff;
@@ -127,6 +130,50 @@ pub struct PromptLineInput {
     pub capability_revision: NonZeroU64,
     pub right_arrow: bool,
     pub content: String,
+}
+
+/// The keys a screen-gated input may type. The list is closed, so this message can never type
+/// anything else.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ScreenGatedKey {
+    Enter,
+}
+
+/// The process a screen-gated key answers, as the Host's own process sample reports it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ScreenGatedProcess {
+    pub pid: NonZeroU32,
+    pub creation_time: u64,
+}
+
+/// One key for one frame: the Host types it only while that frame is still the screen, the
+/// process still runs in the terminal, and no person acted since `first_revision` or within the
+/// Host's quiet time.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ScreenGatedKeyRequest {
+    pub key: ScreenGatedKey,
+    pub process: ScreenGatedProcess,
+    /// Generation and content revision of the frame the sender decided on.
+    pub generation: NonZeroU64,
+    pub revision: u64,
+    /// Content revision of the frame in which the sender first saw what it answers; never after
+    /// `revision`.
+    pub first_revision: u64,
+}
+
+/// What a screen-gated input asks for. A hold types nothing and counts as a person's action on
+/// the current screen, so the Host refuses every key decided before it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ScreenGatedAction {
+    Key(ScreenGatedKeyRequest),
+    Hold,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ScreenGatedKeyInput {
+    pub attachment_id: AttachmentId,
+    pub capability_revision: NonZeroU64,
+    pub action: ScreenGatedAction,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -439,6 +486,108 @@ fn validate_prompt_line_content(content: &str) -> Result<(), ProtocolError> {
     if content.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
         return Err(invalid_field(
             "prompt line content must not contain a C0 control or DEL",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn decode_screen_gated_key_input(
+    payload: &[u8],
+) -> Result<ScreenGatedKeyInput, ProtocolError> {
+    if payload.len() < SCREEN_GATED_KEY_INPUT_BYTES {
+        return Err(truncated("ScreenGatedKeyInput payload is truncated"));
+    }
+    if payload.len() != SCREEN_GATED_KEY_INPUT_BYTES {
+        return Err(length_mismatch(
+            "ScreenGatedKeyInput must be exactly 64 bytes",
+        ));
+    }
+    let authority = decode_input_authority(payload)?;
+    let key = read_u8(payload, 24)?;
+    let flags = read_u8(payload, 25)?;
+    let reserved = read_u16(payload, 26)?;
+    let pid = read_u32(payload, 28)?;
+    let generation = read_u64(payload, 32)?;
+    let revision = read_u64(payload, 40)?;
+    let first_revision = read_u64(payload, 48)?;
+    let creation_time = read_u64(payload, 56)?;
+    if flags & !SCREEN_GATED_HOLD_FLAG != 0 || reserved != 0 {
+        return Err(unknown_required_flag(
+            "ScreenGatedKeyInput has unknown flags or reserved bytes",
+        ));
+    }
+    let action = if flags & SCREEN_GATED_HOLD_FLAG != 0 {
+        if key != 0
+            || pid != 0
+            || generation != 0
+            || revision != 0
+            || first_revision != 0
+            || creation_time != 0
+        {
+            return Err(invalid_field(
+                "ScreenGatedKeyInput hold names a key, process or frame",
+            ));
+        }
+        ScreenGatedAction::Hold
+    } else {
+        if key != SCREEN_GATED_ENTER {
+            return Err(invalid_field("ScreenGatedKeyInput key is not admitted"));
+        }
+        let (Some(pid), Some(generation)) = (NonZeroU32::new(pid), NonZeroU64::new(generation))
+        else {
+            return Err(invalid_field(
+                "ScreenGatedKeyInput process and generation must be nonzero",
+            ));
+        };
+        validate_screen_gated_revisions(first_revision, revision)?;
+        ScreenGatedAction::Key(ScreenGatedKeyRequest {
+            key: ScreenGatedKey::Enter,
+            process: ScreenGatedProcess { pid, creation_time },
+            generation,
+            revision,
+            first_revision,
+        })
+    };
+    Ok(ScreenGatedKeyInput {
+        attachment_id: authority.attachment_id,
+        capability_revision: authority.capability_revision,
+        action,
+    })
+}
+
+pub(crate) fn encode_screen_gated_key_input(
+    value: ScreenGatedKeyInput,
+) -> Result<Vec<u8>, ProtocolError> {
+    let mut payload = Vec::with_capacity(SCREEN_GATED_KEY_INPUT_BYTES);
+    append_authority(&mut payload, value.attachment_id, value.capability_revision);
+    match value.action {
+        ScreenGatedAction::Hold => {
+            payload.extend_from_slice(&[0, SCREEN_GATED_HOLD_FLAG]);
+            payload.resize(SCREEN_GATED_KEY_INPUT_BYTES, 0);
+        }
+        ScreenGatedAction::Key(request) => {
+            validate_screen_gated_revisions(request.first_revision, request.revision)?;
+            let key = match request.key {
+                ScreenGatedKey::Enter => SCREEN_GATED_ENTER,
+            };
+            payload.extend_from_slice(&[key, 0, 0, 0]);
+            append_u32(&mut payload, request.process.pid.get());
+            append_u64(&mut payload, request.generation.get());
+            append_u64(&mut payload, request.revision);
+            append_u64(&mut payload, request.first_revision);
+            append_u64(&mut payload, request.process.creation_time);
+        }
+    }
+    Ok(payload)
+}
+
+fn validate_screen_gated_revisions(
+    first_revision: u64,
+    revision: u64,
+) -> Result<(), ProtocolError> {
+    if first_revision > revision {
+        return Err(invalid_field(
+            "ScreenGatedKeyInput first revision is after its revision",
         ));
     }
     Ok(())
@@ -790,6 +939,10 @@ fn read_u32(payload: &[u8], offset: usize) -> Result<u32, ProtocolError> {
     read_array::<4>(payload, offset).map(u32::from_le_bytes)
 }
 
+fn read_u64(payload: &[u8], offset: usize) -> Result<u64, ProtocolError> {
+    read_array::<8>(payload, offset).map(u64::from_le_bytes)
+}
+
 fn read_array<const LENGTH: usize>(
     payload: &[u8],
     offset: usize,
@@ -811,6 +964,10 @@ fn append_u16(payload: &mut Vec<u8>, value: u16) {
 }
 
 fn append_u32(payload: &mut Vec<u8>, value: u32) {
+    payload.extend_from_slice(&value.to_le_bytes());
+}
+
+fn append_u64(payload: &mut Vec<u8>, value: u64) {
     payload.extend_from_slice(&value.to_le_bytes());
 }
 

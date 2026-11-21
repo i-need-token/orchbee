@@ -19,8 +19,12 @@ pub fn Type(comptime Runtime: type) type {
         focus_reporting_enabled: ?bool = null,
         mouse_input_epoch: ?u64 = null,
         ownership: ?contracts.PreparedInputOwnership = null,
+        /// Pointer motion without a button is not a person typing for the screen gate.
+        pointer_hover: bool = false,
         /// Prompt-gated input publishes only while this gate serial still holds.
         prompt_gate_serial: ?u64 = null,
+        /// A screen-gated key publishes only while this frame is still the screen.
+        screen_gate: ?input_commit_ops.ScreenGate = null,
         reservation: ?contracts.InputReservation,
         runtime: *Runtime,
         state: PreparedInputState = .pending,
@@ -44,7 +48,9 @@ pub fn Type(comptime Runtime: type) type {
                 .focus_report = self.focus_report,
                 .focus_reporting_enabled = self.focus_reporting_enabled,
                 .mouse_input_epoch = self.mouse_input_epoch,
+                .pointer_hover = self.pointer_hover,
                 .prompt_gate_serial = self.prompt_gate_serial,
+                .screen_gate = self.screen_gate,
             };
             var ownership = self.ownership;
             const reservation = self.reservation;
@@ -53,7 +59,9 @@ pub fn Type(comptime Runtime: type) type {
             self.focus_reporting_enabled = null;
             self.mouse_input_epoch = null;
             self.ownership = null;
+            self.pointer_hover = false;
             self.prompt_gate_serial = null;
+            self.screen_gate = null;
             self.reservation = null;
             self.state = .consumed;
             const runtime = self.runtimeState();
@@ -70,13 +78,7 @@ pub fn Type(comptime Runtime: type) type {
                 };
             } else {
                 std.debug.assert(reservation == null);
-                std.debug.assert(expectations.prompt_gate_serial == null);
-                input_commit_ops.validatePreparedInputCommit(
-                    runtime,
-                    &ownership,
-                    expectations.focus_reporting_enabled,
-                    expectations.mouse_input_epoch,
-                ) catch |err| {
+                input_commit_ops.validatePreparedInputCommit(runtime, &ownership, expectations) catch |err| {
                     if (ownership) |*pending| input_commit_ops.cancelPreparedInputOwnership(runtime, pending);
                     return err;
                 };

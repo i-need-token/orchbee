@@ -488,7 +488,8 @@ fn controlled_semantic_input(
         | InputMessage::InputAccepted(_)
         | InputMessage::PasteInput(_)
         | InputMessage::PasteAutoInput(_)
-        | InputMessage::PromptLineInput(_) => return None,
+        | InputMessage::PromptLineInput(_)
+        | InputMessage::ScreenGatedKeyInput(_) => return None,
     }
     Some(message)
 }

@@ -16,6 +16,9 @@ pub const MAXIMUM_PASTE_AUTO_INPUT_PAYLOAD_BYTES: usize = 32 + MAXIMUM_PASTE_AUT
 /// A `PromptLineInput` needs its prompt's input start this old. The Host refuses a younger one as
 /// retryable `settling` instead of waiting, so the sender waits this long and retries once.
 pub const PROMPT_LINE_QUIET_MILLISECONDS: u64 = 100;
+/// A `ScreenGatedKeyInput` is refused while a person's input in its terminal is younger than
+/// this on the Host's clock. The Host never waits; the sender decides again later.
+pub const SCREEN_GATE_QUIET_MILLISECONDS: u64 = 3000;
 pub const MAXIMUM_RAW_PAYLOAD_BYTES: usize = MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES;
 pub const MAXIMUM_TERMINAL_FRAME_BYTES: usize = 36 * 1024 * 1024;
 pub const MAXIMUM_ROW_WINDOW_BYTES: usize = 44 * 1024 * 1024;

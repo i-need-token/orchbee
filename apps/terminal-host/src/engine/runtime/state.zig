@@ -180,6 +180,9 @@ pub const State = struct {
     // input_mutex protects this count of published client inputs other than
     // focus reports; the prompt gate compares it with its anchor.
     typed_input_sequence: u64 = 0,
+    // input_mutex protects this record of where a person last acted and where
+    // the last screen-gated key was typed; the screen gate reads it.
+    screen_gate_input: @import("screen_gate.zig").InputRecord = .{},
     wait_thread: ?std.Thread = null,
     writer_stop: bool = false,
     writer_stopped: std.atomic.Value(bool) = .init(false),

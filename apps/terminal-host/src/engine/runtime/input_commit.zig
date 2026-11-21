@@ -1,18 +1,25 @@
 const std = @import("std");
+const clock = @import("clock.zig");
 const contracts = @import("contracts.zig");
+const screen_gate = @import("screen_gate.zig");
 const state = @import("state.zig");
+
+pub const ScreenGate = screen_gate.Gate;
 
 /// Facts a prepared input must still match when it publishes.
 pub const Expectations = struct {
     focus_report: bool = false,
     focus_reporting_enabled: ?bool = null,
     mouse_input_epoch: ?u64 = null,
+    /// Pointer motion without a button is not a person typing for the screen gate.
+    pointer_hover: bool = false,
     prompt_gate_serial: ?u64 = null,
+    screen_gate: ?ScreenGate = null,
 
     /// These facts are terminal state, so publication also holds terminal_mutex.
     fn needsTerminal(self: Expectations) bool {
         return self.focus_reporting_enabled != null or self.mouse_input_epoch != null or
-            self.prompt_gate_serial != null;
+            self.prompt_gate_serial != null or self.screen_gate != null;
     }
 };
 
@@ -25,16 +32,14 @@ pub fn cancelPreparedInputOwnership(
     self.input_mutex.unlock();
 }
 
+/// Commits a prepared input that encodes to no bytes. Nothing is queued, but
+/// the input still shows a person at this terminal.
 pub fn validatePreparedInputCommit(
     self: *state.State,
     ownership: *?contracts.PreparedInputOwnership,
-    focus_reporting_enabled: ?bool,
-    mouse_input_epoch: ?u64,
+    expectations: Expectations,
 ) !void {
-    const expectations: Expectations = .{
-        .focus_reporting_enabled = focus_reporting_enabled,
-        .mouse_input_epoch = mouse_input_epoch,
-    };
+    std.debug.assert(expectations.prompt_gate_serial == null and expectations.screen_gate == null);
     lockPreparedInputCommit(self, expectations);
     defer unlockPreparedInputCommit(self, expectations);
     if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
@@ -42,10 +47,11 @@ pub fn validatePreparedInputCommit(
     // admission gate so every PreparedInput.commit has one phase boundary.
     if (self.writer_stop or self.client_input_closed or
         self.child_exited.load(.acquire)) return error.TerminalExited;
-    try validateFocusModeLocked(self, focus_reporting_enabled);
-    try validateMouseInputEpochLocked(self, mouse_input_epoch);
+    try validateFocusModeLocked(self, expectations.focus_reporting_enabled);
+    try validateMouseInputEpochLocked(self, expectations.mouse_input_epoch);
     try validatePreparedInputOwnershipLocked(self, ownership.*);
     commitPreparedInputOwnershipLocked(self, ownership);
+    if (!expectations.focus_report and !expectations.pointer_hover) notePersonInputLocked(self);
 }
 
 pub fn publishInput(self: *state.State, reservation: contracts.InputReservation, bytes: []u8) !void {
@@ -102,6 +108,12 @@ pub fn publishPreparedInput(
         self.input_condition.broadcast();
         return err;
     };
+    validateScreenGateLocked(self, expectations.screen_gate) catch |err| {
+        std.debug.assert(self.input_queue.cancel(reservation.identifier));
+        self.allocator.free(bytes);
+        self.input_condition.broadcast();
+        return err;
+    };
     validatePreparedInputOwnershipLocked(self, ownership.*) catch |err| {
         std.debug.assert(self.input_queue.cancel(reservation.identifier));
         self.allocator.free(bytes);
@@ -109,14 +121,21 @@ pub fn publishPreparedInput(
         return err;
     };
     std.debug.assert(self.input_queue.publish(reservation, bytes));
-    if (source == .client and !expectations.focus_report) self.typed_input_sequence +%= 1;
+    if (source == .client and !expectations.focus_report) {
+        self.typed_input_sequence +%= 1;
+        if (expectations.screen_gate) |gate| {
+            self.screen_gate_input.noteTyped(gate.revision);
+        } else if (!expectations.pointer_hover) {
+            notePersonInputLocked(self);
+        }
+    }
     commitPreparedInputOwnershipLocked(self, ownership);
     self.input_condition.broadcast();
 }
 
-/// Mouse, focus and prompt-gated input validate terminal state under
-/// terminal -> input, so their publication commits with the state they were
-/// prepared for. Other input needs only input.
+/// Mouse, focus, prompt-gated and screen-gated input validate terminal state
+/// under terminal -> input, so their publication commits with the state they
+/// were prepared for. Other input needs only input.
 fn lockPreparedInputCommit(self: *state.State, expectations: Expectations) void {
     if (expectations.needsTerminal()) self.terminal_mutex.lock();
     self.input_mutex.lock();
@@ -139,6 +158,32 @@ fn validatePromptGateLocked(self: *state.State, expected: ?u64) !void {
         .pending_entries = self.input_queue.charge(.client).entries,
         .sequence = self.typed_input_sequence,
     }, 1);
+}
+
+/// Repeats every screen gate rule at publication, where the key's own
+/// reservation is the one client entry allowed in the queue.
+fn validateScreenGateLocked(self: *state.State, expected: ?ScreenGate) !void {
+    const gate = expected orelse return;
+    try checkScreenGateLocked(self, gate, 1);
+}
+
+/// Caller holds terminal_mutex, then input_mutex.
+pub fn checkScreenGateLocked(self: *state.State, gate: ScreenGate, own_entries: usize) screen_gate.Error!void {
+    return screen_gate.check(gate, .{
+        .generation = self.generation,
+        .revision = self.revision.load(.monotonic),
+        .committing = self.reader_commit_in_progress,
+        .pending_entries = self.input_queue.charge(.client).entries,
+        .now_nanoseconds = clock.monotonicTimeNanoseconds(self),
+    }, self.screen_gate_input, own_entries);
+}
+
+/// Records that a person acted on the current screen. Caller holds input_mutex.
+fn notePersonInputLocked(self: *state.State) void {
+    self.screen_gate_input.notePerson(
+        self.revision.load(.monotonic),
+        clock.monotonicTimeNanoseconds(self),
+    );
 }
 
 fn validateMouseInputEpochLocked(self: *const state.State, expected: ?u64) !void {
