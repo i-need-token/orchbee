@@ -157,6 +157,10 @@ fn accept_bounded(listener: &UnixListener) -> UnixStream {
                 stream
                     .set_nonblocking(false)
                     .expect("blocking accepted stream");
+                // A read-only control query is answered here and is not a scripted connection.
+                if support::answered_query(&stream) {
+                    continue;
+                }
                 return stream;
             }
             Err(error) if error.kind() == ErrorKind::WouldBlock => {

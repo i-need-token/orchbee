@@ -187,6 +187,10 @@ fn accept_bounded(listener: &UnixListener) -> UnixStream {
                 stream
                     .set_nonblocking(false)
                     .expect("blocking accepted stream");
+                // A read-only control query is answered here and is not a scripted connection.
+                if support::answered_query(&stream) {
+                    continue;
+                }
                 return stream;
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
@@ -652,21 +656,10 @@ fn fixture_document() -> &'static [u8] {
 fn available_snapshot_projects_every_resource() -> TestResult {
     let base = base_dir("available");
     let scope = stage_scope(&base);
-    // `status` reads the terminal-runtime state on its own connection, the first; macOS also asks
-    // the Session for its processes, on the second.
-    let asks_processes = cfg!(target_os = "macos");
+    // `status` reads the terminal-runtime state on its own connection, the first.
     let connection = std::sync::atomic::AtomicUsize::new(0);
-    let peer = spawn_peer_n(&scope, 2 + usize::from(asks_processes), move |stream| {
+    let peer = spawn_peer_n(&scope, 2, move |stream| {
         let index = connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        if asks_processes && index == 1 {
-            orchbee_workbench_client::test_support::local_client::handshake::answer_query(
-                &mut &stream,
-                "0.1.0",
-                2,
-            )
-            .expect("peer answers the query");
-            return;
-        }
         admit(&stream);
         let request_id = read_snapshot_request(&stream);
         snapshot_response(
@@ -834,25 +827,13 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         .iter()
         .filter(|(arguments, _)| !enriched(arguments))
         .collect::<Vec<_>>();
-    // macOS `status` also asks the Session for its processes, on the connection after its own.
-    let asks_processes = cfg!(target_os = "macos");
-    let query_connection = 1 + derived
+    let status_connection = derived
         .iter()
         .position(|(arguments, _)| arguments.first() == Some(&"status"))
         .expect("the queries run status");
     let connection = std::sync::atomic::AtomicUsize::new(0);
-    let connections = derived.len() + usize::from(asks_processes);
-    let peer = spawn_peer_n(&scope, connections, move |stream| {
+    let peer = spawn_peer_n(&scope, derived.len(), move |stream| {
         let index = connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        if asks_processes && index == query_connection {
-            orchbee_workbench_client::test_support::local_client::handshake::answer_query(
-                &mut &stream,
-                "0.1.0",
-                2,
-            )
-            .expect("peer answers the query");
-            return;
-        }
         admit(&stream);
         let request_id = read_snapshot_request(&stream);
         snapshot_response(
@@ -864,7 +845,7 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         );
         // `status` follows with its terminal-runtime read and `terminal get` with one launch read
         // on the same session; every other query retires the session after its snapshot.
-        if index + 1 == query_connection {
+        if index == status_connection {
             terminal_runtime_response(&stream);
             return;
         }
@@ -1199,21 +1180,10 @@ fn missing_cohort_is_a_check_failure_not_a_crash() -> TestResult {
 fn query_writes_nothing_to_the_scope() -> TestResult {
     let base = base_dir("readonly");
     let scope = stage_scope(&base);
-    // `status`, which runs first, reads the terminal-runtime state on its own connection; macOS
-    // also asks the Session for its processes, on the second.
-    let asks_processes = cfg!(target_os = "macos");
+    // `status`, which runs first, reads the terminal-runtime state on its own connection.
     let connection = std::sync::atomic::AtomicUsize::new(0);
-    let peer = spawn_peer_n(&scope, 4 + usize::from(asks_processes), move |stream| {
+    let peer = spawn_peer_n(&scope, 4, move |stream| {
         let index = connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        if asks_processes && index == 1 {
-            orchbee_workbench_client::test_support::local_client::handshake::answer_query(
-                &mut &stream,
-                "0.1.0",
-                2,
-            )
-            .expect("peer answers the query");
-            return;
-        }
         admit(&stream);
         let request_id = read_snapshot_request(&stream);
         snapshot_response(

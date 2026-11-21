@@ -7,8 +7,9 @@ pub use crate::inherited_environment::orchbee_command;
 use std::{
     fs,
     io::{ErrorKind, Read},
-    os::fd::AsFd,
+    os::fd::{AsFd, AsRawFd},
     os::unix::fs::{DirBuilderExt, PermissionsExt},
+    os::unix::net::UnixStream,
     os::unix::process::ExitStatusExt,
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Output, Stdio},
@@ -17,7 +18,11 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use nix::fcntl::{FcntlArg, OFlag, fcntl};
+use nix::{
+    errno::Errno,
+    fcntl::{FcntlArg, OFlag, fcntl},
+    sys::socket::{MsgFlags, recv},
+};
 use orchbee_local_runtime::ModeCheckedLocalSessionRendezvous;
 use sha2::{Digest, Sha256};
 
@@ -494,4 +499,40 @@ pub fn stage_scope(base: &Path) -> PathBuf {
     fs::create_dir(&scope).expect("create scope directory");
     fs::set_permissions(&scope, fs::Permissions::from_mode(0o700)).expect("chmod scope");
     scope
+}
+
+/// Answers a connection that opens with a control `query`, the read-only request a command sends
+/// on a connection of its own (macOS `status` asks the Session for its processes this way), as a
+/// ready Server of version 0.1.0 with two terminals, and says so. Any other connection stays
+/// unread for its script. A scripted peer calls this on each connection it accepts and does not
+/// count the answered ones, so a command that gains such a read needs no change in the tests that
+/// run it.
+pub fn answered_query(stream: &UnixStream) -> bool {
+    use orchbee_workbench_client::test_support::local_client::handshake;
+    let mut sent = vec![0; 64 * 1024];
+    // A candidate writes its first frame as it connects; one silent this long goes to the script.
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let peeked = recv(
+            stream.as_raw_fd(),
+            &mut sent,
+            MsgFlags::MSG_PEEK | MsgFlags::MSG_DONTWAIT,
+        );
+        let whole = match peeked {
+            Ok(0) => return false,
+            Ok(read) if read == sent.len() => return false,
+            Ok(read) => handshake::opens_with_query(&sent[..read]),
+            Err(Errno::EAGAIN | Errno::EINTR) => None,
+            Err(_) => return false,
+        };
+        match whole {
+            Some(true) => {
+                handshake::answer_query(&mut &*stream, "0.1.0", 2).expect("peer answers the query");
+                return true;
+            }
+            Some(false) => return false,
+            None if Instant::now() >= deadline => return false,
+            None => thread::sleep(Duration::from_millis(1)),
+        }
+    }
 }

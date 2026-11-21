@@ -520,7 +520,7 @@ pub mod test_support {
         pub mod handshake {
             pub use crate::local_client::test_support::handshake::{
                 answer_offer, answer_offer_without_capabilities, answer_query, expect_hello, offer,
-                read_offer, refuse,
+                opens_with_query, read_offer, refuse,
             };
         }
 

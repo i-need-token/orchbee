@@ -2,7 +2,7 @@
 use orchbee_connection_handshake::{
     AcceptorMessage, Answer, Build, CapabilitySet, ConnectionKind, ControlRequest, EnvironmentName,
     Extensions, InitiatorMessage, Offer, ProcessEntry, ProcessRole, ProcessState, ProductVersion,
-    QueryResult, Rejection, RejectionReason, RequestKind, encode_acceptor_frame,
+    QueryResult, ReadError, Rejection, RejectionReason, RequestKind, encode_acceptor_frame,
     read_initiator_message,
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message};
@@ -57,6 +57,20 @@ fn answer(
     });
     stream.write_all(&encode_acceptor_frame(&answer).map_err(io::Error::other)?)?;
     stream.flush()
+}
+
+/// Whether the bytes a candidate has sent so far open with a `query`, the read-only request a
+/// command sends on a connection of its own. `None` until its first frame is whole.
+#[must_use]
+pub fn opens_with_query(sent: &[u8]) -> Option<bool> {
+    match read_initiator_message(&mut &*sent) {
+        Ok(InitiatorMessage::Request(ControlRequest {
+            kind: RequestKind::Query,
+            ..
+        })) => Some(true),
+        Err(ReadError::Closed) => None,
+        Ok(_) | Err(_) => Some(false),
+    }
 }
 
 /// Answers the candidate's `query` as a ready Server with no Worker reports itself: its product

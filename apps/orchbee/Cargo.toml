@@ -70,7 +70,8 @@ jsonschema.workspace = true
 orchbee-workbench-client = { path = "crates/workbench-client", features = ["test-support"] }
 
 [target.'cfg(unix)'.dev-dependencies]
-nix = { workspace = true, features = ["fs", "process", "signal", "term"] }
+# `socket` lets a scripted peer look at a connection's first frame without taking it from the script.
+nix = { workspace = true, features = ["fs", "process", "signal", "socket", "term"] }
 
 [target.'cfg(windows)'.dev-dependencies]
 # Default configuration and provider TOML documents are parsed and rendered in Windows tests.
