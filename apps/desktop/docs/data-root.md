@@ -95,9 +95,8 @@ The folders Main creates later lie below the ones the Client created: on Windows
 access list their parent passes down, and on POSIX Main creates them with owner-only access. Main
 never repairs the access of a folder or file it finds, and its own read of `internal/version.json`
 does not judge access; the Client refuses an unsafe one, that record included, when the window
-starts its Session, and the page shows that refusal. The renderer receives
-no data-root path, enumeration, location override, or generic filesystem capability. Tests use an
-explicitly injected temporary home and source root.
+starts its Session, and the page shows that refusal. The renderer receives no data-root path,
+enumeration, location override, or generic filesystem capability.
 
 ## Window state record
 
@@ -139,17 +138,3 @@ editing the sample.
 - Changing or moving a checkout never deletes or migrates the prior root.
 - Desktop never writes the top level of a data root; its files live under `internal/`.
 - Desktop never replaces an existing `internal/version.json`.
-
-## Verification
-
-`prepareDesktopDataRoot` tests cover the fixed Release root with its files under `internal/`, the
-`ORCHBEE_HOME` override and its refusal of a relative value, the stable development root,
-different-checkout isolation, marker creation, reuse, and mismatch, and a version record written
-once; a stand-in creates the folders the bundled Client creates. `FileDesktopWindowStateStore` tests drive a synthetic earlier step: the backup at its relative
-path, the replacement, a current second load, and a failed step, backup, or replacement leaving the
-record byte-identical; upgrade backup tests cover folder reuse, retention, and numbered copies.
-`resolveDesktopApplicationDistribution` tests cover live development from the canonical checkout,
-strict packaged descriptors, revalidation of a packaged Dev descriptor against the current checkout,
-and environment non-override. No test drives the Main entry, which selects `userData` before
-requesting the single-instance lock and, outside a release on macOS and Linux, passes
-`ORCHBEE_HOME` to the Client.

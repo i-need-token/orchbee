@@ -127,16 +127,4 @@ ends after the Server accepted the launch but before its publication arrived lea
 Main still reports as unconfirmed; the report therefore points to Select Folder only when the
 Project is missing from the sidebar.
 
-Deterministic owner tests cover explicit submission, separate filesystem and Project commits, exact acknowledgement, known-no-effect retry, retirement and retained effects. Concrete cases cover name boundaries, no-overwrite, post-mkdir failure, protocol correlation/replay, queued Action retirement, stale publication and both locales. These implementation traces replace the separate folder workflow model; they do not prove all filesystem failures or native environments.
-
-## Correctness and verification
-
-| Claim                                        | Evidence                                                                                                                              | Limits                                                                                                 |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| One live request and selected-only mutation  | deterministic Workbench transition tests, and client/broker tests                                                                     | Named and generated traces cover the implementation, not exhaustive interleavings.                     |
-| Cancellation, failure, and retirement safety | Client/broker late-completion tests and renderer unmount tests                                                                        | Native operating-system dialog cancellation is represented by an injected deterministic result.        |
-| Selected-path form validation                | Resolver unit tests for relative rejection and absolute normalization                                                                 | Form only; the Server decides whether the folder can hold a Workspace.                                 |
-| Electron-only capability delivery            | Protocol schema, preload bridge, and renderer client tests                                                                            | A trusted Electron renderer holding the port may request a dialog without a second user-gesture proof. |
-| Observable native integration                | Manual current-platform inspection; the Desktop system trace with an injected native selector retired with the Desktop Electron suite | No automated test drives the real macOS, Windows, or Linux system picker UI.                           |
-
 Project membership in creation receipts is informational. Moving or dissolving a group cannot invalidate an exact Workspace receipt, and a closed or replaced exact Workspace cannot be reactivated by a late result.

@@ -2,10 +2,9 @@
 
 ## Problem and scope
 
-The local Desktop client owns one Electron window but previously launched it at a fixed size and
-relied on incidental operating-system controls. Desktop now owns the minimum durable window
-lifecycle expected by a terminal user: maximize/restore, native full-screen toggling, safe normal
-bounds restoration, and one semantic Action path for menu selection and menu accelerators.
+Desktop now owns the minimum durable window lifecycle expected by a terminal user: maximize/restore,
+native full-screen toggling, safe normal bounds restoration, and one semantic Action path for menu
+selection and menu accelerators.
 
 This contract is limited to the current single local Desktop window. Multi-window identity, moving
 tabs between windows, Quick Terminal, always-on-top, native title-bar replication, and renderer or
@@ -143,14 +142,6 @@ icon on Windows and the menu-bar icon on macOS.
 - A window started hidden for automation and Linux keep no icon and close as before; macOS follows
   [Running in the menu bar](#running-in-the-menu-bar).
 
-Deterministic tests of the model cover the close decision, closes never intercepted while ending,
-the quit when the last terminal ends, Quit All stopping only after a confirmation, a cancel that
-changes nothing, and a failure that returns to the shown window, and, over every reachable state
-under both releases, that the icon shows until the application quits, that only the person's
-confirmation stops the Session, and the macOS rule that only a completed Quit All quits. The icon
-adapter on both platforms, the notices, the dialogs, the application menu items, the stop request
-and its status reads, and the native events have no automated evidence.
-
 ## Running in the menu bar
 
 On macOS the same model runs with the `close-window` release, so Desktop follows the Dock
@@ -200,8 +191,6 @@ The owner preserves these invariants:
 - unavailable or full-screen-incompatible Actions produce no hidden effect;
 - window state and Actions never mutate a Workbench document, terminal binding, Host session, or
   projected attachment.
-
-Pure state tests cover ordered bounds capture, transient full-screen exclusion, display selection and clamp boundaries. File tests cover missing/valid/invalid/unreadable state, atomic replacement, serialized writes and failure. Owner tests cover safe projection of the loaded record, ordered geometry and maximize capture on each platform's event set, listener removal, and continuation after a failed save. Native maximize, full-screen, restart, and off-screen behavior has no automated evidence: the manual native-window system test retired with the Desktop Electron suite. No separate TLA workflow proof is claimed.
 
 ## Evidence limits
 

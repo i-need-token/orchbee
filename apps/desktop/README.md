@@ -285,12 +285,9 @@ Test build.
   projection without starting, committing, or cancelling a native drag. Unsupported or absent
   horizontal chrome is an intentional no-op.
 - **Dependencies and verification:** Electron's CSS app-region contract is the only platform
-  capability. The controlled Desktop system trace that checked the sidebar-row geometry, the
-  horizontal Tab-bar default, every interactive exclusion, and sidebar visibility transitions
-  retired with the Desktop Electron suite, so no automated test covers the projection. Synthetic
-  and DevTools Protocol clicks bypass the operating system's hit test and pass even where a real
-  pointer drags the window, so evidence comes from a real window: `WM_NCHITTEST` returns `HTCLIENT`
-  at a control and `HTCAPTION` at unoccupied chrome.
+  capability. Synthetic and DevTools Protocol clicks bypass the operating system's hit test and pass
+  even where a real pointer drags the window, so evidence comes from a real window: `WM_NCHITTEST`
+  returns `HTCLIENT` at a control and `HTCAPTION` at unoccupied chrome.
 
 ## Native Project Folder acquisition
 
@@ -629,9 +626,3 @@ pnpm --filter @orchbee/desktop typecheck
 pnpm --filter @orchbee/desktop test
 pnpm --filter @orchbee/desktop build
 ```
-
-Unit tests cover the data root and distribution identities, the window-state record with its
-migration and upgrade backup, the window-state owner, window and Secure Keyboard Entry Actions, the
-menu, the renderer scheme, the preload bridge, the Project Folder broker and runtime, and the
-background lifecycle's close, quit, Quit All, and icon invariants. No automated test drives a native window or the Server
-connection; the Desktop Electron suite that did retired with Desktop's Main-owned runtime.
