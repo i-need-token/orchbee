@@ -527,22 +527,30 @@ while keeping its terminals running. Sessions that run from the store keep runni
 installing only adds a version directory and replaces `desktop\`; the new window joins them while
 they are compatible and otherwise says they are too old.
 
-Removal from Settings › Apps runs the uninstaller, which asks once and then, in this order:
+Removal from Settings › Apps runs the uninstaller, which asks for confirmation and then, in this
+order:
 
-1. runs `<store root>\bin\<client>.exe --installer-uninstall-v1`, or, when no launcher is left, a
-   flat window's bundled Client or else a window version's, and waits for it from `unins000.exe` in the store root; the Client does not
-   count that waiting uninstaller as Orchbee running. It ends no terminal: while one is open, or
-   while any other program runs from the installation, it changes nothing, and the uninstaller
+1. asks whether to delete the person's data too, naming settings, Sessions and saved passwords,
+   with No as the default; a silent removal, or one that finds no Client left, asks nothing and
+   keeps the data;
+2. runs `<store root>\bin\<client>.exe --installer-uninstall-v1`, with `--delete-data` after a
+   Yes, or, when no launcher is left, a flat window's bundled Client or else a window version's,
+   and waits for it from `unins000.exe` in the store root; the Client does not count that waiting
+   uninstaller as Orchbee running. It ends no terminal: while one is open, or while any other
+   program runs from the installation, it changes nothing, data included, and the uninstaller
    shows its reason and stops. Otherwise it removes the store's versions, `bin`, `desktop\`, the
    `Path` entry, the Agent integrations, the Start menu entry and the registration, keeps the data
-   root, and leaves `unins000.exe` and `unins000.dat`; its own program files go a moment after it
-   exits;
-2. removes whatever it installed that is still there and its own two files. The empty store root
+   root, or after a Yes deletes it with the saved Machine passwords, and leaves `unins000.exe` and
+   `unins000.dat`; its own program files go a moment after it exits;
+3. removes whatever it installed that is still there and its own two files. The empty store root
    goes with whichever of the uninstaller and the Client's removal of its last files finishes
    last.
 
 A second removal finds no Client and nothing of Orchbee's, and removes only what remains of its
-own. The data root (`~/.orchbee` for release) stays until `orchbee uninstall --delete-data`.
+own. A data root (`~/.orchbee` for release) the removal kept stays until
+`orchbee uninstall --delete-data`. The uninstaller is the one the last Setup wrote, since an update
+writes none: an installation updated in place since a Setup older than the question removes
+without asking and keeps the data.
 
 `orchbee uninstall` run in a terminal removes the same things and the uninstaller's two files with
 them, so the store root goes too and nothing is left that Settings › Apps no longer lists. That is
@@ -553,12 +561,13 @@ pointer; any other file there stays and the command counts it.
 
 For workflows, `<setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG="<file>"` installs
 without a window, and `<store root>\unins000.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-/LOG="<file>"` removes. Without `/LOG`, Setup still writes `Setup Log <date> #<n>.txt` in `%TEMP%`,
-with the exit code and output of each Client command. Setup exits 0 on success, 7 while Orchbee runs
-from the installation, 10 when the window application was installed but `orchbee install` failed,
-11 when the window could not be installed, which it reports instead of a failed `install`, and
-otherwise with Inno Setup's own codes, such as 2 when cancelled before installing. The
-uninstaller exits 0 when the removal finished and non-zero when it stopped.
+/LOG="<file>"` removes and keeps the data root. Without `/LOG`, Setup still writes
+`Setup Log <date> #<n>.txt` in `%TEMP%`, with the exit code and output of each Client command.
+Setup exits 0 on success, 7 while Orchbee runs from the installation, 10 when the window
+application was installed but `orchbee install` failed, 11 when the window could not be installed,
+which it reports instead of a failed `install`, and otherwise with Inno Setup's own codes, such as
+2 when cancelled before installing. The uninstaller exits 0 when the removal finished and non-zero
+when it stopped.
 
 ### macOS disk image
 

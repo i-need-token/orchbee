@@ -11,9 +11,9 @@
 ; window updates are still switched off does not know that helper, so Setup asks it first and, for
 ; such a build, writes the flat `desktop\` of earlier releases itself, as before. A removal runs
 ; `orchbee --installer-uninstall-v1`, which removes everything of Orchbee's, the installer's
-; shortcut and registration included, and then removes the installer's own files. `orchbee
-; uninstall` run in a terminal removes those files too, by name: the uninstaller stays
-; `{app}\unins000.exe` with `unins000.dat`, Inno Setup's default.
+; shortcut and registration included, and the person's data only when they choose to, and then
+; removes the installer's own files. `orchbee uninstall` run in a terminal removes those files too,
+; by name: the uninstaller stays `{app}\unins000.exe` with `unins000.dat`, Inno Setup's default.
 
 #if Ver != EncodeVer(6, 7, 1)
   #error This installer is compiled only with Inno Setup 6.7.1, which the release workflow pins.
@@ -82,6 +82,8 @@ en.WindowFailed=The %1 window could not be installed:%n%n%2%n%nRun Setup again t
 zh.WindowFailed=无法安装 %1 窗口程序：%n%n%2%n%n请重新运行安装程序重试。
 en.RemovalBlocked=%1 was not removed:%n%n%2
 zh.RemovalBlocked=未能移除 %1：%n%n%2
+en.DeleteData=Also delete your %1 data: settings, Sessions and saved passwords?%n%nChoose No to keep it for when you install %1 again.
+zh.DeleteData=是否同时删除 %1 的数据，包括设置、会话和保存的密码？%n%n选择“否”会保留这些数据，以后重新安装 %1 时仍可使用。
 
 [Files]
 ; The bundled Client alone, which Setup asks before installing whether this build installs window
@@ -474,15 +476,26 @@ begin
   end;
 end;
 
+// Whether the person deletes their data as well: one question after the uninstaller's own
+// confirmation, No by default. A silent removal asks nothing and keeps the data.
+function DeleteDataChosen: Boolean;
+begin
+  Result := False;
+  if not UninstallSilent then
+    Result := MsgBox(FmtMessage(CustomMessage('DeleteData'), ['{#AppName}']), mbConfirmation,
+      MB_YESNO or MB_DEFBUTTON2) = IDYES;
+end;
+
 // After the uninstaller's own confirmation, Orchbee's uninstall removes the program files, the
 // `Path` entry, this installer's shortcut and registration and the Agent integrations, and keeps
-// the person's data. It ends no terminal: with one open it changes nothing and says why, and
-// the removal stops here. The store's active version runs it, as it knows every integration a
-// later version added; then a flat window's bundled Client, then any window version's; with no
-// Client left, an earlier removal already finished.
+// the person's data unless they chose to delete it. It ends no terminal: with one open it changes
+// nothing, data included, and says why, and the removal stops here. The store's active version
+// runs it, as it knows every integration a later version added; then a flat window's bundled
+// Client, then any window version's; with no Client left, an earlier removal already finished,
+// and nothing is asked.
 function RemoveInstallation: Boolean;
 var
-  Root, Client, StdOut, Detail: String;
+  Root, Client, Params, StdOut, Detail: String;
   Code: Integer;
 begin
   Result := True;
@@ -497,7 +510,10 @@ begin
     Log('No Orchbee Client is left; nothing of Orchbee''s remains to remove.');
     Exit;
   end;
-  Detail := RunClient(Client, '--installer-uninstall-v1', Code, StdOut);
+  Params := '--installer-uninstall-v1';
+  if DeleteDataChosen then
+    Params := Params + ' --delete-data';
+  Detail := RunClient(Client, Params, Code, StdOut);
   if Code = 0 then
     Exit;
   SuppressibleMsgBox(FmtMessage(CustomMessage('RemovalBlocked'), ['{#AppName}', Detail]), mbError,
