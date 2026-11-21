@@ -99,8 +99,17 @@ impl Locale {
             (Self::ZhCn, Line::Unresponsive) => "连接还在，但对方没有回应。".into(),
             (Self::EnUs, Line::Installing) => format!("Copying Orchbee to {label}."),
             (Self::ZhCn, Line::Installing) => format!("正在把 Orchbee 复制到 {label}。"),
-            (Self::EnUs, Line::NotInstalled) => format!("Orchbee isn't on {label}."),
-            (Self::ZhCn, Line::NotInstalled) => format!("{label} 上没有 Orchbee。"),
+            (Self::EnUs, Line::NotInstalled) if orchbee_local_runtime::is_release() => {
+                format!("Orchbee isn't on {label}.")
+            }
+            (Self::ZhCn, Line::NotInstalled) if orchbee_local_runtime::is_release() => {
+                format!("{label} 上没有 Orchbee。")
+            }
+            // A development or test build runs only its own environment's Orchbee there.
+            (Self::EnUs, Line::NotInstalled) => {
+                format!("This environment's Orchbee isn't on {label}.")
+            }
+            (Self::ZhCn, Line::NotInstalled) => format!("{label} 上没有这个环境的 Orchbee。"),
             (
                 Self::EnUs,
                 Line::Unsupported {

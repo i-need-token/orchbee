@@ -153,19 +153,21 @@ fn launch(arguments: &str) -> String {
     );
     format!("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}")
 }
-/// The remote store folders under `%LOCALAPPDATA%\Programs` and the Client names the launch line
-/// tries in order. A development or test build first looks for its own store and name and then for
-/// release, so a release remote reads as another environment instead of a missing installation.
+/// The remote store folder under `%LOCALAPPDATA%\Programs` and the Client name the launch line
+/// looks for: this build's environment's only. A development or test build never runs the release
+/// installation, nor another build's, so a remote without its own reads as not installed.
 fn probe_names() -> (Vec<String>, Vec<String>) {
-    let release = format!("{}.exe", orchbee_connection_handshake::RELEASE_ENVIRONMENT);
     if orchbee_local_runtime::is_release() {
-        (vec!["Orchbee".to_owned()], vec![release])
+        (
+            vec!["Orchbee".to_owned()],
+            vec![format!(
+                "{}.exe",
+                orchbee_connection_handshake::RELEASE_ENVIRONMENT
+            )],
+        )
     } else {
         let stem = orchbee_local_runtime::environment_stem();
-        (
-            vec![stem.to_owned(), "Orchbee".to_owned()],
-            vec![format!("{stem}.exe"), release],
-        )
+        (vec![stem.to_owned()], vec![format!("{stem}.exe")])
     }
 }
 /// The machine hub's carrier `ssh`: without batch mode and with `StrictHostKeyChecking=ask`, so

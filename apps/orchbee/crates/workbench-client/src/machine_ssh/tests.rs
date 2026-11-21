@@ -1,5 +1,31 @@
 use super::*;
 #[test]
+fn a_development_or_test_build_runs_only_its_own_environment_on_the_far_computer() {
+    use base64::Engine as _;
+    // Builds never meet across environments: a test build's remote command names only its own
+    // store and Client, so it can neither run nor reach a release installation's state there.
+    assert!(!orchbee_local_runtime::is_release());
+    let line = link_program();
+    let encoded = line.rsplit(' ').next().unwrap_or_default();
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .unwrap();
+    let units = bytes
+        .chunks_exact(2)
+        .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+        .collect::<Vec<_>>();
+    let script = String::from_utf16(&units).unwrap();
+    let stem = orchbee_local_runtime::environment_stem();
+    assert!(script.contains(&literal(stem)), "{script}");
+    assert!(
+        script.contains(&literal(&format!("{stem}.exe"))),
+        "{script}"
+    );
+    for release in ["Orchbee", "orchbee.exe"] {
+        assert!(!script.contains(&literal(release)), "{script}");
+    }
+}
+#[test]
 fn only_an_openssh_release_line_of_8_5_or_later_lets_answers_be_remembered() {
     // The text `ssh -V` printed, the release it names, and whether answers may be remembered.
     type Case = (&'static str, Option<(u32, u32)>, bool);

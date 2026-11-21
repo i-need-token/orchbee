@@ -284,10 +284,17 @@ impl super::CliText {
             (Locale::ZhCn, "remote-unsupported") => {
                 "此版本只支持运行 Windows x64 或 ARM64 的远程机器。"
             }
-            (Locale::EnUs, "remote-not-installed") => {
+            (Locale::EnUs, "remote-not-installed") if orchbee_local_runtime::is_release() => {
                 "The remote machine has no usable Orchbee installation."
             }
-            (Locale::ZhCn, "remote-not-installed") => "远程机器上没有可用的 Orchbee。",
+            (Locale::ZhCn, "remote-not-installed") if orchbee_local_runtime::is_release() => {
+                "远程机器上没有可用的 Orchbee。"
+            }
+            // A development or test build runs only its own environment's Orchbee there.
+            (Locale::EnUs, "remote-not-installed") => {
+                "The remote machine has no Orchbee installation of this environment."
+            }
+            (Locale::ZhCn, "remote-not-installed") => "远程机器上没有这个环境的 Orchbee。",
             (Locale::EnUs, "remote-other-environment") => {
                 "The remote Orchbee belongs to another environment. Use release on both machines, or builds from the same checkout path on both."
             }

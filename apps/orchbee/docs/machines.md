@@ -304,11 +304,14 @@ remote command is an encoded PowerShell program with literal data.
 The launch line resolves the remote program through the remote store's `active.json`, never
 through `PATH`: in the store root (`ORCHBEE_INSTALL_DIR`, or a folder under
 `%LOCALAPPDATA%\Programs`) it reads the active version and runs `versions\<version>\<name>.exe`, and
-exits 125, read as `remote-not-installed`, when it resolves no program or cannot start it. A release
-build reads the `Orchbee` store and looks for `orchbee.exe`; a development or test build reads its
-own `<stem>` store and then the `Orchbee` store, looking for `<stem>.exe` and then `orchbee.exe` in
-each, so a remote with only the release installation reads as another environment rather than a
-missing one. See [Windows release installation](windows-cli-configuration.md#windows-release-installation).
+exits 125, read as `remote-not-installed`, when it resolves no program or cannot start it. Each
+build looks only for its own environment's installation, so builds never meet on the remote either:
+a release build reads the `Orchbee` store and looks for `orchbee.exe`, and a development or test
+build reads only its own `<stem>` store and looks only for `<stem>.exe`. It never runs the release
+installation or another build's, so nothing of theirs starts and nothing is written into their data
+folder; a remote without its own installation reads as `remote-not-installed`, whose sentence in a
+development or test build says that this environment's Orchbee is not there. See
+[Windows release installation](windows-cli-configuration.md#windows-release-installation).
 No protocol version, product version, or cohort is compared across machines beyond what the link's
 offer and the remote Session's handshake admit.
 
