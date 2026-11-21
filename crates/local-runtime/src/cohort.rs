@@ -20,7 +20,7 @@ const ARTIFACTS: [CohortArtifact; 4] = [
     CohortArtifact::TerminalHost,
 ];
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CohortArtifact {
     Client,
     Server,

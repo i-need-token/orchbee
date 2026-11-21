@@ -52,4 +52,33 @@ describe('Desktop Server connection contract', () => {
 			});
 		}
 	});
+
+	it('reads a refusal it cannot name as unknown, and a blocking process it cannot read as unnamed', () => {
+		// A reason a newer Main names leaves the window its general sentence.
+		for (const sessionRefusal of [
+			{ reason: 'not-yet-named' },
+			{ ioKind: 'not-a-kind', osError: 5, reason: 'server-not-started' },
+			'recovery-required',
+		]) {
+			expect(bootstrapOf({ sessionRefusal })).toEqual({ ...BOOTSTRAP, sessionRefusal: null });
+		}
+		const blockingProcess = {
+			processId: 4242,
+			program: 'orchbee-terminal-host.exe',
+			role: 'terminal-host',
+		};
+		const blocked = { blockingProcess, reason: 'recovery-required' };
+		expect(bootstrapOf({ sessionRefusal: blocked })).toEqual({
+			...BOOTSTRAP,
+			sessionRefusal: blocked,
+		});
+		expect(
+			bootstrapOf({
+				sessionRefusal: {
+					blockingProcess: { ...blockingProcess, processId: 0 },
+					reason: 'recovery-required',
+				},
+			}),
+		).toEqual({ ...BOOTSTRAP, sessionRefusal: { reason: 'recovery-required' } });
+	});
 });

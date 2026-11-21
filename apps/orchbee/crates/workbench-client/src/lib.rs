@@ -170,7 +170,7 @@ pub mod application {
             activate_named_session, inside_selected_session, select_session,
             session_client_endpoint,
         };
-        pub use crate::startup_status::RefusedVersions;
+        pub use crate::startup_status::{RefusedVersions, ServerSpawnFailure};
     }
 
     pub mod local_client {

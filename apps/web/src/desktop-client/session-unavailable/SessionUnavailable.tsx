@@ -16,6 +16,18 @@ function command(chunks: readonly ReactNode[]): ReactNode {
 	return <code className={styles['command']}>{chunks}</code>;
 }
 
+type ServerNotStarted = Extract<DesktopSessionRefusal, { reason: 'server-not-started' }>;
+
+/**
+ * Which sentence names what the system refused, as the TUI and CLI choose it: a missing or denied
+ * program file by name, any other refusal by the system's error number when it stated one.
+ */
+function systemAnswer({ ioKind, osError }: ServerNotStarted): { cause: string; code: string } {
+	if (ioKind === 'not-found') return { cause: 'missing', code: '' };
+	if (ioKind === 'permission-denied') return { cause: 'denied', code: '' };
+	return osError === null ? { cause: 'other', code: '' } : { cause: 'code', code: String(osError) };
+}
+
 /** Says what the TUI and CLI say for the same refusal, with Desktop naming itself. */
 function describe(
 	intl: ReturnType<typeof useOrchbeeIntl>,
@@ -25,9 +37,19 @@ function describe(
 		case undefined:
 			return intl.formatMessage(sessionConnectionMessages.unavailableDescription);
 		case 'recovery-required':
-			return intl.formatMessage(sessionConnectionMessages.unavailableRecoveryRequired, {
-				command,
-			});
+			// Process IDs stay as the system writes them, without digit grouping.
+			return refusal.blockingProcess === undefined
+				? intl.formatMessage(sessionConnectionMessages.unavailableRecoveryRequired, { command })
+				: intl.formatMessage(sessionConnectionMessages.unavailableRecoveryBlocked, {
+						processId: String(refusal.blockingProcess.processId),
+						program: refusal.blockingProcess.program,
+						role: refusal.blockingProcess.role,
+					});
+		case 'server-not-started':
+			return intl.formatMessage(
+				sessionConnectionMessages.unavailableServerNotStarted,
+				systemAnswer(refusal),
+			);
 		case 'desktop-too-old':
 			return intl.formatMessage(sessionConnectionMessages.unavailableDesktopTooOld, {
 				desktopVersion: refusal.desktopVersion,

@@ -16,7 +16,6 @@ impl ProcessIdentity {
             creation_time: NonZeroU64::new(creation_time)?,
         })
     }
-    #[cfg(any(windows, test))]
     pub(crate) fn pid(self) -> u32 {
         self.pid.get()
     }

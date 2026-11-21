@@ -23,11 +23,50 @@ export const DesktopServerConnectionDocumentSchema = z.uuid();
 const ProductVersionSchema = z.string().regex(/^[!-~]{1,64}$/u);
 
 /**
+ * A process an earlier start registered that is still running, which keeps the Session from
+ * recovering until it ends, as `server start` names it: its role, the file name of its program,
+ * never a path, and its process ID.
+ */
+export const DesktopBlockingProcessSchema = z.strictObject({
+	processId: z.number().int().min(1).max(4_294_967_295),
+	program: z
+		.string()
+		.regex(/^(?:orchbee|ob-(?:dev|test)-[0-9a-f]{16})-(?:server|worker|terminal-host)(?:\.exe)?$/u),
+	role: z.enum(['server', 'worker', 'terminal-host']),
+});
+
+/** The `ioKind` vocabulary `server start` names the kind of a system error with. */
+export const DesktopSystemErrorKindSchema = z.enum([
+	'not-found',
+	'permission-denied',
+	'invalid-input',
+	'invalid-data',
+	'timed-out',
+	'unsupported',
+	'interrupted',
+	'unexpected-eof',
+	'would-block',
+	'out-of-memory',
+	'other',
+]);
+
+/**
  * Why starting the Session was refused. Each reason has its own message; a refused version names
  * this Desktop's version and the Session's, which a Session older than the handshake never states.
+ * A recovery refusal names the process that blocks it when the start found one, and a Server the
+ * system would not create keeps what the system answered.
  */
 const DesktopSessionRefusalSchema = z.discriminatedUnion('reason', [
-	z.strictObject({ reason: z.literal('recovery-required') }),
+	z.strictObject({
+		blockingProcess: DesktopBlockingProcessSchema.optional().catch(undefined),
+		reason: z.literal('recovery-required'),
+	}),
+	z.strictObject({
+		ioKind: DesktopSystemErrorKindSchema,
+		/** The system's own error number, or null when it stated none. */
+		osError: z.number().int().nullable(),
+		reason: z.literal('server-not-started'),
+	}),
 	z.strictObject({
 		desktopVersion: ProductVersionSchema,
 		reason: z.literal('desktop-too-old'),
@@ -90,9 +129,11 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	relaunchPlace: DesktopRelaunchPlaceSchema.nullable(),
 	/**
 	 * Why starting the Session was refused, or null when it was not or the reason is unknown. Its
-	 * connection then ends before anything is read, and only Main saw why.
+	 * connection then ends before anything is read, and only Main saw why. A refusal this window
+	 * cannot read, such as a reason a newer Main names, reads as unknown, so the window gives its
+	 * general sentence instead of refusing the document.
 	 */
-	sessionRefusal: DesktopSessionRefusalSchema.nullable(),
+	sessionRefusal: DesktopSessionRefusalSchema.nullable().catch(null),
 	terminalHostName: z.string().min(1),
 	/**
 	 * Whether Main follows a release store's window pointer, so it can ever offer this window a newer

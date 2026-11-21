@@ -7,7 +7,9 @@
 //! otherwise. Windows may cold-recover a completely registered generation
 //! only after its exact owners are proved gone and its locks and endpoints are
 //! clear. Other interrupted, live, incomplete or uncertain state refuses
-//! recovery-required without repair or deletion.
+//! recovery-required without repair or deletion; a registered process proved
+//! still running is named as `blockingProcess`. A Server the system refused to
+//! create answers `server-not-started` with the system's answer.
 
 use crate::cli_text::CliText;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -269,17 +271,48 @@ fn classify(failure: ActivationFailure) -> Failure {
                 Failure::new(FailureKind::InternalFailure).details(stage_details("activation"))
             }
         }
-        // Spawn and post-spawn liveness failures keep the existing wedge
-        // verdict: the marker may already be committed — refused, never a
-        // clean timeout claim.
+        // A record failure around the spawn and a post-spawn liveness failure
+        // keep the existing wedge verdict: the marker may already be committed
+        // — refused, never a clean timeout claim.
         Some(ActivationCause::SpawnIo) => recovery_required(),
         None => match failure.failure {
             StartupFailure::TimedOut => timeout(),
             StartupFailure::RecoveryRequired => recovery_required(),
+            StartupFailure::RecoveryBlocked(blocker) => recovery_blocked(blocker),
+            StartupFailure::ServerNotStarted(spawn) => server_not_started(spawn),
             StartupFailure::SocketPathTooLong => socket_budget(),
             _ => Failure::new(FailureKind::InternalFailure),
         },
     }
+}
+
+/// The `recovery-required` refusal naming the registered process that still runs, worded as the
+/// TUI words it.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn recovery_blocked(blocker: orchbee_local_runtime::RecoveryBlocker) -> Failure {
+    let mut details = stage_reason_details("activation", "recovery-required");
+    details.insert(
+        "blockingProcess".to_owned(),
+        super::blocking_process::member(blocker),
+    );
+    Failure::new(FailureKind::Rejected)
+        .details(details)
+        .startup_display(StartupFailure::RecoveryBlocked(blocker))
+}
+
+/// A Server the system refused to create: its own reason with what the system answered, worded as
+/// the TUI words it. It keeps the activation refusal's kind and exit code.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn server_not_started(spawn: crate::local_activation::ServerSpawnFailure) -> Failure {
+    let mut details = stage_reason_details("activation", "server-not-started");
+    details.insert(
+        "ioKind".to_owned(),
+        json!(super::io_kind::IoKind::of(spawn.kind).token()),
+    );
+    details.insert("osError".to_owned(), json!(spawn.os_error));
+    Failure::new(FailureKind::Rejected)
+        .details(details)
+        .startup_display(StartupFailure::ServerNotStarted(spawn))
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]

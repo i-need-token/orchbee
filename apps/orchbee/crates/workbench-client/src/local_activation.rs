@@ -72,10 +72,11 @@ pub enum ActivationCause {
     RuntimeLocation(io::Error),
     /// Marker, socket-presence probe, or marker-commit I/O.
     RuntimeIo(io::Error),
-    /// Server spawn or post-spawn liveness probe failure — a wedge-class
-    /// fault: the activation marker may already be committed, so the verdict
-    /// is unconditionally `RecoveryRequired` and the io detail is not
-    /// classified further.
+    /// A Session record failure around the Server's creation, or a post-spawn
+    /// liveness probe failure — a wedge-class fault: the activation marker may
+    /// already be committed, so the verdict is unconditionally
+    /// `RecoveryRequired` and the io detail is not classified further. A
+    /// creation the system refused is `ServerNotStarted` instead.
     SpawnIo,
 }
 
@@ -482,16 +483,13 @@ fn connect_or_activate(
                 // The Session's terminals inherit a `PATH` that ends with this cohort's folder.
                 #[cfg(not(windows))]
                 let child = orchbee_local_runtime::spawn_session_server(&executable, &arguments);
-                Some(child.map_err(|_| {
+                Some(child.map_err(|error| {
                     fallback::observe(
                         &activation_id,
                         fallback::Seen::FailedToStart,
                         fallback::record,
                     );
-                    ActivationFailure::caused(
-                        StartupFailure::RecoveryRequired,
-                        ActivationCause::SpawnIo,
-                    )
+                    spawn_failure(&error)
                 })?)
             }
             // A POSIX Server that holds the lifetime lock without an active marker is completing
@@ -749,12 +747,55 @@ fn runtime_verdict(_refusal: Option<orchbee_local_runtime::AdmissionRefusal>) ->
     StartupFailure::Runtime
 }
 
+/// A recovery refused because an earlier start's process still runs names that process; any other
+/// refusal keeps the recovery verdict.
 fn recovery_failure(error: io::Error) -> ActivationFailure {
+    if let Some(blocker) = orchbee_local_runtime::RecoveryBlocker::of(&error) {
+        return ActivationFailure::bare(StartupFailure::RecoveryBlocked(blocker));
+    }
     match error.kind() {
         io::ErrorKind::InvalidData | io::ErrorKind::WouldBlock => {
             ActivationFailure::bare(StartupFailure::RecoveryRequired)
         }
         _ => runtime_failure(error),
+    }
+}
+
+/// A Server the system would not create keeps the system's answer, so the person sees what was
+/// refused, such as a missing or blocked program file. Nothing ran, so the next start recovers by
+/// itself. On Windows only the creation step is the system's answer; a failure in the Session
+/// record around it keeps the recovery verdict.
+fn spawn_failure(error: &io::Error) -> ActivationFailure {
+    #[cfg(windows)]
+    if orchbee_local_runtime::SessionChildStep::of(error)
+        != Some(orchbee_local_runtime::SessionChildStep::Creation)
+    {
+        return ActivationFailure::caused(
+            StartupFailure::RecoveryRequired,
+            ActivationCause::SpawnIo,
+        );
+    }
+    ActivationFailure::bare(StartupFailure::ServerNotStarted(
+        crate::startup_status::ServerSpawnFailure {
+            kind: error.kind(),
+            os_error: os_error(error),
+        },
+    ))
+}
+
+/// The first operating-system error code in `error` or the errors it wraps.
+fn os_error(error: &io::Error) -> Option<i32> {
+    let mut current: &(dyn std::error::Error + 'static) = error;
+    loop {
+        current = match current.downcast_ref::<io::Error>() {
+            Some(error) => match (error.raw_os_error(), error.get_ref()) {
+                (Some(code), _) => return Some(code),
+                // A wrapping I/O error's own source skips the error it wraps.
+                (None, Some(wrapped)) => wrapped,
+                (None, None) => return None,
+            },
+            None => current.source()?,
+        };
     }
 }
 

@@ -16,6 +16,10 @@ impl super::CliText {
                 .startup_failure(&crate::local_startup::StartupFailure::ElevatedSession)
                 .into_owned();
         }
+        // So does a local start that names what blocks it or what the system refused.
+        if let Some(startup) = failure.startup() {
+            return self.locale.startup_failure(startup).into_owned();
+        }
         if failure.failure_schema.is_none()
             && failure
                 .details

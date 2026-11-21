@@ -37,6 +37,21 @@ const sessionTooOld = {
 } as const;
 const otherEnvironment = { reason: 'other-environment' } as const;
 const developmentBuildMismatch = { reason: 'development-build-mismatch' } as const;
+const recoveryBlocked = {
+	blockingProcess: {
+		processId: 12_345,
+		program: 'orchbee-terminal-host.exe',
+		role: 'terminal-host',
+	},
+	reason: 'recovery-required',
+} as const;
+const serverMissing = { ioKind: 'not-found', osError: 2, reason: 'server-not-started' } as const;
+const serverDenied = {
+	ioKind: 'permission-denied',
+	osError: 5,
+	reason: 'server-not-started',
+} as const;
+const serverRefused = { ioKind: 'other', osError: 216, reason: 'server-not-started' } as const;
 
 export const Unavailable: Story = { decorators: english };
 
@@ -44,6 +59,19 @@ export const RecoveryRequired: Story = {
 	args: { refusal: { reason: 'recovery-required' } },
 	decorators: english,
 };
+
+/** A process an earlier start left running is named with what clears it. */
+export const RecoveryBlocked: Story = { args: { refusal: recoveryBlocked }, decorators: english };
+
+export const ServerProgramMissing: Story = {
+	args: { refusal: serverMissing },
+	decorators: english,
+};
+
+export const ServerProgramDenied: Story = { args: { refusal: serverDenied }, decorators: english };
+
+/** Any other system refusal keeps the system's error number. */
+export const ServerRefused: Story = { args: { refusal: serverRefused }, decorators: english };
 
 export const DesktopTooOld: Story = { args: { refusal: desktopTooOld }, decorators: english };
 
@@ -64,6 +92,26 @@ export const DevelopmentBuildMismatch: Story = {
 
 export const SimplifiedChinese: Story = {
 	args: { refusal: { reason: 'recovery-required' } },
+	decorators: simplifiedChinese,
+};
+
+export const SimplifiedChineseRecoveryBlocked: Story = {
+	args: { refusal: recoveryBlocked },
+	decorators: simplifiedChinese,
+};
+
+export const SimplifiedChineseServerProgramMissing: Story = {
+	args: { refusal: serverMissing },
+	decorators: simplifiedChinese,
+};
+
+export const SimplifiedChineseServerProgramDenied: Story = {
+	args: { refusal: serverDenied },
+	decorators: simplifiedChinese,
+};
+
+export const SimplifiedChineseServerRefused: Story = {
+	args: { refusal: serverRefused },
 	decorators: simplifiedChinese,
 };
 

@@ -3,7 +3,7 @@
 //! runtime in `<base>/<session>/`, both folders named by the Session.
 use crate::{
     ActivationState, DataRoot, HeldLock, LockAttempt,
-    ModeCheckedLocalSessionRendezvous as Rendezvous, SessionName,
+    ModeCheckedLocalSessionRendezvous as Rendezvous, RecoveryBlocker, SessionName,
     durable_sessions::{self as durable, CatalogRecord, Directory, Lifecycle, Record},
     private_filesystem as permissions,
     process_observation::ProcessSnapshot,
@@ -180,8 +180,9 @@ impl SessionCatalog {
                             .ok_or(io::ErrorKind::InvalidData)?;
                         let processes = &record.processes;
                         let snapshot = ProcessSnapshot::observe(processes);
-                        if snapshot.verdict(processes, &writer) != RecoveryVerdict::Gone {
-                            return Err(io::ErrorKind::InvalidData.into());
+                        let verdict = snapshot.verdict(processes, &writer);
+                        if verdict != RecoveryVerdict::Gone {
+                            return Err(RecoveryBlocker::refusal(processes, verdict));
                         }
                     }
                     None if !storage.exists => {}
@@ -231,8 +232,9 @@ impl SessionCatalog {
         }
         let processes = &record.processes;
         let snapshot = ProcessSnapshot::observe(processes);
-        if snapshot.verdict(processes, &writer) != RecoveryVerdict::Gone {
-            return Err(io::ErrorKind::InvalidData.into());
+        let verdict = snapshot.verdict(processes, &writer);
+        if verdict != RecoveryVerdict::Gone {
+            return Err(RecoveryBlocker::refusal(processes, verdict));
         }
         // begin_activation closes the prior generation before publishing the fresh
         // record. With every slot NotStarted, no CreateProcess can have happened,
@@ -668,13 +670,36 @@ impl SessionCatalog {
     }
 }
 
+/// What one guarded cold-recovery observation of a Session found.
+enum ColdObservation {
+    Recoverable,
+    /// A registered process an earlier start left is still running.
+    Blocked(RecoveryBlocker),
+    NotRecoverable,
+}
+
 impl NamedSessionEntry {
     /// A read-only, guarded observation of cold-recovery eligibility, never a future-start promise.
     pub fn cold_recoverable(&self) -> io::Result<bool> {
+        Ok(matches!(self.observe_cold()?, ColdObservation::Recoverable))
+    }
+
+    /// The registered process whose exact identity this same observation found still running,
+    /// which keeps a start from recovering the Session until it ends. Read-only: it names the
+    /// process and never ends it.
+    pub fn recovery_blocker(&self) -> io::Result<Option<RecoveryBlocker>> {
+        Ok(match self.observe_cold()? {
+            ColdObservation::Blocked(blocker) => Some(blocker),
+            ColdObservation::Recoverable | ColdObservation::NotRecoverable => None,
+        })
+    }
+
+    fn observe_cold(&self) -> io::Result<ColdObservation> {
+        use ColdObservation::{NotRecoverable, Recoverable};
         if self.deleting || self.unreadable || self.conflicted {
-            return Ok(false);
+            return Ok(NotRecoverable);
         }
-        let observed = (|| -> io::Result<bool> {
+        let observed = (|| -> io::Result<ColdObservation> {
             let base = self.runtime.parent().ok_or(io::ErrorKind::InvalidInput)?;
             let _base = permissions::open_tree(base)?;
             let _runtime = match permissions::open_tree(&self.runtime) {
@@ -687,23 +712,25 @@ impl NamedSessionEntry {
             let _lifetime = existing_lock(&self.runtime.join("session-lifetime.lock"), false)?;
             let scope = self.name.as_str();
             let Some(directory) = Directory::open(&self.root)? else {
-                return Ok(false);
+                return Ok(NotRecoverable);
             };
             let writer = directory
                 .existing_writer(scope)?
                 .ok_or(io::ErrorKind::NotFound)?;
             let Some(record) = directory.read(scope)? else {
-                return Ok(false);
+                return Ok(NotRecoverable);
             };
             if !matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed)
                 || !record.uses_runtime(&self.runtime)
             {
-                return Ok(false);
+                return Ok(NotRecoverable);
             }
             let processes = &record.processes;
             let snapshot = ProcessSnapshot::observe(processes);
-            if snapshot.verdict(processes, &writer) != RecoveryVerdict::Gone {
-                return Ok(false);
+            let verdict = snapshot.verdict(processes, &writer);
+            if verdict != RecoveryVerdict::Gone {
+                return Ok(RecoveryBlocker::named(processes, verdict)
+                    .map_or(NotRecoverable, ColdObservation::Blocked));
             }
             no_endpoints(&self.runtime)?;
             let _storage = storage_guard(&self.checkpoint)?;
@@ -723,9 +750,9 @@ impl NamedSessionEntry {
                         Ok(ActivationState::Absent | ActivationState::Active) => {}
                         Ok(ActivationState::Stopped { .. } | ActivationState::Crashed { .. })
                             if processes.is_unstarted() => {}
-                        Ok(_) => return Ok(false),
+                        Ok(_) => return Ok(NotRecoverable),
                         Err(error) if error.kind() == io::ErrorKind::InvalidData => {
-                            return Ok(false);
+                            return Ok(NotRecoverable);
                         }
                         Err(error) => return Err(error),
                     }
@@ -740,14 +767,14 @@ impl NamedSessionEntry {
                             true,
                             processes.is_unstarted(),
                         )? {
-                            return Ok(false);
+                            return Ok(NotRecoverable);
                         }
                     }
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                     Err(error) => return Err(error),
                 }
             }
-            Ok(true)
+            Ok(Recoverable)
         })();
         match observed {
             Err(error)
@@ -756,7 +783,7 @@ impl NamedSessionEntry {
                     io::ErrorKind::WouldBlock | io::ErrorKind::NotFound
                 ) =>
             {
-                Ok(false)
+                Ok(NotRecoverable)
             }
             other => other,
         }

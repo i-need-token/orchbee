@@ -1,4 +1,8 @@
-import type { DesktopSessionRefusal } from '@orchbee/desktop-client-protocol';
+import {
+	DesktopBlockingProcessSchema,
+	DesktopSystemErrorKindSchema,
+	type DesktopSessionRefusal,
+} from '@orchbee/desktop-client-protocol';
 import { z } from 'zod';
 
 /** A capability name of the handshake: 1 to 64 lowercase letters, digits, and hyphens. */
@@ -15,10 +19,31 @@ const ServerStartDocumentSchema = z.looseObject({
 	}),
 });
 
-/** The refusal `server start` answers until a Session it cannot prove stopped is recovered. */
+/**
+ * The refusal `server start` answers until a Session it cannot prove stopped is recovered. It names
+ * the process that blocks recovery when it found one; a process it cannot read keeps the refusal.
+ */
 const RecoveryRequiredFailureSchema = z.looseObject({
 	failure: z.looseObject({
-		details: z.looseObject({ reason: z.literal('recovery-required') }),
+		details: z.looseObject({
+			blockingProcess: z
+				.looseObject(DesktopBlockingProcessSchema.shape)
+				.optional()
+				.catch(undefined),
+			reason: z.literal('recovery-required'),
+		}),
+		kind: z.literal('rejected'),
+	}),
+});
+
+/** The refusal `server start` answers when the system would not create the Server, with its answer. */
+const ServerNotStartedFailureSchema = z.looseObject({
+	failure: z.looseObject({
+		details: z.looseObject({
+			ioKind: DesktopSystemErrorKindSchema.catch('other'),
+			osError: z.number().int().nullable().catch(null),
+			reason: z.literal('server-not-started'),
+		}),
 		kind: z.literal('rejected'),
 	}),
 });
@@ -87,9 +112,30 @@ export function interpretServerStartAnswer(stdout: string, failed: boolean): Ser
 }
 
 function interpretRefusal(document: unknown): ServerRestoreState {
-	if (RecoveryRequiredFailureSchema.safeParse(document).success) {
-		return { kind: 'refused', refusal: { reason: 'recovery-required' } };
+	const recovery = RecoveryRequiredFailureSchema.safeParse(document);
+	if (recovery.success) {
+		const blocking = recovery.data.failure.details.blockingProcess;
+		return {
+			kind: 'refused',
+			refusal:
+				blocking === undefined
+					? { reason: 'recovery-required' }
+					: {
+							blockingProcess: {
+								processId: blocking.processId,
+								program: blocking.program,
+								role: blocking.role,
+							},
+							reason: 'recovery-required',
+						},
+		};
 	}
+	const notStarted = ServerNotStartedFailureSchema.safeParse(document);
+	if (notStarted.success) {
+		const { ioKind, osError } = notStarted.data.failure.details;
+		return { kind: 'refused', refusal: { ioKind, osError, reason: 'server-not-started' } };
+	}
+	// Any other reason, including one a newer build names, leaves the window its general sentence.
 	const incompatible = IncompatibleFailureSchema.safeParse(document);
 	if (!incompatible.success) return { kind: 'lost-or-unknown' };
 	const details = incompatible.data.failure.details;

@@ -144,6 +144,8 @@ pub use standard_rights::{
 };
 mod process_observation;
 mod process_registration;
+mod recovery_blocker;
+pub use recovery_blocker::{BlockerRole, RecoveryBlocker};
 mod registered_child;
 pub use activation_record::{ActivationState, RetainedActivationRecord};
 pub use registered_child::{SessionChild, SessionChildStep, spawn_session_child};

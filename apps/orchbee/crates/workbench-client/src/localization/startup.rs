@@ -103,7 +103,66 @@ impl Locale {
                 "此开发构建无法加入正在运行的会话。请运行 `orchbee server stop` 停止它，然后重试。\n".into()
             }
             (locale, StartupFailure::Refused(refusal)) => locale.admission_refusal(refusal).into(),
+            (locale, StartupFailure::RecoveryBlocked(blocker)) => {
+                locale.recovery_blocked(blocker).into()
+            }
+            (locale, StartupFailure::ServerNotStarted(failure)) => {
+                locale.server_not_started(failure).into()
+            }
             (locale, failure) => locale.startup_failure_text(failure).into(),
+        }
+    }
+
+    /// A recovery refused because a process an earlier start registered still runs, naming its
+    /// role, program and process ID and what clears it. Only Windows registers processes. The
+    /// desktop window says the same through `session.connection.unavailable.recoveryBlocked`.
+    fn recovery_blocked(self, blocker: &orchbee_local_runtime::RecoveryBlocker) -> String {
+        use orchbee_local_runtime::BlockerRole;
+        // The runtime roles keep their English names in both languages (`docs/GLOSSARY.md`).
+        let role = match blocker.role {
+            BlockerRole::Server => "Server",
+            BlockerRole::Worker => "Worker",
+            BlockerRole::TerminalHost => "Terminal Host",
+        };
+        let program = blocker.role.program().file_name();
+        let process = blocker.process_id;
+        match self {
+            Self::EnUs => format!(
+                "Orchbee can't start this Session while the {role} from an earlier start is still running ({program}, process {process}). End that process in Task Manager or restart the computer; the next start then recovers the Session by itself.\n"
+            ),
+            Self::ZhCn => format!(
+                "之前启动的 {role} 仍在运行（{program}，进程 {process}），Orchbee 无法启动此会话。请在任务管理器中结束该进程或重启电脑，下次启动会自动恢复会话。\n"
+            ),
+        }
+    }
+
+    /// A Server the system refused to create, saying what the system refused. The desktop window
+    /// says the same through the `session.connection.unavailable.serverNotStarted` messages.
+    fn server_not_started(self, failure: &crate::startup_status::ServerSpawnFailure) -> String {
+        match (self, failure.kind, failure.os_error) {
+            (Self::EnUs, std::io::ErrorKind::NotFound, _) => {
+                "Orchbee couldn't start this Session: the system couldn't find its program file. Reinstall Orchbee, or check whether security software removed the file.\n".to_owned()
+            }
+            (Self::ZhCn, std::io::ErrorKind::NotFound, _) => {
+                "Orchbee 无法启动此会话：系统找不到它的程序文件。请重新安装 Orchbee，或检查该文件是否被安全软件移除。\n".to_owned()
+            }
+            (Self::EnUs, std::io::ErrorKind::PermissionDenied, _) => {
+                "Orchbee couldn't start this Session: the system denied access to its program file. Security software or a system policy may be blocking it.\n".to_owned()
+            }
+            (Self::ZhCn, std::io::ErrorKind::PermissionDenied, _) => {
+                "Orchbee 无法启动此会话：系统拒绝访问它的程序文件，可能是安全软件或系统策略阻止了它。\n".to_owned()
+            }
+            (Self::EnUs, _, Some(code)) => format!(
+                "Orchbee couldn't start this Session: the system refused to run its program (error {code}).\n"
+            ),
+            (Self::ZhCn, _, Some(code)) => {
+                format!("Orchbee 无法启动此会话：系统拒绝运行它的程序（错误 {code}）。\n")
+            }
+            (Self::EnUs, _, None) => {
+                "Orchbee couldn't start this Session: the system refused to run its program.\n"
+                    .to_owned()
+            }
+            (Self::ZhCn, _, None) => "Orchbee 无法启动此会话：系统拒绝运行它的程序。\n".to_owned(),
         }
     }
 
@@ -241,14 +300,17 @@ impl Locale {
                     RecoveryCheckpoint::Absent => "本地会话需要显式恢复。未启动替代进程。\n",
                 }
             }
-            // Rendered with their versions or the refused item above.
+            // Rendered with their versions, the refused item, the blocking process or the system's
+            // answer above.
             (
                 _,
                 StartupFailure::ClientTooOld(_)
                 | StartupFailure::SessionTooOld(_)
                 | StartupFailure::OtherEnvironment
                 | StartupFailure::DevelopmentBuildMismatch
-                | StartupFailure::Refused(_),
+                | StartupFailure::Refused(_)
+                | StartupFailure::RecoveryBlocked(_)
+                | StartupFailure::ServerNotStarted(_),
             ) => "",
             (Self::EnUs, StartupFailure::ElevatedSession) => {
                 "This Session runs as administrator. Run `orchbee server stop` in an administrator terminal, then open Orchbee again.\n"

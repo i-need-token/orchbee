@@ -448,7 +448,21 @@ fn line(key: &str, check: &Check, locale: Locale) -> (String, Option<String>) {
             };
             (format!("{}: {reason}", path(&details[row])), None)
         }
-        ("runtime", "warning") => (copy.cli_doctor_runtime_advisory(reason).to_owned(), None),
+        // A blocked recovery reads as every start refusal names it.
+        ("runtime", "warning") => {
+            match super::blocking_process::read(&details["blockingProcess"]) {
+                Some(blocker) if reason == "recovery-blocked" => (
+                    locale
+                        .startup_failure(&crate::local_activation::StartupFailure::RecoveryBlocked(
+                            blocker,
+                        ))
+                        .trim_end()
+                        .to_owned(),
+                    None,
+                ),
+                _ => (copy.cli_doctor_runtime_advisory(reason).to_owned(), None),
+            }
+        }
         ("runtime", _) => (path(&details["runtimeDirectory"]), None),
         ("session", "fail") => (copy.cli_doctor_session_failure(reason), None),
         ("session", "warning") => (copy.cli_runtime_status_value(reason).to_owned(), None),

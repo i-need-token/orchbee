@@ -1447,9 +1447,17 @@ and is never reset per stage:
    `{stage:"activation",reason:"recovery-required"}` when the marker or sockets show no live
    owner, commit the marker,
    spawn `orchbee-server --runtime-directory <runtime-directory>` from the validated cohort, then
-   poll connect plus `try_wait` until readiness. A spawn or `try_wait` failure is the same
-   `recovery-required` refusal — the marker may already be committed, so the answer is never
-   a clean-timeout claim.
+   poll connect plus `try_wait` until readiness. On Windows a refusal whose recovery verdict
+   observed a registered process alive adds `blockingProcess`: its `role` (`server`, `worker` or
+   `terminal-host`), `program`, the file name of its program and never a path, and `processId`;
+   the text names that process and says that ending it or restarting the computer clears the
+   refusal. An unknown observation names nothing. A Server the system refused to create is
+   `rejected` `{stage:"activation",reason:"server-not-started",ioKind,osError}`: `ioKind` uses the
+   closed vocabulary of the `status client` cohort diagnostic and `osError` is the system's error
+   number or null. Nothing ran, and the text says what the system refused. On Windows only the
+   process creation itself answers this way; a Session record failure around it, and a `try_wait`
+   failure everywhere, is the same `recovery-required` refusal — the marker may already be
+   committed, so the answer is never a clean-timeout claim.
 5. **Probe** — the admitted probe `LocalClient` is dropped before output; a success implies
    no held session, grant, or Session identity receipt.
 
@@ -1506,6 +1514,14 @@ advisory: the records are retained as found and never migrated, they refuse only
 and the next step is another `--session` name or moving the listed paths away after confirming
 no older build still uses them. Doctor never moves, repairs or deletes a record.
 
+On Windows, when the Session's catalog record names a registered process whose exact identity, its
+process ID and creation time, is still alive, the runtime facts carry `blockingProcess` in the
+shape `server start` reports it and `recovery-blocked` leads the advisories; doctor's text line is
+then the sentence a refused start shows. This is the record read and identity observation
+`session list` uses for `recoverable`, under the record writer lock, so a Session whose lifetime
+lock is held, a lock another start holds, an unknown observation or an unreadable record names
+nothing. It connects to no endpoint and ends no process.
+
 The runtime folder report is the read-only counterpart of activation: it holds bounded facts about the
 selected local Session runtime without connecting to anything, creating anything, or
 repairing anything. The runtime base and Session resolve exactly like `server start`
@@ -1534,7 +1550,8 @@ attempted-or-classified coverage fact — `false` only when the cooperative 5-se
 spent between operations — never a runtime-health claim.
 
 `result.advisories` carries the conditional advisories the current activation predicate's own
-facts justify: `activation-recorded` when a fully valid marker was observed, `socket-residue`
+facts justify: `recovery-blocked` first when the Session's record names a registered process
+proven alive, `activation-recorded` when a fully valid marker was observed, `socket-residue`
 when a fully valid client or worker socket leaf was observed. Doctor warns with the first advisory
 only while its Session check is not-applicable. The advisory quotes current policy over
 observed facts; it never predicts the result of a nonatomic future `server start`, which
@@ -2154,7 +2171,8 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | `server start` cohort `InvalidData`/`NotFound`/`PermissionDenied`/`TimedOut`/other io kind                                                | `incompatible`/`service-unavailable`/`denied`/`timeout`/`internal-failure` | 6/4/3/7/1 | `{stage:"cohort"}`                                                                                      |
 | `server start` socket path over the `sockaddr_un` budget                                                                                  | `service-unavailable`                                                      | 4         | `{stage:"runtime-directory",reason:"address-too-long"}`                                                 |
 | `server start` connect/admission failure                                                                                                  | the `ConnectClientError` rows above, verbatim                              | 4/5/6     | `{stage:"admission"}`                                                                                   |
-| `server start` marker or sockets committed without a live owner; Server spawn or `try_wait` io failure                                    | `rejected`                                                                 | 3         | `{stage:"activation",reason:"recovery-required"}`                                                       |
+| `server start` marker or sockets committed without a live owner; record failure around Server creation; `try_wait` io failure             | `rejected`                                                                 | 3         | `{stage:"activation",reason:"recovery-required",blockingProcess?}`                                      |
+| `server start` Server creation refused by the system                                                                                      | `rejected`                                                                 | 3         | `{stage:"activation",reason:"server-not-started",ioKind,osError}`                                       |
 | `server start` activation deadline elapsed; lock acquisition `TimedOut`                                                                   | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                                  |
 | `server start` marker/probe/lock io failure (non-timeout)                                                                                 | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                                  |
 | Network query, mutation, `server start` or `config check` outside Linux/macOS/Windows                                                     | `service-unavailable`                                                      | 4         | `{stage:"platform",reason:"unsupported-platform"}`                                                      |

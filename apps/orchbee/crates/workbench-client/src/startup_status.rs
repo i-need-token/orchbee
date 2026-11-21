@@ -3,8 +3,8 @@
 
 /// The single local-startup verdict vocabulary shared below activation and its UI adapters.
 /// The activation core itself only ever emits `Cohort`, `Runtime`, `Refused`,
-/// `SocketPathTooLong`, `RecoveryRequired`, one of the handshake refusals, `ElevatedSession`,
-/// `Admission`, or `TimedOut`;
+/// `SocketPathTooLong`, `RecoveryRequired`, `RecoveryBlocked`, `ServerNotStarted`, one of the
+/// handshake refusals, `ElevatedSession`, `Admission`, or `TimedOut`;
 /// `Terminal`, `TerminalUnavailable`, `OutcomeUnknown`, and `Interface` are
 /// produced exclusively by the TUI adapter's own terminal stages and live
 /// in this one enum so both callers classify the same verdict type.
@@ -19,6 +19,12 @@ pub enum StartupFailure {
     Refused(Box<orchbee_local_runtime::AdmissionRefusal>),
     SocketPathTooLong,
     RecoveryRequired,
+    /// A process an earlier start registered is still running, so the Session cannot recover;
+    /// ending it, or restarting the computer, lets the next start recover by itself.
+    RecoveryBlocked(orchbee_local_runtime::RecoveryBlocker),
+    /// The system refused to create the Server process. Nothing ran, so the next start recovers by
+    /// itself once the cause is gone.
+    ServerNotStarted(ServerSpawnFailure),
     /// The running Session supports only newer Clients.
     ClientTooOld(Box<RefusedVersions>),
     /// The running Session is older than this Client supports, or predates the handshake.
@@ -35,6 +41,14 @@ pub enum StartupFailure {
     OutcomeUnknown,
     Interface,
     Configuration,
+}
+
+/// What the system answered when it refused to create the Server process: the error's kind and,
+/// when it stated one, its operating-system error code.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ServerSpawnFailure {
+    pub kind: std::io::ErrorKind,
+    pub os_error: Option<i32>,
 }
 
 /// The product versions a generation refusal names; a peer from before the handshake states no

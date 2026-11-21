@@ -493,6 +493,56 @@
 				},
 				"reason": {
 					"const": "recovery-required"
+				},
+				"blockingProcess": {
+					"type": "object",
+					"required": ["role", "program", "processId"],
+					"additionalProperties": false,
+					"properties": {
+						"role": {
+							"enum": ["server", "worker", "terminal-host"]
+						},
+						"program": {
+							"type": "string",
+							"pattern": "^(?:orchbee|ob-(?:dev|test)-[0-9a-f]{16})-(?:server|worker|terminal-host)(?:\\.exe)?$"
+						},
+						"processId": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4294967295
+						}
+					}
+				}
+			}
+		},
+		"serverNotStartedDetails": {
+			"type": "object",
+			"required": ["stage", "reason", "ioKind", "osError"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "activation"
+				},
+				"reason": {
+					"const": "server-not-started"
+				},
+				"ioKind": {
+					"enum": [
+						"not-found",
+						"permission-denied",
+						"invalid-input",
+						"invalid-data",
+						"timed-out",
+						"unsupported",
+						"interrupted",
+						"unexpected-eof",
+						"would-block",
+						"out-of-memory",
+						"other"
+					]
+				},
+				"osError": {
+					"type": ["integer", "null"]
 				}
 			}
 		},
@@ -927,6 +977,9 @@
 									},
 									{
 										"$ref": "#/$defs/recoveryRequiredDetails"
+									},
+									{
+										"$ref": "#/$defs/serverNotStartedDetails"
 									}
 								]
 							}

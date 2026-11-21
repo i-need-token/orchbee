@@ -49,8 +49,12 @@ and for the Session query five seconds with two for the reply.
 The runtime
 advisories (`activation-recorded`, `socket-residue`, `pipe-name-present`, `unrecognized-records`)
 describe what a running Session also leaves, so they warn only when the Session check is
-not-applicable. A check whose collector the platform lacks is `{"kind":"unsupported"}` in JSON and
-has no text line; on Linux that is `installation` and `session`.
+not-applicable. `recovery-blocked` leads them when the Session's record names a registered process
+whose exact identity is still alive, read by the observation `session list` uses for `recoverable`,
+with no Server contacted: the runtime details then carry `blockingProcess` (`role`, `program`, the
+program's file name, and `processId`), and the text line is the sentence a refused start shows. A
+check whose collector the platform lacks is `{"kind":"unsupported"}` in JSON and has no text line;
+on Linux that is `installation` and `session`.
 
 Text starts with the verdict, then one line per check: the status word (`ok`, `warn`, `fail`, or
 `-` for not-applicable; zh-CN `通过`, `警告`, `失败`, `-`), the label, and one fact. A warning or a

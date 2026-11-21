@@ -69,10 +69,14 @@ anything is known only to the activating process and the connection's bytes are 
 the result with the ports: whether the document may open a first Workspace, which only the first
 document a window connects may, along with the home directory, whether a login shell is available,
 and the host name. The announcement also says why that start was refused, because the connection
-then ends before the page reads anything and only Main saw why: until the Session is recovered, or
-by the Session's handshake as the CLI reports it, with this Desktop too old, the Session too old,
-another environment, or a development build of another protocol. A version refusal carries the
-bundled Client's version and the Session's, which a Session older than the handshake never states.
+then ends before the page reads anything and only Main saw why: until the Session is recovered,
+naming the process an earlier start left running when the CLI names one; because the system would
+not create the Server, with the system's `ioKind` and `osError`; or by the Session's handshake as
+the CLI reports it, with this Desktop too old, the Session too old, another environment, or a
+development build of another protocol. A version refusal carries the bundled Client's version and
+the Session's, which a Session older than the handshake never states. Any other failure, including
+a reason a newer CLI names, announces no reason, and so does a refusal the page cannot read, so the
+page shows its general sentence.
 
 ## Window Update
 

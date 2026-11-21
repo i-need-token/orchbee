@@ -1,9 +1,9 @@
 //! Private-runtime report workflow over admitted file and unauthenticated endpoint-name facts.
 use super::{Failure, FailureKind, RuntimeFolder};
 use orchbee_local_runtime::{
-    ActivationState, DataRoot, ModeCheckedLocalSessionRendezvous as Rendezvous, RendezvousError,
-    SessionCatalog, SessionLifetimeObservation, SessionScope, UnrecognizedRecord,
-    UnrecognizedRecordKind, UnrecognizedRecordReason,
+    ActivationState, DataRoot, ModeCheckedLocalSessionRendezvous as Rendezvous, NamedSessionEntry,
+    RecoveryBlocker, RendezvousError, SessionCatalog, SessionLifetimeObservation, SessionScope,
+    UnrecognizedRecord, UnrecognizedRecordKind, UnrecognizedRecordReason,
 };
 use serde_json::{Map, Value, json};
 use std::{
@@ -279,6 +279,25 @@ fn collect_at(
     if !records.is_empty() {
         advisories.push("unrecognized-records");
     }
+    let blocker = if unstarted {
+        None
+    } else if Instant::now() >= deadline {
+        complete = false;
+        None
+    } else {
+        match recovery_blocker(base, root, scope, deadline) {
+            Ok(blocker) => blocker,
+            // Only a spent budget leaves the report incomplete; an unreadable record names none.
+            Err(error) => {
+                complete &= error.kind() != io::ErrorKind::TimedOut;
+                None
+            }
+        }
+    };
+    // What blocks a start leads, so the check's warning names it.
+    if blocker.is_some() {
+        advisories.insert(0, "recovery-blocked");
+    }
     let mut result = Map::from_iter([
         ("complete".to_owned(), json!(complete)),
         ("scope".to_owned(), json!(scope)),
@@ -307,7 +326,27 @@ fn collect_at(
             .collect(),
     );
     result["unrecognizedRecords"] = Value::Object(member);
+    if let Some(blocker) = blocker {
+        result["blockingProcess"] = crate::cli::blocking_process::member(blocker);
+    }
     Ok(RuntimeFolder { result, advisories })
+}
+
+/// The registered process that keeps a start from recovering this Session, read from its record by
+/// the observation `session list` uses for `recoverable`. No Server is contacted and nothing ends.
+fn recovery_blocker(
+    base: &Path,
+    root: Option<&DataRoot>,
+    scope: &str,
+    deadline: Instant,
+) -> io::Result<Option<RecoveryBlocker>> {
+    let Some(root) = root else {
+        return Ok(None);
+    };
+    SessionCatalog::list(base, root, deadline)?
+        .iter()
+        .find(|entry| entry.name.as_str().eq_ignore_ascii_case(scope))
+        .map_or(Ok(None), NamedSessionEntry::recovery_blocker)
 }
 
 #[cfg(all(test, windows))]

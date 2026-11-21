@@ -54,7 +54,7 @@ orchbee --session work status --format json
 orchbee --session work tui
 ```
 
-运行时根目录缺失属于环境检查失败；重试前查看 `config check`。`recovery-required` 表示启动无法确认安全的所有权。诊断该精确 Session，或使用另一个名称。不要手动删除运行时目录。
+运行时根目录缺失属于环境检查失败；重试前查看 `config check`。`recovery-required` 表示启动无法确认安全的所有权。其详情带有 `blockingProcess` 时，表示之前启动的某个进程仍在运行；请告知用户，结束该进程或重启电脑即可解除拒绝。`server-not-started` 表示系统拒绝创建 Server，`ioKind` 和 `osError` 说明原因。诊断该精确 Session，或使用另一个名称。不要手动删除运行时目录。
 
 ## 解析目标并检查状态
 

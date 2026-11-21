@@ -7,7 +7,7 @@ function restoreOf(stdout: string, failed: boolean) {
 }
 
 /** A failure envelope as `server start --format json` prints it. */
-function failure(kind: string, details: Record<string, string>): string {
+function failure(kind: string, details: Record<string, unknown>): string {
 	return JSON.stringify({ failure: { details, kind }, schema: 'orchbee.cli.failure', version: 1 });
 }
 
@@ -59,8 +59,55 @@ describe('interpretServerStartAnswer', () => {
 		});
 	});
 
+	it('names the process that blocks recovery, and keeps the refusal when that name cannot be read', () => {
+		const blockingProcess = {
+			processId: 4242,
+			program: 'orchbee-terminal-host.exe',
+			role: 'terminal-host',
+		};
+		const blocked = failure('rejected', {
+			blockingProcess,
+			reason: 'recovery-required',
+			stage: 'activation',
+		});
+		expect(restoreOf(blocked, true)).toEqual({
+			kind: 'refused',
+			refusal: { blockingProcess, reason: 'recovery-required' },
+		});
+		for (const unreadable of [
+			{ ...blockingProcess, processId: 0 },
+			{ ...blockingProcess, program: 'C:\\Orchbee\\orchbee-terminal-host.exe' },
+			{ ...blockingProcess, role: 'agent' },
+		]) {
+			const answer = failure('rejected', {
+				blockingProcess: unreadable,
+				reason: 'recovery-required',
+				stage: 'activation',
+			});
+			expect(restoreOf(answer, true)).toEqual({
+				kind: 'refused',
+				refusal: { reason: 'recovery-required' },
+			});
+		}
+	});
+
+	it('keeps what the system answered when it would not create the Server', () => {
+		const answer = failure('rejected', {
+			ioKind: 'permission-denied',
+			osError: 5,
+			reason: 'server-not-started',
+			stage: 'activation',
+		});
+		expect(restoreOf(answer, true)).toEqual({
+			kind: 'refused',
+			refusal: { ioKind: 'permission-denied', osError: 5, reason: 'server-not-started' },
+		});
+	});
+
 	it('reads any failure it cannot name, or cannot read, as a restore that may have lost everything', () => {
 		for (const answer of [
+			// A reason a newer CLI names keeps the window's general sentence.
+			failure('rejected', { reason: 'not-yet-named', stage: 'activation' }),
 			failure('service-unavailable', { stage: 'admission' }),
 			failure('incompatible', { stage: 'cohort' }),
 			admission('initiator-too-new'),

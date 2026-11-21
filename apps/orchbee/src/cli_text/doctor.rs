@@ -101,6 +101,10 @@ impl super::CliText {
                 "上次会话留下了套接字",
             ),
             "pipe-name-present" => self.pick("a Session pipe name is present", "存在会话管道名称"),
+            "recovery-blocked" => self.pick(
+                "a process from an earlier start is still running",
+                "之前启动的进程仍在运行",
+            ),
             _ => self.pick(
                 "saved Session records this version cannot use",
                 "存在本版本无法使用的会话记录",

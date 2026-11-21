@@ -121,6 +121,10 @@ pub(crate) enum FailureDisplay {
     /// standard Client at its endpoint; the machine document keeps the kind
     /// and stage the refusal already had.
     ElevatedSession,
+    /// A local start that reads as the TUI words it, such as a recovery a
+    /// still-running process blocks or a Server the system refused to create;
+    /// the machine document keeps its own details.
+    Startup(crate::local_activation::StartupFailure),
 }
 
 /// An outcome a CLI wait observes through the local session.
@@ -307,6 +311,23 @@ impl Failure {
             self.display.as_deref(),
             Some(FailureDisplay::ElevatedSession)
         )
+    }
+
+    /// Word the failure as the TUI words `startup`, for the localized
+    /// diagnostic only.
+    pub(crate) fn startup_display(
+        mut self,
+        startup: crate::local_activation::StartupFailure,
+    ) -> Self {
+        self.display = Some(Box::new(FailureDisplay::Startup(startup)));
+        self
+    }
+
+    pub(crate) fn startup(&self) -> Option<&crate::local_activation::StartupFailure> {
+        match self.display.as_deref() {
+            Some(FailureDisplay::Startup(startup)) => Some(startup),
+            _ => None,
+        }
     }
 }
 

@@ -19,7 +19,7 @@ fn local_metadata_preserves_non_unicode_paths_and_closed_unavailable_states() {
             cohort: Cohort::Unavailable(
                 issue,
                 Some(CohortDiagnostic {
-                    io_kind: CohortIoKind::NotFound,
+                    io_kind: IoKind::NotFound,
                     os_error: Some(2),
                     missing_artifact: Some("orchbee-server.exe".to_owned()),
                 }),
@@ -80,7 +80,7 @@ fn local_metadata_preserves_non_unicode_paths_and_closed_unavailable_states() {
         cohort: Cohort::Unavailable(
             CohortIssue::Io,
             Some(CohortDiagnostic {
-                io_kind: CohortIoKind::Other,
+                io_kind: IoKind::Other,
                 os_error: None,
                 missing_artifact: None,
             }),

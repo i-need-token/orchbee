@@ -1518,11 +1518,31 @@
 					"type": "array",
 					"items": {
 						"enum": [
+							"recovery-blocked",
 							"activation-recorded",
 							"socket-residue",
 							"pipe-name-present",
 							"unrecognized-records"
 						]
+					}
+				},
+				"blockingProcess": {
+					"type": "object",
+					"required": ["role", "program", "processId"],
+					"additionalProperties": false,
+					"properties": {
+						"role": {
+							"enum": ["server", "worker", "terminal-host"]
+						},
+						"program": {
+							"type": "string",
+							"pattern": "^(?:orchbee|ob-(?:dev|test)-[0-9a-f]{16})-(?:server|worker|terminal-host)(?:\\.exe)?$"
+						},
+						"processId": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4294967295
+						}
 					}
 				}
 			}
@@ -1571,6 +1591,7 @@
 						"properties": {
 							"reason": {
 								"enum": [
+									"recovery-blocked",
 									"activation-recorded",
 									"socket-residue",
 									"pipe-name-present",

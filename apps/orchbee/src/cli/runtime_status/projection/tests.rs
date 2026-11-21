@@ -1,52 +1,6 @@
 use super::*;
-use std::io;
 #[cfg(windows)]
 mod windows;
-
-#[test]
-fn cohort_io_kind_uses_closed_stable_tokens() {
-    for (kind, token) in [
-        (io::ErrorKind::NotFound, "not-found"),
-        (io::ErrorKind::PermissionDenied, "permission-denied"),
-        (io::ErrorKind::InvalidInput, "invalid-input"),
-        (io::ErrorKind::InvalidData, "invalid-data"),
-        (io::ErrorKind::TimedOut, "timed-out"),
-        (io::ErrorKind::Unsupported, "unsupported"),
-        (io::ErrorKind::Interrupted, "interrupted"),
-        (io::ErrorKind::UnexpectedEof, "unexpected-eof"),
-        (io::ErrorKind::WouldBlock, "would-block"),
-        (io::ErrorKind::OutOfMemory, "out-of-memory"),
-        (io::ErrorKind::ConnectionRefused, "other"),
-        (io::ErrorKind::Other, "other"),
-    ] {
-        assert_eq!(CohortIoKind::from_error_kind(kind).token(), token);
-    }
-
-    let schema: Value =
-        serde_json::from_str(include_str!("../../schemas/orchbee.status.client.json")).unwrap();
-    let schema_tokens = schema["$defs"]["cohortDiagnostic"]["properties"]["ioKind"]["enum"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|token| token.as_str().unwrap())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        schema_tokens,
-        vec![
-            "not-found",
-            "permission-denied",
-            "invalid-input",
-            "invalid-data",
-            "timed-out",
-            "unsupported",
-            "interrupted",
-            "unexpected-eof",
-            "would-block",
-            "out-of-memory",
-            "other",
-        ]
-    );
-}
 
 // Only a Windows release installation produces this report, and its schema names that platform.
 #[cfg(windows)]

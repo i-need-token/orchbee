@@ -123,6 +123,8 @@ const fn startup_failure(failure: &StartupFailure) -> &'static str {
         StartupFailure::Runtime | StartupFailure::Refused(_) => "runtime",
         StartupFailure::SocketPathTooLong => "socket-path-too-long",
         StartupFailure::RecoveryRequired => "recovery-required",
+        StartupFailure::RecoveryBlocked(_) => "recovery-blocked",
+        StartupFailure::ServerNotStarted(_) => "server-not-started",
         StartupFailure::ClientTooOld(_) => "client-too-old",
         StartupFailure::SessionTooOld(_) => "session-too-old",
         StartupFailure::OtherEnvironment => "other-environment",

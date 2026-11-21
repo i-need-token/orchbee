@@ -53,7 +53,9 @@ creator's exit closes none. The launcher's kill-on-close Job ends the Client wit
 every process the Client starts leaves it, so an orphaned Server is never in it. An orphan therefore
 lasts until a kill-on-close Job it inherited closes, such as the Win32-OpenSSH connection's Job
 around a Server that could not leave it, until the computer restarts, or until the person ends it.
-Until then it keeps its program file in use, so that file cannot be replaced or deleted.
+Until then it keeps its program file in use, so that file cannot be replaced or deleted; an update
+still installs, because it publishes the new version beside the old one rather than replacing its
+files.
 
 A replacement Worker reuses the generation's Worker slot. Only the recorded Server reserves it, and
 only after it has proved the recorded Worker gone through the handle it created that Worker with,
@@ -81,7 +83,11 @@ A Spawning slot counts as not started only under the [writer-lock rule](#the-wri
 
 Recovery never terminates old processes, fabricates a clean-stop receipt, deletes checkpoint data,
 or resumes an Agent into a still-owned terminal. A live orphan Host remains protected and requires
-the separately owned Host-adoption protocol. Refusal offers read-only diagnosis. A retained record
+the separately owned Host-adoption protocol. Refusal offers read-only diagnosis: a refusal whose
+verdict observed a registered identity alive carries that `RecoveryBlocker`, the first such role in
+Server, Worker, Host order and its PID, so the surface that reports the refusal can name the process
+whose end, or a restart, clears it. An unknown observation names nothing, and naming grants no
+termination authority. A retained record
 refuses only the Session it names or whose location it occupies, so an alternate named Session
 remains available; this grants no unknown-owner cleanup capability.
 
@@ -112,9 +118,10 @@ Cold recovery reads a Spawning slot as not started by one rule that every later 
 registered child's creator holds the record writer lock from before its Spawning write until after
 its identity write and resume, or its failure cleanup; only the attempt's return or its creator's
 loss releases it. Every cold-recovery verdict is taken under that same lock:
-`SessionCatalog::prepare_activation`, `SessionCatalog::recover_inactive` and
-`NamedSessionEntry::cold_recoverable` each read the record and observe its identities while holding
-it, and `ProcessSnapshot::verdict` takes the held lock as an argument. A verdict therefore sees a
+`SessionCatalog::prepare_activation`, `SessionCatalog::recover_inactive`,
+`NamedSessionEntry::cold_recoverable` and `NamedSessionEntry::recovery_blocker` each read the record
+and observe its identities while holding it, and `ProcessSnapshot::verdict` takes the held lock as
+an argument. A verdict therefore sees a
 Spawning slot only once its attempt has ended without an identity, whose child, if one was created,
 was never resumed and never runs; the identified roles, among them the slot's creator, decide alone.
 A reader without the lock, such as the running Server's Host presence above, cannot tell an attempt

@@ -1,6 +1,6 @@
 //! Pure projection of the Session's process facts and this executable's local facts.
 use super::{Failure, FailureKind, Locale, Output, OutputFormat, failed};
-use crate::cli::output;
+use crate::cli::{io_kind::IoKind, output};
 use crate::cli_text::CliText;
 use crate::cli_text::escape::escape;
 use orchbee_connection_handshake::{ProcessEntry, ProcessRole, QueryResult};
@@ -32,63 +32,15 @@ impl CohortIssue {
 }
 #[derive(Clone, Debug)]
 pub(super) struct CohortDiagnostic {
-    io_kind: CohortIoKind,
+    io_kind: IoKind,
     os_error: Option<i32>,
     missing_artifact: Option<String>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum CohortIoKind {
-    NotFound,
-    PermissionDenied,
-    InvalidInput,
-    InvalidData,
-    TimedOut,
-    Unsupported,
-    Interrupted,
-    UnexpectedEof,
-    WouldBlock,
-    OutOfMemory,
-    Other,
-}
-impl CohortIoKind {
-    fn from_error_kind(kind: std::io::ErrorKind) -> Self {
-        match kind {
-            std::io::ErrorKind::NotFound => Self::NotFound,
-            std::io::ErrorKind::PermissionDenied => Self::PermissionDenied,
-            std::io::ErrorKind::InvalidInput => Self::InvalidInput,
-            std::io::ErrorKind::InvalidData => Self::InvalidData,
-            std::io::ErrorKind::TimedOut => Self::TimedOut,
-            std::io::ErrorKind::Unsupported => Self::Unsupported,
-            std::io::ErrorKind::Interrupted => Self::Interrupted,
-            std::io::ErrorKind::UnexpectedEof => Self::UnexpectedEof,
-            std::io::ErrorKind::WouldBlock => Self::WouldBlock,
-            std::io::ErrorKind::OutOfMemory => Self::OutOfMemory,
-            _ => Self::Other,
-        }
-    }
-
-    const fn token(self) -> &'static str {
-        match self {
-            Self::NotFound => "not-found",
-            Self::PermissionDenied => "permission-denied",
-            Self::InvalidInput => "invalid-input",
-            Self::InvalidData => "invalid-data",
-            Self::TimedOut => "timed-out",
-            Self::Unsupported => "unsupported",
-            Self::Interrupted => "interrupted",
-            Self::UnexpectedEof => "unexpected-eof",
-            Self::WouldBlock => "would-block",
-            Self::OutOfMemory => "out-of-memory",
-            Self::Other => "other",
-        }
-    }
 }
 
 impl CohortDiagnostic {
     pub(super) fn from_error(error: &CohortError) -> Self {
         Self {
-            io_kind: CohortIoKind::from_error_kind(error.kind()),
+            io_kind: IoKind::of(error.kind()),
             os_error: error.raw_os_error(),
             missing_artifact: error.missing_artifact().map(CohortArtifact::file_name),
         }

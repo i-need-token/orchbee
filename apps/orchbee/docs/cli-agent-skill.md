@@ -54,7 +54,7 @@ orchbee --session work status --format json
 orchbee --session work tui
 ```
 
-A missing runtime base is an environment check failure; inspect `config check` before retrying. `recovery-required` means startup could not establish safe ownership. Diagnose that exact Session or use another name. Do not delete runtime directories manually.
+A missing runtime base is an environment check failure; inspect `config check` before retrying. `recovery-required` means startup could not establish safe ownership. When its details carry `blockingProcess`, a process from an earlier start still runs; tell the person, because ending that process or restarting the computer clears the refusal. `server-not-started` means the system refused to create the Server; `ioKind` and `osError` say why. Diagnose that exact Session or use another name. Do not delete runtime directories manually.
 
 ## Resolve targets and inspect state
 

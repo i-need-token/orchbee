@@ -26,9 +26,17 @@ export const sessionConnectionMessages = defineMessages({
 		'session.connection.unavailable.otherEnvironment',
 		'The running Session belongs to another environment, such as release beside a development build. Matches the TUI and CLI refusal.',
 	),
+	unavailableRecoveryBlocked: message(
+		'session.connection.unavailable.recoveryBlocked',
+		'A process an earlier start left running keeps the Session from recovering. Matches the TUI and CLI refusal word for word. role is server, worker or terminal-host, whose names Server, Worker and Terminal Host stay in English; program is its program file name and processId its process ID, neither translated.',
+	),
 	unavailableRecoveryRequired: message(
 		'session.connection.unavailable.recoveryRequired',
 		'The <command> tag holds a command, which is not translated.',
+	),
+	unavailableServerNotStarted: message(
+		'session.connection.unavailable.serverNotStarted',
+		'The system refused to create the Session’s Server process. Matches the TUI and CLI refusal word for word. cause is missing when the program file was not found, denied when access to it was denied, code when the system stated an error number, code, and other otherwise.',
 	),
 	unavailableSessionTooOld: message(
 		'session.connection.unavailable.sessionTooOld',

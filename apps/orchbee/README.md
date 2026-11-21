@@ -163,8 +163,10 @@ started line on standard error. The command is effectful even on refusal: only a
 guaranteed zero-effect, an interrupted or timed-out start may leave committed activation
 state. On Windows, the next invocation automatically recovers a complete v2–v5 registered generation only after
 proving every old exact process gone under all required guards; live, incomplete and legacy Active
-records remain `rejected`/`recovery-required`. Recovery preserves checkpoint data and never terminates
-old processes. A fresh activation publishes catalog v5 before marker, Server or checkpoint-store
+records remain `rejected`/`recovery-required`, naming as `blockingProcess` a registered process proven
+still running, which the person can end or clear by restarting. Recovery preserves checkpoint data and
+never terminates old processes. A Server the system refused to create answers
+`rejected`/`server-not-started` with the system's `ioKind` and `osError`. A fresh activation publishes catalog v5 before marker, Server or checkpoint-store
 publication; readers limited to v1–v4 refuse v5 without changing its bytes. The
 [Windows recovery contract](../../crates/local-runtime/docs/windows-crash-recovery.md)
 owns those boundaries. `doctor` is the read-only complement: its runtime folder check reports

@@ -838,7 +838,7 @@ kernel/filesystem stalls and process suspension. Timeout closes only the Client 
 | No marker, lifetime held                                                   | A Server is completing its stop; wait, then start again once it releases the lifetime lock                                    |
 | Socket refuses with `stopping`                                             | A stop is ending that Server; drop the activation lock, then start over once it ends                                          |
 | Invalid socket / cohort / permissions, incompatible or ambiguous admission | Explicit failure; no fallback                                                                                                 |
-| Launch failure after marker creation                                       | Retain marker; this attempt reports RecoveryRequired and a later one recovers it as above                                     |
+| Launch failure after marker creation                                       | Retain marker; this attempt reports ServerNotStarted with the system's error; a later one recovers it as above                |
 | Server + Worker ready                                                      | Release activation lock, read Workspace membership, attach an existing binding when selected                                  |
 | First validated frame applied before deadline                              | Enter TUI with the same inherited TTY and prepared Session                                                                    |
 | Client exit / deadline                                                     | Release Client resources; retain Server, Worker, Host, and terminal                                                           |
