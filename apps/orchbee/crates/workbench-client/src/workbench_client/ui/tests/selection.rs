@@ -1,4 +1,4 @@
-use super::super::tests::move_membership::ready_ui;
+use super::super::tests::ready::ready_ui;
 use super::super::*;
 use crate::terminal_input::{PaneAdmission, PointerSelectionIntent};
 use crate::workbench_client::input::PointerSelectionCell;

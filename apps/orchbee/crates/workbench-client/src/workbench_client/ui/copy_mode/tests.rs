@@ -18,7 +18,7 @@ use orchbee_terminal_protocol::{
 use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
 use std::{sync::Arc, time::Instant};
 
-use super::super::tests::move_membership::ready_ui;
+use super::super::tests::ready::ready_ui;
 use super::super::tests::viewport::{controlling_ui, install_projection, settle_viewing};
 
 fn id(value: u128) -> String {

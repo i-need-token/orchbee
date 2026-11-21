@@ -230,7 +230,7 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
         project_id: WorkbenchProjectId::parse(&format!("{:032x}", 900)).unwrap(),
         label: "Project 项目".into(),
     });
-    let (ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let (ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
     for (width, height) in [(120, 41), (120, 40), (80, 24)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for remapped in [false, true] {

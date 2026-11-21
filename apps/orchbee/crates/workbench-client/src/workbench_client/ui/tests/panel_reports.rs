@@ -36,8 +36,7 @@ fn panel_names_share_custom_guarded_metadata_automatic_and_position_precedence()
                     custom.map(|label| PanelCustomLabel::parse(label).unwrap());
                 primary_presentation.launch_program =
                     program.then(|| PresentationLaunchProgram::parse("pwsh.exe").unwrap());
-                let (mut ui, _, _, _) =
-                    super::super::tests::move_membership::ready_ui_with_snapshot(source);
+                let (mut ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
                 let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
                 let row = PanelReport {
                     report: None,
@@ -128,7 +127,7 @@ fn panel_names_share_custom_guarded_metadata_automatic_and_position_precedence()
 fn completion_state_cells_use_server_facts_even_without_a_client_working_observation() {
     use orchbee_workbench_protocol::{AgentCompletion, MetadataState, PanelAgentState};
     let source = super::super::tests::publication_hint::split_snapshot(1);
-    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let (mut ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
     let theme = crate::tui_theme::Theme::rgb_test_dark();
     let shell = ClientView::new(120);
     for (state, completion, expected) in [
@@ -228,7 +227,7 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
         unreachable!()
     };
     primary_presentation.label = "orchbee".into();
-    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let (mut ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
     let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
     let row = PanelReport {
         report: None,
@@ -436,7 +435,7 @@ fn split_panel_titles_paint_reports_and_reject_stale_workbench_scope() {
         unreachable!()
     };
     *orientation = orchbee_workbench_protocol::PanelOrientation::Vertical;
-    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let (mut ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
     let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
     let row=PanelReport { report:Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":null,"message":null})).unwrap()),
         metadata:serde_json::from_value(json!({"title":"Approval title","displayAgent":"Agent","stateLabels":{"blocked":"Review needed"}})).unwrap(),tokens:serde_json::from_value(json!({"branch":"test"})).unwrap() };
@@ -489,7 +488,7 @@ fn split_panel_titles_paint_reports_and_reject_stale_workbench_scope() {
 
 #[test]
 fn a_bare_single_panel_leaves_reports_to_split_and_zoomed_titles() {
-    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = super::super::tests::ready::ready_ui();
     let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
     let row = PanelReport {
         report: Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":null,"message":null})).unwrap()),
@@ -571,8 +570,7 @@ fn child_selection_discards_primary_report_and_paints_its_own_exact_observation(
         agent_start_failure: None,
         launch_program: None,
     });
-    let (mut ui, _mailbox, _, _) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let (mut ui, _mailbox, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
     let primary_scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
     let row = |title: &str, token: &str| {
         PanelReport {

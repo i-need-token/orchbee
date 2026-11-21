@@ -5,7 +5,7 @@ use crate::client_view::ClientAction;
 use crate::local_client::LocalClient;
 use crate::local_client::test_support::server::FakeServer;
 use crate::workbench_client::mailbox::QueuedCommand;
-use crate::workbench_client::ui::tests::move_membership::ready_ui;
+use crate::workbench_client::ui::tests::ready::ready_ui;
 use crate::workbench_state::control_takeover::TakeoverResult;
 use crate::workbench_state::{CarrierFailure, ControllerMode};
 use orchbee_client_server_protocol::*;

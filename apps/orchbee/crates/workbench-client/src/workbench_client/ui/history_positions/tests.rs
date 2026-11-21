@@ -10,7 +10,7 @@ use crate::workbench_client::{
     ui::{
         RetainedFrameBank, WorkbenchClientNotice,
         tests::{
-            move_membership::ready_ui,
+            ready::ready_ui,
             viewport::{frame, install_projection, settle_viewing},
         },
     },

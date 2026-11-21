@@ -1,4 +1,4 @@
-use super::super::tests::move_membership::ready_ui;
+use super::super::tests::ready::ready_ui;
 use super::super::*;
 use crate::workbench_client::mailbox::EventDeadline;
 use crate::workbench_state::OPERATION_TOTAL;
@@ -110,7 +110,7 @@ fn poll_snapshot(
 
 #[test]
 fn returning_to_a_controlled_terminal_preserves_typing_and_its_current_frame() {
-    let (mut ui, mailbox, clock, _) = super::move_membership::ready_ui_with_mode(
+    let (mut ui, mailbox, clock, _) = super::ready::ready_ui_with_mode(
         super::membership::snapshot(2, 1),
         ControllerMode::Controlling(
             ControllerId::parse("00000000000000000000000000000001").unwrap(),

@@ -13,8 +13,7 @@ fn rename_modal_localizes_automatic_names_as_empty_field_placeholders_and_keeps_
         let tab = &mut source.terminal_contexts[0].tabs[0];
         tab.automatic_label = true;
         tab.label = "stored ordinal".into();
-        let (mut ui, _, _, _) =
-            super::super::tests::move_membership::ready_ui_with_snapshot(source);
+        let (mut ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
         ui.request_rename_draft().unwrap();
         let draft = ui.view().rename_draft().unwrap();
         assert_eq!(draft.text(), "");
@@ -32,7 +31,7 @@ fn rename_modal_localizes_automatic_names_as_empty_field_placeholders_and_keeps_
 
     let mut source = super::super::tests::membership::snapshot(1, 1);
     source.terminal_contexts[0].tabs[0].label = "Build Shell".into();
-    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let (mut ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
     ui.request_rename_draft().unwrap();
     let draft = ui.view().rename_draft().unwrap();
     assert_eq!(draft.text(), "Build Shell");
@@ -73,7 +72,7 @@ fn rename_removed_candidate_samples_one_posttransport_pair_and_never_renews_at_c
         (50_000, false),
         (0, true),
     ] {
-        let (mut ui, mailbox, clock, elapsed) = super::super::tests::move_membership::ready_ui();
+        let (mut ui, mailbox, clock, elapsed) = super::super::tests::ready::ready_ui();
         let baseline = ui.state.as_ref().unwrap().cache().clone();
         let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
         let token = ui.request_rename_draft().unwrap();
@@ -165,7 +164,7 @@ fn rename_removed_candidate_samples_one_posttransport_pair_and_never_renews_at_c
 
 #[test]
 fn rename_retained_key_consumes_timely_result_after_original_cutoff_without_membership_budget() {
-    let (mut ui, mailbox, clock, elapsed) = super::super::tests::move_membership::ready_ui();
+    let (mut ui, mailbox, clock, elapsed) = super::super::tests::ready::ready_ui();
     let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
     let token = ui.request_rename_draft().unwrap();
     ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
@@ -270,7 +269,7 @@ fn automatic_names_prefer_the_panel_name_then_the_program_title_then_the_launche
                         });
                     }
                 }
-                let mut ui = super::super::tests::move_membership::ready_ui_with_snapshot(source).0;
+                let mut ui = super::super::tests::ready::ready_ui_with_snapshot(source).0;
                 super::super::test_support::install_projection(&mut ui, Some((0, false, 24)), 0);
                 ui
             };

@@ -1,6 +1,6 @@
 //! Program effects use the exact attached stream, including before the first frame.
 use super::super::*;
-use super::super::{tests::move_membership::ready_ui, tests::publication_hint::starting_split_ui};
+use super::super::{tests::publication_hint::starting_split_ui, tests::ready::ready_ui};
 use crate::workbench_client::{
     mailbox::EventDeadline,
     terminal_effects::{Kind, Outcome},

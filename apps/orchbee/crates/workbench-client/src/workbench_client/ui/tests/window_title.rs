@@ -12,7 +12,7 @@ fn window_title_context_uses_current_view_manual_name_and_exact_live_frame() {
         panic!()
     };
     primary_presentation.custom_label = Some(PanelCustomLabel::parse("Manual").unwrap());
-    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let (mut ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
     let context = ui.view().window_title_context(Locale::EnUs);
     assert_eq!(context.tab, "Tab 0");
     assert_eq!(context.panel, "Manual");
@@ -58,7 +58,7 @@ fn window_title_tab_names_an_automatic_tab_as_the_strip_does() {
         let tab = &mut source.terminal_contexts[0].tabs[0];
         tab.automatic_label = true;
         tab.label = "1".into();
-        let (ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+        let (ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
         assert_eq!(ui.view().window_title_context(locale).tab, expected);
     }
 }

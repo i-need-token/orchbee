@@ -4,7 +4,7 @@ use super::*;
 #[test]
 fn tab_create_revalidates_painted_source_and_uses_the_existing_membership_action() {
     for stale in [false, true] {
-        let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+        let (mut ui, mailbox, _, _) = tests::ready::ready_ui();
         let mut target = ui.view().tab_create_target().unwrap();
         if stale {
             target.source.revision = orchbee_workbench_protocol::WorkbenchRevision::new(999);
@@ -114,7 +114,7 @@ fn blank_creation_regions_preserve_live_panes_and_exact_context() {
                     let ui = if empty {
                         crate::workbench_client::ui::tests::quick_workspace::empty_ui(snapshot).0
                     } else {
-                        tests::move_membership::ready_ui_with_snapshot(snapshot).0
+                        tests::ready::ready_ui_with_snapshot(snapshot).0
                     };
                     let view = ClientView::new(width);
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();

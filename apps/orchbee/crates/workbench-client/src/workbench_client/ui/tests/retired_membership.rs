@@ -1126,7 +1126,7 @@ fn every_retirement_names_disconnected_and_leaves_its_full_fact_to_the_pane() {
     use crate::localization::Locale;
 
     for failure in [CarrierFailure::Closed, CarrierFailure::OutcomeUnknown] {
-        let (mut ui, _mailbox, _clock, _elapsed) = super::move_membership::ready_ui();
+        let (mut ui, _mailbox, _clock, _elapsed) = super::ready::ready_ui();
         ui.retire(failure);
         ui.finalize_retirement(None, None, None, CloseWorkerReturn::Returned(None));
         let outcome_unknown = failure == CarrierFailure::OutcomeUnknown;

@@ -112,10 +112,9 @@ fn detached(
 
 #[test]
 fn split_refusal_restores_both_visible_projections_and_local_focus_through_mailbox() {
-    let (mut ui, mailbox, clock, _elapsed) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(
-            super::super::tests::publication_hint::split_snapshot(1),
-        );
+    let (mut ui, mailbox, clock, _elapsed) = super::super::tests::ready::ready_ui_with_snapshot(
+        super::super::tests::publication_hint::split_snapshot(1),
+    );
     let focus = super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     super::super::tests::publication_hint::attach_split_peer(&mut ui, &mailbox, &clock);
     let peer = ui.state.as_ref().unwrap().cache().tabs()[0]
@@ -201,10 +200,9 @@ fn split_refusal_restores_both_visible_projections_and_local_focus_through_mailb
 #[test]
 fn split_refusal_after_a_lost_focused_viewer_restores_the_live_sibling() {
     use crate::workbench_state::{OPERATION_TOTAL, PaneFault};
-    let (mut ui, mailbox, clock, _elapsed) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(
-            super::super::tests::publication_hint::split_snapshot(1),
-        );
+    let (mut ui, mailbox, clock, _elapsed) = super::super::tests::ready::ready_ui_with_snapshot(
+        super::super::tests::publication_hint::split_snapshot(1),
+    );
     let focus = super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     super::super::tests::publication_hint::attach_split_peer(&mut ui, &mailbox, &clock);
     let peer = ui.state.as_ref().unwrap().cache().tabs()[0]
@@ -418,9 +416,7 @@ fn a_tab_switch_whose_panel_was_removed_lands_on_the_surviving_leaf() {
         snapshot
     }
     let (mut ui, mailbox, clock, _elapsed) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(split_second(split_snapshot(
-            1,
-        )));
+        super::super::tests::ready::ready_ui_with_snapshot(split_second(split_snapshot(1)));
     let tab = &ui.state.as_ref().unwrap().cache().tabs()[1];
     let tab_id = tab.tab_id().clone();
     let removed = tab.panel(0).unwrap().panel_id().clone();
@@ -973,7 +969,7 @@ fn launch_failed_focus_beside_a_live_sibling() -> (
         orchbee_workbench_protocol::PresentationLaunchFailure::terminal_create(None),
     ));
     let (mut ui, mailbox, clock, _elapsed) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(snapshot.clone());
+        super::super::tests::ready::ready_ui_with_snapshot(snapshot.clone());
     assert_eq!(
         ui.select_tab(ClientAction::SelectTab(2)),
         ClientActionDisposition::DismissNavigator

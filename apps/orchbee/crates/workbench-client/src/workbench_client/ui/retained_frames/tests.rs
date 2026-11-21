@@ -159,7 +159,7 @@ fn retained_renderer_has_no_cursor_selection_graphics_input_or_ack() {
 
 #[test]
 fn revisiting_a_tab_paints_its_own_pixels_without_reusing_input_or_feedback() {
-    let (mut ui, _mailbox, _clock, _elapsed) = super::super::tests::move_membership::ready_ui();
+    let (mut ui, _mailbox, _clock, _elapsed) = super::super::tests::ready::ready_ui();
     let old = super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     ui.after_draw();
     let panel = old.pane().panel().clone();
@@ -211,7 +211,7 @@ fn blocked_projection_drops_cached_pixels_before_another_draw() {
         ProjectionBlocked, ProjectionDemandControl, encode_projection_demand_control,
         encode_transport_envelope,
     };
-    let (mut ui, mailbox, clock, _) = super::super::tests::move_membership::ready_ui();
+    let (mut ui, mailbox, clock, _) = super::super::tests::ready::ready_ui();
     super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     ui.after_draw();
     assert_eq!(ui.retained_frames.entries.len(), 1);
@@ -253,7 +253,7 @@ fn blocked_projection_drops_cached_pixels_before_another_draw() {
 
 #[test]
 fn membership_replacement_and_context_change_release_retained_pixels() {
-    let (mut ui, _mailbox, _clock, _elapsed) = super::super::tests::move_membership::ready_ui();
+    let (mut ui, _mailbox, _clock, _elapsed) = super::super::tests::ready::ready_ui();
     let pane = super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     ui.after_draw();
     let old = Arc::downgrade(&ui.retained_frames.entries[0].frame);
@@ -276,7 +276,7 @@ fn membership_replacement_and_context_change_release_retained_pixels() {
 
 #[test]
 fn retained_images_have_count_and_byte_bounds_and_never_truncate() {
-    let (mut ui, _mailbox, _clock, _elapsed) = super::super::tests::move_membership::ready_ui();
+    let (mut ui, _mailbox, _clock, _elapsed) = super::super::tests::ready::ready_ui();
     super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     ui.after_draw();
     let identity = ui.retained_frames.entries[0].identity.clone();

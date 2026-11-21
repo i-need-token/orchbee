@@ -134,7 +134,7 @@ fn open_loaded_settings(ui: &mut WorkbenchClientUi) {
 
 #[test]
 fn settings_is_the_only_painted_owner_when_it_coexists_with_the_board() {
-    let (mut ui, _, _, _) = super::move_membership::ready_ui();
+    let (mut ui, _, _, _) = super::ready::ready_ui();
     let shell = ClientView::new(WIDTH);
     let theme = Theme::rgb_test_dark();
     let episode = admit_board(&mut ui, &shell, Locale::EnUs, &theme);
@@ -166,7 +166,7 @@ fn settings_is_the_only_painted_owner_when_it_coexists_with_the_board() {
 
 #[test]
 fn panel_close_confirmation_outranks_and_is_painted_instead_of_the_board() {
-    let (mut ui, _, _, _) = super::move_membership::ready_ui();
+    let (mut ui, _, _, _) = super::ready::ready_ui();
     let shell = ClientView::new(WIDTH);
     let theme = Theme::rgb_test_dark();
     let episode = admit_board(&mut ui, &shell, Locale::EnUs, &theme);
@@ -199,7 +199,7 @@ fn panel_close_confirmation_outranks_and_is_painted_instead_of_the_board() {
 
 #[test]
 fn machine_capture_suppresses_native_proof_hits_and_remembered_sidebar_focus() {
-    let (mut ui, _, _, _) = super::move_membership::ready_ui();
+    let (mut ui, _, _, _) = super::ready::ready_ui();
     let theme = Theme::rgb_test_dark();
     let ordinary_shell = ClientView::new(WIDTH);
     let episode = admit_board(&mut ui, &ordinary_shell, Locale::EnUs, &theme);
@@ -254,7 +254,7 @@ fn machine_capture_suppresses_native_proof_hits_and_remembered_sidebar_focus() {
 
 #[test]
 fn first_geometry_refusal_and_admitted_suspension_have_distinct_local_recovery() {
-    let (mut ui, _, _, _) = super::move_membership::ready_ui();
+    let (mut ui, _, _, _) = super::ready::ready_ui();
     let shell = ClientView::new(WIDTH);
     let original_shell = shell.clone();
     let locale = Locale::EnUs;

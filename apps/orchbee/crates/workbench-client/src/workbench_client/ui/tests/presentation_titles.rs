@@ -52,7 +52,7 @@ fn tab_names_take_the_newest_title_of_their_terminal_and_keep_it_while_none_is_a
             Some(PresentationLaunchProgram::parse("pwsh.exe").unwrap());
     }
     let tabs = [primary(&source, 0), primary(&source, 1)];
-    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let (mut ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
     super::super::test_support::install_projection(&mut ui, Some((0, false, 24)), 0);
 
     enum Step<'a> {

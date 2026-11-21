@@ -734,9 +734,8 @@ fn dirty_removal_offers_resume_and_canceling_resume_restores_the_retained_result
         let plan = confirm(&mut launcher, &origin).unwrap();
         assert!(launcher.start_settled(&plan.operation_id, Ok(removal::failure(1, true))));
         // The removal target is still a canonical Workspace, so its receipt stays recoverable.
-        let (mut ui, ..) = super::move_membership::ready_ui_with_snapshot(
-            origin.cache.canonical_snapshot().clone(),
-        );
+        let (mut ui, ..) =
+            super::ready::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
         ui.worktrees.launcher = launcher;
         let text = draw(&mut ui, locale, 120, 40);
         let expected = match locale {
@@ -878,9 +877,8 @@ fn removal_failures_name_their_cause_and_a_dead_end_points_to_the_held_close() {
             ),
         ] {
             let (launcher, origin, _) = failed_removal(removal_failure(reason, resumable));
-            let (mut ui, ..) = super::move_membership::ready_ui_with_snapshot(
-                origin.cache.canonical_snapshot().clone(),
-            );
+            let (mut ui, ..) =
+                super::ready::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
             ui.worktrees.launcher = launcher;
             let text = draw(&mut ui, locale, 120, 40);
             assert!(
@@ -899,7 +897,7 @@ fn a_failed_removal_whose_workspace_closed_never_blocks_the_launcher() {
     // While the Workspace exists, Close keeps the recoverable receipt and W reopens it.
     let (launcher, origin, plan) = failed_removal(removal::failure(1, true));
     let (mut ui, ..) =
-        super::move_membership::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
+        super::ready::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
     ui.worktrees.launcher = launcher;
     draw(&mut ui, crate::localization::Locale::EnUs, 120, 40);
     ui.dismiss_worktree(ui.worktrees.launcher.token().unwrap());
@@ -965,9 +963,8 @@ fn abandoning_a_retained_removal_needs_a_drawn_confirmation_and_frees_the_launch
             }
         };
         let (launcher, origin, _) = failed_removal(removal::failure(1, true));
-        let (mut ui, ..) = super::move_membership::ready_ui_with_snapshot(
-            origin.cache.canonical_snapshot().clone(),
-        );
+        let (mut ui, ..) =
+            super::ready::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
         ui.worktrees.launcher = launcher;
         let text = draw(&mut ui, locale, 120, 40);
         assert!(text.contains(hint), "{locale:?}: {text}");
@@ -1010,7 +1007,7 @@ fn abandoning_a_retained_removal_needs_a_drawn_confirmation_and_frees_the_launch
     // A failure that Close already releases offers no abandon step.
     let (launcher, origin, _) = failed_removal(removal::failure(1, false));
     let (mut ui, ..) =
-        super::move_membership::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
+        super::ready::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
     ui.worktrees.launcher = launcher;
     let text = draw(&mut ui, crate::localization::Locale::EnUs, 120, 40);
     assert!(!text.contains("xAbandon"));
@@ -1109,7 +1106,7 @@ fn pending_removal_status_is_read_again_with_bounded_backoff_until_it_settles() 
     .unwrap();
     let client = LocalClient::connect(server.endpoint()).unwrap();
     let (mut ui, _mailbox, _clock, elapsed) =
-        super::move_membership::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
+        super::ready::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
     ui.worktrees.set_origin(client.origin());
     ui.worktrees.launcher = launcher;
     let applied = |ui: &mut WorkbenchClientUi, outcome: &WorkbenchWorktreeOutcome| {

@@ -1,6 +1,6 @@
 use super::*;
 use crate::localization::Locale;
-use crate::workbench_client::ui::tests::move_membership::ready_ui;
+use crate::workbench_client::ui::tests::ready::ready_ui;
 
 fn custom() -> UserLaunchProfile {
     UserLaunchProfile {

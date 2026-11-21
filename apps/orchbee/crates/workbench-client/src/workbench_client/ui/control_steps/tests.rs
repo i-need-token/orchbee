@@ -2,9 +2,7 @@ use super::*;
 use crate::{
     client_view::ClientAction,
     local_client::test_support::server::disconnected_origin,
-    workbench_client::ui::{
-        tests::move_membership::ready_ui, tests::publication_hint::ready_split_ui,
-    },
+    workbench_client::ui::{tests::publication_hint::ready_split_ui, tests::ready::ready_ui},
 };
 use orchbee_workbench_protocol::{
     ClientViewControlStatus, ClientViewIntent, ClientViewOperation, WorkbenchClientId,

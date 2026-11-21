@@ -87,7 +87,7 @@ fn close_prompts_name_an_automatic_tab_as_the_tab_strip_does() {
         primary_presentation.launch_program =
             Some(PresentationLaunchProgram::parse("pwsh.exe").unwrap());
     }
-    let (mut ui, _, _, _) = super::move_membership::ready_ui_with_snapshot(source);
+    let (mut ui, _, _, _) = super::ready::ready_ui_with_snapshot(source);
     install_projection(&mut ui, Some((0, false, 24)), 0);
     let ids = ui.view().selected_tab_ids();
     for locale in [Locale::EnUs, Locale::ZhCn] {

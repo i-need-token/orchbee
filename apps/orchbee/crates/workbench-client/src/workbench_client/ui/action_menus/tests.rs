@@ -1,4 +1,4 @@
-use super::super::{tests::context_selection, tests::move_membership, tests::publication_hint};
+use super::super::{tests::context_selection, tests::publication_hint, tests::ready};
 use super::*;
 use crate::client_view::ClientActionDisposition;
 use crate::localization::DisplayPhase;
@@ -37,7 +37,7 @@ fn panel_menu_names_the_primary_program_unless_a_custom_label_wins() {
                 Some(PresentationLaunchProgram::parse("pwsh.exe").unwrap());
             primary_presentation.custom_label =
                 custom.map(|label| PanelCustomLabel::parse(label).unwrap());
-            let (mut ui, _, _, _) = tests::move_membership::ready_ui_with_snapshot(snapshot);
+            let (mut ui, _, _, _) = tests::ready::ready_ui_with_snapshot(snapshot);
             let pane = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
             assert!(ui.open_action_menu(MenuTarget::Pane(pane), None, false));
             let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
@@ -77,7 +77,7 @@ fn panel_menu_names_the_primary_program_unless_a_custom_label_wins() {
 #[test]
 fn new_tab_button_menu_lists_saved_profiles_default_first_and_cancel_has_no_effect() {
     for cancel in [false, true] {
-        let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+        let (mut ui, mailbox, _, _) = tests::ready::ready_ui();
         let create = ui.view().tab_create_target().unwrap();
         // With only the default profile, the button's own click is the whole choice.
         assert!(!ui.open_action_menu(MenuTarget::TabProfiles(create.clone()), None, false));
@@ -144,7 +144,7 @@ fn new_tab_button_menu_lists_saved_profiles_default_first_and_cancel_has_no_effe
 fn global_search_routes_nested_profile_hits_through_the_existing_tab_creation_menu() {
     use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfile};
 
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = tests::ready::ready_ui();
     let profile = UserLaunchProfile {
         id: "search-profile".into(),
         name: Some("PowerShell preview".into()),
@@ -330,7 +330,7 @@ fn global_menu_groups_existing_tab_panel_workspace_and_client_actions_and_dispat
         (MenuAction::ClosePane, ClientAction::ClosePanel),
         (MenuAction::Copy, ClientAction::EnterCopyMode),
     ];
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = tests::ready::ready_ui();
 
     for (action, expected_client_action) in expected {
         assert!(ui.open_action_menu(MenuTarget::Global, None, false));
@@ -480,7 +480,7 @@ fn choose_global(ui: &mut WorkbenchClientUi, action: MenuAction) -> ClientAction
 #[test]
 fn maximize_and_last_panel_rows_are_enabled_exactly_when_their_action_acts() {
     // One Panel already fills its Tab: the row says so, and the toggle changes nothing silently.
-    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, mailbox, _, _) = tests::ready::ready_ui();
     assert_eq!(
         global_reasons(&mut ui, [MenuAction::Zoom]),
         [Some(MenuUnavailable::MultiplePanelsRequired)]
@@ -571,7 +571,7 @@ fn move_tab_rows_are_enabled_exactly_when_the_configuration_moves_the_tab() {
         }
     };
 
-    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui_with_snapshot(snapshot(1, 1));
+    let (mut ui, mailbox, _, _) = tests::ready::ready_ui_with_snapshot(snapshot(1, 1));
     assert_eq!(
         global_reasons(&mut ui, MOVES),
         [Some(MenuUnavailable::OnlyOneTab); 4]
@@ -581,7 +581,7 @@ fn move_tab_rows_are_enabled_exactly_when_the_configuration_moves_the_tab() {
     // A pinned Tab moves only among pinned Tabs, so one alone there has nothing to move.
     let mut pinned = snapshot(2, 1);
     pinned.terminal_contexts[0].tabs[0].pinned = true;
-    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui_with_snapshot(pinned);
+    let (mut ui, mailbox, _, _) = tests::ready::ready_ui_with_snapshot(pinned);
     assert_eq!(
         global_reasons(&mut ui, MOVES),
         [Some(MenuUnavailable::NoOtherPinnedTab); 4]
@@ -590,7 +590,7 @@ fn move_tab_rows_are_enabled_exactly_when_the_configuration_moves_the_tab() {
 
     // The first of two Tabs is already at the start; Previous wraps to the end, as the keyboard
     // move and the GUI do.
-    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, mailbox, _, _) = tests::ready::ready_ui();
     assert_eq!(
         global_reasons(&mut ui, MOVES),
         [None, None, Some(MenuUnavailable::TabAlreadyFirst), None]
@@ -636,7 +636,7 @@ fn move_tab_rows_are_enabled_exactly_when_the_configuration_moves_the_tab() {
     for tab in &mut pinned.terminal_contexts[0].tabs[..2] {
         tab.pinned = true;
     }
-    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui_with_snapshot(pinned);
+    let (mut ui, mailbox, _, _) = tests::ready::ready_ui_with_snapshot(pinned);
     assert_eq!(
         ui.apply_client_action(ClientAction::MovePreviousTab),
         ClientActionDisposition::DismissNavigator
@@ -723,7 +723,7 @@ fn guarded_menu_keys_consume_owned_phases_and_reject_stale_snapshots() {
         tui_presentation::PresentationPhase,
     };
 
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = tests::ready::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     let pending = ui.action_menu_input_context().unwrap();
     assert_eq!(pending.phase(), PresentationPhase::Pending);
@@ -799,12 +799,12 @@ fn first_geometry_block_refuses_but_an_admitted_child_resumes_with_parent_state(
         tui_presentation::PresentationPhase,
     };
 
-    let (mut refused, _, _, _) = tests::move_membership::ready_ui();
+    let (mut refused, _, _, _) = tests::ready::ready_ui();
     assert!(refused.open_action_menu(MenuTarget::Global, None, false));
     refused.after_action_menu_draw(Some(ModalPresentation::NotPresented));
     assert!(!refused.action_menu_capture_claim());
 
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = tests::ready::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, Some((7, 4).into()), false));
     let token = arm(&mut ui);
     let child_row = action_row(&ui, MenuAction::TabCreation);
@@ -865,7 +865,7 @@ fn first_geometry_block_refuses_but_an_admitted_child_resumes_with_parent_state(
 
 #[test]
 fn typed_menu_pointer_activation_requires_the_exact_source_and_token() {
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = tests::ready::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     let token = arm(&mut ui);
     let row = action_row(&ui, MenuAction::Navigator);
@@ -887,7 +887,7 @@ fn typed_menu_pointer_activation_requires_the_exact_source_and_token() {
 
 #[test]
 fn typed_menu_hover_requires_a_drawn_source_and_never_enters_a_submenu_or_action() {
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = tests::ready::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, Some((7, 4).into()), false));
     let token = ui.view().action_menu().unwrap().token;
     let row = action_row(&ui, MenuAction::TabCreation);
@@ -974,7 +974,7 @@ fn hovering_menu_families_keeps_the_active_workspace_tab_and_selection() {
 fn notifications_follow_the_real_pending_admitted_and_released_menu_capture() {
     use crate::tui_presentation::PresentationPhase;
 
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = tests::ready::ready_ui();
     let shell = ClientView::new(80);
     let available = |ui: &WorkbenchClientUi| {
         crate::workbench_client::notification_available(&shell, Some(ui.view()))
@@ -1018,7 +1018,7 @@ fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
         shift: false,
         super_key: false,
     };
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = tests::ready::ready_ui();
     ui.observe_geometry(Geometry::new(120, 30, 8, 16).unwrap());
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     ui.menus.menu.select_action(MenuAction::Settings);
@@ -1097,7 +1097,7 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                     Some((width - 1, height - 1)),
                     None,
                 ] {
-                    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+                    let (mut ui, _, _, _) = tests::ready::ready_ui();
                     ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
                     assert!(ui.open_action_menu(MenuTarget::Global, anchor.map(Into::into), false));
                     let mut view = ClientView::new(width);
@@ -1213,7 +1213,7 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
 
 #[test]
 fn ux_menu_released_pointer_rejects_disabled_pointer_activation_without_handoff() {
-    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, mailbox, _, _) = tests::ready::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, None, true));
     let row = ui
         .view()
@@ -1245,7 +1245,7 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                 Theme::orchbee_light().quantize(crate::tui_theme::ColorLevel::Ansi16),
                 Theme::orchbee_dark().quantize(crate::tui_theme::ColorLevel::Ansi16),
             ] {
-                let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+                let (mut ui, _, _, _) = tests::ready::ready_ui();
                 ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
                 assert!(ui.open_action_menu(MenuTarget::Global, None, true));
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -1370,7 +1370,7 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
         hits.finish()
     }
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+        let (mut ui, _, _, _) = tests::ready::ready_ui();
         ui.observe_geometry(Geometry::new(120, 80, 8, 16).unwrap());
         assert!(ui.open_action_menu(MenuTarget::Global, None, true));
         let mut full = Terminal::new(TestBackend::new(120, 80)).unwrap();
@@ -1427,7 +1427,7 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
 
 #[test]
 fn hidden_action_injected_after_admission_is_refused_by_the_coordinator() {
-    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, mailbox, _, _) = tests::ready::ready_ui();
     let tab_id = ui.state.as_ref().unwrap().cache().tabs()[0]
         .tab_id()
         .clone();
@@ -1464,7 +1464,7 @@ fn ux_status_prefix_remains_visible_with_the_machine_picker_available() {
                 Theme::orchbee_light(),
                 Theme::orchbee_dark(),
             ] {
-                let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+                let (mut ui, _, _, _) = tests::ready::ready_ui();
                 ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
                 let mut view = crate::client_view::ClientView::new(width);
                 view.machines.available = true;
@@ -1537,7 +1537,7 @@ fn ux_status_prefix_remains_visible_with_the_machine_picker_available() {
 fn ux_presented_menu_clears_the_underlying_status_without_duplicate_keys() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (20, 6)] {
-            let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+            let (mut ui, _, _, _) = tests::ready::ready_ui();
             ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
             assert!(ui.open_action_menu(MenuTarget::Global, None, false));
             let mut view = crate::client_view::ClientView::new(width);
@@ -1585,7 +1585,7 @@ fn ux_presented_menu_clears_the_underlying_status_without_duplicate_keys() {
 fn ux_status_short_menu_exposes_its_selection_position() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for width in [70, 20] {
-            let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+            let (mut ui, _, _, _) = tests::ready::ready_ui();
             ui.observe_geometry(Geometry::new(width, 8, 8, 16).unwrap());
             assert!(ui.open_action_menu(MenuTarget::Global, None, false));
             let count = ui.view().action_menu().unwrap().result_actions.len();
@@ -1638,7 +1638,7 @@ fn ux_status_short_menu_exposes_its_selection_position() {
 #[test]
 fn ux_status_menu_uses_a_search_cursor_and_cancel_restores_the_pane_cursor() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+        let (mut ui, _, _, _) = tests::ready::ready_ui();
         super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
         ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
         let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
@@ -1729,7 +1729,7 @@ fn pane_open_and_cancel_preserve_focus_then_one_confirmed_action_focuses_exact_p
 
 #[test]
 fn exact_incarnation_modal_priority_resize_and_timeout_revoke_unhanded_authority() {
-    let (mut ui, _, _, elapsed) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, elapsed) = tests::ready::ready_ui();
     let focus = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
     let stale = PaneRef::new(focus.pane().clone(), focus.incarnation() + 1);
     assert!(!ui.open_action_menu(MenuTarget::Pane(stale), None, false));
@@ -1737,7 +1737,7 @@ fn exact_incarnation_modal_priority_resize_and_timeout_revoke_unhanded_authority
     assert!(!ui.open_action_menu(MenuTarget::Global, None, false));
     ui.apply_client_action(ClientAction::CancelClose);
     // Use an independently ready UI: the original rename owner retains cancellation semantics.
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = tests::ready::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     arm(&mut ui);
     ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
@@ -1750,7 +1750,7 @@ fn exact_incarnation_modal_priority_resize_and_timeout_revoke_unhanded_authority
     ui.cancel_action_menu();
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     // Deadline tests use the fixture's injected clock, never wall-clock sleep.
-    let (mut timed, _, _, time) = tests::move_membership::ready_ui();
+    let (mut timed, _, _, time) = tests::ready::ready_ui();
     assert!(timed.open_action_menu(MenuTarget::Global, None, false));
     arm(&mut timed);
     time.store(31_000, std::sync::atomic::Ordering::SeqCst);
@@ -1783,7 +1783,7 @@ fn exact_incarnation_modal_priority_resize_and_timeout_revoke_unhanded_authority
 
 #[test]
 fn ux_menu_disabled_activation_does_not_start_an_execution_deadline() {
-    let (mut ui, _, _, time) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, time) = tests::ready::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, None, true));
     let row = ui
         .view()
@@ -1871,7 +1871,7 @@ fn empty_workspace_navigation_uses_owned_refresh_and_exact_cleanup_then_original
 
 #[test]
 fn toggles_recheck_frozen_prerequisites_and_foreign_navigation_drops_the_intent() {
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = tests::ready::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     let token = arm(&mut ui);
     let release = ui
@@ -1902,7 +1902,7 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
             Theme::orchbee_dark(),
         ] {
             for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (12, 3)] {
-                let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+                let (mut ui, _, _, _) = tests::ready::ready_ui();
                 let geometry = Geometry::new(width, height, 8, 16).unwrap();
                 let mut snapshot = tests::context_selection::snapshot(true);
                 snapshot.navigation.workspaces[1].label = "猫 🐝 workspace".into();
@@ -2065,7 +2065,7 @@ fn drawn_snapshot_source_and_owned_workspace_directory_replacement_are_fenced() 
 #[test]
 fn carrier_retirement_revokes_members_and_stateless_global_menu_observes_geometry() {
     for row in [3, 4, 5] {
-        let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+        let (mut ui, _, _, _) = tests::ready::ready_ui();
         let pane = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
         assert!(ui.open_action_menu(MenuTarget::Pane(pane.clone()), None, false));
         let token = arm(&mut ui);
@@ -2095,7 +2095,7 @@ fn carrier_retirement_revokes_members_and_stateless_global_menu_observes_geometr
             ]
         );
     }
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = tests::ready::ready_ui();
     ui.state = None;
     ui.menus.forget_geometry();
     assert!(!ui.open_action_menu(MenuTarget::Global, None, false));
@@ -2201,7 +2201,7 @@ fn copy_selection_row(ui: &WorkbenchClientUi) -> usize {
 fn panel_menu_copy_selection_is_offered_only_for_a_settled_host_selection_and_exports_it() {
     use orchbee_terminal_protocol::{SelectionChanged, SelectionChangedState, SelectionPoint};
 
-    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+    let (mut ui, mailbox, _, _) = tests::ready::ready_ui();
     let pane = super::super::test_support::install_projection(&mut ui, Some((9, false, 24)), 0);
     let attachment = *ui.projections[0].value.attachment();
 

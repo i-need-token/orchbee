@@ -7,8 +7,7 @@ use orchbee_workbench_protocol::{
 #[test]
 fn popup_admission_rejects_changed_source_generation_or_incarnation_before_a_lane() {
     let source = super::super::tests::membership::snapshot(2, 1);
-    let (mut ui, _, _, _) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(source.clone());
+    let (mut ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source.clone());
     super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     let (_, observation) = ui.control_observation(false).unwrap();
     let selected = observation.selection.unwrap();
@@ -86,7 +85,7 @@ fn popup_admission_rejects_changed_source_generation_or_incarnation_before_a_lan
 
 #[test]
 fn popup_pending_and_closing_composition_hide_the_underlying_terminal_cursor() {
-    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = super::super::tests::ready::ready_ui();
     super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     for popup in [None, Some(false), Some(true)] {
         for size in [
@@ -124,7 +123,7 @@ fn too_small_popup_root_frame_shows_plain_recovery_and_restores_the_surface_afte
     };
     use ratatui::{Terminal, backend::TestBackend};
 
-    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui();
+    let (mut ui, _, _, _) = super::super::tests::ready::ready_ui();
     super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     ui.popup = crate::independent_popup::Driver::composition_fixture(Some(false), None);
 
@@ -223,8 +222,7 @@ fn too_small_popup_root_frame_shows_plain_recovery_and_restores_the_surface_afte
 #[test]
 fn popup_admission_names_an_open_action_menu_as_modal() {
     let source = super::super::tests::membership::snapshot(2, 1);
-    let (mut ui, _, _, _) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(source.clone());
+    let (mut ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source.clone());
     super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     let (_, observation) = ui.control_observation(false).unwrap();
     let selected = observation.selection.unwrap();

@@ -1,8 +1,8 @@
 use super::*;
 use crate::workbench_client::ui::{
     tests::membership::snapshot,
-    tests::move_membership::ready_ui,
     tests::publication_hint::{ready_split_ui, split_snapshot},
+    tests::ready::ready_ui,
 };
 use orchbee_workbench_protocol::{
     ClientViewSequence, WorkbenchClientId, WorkbenchRequestId, WorkbenchRevision,

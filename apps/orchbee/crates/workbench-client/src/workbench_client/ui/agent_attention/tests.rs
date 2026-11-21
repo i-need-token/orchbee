@@ -1,4 +1,4 @@
-use super::super::{tests::move_membership::ready_ui, tests::viewport::install_projection};
+use super::super::{tests::ready::ready_ui, tests::viewport::install_projection};
 use super::*;
 use crate::workbench_client::agent_read_lane::AttentionRound;
 use crate::{

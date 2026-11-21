@@ -34,8 +34,7 @@ fn automatic_tab_chrome_keeps_localized_and_fixed_names_without_a_second_title_r
                 };
                 primary_presentation.label = tab.label.clone();
             }
-            let (ui, mailbox, _, _) =
-                super::super::tests::move_membership::ready_ui_with_snapshot(source);
+            let (ui, mailbox, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
             assert_eq!(ui.view().tab(2).unwrap().display_label(locale), fixed);
             for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
                 for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (15, 4)] {
@@ -107,8 +106,7 @@ fn tab_strip_uses_the_tab_identity_without_an_additional_location_breadcrumb() {
                 let label = if repeats_location { location } else { "Editor" };
                 let mut source = super::super::tests::membership::snapshot(1, 1);
                 source.terminal_contexts[0].tabs[0].label = label.into();
-                let (ui, _, _, _) =
-                    super::super::tests::move_membership::ready_ui_with_snapshot(source);
+                let (ui, _, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
                 let mut terminal =
                     ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
                 terminal
@@ -170,8 +168,7 @@ fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
         agent_start_failure: None,
         launch_program: None,
     });
-    let (mut ui, mailbox, _, _) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let (mut ui, mailbox, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
     assert_eq!(
         ui.apply_client_action(ClientAction::NextPresentation),
         ClientActionDisposition::DismissNavigator
@@ -351,7 +348,7 @@ fn activate_painted_presentation(
 #[test]
 fn drawn_presentation_activation_revalidates_live_member_and_unbound_source() {
     let (mut attached, attached_mailbox, _, _) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(child_source(true));
+        super::super::tests::ready::ready_ui_with_snapshot(child_source(true));
     let (target, foreign_member) = {
         let view = attached.view();
         let tab = view.tab(0).unwrap();
@@ -418,7 +415,7 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
     use crate::tui_pointer::PointerState;
     for layout in 0..3 {
         let (mut ui, mailbox, clock, _) =
-            super::super::tests::move_membership::ready_ui_with_snapshot(child_source(layout != 0));
+            super::super::tests::ready::ready_ui_with_snapshot(child_source(layout != 0));
         if layout != 0 {
             super::super::tests::publication_hint::attach_split_peer(&mut ui, &mailbox, &clock);
         }
@@ -544,7 +541,7 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
 fn selector_degrades_in_minimal_view_and_exact_targets_reject_selected_or_foreign_members() {
     use crate::tui_hit_map::HitTarget;
     let (mut ui, mailbox, _, _) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(child_source(false));
+        super::super::tests::ready::ready_ui_with_snapshot(child_source(false));
     let (_, hits, _) = painted_selector(&ui, 59, 11, None);
     assert!((0..11).all(|y| {
         (0..59).all(|x| !matches!(hits.hit_target_at(x, y), Some(HitTarget::Presentation(_))))
@@ -573,7 +570,7 @@ fn selector_degrades_in_minimal_view_and_exact_targets_reject_selected_or_foreig
     let mut foreign_source = child_source(false);
     foreign_source.terminal_contexts[0].tabs.swap(0, 1);
     let (mut foreign_ui, foreign_mailbox, _, _) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(foreign_source);
+        super::super::tests::ready::ready_ui_with_snapshot(foreign_source);
     assert_ne!(foreign_ui.view().focus_panel_id(), Some(prior_tab.panel()));
     assert_eq!(
         foreign_ui.activate_drawn_presentation(&prior_tab),
@@ -612,8 +609,7 @@ fn narrow_split_titles_drop_controls_without_covering_terminal_content() {
             },
         ]),
     };
-    let (mut ui, mailbox, _, _) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let (mut ui, mailbox, _, _) = super::super::tests::ready::ready_ui_with_snapshot(source);
     let tab = &ui.state.as_ref().unwrap().cache().tabs()[0];
     let observed: Vec<_> = (0..tab.panel_count())
         .map(|index| {
@@ -657,7 +653,7 @@ fn passive_member_read_tracks_child_attachment_and_never_borrows_primary_frame()
     use orchbee_workbench_protocol::*;
     let source = child_source(false);
     let (mut ui, mailbox, _, _) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(source.clone());
+        super::super::tests::ready::ready_ui_with_snapshot(source.clone());
     let primary_key =
         super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     let panel_id = primary_key.pane().panel().clone();

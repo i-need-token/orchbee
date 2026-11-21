@@ -1,5 +1,5 @@
 use super::*;
-use crate::workbench_client::ui::tests::{move_membership::ready_ui, viewport};
+use crate::workbench_client::ui::tests::{ready::ready_ui, viewport};
 use orchbee_terminal_protocol::TerminalCommandCompletion;
 use orchbee_workbench_protocol::{CompletionReminderMode, UserSettingsValues};
 use std::num::NonZeroU64;

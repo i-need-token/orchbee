@@ -4,7 +4,7 @@ use crate::workbench_client::mailbox::{
 };
 use crate::workbench_client::ui::DisplayPhase;
 use crate::workbench_client::ui::tests::context_selection::make_desired_ready;
-use crate::workbench_client::ui::tests::move_membership::ready_ui_with_snapshot;
+use crate::workbench_client::ui::tests::ready::ready_ui_with_snapshot;
 use crate::workbench_state::{ControllerMode, FrameIdentity, RefreshDecision};
 use orchbee_workbench_protocol::{SessionId, TerminalId, WorkbenchSnapshotOutcome};
 

@@ -1,5 +1,5 @@
 use super::super::tests::membership::snapshot;
-use super::super::tests::move_membership::ready_ui;
+use super::super::tests::ready::ready_ui;
 use super::super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::terminal_projection::TerminalProjection;
@@ -86,7 +86,7 @@ fn pushed_membership_hints_recover_a_lost_focused_viewer_without_periodic_reads(
     use std::sync::atomic::Ordering;
 
     let (mut ui, mailbox, clock, elapsed) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(snapshot(1, 1));
+        super::super::tests::ready::ready_ui_with_snapshot(snapshot(1, 1));
     let focus = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
     mailbox
         .publish_notice_before(

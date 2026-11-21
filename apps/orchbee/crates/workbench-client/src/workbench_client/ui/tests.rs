@@ -8,7 +8,7 @@ pub(in crate::workbench_client::ui) mod idle_close;
 pub(in crate::workbench_client::ui) mod input_provenance;
 pub(in crate::workbench_client) mod membership;
 pub(in crate::workbench_client::ui) mod modal_pointer_roundtrip;
-pub(in crate::workbench_client) mod move_membership;
+mod move_membership;
 pub(in crate::workbench_client::ui) mod normal_exit_hold;
 pub(in crate::workbench_client::ui) mod panel_input;
 pub(in crate::workbench_client::ui) mod panel_reports;
@@ -17,6 +17,7 @@ pub(in crate::workbench_client::ui) mod program_effect;
 pub(in crate::workbench_client::ui) mod projection_resync;
 pub(in crate::workbench_client) mod publication_hint;
 pub(in crate::workbench_client::ui) mod quick_workspace;
+pub(in crate::workbench_client) mod ready;
 pub(in crate::workbench_client::ui) mod refresh_gating;
 pub(in crate::workbench_client::ui) mod rename_membership;
 pub(in crate::workbench_client::ui) mod retired_membership;
@@ -35,7 +36,7 @@ use std::{sync::atomic::Ordering, time::Duration};
 
 #[test]
 fn worker_completion_interrupts_the_ui_wait() {
-    let (mut ui, mailbox, clock, _) = super::tests::move_membership::ready_ui();
+    let (mut ui, mailbox, clock, _) = super::tests::ready::ready_ui();
     super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     ui.schedule_poll(&mailbox);
     let lease = mailbox.try_recv().unwrap().unwrap();
@@ -86,7 +87,7 @@ fn worker_completion_interrupts_the_ui_wait() {
 
 #[test]
 fn one_second_of_empty_replies_is_bounded_even_with_repeated_same_instant_ticks() {
-    let (mut ui, mailbox, clock, elapsed) = super::tests::move_membership::ready_ui();
+    let (mut ui, mailbox, clock, elapsed) = super::tests::ready::ready_ui();
     super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     let wakeup = super::super::UiWakeup::current();
     ui.set_ui_wakeup(Some(wakeup.clone()));
@@ -235,7 +236,7 @@ fn worker_publication_and_lease_completion_wake_ui_while_empty_polls_are_paced()
 
 #[test]
 fn mailbox_retirement_interrupts_the_bound_ui_waiter() {
-    let (ui, mailbox, _clock, _elapsed) = super::tests::move_membership::ready_ui();
+    let (ui, mailbox, _clock, _elapsed) = super::tests::ready::ready_ui();
     let wakeup = super::super::UiWakeup::current();
     ui.set_ui_wakeup(Some(wakeup.clone()));
     assert!(wakeup.take());
@@ -247,7 +248,7 @@ fn mailbox_retirement_interrupts_the_bound_ui_waiter() {
 fn one_shot_notices_expire_without_discarding_unknown_outcomes() {
     use crate::workbench_state::ClientNotice;
     use std::sync::atomic::Ordering;
-    let (mut ui, _mailbox, _clock, elapsed) = move_membership::ready_ui();
+    let (mut ui, _mailbox, _clock, elapsed) = ready::ready_ui();
     ui.state
         .as_mut()
         .unwrap()

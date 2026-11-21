@@ -333,10 +333,9 @@ fn creation_menu_has_no_orphan_worktree_separator_when_the_checkout_list_is_empt
 #[test]
 fn exact_linked_workspace_menu_opens_removal_confirmation_without_selecting_or_closing_it() {
     let (_, origin, discovery) = crate::workbench_state::worktree_launch::tests::removal::fixture();
-    let (mut ui, mailbox, _, _) =
-        crate::workbench_client::ui::tests::move_membership::ready_ui_with_snapshot(
-            origin.cache.canonical_snapshot().clone(),
-        );
+    let (mut ui, mailbox, _, _) = crate::workbench_client::ui::tests::ready::ready_ui_with_snapshot(
+        origin.cache.canonical_snapshot().clone(),
+    );
     let location = discovery.addressed.cache.location().clone();
     assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));
     assert!(
@@ -434,7 +433,7 @@ fn closed_ungrouped_git_workspace() -> (
         terminal_context_id: member.terminal_context_id.clone(),
     };
     let (ui, mailbox, clock, _) =
-        crate::workbench_client::ui::tests::move_membership::ready_ui_with_snapshot(snapshot);
+        crate::workbench_client::ui::tests::ready::ready_ui_with_snapshot(snapshot);
     (ui, mailbox, clock, MenuTarget::Workspace(location))
 }
 

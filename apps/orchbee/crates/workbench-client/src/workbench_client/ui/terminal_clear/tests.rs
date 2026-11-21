@@ -1,5 +1,5 @@
 use super::*;
-use crate::workbench_client::ui::tests::move_membership::ready_ui;
+use crate::workbench_client::ui::tests::ready::ready_ui;
 
 #[test]
 fn clear_admission_never_writes_input_or_canonical_membership_and_stale_feedback_is_ignored() {

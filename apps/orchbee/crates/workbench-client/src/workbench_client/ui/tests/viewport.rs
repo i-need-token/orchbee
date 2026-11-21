@@ -9,8 +9,8 @@ use super::super::test_support::{attachment, epoch};
 pub(in crate::workbench_client::ui) use super::super::test_support::{
     controlling_ui, frame, install_projection,
 };
-use super::super::tests::move_membership::ready_ui;
 use super::super::tests::publication_hint::ready_split_ui;
+use super::super::tests::ready::ready_ui;
 use super::super::*;
 mod chrome;
 mod scrollbar;

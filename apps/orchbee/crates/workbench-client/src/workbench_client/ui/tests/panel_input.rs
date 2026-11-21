@@ -1,5 +1,5 @@
-use super::super::tests::move_membership::ready_ui;
 use super::super::tests::publication_hint::ready_split_ui;
+use super::super::tests::ready::ready_ui;
 use super::super::*;
 use crate::client_view::{ClientKey, ClientView};
 use crate::terminal_input::{
@@ -1011,7 +1011,7 @@ fn a_panel_close_confirmed_while_another_close_reads_is_never_dropped_silently()
     };
     primary_presentation.binding = None;
     let (mut ui, mailbox, clock, _elapsed) =
-        super::super::tests::move_membership::ready_ui_with_snapshot(source.clone());
+        super::super::tests::ready::ready_ui_with_snapshot(source.clone());
 
     // Plays the worker for everything this test does not hold: a Poll finishes unanswered and a
     // publication read finds the Workbench unchanged. Returns the first other command.
@@ -1179,11 +1179,10 @@ fn a_panel_a_stopped_close_shows_again_takes_typing_and_keeps_the_client() {
         unreachable!("the split fixture's second leaf");
     };
     primary_presentation.binding = None;
-    let (mut ui, mailbox, clock, elapsed) =
-        super::super::tests::move_membership::ready_ui_with_mode(
-            source.clone(),
-            ControllerMode::Controlling(ControllerId::parse(&format!("{:032x}", 1)).unwrap()),
-        );
+    let (mut ui, mailbox, clock, elapsed) = super::super::tests::ready::ready_ui_with_mode(
+        source.clone(),
+        ControllerMode::Controlling(ControllerId::parse(&format!("{:032x}", 1)).unwrap()),
+    );
 
     // Plays the worker for everything this test does not hold: a Poll finishes unanswered and a
     // publication read finds the Workbench unchanged. Returns the first other command.

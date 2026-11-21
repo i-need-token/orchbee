@@ -2,7 +2,7 @@
 //! chain with `WorkbenchClientState` fixtures and the Tab-close confirmation API.
 //! Decoder-only witnesses live in `terminal_input/tests/provenance.rs`.
 
-use super::super::tests::move_membership::ready_ui;
+use super::super::tests::ready::ready_ui;
 use super::super::*;
 use crate::client_view::{ClientAction, ClientView};
 use crate::terminal_input::{
