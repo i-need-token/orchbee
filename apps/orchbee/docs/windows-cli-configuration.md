@@ -2,7 +2,28 @@
 
 ## File and validation
 
-Orchbee reads `config.toml` in its environment's [data root](../../../crates/local-runtime/README.md#data-root), `%USERPROFILE%/.orchbee/config.toml` for release and `%USERPROFILE%/.<stem>/config.toml` with a stem such as `ob-dev-<digest>` for development and test builds, so environments never share a file. `ORCHBEE_HOME` moves the whole data root; the absolute file named by `ORCHBEE_CONFIG_FILE` replaces only the settings file and still wins in every environment. The [environment rules](../../../crates/local-runtime/README.md#windows-named-runtime-identity) list the other locations. The running Session's Server reads it at startup, on reload and when its sampler sees a change; `config check` reads it offline. Creation commands never read it. A missing default file means unchanged defaults. An invalid or empty location variable is fatal to every read, Session startup and Client activation included. A missing explicit file, an unreadable file, a directory or a file larger than 2 MiB is fatal to `config check`, `channel show`, `channel set`, `update` and `config reload`, but never stops Session startup or Client activation, because the person needs a terminal to repair it: the Session starts on the defaults, its settings snapshot reports the file as `unreadable`, edits are refused while the file exists but cannot be read, and the first edit creates a missing file. A file that is not valid UTF-8 or TOML gives the defaults and a `file` warning whose reader result names the line and column; Session startup and Client activation continue on those defaults, while `config check`, `channel show`, `channel set`, `update`, `config reload` and the Server's sampler treat it as fatal and keep what they had. A parsed document is admitted field by field: an invalid supported leaf uses its existing safe default, an invalid profile uses that profile's existing safe default, and unknown fields are ignored. The reader reports every fallback as a warning without echoing values or commands. No configuration directory or file is created by reading or checking it.
+Orchbee reads `config.toml` in its environment's [data
+root](../../../crates/local-runtime/README.md#data-root), `%USERPROFILE%/.orchbee/config.toml` for
+release and `%USERPROFILE%/.<stem>/config.toml` with a stem such as `ob-dev-<digest>` for
+development and test builds, so environments never share a file. `ORCHBEE_HOME` moves the whole data
+root; the absolute file named by `ORCHBEE_CONFIG_FILE` replaces only the settings file and still
+wins in every environment. The [environment
+rules](../../../crates/local-runtime/README.md#windows-named-runtime-identity) list the other
+locations. The running Session's Server reads it at startup, on reload and when its sampler sees a
+change; `config check` reads it offline. Creation commands never read it. An invalid or empty
+location variable is fatal to every read, Session startup and Client activation included. A missing
+explicit file, an unreadable file, a directory or a file larger than 2 MiB is fatal to `config
+check`, `channel show`, `channel set`, `update` and `config reload`, but never stops Session startup
+or Client activation, because the person needs a terminal to repair it: the Session starts on the
+defaults, its settings snapshot reports the file as `unreadable`, edits are refused while the file
+exists but cannot be read, and the first edit creates a missing file. A file that is not valid UTF-8
+or TOML gives the defaults and a `file` warning whose reader result names the line and column;
+Session startup and Client activation continue on those defaults, while `config check`, `channel
+show`, `channel set`, `update`, `config reload` and the Server's sampler treat it as fatal and keep
+what they had. A parsed document is admitted field by field: an invalid supported leaf uses its
+existing safe default, an invalid profile uses that profile's existing safe default, and unknown
+fields are ignored. The reader reports every fallback as a warning without echoing values or
+commands. No configuration directory or file is created by reading or checking it.
 
 ```toml
 [terminal]
@@ -17,20 +38,37 @@ channel = "stable"
 
 Only registered keys affect Orchbee; the [settings key table](../../../crates/local-runtime/README.md#user-settings) lists every table and key. Unknown sections, fields and actions warn and are ignored, and the retired `[ui]` names are simply unknown: nothing migrates or aliases them; loading configuration never enables a plugin, installs a provider or runs a configured command.
 
-`terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. A path must also be a workbench directory path, so a bare verbatim drive such as `\\?\C:` is invalid; the same rules apply to `worktrees.directory`. An invalid path falls back only that leaf. A missing `USERPROFILE`, with no `ORCHBEE_HOME`, leaves `config check` on defaults, but Session activation then has no data root for the Session's preference scope: it fails as configuration `USERPROFILE`/`missing` (exit 1) before its activation marker commits. An empty or relative `ORCHBEE_HOME` is the configuration failure `ORCHBEE_HOME`/`invalid-path`. An explicit malformed value does not silently fall back.
+Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's
+parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are
+rejected. A path must also be a workbench directory path, so a bare verbatim drive such as `\\?\C:`
+is invalid; the same rules apply to `worktrees.directory`. A missing `USERPROFILE`, with no
+`ORCHBEE_HOME`, leaves `config check` on defaults, but Session activation then has no data root for
+the Session's preference scope: it fails as configuration `USERPROFILE`/`missing` (exit 1) before
+its activation marker commits. An explicit malformed value does not silently fall back.
 
-Warnings use a bounded canonical reason grammar and a closed disposition vocabulary, and carry only a bounded canonical dotted field path. They are deduplicated and sorted by field and reason. A result carries at most 128 warning entries and an exact omitted count, so truncation is always visible. Unknown path segments are escaped and truncated on a UTF-8 boundary; distinct original fields are deduplicated before display truncation.
+Warnings use a bounded canonical reason grammar and a closed disposition vocabulary, and carry only
+a bounded canonical dotted field path. A result carries at most 128 warning entries and an exact
+omitted count, so truncation is always visible.
 
 ### Default configuration output
 
-`orchbee config default` is an offline command that takes no other argument. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. Every line is a comment, table headers included: a fixed-English reference generated from the settings registry gives each key's purpose, default, allowed values and when a change applies; English keeps this copyable config artifact identical across CLI locales. Uncommenting a header and a line opts into that one setting. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. The TUI Settings page edits this same file. `config check` accepts the generated output without warnings, and Windows CLI parsing produces the same effective settings and bindings as an absent file.
+`orchbee config default` is an offline command that takes no other argument. Argument parsing
+selects it before any environment read or runtime discovery, and it does not activate a Session. It
+writes deterministic UTF-8 TOML with one trailing newline to stdout. Every line is a comment, table
+headers included: a fixed-English reference generated from the settings registry gives each key's
+purpose, default, allowed values and when a change applies; English keeps this copyable config
+artifact identical across CLI locales. Uncommenting a header and a line opts into that one setting.
+Registered Client actions appear as commented binding arrays, including `[]` for actions without a
+default binding, so uncommenting a row opts into an override while leaving the generated file
+unchanged preserves the Client registry's evolving defaults. The TUI Settings page edits this same
+file. `config check` accepts the generated output without warnings, and Windows CLI parsing produces
+the same effective settings and bindings as an absent file.
 
 ## Named chrome themes
 
-`appearance.mode` supports Light (`light`), Dark (`dark`) and System (`system`); System is the
-default. In the native TUI, System follows the host-default background and uses terminal-native
-contrast when no host background is observed. See [native themes](native-themes.md) for polarity, color capabilities, all chrome
-consumers, shared reload and rollback.
+In the native TUI, System follows the host-default background and uses terminal-native contrast when
+no host background is observed. See [native themes](native-themes.md) for polarity, color
+capabilities, all chrome consumers, shared reload and rollback.
 
 `appearance.mode`, `appearance.light_theme` and `appearance.dark_theme` are the Session Server's and
 the TUI's runtime source of application appearance. A `[theme]` table is an unknown section that warns and is ignored, and neither
@@ -46,7 +84,10 @@ the TUI's runtime source of application appearance. A `[theme]` table is an unkn
 | No published root                               | Keep the existing sibling checkout path                                                                   |
 | Resume                                          | Use the path and branch already retained in the operation; do not reload settings                         |
 
-Branch slugs lowercase ASCII letters, collapse nonalphanumeric runs to a hyphen, trim hyphens and use `worktree` if empty. Generated branches remain `worktree/<operation-id>` and are fixed in the submitted intent. The read-only repository query uses the same source and trust policy as creation. The Server still rechecks the source and owns every Git and canonical Workspace effect; the query is not a filesystem transaction. Explicit path avoids the extra query.
+Generated branches remain `worktree/<operation-id>` and are fixed in the submitted intent. The
+read-only repository query uses the same source and trust policy as creation. The Server still
+rechecks the source and owns every Git and canonical Workspace effect; the query is not a filesystem
+transaction.
 
 Creation reads its defaults from the running Session, not from the file. Right after the Session snapshot read and before any other request, a Workspace, Tab, Panel or Worktree creation that omits its cwd or checkout path reads the current configuration snapshot once (`workbench.configuration` `current`) and applies `newCwd` or `worktreesDirectory`. An explicit cwd or checkout path skips that read, and a plugin panel never applies `newCwd`. A busy reply is retried until the command deadline; a denied, unavailable or Session-mismatch reply stops the command before any effect. Configuration errors therefore belong to the Server: a fatal file refuses Session startup, a file that does not parse starts it on defaults with a `file` warning, a fatal edit keeps the last published snapshot and fails `config reload`, and field fallbacks appear as snapshot diagnostics and the Client warning. A broken file on disk no longer fails creation; creation keeps using the last published values, and without a running Session it fails as `service-unavailable`.
 
@@ -54,36 +95,37 @@ The creation settings govern Windows CLI creation. The legacy explicit empty-Wor
 
 ## Check and correctness
 
-Windows `config check` version 1 extends the `user-config` check with the admitted warning list and omitted count. A warning result reports status `warning`, keeps the overall document successful and exits 0. Fatal file or environment admission reports status `fail` and exits 1. A failing `user-config` check's details are `{field, reason}`; when `reason` is `invalid-toml` or `invalid-utf8`, and only then, they also carry the file's `path` and the 1-based `line` and `column` (counted in characters) where parsing stops, and text output prints that position as `<path>:<line>:<column>` before the localized reason, which names the line to fix. The check reports the selected file, presence and normalized effective settings, and text output ends with a `Config file:` line naming that file as a copyable path; the separate `orchbee.cli.failure.configuration` envelope remains for Session activation, `channel show` and configured-checkout failures, but no longer for file errors during creation. Failed source discovery stops configured-path creation before first-Project setup; no mutation is retried.
+Failed source discovery stops configured-path creation before first-Project setup; no mutation is
+retried.
 
-`orchbee.cli.failure.configuration` v1 details are one closed object `{field, reason, line?, column?}`. `field` is `file`, an environment variable name such as `ORCHBEE_CONFIG_FILE` or `USERPROFILE`, or a settings key path such as `worktrees.directory`; the schema checks it by pattern, so a new key needs no schema change. `reason` is one token from a closed list: the settings reader's reasons (`invalid-path`, `missing`, `io-error`, `not-file`, `too-large`, `invalid-utf8`, `invalid-toml`, `unknown-key`, `wrong-type`, the field-local value reasons and `source-query-failed`/`source-query-interrupted`) plus the editor's `read-only`, `file-in-use`, `locked` and `changed`. `line` and `column` appear exactly for `invalid-toml` and `invalid-utf8`. The failure kind is `check-failed` and the exit status 1. Text output gives each editor reason and each syntax reason its own localized fix: clear the read-only attribute, close the editor holding the file, try again after another edit, or fix the named line.
+`orchbee.cli.failure.configuration` v1 details are one closed object `{field, reason, line?,
+column?}`. `field` is `file`, an environment variable name such as `ORCHBEE_CONFIG_FILE` or
+`USERPROFILE`, or a settings key path such as `worktrees.directory`; the schema checks it by
+pattern, so a new key needs no schema change.
 
-The shared Windows settings reader owns bounded file inspection, deterministic field admission and normalization; the creation workflows own precedence and existing effect receipts. Reads have no writer or cached mutable state; the explicit reset operation below owns configuration repair. Core evidence covers malformed and duplicate TOML, field-local fallback, stable bounded warnings, relative/tilde paths, override precedence and slug vectors. Windows public IPC traces cover a published launch cwd and checkout root winning over the file, explicit overrides without the configuration read, failed discovery with no mutation, and file errors that fail `config check` but not creation. Full application acceptance remains a separate gate.
+The shared Windows settings reader owns bounded file inspection, deterministic field admission and
+normalization; the creation workflows own precedence and existing effect receipts. Reads have no
+writer or cached mutable state.
 
 ## Rule update policy
 
-`[update] channel` accepts exactly `stable` (default) or `preview`. `orchbee channel show [--format text|json]`, which a release build [withholds](#windows-release-installation), reads the complete shared configuration without creating files, activating a Session or accessing the network. Text is the channel token; `orchbee.channel.show` v1 reports channel, default/file provenance, selected configuration path and file presence. An absent default file uses stable; an absent explicit file or malformed configuration fails. This is the requested release preference, not evidence about the currently installed cohort. Windows `config check` v1 and configuration failure v1 admit `update.channel` diagnostics.
+`[update] channel` accepts exactly `stable` (default) or `preview`. `orchbee channel show [--format
+text|json]`, which a release build [withholds](#windows-release-installation), reads the complete
+shared configuration without creating files, activating a Session or accessing the network. An
+absent default file uses stable; an absent explicit file or malformed configuration fails. This is
+the requested release preference, not evidence about the currently installed cohort.
 
 Automatic detection-rule checks have no setting. They run only when the Server has a catalog from
-`ORCHBEE_AGENT_DETECTION_CATALOG_URL`; Orchbee ships no default catalog.
-Client activation admits the location and passes only its configuration path/explicit-file flag. The
-managed Server reads the complete authoritative revision-0 candidate at that frozen location once,
-before any process or durable effect, through `read_startup_settings_at`; direct startup resolves the
-location through the same settings owner and reads it once with `read_startup_settings`. Neither
-read stops on the file itself. Cohorts must match.
-`read_user_settings_at` supports bounded explicit reload at the frozen location, retaining
-missing-default versus missing-explicit semantics. It does not create configuration files.
+`ORCHBEE_AGENT_DETECTION_CATALOG_URL`; Orchbee ships no default catalog. Client activation admits
+the location and passes only its configuration path/explicit-file flag. It does not create
+configuration files.
 
 Persistent managed release Sessions with a catalog check rules at startup and every thirty minutes.
 Debug/test builds and standalone endpoints disable automatic network work. `server agent-manifests`
 exposes effective policy and latest automatic results. `server reload-agent-manifests` reloads rules
-only and never reads `config.toml`, and `config reload` never changes rule checks. An active update
-returns busy for rule reload. Explicit updates
-remain available whether or not automatic checks run. See the
-[screen model](../../orchbee-server/docs/agent-screen-model.md#automatic-checks).
-Release acceptance fixtures leave `ORCHBEE_AGENT_DETECTION_CATALOG_URL` unset when public network
-access is outside the test's purpose. A reader predating the current key names ignores the renamed tables with warnings;
-user overrides and already committed rule caches are retained.
+only and never reads `config.toml`, and `config reload` never changes rule checks. Explicit updates
+remain available whether or not automatic checks run. See the [screen
+model](../../orchbee-server/docs/agent-screen-model.md#automatic-checks).
 
 ## Automatic Windows shell
 
@@ -95,24 +137,20 @@ lookup do not override this policy, and selection never executes a probe. Existi
 prompt integration runs after selection. Explicit executables and other launch profiles retain
 their exact arguments.
 
-`terminal.default_shell` and `terminal.shell_mode` are retired: the native configuration file
-does not select a launch program, so an existing key warns as unknown and is ignored. No private
-startup argument, Server admission value or Configuration snapshot field carries a shell.
+No private startup argument, Server admission value or Configuration snapshot field carries a shell.
 
-Automatic PATH candidates require bounded DOS/PE/COFF and optional-header inspection,
-nonempty section headers within the file, executable-image/not-DLL flags and compatible
-x86/x64/ARM64 machine type. Malformed, missing, inaccessible or incompatible candidates are
-skipped. Discovery resolves each candidate's canonical path and excludes images under an ancestor
-containing an `AppxManifest.xml` file: Store/AppX activation rejects the Host's atomic Job-list launch.
-This selection precedes terminal creation and continues through PATH or the system fallback;
-it never retries creation or relaxes Job containment. Explicit launch-profile programs remain literal.
-These checks prove a structural candidate, not that its dependencies load. The existing pinned
-`winsafe` kernel wrapper supplies system architecture without authored unsafe code.
+Automatic PATH candidates require bounded DOS/PE/COFF and optional-header inspection, nonempty
+section headers within the file, executable-image/not-DLL flags and compatible x86/x64/ARM64 machine
+type. Malformed, missing, inaccessible or incompatible candidates are skipped. Discovery resolves
+each candidate's canonical path and excludes images under an ancestor containing an
+`AppxManifest.xml` file: Store/AppX activation rejects the Host's atomic Job-list launch. This
+selection precedes terminal creation and continues through PATH or the system fallback; it never
+retries creation or relaxes Job containment. Explicit launch-profile programs remain literal. These
+checks prove a structural candidate, not that its dependencies load. The existing pinned `winsafe`
+kernel wrapper supplies system architecture without authored unsafe code.
 [GetNativeSystemInfo](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getnativesysteminfo)
 reports emulated architecture for x86/x64 processes on ARM64; native ARM64 preference through an
-emulated Worker is not claimed. An explicit launch-profile program
-still selects that executable. Real x64 selection and synthetic header/architecture and direct/nested
-package-marker partitions cover this implementation; no ARM64 hardware acceptance is claimed.
+emulated Worker is not claimed.
 
 ## Windows Client key configuration
 
@@ -124,73 +162,33 @@ built-in default cannot silently return; other actions and valid alternatives in
 available. Unknown actions are ignored with a warning. When explicit actions claim the same chord, the fixed action-registry order selects the
 first and reports the later conflict. Diagnostics never retain the original binding or command.
 
-`prefix` accepts one chord. Action values accept a string or at most 16 alternatives. An empty
-string or array remains an explicit disabled override and emits a bounded warning. `prefix+` selects the prefix layer; otherwise a safe direct
-chord is required. `switch_tab` and `focus_agent` admit `1..9` with modifiers. Agent ordinals follow
-the filtered machine Agent list; `focus_agent` is unbound by default. Complete modifiers and uppercase
-letters normalize before collision checks. The prefix itself is reserved in both layers. Direct
-printable keys, bare editing keys and Ctrl+C/D/Z are refused. Capture and mode ownership precede
-direct dispatch; paste and releases never invoke bindings. Double prefix forwards canonical C0
-where available, otherwise original bytes, without a hardcoded Ctrl+b fallback.
+An empty string or array remains an explicit disabled override and emits a bounded warning.
+`prefix+` selects the prefix layer; otherwise a safe direct chord is required. Complete modifiers
+and uppercase letters normalize before collision checks. The prefix itself is reserved in both
+layers. Direct printable keys, bare editing keys and Ctrl+C/D/Z are refused. Capture and mode
+ownership precede direct dispatch; paste and releases never invoke bindings. Double prefix forwards
+canonical C0 where available, otherwise original bytes, without a hardcoded Ctrl+b fallback.
 
-`copy_mode` enters [keyboard copy mode](native-keyboard-copy.md), default `prefix+U` (capital U). It can use the same safe direct chords or an empty array to disable entry. In-mode motions remain fixed.
+The menu is also where keys are found; there is no separate help action, and a former `help` key is
+an unknown action.
 
-`find` opens [Find in terminal](native-terminal-find.md), default `prefix+f`. A safe direct chord
-such as `ctrl+shift+f` works where the host delivers it; an empty array disables the entry. Keys
-inside the bar remain fixed.
-
-`new_worktree` and `open_worktree` enter [Worktree launch](native-worktrees.md), default
-`prefix+W` and `prefix+O`. Safe direct chords and disabling use the same registry.
-
-`settings` opens [Settings](native-settings.md), default `prefix+,`. `close_workspace` asks to close
-the current Workspace with its existing [confirmation](native-workspace-close.md), default `prefix+D`
-(capital D). `rename_panel` and `clear_terminal` are unbound by default and run the Panel menu's
-Rename and Clear terminal on the focused Panel, with their menu outcomes. `last_panel` steps back to the last focused Panel in any Tab or Workspace
-([Last Panel](native-context-selection.md#last-panel)), default `prefix+;`. `focus_panel_left`,
-`focus_panel_down`, `focus_panel_up` and `focus_panel_right` default to the prefix followed by the
-matching arrow key, then `prefix+h`, `prefix+j`, `prefix+k` and `prefix+l`; menus show the
-arrow first.
-
-`menu` opens the [native action menu](native-action-menus.md), default `prefix+space` and
-`prefix+?`. The menu is also where keys are found; there is no separate help action, and a former
-`help` key is an unknown action. The same safe direct chords and explicit disabling apply.
-Machines keeps `prefix+M`.
-
-`open_notification_target` opens the Agent of the current Agent notification card, default
-`prefix+o`, as the [notification contract](windows-notifications.md#opening-the-notification-target)
-describes. Safe direct chords and disabling use the same registry.
-
-`resize_panel_left`, `resize_panel_right`, `resize_panel_up` and `resize_panel_down` default to
-`prefix+alt+left`, `prefix+alt+right`, `prefix+alt+up` and `prefix+alt+down` and accept the same
-safe chords ([keyboard resizing](native-keyboard-resize.md)). Each press moves the nearest eligible
-divider of the focused Panel five percentage points; for example, `resize_panel_left = "ctrl+left"`.
-There is no resize mode, and a former `resize_mode` key is an unknown action. Extra resize keys while
-pending are consumed, not queued. Profiles opting into these action names require a matching current cohort; remove those
-keys before using an older reader. Other existing profiles retain their defaults. Direct resize bindings require a modifier or a function key; bare editing keys stay with the pane.
+There is no resize mode, and a former `resize_mode` key is an unknown action. Direct resize bindings
+require a modifier or a function key; bare editing keys stay with the pane.
 
 The resolved registry supplies dispatch, the keys action-menu rows show and principal live hints. A
-menu row shows no key for an action with no effective binding. Existing native defaults remain for actions without an explicit override;
-unknown fields warn without changing the effective registry. Invalid custom-command configuration disables
-configured commands rather than executing a partial or unvalidated command. Navigation-mode mappings,
-ordinal Agent/indexed Workspace keys and other unsupported actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
-ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
+menu row shows no key for an action with no effective binding. Invalid custom-command configuration
+disables configured commands rather than executing a partial or unvalidated command.
 
 The registry's display projection formats the normalized binding independently of accepted
-configuration spelling. Menu rows and live hints keep ASCII letters lowercase unless the binding
-contains Shift; shifted letters display uppercase. Unicode glyph mode uses arrow glyphs and, on
-Apple hosts, Apple modifier symbols. Simplified glyph mode spells `Up`, `Down`, `Left`, `Right` and
-`Ctrl`, `Alt`, `Shift`, `Super`, including on Apple hosts. A prefix and its member are separated by
-one space. These display rules do not change TOML spelling, normalization, matching or dispatch.
+configuration spelling. These display rules do not change TOML spelling, normalization, matching or
+dispatch.
 
-Supported action fields are `settings`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `close_workspace`, `workspace_picker`,
-`detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `open_notification_target`, `new_tab`, `rename_tab`, `previous_tab`,
-`next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
-`copy_mode`, `find`, `resize_panel_left/down/up/right`, and `focus_panel_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
-`close_panel`, `rename_panel`, `last_panel`, `clear_terminal`, `zoom` and `toggle_sidebar`. They invoke existing native actions;
-Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
-Agent previous/next defaults to prefix `{`/`}` and walks every Agent of the stable
-[machine Agent list](machines.md#agent-metadata-view-controls-and-navigation) that the active source
-view admits, with exact physical target revalidation. The same owning contract defines configured ordinal Agent focus and source-owned view JSON.
+Action fields invoke existing native actions; Workspace means the native Workbench location, vertical split
+is rightward and horizontal is downward. Agent previous/next defaults to prefix `{`/`}` and walks
+every Agent of the stable [machine Agent
+list](machines.md#agent-metadata-view-controls-and-navigation) that the active source view admits,
+with exact physical target revalidation. The same owning contract defines configured ordinal Agent
+focus and source-owned view JSON.
 
 ```toml
 [keys]
@@ -218,11 +216,10 @@ these keys still depends on the terminal host.
 
 The Workspace sidebar profile participates in the same admission/publication transition:
 `appearance.sidebar.workspaces.rows` and `row_gap` are validated by the shared Windows settings
-owner, then published as a bounded canonical profile. A Client validates keys, notifications and
-the Workspace sidebar before installing any field. A bad private wire profile leaves the whole
-previous Client configuration intact. Startup applies the Server's complete admitted baseline after
-the first snapshot arrives; a local projection shown while connecting is provisional.
-Configuration checking reports the supported layout and its bounds.
+owner, then published as a bounded canonical profile. A Client validates keys, notifications and the
+Workspace sidebar before installing any field. A bad private wire profile leaves the whole previous
+Client configuration intact. Startup applies the Server's complete admitted baseline after the first
+snapshot arrives; a local projection shown while connecting is provisional.
 
 Windows and macOS `config reload` requests a reload in the running Session and does not activate one. Server freezes the startup configuration location,
 serializes reloads, parses the bounded whole file and prepares one admitted candidate containing
@@ -266,13 +263,14 @@ a checkpoint-recovery notice wins the first startup display, then the warning re
 is dismissed; the warning does not suppress Agent notification cards. A snapshot the Client cannot admit keeps current settings and warning record and produces a
 localized failure notice. The TUI has no reload action: the Server's sampler publishes file edits, and `config reload` confirms one immediately.
 
-CLI creation applies the directory and worktree defaults published when it runs. Other configuration families and Client-specific profile policy remain unfinished. The wire key profile is capped at 64 KiB; up to 144 expanded triggers per action preserve the user file limit of 16 indexed alternatives. A cancellable state subscription uses the shared Client carrier and publishes the latest committed configuration. Reload remains a one-shot request with a two-second exchange limit; an uncertain reload is not replayed, and a fresh subscription recovers the current state. A successful reload is published state, not an acknowledgement that every Client has applied it.
+CLI creation applies the directory and worktree defaults published when it runs. The wire key
+profile is capped at 64 KiB; up to 144 expanded triggers per action preserve the user file limit of
+16 indexed alternatives. A cancellable state subscription uses the shared Client carrier and
+publishes the latest committed configuration. Reload remains a one-shot request with a two-second
+exchange limit; an uncertain reload is not replayed, and a fresh subscription recovers the current
+state.
 
-No persisted configuration migration or automatic retry is introduced. Deterministic tests cover provisional startup, initial complete application, fatal preservation, atomic settings/diagnostic generations, monotonic later application and warning publication/clearing. Connection tests cover propagation without assuming delivery fairness. Authorization, bounded serialization, no-change reload and shutdown remain implementation obligations. The settings commit/publication core has a narrower writer/CAS scope and does not prove this whole reload workflow.
-
-`config reload` version 1 adds the required `diagnostics` object to every
-successful snapshot. Text output prints the visible count, exact omitted count and each bounded
-field/reason/disposition record.
+No persisted configuration migration or automatic retry is introduced.
 
 ## Live defaults for subsequent Windows terminals
 
@@ -285,49 +283,333 @@ commit, and scheduler admission refusal leaves publication unchanged. No Worker 
 acknowledgement occurs under these locks. Successful reload confirms configuration admission, not
 executable availability.
 
-Launch preparation failure records the existing known pre-handoff failure, retains the Worker/Server connection and creates no Host terminal. The same failed request replays its failure; corrected settings require a fresh creation identity. The lazy loop also remains available before any Host exists. Host startup/transport uncertainty retains its prior retirement and no-retry policy. Evidence covers failure retention, exact/conflicting replay and real Windows pipe exchanges; full provider/multi-Client/visual acceptance remains deferred. Matching private cohorts deploy or roll back together without a durable migration.
+Launch preparation failure records the existing known pre-handoff failure, retains the Worker/Server
+connection and creates no Host terminal. The same failed request replays its failure; corrected
+settings require a fresh creation identity. Host startup/transport uncertainty retains its prior
+retirement and no-retry policy. Matching private cohorts deploy or roll back together without a
+durable migration.
 
 ## Outer window titles
 
-`[appearance] window_title` defaults to `{hostname}: {workspace}` and reloads online. The [title owner](windows-terminal-title.md#configured-templates) defines tokens, literal braces, invalid/empty policy, bounded rendering and CLI override precedence. Invalid syntax, a wrong type or an over-4096-byte value now defaults this leaf and appears in the `config check` v1 warning record; unknown `[appearance]` keys are ignored with their own warning. The effective `windowTitle` remains valid and `windowTitleDiagnostic` therefore stays null. `config reload` v1 exposes the effective published template and diagnostics.
+`[appearance] window_title` defaults to `{hostname}: {workspace}` and reloads online. The [title
+owner](windows-terminal-title.md#configured-templates) defines tokens, literal braces, invalid/empty
+policy, bounded rendering and CLI override precedence.
 
 ## Custom-notification configuration
 
-`notifications.cli_delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `notifications.position` selects the four-corner default. `notifications.agent_reminder` and `notifications.sound` govern automatic Agent notifications and sound. `notifications.delay_seconds` supplies the delay (one second by default, 0–3600); `[notifications.sound_by_agent]` supplies per-Agent sound overrides without changing explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `config reload` v1 carries the 16 KiB `notificationProfile`, spelled like the file: one `[notifications]` table with `cli_delivery`, `agent_delivery` (profile only), `delay_seconds`, `position` and `sound`, and `[notifications.sound_by_agent]`; a profile that cannot be admitted is refused with field `notifications`. `config check` v1 exposes manual and automatic policy, and configuration failure v1 adds the automatic delay/sound diagnostics. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
+`notifications.cli_delivery` accepts off (default), orchbee, terminal or system for manual CLI
+notifications. Clipboard policy remains independent. Startup is Client-local; explicit Session
+reload publishes the complete bounded notification profile alongside keys, and Clients validate both
+before applying either. See the complete [automatic notification
+contract](windows-notifications.md#automatic-physical-agent-notifications).
 
 Common Agent reminder mode and global sound remain authoritative; manual notification delivery
 and per-Agent sound overrides retain their separate ownership.
 
 ## Windows release installation
 
-`orchbee install [--no-path] [--allow-downgrade] [--format text|json]` installs the signed release directory the running Client sits in (its `release.json` and `release.json.sig`) and makes it the active version, of whichever channel that manifest names; it reads no settings file and needs no Session. A release build verifies with the release keys and uses the release store root; a test build verifies with the test key and uses `%LOCALAPPDATA%\Programs\<stem>`; a development build refuses with `development-build`, exit `4`. A Client that does not sit beside a signed release refuses with `not-release-directory`, exit `4`. Run from a version directory of the store, it verifies and activates that version again. A version lower than the active one is refused with `downgrade-refused`, exit `3`, before anything is copied, unless `--allow-downgrade` is given; a store whose active version is for another platform refuses with `other-architecture`, exit `3`. Where the automatic-update switch is on, a version the store holds after it [fell back from it](../../../crates/local-runtime/README.md#fallback-after-a-failed-move) is refused with `version-held`, exit `3`, before anything is copied, even with `--allow-downgrade`, until a higher version has become active. Unless `--no-path` is given, the completion performs the PATH step below and `pathStep` reports what it did to the user `Path`: `added`; `present` when it already named `<store root>\bin`; or `replaced` when entries naming other folders inside the store root, which the earlier layout added, were removed in the same write. `not-requested` answers `--no-path`, `not-reached` a run that ended before the step completed, and `unavailable` a build without the step. `--no-path` is recorded in the pointer as `extensions.noPath`, so a later `update` keeps the PATH step off for that store; an install with the PATH step clears the record. The installing Client classifies the outcome from the user `Path` it read before the completion ran. `orchbee.install` v1 reports `phase`, `channel`, `releaseVersion`, `buildId`, `releasePath`, `reused`, `activated`, `activeBefore`, `pathStep`, `cleanupPending`, `error` and `interrupted`; under `text` a success prints the version, the active Client's path and the PATH line, and a failure writes only its localized diagnostic to standard error.
+`orchbee install [--no-path] [--allow-downgrade] [--format text|json]` installs the signed release
+directory the running Client sits in (its `release.json` and `release.json.sig`) and makes it the
+active version, of whichever channel that manifest names; it reads no settings file and needs no
+Session. A release build verifies with the release keys and uses the release store root; a test
+build verifies with the test key and uses `%LOCALAPPDATA%\Programs\<stem>`; a development build
+refuses with `development-build`, exit `4`. Run from a version directory of the store, it verifies
+and activates that version again. A version lower than the active one is refused with
+`downgrade-refused`, exit `3`, before anything is copied, unless `--allow-downgrade` is given; a
+store whose active version is for another platform refuses with `other-architecture`, exit `3`.
+Where the automatic-update switch is on, a version the store holds after it [fell back from
+it](../../../crates/local-runtime/README.md#fallback-after-a-failed-move) is refused with
+`version-held`, exit `3`, before anything is copied, even with `--allow-downgrade`, until a higher
+version has become active. `--no-path` is recorded in the pointer as `extensions.noPath`, so a later
+`update` keeps the PATH step off for that store; an install with the PATH step clears the record.
 
-`orchbee update [--format text|json]` installs the newest version of the configured channel beside the running one and makes it the version that starts next; running terminals, Agents and Sessions keep the files they started from. `orchbee channel set <stable|preview> [--format text|json]` saves the channel first through the shared single-key settings editor, preserving comments and other TOML values, then runs the same updater. A missing file is created holding only the channel; a file that does not parse is never written. A channel that cannot be saved or read reports error `configuration` with the editor's own refusal in `configurationFailure`. Update failure retains the saved preference. Both commands work without a Session; neither starts, stops, replaces or reconnects a running Session. A release build withholds the whole `channel` command tree, `channel show` included, until it is released: help, completion and the `--skill` guide leave it out, and an invocation is refused with `stage: "release"`, `reason: "withheld-in-release"`, `feature: "channel"`, exit `4`, before any configuration read; see [release-withheld surfaces](../README.md#release-withheld-surfaces). `update` is offered in every build; 0.1.0-beta.1 withheld it with `feature: "update"`.
+`orchbee update [--format text|json]` installs the newest version of the configured channel beside
+the running one and makes it the version that starts next; running terminals, Agents and Sessions
+keep the files they started from. `orchbee channel set <stable|preview> [--format text|json]` saves
+the channel first through the shared single-key settings editor, preserving comments and other TOML
+values, then runs the same updater. A missing file is created holding only the channel; a file that
+does not parse is never written. Update failure retains the saved preference. Both commands work
+without a Session; neither starts, stops, replaces or reconnects a running Session. A release build
+withholds the whole `channel` command tree, `channel show` included, until it is released: help,
+completion and the `--skill` guide leave it out, and an invocation is refused with `stage:
+"release"`, `reason: "withheld-in-release"`, `feature: "channel"`, exit `4`, before any
+configuration read; see [release-withheld surfaces](../README.md#release-withheld-surfaces).
 
-The shared update workflow, signature verification, source/manifest admission, bounded transfer policy, verification, publication, activation decisions and installed-release provenance compile on every host. The channel save and read use the shared settings reader and editor, which run on every host. Named native ports own the update source environment, installation-root admission, no-follow manifest opening, system executable lookup, capsule verification and owned process execution. Capability admission runs before signal registration or any environment, file, network or process effect. A development build refuses with `non-release-build` before saving a channel or touching the installation; a test build updates its own store as its `install` does, trusting only the test key; this check lives only in the CLI entry layer. Below it, the install and activation engine receives the feed source, trusted keys, installation root, state lookup, version probe, completion step, unpack step and loopback switch as values, so in-process tests drive it with the test key and fixture roots. On Linux no update runs, since no download is built there: a release build withholds `update` (`withheld-in-release`, feature `update`) and a development or test build answers the generic unsupported-platform result (exit 4); neither saves a channel. macOS runs `update` and the automatic helper, and macOS and Linux run `install` and `uninstall`, as [macOS and Linux release installation](#macos-and-linux-release-installation) describes.
+Capability admission runs before signal registration or any environment, file, network or process
+effect. A development build refuses with `non-release-build` before saving a channel or touching the
+installation; a test build updates its own store as its `install` does, trusting only the test key;
+this check lives only in the CLI entry layer. Below it, the install and activation engine receives
+the feed source, trusted keys, installation root, state lookup, version probe, completion step,
+unpack step and loopback switch as values, so in-process tests drive it with the test key and
+fixture roots. On Linux no update runs, since no download is built there: a release build withholds
+`update` (`withheld-in-release`, feature `update`) and a development or test build answers the
+generic unsupported-platform result (exit 4); neither saves a channel. macOS runs `update` and the
+automatic helper, and macOS and Linux run `install` and `uninstall`, as [macOS and Linux release
+installation](#macos-and-linux-release-installation) describes.
 
-A release build reads the Orchbee update feed, `https://orchbee.com/update/{channel}/{platform}/feed.json` with this updater's platform, such as `windows-x86_64` or `macos-aarch64`, the one compiled address in `src/cli/update.rs`, which may redirect up to five times to another HTTPS host. A feed address its server does not know, which the public feed answers with 404 for a platform or channel without a release, ends the run as `no-release`, exit `4`, in phase `manifest`, before anything else is requested; its text names the channel and the platform. curl reports the last response's status on standard error (`--write-out`), and only a 404 with curl's `--fail` exit `22` reads this way; a missing local feed stays `download`, and a missing signature document or archive keeps its own refusal. `ORCHBEE_UPDATE_FEED`, when set and not empty, replaces it with an explicit absolute local feed document or an HTTPS URL without a query, in every build; a development or test build has no compiled feed and reports `source-unconfigured` without the variable, so only a release build ever reads the public feed. `{channel}` expands to the selected token. Every feed must also serve its signature document: the same location with `.sig` appended. A test build alone also admits `http://127.0.0.1:<port>/…` for a loopback server that stands in for the HTTPS host in a rehearsal on one computer, and an archive path relative to it; curl then runs with `--proto =http --proto-redir =http --noproxy 127.0.0.1`. The switch is compiled from the environment stem (`LOOPBACK` in `src/cli/update.rs`), and `Source::configured` refuses a loopback address again in a release build, so no runtime input enables plain HTTP there. A compiled publisher key, not the chosen location, is the trust authority: the feed's signature binds the archive's size and SHA-256 and the manifest's digest, the manifest's own signature is verified again, and per-file SHA-256 checks then bind every installed file to the signed manifest. `ORCHBEE_INSTALL_DIR` names the store root in every environment and defaults to `LOCALAPPDATA/Programs/Orchbee` for release and `LOCALAPPDATA/Programs/<stem>` for a test or development build. Install paths reject PATH delimiters, expansion tokens and controls. One install or update has a 600-second deadline and Ctrl+C cancellation; it covers the feed, the decision, unpacking, verification and activation, and stands still while the archive transfers under its own limit: curl ends a transfer that averages below 4 KiB/s over 60 seconds (`--speed-limit 4096 --speed-time 60`) and, at the latest, after the time the signed size takes at that rate plus 600 seconds, never more than six hours (`--max-time`), so a 25 MB archive may take about 112 minutes on a link that stays above the rate and a stalled server ends within about a minute. Either end reports `timeout`, Ctrl+C ends the transfer at once, and `download.lock` stays held throughout. Before the transfer, `update` runs the system tar with `--version` on every platform: a missing tar is refused as `download-unavailable`, any other failure of that check as `download`, and nothing is downloaded. On Windows it also refuses as `install-location`, before any transfer or change, a path that CreateProcess would not start: the absolute unpack folder `<store root>\.download\unpacked`, where tar starts, must be at most 258 UTF-16 units, and the absolute path of each program under `<store root>\versions\<version>\` at most 259 units. An unpack that is cancelled or times out is settled before its files are removed; one whose end cannot be confirmed (`physical-unknown`, exit `8`) keeps the archive and `unpacked\` beside the lock, names the folder in `cleanupPending`, and the next update removes them. The feed and its signature keep curl's 600-second limit. HTTPS uses curl 8.4 or newer from the OS system directory with HTTPS-only bounded redirects and bounded downloads. curl starts with a cleared environment holding only `SystemRoot` and whichever of `HTTPS_PROXY`, `ALL_PROXY` and `NO_PROXY` are set, so a proxy reaches the transfer while no curlrc, credential, `http_proxy` or TLS setting does; Windows looks environment names up without regard to case, so `https_proxy` and its lower-case peers arrive under the same three names.
+A release build reads the Orchbee update feed,
+`https://orchbee.com/update/{channel}/{platform}/feed.json` with this updater's platform, such as
+`windows-x86_64` or `macos-aarch64`, the one compiled address in `src/cli/update.rs`, which may
+redirect up to five times to another HTTPS host. A feed address its server does not know, which the
+public feed answers with 404 for a platform or channel without a release, ends the run as
+`no-release`, exit `4`, in phase `manifest`, before anything else is requested; its text names the
+channel and the platform. curl reports the last response's status on standard error (`--write-out`),
+and only a 404 with curl's `--fail` exit `22` reads this way; a missing local feed stays `download`,
+and a missing signature document or archive keeps its own refusal. `ORCHBEE_UPDATE_FEED`, when set
+and not empty, replaces it with an explicit absolute local feed document or an HTTPS URL without a
+query, in every build; a development or test build has no compiled feed and reports
+`source-unconfigured` without the variable, so only a release build ever reads the public feed.
+Every feed must also serve its signature document: the same location with `.sig` appended. A test
+build alone also admits `http://127.0.0.1:<port>/…` for a loopback server that stands in for the
+HTTPS host in a rehearsal on one computer, and an archive path relative to it; curl then runs with
+`--proto =http --proto-redir =http --noproxy 127.0.0.1`. The switch is compiled from the environment
+stem (`LOOPBACK` in `src/cli/update.rs`), and `Source::configured` refuses a loopback address again
+in a release build, so no runtime input enables plain HTTP there. A compiled publisher key, not the
+chosen location, is the trust authority: the feed's signature binds the archive's size and SHA-256
+and the manifest's digest, the manifest's own signature is verified again, and per-file SHA-256
+checks then bind every installed file to the signed manifest. `ORCHBEE_INSTALL_DIR` names the store
+root in every environment and defaults to `LOCALAPPDATA/Programs/Orchbee` for release and
+`LOCALAPPDATA/Programs/<stem>` for a test or development build. Install paths reject PATH
+delimiters, expansion tokens and controls. One install or update has a 600-second deadline and
+Ctrl+C cancellation; it covers the feed, the decision, unpacking, verification and activation, and
+stands still while the archive transfers under its own limit: curl ends a transfer that averages
+below 4 KiB/s over 60 seconds (`--speed-limit 4096 --speed-time 60`) and, at the latest, after the
+time the signed size takes at that rate plus 600 seconds, never more than six hours (`--max-time`),
+so a 25 MB archive may take about 112 minutes on a link that stays above the rate and a stalled
+server ends within about a minute. Either end reports `timeout`, Ctrl+C ends the transfer at once,
+and `download.lock` stays held throughout. Before the transfer, `update` runs the system tar with
+`--version` on every platform: a missing tar is refused as `download-unavailable`, any other failure
+of that check as `download`, and nothing is downloaded. On Windows it also refuses as
+`install-location`, before any transfer or change, a path that CreateProcess would not start: the
+absolute unpack folder `<store root>\.download\unpacked`, where tar starts, must be at most 258
+UTF-16 units, and the absolute path of each program under `<store root>\versions\<version>\` at most
+259 units. An unpack that is cancelled or times out is settled before its files are removed; one
+whose end cannot be confirmed (`physical-unknown`, exit `8`) keeps the archive and `unpacked\`
+beside the lock, names the folder in `cleanupPending`, and the next update removes them. HTTPS uses
+curl 8.4 or newer from the OS system directory with HTTPS-only bounded redirects and bounded
+downloads. curl starts with a cleared environment holding only `SystemRoot` and whichever of
+`HTTPS_PROXY`, `ALL_PROXY` and `NO_PROXY` are set, so a proxy reaches the transfer while no curlrc,
+credential, `http_proxy` or TLS setting does; Windows looks environment names up without regard to
+case, so `https_proxy` and its lower-case peers arrive under the same three names.
 
-When neither `HTTPS_PROXY` nor `ALL_PROXY` is set, an HTTPS transfer of `orchbee update` and of the automatic helper uses the per-user system proxy (`src/cli/update/acquire/system_proxy.rs`, read by `system_proxy` in `src/cli/update/windows.rs`); a loopback transfer never does. The read covers only the environment variables `HTTPS_PROXY`, `ALL_PROXY` and `NO_PROXY` (found under any case) and the values `ProxyEnable` (DWORD), `ProxyServer` and `ProxyOverride` (strings) of `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings`, opened for query only; when either proxy variable is set the key is not opened at all. Nothing is written, and the automatic configuration script (`AutoConfigURL`), automatic detection (WPAD), the binary `Connections` values and policy keys are never read. A nonzero `ProxyEnable` with a `ProxyServer` of one `host[:port]` gives `--proxy http://host:port`; a per-scheme list such as `http=a:1;https=b:2;socks=c:3` gives its `https` entry as an HTTP proxy, else its `socks` entry as `socks4://`, else no proxy, as Windows connects directly then. A server without a port takes Windows' defaults, 80 for HTTP and 1080 for SOCKS. Unless `NO_PROXY` is set, which then stays curl's bypass list, `ProxyOverride` becomes `--noproxy`: names and addresses pass unchanged, `*.name` becomes `name` (curl also matches `name` itself), IPv4 patterns ending in `*` octets become CIDR ranges, and `*` stays; `<local>` and any other pattern have no curl form and are left out, which never matters for the dotted download hosts. A proxy that is off, a missing key, a value of another type or a server not understood, including one with user information or another scheme, gives no proxy argument, so a setting never makes a download fail. A table test over injected values covers the mapping; no test reads the registry, the real environment or the network.
+When neither `HTTPS_PROXY` nor `ALL_PROXY` is set, an HTTPS transfer of `orchbee update` and of the
+automatic helper uses the per-user system proxy (`src/cli/update/acquire/system_proxy.rs`, read by
+`system_proxy` in `src/cli/update/windows.rs`); a loopback transfer never does. The read covers only
+the environment variables `HTTPS_PROXY`, `ALL_PROXY` and `NO_PROXY` (found under any case) and the
+values `ProxyEnable` (DWORD), `ProxyServer` and `ProxyOverride` (strings) of
+`HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings`, opened for query
+only; when either proxy variable is set the key is not opened at all. Nothing is written, and the
+automatic configuration script (`AutoConfigURL`), automatic detection (WPAD), the binary
+`Connections` values and policy keys are never read. A nonzero `ProxyEnable` with a `ProxyServer` of
+one `host[:port]` gives `--proxy http://host:port`; a per-scheme list such as
+`http=a:1;https=b:2;socks=c:3` gives its `https` entry as an HTTP proxy, else its `socks` entry as
+`socks4://`, else no proxy, as Windows connects directly then. A server without a port takes
+Windows' defaults, 80 for HTTP and 1080 for SOCKS. Unless `NO_PROXY` is set, which then stays curl's
+bypass list, `ProxyOverride` becomes `--noproxy`: names and addresses pass unchanged, `*.name`
+becomes `name` (curl also matches `name` itself), IPv4 patterns ending in `*` octets become CIDR
+ranges, and `*` stays; `<local>` and any other pattern have no curl form and are left out, which
+never matters for the dotted download hosts. A proxy that is off, a missing key, a value of another
+type or a server not understood, including one with user information or another scheme, gives no
+proxy argument, so a setting never makes a download fail.
 
-The local source model retains the existing Windows disk-absolute grammar independently of the compiling host: `/` and `\` separate components, repeated separators and `.` follow non-verbatim Windows component semantics, and `..`, UNC, device, verbatim and drive-relative paths are rejected. The original external source limit is 4096 bytes; resolving an admitted relative artifact retains the existing parent/join behavior. The existing source fixture covers these boundaries and compares them with the original Windows standard-library parser and join on Windows. macOS and Linux also admit an absolute POSIX path, in which `/` alone separates components, a backslash is part of a name and a `..` component is refused; `install` names its own directory this way there.
+The local source model retains the existing Windows disk-absolute grammar independently of the
+compiling host: `/` and `\` separate components, repeated separators and `.` follow non-verbatim
+Windows component semantics, and `..`, UNC, device, verbatim and drive-relative paths are rejected.
+macOS and Linux also admit an absolute POSIX path, in
+which `/` alone separates components, a backslash is part of a name and a `..` component is refused;
+`install` names its own directory this way there.
 
-The feed, `src/cli/update/feed.rs`, is one small signed document per channel and platform that names the newest release and the one archive carrying it. It is closed JSON: `schemaVersion: 1`, `product: "orchbee"`, `channel` (`stable` or `preview`; it must be the selected channel, else `manifest-invalid`), `platform` (this updater's own), `version` and `buildId` (the manifest's rules below), `manifest: {sha256}`, the SHA-256 of the archive's `release.json` and so the identity the pointer records, and `archive: {format, url, size, sha256}`: `format` is `zip` on Windows and `tar.gz` on macOS and Linux, `url` an HTTPS URL without a query or a portable relative path resolved beside the feed, `size` from 1 byte to 1 GiB, and `sha256` lowercase. An optional `extensions` object is checked and ignored; any other member is refused. The members, their bounds and the signed bytes are frozen from the first version that ships them, and the repository fixture `src/cli/update/tests/fixtures/feed.json.signed` with its `.sig` is the release tool's written form. From the verified feed and the store alone, before anything large is requested, the update decides in this order: the pointer names the feed's version and manifest, and that version's `release.json` has that digest: up to date; the active version is higher and the command is not `channel set`: up to date; `versions\<version>` holds another manifest: `version-conflict`; it holds the feed's manifest but is not active: that copy is verified again and activated, with no download. Otherwise the update takes the private folder `<store root>\.download\` and its lock `download.lock`, decides again, and downloads the archive into `.download\archive.zip` with `--max-filesize` set to the signed size. Just before that transfer starts, `update` writes one line on standard error in the person's locale, in text and JSON alike, naming the version and the signed size in whole megabytes (10^6 bytes, at least 1): `Downloading Orchbee <version> (<n> MB)…`, `正在下载 Orchbee <version>（<n> MB）…`. Nothing follows it there until the result, and a run that downloads nothing, up to date or activating a stored copy, writes no such line. Its length and SHA-256 must then equal the signed ones, else `checksum`, a longer or shorter body included; a body cut short while the server had sent its length ends the transfer itself, which reports `download`. Only then does the system `tar.exe` unpack it: an absolute path from the system directory, a cleared environment holding only `SystemRoot`, the working directory `.download\unpacked`, and only the arguments `-x -f ..\archive.zip --strip-components 1`, under the run's Job, deadline and Ctrl+C, so no path of the computer is an argument. `curl` and `tar.exe` run in a Job that ends them when the Client ends, however abruptly, so neither keeps writing into `.download` after a killed run. The archive's one top-level folder is a signed release directory, so the unpacked folder installs exactly as `install` installs one, its manifest signature and every listed file verified again, and its version, channel, build and manifest digest must equal the feed's, else `manifest-invalid`. Nothing in the unpacked folder ever runs: the smoke check runs the staged copy after its digest matched, and a file the manifest does not list is never copied. No `curl.exe` or `tar.exe` in the system folder, or curl older than 8.4 for an HTTPS feed, reports `download-unavailable`; a failed unpack reports `storage`; a second update while one holds the lock reports `busy` before requesting the archive. `download.lock` is always taken before `install.lock`, and `install` never takes it. The folder's owner removes `archive.zip` and `unpacked\` after it takes the lock and again on every return, so a crashed run leaves at most one of each for the next run; the folder and its lock file stay. When a child's end is unknown or removal fails, nothing more is removed and `cleanupPending` names the folder. There is no resume or retry: a failed run leaves the versions and the pointer as they were, and the next run starts over.
+The feed, `src/cli/update/feed.rs`, is one small signed document per channel and platform that names
+the newest release and the one archive carrying it. It is closed JSON: `schemaVersion: 1`, `product:
+"orchbee"`, `channel` (`stable` or `preview`; it must be the selected channel, else
+`manifest-invalid`), `platform` (this updater's own), `version` and `buildId` (the manifest's rules
+below), `manifest: {sha256}`, the SHA-256 of the archive's `release.json` and so the identity the
+pointer records, and `archive: {format, url, size, sha256}`: `format` is `zip` on Windows and
+`tar.gz` on macOS and Linux, `url` an HTTPS URL without a query or a portable relative path resolved
+beside the feed, `size` from 1 byte to 1 GiB, and `sha256` lowercase. An optional `extensions`
+object is checked and ignored; any other member is refused. The members, their bounds and the signed
+bytes are frozen from the first version that ships them, and the repository fixture
+`src/cli/update/tests/fixtures/feed.json.signed` with its `.sig` is the release tool's written form.
+From the verified feed and the store alone, before anything large is requested, the update decides
+in this order: the pointer names the feed's version and manifest, and that version's `release.json`
+has that digest: up to date; the active version is higher and the command is not `channel set`: up
+to date; `versions\<version>` holds another manifest: `version-conflict`; it holds the feed's
+manifest but is not active: that copy is verified again and activated, with no download. Otherwise
+the update takes the private folder `<store root>\.download\` and its lock `download.lock`, decides
+again, and downloads the archive into `.download\archive.zip` with `--max-filesize` set to the
+signed size. Its length and SHA-256 must then equal the signed ones, else `checksum`, a longer or
+shorter body included; a body cut short while the server had sent its length ends the transfer
+itself, which reports `download`. Only then does the system `tar.exe` unpack it: an absolute path
+from the system directory, a cleared environment holding only `SystemRoot`, the working directory
+`.download\unpacked`, and only the arguments `-x -f ..\archive.zip --strip-components 1`, under the
+run's Job, deadline and Ctrl+C, so no path of the computer is an argument. `curl` and `tar.exe` run
+in a Job that ends them when the Client ends, however abruptly, so neither keeps writing into
+`.download` after a killed run. The archive's one top-level folder is a signed release directory, so
+the unpacked folder installs exactly as `install` installs one, its manifest signature and every
+listed file verified again, and its version, channel, build and manifest digest must equal the
+feed's, else `manifest-invalid`. Nothing in the unpacked folder ever runs: the smoke check runs the
+staged copy after its digest matched, and a file the manifest does not list is never copied.
+`download.lock` is always taken before `install.lock`, and `install` never takes it. The folder's
+owner removes `archive.zip` and `unpacked\` after it takes the lock and again on every return, so a
+crashed run leaves at most one of each for the next run; the folder and its lock file stay. When a
+child's end is unknown or removal fails, nothing more is removed and `cleanupPending` names the
+folder. There is no resume or retry: a failed run leaves the versions and the pointer as they were,
+and the next run starts over.
 
-The updater reads at most 64 KiB of feed, 1 MiB of manifest and 4 KiB of signature document, and verifies a signature before it parses the document it signs. Each signature is Ed25519 (RFC 8032) over a UTF-8 domain, LF, then the exact document bytes: `orchbee-update-feed-v1` for a feed and `orchbee-release-manifest-v2` for a manifest, so a signature of one never verifies as the other. The signature document is closed JSON with 1–4 `signatures`, each exactly `{keyId, algorithm: "ed25519", signature}`, plus an optional `extensions` object; `signature` is padded standard base64 of 64 bytes and `keyId` the first 16 lowercase hexadecimal digits of SHA-256 over the 32-byte public key. Both documents refuse repeated members, unknown members outside `extensions`, and nesting deeper than 32. One entry from a compiled key that passes strict verification admits the document; entries naming other keys are skipped. The refusals are `signing-keys-unavailable` when the build trusts no key, before any source is read; `signature-untrusted` when no entry names a compiled key; `signature-invalid` when a local document is missing, or any document is oversized or malformed or no named key verifies; and `manifest-invalid` for an oversized feed or manifest or one that fails admission after verification. Nothing is downloaded before a feed is admitted, and nothing is staged before a manifest is.
+The updater reads at most 64 KiB of feed, 1 MiB of manifest and 4 KiB of signature document, and
+verifies a signature before it parses the document it signs. Each signature is Ed25519 (RFC 8032)
+over a UTF-8 domain, LF, then the exact document bytes: `orchbee-update-feed-v1` for a feed and
+`orchbee-release-manifest-v2` for a manifest, so a signature of one never verifies as the other. The
+signature document is closed JSON with 1–4 `signatures`, each exactly `{keyId, algorithm: "ed25519",
+signature}`, plus an optional `extensions` object; `signature` is padded standard base64 of 64 bytes
+and `keyId` the first 16 lowercase hexadecimal digits of SHA-256 over the 32-byte public key. Both
+documents refuse repeated members, unknown members outside `extensions`, and nesting deeper than 32.
+One entry from a compiled key that passes strict verification admits the document; entries naming
+other keys are skipped. Nothing is downloaded before a feed is admitted, and nothing is staged
+before a manifest is.
 
 `orchbee` compiles two public key tables in `src/cli/update/signature.rs` and chooses one at compile time from the environment stem: a release build trusts only `RELEASE_KEYS`, and development and test builds trust only `TEST_KEYS`, whose private half is the repository fixture `src/cli/update/tests/fixtures/test-only-signing-key.pem`. No runtime input or test switch changes the choice. `RELEASE_KEYS` holds the key the release workflow signs with and a spare kept offline; their private halves never enter the repository. A build whose table is empty refuses every update with `signing-keys-unavailable`. Adding a key is one `TrustedKey::from_hex("<64 hex digits>"),` line holding the raw 32-byte public key, which `node -e "process.stdout.write(require('node:crypto').createPublicKey(require('node:fs').readFileSync(process.argv[1])).export({format:'der',type:'spki'}).subarray(-32).toString('hex'))" <key.pem>` prints. Rotation adds the successor before any manifest is signed with it and removes a key only after it retires.
 
 A release manifest is closed JSON with `schemaVersion: 2`, `product: "orchbee"`, `channel`, `platform`, `version`, `buildId`, `files`, `components` and an optional `extensions` object. `channel` is 1–32 bytes of `a`–`z`, `0`–`9` and `-`, and must be the selected `stable` or `preview`; `platform` is 1–32 bytes of `a`–`z`, `0`–`9`, `_` and `-`, and this updater accepts only its own platform, such as `windows-x86_64`; `version` is SemVer 2.0.0 without build metadata, at most 64 bytes; `buildId` is 1–96 bytes of ASCII letters, digits, `.`, `_`, `+` and `-`. Each file has exactly `path`, `url`, `sha256` (lowercase), and `size` (bytes). File URLs are HTTPS or portable relative paths resolved beside the manifest. A manifest lists at most 4096 files, 512 MiB per file and 2 GiB total. Portable paths reject traversal, Windows devices, alternate streams, case aliases, file/directory collisions and the reserved `release.json` and `release.json.sig`. Installation requires `cohort.json` and every file it names, and installs every listed file; there is no fixed file list. A `components` entry for `client`, `server`, `worker`, `terminal-host` or `agent-observation-capsule` has exactly `id`, `version`, `files` (paths listed in `files`) and `connections` (each contract name with `generations: {lowest, highest}` within 1–65535), plus optional SemVer `securityFloor` and `recommendedFloor` and `extensions`. Entries with another `id`, connection names this build does not know, and every `extensions` value are ignored, and a missing entry imposes nothing. Every declared file is copied into a private stage and hashed; cohort and capsule digests are admitted before the new Client executes its exact version smoke check. A local source is only read, so its folder needs no owner or access rule: a release directory an elevated installer or npm unpacked, on any drive, installs like one in the person's own folder. Each source file must be a regular file and not a link or junction, or the install stops with `download`.
 
-The store root holds `versions\<version>\`, one immutable signed release directory per installed version with `release.json` and `release.json.sig` unchanged; `active.json`, the pointer; `install.lock`, the writer lock; and `.download\`, the update's download folder above, which the store's own reads never open. Publication stages inside the root and renames the verified stage into `versions\`. An existing version directory holding the same manifest is verified and reused, never overwritten; one holding another manifest is refused with `version-conflict`, exit `3`. Activation is the published copy's own completion: `install` and `update` run that copy's `orchbee --complete-install-v1 [--no-path] [--allow-downgrade]`, which verifies its own signed release, refuses a lower version again unless allowed, performs the PATH step unless `--no-path`, and then replaces `active.json` by a flushed rename of `active.pending` under `install.lock`. A failed completion leaves the pointer where it was; a failure or lost result retains the published path for explicit retry, and a completion that claims success while the pointer names another version is `activation-unknown`; a completion that times out or is cancelled keeps `timeout` or `cancelled` unless the pointer names its version afterwards, in which case it is `activation-unknown`, the same as one not confirmed to have ended and one that fails after the pointer names its version. The pointer is closed JSON, `{"version": 1, "active": {"product", "manifest"}, "previous"?, "extensions"?}`: each entry names a version directory and the lowercase SHA-256 of its `release.json`, the version it replaces becomes `previous`, and every rewrite keeps `extensions`, which holds the fallback record and the `noPath` member: `true` after an install made with `--no-path`, and any other value reads as absent. The pointer alone names the active version; a missing or unreadable pointer means none, which an install repairs. The store opens only these names and the `.stage-*` and `.remove-*` folders its writers leave, so a `desktop\` folder beside them is never read; `install` creates a missing root below its existing parent with a private access rule in place of the one it would inherit, which a `desktop\` written later inherits, and admits an existing root when it is already private. The Desktop installer creates the root for `desktop\` before it runs the bundled `orchbee install`, so that root inherits the access list of `%LOCALAPPDATA%\Programs`: when admission refuses a root only for its access list, its owner is one the rule admits, it is no link, and it holds nothing but `desktop`, `desktop.previous`, `unins000.exe` and `unins000.dat`, `install` replaces that list with the private rule, which Windows carries down to those entries, and admits it. The folders above the root are never judged or changed, except that a missing parent is created as a private folder below its nearest existing folder, which must already be private. Private is the shared rule of the [local runtime's private storage](../../../crates/local-runtime/README.md#private-storage-on-macos-and-linux): the person's account, SYSTEM or Administrators owns the folder, and every allow entry of its access list names one of the three. An ordinary session meets it with the person as owner; an elevated session of the same account, and an elevated installer a moment earlier, meet it with Administrators as owner, which Windows gives what they create. Any other root another account owns, or whose access list lets in another account (Users, Authenticated Users or Everyone included), is refused and never repaired, and so is any such folder below it. A `storage` failure adds one localized line after its message on standard error, in text and JSON alike: the folder or file the store refused or failed on, then why, which is another owner, an access list that lets another account in, a link or junction, or the Windows error code. The document keeps its members. Existing processes keep their original files. Disk stays bounded: a store keeps its active and previous versions and every other version a process still runs from. Where automatic updates run, which today is test builds and in release builds only once automatic updates are released, each completion that moved the pointer from a readable one removes, still under `install.lock` and after the pointer move, every other version from which no process runs: the shared process scan finds no process whose program file lies inside its folder, this one included, and every `.exe`, `.dll` and `.node` in it opens for writing, the check Setup applies before it replaces files. A Session or Host refers to a version only through the processes its registrations name, and an Agent observation Capsule is a copy in the data root that names no version, so no other reference keeps one. A version goes by a rename to `.remove-<process>-<number>` in the store root and then a deletion, so `versions\` only ever holds whole versions; one that cannot be moved stays whole, and the same completion also deletes the `.remove-*` and `.stage-*` folders that earlier runs left, when nothing runs from them. Whatever cannot go now stays for a later completion, and the cleanup never changes the completion's result or report. Live handoff is separate work. Unpublished stages are cleaned after child settlement; unconfirmed settlement or cleanup failure transfers the exact stage path to explicit recovery in the receipt, until such a later completion deletes it.
+The store root holds `versions\<version>\`, one immutable signed release directory per installed
+version with `release.json` and `release.json.sig` unchanged; `active.json`, the pointer;
+`install.lock`, the writer lock; and `.download\`, the update's download folder above, which the
+store's own reads never open. Publication stages inside the root and renames the verified stage into
+`versions\`. An existing version directory holding the same manifest is verified and reused, never
+overwritten; one holding another manifest is refused with `version-conflict`, exit `3`. Activation
+is the published copy's own completion: `install` and `update` run that copy's `orchbee
+--complete-install-v1 [--no-path] [--allow-downgrade]`, which verifies its own signed release,
+refuses a lower version again unless allowed, performs the PATH step unless `--no-path`, and then
+replaces `active.json` by a flushed rename of `active.pending` under `install.lock`. A failed
+completion leaves the pointer where it was; a failure or lost result retains the published path for
+explicit retry, and a completion that claims success while the pointer names another version is
+`activation-unknown`; a completion that times out or is cancelled keeps `timeout` or `cancelled`
+unless the pointer names its version afterwards, in which case it is `activation-unknown`, the same
+as one not confirmed to have ended and one that fails after the pointer names its version. The
+pointer is closed JSON, `{"version": 1, "active": {"product", "manifest"}, "previous"?,
+"extensions"?}`: each entry names a version directory and the lowercase SHA-256 of its
+`release.json`, the version it replaces becomes `previous`, and every rewrite keeps `extensions`,
+which holds the fallback record and the `noPath` member: `true` after an install made with
+`--no-path`, and any other value reads as absent. The pointer alone names the active version; a
+missing or unreadable pointer means none, which an install repairs. The store opens only these names
+and the `.stage-*` and `.remove-*` folders its writers leave, so a `desktop\` folder beside them is
+never read; `install` creates a missing root below its existing parent with a private access rule in
+place of the one it would inherit, which a `desktop\` written later inherits, and admits an existing
+root when it is already private. The Desktop installer creates the root for `desktop\` before it
+runs the bundled `orchbee install`, so that root inherits the access list of
+`%LOCALAPPDATA%\Programs`: when admission refuses a root only for its access list, its owner is one
+the rule admits, it is no link, and it holds nothing but `desktop`, `desktop.previous`,
+`unins000.exe` and `unins000.dat`, `install` replaces that list with the private rule, which Windows
+carries down to those entries, and admits it. The folders above the root are never judged or
+changed, except that a missing parent is created as a private folder below its nearest existing
+folder, which must already be private. Private is the shared rule of the [local runtime's private
+storage](../../../crates/local-runtime/README.md#private-storage-on-macos-and-linux): the person's
+account, SYSTEM or Administrators owns the folder, and every allow entry of its access list names
+one of the three. An ordinary session meets it with the person as owner; an elevated session of the
+same account, and an elevated installer a moment earlier, meet it with Administrators as owner,
+which Windows gives what they create. Any other root another account owns, or whose access list lets
+in another account (Users, Authenticated Users or Everyone included), is refused and never repaired,
+and so is any such folder below it. Existing processes keep their original files. Disk stays
+bounded: a store keeps its active and previous versions and every other version a process still runs
+from. Where automatic updates run, which today is test builds and in release builds only once
+automatic updates are released, each completion that moved the pointer from a readable one removes,
+still under `install.lock` and after the pointer move, every other version from which no process
+runs: the shared process scan finds no process whose program file lies inside its folder, this one
+included, and every `.exe`, `.dll` and `.node` in it opens for writing, the check Setup applies
+before it replaces files. A Session or Host refers to a version only through the processes its
+registrations name, and an Agent observation Capsule is a copy in the data root that names no
+version, so no other reference keeps one. A version goes by a rename to `.remove-<process>-<number>`
+in the store root and then a deletion, so `versions\` only ever holds whole versions; one that
+cannot be moved stays whole, and the same completion also deletes the `.remove-*` and `.stage-*`
+folders that earlier runs left, when nothing runs from them. Whatever cannot go now stays for a
+later completion, and the cleanup never changes the completion's result or report. Unpublished
+stages are cleaned after child settlement; unconfirmed settlement or cleanup failure transfers the
+exact stage path to explicit recovery in the receipt, until such a later completion deletes it.
 
-`orchbee.update` v1 distinguishes channel saved, release published, activation, reuse, interruption, failure phase/reason and pending cleanup. An update whose verified feed names the version and manifest the pointer already names finishes at once without downloading, hashing, publishing or completing anything: `upToDate` is true, with `reused` and `activated` true and `releasePath` naming the active version; `releaseVersion` and `buildId` come from the feed. A feed offering a version lower than the active one, such as a channel pointed back after a bad release, also finishes with `upToDate` true, nothing copied and the pointer unchanged, never `downgrade-refused`; `channel set` is the person's choice and may move to a lower version. A feed offering a version the store holds after a fallback finishes the same way, as does a completion that meets `version-held` because a fallback held the version during the update. Text output prints `Up to date:` and the active version in these cases. `upToDate` is optional and false otherwise; 0.1.0-beta.1 omits it. `phase` keeps its values: `manifest` covers reading, verifying and deciding from the feed, `download` taking the download folder and fetching, checking and unpacking the archive, and `verify` admitting the unpacked or stored release before `publish`. `configurationFailure` is the configuration failure's closed `{field, reason, line?, column?}` object when `error` is `configuration` and null otherwise; text output prints the same localized fix as the configuration failure envelope. Status is 0 on completion, 1 on known failure, 2 on usage error, 3 on `version-conflict`, `downgrade-refused`, `version-held` (`install` only) or `other-architecture`, 4 on `development-build` or `not-release-directory` (`install` only), 7 on timeout, 8 on unconfirmed physical/activation outcome, and 130 on interruption. A published path can be used directly even when activation needs retry. Full distribution publication, HTTPS source acceptance and real whole-cohort startup acceptance are deployment obligations and are not implied by a local staging test.
+An update whose verified feed names the version and manifest the pointer already names finishes at
+once without downloading, hashing, publishing or completing anything: `upToDate` is true, with
+`reused` and `activated` true and `releasePath` naming the active version; `releaseVersion` and
+`buildId` come from the feed. A feed offering a version lower than the active one, such as a channel
+pointed back after a bad release, also finishes with `upToDate` true, nothing copied and the pointer
+unchanged, never `downgrade-refused`; `channel set` is the person's choice and may move to a lower
+version. A feed offering a version the store holds after a fallback finishes the same way, as does a
+completion that meets `version-held` because a fallback held the version during the update. A
+published path can be used directly even when activation needs retry.
 
 The automatic helper `orchbee --automatic-update-v1` is the entry by which a Session Server runs an [automatic update](../../../proposals/platform/automatic-updates.md#who-checks-and-installs): the store's active Client with that one argument and nothing more, since any other argument list is not the helper. Help, completion and the `--skill` guide leave it out, and its grammar never changes; a changed helper takes a new name. A build answers it only while [automatic updates run in it](../../../crates/local-runtime/README.md#automatic-update-switch): every test build, and a release build only once that switch is on, so until then a release build refuses the word as an unknown option. The helper is `update` of the selected channel with three differences. It saves no channel and asks the completion for no PATH step (`--no-path`), so the user `Path` is never read or written; instead, just before that completion and under `install.lock`, it refreshes `<store root>\bin\<stem>.exe` from the new version's `<stem>-launcher.exe` the way the PATH step does, but only when something already exists at that name, so a store without the launcher, such as one only the npm carrier installed, stays without it. It writes nothing on standard error, not even the download line. And it answers only the `orchbee.update` document, with the members and exit status of `update`; a refusal before any update, by platform admission or the data root's layout, is the shared JSON failure document. A launcher that cannot be refreshed ends the run as `activation` before the pointer moves, as a failed PATH step does for `update`. A run that meets a held `download.lock`, or meets `install.lock` while it publishes or refreshes, ends as `busy`; a completion that meets `install.lock` ends as `activation`, because the completion's exit status does not tell the two apart. Neither moves the pointer, and the next run activates a version published before the stop from the store without downloading it again. A development build refuses with `non-release-build`, as `update` does.
 
-The window part of `update` and of the automatic helper installs the [window version](../../../proposals/platform/automatic-updates.md#installing-a-window-version) a feed offers, on Windows and macOS, where [window updates run](../../../crates/local-runtime/README.md#automatic-update-switch): every test build, and every release build from the window self-update release on. It runs only after the runtime part ended without an error, only when `<store root>\desktop\` is a folder, only when the feed carries `extensions.desktop`, and only when the store's active runtime version is not lower than the offered window version, since the window's bundled Client then hands its Session start to the store; otherwise the run has no window part and the document no `desktop` member, so a failed or held runtime part leaves the window for a later run. `extensions.desktop` is closed JSON, `{version, manifest: {sha256}, archive: {format: "zip", url, size, sha256}, extensions?}`, each member bounded as the feed's own member of that name, `manifest.sha256` being the SHA-256 of the window's `desktop-files.json`; a malformed one never refuses the feed and fails only the window part, as `manifest-invalid`. Before it publishes a window version, each executable of that version must fit the same Windows program path limit, or the window part fails as `install-location` and publishes nothing; the runtime part is not undone. The window store `desktop\` is a second store root with its own `active.json`, `install.lock` and `versions\<version>\`; its pointer has the grammar of the store's, `manifest` naming the SHA-256 of the version's `desktop-files.json`, which names every other file of the version with its size and SHA-256. From the feed and the window store alone the part decides: the window pointer names the offered version and list, and the stored list has that digest: up to date; a higher window version is active: up to date, since a window version never moves down; `desktop\versions\<version>` holds another list: `version-conflict`; it holds the offered list: every listed file is verified and the version activated, with no download. Otherwise, after the runtime part released it, the part takes `.download\` and `download.lock`, decides again, writes `Downloading the Orchbee window <version> (<n> MB)…` (`正在下载 Orchbee 窗口程序 <version>（<n> MB）…`) on standard error under `update`, fetches the window archive, a zip on every platform, under the folder's archive name, checks its signed size and SHA-256, and unpacks it with the same system tar and arguments, which read the format from the bytes. The unpacked folder must hold a `desktop-files.json` with the digest the feed names and the offered version, else `manifest-invalid`. Under the store root's `install.lock` and then `desktop\install.lock` the part decides again, stages `desktop\.stage-*` with the list first, copies exactly the listed files, each checked by size and SHA-256 as it is written and then flushed, a listed path that is missing or not a regular file being `checksum`, publishes the stage as `desktop\versions\<version>` without replacing, and moves the window pointer, the replaced version becoming `previous`. A stage holds each folder it creates open until it publishes, so on macOS the window install first raises the process's soft limit on open files to its hard limit, at most 10 240: an application bundle holds hundreds of folders, more than the 256 a Terminal shell starts with. A running window is never touched. Every run whose runtime part ended without an error and that finds `desktop\` then arranges the window store, whether or not it had a window part and whatever that part did, under the store root's `install.lock` and then `desktop\install.lock`, best effort and without a member of its own; a lock another update holds skips it, and whatever runs or cannot be removed stays for the next run. Once the window pointer names an active version, it places the window entry `desktop\<stem>-desktop.exe`, the path the Start menu shortcut, the taskbar and the uninstall registration name, as a byte copy of that version's `resources\cohort\<stem>-desktop-launcher.exe`: an equal entry stays, and any other is replaced by renaming a flushed `desktop\.new-<process>-<number>` over it, moving a running entry aside as `desktop\.remove-flat-<process>-<number>.exe` first when Windows refuses a direct overwrite so the launcher takes its path at once. Once the entry is placed, it removes what a flat layout, which a window before the window self-update release kept directly in `desktop\`, left there: the flat `resources\cohort\` whole once no process runs from it, since a Session an older window started may run from there, and every other name (`.remove-flat-*` included) file by file once no process runs from any of them, except `versions\`, `active.json`, `active.pending`, `install.lock`, the entry and the `.stage-*`, `.new-*` and `.remove-<process>-<number>` names. It removes a `desktop.previous` that an earlier Setup left in the store root once no process runs from it, and on Windows window versions that are neither active nor previous, with the leftovers of stopped runs, as the runtime completion removes runtime versions. No process runs from a set of files when the process scan finds none whose program lies inside and every `.exe`, `.dll` and `.node` inside opens for writing. On macOS the application bundle the person opens is the entry, which the window launcher backs up and replaces with a copy of `pointer.active`, so the arrangement places and moves nothing and keeps only `pointer.active` in `desktop/versions/` plus any version or leftover a process still runs from (checked by process start paths), while runtime versions there keep the rule above and stay. Desktop Main also runs `--tend-window-store-v1` through its bundled Client shortly after startup so retired window versions and flat-layout leftovers leave disk once a replaced process exits without waiting for a later update. The `desktop` member of `orchbee.update` carries `phase` (`manifest`, `download`, `verify`, `publish`, `activate` or `complete`), `releasePath`, `reused`, `activated`, `upToDate`, `releaseVersion`, `cleanupPending` and `error` with the meanings of the runtime members. Text output adds one line: `Window updated to <version>`, `Window up to date: <version>` or `Window not updated: <reason>` (`窗口程序已更新到 <version>`, `窗口程序已是最新版本：<version>`, `窗口程序未更新：<reason>`). The exit status takes the runtime part's error first, then the window part's, then a folder either part left for recovery.
-On Windows, Setup writes `desktop\setup-launch.json` before its own launch of the window it installed, with `{"version":"<that window version>"}`, when the launch is ticked and the install is not silent. The window that launch starts reads and deletes the file: its switch goes ahead only when the file is at most 120 seconds old, parses, and names the version the store offers, and the file is deleted on every read. A first window start deletes a leftover file without acting on it. `layout_name` keeps the file out of the flat-layout cleanup, and macOS has no such file.
+The window part of `update` and of the automatic helper installs the [window
+version](../../../proposals/platform/automatic-updates.md#installing-a-window-version) a feed
+offers, on Windows and macOS, where [window updates
+run](../../../crates/local-runtime/README.md#automatic-update-switch): every test build, and every
+release build from the window self-update release on. It runs only after the runtime part ended
+without an error, only when `<store root>\desktop\` is a folder, only when the feed carries
+`extensions.desktop`, and only when the store's active runtime version is not lower than the offered
+window version, since the window's bundled Client then hands its Session start to the store;
+otherwise the run has no window part and the document no `desktop` member, so a failed or held
+runtime part leaves the window for a later run. `extensions.desktop` is closed JSON, `{version,
+manifest: {sha256}, archive: {format: "zip", url, size, sha256}, extensions?}`, each member bounded
+as the feed's own member of that name, `manifest.sha256` being the SHA-256 of the window's
+`desktop-files.json`; a malformed one never refuses the feed and fails only the window part, as
+`manifest-invalid`. Before it publishes a window version, each executable of that version must fit
+the same Windows program path limit, or the window part fails as `install-location` and publishes
+nothing; the runtime part is not undone. The window store `desktop\` is a second store root with its
+own `active.json`, `install.lock` and `versions\<version>\`; its pointer has the grammar of the
+store's, `manifest` naming the SHA-256 of the version's `desktop-files.json`, which names every
+other file of the version with its size and SHA-256. From the feed and the window store alone the
+part decides: the window pointer names the offered version and list, and the stored list has that
+digest: up to date; a higher window version is active: up to date, since a window version never
+moves down; `desktop\versions\<version>` holds another list: `version-conflict`; it holds the
+offered list: every listed file is verified and the version activated, with no download. Otherwise,
+after the runtime part released it, the part takes `.download\` and `download.lock`, decides again,
+writes `Downloading the Orchbee window <version> (<n> MB)…` (`正在下载 Orchbee 窗口程序 <version>（<n> MB）…`)
+on standard error under `update`, fetches the window archive, a zip on every platform, under the
+folder's archive name, checks its signed size and SHA-256, and unpacks it with the same system tar
+and arguments, which read the format from the bytes. The unpacked folder must hold a
+`desktop-files.json` with the digest the feed names and the offered version, else
+`manifest-invalid`. Under the store root's `install.lock` and then `desktop\install.lock` the part
+decides again, stages `desktop\.stage-*` with the list first, copies exactly the listed files, each
+checked by size and SHA-256 as it is written and then flushed, a listed path that is missing or not
+a regular file being `checksum`, publishes the stage as `desktop\versions\<version>` without
+replacing, and moves the window pointer, the replaced version becoming `previous`. A stage holds
+each folder it creates open until it publishes, so on macOS the window install first raises the
+process's soft limit on open files to its hard limit, at most 10 240: an application bundle holds
+hundreds of folders, more than the 256 a Terminal shell starts with. A running window is never
+touched. Every run whose runtime part ended without an error and that finds `desktop\` then arranges
+the window store, whether or not it had a window part and whatever that part did, under the store
+root's `install.lock` and then `desktop\install.lock`, best effort and without a member of its own;
+a lock another update holds skips it, and whatever runs or cannot be removed stays for the next run.
+Once the window pointer names an active version, it places the window entry
+`desktop\<stem>-desktop.exe`, the path the Start menu shortcut, the taskbar and the uninstall
+registration name, as a byte copy of that version's `resources\cohort\<stem>-desktop-launcher.exe`:
+an equal entry stays, and any other is replaced by renaming a flushed
+`desktop\.new-<process>-<number>` over it, moving a running entry aside as
+`desktop\.remove-flat-<process>-<number>.exe` first when Windows refuses a direct overwrite so the
+launcher takes its path at once. Once the entry is placed, it removes what a flat layout, which a
+window before the window self-update release kept directly in `desktop\`, left there: the flat
+`resources\cohort\` whole once no process runs from it, since a Session an older window started may
+run from there, and every other name (`.remove-flat-*` included) file by file once no process runs
+from any of them, except `versions\`, `active.json`, `active.pending`, `install.lock`, the entry and
+the `.stage-*`, `.new-*` and `.remove-<process>-<number>` names. It removes a `desktop.previous`
+that an earlier Setup left in the store root once no process runs from it, and on Windows window
+versions that are neither active nor previous, with the leftovers of stopped runs, as the runtime
+completion removes runtime versions. No process runs from a set of files when the process scan finds
+none whose program lies inside and every `.exe`, `.dll` and `.node` inside opens for writing. On
+macOS the application bundle the person opens is the entry, which the window launcher backs up and
+replaces with a copy of `pointer.active`, so the arrangement places and moves nothing and keeps only
+`pointer.active` in `desktop/versions/` plus any version or leftover a process still runs from
+(checked by process start paths), while runtime versions there keep the rule above and stay. Desktop
+Main also runs `--tend-window-store-v1` through its bundled Client shortly after startup so retired
+window versions and flat-layout leftovers leave disk once a replaced process exits without waiting
+for a later update. The exit status takes the runtime part's error first, then the window part's,
+then a folder either part left for recovery. On Windows, Setup writes `desktop\setup-launch.json`
+before its own launch of the window it installed, with `{"version":"<that window version>"}`, when
+the launch is ticked and the install is not silent. The window that launch starts reads and deletes
+the file: its switch goes ahead only when the file is at most 120 seconds old, parses, and names the
+version the store offers, and the file is deleted on every read. A first window start deletes a
+leftover file without acting on it. `layout_name` keeps the file out of the flat-layout cleanup, and
+macOS has no such file.
 
 A Client older than the store's active window version runs only the version retention of the arrangement above, on every run that reaches it: the window part of `update`, `--installer-window-v1` or `--tend-window-store-v1`. It places no entry, moves no flat layout and removes no name under `desktop\` except retired versions, because a newer window version adds names there that an older Client does not know. The comparison is the store's product version precedence between this Client's version and the version `active.json` names active; a Client that is not older arranges the store.
 
@@ -359,7 +641,24 @@ A release or test Client that does not run from a store version folder, such as 
 
 The immutable release also stores the exact admitted `release.json` and its signature document, reserved outside the inventory. Reuse checks that `release.json` has not changed. The pointer entry naming the version, with the manifest SHA-256, binds those bytes to the verified installation, so later reads parse them without the signature document. The installation check of `doctor` (and the unlisted `status client` it shares its collector with) binds this manifest to a `versions\<version>` directory that the pointer names as active or previous and to the verified cohort before projecting installed release provenance; anything else reads as unknown, and it never substitutes the current configured preference.
 
-The CLI-private `release_store` module owns the store's shape: immutable publication into `versions\<version>` and the pointer's bytes. The pointer's grammar, with the strict JSON reader and version and digest tokens of release documents, is the shared `orchbee-release-records` crate, which the launcher also reads it with. The store-root rule and the pointer's file name and bound belong to the local runtime's [store reader](../../../crates/local-runtime/README.md#release-store-reading), which `install`, `update`, `uninstall` and Session start share and this module takes them from. `ReleaseStore` takes `install.lock` through the private cache writer lock, pins installation ancestors, and replaces `active.json` through `active.pending`; readers read the pointer without the lock. A stage borrows that lock, creates only validated portable paths and exclusive private files, and publishes by a no-replace directory rename to its version name. The application owns the pointer's meaning, manifest validation, downloads, cohort admission, smoke checks, completion, the PATH step and which versions to keep. A stage's explicit cleanup removes only that stage; unconfirmed child settlement uses `retain_for_recovery` and reports the retained path. Under the same lock, `versions` lists the real version directories, `remove_version` moves the one the application names aside to `.remove-<process>-<number>` before deleting it, and `leftovers` with `remove_leftover` delete the `.stage-*` and `.remove-*` folders earlier writers left; none follows a link. Whether a process runs from a folder is the CLI's shared `running_programs` check, the process scan uninstall waits on together with the write probe of programs and libraries. `open_release_file` rejects unsafe ancestors, reparse points, an owner or access list outside the private rule, and hard links. Path admission, stage ownership and publication/recovery decisions compile on every host; stage allocation and filesystem mutations use named platform ports, while the existing private-file ports own locks and handle admission. The macOS and Linux ports create a missing root and its missing ancestors as private folders, create stages and folders with mode 0700, rename only onto an absent name, list and delete without following a link, and make a staged program file executable for its owner alone. The existing path-admission test runs on every host; native Windows tests exercise writer exclusion, immutable publication, staging cleanup and pointer replacement under the lock, and a completion on a scratch store removes only the unused version beside running, loaded, held and kept ones, and the rest once released.
+The CLI-private `release_store` module owns the store's shape: immutable publication into
+`versions\<version>` and the pointer's bytes. The pointer's grammar, with the strict JSON reader and
+version and digest tokens of release documents, is the shared `orchbee-release-records` crate, which
+the launcher also reads it with. The store-root rule and the pointer's file name and bound belong to
+the local runtime's [store reader](../../../crates/local-runtime/README.md#release-store-reading),
+which `install`, `update`, `uninstall` and Session start share and this module takes them from.
+`ReleaseStore` takes `install.lock` through the private cache writer lock, pins installation
+ancestors, and replaces `active.json` through `active.pending`; readers read the pointer without the
+lock. A stage borrows that lock, creates only validated portable paths and exclusive private files,
+and publishes by a no-replace directory rename to its version name. The application owns the
+pointer's meaning, manifest validation, downloads, cohort admission, smoke checks, completion, the
+PATH step and which versions to keep. Whether a process runs from a folder is the CLI's shared
+`running_programs` check, the process scan uninstall waits on together with the write probe of
+programs and libraries. `open_release_file` rejects unsafe ancestors, reparse points, an owner or
+access list outside the private rule, and hard links. The macOS and Linux ports create a missing
+root and its missing ancestors as private folders, create stages and folders with mode 0700, rename
+only onto an absent name, list and delete without following a link, and make a staged program file
+executable for its owner alone.
 
 ## Windows release uninstall
 
@@ -379,11 +678,23 @@ The steps then run in this order, each safe to repeat:
 4. `logs\`, `internal\integrations\`, `internal\cache\`, `internal\runtime\` and `internal\tmp\` leave the data root; `config.toml`, `sessions\`, `agent-detection\` and the rest of `internal\` stay. With `--delete-data` the [remembered login answers](machines.md#remembered-answers) of every Machine the catalog names leave the credential store first, then every entry of the data layout goes, `internal\version.json` last, then the data root when nothing else is in it.
 5. The store's entries go last, the pointer after all of them, then the store root when nothing else is in it. While any other program runs from the store nothing in it is touched, so a second run can finish. The running Client's file, the launcher waiting for it and their folders cannot be deleted while they run: the command starts a detached `cmd.exe` from the system folder, inheriting no handle and working in the system folder, which once per second for about a minute deletes exactly those files and then their folders, without recursion; once they are gone it deletes the pointer and removes the store root with a plain `rd`, which leaves a root that keeps other items. It ends as soon as those files and the pointer are gone. It leaves no file of Orchbee's and no process behind; interrupted, it leaves the pointer while any of those files remains, so another run recognizes and finishes the store.
 
-A step that fails stops the run: nothing further changes, standard error names the cause, what was done and what remains, and how to continue, naming the program by its full path once the `Path` entry is gone. Started through the npm carrier, whose launcher runs the Client under Node.js, the final message adds `npm rm -g orchbee`, since a later start through the carrier installs again. `orchbee.uninstall` v1 reports `mode`, `caller`, `storeRoot`, `dataRoot`, `sessions`, `integrations`, `pathEntry`, `installerEntries`, `data` (the exact entries), `store` (`scheduled` when the last files go after the command ends), `kept` (each root that keeps other items, with their count), `remaining`, `npmCarrier`, `error`, `reason` and `interrupted`. Status is 0 on completion, 1 for `location`, `plan` or `inventory`, 2 on usage error, 3 when a refusal changed nothing, 4 on another platform, 9 when a step failed, and 130 on interruption.
+A step that fails stops the run: nothing further changes, standard error names the cause, what was
+done and what remains, and how to continue, naming the program by its full path once the `Path`
+entry is gone. Started through the npm carrier, whose launcher runs the Client under Node.js, the
+final message adds `npm rm -g orchbee`, since a later start through the carrier installs again.
 
 A platform uninstaller runs `orchbee --installer-uninstall-v1 [--delete-data]` after its own confirmation. It asks nothing, answers in text, and ends no terminal: with one open in any Session of the environment it changes nothing and exits `3` with error `terminals-open` and a line the uninstaller can show. The uninstaller that started it waits in the store root until it exits, so the helper recognizes it by what it is to the helper rather than by name: a process on the helper's own chain of parents, each link started no later than the process it started, whose program lies in the store root outside every entry the removal removes. That process neither stops the run as `program-running` nor keeps the store wait from finishing; any other program in the store root, and any of Orchbee's own programs even on that chain, still stops it as before. The helper leaves the installer's own files, `unins000.exe` and `unins000.dat`, in the store root, since the uninstaller still runs from the one and writes the other; the uninstaller removes them after the helper exits. Whichever of the uninstaller and the detached removal of step 5 finishes last removes the then empty store root: each deletes its own files before it removes the folder, so one of the two always finds it empty.
 
-A test build reads `ORCHBEE_TEST_REGISTRY_KEY`, a key below `HKCU\Software\ob-test-scratch\` with one plain name, and uses its `Environment` and `Uninstall` subkeys instead of the real ones, for uninstall and for the PATH step of `install` and `update`; any other value refuses, with `location` in uninstall and as a failed PATH step before the pointer moves, and no other build reads it. A rehearsal stages, packages and test-signs a cohort as above, then runs every command with its own `USERPROFILE`, `HOME`, `APPDATA`, `LOCALAPPDATA`, `TEMP`, `ORCHBEE_HOME`, `ORCHBEE_INSTALL_DIR`, `ORCHBEE_TEST_REGISTRY_KEY` and a `PATH` holding no Agent program: `install --no-path`, a copy of the version's `<stem>-launcher.exe` to `<store root>\bin\<stem>.exe` and the scratch `Path`, registration and shortcut standing in for the PATH step and the installer, then `<store root>\bin\<stem>.exe uninstall --confirm`. The ignored integration test `cli_windows_uninstall` performs that rehearsal in both modes, with stand-ins for the installer's own files in the store root and one other item in each root under `--delete-data`, and runs the helper from a stand-in uninstaller in the store root beside another program there, when `ORCHBEE_TEST_UNINSTALL_CLIENT` names the packaged Client. Against the same installed package it also starts Sessions from that Client, outside the store: from the store's version folder, beside the Client once the pointer is moved aside, and with two such Clients and the store's own starting at once.
+A test build reads `ORCHBEE_TEST_REGISTRY_KEY`, a key below `HKCU\Software\ob-test-scratch\` with
+one plain name, and uses its `Environment` and `Uninstall` subkeys instead of the real ones, for
+uninstall and for the PATH step of `install` and `update`; any other value refuses, with `location`
+in uninstall and as a failed PATH step before the pointer moves, and no other build reads it. A
+rehearsal stages, packages and test-signs a cohort as above, then runs every command with its own
+`USERPROFILE`, `HOME`, `APPDATA`, `LOCALAPPDATA`, `TEMP`, `ORCHBEE_HOME`, `ORCHBEE_INSTALL_DIR`,
+`ORCHBEE_TEST_REGISTRY_KEY` and a `PATH` holding no Agent program: `install --no-path`, a copy of
+the version's `<stem>-launcher.exe` to `<store root>\bin\<stem>.exe` and the scratch `Path`,
+registration and shortcut standing in for the PATH step and the installer, then `<store
+root>\bin\<stem>.exe uninstall --confirm`.
 
 ## macOS and Linux release installation
 
@@ -399,7 +710,9 @@ On macOS a release or test Client outside the store, such as the window applicat
 
 Uninstall's third step removes the command link while it names a version of this store and leaves anything else at that name and the folder; on macOS it also removes every copy of the stem's two PATH lines from `~/.zshenv`, `~/.bash_profile`, `~/.bash_login` and `~/.profile`, rewriting a linked file's target and removing a plain file left empty; `pathEntry.key` is `null` and the listing names the link. No installer entries exist, so both `installerEntries` are `absent` with a `null` location, and no machine hub runs. The plan refuses a root that equals or holds the home folder, `~/.local`, `~/.local/share`, `~/.local/bin`, `~/Library`, the temporary folder or one of the system's own folders (`/Applications`, `/Library`, `/System`, `/Users`, `/bin`, `/etc`, `/home`, `/opt`, `/private`, `/sbin`, `/tmp`, `/usr`, `/var`). Every build takes `--confirm`, as every guarded command there does, and prints the listing on standard error under `text`. The process scan reads `/proc/<pid>/exe` on Linux; on macOS it reads the start path each process was given from `/bin/ps`, resolved through links, so it finds every Session process and a Client the npm launcher started, but not a Client a shell started by its bare name. A running program's files can be deleted on both systems, so the store is removed at once and never scheduled; a program still running from it keeps running from its deleted files. The npm carrier is recognized by a parent program named `node`.
 
-Unix evidence runs on GitHub's macOS and Linux runners: the link rule over a scratch home in `src/cli/update/path_step/unix/tests.rs`, the install engine on a scratch store with a test-signed release directory in `src/cli/update/tests/unix_install.rs`, the source grammar in `src/cli/update/acquire/tests.rs`, and on macOS the update engine against a test-signed local feed with the system tar in `src/cli/update/tests/offered_update.rs`. After each release, the [update check workflow](../../../.github/workflows/update-check.yml) updates the version people have now to it through `update` on a fresh runner of each macOS row, as on Windows.
+After each release, the [update check workflow](../../../.github/workflows/update-check.yml) updates
+the version people have now to it through `update` on a fresh runner of each macOS row, as on
+Windows.
 
 ## Windows Agent sidebar rows
 
@@ -432,16 +745,16 @@ rows = [["workspace"], [{ token = "branch", fg = "#8bc", rules = [{ starts_with 
 row_gap = 0
 ```
 
-Defaults are `[["workspace", "git_status"], ["location"]]`, gap 0.
-`location` shows the branch unless it equals the Workspace name, otherwise the Workspace folder, the first terminal's current
-directory when Server recorded one, with a local home folder shortened to `~`. An explicit `rows = []` keeps an identity/navigation row. The other builtin is
-`state_text`; `$name` reads Workspace reports and never replaces a builtin. `state_icon` remains
-accepted for compatibility but paints nothing on a Workspace row.
-Tokens take a style and first-match rules; icons and Git counts reject text rules. Limit 16 rows, 16 tokens
-per row, 16 rules per text token and `row_gap` 0–65535. Missing/hidden values collapse.
-Git counts right-align at the end of the line that configures them, flush with the row's
-trailing edge on the identity line; other text shares the remaining cells. A folded Workspace
-replaces its second configured line with its Agents' status line.
+Defaults are `[["workspace", "git_status"], ["location"]]`, gap 0. `location` shows the branch
+unless it equals the Workspace name, otherwise the Workspace folder, the first terminal's current
+directory when Server recorded one, with a local home folder shortened to `~`. An explicit `rows =
+[]` keeps an identity/navigation row. The other builtin is `state_text`; `$name` reads Workspace
+reports and never replaces a builtin. `state_icon` remains accepted for compatibility but paints
+nothing on a Workspace row. Tokens take a style and first-match rules; icons and Git counts reject
+text rules. Missing/hidden values collapse. Git counts right-align at the end of the line that
+configures them, flush with the row's trailing edge on the identity line; other text shares the
+remaining cells. A folded Workspace replaces its second configured line with its Agents' status
+line.
 
 State text and the folded status line use the complete physical Agent checkpoint, independent of
 seen and of list/source filters. Git reads the committed Workspace directory
@@ -451,8 +764,3 @@ has no branch; unborn keeps its branch name. No fetch, configuration write, hook
 startup or per-draw I/O occurs. Custom `$branch`/`$git_status` stay distinct.
 See the [Workspace sidebar model](machines.md#workspace-sidebar-model) for fences,
 aggregation, budgets, exact activation and acceptance limits.
-
-Workspace layout diagnostics name `appearance.sidebar.workspaces`. Session/Client reload validates
-keys, notifications and the Workspace sidebar profile before publishing any of them.
-Each profile caps at 32 KiB; the matched-cohort configuration frame caps at 256 KiB
-including escaping.
