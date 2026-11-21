@@ -217,8 +217,14 @@ pub const testing = if (builtin.is_test) struct {
         };
     }
 
+    /// Clears every hook and never writes `context`, which each test keeps alive until the runtime
+    /// is destroyed: a worker that read a hook just before the clear, as a reader starting inside
+    /// the harness's own read hook does, still finds the context that hook was installed with.
     pub fn clearTestingHooks(runtime: *handle.TerminalRuntime) void {
-        handle.stateFrom(runtime).testing_hooks = .{};
+        const hooks = &handle.stateFrom(runtime).testing_hooks;
+        inline for (@typeInfo(contracts.RuntimeTestingHooks).@"struct".fields) |field| {
+            if (comptime !std.mem.eql(u8, field.name, "context")) @field(hooks, field.name) = null;
+        }
     }
 
     pub fn firstContainmentAttempt(
