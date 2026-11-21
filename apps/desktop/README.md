@@ -150,9 +150,15 @@ installed release's. A Session already running keeps the configuration it starte
 
 Run these steps on real windows before merging a change to the Update action and its refusal and
 failure notices, the relaunch, the window launcher, or the window store handover. The unit tests
-do not start a real window. Use Test builds: they join the `desktop-test` Session, so the release
-Session is not touched. Keep a terminal with a long-running command open through every step
-(`ping -t 127.0.0.1` on Windows, `sleep 600` on macOS).
+do not start a real window. The release workflow runs the same steps on every release-path run as
+the [real-window Update check](../../docs/VERIFICATION.md#release-workflow), on a packaged Test
+window and two older stand-ins copied from it; locally,
+`node scripts/release-smoke-windows.mjs window-update <folder> --work <new folder>` (on macOS
+`release-smoke-macos.mjs`), given the folder `pnpm desktop:package:test` writes, replaces them. On
+Windows the new folder lies in the profile: the window creates the data root with the access list
+its folder passes down, and the Session admits only a private one. Use Test builds: they join the `desktop-test` Session, so the release Session is not touched. Keep
+a terminal with a long-running command open through every step (`ping -t 127.0.0.1` on Windows,
+`sleep 600` on macOS).
 
 1. Install an older Test build and start it. Install a newer Test build without closing the older
    window: its window version lands in `desktop\versions\<newer>\` (on macOS,
@@ -339,14 +345,19 @@ development server. To run the built entry without the development runtime, run
 | `ORCHBEE_DESKTOP_RENDERER_ROOT`           | `apps/web/dist`, or set `ORCHBEE_DESKTOP_RENDERER_URL` for a loopback URL |
 | `ORCHBEE_DESKTOP_SESSION`                 | Optional Session name; a packaged release ignores it                      |
 | `ORCHBEE_DESKTOP_WINDOW_HIDDEN`           | Optional; for automation, a window never shown, restored, or recorded     |
+| `ORCHBEE_DESKTOP_DEBUG_PORT`              | Optional; for automation, a loopback DevTools port, `0` for a free one    |
 
 Main runs as development exactly when Electron's default app loaded its entry, as `pnpm desktop`
 and `electron dist/main/main.cjs` both do, whatever the executable is named; Electron's
 `app.isPackaged` only compares that name with `electron`, so Main never reads it. A packaged
 application ships no default app, so no environment variable makes it run as development. It
-ignores all but the last two variables, and a packaged release ignores those as well: it runs its
+ignores all but the last three variables, and a packaged release ignores those as well: it runs its
 bundled cohort and serves its bundled renderer through the secure `orchbee:` scheme. A window that stays hidden produces no
-frames; automation that needs pixels shows it off-screen with `showInactive`.
+frames; automation that needs pixels shows it off-screen with `showInactive`. With
+`ORCHBEE_DESKTOP_DEBUG_PORT`, Chromium serves the DevTools protocol on the loopback interface; `0`
+takes a free port, which Chromium writes to `DevToolsActivePort` in `<data root>/internal/desktop/`.
+Any local program can then drive the window with the Session's Client authority, so set it only for
+automation.
 
 On Windows, the command mirrors Electron's distribution, by hard links where the volume allows,
 into a content-addressed directory beneath `apps/desktop/out/development-runtime/` with the

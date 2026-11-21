@@ -69,6 +69,7 @@ import { type DesktopDataRoot, prepareDesktopDataRoot } from './prepareDesktopDa
 import { resolveDesktopApplicationDistribution } from './resolveDesktopApplicationDistribution';
 
 const CLIENT_EXECUTABLE_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_CLIENT_EXECUTABLE';
+const DEBUG_PORT_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_DEBUG_PORT';
 const RENDERER_ROOT_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_RENDERER_ROOT';
 const RENDERER_URL_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_RENDERER_URL';
 const SESSION_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_SESSION';
@@ -97,12 +98,17 @@ const distribution = resolveDesktopApplicationDistribution({
 	platform: process.platform,
 });
 /**
- * Development and test builds take a Session name and a hidden window from the environment for
- * automation; a packaged release ignores both, so `ORCHBEE_SESSION` stays its public Session choice.
+ * Development and test builds take a Session name, a hidden window and a DevTools port from the
+ * environment for automation; a packaged release ignores all three, so `ORCHBEE_SESSION` stays its
+ * public Session choice and no release opens a debugging port.
  */
 const automationEnvironment: NodeJS.ProcessEnv =
 	packaged && distribution.dataScope.kind === 'release' ? {} : process.env;
 const windowHidden = automationEnvironment[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined;
+const debugPort = readDebugPort(automationEnvironment[DEBUG_PORT_ENVIRONMENT_KEY]);
+// Chromium listens on the loopback interface only; port 0 takes a free port and writes it to
+// `DevToolsActivePort` in the Electron folder, which the release workflow's real-window check reads.
+if (debugPort !== null) app.commandLine.appendSwitch('remote-debugging-port', debugPort);
 /**
  * The store's `desktop` folder, never for a development build: on Windows when this window runs
  * from `desktop\versions\<its own version>\`, whose window entry starts whichever window version is
@@ -219,6 +225,13 @@ function requiredEnvironment(key: string): string {
 	const value = process.env[key];
 	if (value === undefined || value.length === 0) throw new Error(`${key} is required.`);
 	return value;
+}
+
+/** The DevTools port a value names: 0, or 1024 to 65535; null for anything else. */
+function readDebugPort(value: string | undefined): string | null {
+	if (value === undefined || !/^\d{1,5}$/u.test(value)) return null;
+	const port = Number(value);
+	return port === 0 || (port >= 1024 && port <= 65_535) ? String(port) : null;
 }
 
 /** The bundled cohort's Client, or in a checkout the one its development runtime staged. */

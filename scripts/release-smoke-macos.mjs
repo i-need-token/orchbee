@@ -1,6 +1,6 @@
 // Proves a built macOS release on a fresh machine, one step per subcommand so that a workflow shows
-// which step failed: the disk image, the command-line archive, the install script and the npm
-// route. Each step works in a new folder `--work` with its own HOME there, so the store root, the command link, the data root
+// which step failed: the disk image, the command-line archive, the install script, the npm
+// route and the real window's Update. Each step works in a new folder `--work` with its own HOME there, so the store root, the command link, the data root
 // and npm's files land inside it; it installs and removes for real inside that folder and deletes
 // the folder at the end. It never touches /Applications or the real HOME.
 //
@@ -12,6 +12,8 @@
 //     --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]
 //   node scripts/release-smoke-macos.mjs gate       v<older version> --release <assets address>
 //     --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]
+//   node scripts/release-smoke-macos.mjs window-update <packaged Test window>
+//     --work <absolute new directory> [--diagnostics <absolute directory>]
 //
 // <artifacts> is a directory `node scripts/release-artifacts.mjs collect` wrote on macOS; its release
 // directory names the version, the platform and the program stem, so the same lines serve the test
@@ -63,14 +65,20 @@
 //   runtime and signed `Orchbee.app` window version, joins with the new Client, confirms zero probe
 //   gaps, waits for the idle move, and verifies layout preservation on the new Server before
 //   stopping the Session cleanly.
+// - window-update: the real-window Update check (scripts/release-window-update.mjs) of a packaged
+//   Test window, the folder holding the application and its `desktop-files.json` that
+//   `pnpm desktop:package:test` writes below apps/desktop/out/test. HOME and TMPDIR lie in the work
+//   folder, and `ORCHBEE_INSTALL_DIR` and `ORCHBEE_HOME` name the default store root and data root
+//   below that HOME. A person's copy of the oldest stand-in is opened from `<work>/Applications`,
+//   and the terminal runs `/bin/sh -i`.
 //
 // A test build's `uninstall` takes `--confirm`. A release build refuses it and asks a person to type
 // `orchbee` on a terminal, so its `uninstall` runs on a terminal that python3's pty module opens,
 // and the word is typed once the prompt shows. script(1) cannot stand in: it refuses Node's socket
 // as its input, and on macOS it passes the end of a closed input ahead of a line not yet read.
 //
-// The archive, install-script, npm, update and gate steps then require that no process runs from
-// the work folder.
+// The archive, install-script, npm, update, gate and window-update steps then require that no
+// process runs from the work folder.
 // Exit codes: 0 the step passed; 1 it failed; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
 import {
@@ -102,12 +110,19 @@ import {
 	updateFailureAdvice,
 	UsageError,
 } from './release-update-check.mjs';
+import {
+	parseWindowUpdateArguments,
+	startDetached,
+	windowUpdateCheck,
+	windowUpdateFailureAdvice,
+} from './release-window-update.mjs';
 import { FEED_DOMAIN, loadKey, signatureDocument } from './sign-release-manifest.mjs';
 
 const usage =
 	'Usage: node scripts/release-smoke-macos.mjs <disk-image|archive|install-script|npm> <artifacts> --work <absolute new directory>\n' +
 	'       node scripts/release-smoke-macos.mjs update v<version> --release <assets address> --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]\n' +
-	'       node scripts/release-smoke-macos.mjs gate v<older version> --release <assets address> --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]';
+	'       node scripts/release-smoke-macos.mjs gate v<older version> --release <assets address> --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]\n' +
+	'       node scripts/release-smoke-macos.mjs window-update <packaged Test window> --work <absolute new directory> [--diagnostics <absolute directory>]';
 const installScript = fileURLToPath(new URL('../apps/website/public/install.sh', import.meta.url));
 const testSigningKey = fileURLToPath(
 	new URL(
@@ -790,8 +805,111 @@ const updatePort = {
 	},
 };
 
+/** The one application bundle a window directory holds. */
+function windowApplication(windowDirectory) {
+	const bundles = readdirSync(windowDirectory, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory() && entry.name.endsWith('.app'))
+		.map((entry) => entry.name);
+	if (bundles.length !== 1)
+		throw new StepFailure(
+			`The window directory ${windowDirectory} must hold one application bundle, not ${bundles.join(', ')}`,
+		);
+	return bundles[0];
+}
+
+/** The program of the application bundle `bundle`. */
+function bundleProgram(bundle) {
+	return path.join(bundle, 'Contents', 'MacOS', path.basename(bundle, '.app'));
+}
+
+/**
+ * The processes whose program lies in `work`. A window's main process is a bundle's
+ * `Contents/MacOS/<name>`, never a helper below `Contents/Frameworks/`; a window launcher is a
+ * cohort's `<stem>-desktop-launcher`.
+ */
+function windowProcesses(work) {
+	return processesInside(work).map((line) => {
+		const [, pid, program] = /^(\d+) (.+)$/u.exec(line);
+		return {
+			pid: Number(pid),
+			program,
+			window: /\.app\/Contents\/MacOS\/[^/]+$/u.test(program) && !program.includes('/Frameworks/'),
+			launcher: program.endsWith('-desktop-launcher'),
+		};
+	});
+}
+
+/**
+ * How the real-window Update check finds a macOS Test window's files and processes
+ * (scripts/release-window-update.mjs): HOME and TMPDIR in the work folder, as the update check
+ * keeps them, and the application a person opened in `<work>/Applications`.
+ */
+const windowUpdatePort = {
+	application: windowApplication,
+	cohort: (window, application) =>
+		path.join(window, application, 'Contents', 'Resources', 'cohort'),
+	client: (folder, stem) => path.join(folder, stem),
+	asar: (window, application) =>
+		path.join(window, application, 'Contents', 'Resources', 'app.asar'),
+	// The changed archive breaks the bundle's seal; packaging signs ad hoc as well.
+	seal(window, application) {
+		const bundle = path.join(window, application);
+		expectStatus(
+			run('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', '--timestamp=none', bundle]),
+			0,
+			`codesign --sign - ${bundle}`,
+		);
+		expectStatus(
+			run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', bundle]),
+			0,
+			`codesign --verify --deep --strict ${bundle}`,
+		);
+	},
+	// The default store root and data root of `stem` below that HOME, named so the window, the
+	// Client and the check read the same folders.
+	environment(work, stem) {
+		const env = updatePort.environment(work);
+		return {
+			...env,
+			ORCHBEE_HOME: path.join(env.HOME, `.${stem}`),
+			ORCHBEE_INSTALL_DIR: storeRoot({ stem }, env.HOME),
+		};
+	},
+	storedCohort: (root, version, application) =>
+		path.join(root, 'desktop', 'versions', version, application, 'Contents', 'Resources', 'cohort'),
+	// A macOS relaunch starts the newer version's launcher, which replaces the opened bundle.
+	relaunchStarter: (root, stem, version, application) =>
+		path.join(
+			windowUpdatePort.storedCohort(root, version, application),
+			`${stem}-desktop-launcher`,
+		),
+	startWindow({ env, window, work }) {
+		const applications = path.join(work, 'Applications');
+		mkdirSync(applications, { recursive: true });
+		const entry = path.join(applications, window.application);
+		expectStatus(
+			run('/usr/bin/ditto', [path.join(window.directory, window.application), entry]),
+			0,
+			`ditto ${window.application}`,
+		);
+		startDetached(bundleProgram(entry), [], { cwd: work, env });
+		return entry;
+	},
+	relaunchedProgram: ({ entry }) => bundleProgram(entry),
+	shell: (work) => ({
+		argv: ['--exec', '/bin/sh', '--arg', '-i', '--cwd', work],
+		ticking: 'i=0; while [ $i -lt 3600 ]; do i=$((i+1)); echo tick-$i; sleep 1; done',
+	}),
+	processes: windowProcesses,
+};
+
 function update(options, work, progress) {
 	updateCheck({ ...options, work }, progress, updatePort, usage);
+	expectNoProcesses(work);
+}
+
+async function windowUpdate(options, work, progress) {
+	await windowUpdateCheck(options, work, progress, windowUpdatePort);
 	expectNoProcesses(work);
 }
 
@@ -808,6 +926,7 @@ function gate(options, work, progress) {
 function parseArguments(argv) {
 	if (argv[0] === 'update') return parseUpdateArguments(argv.slice(1), usage, hostPlatform);
 	if (argv[0] === 'gate') return parseGateArguments(argv.slice(1), usage);
+	if (argv[0] === 'window-update') return parseWindowUpdateArguments(argv.slice(1), usage);
 	const [step, artifacts, option, work, ...rest] = argv;
 	if (
 		!['disk-image', 'archive', 'install-script', 'npm'].includes(step) ||
@@ -833,7 +952,7 @@ if (
 		if (hostPlatform === undefined)
 			throw new StepFailure(`${process.arch} is not a macOS release platform`);
 		options = parseArguments(process.argv.slice(2));
-		const identity = ['update', 'gate'].includes(options.step)
+		const identity = ['update', 'gate', 'window-update'].includes(options.step)
 			? undefined
 			: readIdentity(options.artifacts);
 		if (existsSync(options.work))
@@ -845,6 +964,8 @@ if (
 			update(options, work, progress);
 		} else if (options.step === 'gate') {
 			gate(options, work, progress);
+		} else if (options.step === 'window-update') {
+			await windowUpdate(options, work, progress);
 		} else {
 			const steps = { 'disk-image': diskImage, archive, 'install-script': installScriptStep, npm };
 			steps[options.step](identity, work);
@@ -858,6 +979,8 @@ if (
 		// A failing path stops the release before Publish.
 		if (options?.step === 'gate' && !(error instanceof UsageError))
 			process.stderr.write(gateFailureAdvice(options.older, options.version, progress.stage));
+		if (options?.step === 'window-update' && !(error instanceof UsageError))
+			process.stderr.write(windowUpdateFailureAdvice(progress.stage));
 	} finally {
 		if (work !== undefined && pending.mount === undefined)
 			rmSync(work, { recursive: true, force: true });

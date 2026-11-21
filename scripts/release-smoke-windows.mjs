@@ -1,6 +1,6 @@
 // Proves a built Windows release on a fresh machine, one step per subcommand so that a workflow shows
-// which step failed: the installer route, the npm route, and a scan for anything of the build's
-// identity left behind. It installs and removes for real, so run it only on a disposable machine,
+// which step failed: the installer route, the npm route, a scan for anything of the build's
+// identity left behind, and the real window's Update. It installs and removes for real, so run it only on a disposable machine,
 // such as a fresh CI runner, never on one whose Orchbee installation matters.
 //
 //   node scripts/release-smoke-windows.mjs install   <artifacts> --logs <absolute directory>
@@ -12,6 +12,8 @@
 //     --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]
 //   node scripts/release-smoke-windows.mjs gate      v<older version> --release <assets address>
 //     --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]
+//   node scripts/release-smoke-windows.mjs window-update <packaged Test window>
+//     --work <absolute new directory> [--diagnostics <absolute directory>]
 //
 // <artifacts> is a directory `node scripts/release-artifacts.mjs collect` wrote; its release directory
 // names the version and the program stem, so the same lines serve the test and the release identity.
@@ -62,6 +64,13 @@
 //   must hold one process id and the numbers from 1 without a gap. A failure names the stage, prints
 //   the probe record's last line and the diagnostic log's tail, and says not to publish. A test
 //   build's Session is stopped at the end; a release build's stays for the discarded runner.
+// - window-update: the real-window Update check (scripts/release-window-update.mjs) of a packaged
+//   Test window, the folder `pnpm desktop:package:test` writes below apps\desktop\out\test. The
+//   store root and data root (`ORCHBEE_INSTALL_DIR`, `ORCHBEE_HOME`) lie in the work folder, and
+//   with them the Session's default runtime base; every other `ORCHBEE_*` variable is dropped, the
+//   window starts from the store's window entry `desktop\<stem>-desktop.exe`, and the terminal runs
+//   cmd.exe. Processes are found by program path with Windows PowerShell's CIM query. The work
+//   folder is deleted at the end.
 //
 // When an install, command, uninstall or npm step fails, it also prints whether this process runs
 // elevated and the owner and access list of the store root and its parent; the program's own
@@ -76,7 +85,15 @@
 //
 // Exit codes: 0 the step passed; 1 it failed; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	readdirSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -94,13 +111,20 @@ import {
 	updateFailureAdvice,
 	UsageError,
 } from './release-update-check.mjs';
+import {
+	parseWindowUpdateArguments,
+	startDetached,
+	windowUpdateCheck,
+	windowUpdateFailureAdvice,
+} from './release-window-update.mjs';
 
 const usage =
 	'Usage: node scripts/release-smoke-windows.mjs <install|uninstall> <artifacts> --logs <absolute directory>\n' +
 	'       node scripts/release-smoke-windows.mjs <command|leftovers> <artifacts>\n' +
 	'       node scripts/release-smoke-windows.mjs npm <artifacts> --prefix <absolute new directory>\n' +
 	'       node scripts/release-smoke-windows.mjs update v<version> --release <assets address> --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]\n' +
-	'       node scripts/release-smoke-windows.mjs gate v<older version> --release <assets address> --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]';
+	'       node scripts/release-smoke-windows.mjs gate v<older version> --release <assets address> --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]\n' +
+	'       node scripts/release-smoke-windows.mjs window-update <packaged Test window> --work <absolute new directory> [--diagnostics <absolute directory>]';
 // Each command a person runs gets this long; an install or a removal gets longer.
 const commandDeadline = 120_000;
 // A new terminal's first shell on a fresh machine gets this long to appear, and then to answer.
@@ -831,10 +855,101 @@ const windowsPort = {
 	},
 };
 
+// Every process whose program lies in the folder WINDOW_UPDATE_WORK names, as JSON.
+const processScript = `$work = $env:WINDOW_UPDATE_WORK.TrimEnd('\\') + '\\'
+$found = @(Get-CimInstance Win32_Process | Where-Object {
+	$_.ExecutablePath -and $_.ExecutablePath.StartsWith($work, [StringComparison]::OrdinalIgnoreCase)
+} | ForEach-Object { @{ pid = $_.ProcessId; program = $_.ExecutablePath; commandLine = [string]$_.CommandLine } })
+ConvertTo-Json -Compress -InputObject $found`;
+
+/**
+ * The processes whose program lies in `work`. A window's main process runs from
+ * `desktop\versions\<version>\` without Chromium's `--type=`; a window launcher is a cohort's
+ * `<stem>-desktop-launcher.exe` or the entry `desktop\<stem>-desktop.exe`.
+ */
+function windowProcesses(work) {
+	const result = spawnSync(
+		system32(path.join('WindowsPowerShell', 'v1.0', 'powershell.exe')),
+		['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', processScript],
+		{
+			encoding: 'utf8',
+			// Windows PowerShell 5.1 started from PowerShell 7 needs its own module folder for CIM.
+			env: {
+				...process.env,
+				PSModulePath: system32(path.join('WindowsPowerShell', 'v1.0', 'Modules')),
+				WINDOW_UPDATE_WORK: work,
+			},
+			stdio: ['ignore', 'pipe', 'pipe'],
+			timeout: commandDeadline,
+			windowsHide: true,
+		},
+	);
+	if (result.error !== undefined || result.status !== 0)
+		throw new StepFailure(
+			`The process list failed: ${result.error?.message ?? `${result.stderr}`.trim()}`,
+		);
+	const listed = result.stdout.trim() === '' ? [] : JSON.parse(result.stdout);
+	return listed.map(({ pid, program, commandLine }) => {
+		const folder = path.dirname(program);
+		const name = path.basename(program).toLowerCase();
+		return {
+			pid,
+			program,
+			window:
+				name.endsWith('-desktop.exe') &&
+				path.basename(path.dirname(folder)).toLowerCase() === 'versions' &&
+				!commandLine.includes('--type='),
+			launcher:
+				name.endsWith('-desktop-launcher.exe') ||
+				(name.endsWith('-desktop.exe') && path.basename(folder).toLowerCase() === 'desktop'),
+		};
+	});
+}
+
+/**
+ * How the real-window Update check finds a Windows Test window's files and processes
+ * (scripts/release-window-update.mjs): the store root and the data root, which holds the default
+ * runtime base, lie in the work folder, and the terminal runs cmd.exe.
+ */
+const windowUpdatePort = {
+	application: () => undefined,
+	cohort: (window) => path.join(window, 'resources', 'cohort'),
+	client: (folder, stem) => path.join(folder, `${stem}.exe`),
+	asar: (window) => path.join(window, 'resources', 'app.asar'),
+	seal: () => undefined,
+	// An explicit ORCHBEE_RUNTIME_BASE must already exist and be private, so none is named: the
+	// Session's runtime base is the data root's `internal\runtime`, which activation creates.
+	environment: (work) => ({
+		...Object.fromEntries(
+			Object.entries(process.env).filter(([variable]) => !/^ORCHBEE_/iu.test(variable)),
+		),
+		ORCHBEE_HOME: path.join(work, 'data'),
+		ORCHBEE_INSTALL_DIR: path.join(work, 'store'),
+	}),
+	storedCohort: (root, version) =>
+		path.join(root, 'desktop', 'versions', version, 'resources', 'cohort'),
+	// A Windows relaunch starts the window entry, which starts the active version.
+	relaunchStarter: (root, stem) => path.join(root, 'desktop', `${stem}-desktop.exe`),
+	startWindow({ env, stem, storeRoot }) {
+		const desktop = path.join(storeRoot, 'desktop');
+		const entry = path.join(desktop, `${stem}-desktop.exe`);
+		startDetached(entry, [], { cwd: desktop, env });
+		return entry;
+	},
+	relaunchedProgram: ({ stem, storeRoot, version }) =>
+		path.join(storeRoot, 'desktop', 'versions', version, `${stem}-desktop.exe`),
+	shell: (work) => ({
+		argv: ['--exec', system32('cmd.exe'), '--arg', '/D', '--cwd', work],
+		ticking: 'for /L %i in (1,1,3600) do @(echo tick-%i& ping -n 2 127.0.0.1 >nul)',
+	}),
+	processes: windowProcesses,
+};
+
 function parseArguments(argv) {
 	const [step, artifacts, ...rest] = argv;
 	if (step === 'update') return parseUpdateArguments(argv.slice(1), usage, updatePlatform);
 	if (step === 'gate') return parseGateArguments(argv.slice(1), usage);
+	if (step === 'window-update') return parseWindowUpdateArguments(argv.slice(1), usage);
 	const options = {};
 	for (let index = 0; index < rest.length; index += 2) {
 		const [option, value] = [rest[index], rest[index + 1]];
@@ -864,6 +979,7 @@ if (
 ) {
 	let options;
 	let identity;
+	let windowWork;
 	const progress = { stage: 'starting' };
 	try {
 		if (process.platform !== 'win32') throw new StepFailure('This smoke test runs on Windows');
@@ -873,6 +989,13 @@ if (
 				throw new StepFailure(`Refusing to work in an existing ${options.work}`);
 			mkdirSync(options.work, { recursive: true });
 			updateCheck(options, progress, windowsPort, usage);
+		} else if (options.step === 'window-update') {
+			if (existsSync(options.work))
+				throw new StepFailure(`Refusing to work in an existing ${options.work}`);
+			mkdirSync(options.work, { recursive: true });
+			// The long form, as the process list reports program paths.
+			windowWork = realpathSync.native(options.work);
+			await windowUpdateCheck(options, windowWork, progress, windowUpdatePort);
 		} else if (options.step === 'gate') {
 			runGatePath(options, progress, windowsPort, usage);
 		} else {
@@ -895,11 +1018,22 @@ if (
 		// A failing path stops the release before Publish.
 		if (options?.step === 'gate' && !(error instanceof UsageError))
 			process.stderr.write(gateFailureAdvice(options.older, options.version, progress.stage));
+		if (options?.step === 'window-update' && !(error instanceof UsageError))
+			process.stderr.write(windowUpdateFailureAdvice(progress.stage));
 		if (
 			error instanceof StepFailure &&
 			identity !== undefined &&
 			['install', 'command', 'uninstall', 'npm'].includes(options.step)
 		)
 			failureFacts(identity);
+	} finally {
+		// The check has stopped every process of the work folder; a file a process just released may
+		// stay locked for a moment.
+		if (windowWork !== undefined)
+			try {
+				rmSync(windowWork, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 });
+			} catch (error) {
+				process.stderr.write(`${windowWork} stays: ${error.message}\n`);
+			}
 	}
 }

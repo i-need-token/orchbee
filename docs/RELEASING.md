@@ -55,7 +55,8 @@ repository>`. Print each public half with the command in
    pre-release is `<version>-beta.<n>`.
 2. Optional rehearsal: Actions › Release › Run workflow on `main` with `version` `0.1.0-beta.1`, or
    `gh workflow run release.yml --ref main -f version=0.1.0-beta.1`. It builds, signs and smoke-tests
-   the release identity on every row with `build` set, runs
+   the release identity on every row with `build` set, presses Update in a real Test window of each
+   of those rows, runs
    the release gate's paths a tag run would select, joins the rows the way a tag run would, and
    publishes nothing. Its artifacts are a different build of the same version: never install them.
 3. Write the release notes in Markdown in a file outside the repository, with their own headings;
@@ -84,7 +85,11 @@ repository>`. Print each public half with the command in
    window version into `<store root>/desktop/` from its published archives and let its own automatic
    helper update both runtime and window to this release from the gate copy while a terminal keeps
    running; the job "Release version" names the older releases it selected, or says a gate runs no
-   path when no qualifying release exists yet, which lets publication go on. Publication places the
+   path when no qualifying release exists yet, which lets publication go on. Beside the build, each
+   job "Release window Update <platform>" builds a Test window and presses Update in it, in
+   Settings › About and in the sidebar footer, as the
+   [real-window Update check](VERIFICATION.md#release-workflow) describes; publication waits for
+   it as for the gate. Publication places the
    feed's signature beside it, then creates
    a draft release `v0.1.0-beta.1` holding the setup file, the `.zip`, the
    window archive `orchbee-desktop-0.1.0-beta.1-windows-x86_64.zip`, the feed
@@ -134,6 +139,11 @@ repository>`. Print each public half with the command in
   name the stage that failed, the probe record's last line and the diagnostic log's tail. A download
   that failed for a passing reason, such as a timeout, is cleared by "Re-run failed jobs"; any
   other failure is fixed on `main` like any other failure before publication.
+- A failed job "Release window Update <platform>" means that pressing Update in a real window of
+  this build did not relaunch it into the newer version or did not show the expected notice, so
+  nothing was published. Its last lines name the stage that failed, the diagnostic log's tail and
+  the processes still running; the run's artifact `release-window-update-<platform>` holds the
+  page's screenshot and DOM and the data root's logs.
 - A failed publication job is run again: "Re-run failed jobs" on the same run, within 14 days while
   its artifacts are kept, never "Re-run all jobs". A failed npm step leaves the release a draft.
   The re-run publishes from the same artifacts, the feed signature of the job "Release feed"

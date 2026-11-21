@@ -5,7 +5,8 @@ name: Release
 # the result on fresh runners, and publishes nothing. A pushed tag v<version>, or a manual run naming
 # a version (a rehearsal): the release path builds the rows with the release identity, signs in the
 # environment `release`, proves the files on fresh runners, updates the older releases the release
-# gate selects to them, and joins every row's files into one set. A tag takes the rows marked
+# gate selects to them, presses Update in a real Test window of each row, and joins every row's
+# files into one set. A tag takes the rows marked
 # `build` and `publish`; a rehearsal takes every row marked `build`, so a row is rehearsed before it
 # publishes. A tag run alone then publishes with no human step: a
 # draft GitHub release whose notes are the annotated tag's message, the npm packages, then the
@@ -889,6 +890,169 @@ jobs:
       - name: Install, start and uninstall through npm
         run: node scripts/release-smoke-macos.mjs npm "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-npm"
 
+  # The real-window Update check (scripts/release-window-update.mjs) beside the release build, from
+  # the plan on: a Test window built here, because a release build never opens the DevTools port the
+  # check drives, and two older stand-ins copied from it, in a scratch store root and data root.
+  # Nothing is downloaded but the toolchains. A failure keeps the page's screenshot and DOM and the
+  # data root's logs for three days and stops the release before Publish.
+  release-window-update:
+    name: Release window Update ${{ matrix.platform }}
+    needs: release-plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.windows-matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      ORCHBEE_SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install --profile minimal
+          rustc --version
+          cargo --version
+
+      # The same pinned download as the dry run's build job.
+      - name: Set up Zig
+        run: |
+          $zigUrl = 'https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip'
+          $zigSha256 = '68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e'
+          $archive = Join-Path $env:RUNNER_TEMP 'orchbee-zig.zip'
+          $destination = Join-Path $env:RUNNER_TEMP 'orchbee-zig'
+          curl.exe --fail --location --silent --show-error --ssl-revoke-best-effort --retry 5 --retry-all-errors $zigUrl --output $archive
+          $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          if ($actual -ne $zigSha256) { throw "Unexpected Zig archive digest: $actual" }
+          Expand-Archive -Path $archive -DestinationPath $destination
+          $zigDirectory = (Get-ChildItem -Path $destination -Directory | Select-Object -First 1).FullName
+          $zigDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $zigDirectory 'zig.exe') version
+
+      - name: Fetch the Zig packages
+        uses: ./.github/actions/zig-packages
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the Test window
+        run: pnpm desktop:package:test --build-id "${{ github.sha }}.${{ github.run_number }}"
+
+      # The work folder lies in the profile, as a person's data root does: the window creates the
+      # data root with the access list its folder passes down, and the Session admits only a private
+      # one, which the runner's work drive does not pass down.
+      - name: Press Update in the real window
+        run: |
+          $windows = @(Get-ChildItem -LiteralPath 'apps\desktop\out\test' -Directory)
+          if ($windows.Count -ne 1) { throw "apps\desktop\out\test holds $($windows.Count) folders, not one packaged window" }
+          node scripts/release-smoke-windows.mjs window-update $windows[0].FullName --work "$env:USERPROFILE\window-update" --diagnostics "$env:RUNNER_TEMP\window-update-diagnostics"
+
+      - name: Keep the diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-window-update-${{ matrix.platform }}
+          path: ${{ runner.temp }}\window-update-diagnostics
+          if-no-files-found: ignore
+          retention-days: 3
+
+  # The macOS rows' real-window Update check, in bash, as on Windows.
+  release-window-update-macos:
+    name: Release window Update ${{ matrix.platform }}
+    needs: release-plan
+    if: needs.release-plan.outputs.macos == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      ORCHBEE_SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install --profile minimal
+          rustc --version
+          cargo --version
+
+      # The same pinned download as `release-build-macos`.
+      - name: Set up Zig
+        run: |
+          case "$(uname -m)" in
+            arm64)
+              zig_url="https://ziglang.org/download/0.16.0/zig-aarch64-macos-0.16.0.tar.xz"
+              zig_sha256="b23d70deaa879b5c2d486ed3316f7eaa53e84acf6fc9cc747de152450d401489"
+              ;;
+            x86_64)
+              zig_url="https://ziglang.org/download/0.16.0/zig-x86_64-macos-0.16.0.tar.xz"
+              zig_sha256="0387557ed1877bc6a2e1802c8391953baddba76081876301c522f52977b52ba7"
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
+          curl --fail --location --silent --show-error --retry 5 --retry-all-errors "$zig_url" --output "$RUNNER_TEMP/orchbee-zig.tar.xz"
+          echo "$zig_sha256  $RUNNER_TEMP/orchbee-zig.tar.xz" | shasum -a 256 -c
+          mkdir -p "$RUNNER_TEMP/orchbee-zig"
+          tar -xJf "$RUNNER_TEMP/orchbee-zig.tar.xz" --strip-components=1 --directory "$RUNNER_TEMP/orchbee-zig"
+          echo "$RUNNER_TEMP/orchbee-zig" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/orchbee-zig/zig" version
+
+      - name: Fetch the Zig packages
+        uses: ./.github/actions/zig-packages
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the Test window
+        run: pnpm desktop:package:test --build-id "${{ github.sha }}.${{ github.run_number }}"
+
+      - name: Press Update in the real window
+        run: |
+          shopt -s nullglob
+          windows=(apps/desktop/out/test/*/)
+          if [ "${#windows[@]}" -ne 1 ]; then echo "apps/desktop/out/test holds ${#windows[@]} folders, not one packaged window" >&2; exit 1; fi
+          node scripts/release-smoke-macos.mjs window-update "$PWD/${windows[0]%/}" --work "$RUNNER_TEMP/window-update" --diagnostics "$RUNNER_TEMP/window-update-diagnostics"
+
+      - name: Keep the diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-window-update-${{ matrix.platform }}
+          path: ${{ runner.temp }}/window-update-diagnostics
+          if-no-files-found: ignore
+          retention-days: 3
+
   # One path of the release gate per older release the plan selected, on a fresh runner, from that
   # release's published assets to this run's Windows archive and signed gate feed. With no path
   # selected the job is skipped, since a job with no row fails, and `release-publish` goes on; a
@@ -1044,8 +1208,8 @@ jobs:
   # replaced; then the draft becomes the Latest release, so a failed npm step leaves it a draft.
   # Run again, the job finishes a partial publication. The condition names the `push` event as well
   # as the plan's `publish`, so no manual run reaches it; every needed job must have passed, the
-  # macOS smoke may be skipped only when the plan has no macOS row, and the release gate only when
-  # the plan selected no path.
+  # macOS smoke and window Update check may be skipped only when the plan has no macOS row, and the
+  # release gate only when the plan selected no path.
   release-publish:
     name: Publish ${{ needs.release-plan.outputs.tag }}
     needs:
@@ -1055,6 +1219,8 @@ jobs:
         release-smoke,
         release-smoke-npm,
         release-smoke-macos,
+        release-window-update,
+        release-window-update-macos,
         release-gate,
         release-gate-macos,
       ]
@@ -1063,6 +1229,8 @@ jobs:
       needs.release-join.result == 'success' && needs.release-smoke.result == 'success' &&
       needs.release-smoke-npm.result == 'success' &&
       (needs.release-smoke-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') &&
+      needs.release-window-update.result == 'success' &&
+      (needs.release-window-update-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') &&
       (needs.release-gate.result == 'success' || needs.release-plan.outputs.gate == 'false') &&
       (needs.release-gate-macos.result == 'success' || needs.release-plan.outputs.macos-gate == 'false') }}
     environment: release
