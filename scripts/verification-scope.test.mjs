@@ -89,6 +89,8 @@ test('documentation without a test consumer selects no suite', () => {
 		'proposals/example/diagram.png',
 		'docs/TESTING.md',
 		'docs/frontend/react.md',
+		'docs/tui/layout.md',
+		'docs/tui/verification.md',
 		'docs/VERIFICATION.md',
 		'README.md',
 		'schemas/terminal/README.md',
@@ -293,31 +295,6 @@ test('shared PowerShell startup assets select the Host and its native process co
 			),
 			false,
 		);
-	}
-});
-
-test('TUI standards retain native ownership without selecting every suite', () => {
-	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
-	const selected = selectVerificationScope(actual, [
-		'apps/orchbee/crates/workbench-client/src/workbench_client/ui/action_menus.rs',
-		'docs/tui/terminal-environment.md',
-	]);
-	assert.equal(selected.all, false, selected.reasons.join('\n'));
-	assert.deepEqual(selected.cargo, ['orchbee', 'orchbee-workbench-client']);
-	// The Host's suite runs the orchbee binary's ConPTY witness, so it joins without its consumers.
-	assert.deepEqual(selected.pnpm, ['@orchbee/terminal-host']);
-	for (const standard of [
-		'keyboard-input',
-		'layout',
-		'mouse-input',
-		'overlays-and-status',
-		'terminal-environment',
-		'verification',
-		'visual-foundations',
-	]) {
-		const result = selectVerificationScope(actual, [`docs/tui/${standard}.md`]);
-		assert.equal(result.all, false);
-		assert.deepEqual(result.cargo, ['orchbee']);
 	}
 });
 

@@ -57,19 +57,6 @@ const sharedContractInputs = [
 	],
 ];
 
-// Exact shared-input ownership claimed before the documentation rule. No test reads these TUI
-// standards; the mapping is a review policy that re-verifies the native client they govern.
-const tuiStandards = new Set(
-	[
-		'keyboard-input',
-		'layout',
-		'mouse-input',
-		'overlays-and-status',
-		'terminal-environment',
-		'verification',
-		'visual-foundations',
-	].map((name) => `docs/tui/${name}.md`),
-);
 // The root tooling suites test the gate's own tools, mostly on fixtures. A root tooling input, which
 // no workspace owns, selects all of them and no workspace suite. A suite also runs when a
 // repository file it reads changes (an input ending in `/` is a directory); that file keeps its
@@ -374,12 +361,9 @@ export function selectVerificationScope(graph, paths) {
 			// schema directories' Markdown have no test reader; Markdown inside an owner stays with
 			// that owner.
 			if (
-				!tuiStandards.has(changed) &&
-				(changed.startsWith('proposals/') ||
-					(changed.endsWith('.md') &&
-						(changed.startsWith('docs/') ||
-							changed.startsWith('schemas/') ||
-							!changed.includes('/'))))
+				changed.startsWith('proposals/') ||
+				(changed.endsWith('.md') &&
+					(changed.startsWith('docs/') || changed.startsWith('schemas/') || !changed.includes('/')))
 			) {
 				reasons.push(`documentation <- ${changed}`);
 				continue;
@@ -409,11 +393,7 @@ export function selectVerificationScope(graph, paths) {
 				}
 				continue;
 			}
-			const owner = owners.find((entry) =>
-				tuiStandards.has(changed)
-					? entry.root === 'apps/orchbee'
-					: changed.startsWith(`${entry.root}/`),
-			);
+			const owner = owners.find((entry) => changed.startsWith(`${entry.root}/`));
 			if (!owner) throw new Error(`Unknown or shared input: ${changed}`);
 			selected.add(owner.root);
 			reasons.push(`${owner.root} <- ${changed}`);

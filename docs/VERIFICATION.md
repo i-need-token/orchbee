@@ -92,8 +92,7 @@ its run on GitHub.
 
 Documentation without a test reader selects no suite and reports `documentation <- <path>`:
 anything under `proposals/`, and Markdown under `docs/`, under `schemas/`, or directly at the
-repository root. The `docs/tui/` standards are the exception by review policy: they select the
-native terminal client. Markdown inside an owner selects that owner. Other files outside an owner
+repository root. Markdown inside an owner selects that owner. Other files outside an owner
 remain unknown and select the complete gate.
 
 A change that adds a cross-owner input, or a test that reads a file outside its owner, adds the
