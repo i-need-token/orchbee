@@ -1,6 +1,10 @@
 import type { ComponentProps } from 'react';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { ActionRuntime } from '@orchbee/actions';
+import {
+	TerminalPresentationIdSchema,
+	type TerminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 import { Workbench } from '../src/workbench';
 import type {
 	WorkbenchAgentConfirmation,
@@ -392,15 +396,16 @@ const agentConfirmationsStory = (() => {
 		wait: null,
 		...confirmation,
 	});
-	const rows = new Map<string, WorkbenchAgentConfirmation>();
-	if (offered !== undefined) rows.set(offered, row({ offer: true }));
-	if (waiting !== undefined) rows.set(waiting, row({ choice: 'agent-type', wait: 'destructive' }));
-	if (answered !== undefined) {
-		rows.set(
-			answered,
-			row({ choice: 'run', pressed: { kind: 'command', serial: 1, text: 'pnpm test' } }),
-		);
-	}
+	const rows = new Map<TerminalPresentationId, WorkbenchAgentConfirmation>();
+	const show = (id: string | undefined, confirmation: WorkbenchAgentConfirmation): void => {
+		if (id !== undefined) rows.set(TerminalPresentationIdSchema.parse(id), confirmation);
+	};
+	show(offered, row({ offer: true }));
+	show(waiting, row({ choice: 'agent-type', wait: 'destructive' }));
+	show(
+		answered,
+		row({ choice: 'run', pressed: { kind: 'command', serial: 1, text: 'pnpm test' } }),
+	);
 	return {
 		agentObservationSource: createStoryAgentSource([
 			{ agent: 'claude', presentationId: offered, state: 'blocked' },
