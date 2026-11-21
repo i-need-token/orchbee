@@ -52,8 +52,8 @@ and SSH-guard retirement scheduling keep their original cadence.
 | Find in terminal                                                               | Shared Client implementation                | Shared Client implementation                                                             |
 | System clipboard writes                                                        | Hidden Win32 owner                          | Desktop clipboard program or OSC 52, by [session route](#linux-and-macos-session-routes) |
 | Browser link activation                                                        | Windows shell                               | `open` or `xdg-open` in a local desktop session                                          |
-| Saved-machine SSH carriers                                                     | Owned OpenSSH processes                     | Unsupported                                                                              |
-| Saved-machine catalog storage                                                  | Private Windows cache                       | Unsupported                                                                              |
+| Saved-machine SSH carriers                                                     | Owned OpenSSH processes                     | macOS: system `/usr/bin/ssh`; Linux: unsupported                                         |
+| Saved-machine catalog storage                                                  | Private Windows cache                       | macOS: same as Windows; Linux: unsupported                                               |
 | Remembered Workspace and Tab position storage                                  | Private record in the Session folder        | macOS: same as Windows; Linux: unsupported                                               |
 | Local directory entry                                                          | Existing Windows adapter                    | macOS: POSIX grammar, from the launch folder; Linux: unsupported                         |
 | Worktree create and open                                                       | Existing Windows adapter                    | macOS: same as Windows; Linux: unsupported                                               |
@@ -63,14 +63,14 @@ and SSH-guard retirement scheduling keep their original cadence.
 | Host window title                                                              | Console title, original restored on exit    | OSC 0, original restored from the terminal's title stack on exit                         |
 | Terminal notification transport                                                | Ghostty/iTerm/WezTerm OSC 9 or Kitty OSC 99 | Same as Windows                                                                          |
 | System notification transport                                                  | Notification-area balloon                   | Terminal sequence, `osascript` or `notify-send`, by session route                        |
-| Terminal graphics                                                              | Existing Windows adapter and host admission | Unsupported                                                                              |
+| Terminal graphics                                                              | Existing Windows adapter and host admission | macOS: outer-terminal probe, as on Windows; Linux: unsupported                           |
 | Notification cards and ordinary terminal bell                                  | Shared TUI / admitted terminal              | Shared TUI / admitted terminal                                                           |
 | Login-shell preference                                                         | Unsupported by the Windows shell adapter    | Existing POSIX shell adapter                                                             |
 
 The optional-capability list does not gate the whole TUI. In particular, an absent saved-machine
 adapter does not disable the local Workspace/Agent sidebar or repeatedly retire its observations.
-A local Client on Unix does not read the Windows catalog or invent an empty persisted catalog.
-Settings drafts and edits use the Server's settings snapshots on every platform.
+A local Client on Linux does not read the saved-machine catalog or invent an empty persisted
+catalog. Settings drafts and edits use the Server's settings snapshots on every platform.
 Local activation retains the admitted runtime directory on every platform. Remembered-position
 storage derives its record path only inside the Windows and macOS adapter, from the data root and
 the Session the runtime directory is named after; the Linux adapter returns the typed

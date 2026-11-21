@@ -7,7 +7,7 @@ release cohort ships it beside `orchbee`, `orchbee-worker` and `orchbee-terminal
 Desktop package bundles the same cohort, checking each file against `cohort.json`
 (`apps/desktop/scripts/package.mjs`). It participates in the root Cargo verification gate.
 
-## Windows semantic events
+## Semantic events
 
 The Session journal records actual accepted topology, metadata, worktree, Agent and Client changes.
 An authenticated connection owns one bounded subscription; read/wait retain its cursor and probes,
