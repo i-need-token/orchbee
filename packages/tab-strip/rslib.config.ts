@@ -14,6 +14,8 @@ export default defineConfig({
 				},
 			},
 		},
+		// The ESM output splits the stylesheet into a shared chunk; this unsplit output is the one that
+		// writes the single `dist/styles.css` the `./styles.css` export names.
 		{ format: 'cjs', syntax: 'es2022' },
 	],
 	source: {

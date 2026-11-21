@@ -12,6 +12,7 @@ export default defineConfig({
 				},
 			},
 		},
+		// `@orchbee/terminal` is publishable, and its CommonJS build requires this package.
 		{ format: 'cjs', syntax: 'es2022' },
 	],
 	source: {

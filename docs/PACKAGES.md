@@ -6,7 +6,7 @@
 - Keep application-specific code under that application's `src` tree until a package boundary has a concrete consumer.
 - Place frontend product UI and platform adapters according to [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md).
 - Treat every runtime package under `packages/*` as a library package. Library packages use Rslib and expose built artifacts. Production consumers use those artifacts; repository applications may compile declared public source entries during development according to the workspace-development contract.
-- Set `"private": true` on workspace-only libraries. A package intended for npm publication omits `private` and must include a version, `"publishConfig": { "access": "public" }`, a package README, license metadata once the project license is selected, and a `files` allowlist.
+- Set `"private": true` on workspace-only libraries. A package intended for npm publication omits `private` and also follows [Publishable packages](#publishable-packages).
 - State every package's responsibility and non-goals in its README, under [package documents](DOCUMENTATION.md#package-documents).
 
 Repository-only scripts, Cargo crates, application entry points, and the product's npm carriers ([Versioning](#versioning)) are not npm library packages and do not belong under `packages/*`.
@@ -72,11 +72,10 @@ Every library exposes these scripts:
 
 - Every package sets `"type": "module"`.
 - Every package defines `package.json#exports`; files absent from `exports` are private even if they exist in the published tarball.
-- Export a root API as `"."`. A private package with no root API exports only its real subpaths or assets and omits `src/index.ts` and the root build entry; never retain an empty root or fabricate an API to satisfy tooling. Publishable packages retain a root API. Declare at least one real export, name every supported subpath and asset explicitly, and do not use wildcard subpath exports.
+- Export a root API as `"."`. A private package with no root API exports only its real subpaths or assets and omits `src/index.ts` and the root build entry; never retain an empty root or fabricate an API to satisfy tooling. Declare at least one real export, name every supported subpath and asset explicitly, and do not use wildcard subpath exports.
 - Put the `"types"` condition before `"import"` and `"require"`.
 - Point `"import"` to ESM and `"require"` to CJS. Only the repository-specific `"@orchbee/source"` condition may point at `src/*`.
 - Declare `"@orchbee/source"` first on every source-buildable export. It is a repository development condition, points to the source counterpart of that same public entry, and must never expose a private subpath.
-- Include `@orchbee/source` targets in the package `files` allowlist when the package is publishable. Private packages may omit development source from their pack output.
 - Keep `main`, `module`, and `types` aligned with the root conditional export for consumers that do not fully support `exports`. Omit all three when a private package has no root export.
 - Import another workspace package only through an allowed package name or exported subpath. Imports from another workspace's `src/*` or `dist/*` are forbidden.
 - When a package root exports React presentation, expose the headless state or runtime that a non-React consumer needs through an explicit React-free subpath. Its runtime import closure excludes React, DOM, and stylesheet modules; type-only references may remain.
@@ -120,12 +119,13 @@ Removing or changing an exported symbol, type, subpath, or asset is a breaking A
 - Build every library package with Rslib through `"build": "rslib build --log-level error"` so
   routine success stays concise while build errors remain visible.
 - Produce ESM, CJS, TypeScript declarations, and JavaScript source maps for every code entry (`dist/index.js`, `dist/index.cjs`, and `dist/index.d.ts` for a root API). Asset-only packages build their real assets without placeholder JavaScript or declaration entries.
+- Private packages keep the CJS output although the applications bundle ESM: a publishable package requires its workspace dependencies from its own CJS build, and a stylesheet shared by two entries is written as one file only by the unsplit CJS output. The affected `rslib.config.ts` files say which case applies; the other packages keep the same shape instead of a per-package exception list.
 - Set the Rslib runtime target to the actual consumer environment: `web`, `node`, or a separately reviewed multi-target configuration.
 - Use ES2022 syntax unless the repository runtime baseline changes.
 - Generate declarations from exactly one Rslib output to avoid two formats writing competing declaration files.
 - Keep Rslib's default externalization for `dependencies`, `optionalDependencies`, and `peerDependencies`. A deliberate bundled dependency belongs in `devDependencies` and must be explained in `rslib.config.ts` when the reason is not obvious.
-- Keep published output unminified unless the package is a directly deployed browser artifact. Consumer applications own final minification and polyfills.
-- Include only runtime artifacts, declarations, assets, consumer documentation, and source targets required by a publishable `@orchbee/source` condition in `package.json#files`.
+- Keep library output unminified. Consumer applications own final minification and polyfills.
+- Include only runtime artifacts, declarations, and assets in `package.json#files`.
 
 Use this baseline configuration and change it only for a documented package requirement:
 
@@ -155,7 +155,7 @@ export default defineConfig({
 
 When declarations contain relative imports, enable `redirect.dts.extension` on the declaration-producing output so extensionless TypeScript source emits Node-compatible declaration specifiers.
 
-After changing a manifest or build configuration, run the package build and `test:exports`. The repository checker verifies every runtime and asset target in `npm pack`, requires publishable source-condition targets to be packed and private source-condition targets to exist, compares ESM and CJS exports for every code entry, and resolves every code entry from strict external ESM and CJS TypeScript consumers. Asset-only packages still receive all target and pack checks; absence of a root never skips subpath verification.
+After changing a manifest or build configuration, run the package build and `test:exports`. The repository checker verifies every runtime and asset target in `npm pack`, requires every source-condition target to exist, compares ESM and CJS exports for every code entry, and resolves every code entry from strict external ESM and CJS TypeScript consumers. Asset-only packages still receive all target and pack checks; absence of a root never skips subpath verification.
 
 ## Dependency declarations
 
@@ -171,7 +171,27 @@ After changing a manifest or build configuration, run the package build and `tes
 - Set `sideEffects: false` only after confirming the package has no import-time global registration, stylesheet import, polyfill, or other observable side effect. Use an explicit side-effect file list when only selected entry points have effects.
 - `pnpm-workspace.yaml#minimumReleaseAge`: Require registry releases to mature for at least one day before resolution. Keep strict mode enabled and add only exact-version, reviewed exceptions.
 
-## Versioning
+## Verification and review
+
+Before merging a package change:
+
+1. Confirm the name and responsibility remain specific and non-overlapping.
+2. Review every public source entry and `package.json#exports` as public API changes.
+3. Build the package and its workspace dependencies with `pnpm --filter <package-name>... build`.
+4. Run `pnpm --filter <package-name> typecheck`, `pnpm --filter <package-name> test`, and `pnpm --filter <package-name> test:exports`.
+5. Run `pnpm verify` from the repository root.
+6. Update the package README and affected repository standards when the change alters something they state.
+
+## Publishable packages
+
+Skip this section for a `"private": true` package. A package published to npm also:
+
+- carries a version, `"publishConfig": { "access": "public" }`, a package README, license metadata, and a `files` allowlist;
+- retains a root API;
+- includes its `@orchbee/source` targets and consumer documentation in the `files` allowlist, which the repository checker requires to be packed; and
+- follows the versioning rules below.
+
+### Versioning
 
 Orchbee packages follow Semantic Versioning with a Babel-style shared release line:
 
@@ -189,17 +209,6 @@ The npm carriers of the product, `orchbee` and its platform sub-packages `@orchb
 Renaming a published package creates a new package identity. Deprecate the old npm package with a migration message instead of publishing unrelated code under the old name.
 
 The repository does not automate package publication yet. Add release planning and compatibility tooling before the first npm publication, when there is a real release pipeline and consumer contract to protect.
-
-## Verification and review
-
-Before merging a package change:
-
-1. Confirm the name and responsibility remain specific and non-overlapping.
-2. Review every public source entry and `package.json#exports` as public API changes.
-3. Build the package and its workspace dependencies with `pnpm --filter <package-name>... build`.
-4. Run `pnpm --filter <package-name> typecheck`, `pnpm --filter <package-name> test`, and `pnpm --filter <package-name> test:exports`.
-5. Run `pnpm verify` from the repository root.
-6. Update the package README and affected repository standards when the change alters something they state.
 
 ## External references
 
