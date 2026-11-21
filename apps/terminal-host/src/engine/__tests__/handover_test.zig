@@ -198,7 +198,10 @@ test "export then import restores prototype 2's corpus exactly in every section"
 
 test "export then import restores a busy shell exactly" {
     const flood = "busy-";
-    const posix_command = "i=1; while :; do printf '\\033[3%dm" ++ flood ++ "%d\\033[0m\\n' $((i%8)) $i; i=$((i+1)); done";
+    // A slow reader of a flood gets the PTY's whole buffer each read, 4,095 bytes on Linux. Lines
+    // of one length that divides it, such as the 21 bytes of a five-digit line, would end every
+    // read at one place in a line, inside a sequence for seconds; the padding varies the length.
+    const posix_command = "i=1; pad=; while :; do printf '\\033[3%dm" ++ flood ++ "%d%s\\033[0m\\n' $((i%8)) $i \"$pad\"; i=$((i+1)); pad=${pad}x; [ ${#pad} -gt 9 ] && pad=; done";
     const windows_command = "for /L %i in (1,1,1000000) do @echo " ++ flood ++ "%i";
     var stand_in: fixture.StandIn = try .init();
     defer stand_in.deinit();
@@ -213,7 +216,20 @@ test "export then import restores a busy shell exactly" {
     while (exports < 5) {
         if (timer.read() >= output_timeout_ns) return error.ShellOutputTimedOut;
         monotonic.sleep(200 * std.time.ns_per_ms);
-        try fixture.park(source);
+        try source.pauseReader();
+        switch (source.awaitReaderParked(fixture.park_timeout_ns)) {
+            .parked => {},
+            // Output that reaches no ground within the bound refuses a quiesce as passing; this
+            // test needs only exports, so it tries again.
+            .mid_sequence => {
+                try source.resumeReader();
+                continue;
+            },
+            .timed_out, .stopped => |outcome| {
+                std.debug.print("the busy shell's reader did not park: {s}\n", .{@tagName(outcome)});
+                return error.ReaderNotParked;
+            },
+        }
         defer source.resumeReader() catch |err| std.debug.panic("resume failed: {s}", .{@errorName(err)});
         var capture = try screen_text.read(source, allocator, capture_limit_bytes);
         const busy = std.mem.indexOf(u8, capture.text(), flood) != null;
