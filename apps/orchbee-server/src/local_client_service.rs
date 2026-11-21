@@ -422,6 +422,7 @@ fn handle_candidate_control(
                 terminals,
                 accepted,
                 &clients,
+                control.serves_handover(),
             );
             return;
         }

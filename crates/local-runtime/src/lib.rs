@@ -162,6 +162,12 @@ pub use durable_sessions::{Fenced, HostPresence, RetainedSessionRecord, Successo
 mod exact_process;
 #[cfg(windows)]
 pub use exact_process::ExactProcess;
+#[cfg(windows)]
+mod successor_record;
+#[cfg(windows)]
+pub use successor_record::{
+    RestartCleared, RestartRefusal, RestartReservation, SuccessorRecord, clear_restart,
+};
 mod checkpoint_restore_notice;
 mod checkpoint_rotation;
 mod layout_history;

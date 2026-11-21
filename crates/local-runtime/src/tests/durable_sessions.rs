@@ -802,3 +802,104 @@ fn a_restart_is_decided_by_the_record_under_its_writer_lock() {
     );
     assert_eq!(fs::read(&path).unwrap(), bytes);
 }
+
+/// A restart's record rules, written by its requester and successor: the entry is reserved only
+/// beside an identified Server, the successor's Worker joins only the entry for its ticket and
+/// Server, and the commit makes the successor pair the Session's while the Host keeps its
+/// registration and the ended generation's `exited` goes. The requester's clear tells a committed
+/// restart from one the old Server took back and from one that left its entry.
+#[cfg(windows)]
+#[test]
+fn a_restart_commits_only_the_entry_it_reserved() {
+    use crate::process_registration::{ProcessIdentity, ProcessRole};
+    let base = Fixture::new();
+    let local = Fixture::new();
+    let (name, session, _owner) = start(&base, &local, "restarted", 1);
+    let path = record_path(&local, &name);
+    let identity = |pid: u32| ProcessIdentity::new(pid, 7).unwrap();
+    let wire = |pid: u32| serde_json::json!({"state": "identified", "identity": identity(pid)});
+    let mut record: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    record["processes"] =
+        serde_json::json!({"server": wire(11), "worker": wire(12), "host": wire(13)});
+    record["extensions"]["exited"] = serde_json::json!(([1_u8; 16]));
+    write_private(&path, serde_json::to_vec(&record).unwrap()).unwrap();
+    let directory = Directory::open(&local.root()).unwrap().unwrap();
+    let mut record = directory.read(name.as_str()).unwrap().unwrap();
+    let (server, worker, ticket, activation) = (identity(21), identity(22), [5; 16], [6; 16]);
+
+    crate::durable_sessions::reserve_successor(&mut record, ticket, server, activation).unwrap();
+    assert!(
+        crate::durable_sessions::reserve_successor(&mut record, [8; 16], server, [9; 16]).is_err()
+    );
+    assert!(
+        crate::durable_sessions::record_successor_worker(&mut record, [8; 16], server, worker)
+            .is_err()
+    );
+    assert!(
+        crate::durable_sessions::record_successor_worker(&mut record, ticket, identity(12), worker)
+            .is_err()
+    );
+    crate::durable_sessions::record_successor_worker(&mut record, ticket, server, worker).unwrap();
+    assert!(
+        crate::durable_sessions::commit_successor(
+            &mut record,
+            ticket,
+            server,
+            worker,
+            identity(99)
+        )
+        .is_err()
+    );
+    crate::durable_sessions::commit_successor(&mut record, ticket, server, worker, identity(11))
+        .unwrap();
+    let registered = |role| record.processes.registration(role).identity();
+    assert_eq!(
+        [ProcessRole::Server, ProcessRole::Worker, ProcessRole::Host].map(registered),
+        [Some(server), Some(worker), Some(identity(13))]
+    );
+    assert_eq!(record.activation_id, Some(activation));
+    directory.publish(name.as_str(), &record).unwrap();
+    let published: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    assert!(published["extensions"].get("successor").is_none());
+    assert!(published["extensions"].get("exited").is_none());
+
+    let LockAttempt::Acquired(lock) = session.try_acquire_activation_lock().unwrap() else {
+        panic!("activation")
+    };
+    let clear = |ticket, activation_id| {
+        let reservation = crate::RestartReservation {
+            ticket,
+            activation_id,
+        };
+        crate::clear_restart(&local.root(), &session, &lock, reservation, deadline()).unwrap()
+    };
+    assert_eq!(clear(ticket, activation), crate::RestartCleared::Committed);
+    // A later restart whose successor is gone: only the entry for its own ticket is cleared, and
+    // an identity no live process has ends nothing.
+    let gone = ProcessIdentity::new(std::process::id(), 1).unwrap();
+    crate::durable_sessions::reserve_successor(&mut record, [7; 16], gone, [8; 16]).unwrap();
+    directory.publish(name.as_str(), &record).unwrap();
+    assert_eq!(clear([3; 16], [4; 16]), crate::RestartCleared::Absent);
+    assert_eq!(
+        clear([7; 16], [8; 16]),
+        crate::RestartCleared::Cleared {
+            worker_recorded: false
+        }
+    );
+    let cleared = directory.read(name.as_str()).unwrap().unwrap();
+    assert_eq!(crate::Successor::of(&cleared), None);
+    assert_eq!(cleared.activation_id, Some(activation));
+    // Clearing tells whether the successor got as far as recording its Worker.
+    let mut record = cleared;
+    let gone_worker = ProcessIdentity::new(std::process::id(), 2).unwrap();
+    crate::durable_sessions::reserve_successor(&mut record, [9; 16], gone, [10; 16]).unwrap();
+    crate::durable_sessions::record_successor_worker(&mut record, [9; 16], gone, gone_worker)
+        .unwrap();
+    directory.publish(name.as_str(), &record).unwrap();
+    assert_eq!(
+        clear([9; 16], [10; 16]),
+        crate::RestartCleared::Cleared {
+            worker_recorded: true
+        }
+    );
+}

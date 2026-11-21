@@ -475,11 +475,14 @@
 				"apps/orchbee-server/src/local_worker_service/managed/stop.rs",
 				"apps/orchbee-server/src/local_worker_service/managed/stop/handover.rs",
 				"apps/orchbee-server/src/local_worker_service/managed/replacement.rs",
+				"apps/orchbee-server/src/local_worker_service/managed/successor.rs",
 				"apps/orchbee-server/src/session_shutdown.rs",
+				"apps/orchbee/src/cli/server_restart/workflow.rs",
 				"crates/local-runtime/src/durable_sessions.rs",
 				"crates/local-runtime/src/durable_sessions/successor.rs",
 				"crates/local-runtime/src/exact_process.rs",
-				"crates/local-runtime/src/session_catalog/catalog.rs"
+				"crates/local-runtime/src/session_catalog/catalog.rs",
+				"crates/local-runtime/src/successor_record.rs"
 			],
 			"requiredCoverage": [
 				"SnCreatesWorker",
@@ -504,6 +507,7 @@
 				"SoReplaces",
 				"SoReplacesLost",
 				"SoClearsAbandoned",
+				"RequesterClears",
 				"WorkerLeaves",
 				"Activate",
 				"Crash",

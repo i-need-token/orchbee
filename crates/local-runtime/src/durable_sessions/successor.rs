@@ -5,21 +5,26 @@
 //! proven gone: whoever removes the entry first ends what it names by its recorded identity, the
 //! Worker first, under the record's writer lock and before the publish, through `ExactProcess`,
 //! which this module leaves to its callers since process observation already depends on the
-//! record. An entry this build cannot read is no entry.
+//! record. An entry this build cannot read is no entry. The rules that write the entry change a
+//! record their caller read and publishes under that lock.
 use super::Record;
 use crate::process_registration::{ProcessIdentity, ProcessRole};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// The `extensions` member that carries the entry.
 pub(super) const SUCCESSOR: &str = "successor";
 
 /// One restart's successor, as the Session record names it. Members a later release adds are
 /// ignored.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Successor {
     ticket: [u8; 16],
     server: ProcessIdentity,
-    #[serde(default, deserialize_with = "Option::deserialize")]
+    #[serde(
+        default,
+        deserialize_with = "Option::deserialize",
+        skip_serializing_if = "Option::is_none"
+    )]
     worker: Option<ProcessIdentity>,
     activation_id: [u8; 16],
 }
@@ -64,4 +69,124 @@ impl Successor {
     pub(crate) fn worker(&self) -> Option<ProcessIdentity> {
         self.worker
     }
+}
+
+/// Names `server`, the suspended successor Server of a restart, in `record` with `ticket` and the
+/// `activation_id` it will commit. Only an Active record whose Server is identified and that
+/// carries no entry takes one; a caller clears an earlier entry first.
+#[cfg(windows)]
+pub(crate) fn reserve(
+    record: &mut Record,
+    ticket: [u8; 16],
+    server: ProcessIdentity,
+    activation_id: [u8; 16],
+) -> std::io::Result<()> {
+    let recorded = record
+        .processes
+        .registration(ProcessRole::Server)
+        .identity();
+    if record.lifecycle != super::Lifecycle::Active
+        || recorded.is_none()
+        || recorded == Some(server)
+        || record.extensions.contains_key(SUCCESSOR)
+        || ticket == [0; 16]
+        || activation_id == [0; 16]
+        || record.activation_id == Some(activation_id)
+    {
+        return Err(std::io::ErrorKind::InvalidData.into());
+    }
+    write(
+        record,
+        &Successor {
+            ticket,
+            server,
+            worker: None,
+            activation_id,
+        },
+    )
+}
+
+/// Adds `worker`, the suspended Worker the successor created, to the entry for `ticket` whose
+/// Server is `server`. An entry that names another ticket or Server, or a Worker already, refuses.
+#[cfg(windows)]
+pub(crate) fn record_worker(
+    record: &mut Record,
+    ticket: [u8; 16],
+    server: ProcessIdentity,
+    worker: ProcessIdentity,
+) -> std::io::Result<()> {
+    let entry = Successor::of(record)
+        .filter(|entry| entry.ticket == ticket && entry.server == server && entry.worker.is_none())
+        .ok_or(std::io::ErrorKind::InvalidData)?;
+    if worker == server || named(record, worker) {
+        return Err(std::io::ErrorKind::InvalidData.into());
+    }
+    write(
+        record,
+        &Successor {
+            worker: Some(worker),
+            ..entry
+        },
+    )
+}
+
+/// The commit of a restart: while the entry for `ticket` names `server` and `worker` and the
+/// record still names `replaced` as its Server, the record becomes the successor's generation.
+/// Its Server and Worker are the successor pair, its activation is the one the entry reserved, the
+/// entry and the ended generation's `exited` member are gone, and the Host keeps its registration.
+#[cfg(windows)]
+pub(crate) fn commit(
+    record: &mut Record,
+    ticket: [u8; 16],
+    server: ProcessIdentity,
+    worker: ProcessIdentity,
+    replaced: ProcessIdentity,
+) -> std::io::Result<()> {
+    let entry = Successor::of(record)
+        .filter(|entry| {
+            entry.ticket == ticket && entry.server == server && entry.worker == Some(worker)
+        })
+        .ok_or(std::io::ErrorKind::InvalidData)?;
+    if record.lifecycle != super::Lifecycle::Active
+        || record
+            .processes
+            .registration(ProcessRole::Server)
+            .identity()
+            != Some(replaced)
+    {
+        return Err(std::io::ErrorKind::InvalidData.into());
+    }
+    record
+        .processes
+        .hand_over(server, worker)
+        .map_err(|_| std::io::ErrorKind::InvalidData)?;
+    record.activation_id = Some(entry.activation_id);
+    record.extensions.remove(SUCCESSOR);
+    record.extensions.remove(super::EXITED);
+    Ok(())
+}
+
+/// Removes the entry for `ticket`; answers whether `record` carried it.
+#[cfg(windows)]
+pub(crate) fn remove(record: &mut Record, ticket: [u8; 16]) -> bool {
+    if Successor::of(record).is_some_and(|entry| entry.ticket == ticket) {
+        record.extensions.remove(SUCCESSOR);
+        return true;
+    }
+    false
+}
+
+/// Whether one of `record`'s registrations already names `identity`.
+#[cfg(windows)]
+fn named(record: &Record, identity: ProcessIdentity) -> bool {
+    [ProcessRole::Server, ProcessRole::Worker, ProcessRole::Host]
+        .into_iter()
+        .any(|role| record.processes.registration(role).identity() == Some(identity))
+}
+
+#[cfg(windows)]
+fn write(record: &mut Record, entry: &Successor) -> std::io::Result<()> {
+    let value = serde_json::to_value(entry).map_err(std::io::Error::other)?;
+    record.extensions.insert(SUCCESSOR.to_owned(), value);
+    Ok(())
 }

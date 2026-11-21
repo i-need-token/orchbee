@@ -81,8 +81,18 @@ fn main() -> ExitCode {
     #[cfg(any(unix, windows))]
     fault_records::install_panic_hook();
     #[cfg(any(unix, windows))]
-    if local_worker_service::run(env::args_os().skip(1), env!("CARGO_PKG_VERSION")).is_ok() {
-        return ExitCode::SUCCESS;
+    match local_worker_service::run(env::args_os().skip(1), env!("CARGO_PKG_VERSION")) {
+        Ok(()) => return ExitCode::SUCCESS,
+        // A restart's successor that refused before the replaced Server prepared names the refusal
+        // to the `orchbee` that requested the restart.
+        #[cfg(windows)]
+        Err(error) => {
+            if let Some(refusal) = local_worker_service::restart_refusal(&error) {
+                return ExitCode::from(refusal.code());
+            }
+        }
+        #[cfg(unix)]
+        Err(_) => {}
     }
 
     ExitCode::FAILURE

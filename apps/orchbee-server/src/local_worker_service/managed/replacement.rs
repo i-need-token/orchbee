@@ -407,6 +407,18 @@ fn spawn(owners: &Owners, worker_id: WorkerId, deadline: Instant) -> io::Result<
         OsStr::new("--worker-id"),
         OsStr::new(&worker_id),
     ];
+    // A Server a restart started serves the Worker endpoint its ticket names.
+    #[cfg(windows)]
+    let ticket = owners.worker_ticket.map(|ticket| ticket.to_string());
+    #[cfg(windows)]
+    let arguments: Vec<&OsStr> = arguments
+        .into_iter()
+        .chain(
+            ticket
+                .iter()
+                .flat_map(|ticket| [OsStr::new("--ticket"), OsStr::new(ticket.as_str())]),
+        )
+        .collect();
     #[cfg(windows)]
     return orchbee_local_runtime::spawn_session_child(
         &orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))

@@ -97,6 +97,32 @@ impl Kept {
         }
     }
 
+    /// Writes the binding record a restart's successor describes once its Worker adopted the Host,
+    /// before the commit; a write that is deferred or fails fails the restart.
+    #[cfg(windows)]
+    pub(super) fn write_bindings_exact(
+        &self,
+        terminals: &LocalTerminalService,
+        worker: &orchbee_workbench_protocol::WorkerId,
+    ) -> io::Result<()> {
+        match self.bindings.as_ref().map(|bindings| bindings.lock()) {
+            Some(Ok(mut bindings)) => bindings.write_exact(terminals, worker),
+            _ => Err(io::Error::other("no binding record is kept")),
+        }
+    }
+
+    /// Moves the binding writer to `session`, the generation a restart's successor committed.
+    #[cfg(windows)]
+    pub(super) fn committed(&self, session: RetainedSessionRecord) -> io::Result<()> {
+        match self.bindings.as_ref().map(|bindings| bindings.lock()) {
+            Some(Ok(mut bindings)) => {
+                bindings.renew(session);
+                Ok(())
+            }
+            _ => Err(io::Error::other("no binding record is kept")),
+        }
+    }
+
     /// Lets the successor of a restart open the store; every write refuses until
     /// [`Self::retake_store`].
     #[cfg(windows)]
@@ -200,6 +226,37 @@ pub(super) fn load(
         bindings,
     };
     Ok((record, Some(kept), checkpoint))
+}
+
+/// The store a restart's successor takes once the Server it replaces released it, and the exact
+/// capture that Server published, which must be the newest checkpoint and readable by this build;
+/// the binding writer reads the replaced generation's record until [`Kept::committed`]. Nothing is
+/// restored after a fallback and no restore notice is published: no activation waits for one.
+#[cfg(windows)]
+pub(super) fn take(
+    root: &DataRoot,
+    session: &ModeCheckedLocalSessionRendezvous,
+) -> io::Result<(RetainedSessionRecord, Kept, WorkbenchCheckpoint)> {
+    let record = RetainedSessionRecord::retain(root, session)?;
+    let store = SessionStore::open(root, session, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES)?;
+    let loaded = store.read_validated(|bytes| WorkbenchCheckpoint::parse(bytes).ok())?;
+    let (Some(checkpoint), None) = (loaded.checkpoint, loaded.notice) else {
+        return Err(io::Error::other(
+            "the exact capture is not the newest readable checkpoint",
+        ));
+    };
+    let store = Arc::new(Mutex::new(store));
+    let bindings = bindings::Writer::new(
+        Arc::clone(&store),
+        RetainedSessionRecord::retain(root, session)?,
+    );
+    let kept = Kept {
+        store,
+        saver: None,
+        suppress_initial_empty: false,
+        bindings: Some(Arc::new(Mutex::new(bindings))),
+    };
+    Ok((record, kept, checkpoint))
 }
 
 fn load_from(

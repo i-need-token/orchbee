@@ -72,6 +72,10 @@ pub(super) struct Owners {
     /// What admitted Clients' checks for updates reach, from before the listener opens.
     pub(super) update_job: Arc<crate::update_job::UpdateJob>,
     pub(super) session_record: RetainedSessionRecord,
+    /// The ticket of the restart that started this Server, which names its Worker endpoint for
+    /// life; none for a Server an activation started.
+    #[cfg(windows)]
+    pub(super) worker_ticket: Option<orchbee_connection_handshake::HandoverTicket>,
 }
 
 struct Failure {
@@ -920,7 +924,7 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
         }
     }
 }
-fn checkpoint_worker(
+pub(super) fn checkpoint_worker(
     handle: &WorkerRequestHandle,
 ) -> io::Result<orchbee_workbench_protocol::WorkerId> {
     orchbee_workbench_protocol::WorkerId::parse(&format!(

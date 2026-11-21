@@ -17,6 +17,8 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::WorkerId as CapabilityWorkerId;
+#[cfg(windows)]
+use orchbee_connection_handshake::HandoverTicket;
 use orchbee_local_peer_credentials::require_same_effective_user;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use orchbee_local_runtime::{LogLevel, LogValue, log_event};
@@ -67,6 +69,16 @@ fn read_configuration(
     )
 }
 
+/// The refusal a restart's successor ended with before the Server it replaces prepared, which its
+/// exit code names to the `orchbee` that requested the restart.
+#[cfg(windows)]
+pub(crate) fn restart_refusal(error: &io::Error) -> Option<orchbee_local_runtime::RestartRefusal> {
+    error
+        .get_ref()
+        .and_then(|error| error.downcast_ref::<managed::Refused>())
+        .map(|refused| refused.0)
+}
+
 /// Records how the managed Server ended; a failure carries only its error kind.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn log_exit(failure: Option<io::ErrorKind>) {
@@ -101,6 +113,22 @@ pub(crate) fn run(
         let runtime = arguments.next().map(PathBuf::from).ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "missing Session runtime")
         })?;
+        // The successor Server of a restart names the restart's ticket before its configuration.
+        #[cfg(windows)]
+        let ticket = if arguments
+            .peek()
+            .is_some_and(|argument| argument == "--handover")
+        {
+            arguments.next();
+            let ticket = arguments
+                .next()
+                .and_then(|ticket| ticket.into_string().ok())
+                .and_then(|ticket| HandoverTicket::parse(&ticket).ok())
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid ticket"))?;
+            Some(ticket)
+        } else {
+            None
+        };
         // A file the start cannot read never stops the Session; only an inadmissible location does.
         let configuration = startup_configuration::parse(arguments)?;
         // POSIX reads it once the managed start catches stop signals.
@@ -108,6 +136,12 @@ pub(crate) fn run(
         let configuration = read_configuration(configuration)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
         log_event(LogLevel::Info, "started", &[("version", VERSION)]);
+        #[cfg(windows)]
+        let outcome = match ticket {
+            Some(ticket) => managed::run_successor(&runtime, ticket, configuration),
+            None => managed::run(&runtime, configuration),
+        };
+        #[cfg(not(windows))]
         let outcome = managed::run(&runtime, configuration);
         log_exit(outcome.as_ref().err().map(io::Error::kind));
         return outcome;

@@ -120,6 +120,13 @@ impl ModeCheckedLocalSessionRendezvous {
     pub fn worker_socket_path(&self) -> &Path {
         &self.worker
     }
+    /// The Worker endpoint of a restart's successor Server, named by the restart's ticket: the
+    /// Server it replaces still serves the Session's own Worker endpoint, and one pipe name has
+    /// one server. The successor keeps it for its whole life.
+    pub fn successor_worker_socket_path(&self, ticket: [u8; 16]) -> PathBuf {
+        let ticket: String = ticket.iter().map(|byte| format!("{byte:02x}")).collect();
+        endpoint(&self.runtime, &format!("worker-{ticket}"))
+    }
     pub fn host_runtime_directory(runtime: &Path) -> PathBuf {
         runtime.join(HOST_SCOPE_NAME)
     }

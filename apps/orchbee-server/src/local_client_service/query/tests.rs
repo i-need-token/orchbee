@@ -31,6 +31,7 @@ fn the_reply_lists_the_server_first_then_the_worker_it_started() {
         3,
         Vec::new(),
         Extensions::new(),
+        false,
     )
     .unwrap();
     assert_eq!(result.restart_keeps_terminals(), Some(false));
@@ -84,6 +85,7 @@ fn the_reply_lists_the_server_first_then_the_worker_it_started() {
         0,
         Vec::new(),
         Extensions::new(),
+        false,
     )
     .unwrap();
     let [server] = alone.processes() else {
@@ -118,6 +120,7 @@ fn hosts_follow_the_worker_in_its_order_without_capabilities_and_at_most_256() {
         2,
         (1..=300).map(host).collect(),
         Extensions::new(),
+        false,
     )
     .unwrap();
     let [server, worker, hosts @ ..] = reply.processes() else {
@@ -148,6 +151,7 @@ fn hosts_follow_the_worker_in_its_order_without_capabilities_and_at_most_256() {
         0,
         vec![host(1)],
         Extensions::new(),
+        false,
     )
     .unwrap();
     assert_eq!(

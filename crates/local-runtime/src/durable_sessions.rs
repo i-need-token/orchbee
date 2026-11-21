@@ -18,6 +18,11 @@ use std::{
 
 mod successor;
 pub use successor::Successor;
+#[cfg(windows)]
+pub(crate) use successor::{
+    commit as commit_successor, record_worker as record_successor_worker,
+    remove as remove_successor, reserve as reserve_successor,
+};
 
 const MAXIMUM_BYTES: usize = 8192;
 const MAXIMUM_SESSIONS: usize = 256;

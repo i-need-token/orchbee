@@ -98,6 +98,44 @@ pub(super) fn exit_reply(
     }
 }
 
+/// Sends one `handover` request; the Server replies once it has done the step, so the caller reads
+/// the reply with [`handover_reply`] under its own deadline.
+#[cfg(windows)]
+pub(super) fn request_handover(
+    transport: &mut impl Write,
+    environment: EnvironmentName,
+    step: orchbee_connection_handshake::HandoverStep,
+    ticket: orchbee_connection_handshake::HandoverTicket,
+) -> Result<(), ConnectClientError> {
+    send(
+        transport,
+        &InitiatorMessage::Request(ControlRequest {
+            kind: RequestKind::Handover { step, ticket },
+            environment,
+            extensions: Extensions::new(),
+        }),
+    )
+}
+
+/// Accepts the `handover-result`, or the Server's `unsupported` reply from a build that serves no
+/// `handover`.
+#[cfg(windows)]
+pub(super) fn handover_reply(
+    transport: &mut impl Read,
+    step: orchbee_connection_handshake::HandoverStep,
+    ticket: orchbee_connection_handshake::HandoverTicket,
+) -> Result<super::HandoverReply, ConnectClientError> {
+    match conclude_request(RequestKind::Handover { step, ticket }, receive(transport)?) {
+        Ok(RequestReply::Handover(result)) => Ok(super::HandoverReply::Result(result.outcome)),
+        Err(RequestFailure::Unsupported(_)) => Ok(super::HandoverReply::Unsupported),
+        Err(RequestFailure::Rejected(rejection)) => {
+            Err(ConnectClientError::Refused(Box::new(rejection)))
+        }
+        Ok(RequestReply::Query(_) | RequestReply::Drain(_) | RequestReply::Exit(_))
+        | Err(RequestFailure::UnexpectedReply) => Err(ConnectClientError::UnexpectedResponse),
+    }
+}
+
 /// Enters the Client phase on an answered connection and returns the Server's connection
 /// generation.
 pub(super) fn enter_client_phase(

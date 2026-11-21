@@ -123,6 +123,16 @@ impl Writer {
         }
     }
 
+    /// Reads `session`, the generation a restart's successor committed, from now on, and publishes
+    /// at the next look: the record on disk names the replaced generation's activation.
+    #[cfg(windows)]
+    pub(super) fn renew(&mut self, session: RetainedSessionRecord) {
+        self.session = session;
+        self.written = None;
+        self.observed = None;
+        self.due = None;
+    }
+
     /// Forgets what was last published, so the next write publishes even an unchanged record: a
     /// restart's successor may have replaced it while it held the store.
     #[cfg(windows)]

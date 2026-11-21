@@ -208,6 +208,26 @@ impl SessionProcesses {
         self.worker = Registration::Spawning;
         Ok(())
     }
+    /// The registrations once a restart committed: `server` and `worker`, the successor pair, take
+    /// the Server and Worker slots, and the Host keeps its registration. A Host still spawning, or
+    /// an identity that would own two roles, refuses.
+    #[cfg(windows)]
+    pub(crate) fn hand_over(
+        &mut self,
+        server: ProcessIdentity,
+        worker: ProcessIdentity,
+    ) -> Result<(), RegistrationError> {
+        if self.host == Registration::Spawning {
+            return Err(RegistrationError::HostSpawning);
+        }
+        let host = self.host.identity();
+        if server == worker || host == Some(server) || host == Some(worker) {
+            return Err(RegistrationError::DuplicateIdentity);
+        }
+        self.server = Registration::Identified { identity: server };
+        self.worker = Registration::Identified { identity: worker };
+        Ok(())
+    }
     #[cfg(any(windows, test))]
     pub(crate) fn identify(
         &mut self,

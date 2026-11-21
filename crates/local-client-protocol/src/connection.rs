@@ -128,6 +128,32 @@ pub fn exchange_exit_before(
     return admission_deadline::exit_before_cancellable(endpoint, environment, deadline, wake);
 }
 
+/// What a Server answered one `handover` step.
+#[cfg(windows)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum HandoverReply {
+    /// The step's `handover-result`.
+    Result(orchbee_connection_handshake::HandoverOutcome),
+    /// The Server serves no `handover`.
+    Unsupported,
+}
+
+/// Sends one step of a Server restart that keeps terminals, for the successor `ticket` names, with
+/// one `handover` control request. The connection never enters the Client phase; the reply arrives
+/// once the Server has done the step, inside `deadline`: a `prepare` is answered after the Server
+/// released the Session store and its Worker.
+#[cfg(windows)]
+pub fn exchange_handover_before(
+    endpoint: &Path,
+    environment: orchbee_connection_handshake::EnvironmentName,
+    step: orchbee_connection_handshake::HandoverStep,
+    ticket: orchbee_connection_handshake::HandoverTicket,
+    deadline: std::time::Instant,
+    wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+) -> Result<HandoverReply, SessionStopExchangeError> {
+    windows_admission::handover(endpoint, environment, step, ticket, deadline, wake)
+}
+
 /// Byte capacity of a filesystem-path Unix socket address on this platform's
 /// socket ABI: `sockaddr_un.sun_path` minus the trailing NUL a pathname
 /// address requires. Derived from the ABI struct, not assumed portable —

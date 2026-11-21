@@ -81,8 +81,8 @@ adoption starts a fresh generation that keeps the recorded Host on the same proo
 and an `exit` records its end only once its Worker is gone. `ServingIsRecorded` checks that a
 Server serving the Session is the one the record names, `SingleOwner` that a released Server the
 record no longer names is the only other live Server, until it exits, and `ExitedRunsNoWorker` that
-a recorded exit never hides a running Worker. Of these, only the recorded `exit` runs today; the
-rest follow the
+a recorded exit never hides a running Worker. `orchbee server restart` requests the restart; its
+steps follow the
 [Server and Worker restart](../../../proposals/platform/versioning-and-upgrade.md#server-and-worker-restart)
 proposal.
 
@@ -111,17 +111,33 @@ another activation counts nothing.
 A [Server and Worker restart](../../../proposals/platform/versioning-and-upgrade.md#server-and-worker-restart)
 records its successor in `session.json` as `extensions.successor`: the ticket, the successor
 Server's process ID and creation time, the activation identifier it commits, and, as `worker`, the
-process ID and creation time of the Worker that Server created suspended, written under the writer
-lock before the Worker is resumed. The commit removes the entry in the publish that names the
-successor, so an entry a later reader finds names processes that never became the recorded pair.
-Whoever removes it first ends what it names by that identity, the Worker first, inside the same
-writer-lock hold and before its publish: `RetainedSessionRecord::fence` for the Server holding the
-restart, `clear_successor` for an abandoned entry. An identity that matches no live process is gone
+process ID and creation time of the Worker that Server created suspended. Every write holds the
+writer lock:
+
+- The requester, holding the namespace and activation locks, reserves the entry in
+  `SessionCatalog::spawn_successor_outside_job`: only an Active record that uses this runtime folder
+  and names an identified Server takes one. An earlier entry whose successor Server still runs is a
+  restart in progress and refuses with `AlreadyExists`; otherwise its Worker is ended and the entry
+  cleared first. The successor is created suspended outside the requester's Job, named, published
+  and only then resumed, so no successor runs unnamed.
+- The successor adds `worker` before it resumes that Worker (`SuccessorRecord::spawn_worker`), and
+  commits (`SuccessorRecord::commit`) only while the entry still names its ticket, itself and its
+  Worker and the record still names the Server it replaces: one publish names it, its Worker and the
+  kept Host under the entry's activation identifier and removes the entry and `exited`.
+- After the successor exits, the requester clears what is left for its ticket
+  (`clear_restart`). An entry that still names the successor's Worker tells it that the replaced
+  Server may have held the Session.
+
+The commit removes the entry in the publish that names the successor, so an entry a later reader
+finds names processes that never became the recorded pair. Whoever removes it first ends what it
+names by that identity, the Worker first, inside the same writer-lock hold and before its publish:
+`RetainedSessionRecord::fence` for the Server holding the restart, `clear_successor` for an
+abandoned entry, `clear_restart` for the requester. An identity that matches no live process is gone
 and nothing is ended. An entry this build cannot read is no entry.
 
 Recovery holds the lifetime lock, so both Servers are gone. Under the writer lock, before any
 verdict and whatever the record's state, it ends every live process the entry names, the Worker
-first, waiting up to 5 seconds for each. A live successor process therefore never refuses recovery,
+first. A live successor process therefore never refuses recovery,
 and no generation adopts the Host beside one; only a process that cannot be opened or ended refuses,
 as `RecoveryRequired`, and only that attempt. A fresh generation's record starts without the entry.
 

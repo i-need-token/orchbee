@@ -286,6 +286,13 @@ const cases = [
 		/Invariant SuccessorTracked is violated/u,
 	],
 	[
+		'session-restart-handover',
+		'the requester clears its ended successor entry and leaves the Worker running',
+		"  /\\ record' = NoEntry /\\ Ends(Named)\n",
+		'  /\\ record\' = NoEntry /\\ Ends(Named \\ {"Wn"})\n',
+		/Invariant SuccessorTracked is violated/u,
+	],
+	[
 		'local-session-startup',
 		'a replacement Worker starts a Host for the Launch authorized to the Worker it replaced',
 		'\n  /\\ dispatchWorker = incarnation\n',

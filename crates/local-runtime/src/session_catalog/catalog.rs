@@ -393,6 +393,35 @@ impl SessionCatalog {
         )
     }
 
+    /// Creates the successor Server of a restart that keeps terminals and names it in the Session
+    /// record as the successor `reservation` names, then resumes it; the namespace owner and
+    /// matching activation guard are the creation capability, as for
+    /// [`Self::spawn_server_outside_job`], and the Server leaves the creator's Job the same way. A
+    /// restart whose successor still runs refuses with `AlreadyExists`.
+    #[cfg(windows)]
+    pub fn spawn_successor_outside_job(
+        &self,
+        session: &Rendezvous,
+        activation: &crate::ModeCheckedSessionLock,
+        reservation: crate::RestartReservation,
+        executable: &Path,
+        arguments: &[&std::ffi::OsStr],
+        deadline: Instant,
+    ) -> io::Result<(crate::RetainedChild, crate::JobPlacement)> {
+        session.require_lock(activation, crate::LockKind::Activation)?;
+        let runtime = session.runtime_directory();
+        let scope = self.scope_of(runtime)?;
+        crate::successor_record::spawn_server(
+            &self.durable,
+            scope,
+            runtime,
+            reservation,
+            executable,
+            arguments,
+            deadline,
+        )
+    }
+
     /// Every Session of `root`, `default` first and the rest by name without letter case. A
     /// Session's runtime is the folder its record names; one without a record gets `base`'s.
     pub fn list(

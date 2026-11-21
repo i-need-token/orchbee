@@ -193,6 +193,14 @@ SoClearsAbandoned ==
   /\ record' = NoEntry
   /\ Ends(Named)
   /\ UNCHANGED <<so, sn, served, msgs, replacements, faults, exited, committed, cold>>
+\* The requester of the restart, once the Sn it started has exited, clears what the attempt left:
+\* under the writer lock it ends the processes the entry still names by verified identity, Wn
+\* first, then removes the entry. A committed record carries no entry. The requester may also be
+\* gone, so this step is never needed for a behavior to end well.
+RequesterClears ==
+  /\ record.successor /\ proc["Sn"] \notin Alive
+  /\ record' = NoEntry /\ Ends(Named)
+  /\ UNCHANGED <<so, sn, served, msgs, replacements, faults, exited, committed, cold>>
 \* A running Worker whose Server is gone exits by itself; a hung or suspended one does not.
 WorkerLeaves(w) ==
   /\ proc[w] = "run" /\ proc[IF w = "Ow" THEN "So" ELSE "Sn"] \notin Alive
@@ -246,6 +254,7 @@ Progress ==
   \/ Activate
 Next ==
   \/ Progress
+  \/ RequesterClears
   \/ \E p \in Procs: Crash(p) \/ Hang(p)
   \/ \E m \in msgs: Lose(m)
   \/ \E m \in {"commit", "abort"}: Stray(m)

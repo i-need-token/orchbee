@@ -74,6 +74,20 @@ pub(crate) fn run(
             ),
             Some(_) => return Err(io::Error::from(io::ErrorKind::InvalidInput).into()),
         };
+        // The Worker of a restart's successor Server connects to that Server's endpoint, which the
+        // restart's ticket names, while the replaced Server still serves the Session's own.
+        #[cfg(windows)]
+        let ticket = match arguments.next() {
+            None => None,
+            Some(flag) if replacement.is_some() && flag == "--ticket" => Some(
+                arguments
+                    .next()
+                    .as_deref()
+                    .and_then(parse_hex_identity)
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid ticket"))?,
+            ),
+            Some(_) => return Err(io::Error::from(io::ErrorKind::InvalidInput).into()),
+        };
         if arguments.next().is_some() {
             return Err(io::Error::from(io::ErrorKind::InvalidInput).into());
         }
@@ -83,18 +97,24 @@ pub(crate) fn run(
             orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::from_runtime_directory(
                 &runtime,
             )?;
-        if !session.activation_started()? || !session.worker_socket_exists()? {
+        #[cfg(windows)]
+        let endpoint = match ticket {
+            Some(ticket) => session.successor_worker_socket_path(ticket),
+            None => session.worker_socket_path().to_owned(),
+        };
+        #[cfg(not(windows))]
+        let endpoint = session.worker_socket_path().to_owned();
+        #[cfg(windows)]
+        let listening = orchbee_local_ipc::endpoint_exists(&endpoint)?;
+        #[cfg(not(windows))]
+        let listening = session.worker_socket_exists()?;
+        if !session.activation_started()? || !listening {
             return Err(io::Error::other("Session startup is unavailable").into());
         }
         // Each path resolves the System shell once before registering: the hello reports it and
         // every default launch of this Worker generation uses that one resolution.
         let system_shell = SystemShell::resolve();
-        let server = connect_to_server(
-            session.worker_socket_path(),
-            cohort.identity(),
-            &system_shell,
-            replacement,
-        )?;
+        let server = connect_to_server(&endpoint, cohort.identity(), &system_shell, replacement)?;
         let generation = server.generation();
         crate::diagnostic_events::started();
         let outcome = if replacement.is_some() {
@@ -142,6 +162,13 @@ pub(crate) fn run(
 /// zero.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn parse_worker_id(text: &std::ffi::OsStr) -> Option<WorkerId> {
+    parse_hex_identity(text).map(WorkerId::from_bytes)
+}
+
+/// Sixteen bytes as 32 lowercase hexadecimal digits, not all zero: a Worker id or a restart's
+/// ticket.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn parse_hex_identity(text: &std::ffi::OsStr) -> Option<[u8; 16]> {
     let text = text.to_str()?.as_bytes();
     if text.len() != 32 {
         return None;
@@ -155,10 +182,7 @@ fn parse_worker_id(text: &std::ffi::OsStr) -> Option<WorkerId> {
     for (byte, pair) in bytes.iter_mut().zip(text.chunks_exact(2)) {
         *byte = (digit(pair[0])? << 4) | digit(pair[1])?;
     }
-    bytes
-        .iter()
-        .any(|byte| *byte != 0)
-        .then_some(WorkerId::from_bytes(bytes))
+    bytes.iter().any(|byte| *byte != 0).then_some(bytes)
 }
 
 fn connect_to_server(

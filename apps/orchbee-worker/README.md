@@ -234,7 +234,11 @@ progress; each later page must name the same adoption ID and target with the nex
 pages together hold at most 1,024 bindings without naming a terminal, Host terminal or creation
 twice. A page that breaks this is declined as `adopt-host` with cause `unavailable` and leaves the
 pages before it unchanged; a page before the last is answered `PageAccepted`. Without `--worker-id`
-nothing changes.
+nothing changes. On Windows a trailing `--ticket <32 lowercase hex digits>` names the Server that
+started this Worker as the successor of a
+[restart that keeps terminals](../orchbee-server/README.md#server-and-worker-restart): the Worker
+connects to the Worker endpoint that ticket names instead of the Session's own, which the replaced
+Server still serves.
 
 The last page is answered within 18 seconds of its arrival, inside the Server's 20-second window:
 

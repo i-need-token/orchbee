@@ -41,6 +41,12 @@ impl<'a> StopControl<'a> {
         ProcessState::Ready
     }
 
+    /// Whether this Server serves `handover`: a managed Windows Server, whose restart keeps its
+    /// terminals.
+    pub(super) fn serves_handover(&self) -> bool {
+        cfg!(windows) && self.shutdown.is_some()
+    }
+
     /// The state the handshake weighs an offer against.
     pub(super) fn offer_state(&self) -> ProcessState {
         if let Some(owner) = self.shutdown {

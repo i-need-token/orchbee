@@ -30,7 +30,8 @@ const CLIENTS: &str = "clients";
 const BACKGROUND_PROGRAMS: &str = "background-programs";
 
 /// Sends the `query-result` for the connection accepted at `accepted`; the caller closes the
-/// connection. `clients` is what each connected Client offered.
+/// connection. `clients` is what each connected Client offered, and `keeps_terminals` whether this
+/// Server answers `handover`, so that a restart keeps its terminals.
 pub(super) fn respond(
     stream: &mut LocalStream,
     identity: &ServerIdentity,
@@ -38,6 +39,7 @@ pub(super) fn respond(
     terminals: &LocalTerminalService,
     accepted: Instant,
     clients: &[ClientOffer],
+    keeps_terminals: bool,
 ) {
     // Hosts follow the Worker they are connected to, so a Server that lists no Worker lists none.
     let hosts = if identity.worker.get().is_some() {
@@ -60,6 +62,7 @@ pub(super) fn respond(
             terminals.terminal_count(),
             hosts,
             extensions,
+            keeps_terminals,
         )
     });
     match built {
@@ -94,13 +97,14 @@ fn extensions(clients: &[ClientOffer], programs: Option<u32>) -> Result<Extensio
 }
 
 /// The reply for `identity` in `state`, which its Worker shares, followed by at most 256 of `hosts`
-/// without capabilities, and `extensions`; Restart Session does not keep terminals yet.
+/// without capabilities, `extensions`, and whether a restart keeps the Session's terminals.
 pub(super) fn result(
     identity: &ServerIdentity,
     state: ProcessState,
     terminals: u32,
     hosts: Vec<ProcessEntry>,
     extensions: Extensions,
+    keeps_terminals: bool,
 ) -> Result<QueryResult, InvalidValue> {
     let profile = &identity.profile;
     let process = |role, pid, connections| ProcessEntry {
@@ -145,7 +149,7 @@ pub(super) fn result(
         let room = MAXIMUM_QUERY_PROCESSES - processes.len();
         processes.extend(hosts.into_iter().take(room).map(host));
     }
-    QueryResult::new(processes, Some(false), extensions)
+    QueryResult::new(processes, Some(keeps_terminals), extensions)
 }
 
 /// A Host's entry as a Server lists it: only the answering process states capabilities.

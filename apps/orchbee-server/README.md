@@ -92,11 +92,9 @@ second after accepting the connection, leaving the rest of the two-second candid
 reply. Each Host's entry is the one it reports for itself, listed without capabilities and at most
 256 of them. A Host that has not answered, and every Host when the Worker is absent, late, or between
 generations, is left out rather than listed with guessed facts; a Server that did not start its
-Worker lists neither. Its `extensions` carry `clients`, one entry per admitted Client connection
-with the `productVersion`, `client-server` `generations` and `capabilities` that Client offered, its
-own rather than those both sides share, and, on Windows while a Worker is listed,
-`background-programs`, the plugin jobs and configured commands the Worker runs, asked within the
-same second and left out when the Worker does not answer; a restart's check reads both. The query
+Worker lists neither. Its `extensions` carry `clients` and, on Windows while a Worker is listed,
+`background-programs` ([messages](../../schemas/connection/README.md#messages)), which a restart's
+check reads. The query
 creates no Connection generation or Workbench/viewer state, acquires no shutdown record lease, and
 closes after one reply, including when Client capacity is full. These are diagnostic facts, never an operation grant or proof of
 future availability. The [runtime status contract](../orchbee/docs/native-runtime-status.md) owns
@@ -373,68 +371,76 @@ and the next activation tries again. `host-adopted` records the attempt.
 ## Server and Worker restart
 
 On Windows the managed lifecycle owner serves `handover`, the old side of a
-[Server and Worker restart](../../proposals/platform/versioning-and-upgrade.md#server-and-worker-restart).
-Nothing sends it yet: the successor side and the requester come later. Each step waits for the
-owner's answer up to 40 seconds and gets none after that; a step that arrives while another waits is
-answered `busy`.
+[Server and Worker restart](../../proposals/platform/versioning-and-upgrade.md#server-and-worker-restart),
+and its `query` answer reports `restartKeepsTerminals` true; every other Server reports false and
+answers `handover` `unsupported`. `orchbee server restart` requests a restart, and the
+[successor](#successor) sends the steps. The owner answers each step within a 40-second window or
+not at all, so the successor waits longer for `prepared`; a step that arrives while another waits is
+answered `busy`. The decisions the code does not state:
 
-`prepare` names the ticket of the `successor` entry in `session.json`. The owner refuses it `busy`
-while a stop or `exit` is recorded, while it holds another restart, or unless the Session serves;
-`not-recorded` unless the entry names that ticket and the successor's Worker and it opens both the
-successor Server and Worker on their recorded process ID and creation time; and
-`worker-unavailable` without a serving Worker or a kept checkpoint. It then holds the Session: the
-Workbench, Agent and every other intent is refused as during a drain, and terminal requests and
-every internal job see no Worker, as after a Worker loss, while reads, viewer polls and new Client
-connections go on and no idle stop begins. Admitted intents and in-flight operations get 5 seconds
-to settle, or it refuses `busy`; the Worker must report no plugin job or configured command running
-within 2 seconds, or it refuses `background-programs`. It stops the checkpoint saver, publishes the
-exact capture, the committed Workbench with each terminal's last cached directory and the binding
-record, and releases `state.lock`; a failure up to there retakes the store, restarts the saver, lifts
-the hold and refuses `busy`. Only then does the [terminal-runtime state](#terminal-runtime) read
-`Reconnecting` and the Worker get the Keep shutdown, which frees the Host with every terminal
-running; a Worker that has not exited within 10 seconds is ended through the Server's handle. The
-owner answers `prepared` and holds for 30 seconds.
+- `prepare` holds the Session only for the ticket of a `successor` entry in `session.json` that
+  names the successor's Worker as well as its Server, and only once the owner has opened both on
+  their recorded process ID and creation time; otherwise it refuses `not-recorded`. Every way a hold
+  ends can then end both through those handles, so no successor process outlives a take-back.
+- `prepare` refuses rather than cut work short: `background-programs` while a plugin job or
+  configured command runs, since it runs in the Worker the hand-over ends, and `busy` while admitted
+  intents or operations do not settle.
+- While held, terminal requests see no Worker, as after a Worker loss, and every other intent is
+  refused as during a drain, since a change after the exact capture would be lost at the commit;
+  reads and new Client connections go on. The [terminal-runtime state](#terminal-runtime) reads
+  `Reconnecting` only from the point of no return, once the store is released, so a refused
+  `prepare` shows Clients nothing.
+- The record decides how a hold ends. `commit`, `abort`, the end of the 30-second lease and the exit
+  of either successor process are judged under the record's writer lock: a record that names the
+  successor makes the owner leave; otherwise it ends the successor's Worker and then its Server,
+  removes the entry and takes the Session back with a
+  [replacement Worker](#managed-worker-replacement). A stop or `exit` while held is judged first
+  and, kept, goes on without a Worker. Leaving publishes no Stopped record, receipt or `exited`,
+  since the record belongs to the successor. While the record stays unreadable or unwritable, the
+  owner does not guess: after a bound it ends the successor and leaves without the store, and the
+  next start adopts the Host through [cold adoption](#cold-adoption).
+- Holding nothing, the owner clears an abandoned entry, one whose Server is gone or whose ticket
+  never reached `prepare`, ending what it names by verified identity, the Worker first; a start after
+  both Servers ended does the same before it recovers
+  ([successor entry](../../crates/local-runtime/docs/windows-crash-recovery.md#successor-entry)).
 
-A repeated `prepare` of the held ticket answers `prepared`, and any step naming another ticket
-`busy`. `commit` answers `committed`, and the Server leaves, once the record, read under its writer
-lock, names the successor's activation and Server; otherwise it answers `not-recorded` and keeps
-holding. `abort`, the end of the 30 seconds, and the exit of the successor Server or Worker _fence_
-under the writer lock: a record that names the successor makes the Server leave, and an `abort` is
-answered `committed`; otherwise the successor Worker and then its Server are ended through the
-handles, the entry is removed, and the Server takes the Session back. It retakes the store, restarts
-the saver, lifts the hold and replaces its Worker through
-[Worker replacement](#managed-worker-replacement), whose first attempt is outside the cap and logged
-`handover-take-back` instead of `worker-lost`. A fence that cannot read or write the record is
-tried again every 100 ms; 30 seconds after the first such failure the Server ends the successor
-through its handles and leaves without the store, and the next start adopts the Host through
-[cold adoption](#cold-adoption). A stop or `exit` that arrives while held fences first: kept, it goes
-on without a Worker. Leaving stops the background jobs and the Client listeners and publishes no
-Stopped record, receipt or `exited`, since the record belongs to the successor.
+### Successor
 
-Holding nothing, the owner looks every 5 seconds for an abandoned `successor` entry, one whose
-Server is gone or whose ticket reached no `prepare` within 120 seconds of the first look that saw
-it, and its stop and `exit` treat any entry as abandoned. Under the writer lock it ends what the
-entry names, the Worker first, then removes the entry; an identity that matches no live process is
-gone and nothing is ended. A start after both Servers ended does the same before it recovers
-([successor entry](../../crates/local-runtime/docs/windows-crash-recovery.md#successor-entry)). The
-`handover` log event records each step. Other platforms answer `handover` `unsupported`.
+`--runtime-directory <dir> --handover <ticket>`, with the configuration arguments an activation
+freezes, starts the successor of the restart whose `successor` entry names that ticket and this
+process; the requester names it there before it runs. Windows only, it:
 
-`SessionRestartHandover.tla/.cfg` checks one restart: the old Server and Worker, the successor
-Server and Worker, one Host session, the store lock, the record with its successor entry, a lossy
-channel and the 30-second lease, with up to four crashes, hangs or stray messages and one take-back
-replacement. A hung process acts no more and ends only through a handle opened on its verified
-identity. `AdmitsOnlyRecordedOwner` and `SingleOwner` keep intents to the recorded Server that holds
-the store and whose Worker holds the Host; `ExitOnlyAfterCommit` lets the old Server exit only after
-the record names the successor; `SuccessorTracked` keeps every live successor process named by the
-entry or as the recorded pair; `AdoptionAlone` keeps a start from adopting beside one; and
-`EndsWell` requires every behavior with no step left to end with one pair serving, the next start's
-pair, or a failure the restart does not add. The maintained mutants take the Session back without
-the fence or before the successor Worker is proven gone, commit before the adoption, exit on the
-commit message without reading the record, serve before the commit publish, adopt beside a live
-successor Worker, refuse a start for a live successor process, and clear an abandoned entry leaving
-its Worker running; each must violate an invariant. Run
-`node scripts/tla/run-models.mjs --models session-restart-handover` plus the owning Server and
-local-runtime tests.
+1. Checks what `prepare` would refuse, and what only it can judge, such as Clients that cannot
+   reconnect and a Host whose `worker-host` range this build does not meet, so a refusal ends the
+   restart before anything is held.
+2. Creates its Worker suspended, records it in the entry, then resumes it, so the replaced Server
+   and any later start can end it by its identity. The Worker gets `--ticket <ticket>` and connects
+   to the Worker endpoint that ticket names, since the replaced Server still serves the Session's
+   own; it keeps that endpoint for the Session's life, and a later Worker replacement passes the
+   same `--ticket`.
+3. Sends `prepare`. From `prepared` it has 25 seconds, inside the replaced Server's lease: it takes
+   the store, requiring the newest readable checkpoint to be the capture the replaced Server
+   published; adopts the Host as cold adoption does; rewrites the binding record; and commits under
+   the writer lock.
+4. Sends `commit`, waits for the replaced Server to exit, ending it through its handle after a
+   bound, and opens the Client endpoint.
+
+Before `prepared` its exit code names its refusal, `orchbee_local_runtime::RestartRefusal`, which
+the requester reads; any other failure exits 1. A failure before the commit sends `abort`, and the
+replaced Server takes the Session back; one after it leaves the Host to the next start's cold
+adoption. The `handover` and `handover-successor` log events record the steps.
+
+`SessionRestartHandover.tla/.cfg` claims that within one restart only the recorded Server serves and
+holds the store while its Worker holds the Host, the old Server exits only after the record names
+the successor, every live successor process stays named by the entry or as the recorded pair, no
+start adopts the Host beside one, and every run with no step left ends with one pair serving, the
+next start's pair, or a failure the restart did not add. Tests cannot reach the orders of crashes,
+hangs and lost messages across the four processes those claims depend on. Its actions follow
+`managed/stop/handover.rs`, `managed/successor.rs`, the local-runtime successor record and the CLI's
+`server_restart/workflow.rs`; it bounds one restart with one Host session to four faults and one
+take-back replacement. It assumes that a hung process acts no more and ends only through a handle
+opened on its verified identity, and leaves the requester's clear optional, since the requester may
+be gone. Run `node scripts/tla/run-models.mjs --models session-restart-handover`.
 
 ## Workbench projection store
 

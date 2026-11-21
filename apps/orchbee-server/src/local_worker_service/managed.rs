@@ -29,6 +29,10 @@ mod replacement;
 #[cfg(unix)]
 mod signals;
 mod stop;
+#[cfg(windows)]
+mod successor;
+#[cfg(windows)]
+pub(super) use successor::{Refused, run as run_successor};
 
 /// Wakes the lifecycle owner when a Worker connection ends, so its loss is seen at once rather
 /// than at the owner's next tick.
@@ -153,41 +157,19 @@ pub(super) fn run(
     #[cfg(not(windows))]
     let mut worker = orchbee_local_runtime::spawn_retained(&executable, &arguments)?;
     let mut carrier = None;
-    let admitted = (|| -> io::Result<()> {
-        loop {
-            if Instant::now() >= deadline {
-                return Err(io::ErrorKind::TimedOut.into());
-            }
-            if worker.try_wait()?.is_some() {
-                return Err(io::Error::other("local Worker exited before admission"));
-            }
-            match listener.accept() {
-                Ok((stream, _)) => {
-                    carrier = super::admit_candidate(
-                        stream,
-                        &registry,
-                        cohort.identity(),
-                        Some(&agents),
-                        worker.id(),
-                        replacing,
-                        Some(wake_on_end(&Arc::downgrade(&shutdown))),
-                    );
-                }
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                    thread::sleep(Duration::from_millis(10))
-                }
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                Err(error) => return Err(error),
-            }
-            // An adopting Worker serves no job until it adopted the Host.
-            let registry = registry
-                .lock()
-                .map_err(|_| io::Error::other("Worker registry failed"))?;
-            if registry.request_handle().is_some() || registry.adopting_handle().is_some() {
-                break Ok(());
-            }
-        }
-    })();
+    let admitted = admit_worker(
+        &listener,
+        &mut worker,
+        Admitting {
+            registry: &registry,
+            cohort: cohort.identity(),
+            agents: &agents,
+            replacing,
+            shutdown: &shutdown,
+        },
+        deadline,
+        &mut carrier,
+    );
     // The listener stays open, admitting a replacement Worker only while the Server starts one.
     #[cfg(windows)]
     if let Err(error) = admitted {
@@ -263,6 +245,8 @@ pub(super) fn run(
             automatic_updates: None,
             update_job: Arc::default(),
             session_record,
+            #[cfg(windows)]
+            worker_ticket: None,
         },
         shutdown,
         #[cfg(unix)]
@@ -272,4 +256,60 @@ pub(super) fn run(
         deadline,
         configuration,
     )
+}
+
+/// What admits a starting Worker on its Server's Worker endpoint.
+struct Admitting<'a> {
+    registry: &'a Arc<Mutex<WorkerRegistry>>,
+    cohort: &'a str,
+    agents: &'a Arc<AgentService>,
+    /// The Session Worker id an adopting Worker keeps; none for a Worker that adopts nothing.
+    replacing: Option<orchbee_local_worker_protocol::WorkerId>,
+    shutdown: &'a Arc<SessionShutdown>,
+}
+
+/// Admits `worker`, which this Server started, on `listener` until it serves or, adopting, until it
+/// waits for the Host it adopts; `carrier` receives its connection's owner as soon as one starts,
+/// so a failure still hands it to the cleanup.
+fn admit_worker(
+    listener: &UnixListener,
+    worker: &mut orchbee_local_runtime::RetainedChild,
+    admitting: Admitting<'_>,
+    deadline: Instant,
+    carrier: &mut Option<thread::JoinHandle<()>>,
+) -> io::Result<()> {
+    loop {
+        if Instant::now() >= deadline {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        if worker.try_wait()?.is_some() {
+            return Err(io::Error::other("local Worker exited before admission"));
+        }
+        match listener.accept() {
+            Ok((stream, _)) => {
+                *carrier = super::admit_candidate(
+                    stream,
+                    admitting.registry,
+                    admitting.cohort,
+                    Some(admitting.agents),
+                    worker.id(),
+                    admitting.replacing,
+                    Some(wake_on_end(&Arc::downgrade(admitting.shutdown))),
+                );
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                thread::sleep(Duration::from_millis(10))
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+        // An adopting Worker serves no job until it adopted the Host.
+        let registry = admitting
+            .registry
+            .lock()
+            .map_err(|_| io::Error::other("Worker registry failed"))?;
+        if registry.request_handle().is_some() || registry.adopting_handle().is_some() {
+            return Ok(());
+        }
+    }
 }
