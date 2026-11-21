@@ -1,12 +1,12 @@
 # Remote Machines in the Desktop Window
 
-| Field              | Value                                                                                                                                                                                                                                                                                                                                              |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status             | Proposed on 2026-11-20. Nothing is built; the owner reviews the window design and the open questions before any slice starts                                                                                                                                                                                                                       |
-| Owner              | Desktop (`apps/desktop`), the Web Workbench (`apps/web`), the native Client's machine modules in the workbench Client crate, and the machine hub maintainers                                                                                                                                                                                       |
-| Current authority  | [`machines.md`](../../apps/orchbee/docs/machines.md) for the hub and the TUI, [`schemas/machine`](../../schemas/machine/README.md) for the hub contract, the [Desktop guide](../../apps/desktop/README.md) for the window's processes and ports, and [`INTERFACE-DESIGN.md`](../../docs/INTERFACE-DESIGN.md) for what both Clients share           |
-| Decision authority | The product owner decided on 2026-11-20 that the desktop window gets remote machines now, without waiting for browser transport, and that the TUI's design leads: the window reuses its logic, catalog, flows and words. The architecture, the first-release cut and the [open questions](#open-questions-for-the-owner) are the owner's to accept |
-| Exit condition     | Build the accepted slices, move each maintained fact into its owning guide, schema and tests, then delete this proposal                                                                                                                                                                                                                            |
+| Field              | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status             | Accepted for building on 2026-11-20, except the window design, which the owner reviews before slices 6 to 9, and open question 4, which the owner decides. Slice 1 is the Contracts section; nothing a person can reach changes before the picker's slice                                                                                                                                                                                                        |
+| Owner              | Desktop (`apps/desktop`), the Web Workbench (`apps/web`), the native Client's machine modules in the workbench Client crate, and the machine hub maintainers                                                                                                                                                                                                                                                                                                     |
+| Current authority  | [`machines.md`](../../apps/orchbee/docs/machines.md) for the hub and the TUI, [`schemas/machine`](../../schemas/machine/README.md) for the hub contract, the [Desktop guide](../../apps/desktop/README.md) for the window's processes and ports, and [`INTERFACE-DESIGN.md`](../../docs/INTERFACE-DESIGN.md) for what both Clients share                                                                                                                         |
+| Decision authority | The product owner decided on 2026-11-20 that the desktop window gets remote machines now, without waiting for browser transport, and that the TUI's design leads: the window reuses its logic, catalog, flows and words. The architecture and the first-release cut were accepted on 2026-11-20, and the recommended answers to the [open questions](#open-questions-for-the-owner) stand as vetoable picks; the window design and question 4 remain the owner's |
+| Exit condition     | Build the accepted slices, move each maintained fact into its owning guide, schema and tests, then delete this proposal                                                                                                                                                                                                                                                                                                                                          |
 
 ## Goal and scope
 
@@ -132,6 +132,11 @@ addresses and counts in the drawings are examples.
 - `Mod+Shift+M` (`⌘⇧M` on macOS, `Ctrl+Shift+M` on Windows) opens the picker: the TUI's
   `Ctrl+b Shift+M` translated by the [keyboard transfer rules](../../docs/INTERFACE-DESIGN.md#keyboard-transfer-rules).
   It is the Workbench Action `workbench.machines.open`, so it appears wherever Workbench Actions do.
+- In Desktop today that is only the Actions search `Mod+Shift+P` opens: Search and its sidebar
+  button are withheld until Search is finished, and neither the application menu nor the
+  notification-area menu lists Workbench Actions. Without the entry of
+  [open question 4](#open-questions-for-the-owner), a person who uses only the mouse cannot open the
+  picker in the first release.
 - The Action's label is the TUI's "Browse machines, Workspaces and Agents" (浏览机器、工作区和智能体)
   once all three modes ship. Until then it reads "Browse machines" (浏览机器), a documented short
   variant, so it promises no mode the window lacks.
@@ -378,64 +383,212 @@ Session stopped / 已移除 {name} · 远端会话已停止; The Session on {nam
 
 ## Contracts
 
-### Machines channel
+The page, the preload, Main and the bundled Client ship as one build, so the channels below are
+internal pairings without negotiation: every JSON record carries `"version": 1`, and an incompatible
+change renames the entry's `-v1` suffix. Members are camelCase and tokens kebab-case, as in the hub
+contract, and a Machine is named by its catalog id, 32 lowercase hexadecimal digits. A record that
+is malformed, oversized, of another version or of an unknown kind is dropped with a diagnostic by
+whichever side reads it, and never ends that side. Desktop has one window, so at most one document
+is attached at a time.
 
-- **Port.** Each document receives a fifth transferred port, `machines`, after the four it has
-  today. Where the host lacks `SavedMachines`, the machines process says so at its start and exits,
-  Main closes the port at once, and the page offers no Machines entry. The page, the preload, Main and the bundled Client ship as one build, so
-  the channel is an internal pairing without negotiation; every record carries `version: 1`, and the
-  entry's `-v1` suffix changes with an incompatible change.
-- **Page to machines process.** The page posts each record as one JSON text of at most 64 KiB. Main
-  wraps it unopened, `{"document": "<id>", "record": "<text>"}`, writes one line to the process, and
-  drops a longer text with a diagnostic. The process drops records from a document Main has not
-  attached or has ended, so a reload cannot deliver what the last document sent.
-- **Main to machines process.** Main's own records say when a window exists and when a document
-  attaches or ends; the page cannot send them, because its text always arrives wrapped.
-- **Machines process to page.** One line per record, at most 1 MiB, forwarded to the current
-  document's port; the page drops a record addressed to another document.
-- **The view.** The process sends the whole view, never a difference: the hub status, every row in
-  the TUI's order, the open login question or notice, the Add form and each pending request's
-  outcome. Rows carry the Machine's identity, its sanitized label and address, a state, a tone, the
-  facts its details name, its action and its menu items with availability and reasons, all as values
-  the page words through `@orchbee/i18n`, never as text. One view is in flight at a time: the page
-  acknowledges each, and changes that arrive meanwhile coalesce into the next. A slow page therefore
-  holds one view, and no queue grows.
-- **Intents.** The page sends what the person asks: choose a Machine, cancel a choice, run a row's
-  action or menu item, rename, answer a question, dismiss a login, accept a notice, open, submit or
-  cancel the Add form, and read SSH host suggestions. Each carries an identity its outcome repeats.
-  A document holds at most 16 unanswered intents; the next is refused as busy.
+### Machines channel: lines between Main and the machines process
+
+Each document receives a fifth transferred port, `machines`, after the four it has today. Main
+starts `orchbee --desktop-machines-v1` with pipes once Desktop runs. The process reads standard
+input and writes standard output, one UTF-8 JSON object per line, ended by LF. Main's lines are at
+most 512 KiB and the process's at most 8 MiB, which any escaped record fits; a longer line is
+discarded up to its LF. Standard error carries diagnostics only, never a secret. Main ends the
+process by closing its standard input; the process then leaves the hub and exits within one second,
+and Main ends one that has not.
+
+| From    | `kind`    | Members              | Meaning                                                                                                                                                        |
+| ------- | --------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Process | `started` | `available`          | Its first line. `false` where the host lacks `SavedMachines`: the process exits, and Main closes every `machines` port and does not start it again in its life |
+| Main    | `window`  | `exists`             | Whether Desktop has a window, sent after `started` and at each change. The holder attaches with `asks` only while it is true                                   |
+| Main    | `attach`  | `document`, a UUID   | That document's `machines` port is open. It replaces an attached document, and the process sends it a whole view                                               |
+| Main    | `detach`  | `document`           | That document ended. The process forgets its unanswered intents and its unacknowledged view, and keeps every other state for the next document                 |
+| Main    | `page`    | `document`, `record` | The page's record text, wrapped unopened. The process drops one from a document that is not attached, so a reload cannot deliver what the last document sent   |
+| Process | `page`    | `document`, `record` | A record text for the page, at most 1 MiB of UTF-8. Main posts it as it is to that document's port while the document is attached, and drops it otherwise      |
+
+The page posts each record to its port as one string of at most 65,536 UTF-16 code units; Main drops
+anything else with a diagnostic. Main reads only the envelope and never parses a `record`.
+
+### Machines channel: records between the page and the machines process
+
+| From    | `kind`    | Members              | Meaning                                                                                                                                                              |
+| ------- | --------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Process | `view`    | `sequence`, `view`   | The whole view, never a difference. `sequence` grows by one with each view in the process's life                                                                     |
+| Page    | `ack`     | `sequence`           | The page took that view. The process sends the next only after it, and changes meanwhile coalesce into it, so a slow page holds one view                             |
+| Page    | `intent`  | `request`, `intent`  | One intent below; `request` is a positive safe integer the page chooses, unique within its document                                                                  |
+| Process | `outcome` | `request`, `outcome` | What became of intent `request`, sent at once rather than behind an unacknowledged view. At most 16 intents of a document are unanswered; the next is refused `busy` |
+
+**The view.** Values, never words: the page words them through `@orchbee/i18n`. Each member is the
+TUI value named beside it, so the process serializes what the TUI already decides.
+
+| Member        | Value                                                                                                                                                                                                                                                                                          | TUI source                                     |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `hub`         | `null` while the holder is attached or no Machine needs a hub; otherwise `{"status"}` with `unknown`, `stopped` or `unavailable`, or `blocked` with a `cause`: `held` with the holder's `version`, `environment` with the other `environment`, `denied`, `elevated`, `protocol` or `data-root` | Discovery's hub status and `Blocked`           |
+| `catalog`     | `read` or `unreadable`                                                                                                                                                                                                                                                                         | The machines store's last read                 |
+| `rows`        | The saved Machines in catalog order, at most 64; Local is the page's own row                                                                                                                                                                                                                   | The picker's remote rows and `row_explanation` |
+| `selection`   | `null`, or `{"request", "machine"}` while a choice runs                                                                                                                                                                                                                                        | The running selection                          |
+| `login`       | `null`, the open login question, or the last question of a login that ended without the person                                                                                                                                                                                                 | `machine_login::Presented`                     |
+| `notice`      | `null`, or the command-login notice                                                                                                                                                                                                                                                            | `machine_login::Offered`                       |
+| `add`         | `null`, or how the add stands                                                                                                                                                                                                                                                                  | The Add form's `Check`                         |
+| `suggestions` | `null` until read, then at most 32 host names                                                                                                                                                                                                                                                  | The SSH host suggestions                       |
+| `stopping`    | `null`, or the Machine whose Remove and stop runs                                                                                                                                                                                                                                              | The manage page's stop                         |
+
+A row is `machine`, `label`, `address` (its `ssh` target as the person named it, or `null`),
+`enabled`, `supported`, `word`, `tone`, `lines`, `action` and `menu`:
+
+- `word` is the picker message key of its word, from `Observation::key`: `online`, `opening`,
+  `reconnecting`, `offline`, `disabled`, `needs-login`, `unresponsive`, `untrusted`,
+  `not-installed`, `needs-update`, `local-needs-update`, `login-failed`, `key-changed`,
+  `unsupported`, `incompatible`, `unknown`, `hub-stopped` or `hub-unavailable`. A handshake refusal
+  the process keeps sets it by the [refusal table](../../apps/orchbee/docs/machines.md#session-carrier).
+  `tone` is `success`, `progress`, `neutral`, `warning` or `error`.
+- `lines` are `machine_status::Line` values as `{"line", ...members}`: `version` (`version`),
+  `contents` (`projects`, `workspaces`, `tabs`), `label` (`label`), `unreachable` (`host`, and
+  `why`: `timed-out`, `refused`, `unresolved` or `other`), `ssh-failed` (`host`), `next-attempt`
+  and `last-attempt` (`at`, milliseconds since the Unix epoch), `unsupported` (`platform` and
+  `architecture`, each `null` when unknown), `remote-too-old` (`version` or `null`), `login`
+  (`state`, below), `hub` (the members of a non-null `hub`), and, without members, `no-ssh`,
+  `install-ssh`, `remote-protocol`, `not-started`, `link-lost`, `unresponsive`, `installing`,
+  `not-installed`, `supported`, `session-too-old`, `update-remote`, `local-too-old`,
+  `update-local` and `other-environment`.
+- A login `state` is `{"state": "needs-login", "cause"}`, with `cause` `null`, `auth-required`,
+  `remembered-rejected`, `login-dismissed` or `disconnected`; `{"state": "login-failed", "cause"}`,
+  with `null`, `password-rejected` or `key-rejected`; `{"state": "untrusted", "hostKey"}`; or
+  `{"state": "key-changed", "hostKey", "host"}`, where `hostKey` is `null` when unknown and `host`
+  is the name `ssh-keygen -R` forgets. A host key is `{"algorithm", "fingerprint"}`.
+- `action` is `null`, `open`, `retry`, `retry-now`, `reconnect`, `enable`, `log-in`,
+  `log-in-again` or `trust`.
+- `menu` lists the Actions items in the TUI's order as `{"item", "available"}`: `rename`; `disable`
+  or `enable` for a supported Machine; `disconnect` for an enabled, supported one;
+  `forget-password` where answers can be remembered; `remove`; and `remove-and-stop`, available only
+  while the Machine is online.
+
+A login is `login` and `question` (the hub's ids), `machine` and `label` (for an add, the id it is
+checked under and the name typed), `target`, `kind` (`password`, `key-passphrase`, `host-key` or
+`other`, as this client reads it against the target), `hostKey` (for `host-key`, else `null`),
+`prompt` (`ssh`'s prompt text), `notice` (`null`, `repeated`, `inadmissible` or
+`remembered-rejected`), `sending`, `ending` and `remember`. `ending` is `null` while the question is
+open, and otherwise how the login ended without the person: the hub's `succeeded`, `failed`,
+`dismissed`, `abandoned`, `unavailable` or `unknown`, or this client's `dismissed-here`,
+`undelivered` or `lost`. `remember` is `{"box": "offered", "ticked", "untilRestart"}`,
+`{"box": "unavailable"}`, `{"box": "needs-newer-ssh"}` or `{"box": "absent"}`. The view never
+carries an answer.
+
+A notice is `login`, `machine`, `label`, `target`, `waiters`, `accepted` (the person pressed Log in)
+and `ended`: `null`, `taken` (another interface claimed it, or this claim did not take it), or a
+login `ending`.
+
+An add is `request` (its `add` intent's), `label` (the name it will save) and `state`:
+`{"state": "starting"}`, `{"state": "checking", "stage"}`,
+`{"state": "failed", "stage", "lines", "action", "retry"}` or `{"state": "saving"}`. `stage` is
+`ssh`, `reach`, `trust`, `login`, `system`, `orchbee`, `compatibility` or `session`, the eight
+checks in order, or `null` in a failure no check names; `retry` is false where the TUI offers no way
+past a changed host key or an unsupported system until the address changes.
+
+**Intents.** An `intent` is an object whose `act` names it, each the TUI's act beside it.
+
+| `act`            | Members                                                                                     | The TUI's act                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `choose`         | `machine`                                                                                   | Enter on a row whose action is not Enable: the selection, which also clears a kept refusal                               |
+| `cancel-choice`  | none                                                                                        | Escape, or choosing Local, while a selection runs                                                                        |
+| `refused`        | `machine`, `refusal`                                                                        | Discovery keeping a handshake refusal: the page reports the one its relay met                                            |
+| `manage`         | `machine`, `item`, and `label` for `rename`                                                 | An Actions item; `enable` also serves Enter on a row whose action is Enable                                              |
+| `add`            | `address` and `name`, at most 1,024 and 128 Unicode scalars, `name` empty for the host name | Enter on the Add form, or its failed check's action                                                                      |
+| `cancel-add`     | none                                                                                        | Escape or Cancel on the form: gives up a running add and clears `add`                                                    |
+| `suggestions`    | none                                                                                        | The form's one read of the SSH host suggestions                                                                          |
+| `answer`         | `login`, `question`, `answer`: at most 1,024 UTF-8 bytes                                    | Enter on a password, passphrase or other question                                                                        |
+| `remember`       | `login`, `question`, `ticked`                                                               | The remember box, which holds for the login's later questions                                                            |
+| `trust`          | `login`, `question`                                                                         | Trust and continue, once the field reads `yes`; Orchbee answers `yes` itself                                             |
+| `cancel-login`   | `login`, `question`                                                                         | Cancel, which ends the login                                                                                             |
+| `close-login`    | `login`, `question`                                                                         | Close on a login that ended without the person                                                                           |
+| `accept-notice`  | `login`                                                                                     | Log in on the notice: the claim. On an ended notice, Close                                                               |
+| `decline-notice` | `login`                                                                                     | Not now: the dismissal that fails the waiting commands and mutes the Machine's command logins. On an ended notice, Close |
+
+`refusal` is the TUI's `Refusal`: `other-environment`, `client-too-old`, `session-too-old` or
+`development-build-mismatch`.
+
+**Outcomes.** An `outcome` is an object whose `result` names it.
+
+| `result`       | Members   | When                                                                                                                                                                                                                                                                                                                                      |
+| -------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chosen`       | `machine` | `choose`: the hub reads the Machine `online` for this choice, so the page may ask for its relay                                                                                                                                                                                                                                           |
+| `failed`       | `message` | `choose` or `refused`: the picker message the TUI shows, `failed`, `removed`, `catalog`, `hub`, `hub-message-stopped`, `hub-message-blocked`, `login-undelivered`, `login-failed-message`, `login-key-changed-message`, `login-unanswered-message`, `refused-environment`, `refused-client-old`, `refused-session-old` or `refused-build` |
+| `check-failed` | none      | `add`: a check failed, and the view's `add` says which and why                                                                                                                                                                                                                                                                            |
+| `problem`      | `problem` | `add` or `manage`: the TUI's `address`, `name` or `save` problem                                                                                                                                                                                                                                                                          |
+| `added`        | `machine` | `add`: every check passed and the record is saved                                                                                                                                                                                                                                                                                         |
+| `done`         | `notice`  | Any other intent carried out. `notice` is `null`, the TUI's manage notice `{"notice", "label"}` with `removed`, `removed-stopped`, `stop-failed` or `not-online`, or its forget result `{"notice"}` with `forgotten`, `nothing-saved` or `forget-failed`                                                                                  |
+| `cancelled`    | none      | A `choose` or `add` that `cancel-choice` or `cancel-add` gave up, or a `choose` another replaced                                                                                                                                                                                                                                          |
+| `refused`      | `reason`  | Not carried out: `busy`, `malformed`, or `stale`, for ids that no longer name an open question, notice or saved Machine                                                                                                                                                                                                                   |
+
+The process keeps an answer only in the TUI's fixed buffer, delivers it as the TUI's answer path
+does, writes it to the system password store only when the box is ticked and the login succeeds,
+and wipes every copy it made.
 
 ### Remote Session connection
 
-- **Request.** The page asks Main through the preload for a connection to a Machine's Session,
-  naming its document, a request identity and the catalog id of a Machine the machines process has
-  just reported `online` for this choice. Main checks the three against their schemas.
+- **Request.** The page posts an `orchbee.desktop.machine-session-request` message to its own
+  window with `request` and `machine`, a Machine the machines process just answered `chosen` for.
+  The preload forwards a parsed request to Main on the IPC channel of the same name, adding its
+  document's identity, which the page never sees. Main parses it again and refuses `unavailable`
+  while that document holds two relays.
 - **Relay.** Main starts `orchbee --machine-session-v1 <machine>` with pipes. The relay joins the
-  running hub, never starting or replacing one, opens a `session` channel, performs the admission,
-  and writes one LF-terminated JSON line of at most 64 KiB, `admitted` with the negotiated
-  capabilities or `refused` with a reason; after `admitted` every byte is the page's, unread.
-- **Reply.** Main reads that line within 30 seconds, then transfers one port with a bootstrap of
-  what the page cannot derive: the Machine's id and the negotiated capabilities. The page derives
-  the rest for a remote Session: no first Workspace of its own, no Quit All, no folder picker and no
-  window update.
+  running hub, never starting or replacing one, opens one `session` channel to the Machine, admits
+  this build's own Client offer through it as the TUI's carrier does, and writes one LF-ended JSON
+  line of at most 64 KiB: `{"version": 1, "outcome": "admitted", "capabilities"}` with at most 256
+  negotiated `client-server` capability names, or `{"version": 1, "outcome": "refused", "reason"}`.
+  After `admitted` every byte both ways is the page's, unread. The relay's later failures go to
+  standard error and its exit status.
+- **Reasons.** The TUI carrier's `Refusal` for the handshake's answer, `other-environment`,
+  `client-too-old`, `session-too-old` (also for a Session older than the handshake) and
+  `development-build-mismatch`, which the page reports to the machines process unchanged; the
+  transient `capacity`, `stopping` and `timeout`; `not-online` and `not-found` from the channel's
+  `open`; `hub-unavailable` when no hub can be joined; and `link-lost` or `protocol` when the
+  channel ends, or anything answers outside its contract, before admission.
+- **Reply.** Main reads the first line within 30 seconds; a relay that writes nothing in time,
+  exits first or writes anything else is ended and refused `timeout` or `protocol`. Main answers on
+  `orchbee.desktop.machine-session` with `document`, `request` and `outcome`: `admitted` with one
+  transferred port and `bootstrap` `{"machine", "negotiatedCapabilities"}`, or `refused` with
+  `reason`, Main's own being `unavailable`. The preload drops an answer for another document and
+  posts the rest to the window as `orchbee.desktop.machine-session-ready`. The page derives the rest
+  of a remote Session's bootstrap: no first Workspace of its own, no Quit All, no folder picker and
+  no window update.
 - **Bounds.** The relay's bytes use the existing relay bounds, 4 MiB unread and 64 MiB of pending
   input. A document holds at most two relays in the first release, the surface on screen and one
-  candidate, and at most six once four inactive surfaces are cached. Closing the port ends the relay.
+  candidate, and at most six once four inactive surfaces are cached. Closing the port, or the
+  document's end, ends the relay; ending a relay never stops the remote Session.
 - **What only the far computer knows.** The page's runtime needs the home folder of the Session's
   computer, for terminals started without a directory and for `~` in paths. No contract carries a
   remote home today. The relay slice decides between the far link helper's answer and a
   `client-server` capability labelled `addedIn` its first release; until one is negotiated, the
   remote surface leaves the directory to its Server and shows full paths.
 
+### Release gate
+
+Until the slice that ships the picker, nothing a person can reach changes. Main's composition reads
+one code constant, never a setting. While it is false, Main starts no machines process, closes its
+end of each document's `machines` port at once, as for a host without `SavedMachines`, and refuses
+every remote connection request `unavailable`; Desktop therefore holds no hub attachment and no SSH
+connection for anyone. The two internal entries exist, but no shipped path starts them. The picker's
+slice flips the constant. With it on, a person without a saved Machine still gets no hub and no SSH
+connection, because the holder starts only as the TUI's does, at the first enabled Machine of a
+known kind or the first add.
+
 ### Native entries and the hub
 
 - **Machines process.** Pipes only, refused on a console as `server connect` is. Its holder follows
   the TUI's rule: it attaches when the catalog first holds an enabled Machine of a known kind, or at
   the first add, with `presence` and `watch` for the Desktop's whole life, and with `asks` while Main
-  says a window exists. It reads `machines.json` as the TUI does and asks the hub to `reload` a
-  revision the hub has not taken. It writes nothing to the console and never logs a secret.
-- **Session relay.** Opens with `join` and no flags, so its attachment holds no hub; the machines
-  process's `presence` keeps one running.
+  says a window exists, sending `attach` again at each change, since each one replaces the last. It
+  reads `machines.json` as the TUI does and asks the hub to `reload` a revision the hub has not
+  taken. It writes nothing to the console and never logs a secret.
+- **Session relay.** Opens with `join` and sends no `attach`, so its connection holds no hub and is
+  offered no login; the machines process's `presence` keeps the hub running. `join` waits for a hub
+  somebody else starts and fails `closing` ten seconds after the endpoint is gone, which the relay
+  reports as `hub-unavailable`.
 - **Compatibility.** Both entries use the existing `machine-hub` generation. Desktop's bundled Client
   states its product version in its offer, so the hub's [`asks` gate](../../schemas/machine/README.md#attachment)
   counts its `asks`. The relay's admission negotiates the `client-server` generation with the remote
@@ -481,22 +634,26 @@ the TypeScript catalog tests, so neither side can drift alone. Terms follow the
 ## Slices
 
 Each slice merges with its owning documents changed in the same commit. "Haiku" marks a slice whose
-brief can specify it exactly; an Opus reviewer checks and commits its diff.
+brief can specify it exactly; an Opus reviewer checks and commits its diff. Slice 1 is the
+[Contracts](#contracts) section as written, before any code: repository standards and package
+guides state only what runs, and a package export ships with its first consumer, so each later slice
+moves the part of the contract it builds into its owning guide, schema and tests, and deletes it
+here.
 
-| #   | Slice                                                                                                                                                              | Rung                              |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- |
-| 1   | Contracts: the Desktop window section in `machines.md`, the channel and remote reply schemas in `desktop-client-protocol`, the Desktop guide's ports and processes | Opus, high                        |
-| 2   | The machines process: holder, view, intents, logins, Add checks and management from the existing modules; Windows and macOS                                        | Opus, xhigh                       |
-| 3   | The session relay: `join`, `session` channel, admission, first line, copying; the remote home decision                                                             | Opus, xhigh                       |
-| 4   | Desktop Main: supervising the machines process, the fifth port and its envelope, window presence, remote connection requests and relays                            | Opus, high                        |
-| 5   | The Desktop composition: the retained local runtime, one remote runtime, switching on a drawable candidate, window-wide duties kept local                          | Opus, high                        |
-| 6   | The Machines picker, the Add form, the Actions menu, rename and the Remove and stop confirmation, from the wireframes and the view's types                         | Haiku, max                        |
-| 7   | The login Dialog and the command-login notice: secret handling, the one-second guard, the queue and deferral                                                       | Opus, high                        |
-| 8   | The `machines` copy domain in both languages and the shared examples                                                                                               | Haiku, max                        |
-| 9   | The sidebar prefix, the status notices, and the `workbench.machines.open` Action with its binding                                                                  | Haiku, max                        |
-| 10  | A scripted real-window run on Windows and macOS against the hub's stand-in far end and one real Machine                                                            | Haiku, max; Opus checks each FAIL |
-| 11  | Later: observers in the machines process, Workspaces and Agents modes, other Machines in the sidebar                                                               | Opus, xhigh                       |
-| 12  | Later: four cached inactive remote surfaces                                                                                                                        | Opus, high                        |
+| #   | Slice                                                                                                                                                                                                 | Rung                              |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| 1   | Contracts: the wire records, bounds and refusals of both channels, the remote connection and the release gate, written here                                                                           | Opus, high                        |
+| 2   | The machines process: holder, view, intents, logins, Add checks and management from the existing modules; Windows and macOS; a Desktop window section in `machines.md`                                | Opus, xhigh                       |
+| 3   | The session relay: `join`, `session` channel, admission, first line, copying; the remote home decision; its part of that section                                                                      | Opus, xhigh                       |
+| 4   | Desktop Main: supervising the machines process, the fifth port and its envelope, window presence, remote connection requests and relays, the release gate; the Desktop guide and the protocol schemas | Opus, high                        |
+| 5   | The Desktop composition: the retained local runtime, one remote runtime, switching on a drawable candidate, window-wide duties kept local                                                             | Opus, high                        |
+| 6   | The Machines picker, the Add form, the Actions menu, rename and the Remove and stop confirmation, from the wireframes and the view's types                                                            | Haiku, max                        |
+| 7   | The login Dialog and the command-login notice: secret handling, the one-second guard, the queue and deferral                                                                                          | Opus, high                        |
+| 8   | The `machines` copy domain in both languages and the shared examples                                                                                                                                  | Haiku, max                        |
+| 9   | The sidebar prefix, the status notices, and the `workbench.machines.open` Action with its binding                                                                                                     | Haiku, max                        |
+| 10  | A scripted real-window run on Windows and macOS against the hub's stand-in far end and one real Machine                                                                                               | Haiku, max; Opus checks each FAIL |
+| 11  | Later: observers in the machines process, Workspaces and Agents modes, other Machines in the sidebar                                                                                                  | Opus, xhigh                       |
+| 12  | Later: four cached inactive remote surfaces                                                                                                                                                           | Opus, high                        |
 
 Slices 2, 3 and 8 can start together after slice 1; 4 needs 2 and 3; 5 needs 4; 6, 7 and 9 need 5's
 types and 8's copy.
@@ -517,7 +674,10 @@ Each question names the recommended answer first.
    Open; the TUI's sidebar already lists `devbox / Projects` beside Local's.
 4. **A permanent Machines entry.** Recommended: none, as in the TUI, which has no permanent indicator.
    The alternative is a Machines entry beside Settings at the bottom of the sidebar in both Clients,
-   reading `devbox · Online` like a remote indicator; it is a new feature point for both.
+   reading `devbox · Online` like a remote indicator; it is a new feature point for both. Without it
+   the window's picker has no mouse path in the first release, as [Entry](#entry) explains. The
+   slices build without it and open the picker through one path whatever invoked it, so the entry
+   can be added later without changing the picker.
 5. **Connections while only the notification-area icon remains.** Recommended: keep them, as the
    attachment contract says. After the window closes, devbox stays connected over SSH, reopening shows
    it Online at once, and `orchbee --machine devbox …` in another terminal reuses that connection; the
