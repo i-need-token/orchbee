@@ -454,8 +454,14 @@ test "discarding prepared input releases its ordered queue reservation" {
     try runtime.forceTerminate();
 }
 test "prepared input losing the failure fence is unavailable and releases its reservation" {
-    const runtime = try createRuntimeWithHooks(.{});
+    // The reader waits at its first read until the test ends, so no focus report of the
+    // starting console enters the queue the test counts.
+    var probe: GatedReaderProbe(void) = .{ .probe = {} };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
     defer runtime.destroy();
+    defer probe.reader.release();
+    probe.reader.wait();
 
     var prepared = try runtime.prepareRawInput("prepared");
     defer prepared.deinit();
@@ -471,8 +477,14 @@ test "prepared input losing the failure fence is unavailable and releases its re
     try std.testing.expectEqual(subject.RuntimeFailureKind.pty_read, runtime.primaryFailure().?);
 }
 test "post-exit client closure rejects a prepared client commit and releases its reservation" {
-    const runtime = try createRuntimeWithHooks(.{});
+    // The reader waits at its first read until the test ends, so no focus report of the
+    // starting console enters the queue the test counts.
+    var probe: GatedReaderProbe(void) = .{ .probe = {} };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
     defer runtime.destroy();
+    defer probe.reader.release();
+    probe.reader.wait();
 
     var prepared = try runtime.prepareTextInput("prepared", std.math.maxInt(usize));
     defer prepared.deinit();
