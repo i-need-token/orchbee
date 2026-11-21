@@ -11,8 +11,8 @@ use std::{
 
 use orchbee_connection_handshake::{
     Build, ConnectionKind, EnvironmentName, InitiatorMessage, Offer, OfferFailure,
-    PROMPT_GATED_INPUT, ProductVersion, ReadError, RejectionReason, SourceCommit, conclude_offer,
-    encode_initiator_frame, read_acceptor_message,
+    PROMPT_GATED_INPUT, ProductVersion, ReadError, RejectionReason, SCREEN_GATED_INPUT,
+    SourceCommit, conclude_offer, encode_initiator_frame, read_acceptor_message,
 };
 
 /// How long a Worker waits before it dials a busy Host again.
@@ -26,6 +26,9 @@ pub(super) enum Outcome {
         /// The Host types an idle-prompt line only at a confirmed fresh prompt
         /// (`prompt-gated-input`). Without it a gated send is refused, never sent ungated.
         prompt_gated_input: bool,
+        /// The Host types a screen-gated key only while the screen is still the frame its sender
+        /// read (`screen-gated-input`). Without it a gated key is refused, never sent ungated.
+        screen_gated_input: bool,
     },
     /// The Host still holds another Worker session, answering `capacity` or closing before any
     /// reply while that session ends; the caller dials again until its deadline.
@@ -83,6 +86,7 @@ pub(super) fn exchange(
     match conclude_offer(offer, reply) {
         Ok(answer) => Ok(Outcome::Answered {
             prompt_gated_input: answer.capabilities.contains(PROMPT_GATED_INPUT),
+            screen_gated_input: answer.capabilities.contains(SCREEN_GATED_INPUT),
         }),
         Err(OfferFailure::Rejected(rejection)) if rejection.reason == RejectionReason::Capacity => {
             Ok(Outcome::Busy)

@@ -4,6 +4,8 @@
 //! idle-prompt send is the one exception to per-record exchanges: its whole prompt line is one
 //! Host `PromptLineInput`, typed only at a confirmed fresh prompt, and a Host refusal is returned
 //! as is; the Worker never waits for a settling prompt and never falls back to an ungated send.
+//! A screen-gated send is the other: its one Enter is one Host `ScreenGatedKeyInput`, typed
+//! only while the screen is still the frame the Server read, and a hold types nothing.
 
 mod stroke;
 
@@ -17,17 +19,19 @@ use std::{
 
 use orchbee_capability_node_protocol::{
     SendAcceptedBytes, SendCleanupStatus, SendPrecondition, SendProgress, SendPromptLine,
-    SendPromptState, SendRecord, SendRejection, SendUnavailable, TerminalSendOutcome,
-    TerminalSendRequest, TerminalSendResult,
+    SendPromptState, SendRecord, SendRejection, SendScreenGate, SendScreenState, SendUnavailable,
+    TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope, InputAccepted,
     InputMessage, MessageRole, PasteAutoInput, PayloadEncoding, PromptLineInput,
-    PromptUnconfirmedReason, TerminalId, TypedFailure, WriteInput, decode_attachment_control,
-    decode_connection_control, decode_input_message, decode_transport_envelope,
-    encode_attachment_control, encode_input_message, encode_transport_envelope,
+    PromptUnconfirmedReason, ScreenGatedAction, ScreenGatedKey, ScreenGatedKeyInput,
+    ScreenGatedKeyRequest, ScreenGatedProcess, TerminalId, TypedFailure, WriteInput,
+    decode_attachment_control, decode_connection_control, decode_input_message,
+    decode_transport_envelope, encode_attachment_control, encode_input_message,
+    encode_transport_envelope,
 };
 
 use crate::diagnostic_events::{Anomaly, Site, host_unexpected, send_outcome_unbuildable};
@@ -148,6 +152,13 @@ pub(crate) fn execute(
         // A Host that cannot confirm the prompt is too old for this send: it is refused before
         // any attachment, never typed ungated.
         Some(SendRejection::HostPromptGateUnsupported)
+    } else if screen_gated(&request) && !request.records.screen_key() {
+        // The codec admits only one unmodified Enter; a hand-built request is refused the same way.
+        Some(SendRejection::HostInputInvalid)
+    } else if screen_gated(&request) && !host.screen_gated_input() {
+        // A Host that cannot hold a screen-gated key is too old for it: it is refused before any
+        // attachment, never typed ungated.
+        Some(SendRejection::HostScreenGateUnsupported)
     } else if negotiated_excess(&request, host) {
         // The negotiated-bound check runs before the attachment exists, so
         // the honest frontier is zero: no record was ever submitted.
@@ -195,6 +206,15 @@ fn negotiated_excess(request: &TerminalSendRequest, host: &HostBrokerConnection)
         };
         bytes > limit
     })
+}
+
+/// Whether the precondition is a screen-gated key or a hold, which the Host types under its screen
+/// gate.
+fn screen_gated(request: &TerminalSendRequest) -> bool {
+    matches!(
+        request.precondition,
+        SendPrecondition::Screen(_) | SendPrecondition::ScreenHold
+    )
 }
 
 fn apply(
@@ -339,6 +359,8 @@ fn apply(
             .map(Step::PromptLine)
             .into_iter()
             .collect::<Vec<_>>(),
+        SendPrecondition::Screen(gate) => vec![Step::ScreenKey(gate)],
+        SendPrecondition::ScreenHold => vec![Step::ScreenHold],
     };
     let mut index = 0;
     for step in steps {
@@ -388,7 +410,7 @@ fn apply(
                 attachment_id,
                 capability_revision,
                 expected_bytes,
-                matches!(step, Step::PromptLine(_)),
+                step.kind(),
             )?,
             StepAnswer::Desync(kind) => InputOutcome::Desync(kind),
             // The request had no room for this record: a determinate stop, as at the input
@@ -570,16 +592,13 @@ fn input_outcome(
     attachment_id: AttachmentId,
     capability_revision: NonZeroU64,
     expected_bytes: Option<u32>,
-    prompt_line: bool,
+    kind: StepKind,
 ) -> Result<InputOutcome, Box<dyn Error>> {
     let envelope = decode_transport_envelope(record)?;
     if let Ok(ConnectionControl::TypedFailure(failure)) =
         decode_connection_control(envelope.kind, envelope.role, envelope.payload)
     {
-        return Ok(InputOutcome::Refused(input_rejection(
-            &failure,
-            prompt_line,
-        )));
+        return Ok(InputOutcome::Refused(input_rejection(&failure, kind)));
     }
     let Ok(InputMessage::InputAccepted(InputAccepted {
         accepted_bytes,
@@ -669,11 +688,23 @@ fn detach(
     }
 }
 
-/// One Host input exchange: a single record, or an idle-prompt send's whole line.
+/// One Host input exchange: a single record, an idle-prompt send's whole line, or a screen-gated
+/// send's one key or hold.
 #[derive(Clone, Copy)]
 enum Step<'a> {
     Record(&'a SendRecord),
     PromptLine(SendPromptLine<'a>),
+    ScreenKey(SendScreenGate),
+    ScreenHold,
+}
+
+/// The kind of one input step. A typed refusal reads differently by kind: only a prompt line
+/// reports the prompt state, and only a screen step reports the screen state.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum StepKind {
+    Record,
+    PromptLine,
+    Screen,
 }
 
 impl Step<'_> {
@@ -681,7 +712,15 @@ impl Step<'_> {
     const fn records(self, record_count: usize) -> usize {
         match self {
             Self::Record(_) => 1,
-            Self::PromptLine(_) => record_count,
+            Self::PromptLine(_) | Self::ScreenKey(_) | Self::ScreenHold => record_count,
+        }
+    }
+
+    const fn kind(self) -> StepKind {
+        match self {
+            Self::Record(_) => StepKind::Record,
+            Self::PromptLine(_) => StepKind::PromptLine,
+            Self::ScreenKey(_) | Self::ScreenHold => StepKind::Screen,
         }
     }
 }
@@ -706,6 +745,35 @@ fn step_command(
                     capability_revision,
                     right_arrow: line.right_arrow,
                     content: line.content.to_owned(),
+                }))?,
+                None,
+            ));
+        }
+        Step::ScreenKey(gate) => {
+            return Ok((
+                encode_input_message(&InputMessage::ScreenGatedKeyInput(ScreenGatedKeyInput {
+                    attachment_id,
+                    capability_revision,
+                    action: ScreenGatedAction::Key(ScreenGatedKeyRequest {
+                        key: ScreenGatedKey::Enter,
+                        process: ScreenGatedProcess {
+                            pid: gate.pid,
+                            creation_time: gate.creation_time,
+                        },
+                        generation: gate.generation,
+                        revision: gate.revision,
+                        first_revision: gate.first_revision,
+                    }),
+                }))?,
+                None,
+            ));
+        }
+        Step::ScreenHold => {
+            return Ok((
+                encode_input_message(&InputMessage::ScreenGatedKeyInput(ScreenGatedKeyInput {
+                    attachment_id,
+                    capability_revision,
+                    action: ScreenGatedAction::Hold,
                 }))?,
                 None,
             ));
@@ -768,10 +836,18 @@ fn attach_rejection(code: &str) -> SendRejection {
 }
 
 /// A typed input refusal. Only the prompt-line step may carry the Host's `prompt-unconfirmed`
-/// state, which types nothing; the same code on any other step is an ordinary refusal.
-fn input_rejection(failure: &TypedFailure, prompt_line: bool) -> SendRejection {
-    if prompt_line && let Some(reason) = failure.reason {
+/// state, which types nothing, and only a screen step may carry a `screen-*` refusal; the same
+/// code on any other step is an ordinary refusal.
+fn input_rejection(failure: &TypedFailure, kind: StepKind) -> SendRejection {
+    if kind == StepKind::PromptLine
+        && let Some(reason) = failure.reason
+    {
         return SendRejection::PromptUnconfirmed(prompt_state(reason));
+    }
+    if kind == StepKind::Screen
+        && let Some(state) = screen_state(&failure.code)
+    {
+        return SendRejection::ScreenRefused(state);
     }
     match failure.code.as_str() {
         "missing-resource" | "invalid-phase" | "stale-revision" | "stale-generation" => {
@@ -782,6 +858,19 @@ fn input_rejection(failure: &TypedFailure, prompt_line: bool) -> SendRejection {
         "resource-exhausted" => SendRejection::HostInputBackpressure,
         _ => SendRejection::HostRejected,
     }
+}
+
+/// The state a screen-gated refusal's code names; any other code names none.
+fn screen_state(code: &str) -> Option<SendScreenState> {
+    Some(match code {
+        "screen-agent-gone" => SendScreenState::AgentGone,
+        "screen-changed" => SendScreenState::Changed,
+        "screen-already-typed" => SendScreenState::AlreadyTyped,
+        "screen-input-pending" => SendScreenState::InputPending,
+        "screen-person-input" => SendScreenState::PersonInput,
+        "screen-person-recent" => SendScreenState::PersonRecent,
+        _ => return None,
+    })
 }
 
 const fn prompt_state(reason: PromptUnconfirmedReason) -> SendPromptState {

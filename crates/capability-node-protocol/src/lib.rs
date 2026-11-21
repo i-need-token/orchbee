@@ -149,8 +149,8 @@ pub use terminal_send::{
     MAXIMUM_SEND_BYTES_BYTES, MAXIMUM_SEND_PASTE_BYTES, MAXIMUM_SEND_RECORDS,
     MAXIMUM_SEND_TEXT_BYTES, SendAcceptedBytes, SendBytes, SendCleanupStatus, SendKey,
     SendPasteContent, SendPrecondition, SendProgress, SendPromptLine, SendPromptState, SendRecord,
-    SendRecords, SendRejection, SendText, SendTextInput, SendUnavailable, TerminalSendOutcome,
-    TerminalSendRequest, TerminalSendResult,
+    SendRecords, SendRejection, SendScreenGate, SendScreenState, SendText, SendTextInput,
+    SendUnavailable, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
 
 mod launch_environment;

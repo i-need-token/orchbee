@@ -2,6 +2,8 @@
 //! against cleanup and failure outcomes. It carries queue-admission facts without executing
 //! input, guaranteeing atomicity, or authorizing replay after a partial or unknown result.
 
+use std::num::{NonZeroU32, NonZeroU64};
+
 use crate::{HostTerminalIdentity, OperationId, ProtocolError, WorkerGeneration, WorkerId};
 
 /// One admitted send request carries an ordered sequence of input records.
@@ -256,6 +258,12 @@ impl SendRecords {
             right_arrow,
         })
     }
+    /// Whether these records are exactly one unmodified Enter stroke, the only shape a
+    /// screen-gated request admits.
+    #[must_use]
+    pub fn screen_key(&self) -> bool {
+        matches!(self.0.as_slice(), [enter] if plain_key(enter, SendKey::Enter).is_some())
+    }
 }
 
 fn plain_key(record: &SendRecord, key: SendKey) -> Option<()> {
@@ -277,6 +285,18 @@ pub struct SendPromptLine<'a> {
     pub right_arrow: bool,
 }
 
+/// The authority of one screen-gated key: the frame the Server decided on (its generation and
+/// revision), the revision at which the Server first saw what the key answers (never after
+/// `revision`), and the process the key answers.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SendScreenGate {
+    pub pid: NonZeroU32,
+    pub creation_time: u64,
+    pub generation: NonZeroU64,
+    pub revision: u64,
+    pub first_revision: u64,
+}
+
 /// What must hold before any record reaches the Host.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum SendPrecondition {
@@ -287,6 +307,14 @@ pub enum SendPrecondition {
     /// single exchange, and only while the terminal's root shell waits at a confirmed fresh,
     /// empty prompt. A Host that does not offer the gate refuses it; it never falls back.
     IdlePrompt,
+    /// The records are one unmodified Enter ([`SendRecords::screen_key`]) that the Host types in a
+    /// single exchange, and only while the screen is still the frame the gate names. A Host that
+    /// does not offer the gate refuses it; it never falls back.
+    Screen(SendScreenGate),
+    /// The records are one unmodified Enter ([`SendRecords::screen_key`]) that the Host does not
+    /// type. It is a hold: the Host types nothing and refuses every screen-gated key decided
+    /// before it. A Host that does not offer the gate refuses it; it never falls back.
+    ScreenHold,
 }
 
 /// Encoded byte count the Host admitted into its bounded input queue for one
@@ -432,9 +460,14 @@ pub enum SendRejection {
     /// The terminal's Host did not negotiate `prompt-gated-input`, so an idle-prompt send was
     /// refused before any attachment.
     HostPromptGateUnsupported,
+    /// The Host refused a screen-gated key and typed nothing; the state names its first unmet rule.
+    ScreenRefused(SendScreenState),
+    /// The terminal's Host did not negotiate `screen-gated-input`, so a screen-gated send was
+    /// refused before any attachment.
+    HostScreenGateUnsupported,
 }
 impl SendRejection {
-    /// The wire code, followed by the prompt state's code for `PromptUnconfirmed`.
+    /// The wire code, followed by the state's code for `PromptUnconfirmed` and `ScreenRefused`.
     pub(crate) fn decode(
         code: u8,
         state: impl FnOnce() -> Result<u8, ProtocolError>,
@@ -451,6 +484,8 @@ impl SendRejection {
             9 => Self::HostInputUnavailable,
             10 => Self::PromptUnconfirmed(SendPromptState::from_code(state()?)?),
             11 => Self::HostPromptGateUnsupported,
+            12 => Self::ScreenRefused(SendScreenState::from_code(state()?)?),
+            13 => Self::HostScreenGateUnsupported,
             _ => return Err(ProtocolError::InvalidPayload),
         })
     }
@@ -467,8 +502,13 @@ impl SendRejection {
             Self::HostInputUnavailable => 9,
             Self::PromptUnconfirmed(_) => 10,
             Self::HostPromptGateUnsupported => 11,
+            Self::ScreenRefused(_) => 12,
+            Self::HostScreenGateUnsupported => 13,
         });
         if let Self::PromptUnconfirmed(state) = self {
+            bytes.push(state.code());
+        }
+        if let Self::ScreenRefused(state) = self {
             bytes.push(state.code());
         }
     }
@@ -476,7 +516,10 @@ impl SendRejection {
     const fn types_nothing(self) -> bool {
         matches!(
             self,
-            Self::PromptUnconfirmed(_) | Self::HostPromptGateUnsupported
+            Self::PromptUnconfirmed(_)
+                | Self::HostPromptGateUnsupported
+                | Self::ScreenRefused(_)
+                | Self::HostScreenGateUnsupported
         )
     }
 }
@@ -518,6 +561,41 @@ impl SendPromptState {
             Self::InputPending => 6,
             Self::Changed => 7,
             Self::Settling => 8,
+        }
+    }
+}
+
+/// The first rule the Host found unmet when it refused a screen-gated key, in its check order.
+/// None of them is worth asking again: the Server reads the screen again and decides again.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SendScreenState {
+    AgentGone,
+    Changed,
+    AlreadyTyped,
+    InputPending,
+    PersonInput,
+    PersonRecent,
+}
+impl SendScreenState {
+    fn from_code(code: u8) -> Result<Self, ProtocolError> {
+        Ok(match code {
+            1 => Self::AgentGone,
+            2 => Self::Changed,
+            3 => Self::AlreadyTyped,
+            4 => Self::InputPending,
+            5 => Self::PersonInput,
+            6 => Self::PersonRecent,
+            _ => return Err(ProtocolError::InvalidPayload),
+        })
+    }
+    const fn code(self) -> u8 {
+        match self {
+            Self::AgentGone => 1,
+            Self::Changed => 2,
+            Self::AlreadyTyped => 3,
+            Self::InputPending => 4,
+            Self::PersonInput => 5,
+            Self::PersonRecent => 6,
         }
     }
 }
@@ -645,9 +723,22 @@ pub struct TerminalSendRequest {
     pub records: SendRecords,
 }
 impl TerminalSendRequest {
-    /// An idle-prompt precondition admits only one prompt line; both codec boundaries check it.
+    /// An idle-prompt precondition admits only one prompt line, and a screen precondition only one
+    /// unmodified Enter under a gate in order; both codec boundaries check it.
     pub(crate) fn validate(&self) -> Result<(), ProtocolError> {
         if self.precondition == SendPrecondition::IdlePrompt && self.records.prompt_line().is_none()
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        if let SendPrecondition::Screen(gate) = self.precondition
+            && gate.first_revision > gate.revision
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        if matches!(
+            self.precondition,
+            SendPrecondition::Screen(_) | SendPrecondition::ScreenHold
+        ) && !self.records.screen_key()
         {
             return Err(ProtocolError::InvalidPayload);
         }

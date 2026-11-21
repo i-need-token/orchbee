@@ -6,11 +6,11 @@ use super::{PayloadReader, decode_host_identity, encode_host_identity};
 use crate::{
     HostTerminalIdentity, OperationId, ProtocolError, SendBytes, SendCleanupStatus,
     SendPasteContent, SendPrecondition, SendProgress, SendRecord, SendRecords, SendRejection,
-    SendText, SendTextInput, SendUnavailable, TerminalSendOutcome, TerminalSendRequest,
-    TerminalSendResult, WorkerGeneration, WorkerId,
+    SendScreenGate, SendText, SendTextInput, SendUnavailable, TerminalSendOutcome,
+    TerminalSendRequest, TerminalSendResult, WorkerGeneration, WorkerId,
 };
 use std::io::Read;
-use std::num::NonZeroU64;
+use std::num::{NonZeroU32, NonZeroU64};
 
 /// The send request never rides the standard OBCN frame: a `bytes` record
 /// alone may carry a megabyte of opaque payload, so the whole request is one
@@ -19,19 +19,26 @@ use std::num::NonZeroU64;
 pub(crate) const SEND_RECORD_MAGIC: [u8; 4] = *b"OBNS";
 const SEND_RECORD_HEADER: usize = 12;
 const SEND_RECORD_VERSION: u16 = 1;
-/// Flag bit 0 asks for [`SendPrecondition::IdlePrompt`]; every other bit is reserved zero, so
-/// a decoder that predates a flag refuses the record instead of ignoring it.
+/// The precondition word is one value, not a bit set: `0` none, `1` idle prompt, `2` screen and
+/// `4` screen hold. Any other value, a combination included, is refused, so a decoder that
+/// predates a precondition refuses the record instead of ignoring it.
 const IDLE_PROMPT_FLAG: u16 = 1;
+const SCREEN_FLAG: u16 = 2;
+const SCREEN_HOLD_FLAG: u16 = 4;
 /// request_id + worker_id + worker_generation + host identity (3×16) +
 /// attachment + record count.
 const SEND_RECORD_BODY_PREFIX: usize = 16 + 16 + 8 + 48 + 16 + 1;
 /// A semantic stroke uses kind, modifiers, key identity, and a u32 value.
 const SEND_RECORD_OVERHEAD: usize = 7;
+/// The gate a `Screen` request ends with: a u32 process ID, then the creation time, generation,
+/// revision and first revision as u64.
+const SCREEN_GATE_BYTES: usize = 4 + 8 + 8 + 8 + 8;
 /// Bounded body a decoder may allocate: the fixed identity prefix plus the
-/// record-count overhead plus the aggregate decoded payload bound.
+/// record-count overhead, the aggregate decoded payload bound and the screen gate.
 const MAXIMUM_SEND_RECORD_BODY: usize = SEND_RECORD_BODY_PREFIX
     + MAXIMUM_SEND_RECORDS_WIRE * SEND_RECORD_OVERHEAD
-    + crate::terminal_send::MAXIMUM_SEND_AGGREGATE_BYTES;
+    + crate::terminal_send::MAXIMUM_SEND_AGGREGATE_BYTES
+    + SCREEN_GATE_BYTES;
 const MAXIMUM_SEND_RECORDS_WIRE: usize = crate::terminal_send::MAXIMUM_SEND_RECORDS;
 
 const SEND_RESULT_KIND: u8 = 14;
@@ -125,6 +132,29 @@ fn decode_record_kind(reader: &mut PayloadReader<'_>) -> Result<SendRecord, Prot
     }
 }
 
+fn encode_screen_gate(bytes: &mut Vec<u8>, gate: SendScreenGate) {
+    bytes.extend_from_slice(&gate.pid.get().to_be_bytes());
+    bytes.extend_from_slice(&gate.creation_time.to_be_bytes());
+    bytes.extend_from_slice(&gate.generation.get().to_be_bytes());
+    bytes.extend_from_slice(&gate.revision.to_be_bytes());
+    bytes.extend_from_slice(&gate.first_revision.to_be_bytes());
+}
+
+fn decode_screen_gate(reader: &mut PayloadReader<'_>) -> Result<SendScreenGate, ProtocolError> {
+    let pid = NonZeroU32::new(reader.read_u32()?).ok_or(ProtocolError::InvalidPayload)?;
+    let creation_time = reader.read_u64()?;
+    let generation = NonZeroU64::new(reader.read_u64()?).ok_or(ProtocolError::InvalidPayload)?;
+    let revision = reader.read_u64()?;
+    let first_revision = reader.read_u64()?;
+    Ok(SendScreenGate {
+        pid,
+        creation_time,
+        generation,
+        revision,
+        first_revision,
+    })
+}
+
 /// Encode the whole request as one `OBNS` record frame. The record frame's
 /// own version stays 1: it versions this record encoding, not the protocol
 /// — the protocol version bump lives in the connection's frame header.
@@ -143,6 +173,9 @@ pub(crate) fn encode_request_record(
     for record in records {
         encode_record_kind(&mut body, record)?;
     }
+    if let SendPrecondition::Screen(gate) = request.precondition {
+        encode_screen_gate(&mut body, gate);
+    }
     if body.len() > MAXIMUM_SEND_RECORD_BODY {
         return Err(ProtocolError::PayloadTooLarge {
             actual: body.len(),
@@ -155,6 +188,8 @@ pub(crate) fn encode_request_record(
     let flags = match request.precondition {
         SendPrecondition::None => 0,
         SendPrecondition::IdlePrompt => IDLE_PROMPT_FLAG,
+        SendPrecondition::Screen(_) => SCREEN_FLAG,
+        SendPrecondition::ScreenHold => SCREEN_HOLD_FLAG,
     };
     frame.extend_from_slice(&flags.to_be_bytes());
     frame.extend_from_slice(
@@ -175,11 +210,10 @@ pub(crate) fn read_request_record(
     let mut header = [0_u8; SEND_RECORD_HEADER];
     header[..8].copy_from_slice(&prefix);
     reader.read_exact(&mut header[8..])?;
-    let (length, precondition) =
-        decode_record_header(&header).map_err(crate::ReadMessageError::from)?;
+    let (length, flags) = decode_record_header(&header).map_err(crate::ReadMessageError::from)?;
     let mut body = vec![0_u8; length];
     reader.read_exact(&mut body)?;
-    Ok(decode_request_body(&body, precondition))
+    Ok(decode_request_body(&body, flags))
 }
 
 /// Decode one complete in-memory `OBNS` frame.
@@ -189,27 +223,26 @@ pub(crate) fn decode_request_record(frame: &[u8]) -> Result<TerminalSendRequest,
         .ok_or(ProtocolError::InvalidPayload)?
         .try_into()
         .map_err(|_error| ProtocolError::InvalidPayload)?;
-    let (length, precondition) = decode_record_header(header)?;
+    let (length, flags) = decode_record_header(header)?;
     if frame.len() != SEND_RECORD_HEADER + length {
         return Err(ProtocolError::InvalidPayload);
     }
-    decode_request_body(&frame[SEND_RECORD_HEADER..], precondition)
+    decode_request_body(&frame[SEND_RECORD_HEADER..], flags)
 }
 
-fn decode_record_header(
-    header: &[u8; SEND_RECORD_HEADER],
-) -> Result<(usize, SendPrecondition), ProtocolError> {
+/// Checks the magic, version, precondition word and body bound of one request header, and returns
+/// the body length with the precondition word for [`decode_request_body`].
+fn decode_record_header(header: &[u8; SEND_RECORD_HEADER]) -> Result<(usize, u16), ProtocolError> {
     if header[..4] != SEND_RECORD_MAGIC {
         return Err(ProtocolError::InvalidMagic);
     }
     if u16::from_be_bytes([header[4], header[5]]) != SEND_RECORD_VERSION {
         return Err(ProtocolError::IncompatibleVersion { received: 1 });
     }
-    let precondition = match u16::from_be_bytes([header[6], header[7]]) {
-        0 => SendPrecondition::None,
-        IDLE_PROMPT_FLAG => SendPrecondition::IdlePrompt,
-        _ => return Err(ProtocolError::InvalidPayload),
-    };
+    let flags = u16::from_be_bytes([header[6], header[7]]);
+    if !matches!(flags, 0 | IDLE_PROMPT_FLAG | SCREEN_FLAG | SCREEN_HOLD_FLAG) {
+        return Err(ProtocolError::InvalidPayload);
+    }
     let length = usize::try_from(u32::from_be_bytes(
         header[8..12]
             .try_into()
@@ -222,13 +255,10 @@ fn decode_record_header(
             maximum: MAXIMUM_SEND_RECORD_BODY,
         });
     }
-    Ok((length, precondition))
+    Ok((length, flags))
 }
 
-fn decode_request_body(
-    body: &[u8],
-    precondition: SendPrecondition,
-) -> Result<TerminalSendRequest, ProtocolError> {
+fn decode_request_body(body: &[u8], flags: u16) -> Result<TerminalSendRequest, ProtocolError> {
     let mut reader = PayloadReader::whole(body);
     let request_id = OperationId::from_bytes(reader.read_array()?)?;
     let worker_id = WorkerId::from_bytes(reader.read_array()?)?;
@@ -245,6 +275,14 @@ fn decode_request_body(
     for _ in 0..count {
         records.push(decode_record_kind(&mut reader)?);
     }
+    // The screen gate follows the records, so the precondition word is resolved after them.
+    let precondition = match flags {
+        0 => SendPrecondition::None,
+        IDLE_PROMPT_FLAG => SendPrecondition::IdlePrompt,
+        SCREEN_FLAG => SendPrecondition::Screen(decode_screen_gate(&mut reader)?),
+        SCREEN_HOLD_FLAG => SendPrecondition::ScreenHold,
+        _ => return Err(ProtocolError::InvalidPayload),
+    };
     reader.finish()?;
     let request = TerminalSendRequest {
         request_id,

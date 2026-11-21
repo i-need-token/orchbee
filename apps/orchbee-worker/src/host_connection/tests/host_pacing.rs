@@ -39,6 +39,7 @@ fn host(pacing: Pacing) -> TestResult<(HostBrokerConnection, UnixStream)> {
             endpoint: std::path::PathBuf::new(),
             host_epoch: HostEpoch::from_bytes(EPOCH)?,
             prompt_gated_input: false,
+            screen_gated_input: false,
             negotiated_limits: NegotiatedHostLimits {
                 frame_bytes: 1_048_576,
                 input_bytes: 4096,

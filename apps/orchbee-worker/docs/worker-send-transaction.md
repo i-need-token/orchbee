@@ -9,7 +9,8 @@
   `attachment_id`; the model keeps a single `Target` and treats identity
   checking as exact. The pre-admission fence (wrong worker, stale generation,
   stale epoch, disposed terminal, an idle-prompt request whose Host did not
-  negotiate `prompt-gated-input`, negotiated-limit excess) is a declared
+  negotiate `prompt-gated-input`, a screen-gated request whose Host did not
+  negotiate `screen-gated-input`, negotiated-limit excess) is a declared
   exclusion: it is a deterministic local decision that emits zero Host bytes
   and contains no interleaving, so its evidence stays with the scripted fence
   test (`send_fence_rejections_never_reach_the_host`). The model starts at the
@@ -229,6 +230,19 @@ at a time and also carries interactive typing, so a wait would stall it. The cal
 precondition owns the single retry. Evidence is the in-crate scripted Host
 (`host_connection::tests::prompt_line_send`): the one-exchange line, the settling refusal, and the
 fence refusal with no Host bytes.
+
+## Screen-gated refinement
+
+A screen-gated request (`SendPrecondition::Screen`, or `SendPrecondition::ScreenHold` for a hold)
+carries exactly one unmodified Enter record. The Worker sends it as one Host `ScreenGatedKeyInput`
+between the transient attach and detach: a key the Host types only while the screen is still the
+frame the Server read, or a hold that types nothing and is accepted with zero bytes. Either is one
+exchange and is never split into, or replaced by, an ordinary key record. A Host whose `worker-host`
+handshake lacked `screen-gated-input` is refused in the fence as `HostScreenGateUnsupported` with
+not-needed cleanup. The Host's `screen-*` refusals are `InputRefused`, mapped to
+`ScreenRefused(state)`: they type nothing, so the result has zero progress and the attachment is
+still detached. Evidence is the in-crate scripted Host (`host_connection::tests::screen_gated_send`):
+the one-exchange key, the six refusals, the hold, and the fence refusal with no Host bytes.
 
 ## Semantic stroke refinement
 

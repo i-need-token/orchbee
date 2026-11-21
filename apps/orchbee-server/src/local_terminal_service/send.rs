@@ -318,6 +318,9 @@ fn worker_outcome(outcome: WorkerOutcome) -> Outcome {
                     WorkerRejection::HostPromptGateUnsupported => {
                         Rejected::HostPromptGateUnsupported
                     }
+                    // A Client send never carries a screen precondition, so these never arrive.
+                    WorkerRejection::ScreenRefused(_) => Rejected::HostRejected,
+                    WorkerRejection::HostScreenGateUnsupported => Rejected::HostRejected,
                     WorkerRejection::WrongWorker => unreachable!("handled above"),
                 },
                 progress: progress(cursor),

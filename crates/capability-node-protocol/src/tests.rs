@@ -1,6 +1,6 @@
 use std::{
     io::{self, Cursor, Read, Write},
-    num::{NonZeroU16, NonZeroU64},
+    num::{NonZeroU16, NonZeroU32, NonZeroU64},
 };
 
 use crate::{
@@ -1514,6 +1514,114 @@ fn idle_prompt_send_carries_its_flag_and_admits_only_one_prompt_line()
     Ok(())
 }
 
+/// A send frame with its precondition word replaced and its body set to `body`, with the declared
+/// length rebuilt so that it matches the bytes that follow.
+fn send_frame(encoded: &[u8], flags: u16, body: &[u8]) -> Vec<u8> {
+    let mut frame = encoded[..12].to_vec();
+    frame[6..8].copy_from_slice(&flags.to_be_bytes());
+    frame[8..12].copy_from_slice(&(body.len() as u32).to_be_bytes());
+    frame.extend_from_slice(body);
+    frame
+}
+
+#[test]
+fn screen_send_carries_its_flag_gate_and_one_enter() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::{SendKey, SendPrecondition, SendRecords, SendScreenGate};
+    let gate = SendScreenGate {
+        pid: NonZeroU32::new(4242).expect("nonzero"),
+        creation_time: 77,
+        generation: NonZeroU64::new(3).expect("nonzero"),
+        revision: 12,
+        first_revision: 11,
+    };
+    let mut gate_bytes = Vec::new();
+    gate_bytes.extend_from_slice(&4242_u32.to_be_bytes());
+    gate_bytes.extend_from_slice(&77_u64.to_be_bytes());
+    gate_bytes.extend_from_slice(&3_u64.to_be_bytes());
+    gate_bytes.extend_from_slice(&12_u64.to_be_bytes());
+    gate_bytes.extend_from_slice(&11_u64.to_be_bytes());
+    let request = |records: Vec<crate::SendRecord>,
+                   precondition: SendPrecondition|
+     -> Result<CapabilityNodeMessage, ProtocolError> {
+        let mut request = send_request(SendRecords::new(records)?);
+        request.precondition = precondition;
+        Ok(CapabilityNodeMessage::TerminalSendRequest(request))
+    };
+    let enter = stroke(SendKey::Enter, 0);
+    for (precondition, flags) in [
+        (SendPrecondition::Screen(gate), 2_u16),
+        (SendPrecondition::ScreenHold, 4),
+    ] {
+        let message = request(vec![enter.clone()], precondition)?;
+        let encoded = encode_message(&message)?;
+        assert_eq!(u16::from_be_bytes([encoded[6], encoded[7]]), flags);
+        assert_eq!(decode_message(&encoded)?, message);
+        assert_eq!(
+            read_message(&mut ChunkedReader::new(encoded.clone(), 5))?,
+            message
+        );
+    }
+    // The screen gate closes the body: pid, creation time, generation, revision, first revision.
+    let screen = encode_message(&request(
+        vec![enter.clone()],
+        SendPrecondition::Screen(gate),
+    )?)?;
+    let end = screen.len();
+    assert_eq!(&screen[end - 36..], gate_bytes.as_slice());
+
+    // Any other record shape fails to encode, and the same records with a gate appended fail to
+    // decode.
+    for records in [
+        vec![enter.clone(), enter.clone()],
+        vec![stroke(SendKey::Enter, 1)],
+        vec![paste(b"claude")],
+    ] {
+        for precondition in [SendPrecondition::Screen(gate), SendPrecondition::ScreenHold] {
+            assert_eq!(
+                encode_message(&request(records.clone(), precondition)?),
+                Err(ProtocolError::InvalidPayload)
+            );
+        }
+        let plain = encode_message(&CapabilityNodeMessage::TerminalSendRequest(send_request(
+            SendRecords::new(records)?,
+        )))?;
+        let gated = send_frame(&plain, 2, &[&plain[12..], gate_bytes.as_slice()].concat());
+        assert_eq!(decode_message(&gated), Err(ProtocolError::InvalidPayload));
+    }
+
+    // A gate in the wrong order, a zero process ID and a zero generation each fail to decode.
+    let mut late_first = screen.clone();
+    late_first[end - 8..].copy_from_slice(&13_u64.to_be_bytes());
+    let mut zero_pid = screen.clone();
+    zero_pid[end - 36..end - 32].fill(0);
+    let mut zero_generation = screen.clone();
+    zero_generation[end - 24..end - 16].fill(0);
+    for frame in [late_first, zero_pid, zero_generation] {
+        assert_eq!(decode_message(&frame), Err(ProtocolError::InvalidPayload));
+    }
+
+    // A hold carries no gate, and a screen request without its gate fails to decode.
+    let hold = encode_message(&request(vec![enter.clone()], SendPrecondition::ScreenHold)?)?;
+    let hold_with_gate = send_frame(&hold, 4, &[&hold[12..], gate_bytes.as_slice()].concat());
+    assert_eq!(
+        decode_message(&hold_with_gate),
+        Err(ProtocolError::InvalidPayload)
+    );
+    let screen_without_gate = send_frame(&screen, 2, &screen[12..end - 36]);
+    assert_eq!(
+        decode_message(&screen_without_gate),
+        Err(ProtocolError::InvalidPayload)
+    );
+    // Precondition words other than 0, 1, 2 and 4, combinations included, are refused.
+    for flags in [3, 5, 6, 8] {
+        assert_eq!(
+            decode_message(&send_frame(&screen, flags, &screen[12..])),
+            Err(ProtocolError::InvalidPayload)
+        );
+    }
+    Ok(())
+}
+
 #[test]
 fn prompt_refusals_carry_their_state_and_type_nothing() -> Result<(), Box<dyn std::error::Error>> {
     use crate::{
@@ -1564,6 +1672,63 @@ fn prompt_refusals_carry_their_state_and_type_nothing() -> Result<(), Box<dyn st
         let mut unknown = encoded.clone();
         unknown[8 + 19] = state;
         assert_eq!(decode_message(&unknown), Err(ProtocolError::InvalidPayload));
+    }
+    Ok(())
+}
+
+#[test]
+fn screen_refusals_carry_their_state_and_type_nothing() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::{
+        SendCleanupStatus, SendProgress, SendRejection, SendScreenState, TerminalSendOutcome,
+    };
+    let result = |reason, progress, cleanup| {
+        crate::TerminalSendResult::new(
+            OperationId::from_bytes([31; 16]).expect("id"),
+            TerminalSendOutcome::Rejected {
+                reason,
+                progress,
+                cleanup,
+            },
+        )
+    };
+    for (reason, cleanup) in [
+        (
+            SendRejection::ScreenRefused(SendScreenState::AgentGone),
+            SendCleanupStatus::Confirmed,
+        ),
+        (
+            SendRejection::ScreenRefused(SendScreenState::Changed),
+            SendCleanupStatus::Confirmed,
+        ),
+        (
+            SendRejection::ScreenRefused(SendScreenState::AlreadyTyped),
+            SendCleanupStatus::Confirmed,
+        ),
+        (
+            SendRejection::ScreenRefused(SendScreenState::InputPending),
+            SendCleanupStatus::Confirmed,
+        ),
+        (
+            SendRejection::ScreenRefused(SendScreenState::PersonInput),
+            SendCleanupStatus::Confirmed,
+        ),
+        (
+            SendRejection::ScreenRefused(SendScreenState::PersonRecent),
+            SendCleanupStatus::Unconfirmed,
+        ),
+        (
+            SendRejection::HostScreenGateUnsupported,
+            SendCleanupStatus::NotNeeded,
+        ),
+    ] {
+        let message = CapabilityNodeMessage::TerminalSendResult(result(
+            reason,
+            SendProgress::none(),
+            cleanup,
+        )?);
+        assert_eq!(decode_message(&encode_message(&message)?)?, message);
+        assert!(result(reason, SendProgress::stopped(0, 1), cleanup).is_err());
+        assert!(result(reason, SendProgress::complete(1, 1), cleanup).is_err());
     }
     Ok(())
 }
