@@ -32,78 +32,73 @@ checked inputs are unchanged does not need a duplicate gate or build.
 ## Affected verification
 
 `pnpm verify:changed -- <base>` is the daily root gate. `pnpm verify --changed-since <base>` is
-equivalent; add `--plan` to inspect the exact resolution without running checks. The base must resolve
-to an ancestor commit of HEAD, because only such a base bounds the change. A reference that does not
-resolve, or a commit that is not an ancestor, fails the command before any plan or check, also with
-`--plan`; its message names the reference and the two remedies: rebase onto it, or pass the fork
-point (`git merge-base <base> HEAD`) to check the branch as it stands. A base that does not bound
-the change therefore never yields an affected plan, and a typo or an unrebased branch is reported
-instead of silently running every suite.
-The resolver includes committed, staged, unstaged, deleted, renamed
-and nonignored untracked paths. It reads NUL-delimited Git output; both ends of a rename matter.
-It unions base-to-HEAD, HEAD-to-index and index-to-worktree changes so reverting a working file
-cannot hide its staged change.
-Hidden Git inputs, an unknown path or an unsupported dependency graph select the full test scope.
-An unrelated untracked file can therefore cause a full fallback; the resolver does not delete or
-ignore it.
+equivalent; add `--plan` to print the plan without running checks. `scripts/verification-scope.mjs`
+computes one immutable plan from the changed paths and the current pnpm and Cargo workspace graphs,
+and `scripts/run-checks.mjs` turns it into steps. `pnpm verify`, `pnpm test` and CI run every host
+check and suite and catch what a mapping here leaves out.
+
+### Base and changed paths
+
+The base must resolve to an ancestor commit of HEAD, because only such a base bounds the change. A
+reference that does not resolve, or a commit that is not an ancestor, fails the command before any
+plan or check, also with `--plan`; its message names the two remedies: rebase onto it, or pass the
+fork point (`git merge-base <base> HEAD`). The changed paths are the union of base-to-HEAD,
+HEAD-to-index and index-to-worktree changes plus nonignored untracked files, read from NUL-delimited
+Git output; both ends of a rename count. Hidden Git inputs (skip-worktree, assume-unchanged), an
+unknown path or an unsupported dependency graph select the complete gate, so an unrelated untracked
+file can cause a full run; the resolver does not delete or ignore it.
+
+### What always runs
+
+oxfmt and each workspace's own format check, the TLA inventory check, the library build, every
+command of the `lint` script except Clippy, type checking, and `test:lint-rules`, whose Markdown
+link check covers every tracked file. Their inputs cross every workspace. The changed gate reads the
+`format:check` and `lint` scripts from the root `package.json`, so a command added there runs in both
+gates.
+
+### What the plan narrows
+
+| Check                                                                     | Runs when                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| rustfmt and Clippy                                                        | A Cargo owner is selected. Clippy takes the selected members with `--package`; the lint task's source and manifest policies still cover the workspace. A change to `scripts/run-rust-workspace.mjs`, which holds those policies, lints every member.                        |
+| Workspace suites                                                          | Their owner is selected. pnpm suites use the normal workspace commands; Cargo members keep all targets, all features, the lockfile and documentation tests. Node suites finish before Rust tests start, and real-process tests first build the host executables they start. |
+| Root tooling suites and the TLA runner tests                              | A root tooling input changes: anything under `scripts/`, a root pnpm manifest, `knip.config.mjs`, or a workflow file. One suite also runs when a repository file it reads changes; `toolingSuites` in the scope script lists those files.                                   |
+| `test:exports`                                                            | A `packages/*` owner is selected or a root tooling input changes.                                                                                                                                                                                                           |
+| Terminal Host test compilation for `x86_64-linux-gnu` and `aarch64-macos` | Terminal Host Zig source or build files change. The host suite compiles for its own system only.                                                                                                                                                                            |
+
+An unselected suite is reported as unaffected: it is unexecuted, never a pass or a cache hit. There
+is no test-result cache; native compilers keep their normal incremental behavior.
+
+### Owners and consumers
+
+A changed path selects the workspace that contains it, then every transitive consumer across
+normal, development, optional, peer, build and target-specific local dependencies. The scope script
+also records the edges package managers do not show:
+
+- foreign edges for native process cohorts and Storybook discovery;
+- test witnesses, suites that run another owner's built artifact while their own is unchanged, which
+  join after closure without selecting their consumers;
+- vendored Cargo packages under `third-party/` that Cargo resolves for a member: a change there
+  selects the members that resolve it, and the package has no suite of its own; and
+- exact shared inputs: `schemas/terminal/` selects the Rust protocol crate, the TypeScript protocol
+  package, the Terminal Host and the connection handshake crate, whose registry test checks the
+  [frozen fixtures](../schemas/connection/README.md#frozen-fixtures); the listed `schemas/workbench/`
+  parity files and `schemas/connection/v1/connections.json` select their readers.
 
 A changed `package.json`, `pnpm-lock.yaml` or `pnpm-workspace.yaml` selects every pnpm owner, and a
-changed `Cargo.toml` or `Cargo.lock` selects every Cargo owner. A manifest inside an owner also
-selects that owner, whatever its package manager. Normal consumer closure follows, so the reviewed
-foreign edges carry the change across languages. A manifest change reaches no further than a change
-to every file of that package manager's owners, whose cross-language consumers those edges already
-record.
+changed `Cargo.toml` or `Cargo.lock` every Cargo owner; a manifest inside an owner also selects that
+owner. A workflow file selects the root tooling suites only: no test reads it, and its real check is
+its run on GitHub.
 
-Only expensive test scope is narrowed in this implementation. Formatting, TLA inventory, library
-preparation, lint, type checking, export checks and root tooling tests remain complete. Selected
-real-process tests prepare their required host executables before running; application bundles and
-unrelated native binaries are not prerequisites. There is no ordinary test-result cache or new
-build-result cache; native compilers retain their normal incremental behavior.
-Affected pnpm suites use the normal workspace commands. Affected Cargo
-members retain all targets, all features, the lockfile and documentation tests. Node suites finish
-before Rust tests start. `pnpm verify` and `pnpm test` run all host suites without cross-compilation.
+Documentation without a test reader selects no suite and reports `documentation <- <path>`:
+anything under `proposals/`, and Markdown under `docs/`, under `schemas/`, or directly at the
+repository root. The `docs/tui/` standards are the exception by review policy: they select the
+native terminal client. Markdown inside an owner selects that owner. Other files outside an owner
+remain unknown and select the complete gate.
 
-The private root verification owner maintains `scripts/verification-scope.mjs`. Its stateless policy
-takes current pnpm/Cargo workspace dependencies and changed paths, and returns one immutable plan.
-The plan contains the affected owner and transitive consumer closure across normal, development,
-optional, peer, build and target-specific local dependencies. Reviewed foreign edges also cover
-native process cohorts, shared protocol fixtures and Storybook discovery. A test witness, a suite
-that runs another owner's built artifact while its own artifact is unchanged, joins the plan after
-closure without selecting its consumers. A vendored Cargo package, a path package under
-`third-party/` that Cargo resolves for a member while the workspace excludes it, owns its directory
-without a suite of its own: a change there selects the members that resolve it and their closure,
-and it is never listed as unaffected. Other paths under `third-party/` remain unknown.
-Changes to those relationships must update the resolver and its positive controls in the same change.
-Missing or ambiguous owners fail conservatively. The command reports selected and unaffected suites
-separately from executed results; an unaffected suite is unexecuted, never a pass or a cache hit.
-
-Shared paths need explicit ownership. The existing `docs/tui/` standards select the native
-terminal client and its consumers by review policy; no test reads them. Root verification commands,
-their declared helpers/tests select root tooling evidence; the complete prerequisites above still
-run. New root helpers remain unknown until reviewed. The Rust module graph check, its test and the
-[Rust module record](LINTING.md#rust-module-record) are root tooling inputs: `lint` runs the check
-over the whole workspace in every gate, affected or not, in about two seconds, so tightening the
-record selects no suite.
-Documentation without a test consumer selects no suite and reports `documentation <- <path>`:
-anything under `proposals/`, which is never current authority, and Markdown under `docs/` or
-directly at the repository root, which no product test or build reads. The explicit mappings above
-claim their paths first. Other files under `docs/` or at the root remain unknown, and Markdown
-inside an owner selects that owner. A new test or build that reads such documentation must add an
-explicit mapping in the same change.
-
-The evidence is Git boundary fixtures, dependency-closure positive and negative controls, command
-selection witnesses and the existing real Cargo runner tests. These establish the supported ownership
-mapping, not arbitrary dynamic file access. New undeclared cross-owner inputs require a mapping or
-full fallback. Final evidence remains tied to unchanged checked inputs under the execution rules below.
-All host suites remain available to catch mapping omissions; CI continues running that baseline.
-This policy does not waive change-triggered TLA checks or establish a fixed latency guarantee.
-
-Changes under `schemas/terminal/` select the Rust protocol crate, TypeScript protocol package,
-and Terminal Host, then their normal consumer closure. Their existing test commands each run one
-independent check against `schemas/terminal/v1/constants.json`; fixture generators do not produce
-that registry. Canonical payload and native surface checks continue to read the same authority.
-They also select the connection handshake crate, whose registry test checks the
-[frozen fixtures](../schemas/connection/README.md#frozen-fixtures).
+A change that adds a cross-owner input, or a test that reads a file outside its owner, adds the
+mapping and its positive control in `scripts/verification-scope.test.mjs` in the same change. This
+policy does not waive change-triggered TLA checks.
 
 ## Execution and evidence
 

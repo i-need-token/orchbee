@@ -66,8 +66,12 @@ const taskArguments = process.argv.slice(3).filter((argument) => argument !== '-
 for (let index = 0; index < taskArguments.length; index += 1) {
 	if (taskArguments[index] === '--package') {
 		const name = taskArguments[++index];
-		if (task !== 'test' || name === undefined || !/^[a-z\d][a-z\d_-]*$/u.test(name))
-			throw new Error('--package requires a Cargo package name and the test task');
+		if (
+			!['test', 'lint'].includes(task) ||
+			name === undefined ||
+			!/^[a-z\d][a-z\d_-]*$/u.test(name)
+		)
+			throw new Error('--package requires a Cargo package name and the test or lint task');
 		selectedPackages.push(name);
 	} else if (taskArguments[index] === '--part') {
 		part = taskArguments[++index];
@@ -175,9 +179,13 @@ for (const name of selectedPackages) {
 const workspaceArguments = selectedPackages.length
 	? [...new Set(selectedPackages)].flatMap((name) => ['--package', name])
 	: ['--workspace'];
-const scopedCommand = command.flatMap((argument) =>
-	argument === '--workspace' ? workspaceArguments : [argument],
-);
+// With `--package`, Clippy and the tests cover the named members. The lint task's source and
+// manifest policies above always cover the whole workspace.
+const scoped = (cargoArguments) =>
+	cargoArguments.flatMap((argument) =>
+		argument === '--workspace' ? workspaceArguments : [argument],
+	);
+const scopedCommand = scoped(command);
 const documentationArguments = selectedPackages.length
 	? metadata.packages
 			.filter(
@@ -206,7 +214,7 @@ if (metadata.packages.length === 0) {
 				args: part === undefined ? scopedCommand : testPartCommand(part),
 			},
 			...(task === 'lint'
-				? [{ name: 'cargo lint product targets', command: 'cargo', args: productLint }]
+				? [{ name: 'cargo lint product targets', command: 'cargo', args: scoped(productLint) }]
 				: []),
 			// Of the parts, the workspace part runs every documentation test.
 			...(task === 'test' &&

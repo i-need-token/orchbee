@@ -1,8 +1,13 @@
+import { readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { checkVerbose, runChecks } from './check-output.mjs';
-import { resolveVerificationScope, verificationOptions } from './verification-scope.mjs';
+import {
+	resolveVerificationScope,
+	toolingSuiteNames,
+	verificationOptions,
+} from './verification-scope.mjs';
 
 function pnpmStep(name, args = [name]) {
 	const cli = process.env.npm_execpath;
@@ -14,6 +19,40 @@ function pnpmStep(name, args = [name]) {
 
 function nodeStep(name, args) {
 	return { name, command: process.execPath, args };
+}
+
+const tlaRunnerSuite = 'test:tla:runner';
+const tlaRunnerTests = nodeStep('TLA inventory and runner tests', [
+	'--test',
+	'--test-concurrency=4',
+	'scripts/tla/model-inventory.test.mjs',
+	'scripts/tla/model-checks.test.mjs',
+	'scripts/tla/document-scopes.test.mjs',
+	'scripts/tla/model-records.test.mjs',
+	'scripts/tla/model-cache.test.mjs',
+	'scripts/tla/execution-properties.test.mjs',
+	'scripts/tla/run-models.test.mjs',
+	'scripts/tla/toolchain.test.mjs',
+]);
+const tlaInventoryCheck = nodeStep('TLA inventory check', ['scripts/tla/check-inventory.mjs']);
+// Markdown links and the Chinese allowlist cover every tracked file, so this suite is a repository
+// check and runs for every change; the other root suites test the gate's own tools.
+const repositorySuite = 'test:lint-rules';
+const rustRunner = 'scripts/run-rust-workspace.mjs';
+
+// One step per command of a root script that chains commands with `&&`. The changed gate narrows
+// or leaves out single commands of `format:check` and `lint`; reading the script keeps it from
+// drifting away from the complete one.
+function scriptSteps(name) {
+	const scripts = JSON.parse(
+		readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+	).scripts;
+	return scripts[name].split(' && ').map((part) => {
+		const [program, ...args] = part.split(' ');
+		if (program === 'pnpm') return pnpmStep(args.length === 1 ? args[0] : part, args);
+		if (program === 'node') return nodeStep(part, args);
+		return pnpmStep(part, ['exec', program, ...args]);
+	});
 }
 
 function nativeTestPreparation(scope, platform) {
@@ -91,17 +130,9 @@ export function checkSteps(task, scope, platform = process.platform, rustPart) {
 		// Small independent gates overlap freely.
 		{
 			concurrent: [
-				'test:check-output',
-				'test:rust-runner',
-				'test:rust-modules',
-				'test:lint-rules',
-				'test:dependency-scope',
-				'test:ghostty-source',
-				'test:style-contract',
-				'test:storage-contract',
-				'test:stage-local-runtime',
-				'test:release-feed',
-				'test:agent-observation-adapters',
+				repositorySuite,
+				// The TLA runner tests are part of the `test:tla:inventory` stage here.
+				...toolingSuiteNames.filter((name) => name !== tlaRunnerSuite),
 			].map((name) => pnpmStep(name)),
 		},
 		pnpmStep('workspace tests', ['-r', 'test']),
@@ -165,59 +196,85 @@ export function checkSteps(task, scope, platform = process.platform, rustPart) {
 			'test:stage-local-runtime',
 			[nodeStep('local-runtime staging tests', ['--test', 'scripts/stage-local-runtime.test.mjs'])],
 		],
-		[
-			'test:tla:inventory',
-			[
-				nodeStep('TLA inventory and runner tests', [
-					'--test',
-					'--test-concurrency=4',
-					'scripts/tla/model-inventory.test.mjs',
-					'scripts/tla/model-checks.test.mjs',
-					'scripts/tla/document-scopes.test.mjs',
-					'scripts/tla/model-records.test.mjs',
-					'scripts/tla/model-cache.test.mjs',
-					'scripts/tla/execution-properties.test.mjs',
-					'scripts/tla/run-models.test.mjs',
-					'scripts/tla/toolchain.test.mjs',
-				]),
-				nodeStep('TLA inventory check', ['scripts/tla/check-inventory.mjs']),
-			],
-		],
+		['test:tla:inventory', [tlaRunnerTests, tlaInventoryCheck]],
 	]);
 	const steps = tasks.get(task);
 	if (steps === undefined) {
 		throw new Error(`Unknown check task: ${task ?? '<missing>'}`);
 	}
 	if (scope !== undefined && !scope.all) {
-		if (task === 'verify')
-			return steps.flatMap((step) =>
-				step.name === 'test' ? checkSteps('test', scope, platform) : [step],
-			);
-		if (task === 'test')
-			return [
-				steps[0],
-				...(scope.pnpm.length
-					? [
-							pnpmStep('affected workspace tests', [
-								'-r',
-								...scope.pnpm.flatMap((name) => ['--filter', name]),
-								'test',
-							]),
-						]
-					: []),
-				...(scope.cargo.length
-					? [
-							...nativeTestPreparation(scope, platform),
-							nodeStep('affected Rust workspace tests', [
-								'scripts/run-rust-workspace.mjs',
-								'test',
-								...scope.cargo.flatMap((name) => ['--package', name]),
-							]),
-						]
-					: []),
-			];
+		if (task === 'verify') return changedVerifySteps(scope, platform);
+		if (task === 'test') return changedTestSteps(scope, platform);
 	}
 	return steps;
+}
+
+// The changed gate. Format, build, lint and type checks of TypeScript, styles and dependencies
+// always run complete, because their inputs cross every workspace; the scope narrows the Rust
+// checks, the root tooling suites, the test suites and the export check.
+function changedVerifySteps(scope, platform) {
+	const packages = scope.cargo.flatMap((name) => ['--package', name]);
+	let rustLint = [];
+	if (scope.completeRustLint) rustLint = [pnpmStep('lint:rust')];
+	else if (scope.cargo.length > 0)
+		rustLint = [nodeStep('affected Rust lint', [rustRunner, 'lint', ...packages])];
+	return [
+		...scriptSteps('format:check').filter(
+			(step) => scope.cargo.length > 0 || !step.args.includes(rustRunner),
+		),
+		...(scope.tooling.includes(tlaRunnerSuite) ? [tlaRunnerTests] : []),
+		tlaInventoryCheck,
+		pnpmStep('build:packages'),
+		...scriptSteps('lint').flatMap((step) => (step.name === 'lint:rust' ? rustLint : [step])),
+		pnpmStep('typecheck'),
+		...changedTestSteps(scope, platform),
+		...(scope.packageExports ? [pnpmStep('test:exports')] : []),
+	];
+}
+
+function changedTestSteps(scope, platform) {
+	return [
+		{
+			concurrent: [repositorySuite, ...scope.tooling.filter((name) => name !== tlaRunnerSuite)].map(
+				(name) => pnpmStep(name),
+			),
+		},
+		...(scope.pnpm.length
+			? [
+					pnpmStep('affected workspace tests', [
+						'-r',
+						...scope.pnpm.flatMap((name) => ['--filter', name]),
+						'test',
+					]),
+				]
+			: []),
+		...(scope.cargo.length
+			? [
+					...nativeTestPreparation(scope, platform),
+					nodeStep('affected Rust workspace tests', [
+						rustRunner,
+						'test',
+						...scope.cargo.flatMap((name) => ['--package', name]),
+					]),
+				]
+			: []),
+		// The host suite compiles the Terminal Host for its own system only. Compiling its tests for
+		// the two POSIX release systems catches a break there before CI does.
+		...(scope.posixCompile
+			? ['x86_64-linux-gnu', 'aarch64-macos'].map((target) =>
+					pnpmStep(`Terminal Host test compilation for ${target}`, [
+						'--filter',
+						'@orchbee/terminal-host',
+						'exec',
+						'zig',
+						'build',
+						'test-compile',
+						'-j2',
+						`-Dtarget=${target}`,
+					]),
+				)
+			: []),
+	];
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

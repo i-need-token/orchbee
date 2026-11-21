@@ -895,6 +895,41 @@ test('explicit package selection retains unit, integration and doc tests and rej
 	});
 });
 
+test('package selection lints the named members and still applies the workspace policies', () => {
+	withFixture((root) => {
+		const rootManifest = join(root, 'Cargo.toml');
+		writeFileSync(
+			rootManifest,
+			readFileSync(rootManifest, 'utf8').replace(
+				'members = ["fixture"]',
+				'members = ["fixture", "sibling"]',
+			),
+		);
+		mkdirSync(join(root, 'sibling/src'), { recursive: true });
+		writeFileSync(
+			join(root, 'sibling/Cargo.toml'),
+			'[package]\nname = "runner-sibling"\nversion = "0.0.0"\nedition.workspace = true\nrust-version.workspace = true\npublish = false\n[lints]\nworkspace = true\n',
+		);
+		// A Clippy finding in a member the selection leaves out.
+		writeFileSync(join(root, 'sibling/src/lib.rs'), 'pub fn sibling() { let unused = 1; }\n');
+		const lock = run(root, 'cargo', ['generate-lockfile', '--offline']);
+		assert.equal(lock.status, 0, lock.output);
+		const lint = (...selection) =>
+			run(root, process.execPath, ['scripts/run-rust-workspace.mjs', 'lint', ...selection]);
+		const complete = lint();
+		assert.notEqual(complete.status, 0, complete.output);
+		assert.match(complete.output, /unused/u);
+		const selected = lint('--package', 'runner-fixture');
+		assert.equal(selected.status, 0, selected.output);
+		// A source policy finding outside the selection still fails: policies are not scoped.
+		mkdirSync(join(root, 'sibling/src/values'));
+		writeFileSync(join(root, 'sibling/src/values/mod.rs'), 'pub fn seven() -> u8 { 7 }\n');
+		const policy = lint('--package', 'runner-fixture');
+		assert.notEqual(policy.status, 0, policy.output);
+		assert.match(policy.output, /sibling\/src\/values\/mod\.rs/u);
+	});
+});
+
 test('the test parts together run every test exactly once', () => {
 	withFixture((root) => {
 		// The shape of the real client package: one binary, its heavy test target and another one.

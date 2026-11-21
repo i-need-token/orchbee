@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -10,6 +10,7 @@ import {
 	readVerificationGraph,
 	resolveVerificationScope,
 	selectVerificationScope,
+	toolingSuiteNames,
 	verificationOptions,
 } from './verification-scope.mjs';
 import { checkSteps } from './run-checks.mjs';
@@ -88,7 +89,11 @@ test('documentation without a test consumer selects no suite', () => {
 		'proposals/example/diagram.png',
 		'docs/TESTING.md',
 		'docs/frontend/react.md',
+		'docs/VERIFICATION.md',
 		'README.md',
+		'schemas/terminal/README.md',
+		'schemas/terminal/references/protocol.md',
+		'schemas/keeper/README.md',
 	]) {
 		const selected = selectVerificationScope(actual, [changed]);
 		assert.equal(selected.all, false, changed);
@@ -161,8 +166,6 @@ test('real workspace selection retains foreign fixture, resource, process and di
 	for (const changed of [
 		'schemas/terminal/v1/fixtures/sample.bin',
 		'schemas/terminal/v1/constants.json',
-		'schemas/terminal/README.md',
-		'schemas/terminal/references/protocol.md',
 	]) {
 		const protocol = selectVerificationScope(actual, [changed]);
 		assert.equal(protocol.all, false, protocol.reasons.join('\n'));
@@ -318,34 +321,148 @@ test('TUI standards retain native ownership without selecting every suite', () =
 	}
 });
 
-test('only declared verification helpers use root tooling evidence; new helpers remain conservative', () => {
+const stepNames = (steps) =>
+	steps.flatMap((step) => (step.name ? [step.name] : step.concurrent.map((member) => member.name)));
+
+test('a root tooling input selects every tooling suite and no workspace suite', () => {
 	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
 	for (const changed of [
 		'scripts/run-checks.mjs',
-		'scripts/run-rust-workspace.mjs',
-		'scripts/run-rust-workspace.test.mjs',
-		'scripts/verification-scope.mjs',
 		'scripts/verification-scope.test.mjs',
-		'scripts/rust-module-graph.mjs',
 		'scripts/rust-module-graph-record.txt',
 		'scripts/tla/run-models.mjs',
-		'scripts/tla/model-cache-cli.test.mjs',
-		'docs/VERIFICATION.md',
+		'scripts/tla/new-helper.mjs',
+		'scripts/release-publish.mjs',
+		'.github/workflows/verify.yml',
+		'.github/workflows/release.yml',
+		'knip.config.mjs',
 	]) {
 		const selected = selectVerificationScope(actual, [changed]);
 		assert.equal(selected.all, false, changed);
-		assert.deepEqual(selected.pnpm, []);
-		assert.deepEqual(selected.cargo, []);
-		assert.equal(checkSteps('test', selected).length, 1);
-		assert.deepEqual(
-			checkSteps('verify', selected)
-				.filter((step) => step.name)
-				.map((step) => step.name),
-			['format:check', 'test:tla:inventory', 'build:packages', 'lint', 'typecheck', 'test:exports'],
-		);
+		assert.deepEqual([...selected.pnpm, ...selected.cargo], [], changed);
+		assert.deepEqual(selected.tooling, toolingSuiteNames, changed);
+		const names = stepNames(checkSteps('verify', selected));
+		for (const suite of ['test:check-output', 'test:release-feed', 'test:exports'])
+			assert.ok(names.includes(suite), `${changed} must run ${suite}`);
+		assert.ok(names.includes('TLA inventory and runner tests'), changed);
+		assert.doesNotMatch(names.join('\n'), /workspace tests/u, changed);
 	}
-	for (const changed of ['scripts/tla/new-helper.mjs', 'formal/tla/New.tla'])
+	// A root pnpm manifest is a tooling input and reaches every pnpm workspace as well.
+	const manifest = selectVerificationScope(actual, ['package.json']);
+	assert.deepEqual(manifest.tooling, toolingSuiteNames);
+	assert.ok(manifest.pnpm.includes('@orchbee/web'));
+	// Anything else outside an owner stays conservative.
+	for (const changed of ['formal/tla/New.tla', '.github/dependabot.yml', 'tsconfig.base.json'])
 		assert.equal(selectVerificationScope(actual, [changed]).all, true, changed);
+});
+
+test('a tooling suite runs with the repository files it reads, and none runs for other changes', () => {
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	for (const [changed, suite, owner] of [
+		['apps/website/src/website/release.ts', 'test:release-feed', '@orchbee/website'],
+		['apps/orchbee/src/cli/update/signature.rs', 'test:release-feed', 'orchbee'],
+		['packages/design-tokens/src/tokens.css', 'test:style-contract', '@orchbee/design-tokens'],
+		[
+			'crates/agent-integration-writer/agent-observation-adapters/capsule.json',
+			'test:agent-observation-adapters',
+			'orchbee-agent-integration-writer',
+		],
+	]) {
+		const selected = selectVerificationScope(actual, [changed]);
+		assert.equal(selected.all, false, selected.reasons.join('\n'));
+		assert.deepEqual(selected.tooling, [suite], changed);
+		assert.ok([...selected.pnpm, ...selected.cargo].includes(owner), changed);
+	}
+	const registry = selectVerificationScope(actual, ['schemas/connection/v1/connections.json']);
+	assert.equal(registry.all, false, registry.reasons.join('\n'));
+	assert.deepEqual(registry.tooling, ['test:release-feed']);
+	assert.ok(registry.pnpm.includes('@orchbee/terminal-host'));
+	assert.ok(registry.cargo.includes('orchbee-connection-handshake'));
+	for (const changed of ['docs/TESTING.md', 'apps/web/src/main.tsx', 'apps/orchbee/src/main.rs']) {
+		const selected = selectVerificationScope(actual, [changed]);
+		assert.deepEqual(selected.tooling, [], changed);
+		const names = stepNames(checkSteps('verify', selected));
+		// Markdown links cover every tracked file, so that suite runs for any change.
+		assert.ok(names.includes('test:lint-rules'), changed);
+		assert.ok(!names.includes('test:check-output'), changed);
+		assert.ok(!names.includes('TLA inventory and runner tests'), changed);
+		assert.ok(names.includes('TLA inventory check'), changed);
+	}
+});
+
+test('the changed gate runs Clippy and rustfmt only for the affected Cargo owners', () => {
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	const rustSteps = (changed) => {
+		const selected = selectVerificationScope(actual, [changed]);
+		assert.equal(selected.all, false, selected.reasons.join('\n'));
+		const steps = checkSteps('verify', selected).filter(
+			(step) =>
+				step.name === 'lint:rust' ||
+				(step.args?.includes('scripts/run-rust-workspace.mjs') && !step.args.includes('test')),
+		);
+		return { selected, steps };
+	};
+	for (const changed of ['docs/TESTING.md', 'apps/web/src/main.tsx', 'packages/ui/src/x.ts'])
+		assert.deepEqual(rustSteps(changed).steps, [], changed);
+	const { selected, steps } = rustSteps('crates/terminal-protocol/src/lib.rs');
+	assert.deepEqual(
+		steps.map((step) => step.args.slice(-1)[0] === 'format:check'),
+		[true, false],
+	);
+	assert.deepEqual(steps[1].args, [
+		'scripts/run-rust-workspace.mjs',
+		'lint',
+		...selected.cargo.flatMap((name) => ['--package', name]),
+	]);
+	assert.ok(selected.cargo.length > 1 && selected.unaffected.length > 0);
+	// The runner holds the workspace's lint policies, so its change lints every member.
+	assert.deepEqual(
+		rustSteps('scripts/run-rust-workspace.mjs').steps.map((step) => step.name),
+		['lint:rust'],
+	);
+	// Every other command of the complete lint script runs for any change.
+	const scripts = JSON.parse(
+		readFileSync(path.resolve(import.meta.dirname, '../package.json'), 'utf8'),
+	).scripts;
+	const always = scripts.lint
+		.split(' && ')
+		.map((part) => part.replace(/^pnpm /u, ''))
+		.filter((name) => name !== 'lint:rust');
+	const names = stepNames(checkSteps('verify', selectVerificationScope(actual, ['README.md'])));
+	for (const name of always) assert.ok(names.includes(name), name);
+});
+
+test('a Terminal Host source change compiles its tests for the two POSIX release systems', () => {
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	const compilation = (changed) =>
+		checkSteps('verify', selectVerificationScope(actual, [changed]), 'win32').filter((step) =>
+			step.args?.includes('test-compile'),
+		);
+	for (const changed of ['apps/terminal-host/src/main.zig', 'apps/terminal-host/build.zig']) {
+		const steps = compilation(changed);
+		assert.deepEqual(
+			steps.map((step) => step.args.at(-1)),
+			['-Dtarget=x86_64-linux-gnu', '-Dtarget=aarch64-macos'],
+			changed,
+		);
+		for (const step of steps) assert.ok(step.args.includes('@orchbee/terminal-host'), changed);
+	}
+	for (const changed of ['apps/terminal-host/README.md', 'apps/orchbee/src/main.rs'])
+		assert.deepEqual(compilation(changed), [], changed);
+});
+
+test('the export check runs for a library package or a tooling change only', () => {
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	for (const [changed, expected] of [
+		['packages/ui/src/component.ts', true],
+		['scripts/check-package-exports.mjs', true],
+		['apps/web/src/main.tsx', false],
+		['apps/orchbee/src/main.rs', false],
+		['docs/PACKAGES.md', false],
+	]) {
+		const names = stepNames(checkSteps('verify', selectVerificationScope(actual, [changed])));
+		assert.equal(names.includes('test:exports'), expected, changed);
+	}
 });
 
 test('Git selection covers committed, staged, dirty, untracked, removed and rename paths', (t) => {
@@ -457,10 +574,12 @@ test('verification CLI rejects incomplete/duplicate scope and preserves verbose 
 test('affected gate preserves check prerequisites and Node-before-Rust ordering without cross compilation', () => {
 	const selected = selectVerificationScope(graph, ['packages/protocol/src/main.ts']);
 	const steps = checkSteps('verify', selected);
-	assert.deepEqual(
-		steps.slice(0, 5).map((step) => step.name),
-		['format:check', 'test:tla:inventory', 'build:packages', 'lint', 'typecheck'],
-	);
+	// Dependency lint and type checks read the packages' build output.
+	const position = (name) => steps.findIndex((step) => step.name === name);
+	assert.ok(position('build:packages') >= 0);
+	for (const dependent of ['lint:dependencies', 'typecheck'])
+		assert.ok(position('build:packages') < position(dependent), dependent);
+	assert.ok(position('typecheck') < position('affected workspace tests'));
 	const node = steps.findIndex((step) => step.name === 'affected workspace tests');
 	const rust = steps.findIndex((step) => step.name === 'affected Rust workspace tests');
 	assert.ok(node < rust);

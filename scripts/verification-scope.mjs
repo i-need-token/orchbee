@@ -39,6 +39,11 @@ const foreignPaths = [
 // full gate until their consumers are recorded here.
 const sharedContractInputs = [
 	[
+		// The Host embeds the registry and both sides hash it into the development fingerprint.
+		'schemas/connection/v1/connections.json',
+		['apps/terminal-host', 'crates/connection-handshake'],
+	],
+	[
 		'schemas/workbench/v1/workbench-action-identities-v1.json',
 		['apps/web', 'packages/tab-strip', 'apps/orchbee/crates/workbench-client'],
 	],
@@ -65,47 +70,52 @@ const tuiStandards = new Set(
 		'visual-foundations',
 	].map((name) => `docs/tui/${name}.md`),
 );
-const rootToolInputs = new Set([
-	'scripts/run-checks.mjs',
-	'scripts/run-rust-workspace.mjs',
-	'scripts/run-rust-workspace.test.mjs',
-	'scripts/check-output.mjs',
-	'scripts/check-output.test.mjs',
-	'scripts/verification-scope.mjs',
-	'scripts/verification-scope.test.mjs',
-	// The Rust module graph check runs complete in `lint`, and its test with the root tooling tests.
-	'scripts/rust-module-graph.mjs',
-	'scripts/rust-module-graph.test.mjs',
-	'scripts/rust-module-graph-record.mjs',
-	'scripts/rust-module-graph-record.txt',
-	'docs/VERIFICATION.md',
-	'docs/MODELING-AND-CORRECTNESS.md',
-	...[
-		'check-inventory.mjs',
-		'document-scopes.mjs',
-		'document-scopes.test.mjs',
-		'execution-properties.test.mjs',
-		'model-cache-cli.test.mjs',
-		'model-mutations.test.mjs',
-		'test-support/child-process.mjs',
-		'toolchain.mjs',
-		'toolchain.test.mjs',
-		'model-cache-identity.mjs',
-		'model-cache.mjs',
-		'model-cache.test.mjs',
-		'model-checks.mjs',
-		'model-checks.test.mjs',
-		'model-inputs.mjs',
-		'model-inventory.mjs',
-		'model-inventory.test.mjs',
-		'model-records.mjs',
-		'model-records.test.mjs',
-		'models.json',
-		'README.md',
-		'run-models.mjs',
-		'run-models.test.mjs',
-	].map((name) => `scripts/tla/${name}`),
+// The root tooling suites test the gate's own tools, mostly on fixtures. A root tooling input, which
+// no workspace owns, selects all of them and no workspace suite. A suite also runs when a
+// repository file it reads changes (an input ending in `/` is a directory); that file keeps its
+// own owner as well.
+const rootToolingManifests = new Set([
+	'package.json',
+	'pnpm-lock.yaml',
+	'pnpm-workspace.yaml',
+	'knip.config.mjs',
 ]);
+const workflowFile = /^\.github\/workflows\/[^/]+\.ya?ml$/u;
+const toolingSuites = [
+	['test:check-output', []],
+	['test:rust-runner', []],
+	['test:rust-modules', []],
+	['test:dependency-scope', ['apps/storybook/package.json']],
+	['test:ghostty-source', []],
+	['test:style-contract', ['packages/design-tokens/', 'packages/ui/']],
+	['test:storage-contract', []],
+	['test:stage-local-runtime', ['apps/terminal-host/scripts/windows-conpty.mjs']],
+	[
+		'test:release-feed',
+		[
+			'schemas/connection/v1/connections.json',
+			'apps/orchbee/npm/',
+			'apps/orchbee/src/cli/update/signature.rs',
+			'apps/orchbee/src/cli/update/tests/fixtures/',
+			'apps/website/src/website/release.ts',
+		],
+	],
+	['test:agent-observation-adapters', ['crates/agent-integration-writer/']],
+	['test:tla:runner', []],
+];
+// The complete Rust lint runs for a change to the runner that holds its policies.
+const rustLintTool = 'scripts/run-rust-workspace.mjs';
+// Zig sources that the Windows host suite compiles for Windows only.
+const posixCompileInputs = [
+	'apps/terminal-host/src/',
+	'apps/terminal-host/build/',
+	'apps/terminal-host/build.zig',
+	'apps/terminal-host/build.zig.zon',
+];
+const matchesInput = (changed, input) =>
+	input.endsWith('/') ? changed.startsWith(input) : changed === input;
+
+export const toolingSuiteNames = Object.freeze(toolingSuites.map(([name]) => name));
 function capture(root, command, args, stdio) {
 	return execFileSync(command, args, {
 		cwd: root,
@@ -322,10 +332,28 @@ export function selectVerificationScope(graph, paths) {
 	try {
 		validateGraph(graph);
 		const selected = new Set();
+		const tooling = new Set();
 		const reasons = [];
+		let completeRustLint = false;
+		let posixCompile = false;
 		// Nested Cargo members own their source before the enclosing application's prefix.
 		const owners = graph.toSorted((left, right) => right.root.length - left.root.length);
 		for (const changed of paths) {
+			if (changed === rustLintTool) completeRustLint = true;
+			if (posixCompileInputs.some((input) => matchesInput(changed, input))) posixCompile = true;
+			for (const [suite, inputs] of toolingSuites) {
+				if (inputs.some((input) => matchesInput(changed, input))) tooling.add(suite);
+			}
+			if (
+				changed.startsWith('scripts/') ||
+				workflowFile.test(changed) ||
+				rootToolingManifests.has(changed)
+			) {
+				for (const [suite] of toolingSuites) tooling.add(suite);
+				reasons.push(`root tooling <- ${changed}`);
+				// A root pnpm manifest also reaches every pnpm workspace below.
+				if (!pnpmManifestName.test(changed)) continue;
+			}
 			const manager = [
 				['pnpm', pnpmManifestName],
 				['cargo', cargoManifestName],
@@ -342,8 +370,18 @@ export function selectVerificationScope(graph, paths) {
 				}
 				continue;
 			}
-			if (rootToolInputs.has(changed)) {
-				reasons.push(`root tooling <- ${changed}`);
+			// Proposals are never current authority, and repository standards, root Markdown and the
+			// schema directories' Markdown have no test reader; Markdown inside an owner stays with
+			// that owner.
+			if (
+				!tuiStandards.has(changed) &&
+				(changed.startsWith('proposals/') ||
+					(changed.endsWith('.md') &&
+						(changed.startsWith('docs/') ||
+							changed.startsWith('schemas/') ||
+							!changed.includes('/'))))
+			) {
+				reasons.push(`documentation <- ${changed}`);
 				continue;
 			}
 			if (changed.startsWith('schemas/terminal/')) {
@@ -371,16 +409,6 @@ export function selectVerificationScope(graph, paths) {
 				}
 				continue;
 			}
-			// Proposals are never current authority, and repository standards and root Markdown
-			// have no test reader; Markdown inside an owner stays with that owner.
-			if (
-				!tuiStandards.has(changed) &&
-				(changed.startsWith('proposals/') ||
-					(changed.endsWith('.md') && (changed.startsWith('docs/') || !changed.includes('/'))))
-			) {
-				reasons.push(`documentation <- ${changed}`);
-				continue;
-			}
 			const owner = owners.find((entry) =>
 				tuiStandards.has(changed)
 					? entry.root === 'apps/orchbee'
@@ -390,8 +418,7 @@ export function selectVerificationScope(graph, paths) {
 			selected.add(owner.root);
 			reasons.push(`${owner.root} <- ${changed}`);
 			for (const [input, consumer] of foreignPaths) {
-				const matchesInput = input.endsWith('/') ? changed.startsWith(input) : changed === input;
-				if (!matchesInput) continue;
+				if (!matchesInput(changed, input)) continue;
 				if (!graph.some((entry) => entry.root === consumer))
 					throw new Error(`Missing foreign input consumer ${consumer}`);
 				selected.add(consumer);
@@ -437,6 +464,13 @@ export function selectVerificationScope(graph, paths) {
 					.map((entry) => entry.root)
 					.toSorted(),
 			),
+			tooling: Object.freeze(toolingSuiteNames.filter((name) => tooling.has(name))),
+			completeRustLint,
+			posixCompile,
+			// The export checker reads each library package's manifest and build output.
+			packageExports:
+				tooling.size === toolingSuites.length ||
+				[...selected].some((root) => root.startsWith('packages/')),
 			reasons: Object.freeze(reasons),
 		});
 	} catch (error) {
