@@ -66,6 +66,35 @@ fn prefix_preserves_sources_and_rejects_local_and_conflicting_modes() {
             "{args:?}"
         );
     }
+    // A command that runs only here is refused as one that cannot run on another machine, never as
+    // an invalid `--machine`, which is a valid option.
+    for args in [
+        vec!["--machine", "work"],
+        vec!["--machine=work", "status", "client"],
+        vec!["--machine=work", "tui"],
+        vec!["--machine=work", "update"],
+        vec!["--machine=work", "doctor"],
+        vec!["--machine=work", "terminal", "attach", "@terminal:0x22"],
+    ] {
+        let failure = parse_request(args.iter().map(Into::into)).unwrap_err();
+        assert!(
+            matches!(failure.usage, Some(UsageReason::UnroutableCommand { .. })),
+            "{args:?}: {:?}",
+            failure.usage
+        );
+    }
+    assert_eq!(
+        parse_request(
+            ["--machine=work", "status", "client"]
+                .into_iter()
+                .map(Into::into)
+        )
+        .unwrap_err()
+        .usage,
+        Some(UsageReason::UnroutableCommand {
+            context: UsageContext::Path("status client")
+        })
+    );
     assert!(matches!(
         parse_request(
             ["--machine=no-such-host", "workspace", "--help"]

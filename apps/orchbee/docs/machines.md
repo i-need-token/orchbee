@@ -367,7 +367,9 @@ option may stand anywhere before `--`, accepts `--machine=value`, may appear onc
 with `--session`, and never changes the catalog. An option's value is never read as it. Help is local. Remote execution admits CLI commands
 for workspace, tab, panel, Client queries/control, terminal queries/send, Agent operations, worktrees,
 notifications, runtime configuration, manifests, `operation status <id>`, and supported plugin
-operations. Local management, installation, TUI, and terminal interactive streams are refused.
+operations. Local management, installation, TUI, and terminal interactive streams are refused
+before anything is read: a usage failure with exit 2 whose sentence names the command and says it
+cannot run on another machine, since the option itself is valid.
 `server stop` is never routed as a command line: with the prefix it is the
 [remote Session stop](#remote-session-stop), and a far end of this build refuses an older near
 side's routed `server stop` as not submitted (`remote-rejected-or-interrupted`, exit 5).

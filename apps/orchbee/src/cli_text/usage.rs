@@ -448,6 +448,22 @@ impl super::CliText {
                 },
                 hint(*ctx),
             ),
+            UsageReason::UnroutableCommand { context: ctx } => (
+                match (self.locale, ctx) {
+                    (Locale::EnUs, UsageContext::Root) => {
+                        "'orchbee' without a command cannot run on another machine.".to_owned()
+                    }
+                    (Locale::ZhCn, UsageContext::Root) => {
+                        "不带命令的 'orchbee' 不能在其他机器上运行。".to_owned()
+                    }
+                    (Locale::EnUs, _) => {
+                        format!("'{}' cannot run on another machine.", context(*ctx))
+                    }
+                    (Locale::ZhCn, _) => format!("'{}' 不能在其他机器上运行。", context(*ctx)),
+                },
+                // The root help describes '--machine'.
+                hint(UsageContext::Root),
+            ),
             UsageReason::DuplicateOption { option } => (
                 match self.locale {
                     Locale::EnUs => format!("Option '{option}' was given more than once."),

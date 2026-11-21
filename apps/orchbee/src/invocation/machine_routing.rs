@@ -135,9 +135,8 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     }
     let (format, input) = admit(&selected.request).ok_or_else(|| {
         usage_with(
-            UsageReason::UnexpectedOption {
-                context: UsageContext::Root,
-                option: "--machine",
+            UsageReason::UnroutableCommand {
+                context: scan::command_context(&arguments),
             },
             envelope,
         )

@@ -170,6 +170,10 @@ pub(crate) enum UsageReason {
         context: UsageContext,
         option: &'static str,
     },
+    /// `--machine` with a command that runs only on this machine; the option itself is valid.
+    UnroutableCommand {
+        context: UsageContext,
+    },
     DuplicateOption {
         option: &'static str,
     },

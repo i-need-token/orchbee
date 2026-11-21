@@ -35,7 +35,7 @@ static VALUE_FLAGS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock
 /// consumed as a value.
 /// The longest command or family path spelled by the leading words, for
 /// diagnostics raised before the grammar runs. Option values are skipped.
-fn command_context(tokens: &[String]) -> UsageContext {
+pub(super) fn command_context(tokens: &[String]) -> UsageContext {
     let words = leading_words(tokens);
     help_paths()
         .iter()
