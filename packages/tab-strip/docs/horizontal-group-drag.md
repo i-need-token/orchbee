@@ -158,17 +158,6 @@ corresponding environment event is received.
 | `committed`           | Final order is valid; collapsed intent is restored; the recorded member remains active                                     |
 | `settled`             | Drag overlay is absent and occupied slot bounds contain no undeclared overlap                                              |
 
-## Evidence map
-
-| Claim family                               | Lean                             | Property tests      | Deterministic system trace       | Upstream evidence                       |
-| ------------------------------------------ | -------------------------------- | ------------------- | -------------------------------- | --------------------------------------- |
-| Structural identities and membership       | `moveGroup` preservation         | Required            | Checkpoints                      | Source model behavior                   |
-| Whole-group movement and target boundaries | Permutation and contiguity       | Required            | Left and right traces            | Interactive UI tests                    |
-| Collapse and selection lifecycle           | Not applicable: stateful policy  | Required            | Expanded and collapsed traces    | Drag handler/controller source          |
-| Cancellation                               | Optional restoration lemma       | Required            | Escape and pointer-cancel traces | Controller revert path                  |
-| Dragged visual and displacement            | Not applicable: geometry adapter | Geometry properties | Required                         | Source layout plus recorded observation |
-| Settle and non-overlap                     | Not applicable: geometry adapter | Geometry properties | Required                         | Recorded observation                    |
-
 The semantic state owns `selectionAnchorId`; deterministic cancellation tests restore the exact captured authoritative state. DOM focus remains adapter state. The browser suite checks focused collapsed-header projection and Escape restoration of semantic and painted state.
 
 ## Implementation bridge
@@ -186,15 +175,3 @@ not transfer activation outside that group.
 Every counterexample is serialized as initial canonical state plus semantic events. DOM
 coordinates may be attached as system-test input, but the regression identity is the shortest
 semantic sequence that violates a named claim.
-
-## Completion criteria
-
-This behavior slice remains complete only while:
-
-- the pure transition is the only owner of scoped semantic decisions;
-- Lean checks group-move preservation without admitted obligations;
-- fixed-seed property tests cover directions, adjacent groups, collapsed and expanded sources,
-  commit, cancel, repeated events, and invalid targets;
-- deterministic browser traces cover every observable checkpoint;
-- mappings among TypeScript, Lean, and trace schemas remain documented; and
-- the package's unit tests, build, export contract, and repository verification continue to pass.

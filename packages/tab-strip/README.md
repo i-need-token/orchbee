@@ -94,14 +94,6 @@ src/
 Unit tests use Node by default. Tests that render components or Hooks opt into jsdom with
 `// @vitest-environment jsdom`; pure model, layout, and policy suites do not load a DOM environment.
 
-The general `TabModel` state machine has three complementary layers:
-
-- deterministic regressions preserve each known minimal counterexample;
-- bounded state-space exploration enumerates every modeled selection, close, pin, group, and keyboard-movement transition through depth three from a canonical grouped seed (15,497 transitions and 952 distinct states);
-- fixed-seed property tests exercise 200 reproducible action sequences of up to 100 transitions.
-
-An independent test invariant checker validates tab and group identity, the pinned prefix, contiguous group membership, active and selected identities, the selection anchor, and recent-group references after every transition. The production model asserts the same structural boundaries so invalid restored state and invalid intermediate mutations fail at their source.
-
 Drag restoration prepares copied membership and selection before validating the complete candidate.
 A structural refusal leaves the live model, snapshot, revision, and future mutations intact. It keeps
 the existing filtering of deleted tabs and stale selection, and appends current-only tabs; a candidate
@@ -120,15 +112,14 @@ Drag movement and direct group placement validate copied arrangements before rep
 Committed model notifications capture one listener cohort, skip listeners removed before their turn,
 and isolate observer exceptions. The synchronous arrangement handler records its commit immediately
 after restoration returns; cancellation or registration retirement during publication cannot relabel
-that committed result. The [model regressions](src/tab-strip/model/__tests__/tab-model.unit.test.ts)
-and [Action traces](src/tab-strip/hooks/__tests__/useTabStripActions.unit.test.ts) exercise rejection,
-continued model use, observer faults, retirement, and nested duplicate execution.
+that committed result.
 
 The shared [Tab configuration corpus](../../schemas/workbench/v1/tab-configuration-conformance-v1.json) compares GUI `TabModel` transitions with the Rust canonical authority for pinning, group creation, assignment, removal, metadata and group movement. Creating a new group from the middle member of a surviving group inserts after that source block, preserving contiguous membership without changing the active Tab.
 
 The context menu consumes `getTabCloseTargets` and `getGroupCloseTabIds`, and Workbench's Close Tabs after the active Tab consumes the trailing set. Their [close-target corpus](../../schemas/workbench/v1/tab-close-targets-conformance-v1.json) also runs against the native Client: target-in-selection controls the command set, relative Close excludes pinned/protected members, trailing begins after the rightmost selected Tab, and group Close includes collapsed members. This compares target policy; lifecycle sequencing and empty-group cleanup remain with each admitted host owner.
 
-Horizontal group drag carries a Lean proof for contiguous-block movement, generated implementation/property tests and deterministic browser traces. See the [correctness evidence](formal/README.md) for mapping, reproducible commands and limits. Local drag and grouping workflows have no separate TLA model.
+See the [correctness evidence](formal/README.md) for mapping, reproducible commands and limits.
+Local drag and grouping workflows have no separate TLA model.
 
 ```sh
 pnpm --filter @orchbee/tab-strip typecheck
