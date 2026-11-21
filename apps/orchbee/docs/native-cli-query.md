@@ -1,70 +1,24 @@
 # Native CLI Query
 
-## Canonical grammar boundary
+This document covers the native `orchbee` command line: queries, Workbench mutations, terminal observation and input. Queries observe an existing Session. Only `server start`, `server connect`, the TUI startup path, and `workspace create`, `project create`, `worktree create` and `worktree open` may activate a Session; those four creating commands start the selected Session first when it is not running, exactly as `server start` would. Agent state comes from the Server's canonical model, never terminal-text inference. CLI commands need no TTY; the interactive TUI has separate terminal admission requirements.
 
-Panel-family commands use a positional Panel or `--current`. Agent targets additionally accept `--terminal` and `@terminal:` for exact child or primary terminals. Agent startup takes the provider as an operand, such as `antigravity`; `antigravity-cli` stays a private adapter identity. CLI event names use `panel.*` in event/filter input and v1 receipts. Terminal and Agent reads use `--source`/`--lines`; the read/history projection descriptions below cover internal content evidence. Source waits default to 30000 ms, with `--forever` as the explicit unlimited form.
+The grammar, result documents, failure kinds, limits and budgets are declared in `src/invocation/grammar/`, the embedded schema catalog (`orchbee api schema`) and the help text. This document keeps what those cannot say: boundaries, reasons, operating-system facts and cross-process rules.
+
+## Canonical grammar boundary
 
 `src/invocation/grammar/` is the single declarative Rust syntax authority. Its const/static records own paths, option storage bindings and scopes, closed values, operand limits, targets, conflicts, repeatability, execution availability and the schema dictionary. The hand-written parser in `src/invocation.rs`, help directories/options, and Bash/Zsh/Fish/PowerShell/Elvish adapters consume those records. POSIX shells receive a literal metadata projection; PowerShell and Elvish receive JSON. Shell adapters interpret syntax without probing runtime state or evaluating user input. There is no parser framework or parallel command/option table. Localized descriptions and examples remain authored product copy; parser-backed examples and real-shell witnesses cover behavior that structural derivation cannot prove.
 
 Syntax and discovery are identical on Windows, Linux and macOS. Unsupported execution returns `stage: "platform"`, `reason: "unsupported-platform"`, exit `4`, in either locale. Parsed requests preserve omitted Agent wait conditions/timeouts and opaque list cursors; each existing backend retains its own defaults, cursor encoding and observation behavior. Unix Workspace creation still uses its existing Workbench create/launch adapter for supported requests. No retired flag, suffix selector, environment fallback or configuration import is restored.
 
-Agent startup, saved-machine management and relay, and configuration reporting keep preparation, settlement and presentation in shared CLI owners. Capability admission precedes environment reads, signal registration, connections and persistence for unavailable operations. Named native ports retain Windows interrupt arbitration, SSH process ownership and bounded input acquisition; Unix refusal does not change existing supported query or configuration-check results. Configuration checks and Server diagnosis share classification and report assembly; native ports retain path encoding, scope discovery and metadata/private-activation observations. Linux and Windows keep their existing observations and field support, while macOS refuses before environment or filesystem inspection.
-
-Agent projection reads, exact terminal metadata, Client attention interpretation and retained Client exchanges share their protocol and rendering owners. Native interrupt borrowing does not register another handler or replace Unix cancellation. Projection admission precedes effects; canonical Unix Agent reads keep their current selectors and `AgentListCursor`, while the projection backend decodes its own cursor. Windows and macOS admit the projection, per-Client Agent attention and Client control; where this document qualifies those three contracts as Windows, macOS behaves the same, and their Unix or other-platform statements describe Linux.
-
-Workspace-group closure, Worktree operations and source queries keep request preparation, retained observation and post-open focus receipts in shared workflows. Their capability admission runs before literal-path resolution or operation ID generation. The executing CLI resolves literal path operands in its host's grammar, the Windows drive grammar on Windows and the POSIX grammar on macOS and Linux, without touching the filesystem; compiling a decoder on another host does not enable filesystem or Git operations there. A completed canonical operation is not erased by a failed or cancelled Client-focus observation. Canonical terminal reads/waits, launch-profile catalog and close status classification also compile in shared owners; Linux and Windows keep their existing query paths, while macOS refuses before discovery or signal registration. Worktree listing compiles in the same shared owner and runs on Windows and macOS.
-
-Client navigation/swap, reusable layouts and direct terminal-member creation share selection, protocol exchanges, recovery and receipt presentation. macOS admits Client navigation/swap, reusable layouts and direct terminal-member creation, which borrow the CLI interrupt-pair port. Layout document input uses the shared source reader, and layout executable lookup follows the host's search rules; Linux rejects these commands before preparation effects. The existing Linux Workbench mutation route remains admitted; sharing its receipt engine does not admit that route on macOS.
-
-Workbench and terminal-list enrichment share bounded canonical/physical reads, passive Client observations and their human renderers. Their Windows capability is checked before discovery. Existing Unix lists, current-Panel selection and process queries retain their original paths and outputs; optional Client-specific queries still refuse before signals or connection setup.
-
-Report submission, Agent manifest maintenance and runtime-status collection share their protocol settlement and rendering owners. Native installation observation remains a Windows port: only a missing release file means a development cohort, and failed verification remains unavailable. Unsupported hosts refuse these commands before signal, environment or filesystem effects.
-
-Plugin catalog/runtime commands, configured commands and named-Session commands share preparation, settlement and presentation. Plugin provisioning obtains a native process runner; Unix refusal never fabricates a process outcome. Creation and relocation keep their shared canonical and Client receipts, while the existing explicit Unix Tab, Panel and Workspace routes retain their own request requirements. Capability selection precedes launch-path resolution and preserves Windows execution order.
-
-Terminal selection, copy and link workflows share bounded buffer validation and exact link-activation receipts. Their execution capabilities are checked before signal registration or Session discovery; link activation still detaches its viewer before submitting its one effect.
+Where this document qualifies the Agent projection, per-Client Agent attention or Client control as Windows, macOS behaves the same; their Unix or other-platform statements describe Linux.
 
 Terminal observation, control, attachment and Pane graphics share protocol, framing, acknowledgement and cleanup workflows. Windows adapters own the stdin helper and stdout relay processes, and a command starts its budgets only after its helpers report ready; macOS and Linux adapters read the inherited stdin and write the inherited stdout in place, each read or write gated by a zero-timeout poll, writes bounded by `PIPE_BUF`, and never switch the shared descriptors to nonblocking mode. Shared polling interprets their actual byte, EOF and exit observations. A host that does not admit a command refuses before terminal admission, signal registration or helper creation; macOS admits all of these commands, and Linux none. Pane graphics and the terminal streams observe interrupts through the CLI interrupt-pair port, which delegates to the existing Windows guard or the macOS signal producer.
 
-Agent waits, names and retained close operations share exchange, cancellation settlement and presentation owners. Omitted wait options use the unchanged defaults from named platform policy owners. The CLI interrupt-pair port delegates to the existing Linux or Windows signal producer; the held Client Connection is still dropped before its single finish arbitration. Windows waits retain contiguous history and optional Client evidence, while Linux waits retain sampled canonical observations and their existing output fields. List/Get dispatch and canonical result rendering compile in the same owners on every host. macOS keeps its bounded canonical list path without signal registration; unavailable read capabilities refuse before signal or Session effects.
-
-Event subscription/wait, exact-terminal clear, Agent view specification and offline channel reporting share their existing protocol, retained outcome and rendering workflows. Capability admission precedes signal registration, request identities and preference reads on unsupported hosts. Event cleanup still drops the relay before the original console guard performs its one final arbitration; a lost clear or view mutation keeps its unknown-outcome receipt.
-
 ## Sessions and background services
-
-Named-Session and runtime-status reports share a narrow native Server metadata exchange port.
-Windows delegates the original endpoint, absolute deadline and cancellation borrow unchanged;
-Unix reports unsupported without opening a connection. Their existing entry admission still
-precedes environment and signal effects.
-Named-Session activation-marker observation and private-diagnosis endpoint spelling also use
-native ports; unavailable ports inspect no runtime files and invent no endpoint paths.
-
-An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,
-Panels, terminals and Agents. Its background service owns the shared state and processes;
-CLI and TUI Clients connect to it. Leaving a Client keeps those programs running.
-Start with the default Session and use Workspaces to organize ordinary work. Named Sessions, on
-Windows and macOS, provide separate runtime endpoints and persisted state for independent sets of
-terminal programs.
-
-`--session <name>` selects that environment; `session list/attach/stop/delete` manages named
-Sessions, while `server start/stop` and `config reload` manage the selected Session's
-background service. An **Agent session** identifies one Agent conversation/runtime record and
-is addressed by an ordinary Agent target. A protocol **Client Connection** identifies
-one admitted connection; it is not a separate work environment.
-
-Use `orchbee server -h` to list service commands and `orchbee server stop -h` for confirmed
-shutdown and recovery options. In PowerShell, use `.\orchbee.exe server -h` from the binary's
-directory, or invoke its full path when it is not on `PATH`.
 
 Only canonical CLI spellings are accepted. Session selection reads `ORCHBEE_SESSION` without a
 legacy fallback. Machine fields use `sessionId`, and service documents use `orchbee.server.*`;
 their versions remain `1`. This terminology boundary preserves Desktop's current runtime integration.
-
-## Schema versions for independent Agent status
-
-Every CLI machine document, including the offline API catalog, has one current contract and version `1`. Platform capabilities and options never select a document version or remove its members. A member unsupported on the platform is `{kind:"unsupported"}`; `null` means the source said none and `"unknown"` means the source cannot say. Whole-command platform refusal uses `stage: "platform"`, `reason: "unsupported-platform"`, and exit `4`. The [CLI output standard](../../../docs/cli/output.md#machine-documents) owns these rules.
-
-Agent List uses rows with separate canonical, terminal, placement and Client facets; Agent Get uses `{kind:"projected",agent,inspection}`. Windows and macOS join physical and canonical observations. Linux retains canonical observations and marks unavailable facets unsupported. `--client` selects evidence in existing members. Canonical and terminal subjects remain distinct tagged business variants.
 
 ## Current CLI discovery and platform contracts
 
@@ -78,55 +32,7 @@ unlisted options while they do nothing. The terminal geometry group `--cols`, `-
 the Client sizes new terminals, and a test harness may still pin the grid. `--cols` and `--rows`
 stay listed on `terminal session observe|control`.
 
-`--request-id`, `--retry`, `--detach` and `--generation` belong to stop, close and worktree
-operations and their `operation status|resume` recovery. Focus, resize, `panel maximize`,
-`layout set-split-ratio` and the Agent manifests commands refuse them as unknown options; they
-always generate the operation ID they report.
-
-Completion keeps local `--session` selection separate from Agent targets. Get/read/prompt/send-keys/wait/focus offer static `@agent:<kind>` provider aliases before a target; they never query runtime state or invent ordinal suggestions. In PowerShell, start an alias with a quote (for example, `'@agent:c`); completion inserts the full target as a safely single-quoted handle because an unquoted `@agent` token is parsed as splatting syntax. POSIX-shell adapters filter remote `--machine` paths using the same static grammar as PowerShell and Elvish, including nested families and root data commands. Known options and operands keep suffix `--help` discoverable; unsupported routing, duplicates and terminated options do not regain candidates.
-
-Snapshot v1 and Tab Get v1 admit the canonical optional split `ratio` (0.1–0.9); omitted means 0.5.
-
-Target help states ID/selector precedence: a display label shaped like an ID or a recognized `@kind:` selector is addressed through the resource’s real ID. Creation and rename keep the literal display label. `panel resize --amount` is a split-ratio step (default 0.05, absolute value capped at 0.5).
-
-A missing startup Panel identifies the target failure and directs users to `orchbee panel list`. A local update feed read failure directs users to the path and read permissions configured by `ORCHBEE_UPDATE_FEED`; its machine reason remains `download` at the manifest phase.
-
-Launch Profile list/get use version 1 and admit POSIX, drive-absolute and verbatim drive executable paths. `orchbee.doctor` version 1 keeps all five checks on every platform; a check the platform cannot make is `{kind:"unsupported"}`. Generic failures select closed details by semantic stage, including local plugin preparation at `stage: plugin`. Session catalog and startup environment failures preserve their failed runtime stage. Client selection diagnostics identify Clients and the applicable `--client` remedy.
-
-The event stream schema exposes typed filter input at `$defs/filter`; plugin runtime exposes
-context input at `$defs/context`. Help includes valid JSON examples and schema lookup hints.
-Schema validation describes structural input; CLI decoding also enforces semantic combinations,
-Unicode scalar decoding and UTF-8 byte bounds. Wide human tables use labeled records when
-their measured width exceeds 80 cells. Field blocks always separate labels and values, and
-full IDs remain available for copying; JSON projections are unchanged by text layout.
-
-## Workspaces and optional Projects
-
-Project listing follows the independent Navigation `projectOrder`, with canonical ID order when
-omitted or empty. ID/name lookup stays independent of display position; Workspace listing keeps
-using its independent `workspaceOrder`.
-
-Navigation has global `directories` and `workspaces` arrays; `projects` contain only ID/label. Workspace `projectId` is required-nullable. Project list/get v1 derive directories from member Workspaces; Workspace list/get v1 resolve globally and display ungrouped membership. `api snapshot` v1, Worktree query/list v1, Workspace close status (`orchbee.operation.close` v1) and catalog v1 publish these shapes. Semantic event stream/wait envelopes are v1: Workspace data carries grouping only on the nested Workspace, and Worktree operation metadata is nullable.
-
-`project create|rename|dissolve` manage Projects; `workspace set-project <workspace> --project <project>` changes grouping; `project dissolve <project>` ungroups all members and removes the Project. These change organization metadata only, retaining exact IDs, cwd, PTYs, directories and order. `workspace move` remains the separate reorder command. Projects can organize multiple repositories. Ordinary close affects only the selected Workspace; batch closure uses the explicit Project commands below.
-
-`orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends Enter in one input request. Supply one quoted string; text is preserved, and targets are exact IDs or `@terminal:0x<hex>`. The receipt confirms input submission, not Shell readiness, command completion or exit status; never replay partial or unknown delivery. [Command submission contract](native-terminal-run.md).
-
-Status: current implementation and correctness contract for the native `orchbee`
-command line, covering queries, Workbench mutations, terminal observation and input. Queries observe an existing Session; Workbench
-mutations follow the mutation contract below. Only `server start`, `server connect`, the
-TUI startup path, and `workspace create`,
-`project create`, `worktree create` and `worktree open` may activate a Session; those four creating
-commands start the selected Session first when it is not running, exactly as `server start` would.
-Agent state
-comes from the Server's canonical model, never terminal-text inference. Each command's effects, budgets,
-and release boundaries are specified in its section. CLI commands need no TTY; the
-interactive TUI has separate terminal admission requirements. The native CLI remains
-a native development surface.
-
-Authority: this record owns the public grammar, result envelopes, failure matrix,
-budgets, exchange state machines and output effects implemented under `src/invocation.rs`
-and `src/cli/**`. Prose and implementation must converge in the same change.
+Completion never queries runtime state or invents ordinal suggestions. In PowerShell, start an `@agent:<kind>` alias or a compact handle with a quote (for example, `'@agent:c` or `panel get '@panel:0x1'`); completion inserts the full target as a safely single-quoted handle because an unquoted `@agent` token is parsed as splatting syntax.
 
 ## Clear terminal output
 
@@ -140,185 +46,9 @@ cursor's whole soft-wrapped line, and the command help states both (see the Host
 An alternate screen is refused without changing content.
 Terminal modes, title, working directory and child process remain intact. Clearing never injects terminal input.
 
-The public terminal control action `clear` names an admitted read viewer. The Server
-checks its current Session exposure, exact physical binding and Worker generation,
-then allocates an independent transient input attachment identity. The Worker uses
-that viewer's exact Host target, attaches input-only without a resize lease, submits
-one Host `ClearTerminal` with `preservePrompt: true`, validates attachment/terminal
-and positive generation/revision acknowledgement, and detaches. Existing controller
-ownership and resize geometry are unchanged. Every ClearTerminal request includes `preservePrompt`; explicit false selects screen erase/home.
-
-One cancellable five-second CLI budget covers discovery and submission. The Worker
-submits the Host effect only within three seconds of the request; each Host exchange,
-cleanup included, then waits up to the Worker's
-[Host exchange bound](../../orchbee-worker/README.md#integrated-authorized-request-loop).
-Pre-submission failures cannot clear content; a missing or malformed acknowledgement
-after submission is unknown and never replayed. A known clear with unconfirmed
-cleanup retains the confirmed effect and exits 8. Closing a failed Host carrier
-releases its transient attachment instead of stacking uncertain attachments.
-The CLI releases its viewer after the last consumer on every outcome. Cancellation
-retains an already submitted receipt and exits 130. No Session startup, Client focus,
-controller takeover, PTY input, process reset or browser effect is part of clear.
-
-Closed `orchbee.terminal.clear` v1 carries the exact target, operation identity and
-typed outcome, including the new content revision/generation and cleanup confirmation
-for a known clear. Success exits 0, typed refusal 3, unavailable 4 and unknown effect 8.
-The existing controller codecs own the additive clear request/result; Host protocol
-peers own the optional prompt-preserving field. Scoped contract, Host runtime and
-Windows pipe tests establish these boundaries; deployed Host/TUI acceptance and the
-whole repository gate remain final-stage work under the User's standing authorization.
-
 The operation identity is a request correlation, not a retained idempotent receipt; no status lookup or automatic retry is advertised.
 
-## Workbench status
-
-Bare `status` reads one Workbench snapshot and reports reachability and resource counts. Text
-includes the selected Session name only when `--session` was explicit. It always includes the
-executing Client's package version. On Windows it then sends the Session one handshake `query`
-under the same deadline and lists each process (Server, Worker, each Terminal Host) with version,
-PID, state and terminal count, and whether Restart Session keeps terminals: text prints one line
-per process after the Client version, and JSON carries `result.server`
-(`restartKeepsTerminals`, `processes`). A failed query fails the command; no partial document is
-written. Where the Session cannot be asked for its processes, `result.server` is
-`{"kind":"unsupported"}` and text has no process lines. See
-[runtime status](native-runtime-status.md).
-
-When the Session's handshake answer lists `terminal-runtime`, `status` also reads the
-[terminal-runtime state](../../../schemas/workbench/README.md#session-terminal-runtime-reads) once on
-the snapshot's connection. JSON carries it as `result.terminalRuntime`, `serving`, `reconnecting` or
-`given-up`; text prints a Terminals line after the Session lines: Ready, Reconnecting… while the
-Server replaces a lost Worker, or Can't reconnect once it gave up. A failed read fails the command
-as a failed snapshot read on that connection does, under stage `terminal-runtime`: a lost or late
-answer is `transport-loss`, a malformed or uncorrelated one `protocol-invalid`, and the Session's
-refusal `denied` or `service-unavailable`. A Server without the read leaves both out.
-
-## Workbench topology queries
-
-Windows and macOS `workspace list/get` return `number`, `tabCount`, and `panelCount`;
-`tab list/get` return `number` and `panelCount`. Workspace numbers are one-based
-positions in the complete canonical navigation order, before `--project` filtering.
-Tab numbers are one-based positions within their terminal context, independent of
-manual or automatic labels. Reordering changes numbers without changing identities.
-Empty contexts have zero Tabs and Panels. A Panel is one leaf of a Tab's split tree;
-child presentations and terminal bindings never increase its count.
-
-Human `project list`, `workspace list` and `tab list` print a `HANDLE` column: the
-stable `@<kind>:0x<hex>` spelling of the exact identity, omitting only leading zero digits.
-Filtering, creation and deletion of other members never change these handles. Deleted exact
-identities return not-found; compact identities retain every significant digit, up to 32. `workspace list` uses the localized `HANDLE`, `NAME`, and `PROJECT`
-columns; `tab list` uses `HANDLE`, `NAME`, `PANELS`, and `WORKSPACE`. An ambiguous target's
-text diagnostic lists up to eight candidates as these handles with their quoted labels,
-plus the true total; JSON keeps the identifier `candidates` and `totalCount` details.
-Project and Workspace ownership cells show their canonical names. Name cells are quoted, control-safe, and clipped
-to keep each table within 80 terminal cells. These lists do not treat a Workspace's
-primary directory as a process CWD or expose internal context IDs as names.
-
-`panel list` includes `workspaceId`, plus the primary
-presentation's `label`, nullable `customLabel`, and `displayLabel`. These are the
-same canonical values returned by `panel get`, not inferred process or Agent titles.
-JSON preserves labels exactly; text escapes them and bounds list display width. The text
-`TITLE` column is a human projection: the custom label when one is set, otherwise the primary
-terminal's title named as the terminal list names it, then its committed or failed-launch program,
-otherwise `displayLabel`. The program fallback uses the same naming function as native chrome;
-these transient human names never change the JSON labels.
-
-These projections consume one validated Workbench snapshot and retain its source
-revision, existing-only admission, bounded output, and headless availability. They
-perform no navigation or mutation. Runtime observations are described below.
-
-Human `workspace list` and `tab list` output uses snapshot-only Text tables, with no
-optional `Agent`, `worktree`, `metadata` or `viewport` joins. With `--client <id>`,
-Text still validates that exact ready Client's current selection and membership but
-adds no columns. The joins and final consistency checks described below still apply
-to JSON for these two lists and to other existing queries that use them.
-`workspace list --worktrees` Text instead runs the JSON joins and prints their sections
-before the table.
-
-Under JSON, Windows accepts optional `--client <id>` on these six list/get
-queries to add global focus and the Client's remembered active Tab in each
-Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
-owns this bounded, read-only join and its provenance and consistency checks.
-`orchbee.workspace.list/get`, `orchbee.tab.list`, `orchbee.tab.get` and `orchbee.panel.list/get` all use version 1; discover the complete embedded catalog
-with `api schema`. Viewport reads use v1; other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
-Client read failures; existing target and admission diagnostics remain intact.
-Process and worktree observations use their respective owners as described below;
-reported metadata remains a separate owner and is not implied by topology fields.
-
-Verification covers global reorder and filtering without renumbering, empty and
-nested trees, child presentations and unbound leaves, list/get agreement, automatic
-labels, escaped text and schema validation of real Windows query documents. A composed
-`WorkbenchQuery` witness checks table-only Text output in both locales and confirms the
-JSON path does not enter that shortcut.
-
-## Workbench Agent summaries
-
-Windows Workspace/Tab/Panel list/get and Panel current queries add one root `agents` observation with
-its canonical Agent revision, List request IDs and matched live session summaries.
-Rows carry `agentSessionIds` and nullable `agentStatus`. Only navigable primary
-Presentation bindings contribute; child presentations and ended sessions do not.
-A Session counts once per row even when it has several matching bindings. Multiple
-matching Sessions remain explicit. Missing bindings produce an empty set only after
-a complete successful canonical list, never after a failed or truncated read.
-
-Agent pages contain at most 100 summaries; the composition admits at most 512 live
-Sessions. All pages must share one revision and contain unique IDs. Repeated cursors,
-empty continuation pages, overflow and revision drift fail without replay or partial
-output. The CLI uses one admitted connection, signal owner and five-second total,
-and verifies the original Workbench revision before publication. An Agent observation
-and a Workbench snapshot retain separate provenance; this is not a distributed atomic
-snapshot. There is no process scan, text inference, startup, input, navigation or
-acknowledgement effect.
-
-With `--client`, up to 100 matched Sessions per attention batch use the existing
-[authenticated Client join contract](native-client-attention.md#joining-canonical-agent-reads).
-When there are matching Sessions, a later complete Agent list supplies the output; journal continuity, generation and
-sequence corroborate each Client projection. A new Session is explicitly missing,
-not presumed seen. With no initial match, the first complete list is the observation. The Workbench
-revision and the Client's selection must remain unchanged under the
-[Client query fence](windows-client-control.md#client-relative-workbench-queries).
-The root preserves canonical summaries and optional per-Session Client projections.
-
-Aggregate priority follows the canonical attention/error/outcome/working/idle/unknown order: blocked, error, done, working, idle, unknown. Idle remains idle, succeeded maps to done, and failed/canceled/interrupted map to error, independently of Client acknowledgement. Stale/disconnected observations contribute unknown and remain explicit in session facts. No matching Sessions yields unknown. The no-Client path never invents seen. Text localizes aggregate status and escapes display data; JSON is locale independent.
-
-`orchbee.cli.failure.workbench-query` v1 reports bounded composition failures with
-`stage: workbench-query` and a closed reason (agent-capacity, agent-page-invalid,
-agent-revision-changed, workbench-changed, client-changed or metadata-changed). Existing Agent and
-admission errors keep their owning schemas and diagnostics. Selected Client routing
-errors keep the Client query contract. Verification covers priority and uncertainty,
-primary/child membership, duplicate/mixed pages, stale acknowledgements, schema/text,
-headless reads and real Windows two-Client observations. Panel process/title fields
-use the terminal observation owner below; Client scroll and Workspace worktree observations
-use the owners below. Workspace tokens use the separate metadata owner below.
-
-## Workspace metadata reports and queries
-
-Windows and macOS `workspace report-metadata <workspace> --source <id> --token <key=value>`
-submits one normalized patch. Repeated `--token` / `--clear-token` flags use argv order;
-optional `--seq` fences each source and `--ttl-ms` expires patched values. The
-[Workspace metadata contract](windows-workspace-metadata.md) owns bounds, stale no-ops,
-expiry, unknown-outcome receipts and the separate Server revision. Workspace list/get v1
-includes `tokens` and root `metadataSource`, with bounded batches and a final revision
-fence inside the original five-second deadline. Reads do not activate or navigate a Session.
-
 ## Workspace worktree observations
-
-Windows Workspace get, and Workspace list with `--worktrees`, join each canonical
-primary Directory to the existing
-[read-only Windows Worktree query](windows-worktrees.md#source-based-discovery).
-Every row returns nullable `worktree` and required `worktreeObservation`; a Workspace
-list without `--worktrees` sends no Worktree query and reports `not-requested`. An observed
-summary contains `workerId`, `repositoryRoot`, `commonDirectory`, `repositoryName`,
-`checkoutPath` and `linked`; the pair of Worker ID and common Git directory is the
-repository grouping identity. The name is the final nonempty component of the
-observed repository root, not the Workspace label or invoking CLI directory.
-
-| Input or result                                                                           | Published observation                                     | Effects                               |
-| ----------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------- |
-| Workspace list without `--worktrees`                                                      | `not-requested`, null worktree                            | No Git request                        |
-| No primary Directory                                                                      | `no-directory`, null worktree                             | No Git request                        |
-| Valid source discovery                                                                    | `observed`, exact query source and summary                | Read-only Worker Git query            |
-| Git/Worker unavailable, unsupported, spawn/I/O/size failure                               | `unavailable`, request ID and typed reason, null worktree | No fallback, replay or trust override |
-| Denied, missing/changed source, malformed result, transport loss, timeout or cancellation | Whole command fails, without partial success              | Existing query cleanup                |
 
 Each request uses the exact Workspace and `trustRepository: false`. A successful
 reply must agree with the original Session, Workbench revision, primary Directory path
@@ -332,83 +62,7 @@ Git cleanup remains owned by the existing Worker read task. External filesystem
 changes are not fenced: these are sequential live observations, not an atomic Git
 snapshot. `unavailable` never means “not a repository.”
 
-Workspace list/get use schema version 1. The catalog exposes the current documents and command paths. Other query versions retain their existing contracts. Verification
-covers main and linked checkouts, Workspace directories inside a checkout, missing
-directories, unavailable Git, mismatched source facts, total deadlines, a list without
-`--worktrees` sending no Git query, safe text and real Windows reads without topology
-or Client-view changes.
-
-## Panel terminal observations
-
-Windows and macOS `panel list/get/current` also return nullable `cwd`, `cwdSource`, `foregroundCwd`,
-`terminalTitle` and `terminalTitleStripped`, plus a required `terminalObservation`.
-The observation is `unbound`, `unavailable` with `reason: terminal-unavailable`, or
-`observed` with a validated frame and an observed/unavailable process sample. A stopped
-terminal does not remove its Panel from the list. Only typed terminal/process service
-unavailability becomes unavailable data; protocol, permission, transport, cancellation
-and deadline errors fail the query without a partial result.
-
-One read-only viewer per primary terminal supplies both observations. Frame facts retain
-Host epoch, attachment, sequence, generation, revision, geometry, screen, scrollback count,
-raw title and reported directory. Full cell data is discarded before the summary is retained.
-The process sample uses the existing Windows Job read followed by one Server `identify` read,
-and its foreground follows the Server identity rule below; it does not claim OS foreground
-authority. Each observed sample retains its own source and the normal `panel process-info`
-result. Unavailable process sampling
-does not erase successfully observed frame metadata.
-
-`cwd` uses an absolute Windows path decoded from the frame's reported directory, falling back to the sampled root-process directory;
-file URIs decode percent escapes once as strict UTF-8 (drive paths or UNC authority), without
-query/fragment/control characters or filesystem access; invalid/non-Windows reports remain raw
-in the frame evidence and do not become a filesystem directory.
-`cwdSource` is `terminal-frame`, `root-process` or null. `foregroundCwd` uses the sampled directory of
-the process the Server's foreground names and remains null when unavailable, ambiguous, or absent
-from the sample. No invoking-CLI
-directory or launch-directory guess is substituted. Raw title is retained unchanged. The stripped
-title removes one exact Windows elevation prefix (`Administrator: `, or Simplified Chinese
-`管理员: ` or `管理员：`), surrounding whitespace, and at most one leading whitespace-delimited
-Braille or known activity glyph (`·✢✳✶✻✽◐◓◑◒`); empty becomes null. Elevation prefixes of other
-display languages remain part of the title. Text output escapes all terminal/process-controlled
-strings.
-
-The existing five-second total covers all Panel observations, Agent joins, and final canonical/
-Client checks. Viewers detach on every outcome, with admitted-session teardown as fallback.
-There is no input, resize, focus, history-demand or Client acknowledgement effect. These independent
-frame/process observations are not an atomic snapshot. A fresh viewer's live frame never claims
-the selected Client's scroll offset: the Client viewport observation below supplies it.
-Windows Panel list/get schemas are version 1 . The catalog exposes the current documents and command paths.
-
-## Panel Client scroll queries
-
-Windows Panel list/get/current returns nullable `scroll` and required `scrollObservation`.
-Without a selected Client, the observation is `no-client`; a new Host viewer cannot establish
-the user's scroll position. With an exact Client, bounded read-only viewport batches
-return its installed live/history metrics or explicit unavailable/pending state, as
-defined by [Client viewport observations](windows-client-control.md#client-viewport-observations).
-The root Client source retains each operation ID. Requested Panel IDs, primary bindings,
-canonical revision and the unchanged selected view must agree before publication.
-
-Panel reads accept current Ready or Busy Clients, including history browsing. They
-corroborate selection membership directly against the canonical snapshot; they do not
-request unrelated active-Tab memory. Workspace/Tab queries keep their existing gates.
-All observations share the original admitted connection and five-second total, followed
-by the final canonical and Client revision checks. No query changes the viewport, focus,
-selection, input lease or seen acknowledgement. Independent Host/process and Client
-observations are not an atomic snapshot. Windows Panel list/get and retained viewport controls both use version 1, including
-`orchbee.client.control`. The catalog exposes the current documents and command paths.
-
 ## Named Session selection
-
-The global `--session <name>` / `--session=<name>` selects the local Session for the entire
-invocation, including `server start`, `server stop`, queries and `tui`, on Windows and macOS; Linux
-refuses it, and the `session` commands, with the typed unsupported-platform failure. It does not change the
-Agent targets. Session names contain 1–64 ASCII letters, digits, `.` / `_` / `-`,
-neither start nor end with `.`, and are no Windows device name (`con`, `nul`, `com1`, and so on) in
-any letter case, with or without an extension. Letter case does not tell Sessions apart: `Work` and
-`work` select one Session, which keeps the spelling it was created with. `default` in any letter
-case selects the default Session.
-The complete argument grammar is validated before selection; offline help, completion,
-version and schema operations do not discover a runtime because a name was supplied.
 
 Selection precedence is explicit `--session`, the managed terminal's `ORCHBEE_RUNTIME_SCOPE`,
 `ORCHBEE_SESSION`, then `default`; Linux reads the same variables. `ORCHBEE_RUNTIME_BASE` still
@@ -417,202 +71,11 @@ commands keep their owning Session even if a different name was inherited by the
 An explicit `--session default` overrides that inherited scope. Invalid selected environment
 values fail discovery; they never silently select the default Session.
 
-A Session's folder in the data root, `sessions/<name>/`, and its runtime folder,
-`internal/runtime/<name>/` unless `ORCHBEE_RUNTIME_BASE` names another base, both take its name.
-The folder holds its catalog record, checkpoints, kept terminal output and TUI position.
-`session list [--format text|json]` lists default followed by the named sessions, sorted without
-letter case. It reads at most 256 sessions under one five-second deadline, creates
-no runtime state and reports running, stopping, stopped, absent, starting, deleting, recoverable or recovery-required
-from authenticated metadata and admitted lifecycle facts. A name two folders spell in different
-letter case is listed as recovery-required while other names list and start normally.
-Unknown/unsafe inventory, including a folder whose name is no Session name, fails explicitly. Data
-an earlier build kept in `%LOCALAPPDATA%\Orchbee` or `%TEMP%` is neither read nor removed. A
-default runtime base that does not exist yet lists no sessions; on Windows `doctor` then reports its runtime folder `absent` with
-no unrecognized records, and `config check` reports it `not-applicable` with reason `not-started`. A
-missing explicit `ORCHBEE_RUNTIME_BASE` still fails.
-
-Check and list text views lead with their conclusion and keep raw reason structures in JSON.
-`config check` prints a verdict line counting every check, then one aligned row per check with its
-path, locale or failure reason. The internal checks `runtime-base`, `runtime-directory`, `cohort` (shown as `installation`),
-`sockets` and `records` get a row only when they fail, and a failed `sockets` row names each failing
-entry with its reason; JSON keeps every check. Then come any settings warnings, any record notices,
-a note when the environment has not been started, the file in use and a `--format json` pointer.
-`doctor` prints
-its verdict, one line per check and a `--format json` pointer. `session list` has a heading
-row, each Session's name and state, and explains a `not created` session; JSON keeps each runtime directory. An empty `session list`, `command list` or `launch-profile list` prints one
-line saying how to create the first entry; the launch-profile catalog revision is JSON-only.
-
-`session attach <name> [--mouse on|off]` activates or reconnects the real TUI. `session stop
-<name> --confirm` reuses `server stop`, including its timeout, detach, request-id and retry options
-and its existing result schema. `session delete <name> --confirm` removes only that stopped
-named session's retained checkpoint and owned runtime files; it refuses default, running or
-uncertain state and never deletes Project/worktree/user directories. A name operand and explicit
-`--session` must agree, without regard to letter case. Delete is idempotent when absent; a name two
-folders spell is refused as recovery-required instead. A partial removal remains fenced by the
-Session record's Deleting state and an explicit failure; repeat delete to finish, never start to
-repair it. Deletion checks Ctrl+C before each filesystem phase and exits 130 on interruption.
-Completed removals are not rolled back; a pending deletion remains resumable. The `interrupted`
-result reports whether the Deleting record remains, including cancellation after cleanup completed.
-
-List emits `orchbee.session.list` v1. `recoverable` means
-a guarded observation found every exact identity of the current registration gone and idle resources;
-it carries `running=false` and `pid=null`, and does not promise a later start. Delete retains
-`orchbee.session.delete` v1. The embedded schema catalog is v1.
-
-The Session record in `sessions/<name>/session.json` preserves default/named identities and
-stopped receipts.
-With the same admitted runtime base, `session list` still discovers a stopped session after its
-runtime leaf is removed; `session attach`/`server start` recreates its route and restores the checkpoint.
-`server start` and TUI startup automatically recover a proved-dead current Active generation,
-including after runtime-leaf loss, while preserving the last checkpoint; a start that failed before
-it recorded its process blocks nothing. The first stage refuses live Host, unknown identity and
-unreadable records without deleting data. No old process
-is terminated and no clean-stop receipt is invented. Run `orchbee doctor` with the same
-`--session` selection to inspect a refusal, or `orchbee --session recovery-work server start` to use another
-name. Records left by an earlier derivation refuse only the Session they name; diagnosis lists them
-under `unrecognizedRecords`. A new activation publishes the current version 1 catalog before marker, Server or storage
-publication. Stopped records admit fixed slots and exact owned corrupt originals. Other record
-versions/shapes remain unreadable without migration. `session list` exposes an admitted named record
-as `unreadable` with unknown running state; confirmed `session delete` can remove it after all existing
-owner/storage guards pass. See the
-[recovery contract](../../../crates/local-runtime/docs/windows-crash-recovery.md).
-Pending deletion also survives loss of temporary metadata and remains resumable by the same delete
-command. Listing remains read-only. The runtime base itself is not implicitly recreated.
-
-Background and clean-stop checkpoints preserve layouts, Launch Profiles and sampled per-terminal cwd. Startup selects the newest valid copy, retains corrupt bytes,
-and warns when it falls back or opens an empty workspace. Live Agent state, terminal history and
-screen contents are excluded. Live Host adoption remains separate work.
-
 ## Physical Agent inspection
 
 Agent names are dormant in this release: no command assigns one. `agent resolve`, `agent rename`, `agent start --name`, and the `--name` and `--agent-session` selectors are removed. The names protocol, the Server names service and the name display remain as dormant engine, and `agent list` rows keep their `name` field, null when no name exists. The failure document `orchbee.cli.failure.agent-names`, version 1, stays with that engine; its `resolve`, `rename` and `clear-name` operation values describe removed commands until the engine is narrowed.
 
-Windows `agent get` keeps `terminal-found` under v1 `inspection`, with its exact target, actual frame/process/primary-panel report fields and physical semantic observations. Startup management belongs to canonical Agent session inspection. Physical inspection contains no invented session ID. Child terminal reads never borrow the primary panel's report. `read`, `send-keys` and `attach` route through the exact physical binding and existing terminal owners. Physical `get --format json` adds `detection`: v1 fresh screen diagnostics with active rule provenance, plus the [Agent identity](#agent-identity-diagnostics); semantic `wait`/`prompt`, focus and `get --client` use their physical observation/Client contracts without inventing canonical sessions.
-
-`get` and `wait` accept one positional target or an explicit `--panel` selector. A wait pins the resolved ID before polling. Success publishes only the actual read's `agent-read` source.
-
-Windows physical Agent Get v1 includes `semantic: {source, observation}` in the current
-inspection shape. Its source recorded Session, Workbench/report revisions and request ID; the observation
-contains the exact binding, effective report view, terminal-local sequence and an empty change list.
-Primary and child presentations read their own report resources; primary metadata/report projections
-agree with the semantic report revision. Text renders the effective report in the selected locale.
-`clientView` is always present, null without `--client`; when selected it contains: selected Client/operation/view, report
-revision, nullable sequence/seen/status and outer focus. Only matching full binding and semantic
-sequence under a covering Server report revision corroborate seen. State remains idle/working/blocked/done/error/unknown independently; missing or stale acknowledgement leaves only seen unknown. No canonical Session, turn or
-readiness is invented.
-
-## Physical Agent wait and prompt
-
-Windows terminal-backed Agents use the report owner's exact physical binding and semantic history.
-The CLI holds one Client Connection through admission, every bounded read and private interruptible
-backoff, dropping it before signal arbitration. Each round refreshes Workbench membership, reads
-contiguous changes and revalidates the original selector and provider. Replacement, history loss,
-future cursors, transport loss and provider ABA fail explicitly; there is no reconnect or polling
-fallback after lost evidence. Total deadlines never renew. No late observation produces success.
-
-Ordinary waits may match a retained transient; current observation remains separately reported. `--after-revision` on this target means its report-source revision, not a canonical Agent revision. A future fence refuses against the first observation. History consumed after that checkpoint is necessarily newer than its report revision. Working, idle, blocked, unknown and the needs-attention alias use report facts. Explicit done/error reports support succeeded/failed; the existing done wait alias matches either settled outcome. Freshness, cancellation and interruption conditions still require canonical observations. `--client` optionally pins one Client and exposes its separately corroborated acknowledgement; a done-only request no longer selects a Client implicitly. Missing/stale acknowledgement cannot prevent a state match, while an explicitly selected Client loss or read failure ends the observation.
-
-Prompt preflight rejects blocked state, verifies a known provider against the actual foreground
-process chain and rereads the exact semantic/physical target before submitting. A known live provider
-with unknown report state may receive input. Existing send
-owns paste/Enter, the Windows Codex boundary, input cleanup and delivery evidence. It is invoked once.
-For prompt waits, the pre-send sequence checkpoints the activity gate. Prior working or a later
-working/blocked change opens it within five seconds (or the shorter total); message/reference changes
-and preexisting idle never do. A transient gate-opening working/blocked may match those conditions;
-resting conditions require the current state after activity. Lost history fails without resending.
-
-Wait v1 returns `terminal-matched` with physical observation, optional matched change, conditions and
-accounting. Prompt v1 returns a terminal target, original submission and optional semantic wait.
-Selected-Client matches use Wait/Prompt v1 with required `clientView` on the match; Prompt v1 requires
-a completed wait. Preflight checks the selected Client before input. All reads share the existing
-five-second evaluation and absolute total deadline, without acknowledging or resending.
-Agent read failure v1 and prompt failure v1 carry physical failure details.
-Cancellation or failure after accepted input retains its submission; partial/unknown delivery remains
-the original send result. Tests cover state gates, quiet updates, transient versus current matching,
-provider/physical changes, fences, bounded timeouts, receipt preservation and real Windows input.
-Generated tests cover 32 seeds and 6,400 status pages, shrinking failures to replayable traces;
-this projection checks retained status and activity gating, excluding release events and Client attention.
-Client attention, authenticated-provider behavior and final full acceptance remain separate evidence.
-
-## Agent terminal operations
-
-`agent read <target>` and `agent send-keys <target> <key>...` accept the same
-Session ID or Panel selectors as `agent get`, including explicit `--panel` and `--terminal`. Read admits `--source` and `--lines <n>`
-with the same bounds and meaning as `terminal read`, except that a recent read of a full-screen
-Agent whose screen rules place its input area ends above that area, so the empty input box, status
-and footer rows are not read ([Agent input area](native-terminal-output.md#agent-input-area)).
-Send admits at most 64 semantic
-keys or modifier combinations and validates the entire sequence before any effects.
-
-On Windows, these commands use the shared projection resolver described in
-[Windows unified Agent projection](#windows-unified-agent-projection). It also
-accepts `@agent:<kind>` and complete-list `@agent:<n>` selectors. Physical targets retain and revalidate their full binding.
-The canonical-session flow below describes that target path and other platforms.
-
-The CLI composes existing owners: one existing-only Client Connection reads a Workbench
-snapshot, resolves the target, and gets the canonical Agent session. Only
-an active session's navigable, live presentation attachments may select a terminal.
-The join compares full presentation IDs against bound terminals in the snapshot;
-a Panel ID is never treated as a presentation ID. An explicit or fallback Panel restricts the join to its primary presentation.
-Zero matches is not-found, multiple matches is ambiguous, and neither case attaches a viewer or submits input.
-One five-second deadline covers all exchanges. Resolution is pinned for the operation;
-the Server still authorizes the current terminal binding at input admission.
-
-| State                      | Allowed next operation                        | Failure effect                           |
-| -------------------------- | --------------------------------------------- | ---------------------------------------- |
-| Parsed                     | Snapshot admission/read                       | No terminal effects                      |
-| Snapshot held              | Resolve and canonical Get on the same session | No terminal effects                      |
-| Exactly one bound terminal | Existing terminal read or send exchange       | Existing viewer/input cleanup applies    |
-| Reply or failure           | Drop session, project output                  | No replay; uncertain send remains exit 8 |
-
-Success uses the existing `orchbee.terminal.read`, `orchbee.terminal.history`, or
-`orchbee.terminal.send` schema and its actual terminal source. Agent resolution/read
-failures retain their own correlated source and failure schema. No provider command,
-Agent lifecycle transition, new Session, alias cache, input ownership, or per-turn causal
-promise is introduced. Signals retain the existing terminal operation behavior; this
-composition does not claim a new cancellable viewer or input transport. Evidence must
-cover distinct presentation/Panel IDs, inactive and non-navigable attachments, ambiguous
-bindings, parse-before-effect, a single admitted session, and non-replayed send failures.
-
-The embedded send schema validates the implemented sequence receipt: payload kind,
-record count, confirmed prefix, stopped index, encoded byte count, partial acceptance,
-and cleanup status. Generic ambiguity failures include Panel and terminal candidates.
-These repair stale schema projections; wire and receipt versions remain unchanged.
-
 ## Agent prompt submission
-
-The prompt workflow compiles on every host. Capability admission precedes deadline creation,
-signal registration and Session access. Linux uses the canonical sampled observation;
-Windows and macOS retain physical targets, journal history and Client evidence. The common INT/TERM
-port delegates to each existing native guard, and the Client Connection is dropped before
-signal finalization and receipt projection. macOS and Linux capture `SIGINT` and `SIGTERM` through
-the same Unix signal owner. Unsupported hosts return the existing platform
-failure without acquiring those resources; Linux prompt results keep their existing
-unsupported journal and Client fields.
-
-`agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]`
-uses the same Session/Panel selectors as other Agent commands. Windows also accepts
-`@agent:<kind>` and complete-list `@agent:<n>` through the shared projection resolver above.
-Text is non-empty UTF-8,
-bounded by the 256 KiB paste limit and the command's 64 KiB argv envelope. `--until`
-and `--timeout` require `--wait`; Windows wait defaults to idle/done/blocked without a total
-timeout, and explicit finite timeouts are at most one hour. Without waiting, the budget is five seconds.
-
-One existing-only Client Connection owns snapshot lookup, one resolved Agent identity,
-a canonical preflight Get, one paste-plus-Enter send, and any subsequent Gets. Preflight
-requires a live, fresh session with a known status and exactly one navigable terminal.
-Pending requests/needs-attention refuse with `agent-blocked` before any input. This is
-a sampled preflight, not an atomic lock on future provider state or foreground ownership.
-The Server still authorizes the terminal binding when admitting input.
-
-| State          | Transition and evidence                                                                                             | Retained effect                             |
-| -------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Parsed         | Admit and resolve under min(total deadline, five seconds)                                                           | None                                        |
-| Preflight      | Fresh, live, known, unblocked and uniquely bound                                                                    | None                                        |
-| Send           | One ordered paste and Enter sequence, no replay                                                                     | Exact terminal receipt                      |
-| Activity gate  | Already working at preflight, or newer observed working/attention/turn outcome within five seconds after acceptance | Accepted receipt survives every later error |
-| Condition wait | Sample fresh status/freshness conditions on the pinned session under the original total deadline                    | No turn-causality claim                     |
-| Done           | Drop session, arbitrate cancellation, emit once                                                                     | No input replay or provider cancellation    |
 
 Waiting from a non-working state first requires evidence of activity. A newer turn
 outcome also qualifies when a short working interval was missed between polls. Old idle
@@ -623,40 +86,6 @@ Agent may complete its existing turn; a matching result does not identify the pr
 own turn. Polling can miss transitions and does not replay events.
 
 On Windows, canonical provider `codex` uses one ordered paste, Right, Enter sequence. Right is a non-character boundary that flushes Codex's paste-burst buffer and clears its Enter suppression window. It neither embeds escape bytes in prompt text nor guesses delivery speed with a fixed delay. Other providers retain paste, Enter; ordinary `terminal send --paste --enter` adds no boundary key. Receipts report the actual three or two records. Stopping before Right or Enter reports only the accepted prefix, never retries the suffix and never starts observation. This boundary does not establish an empty composer, foreground ownership or provider readiness.
-
-Schema The catalog exposes the current documents and command paths.
-
-`orchbee.agent.prompt` returns the session ID, the full terminal submission receipt,
-and optional matched observation/wait facts. Refused/partial/unknown send outcomes retain
-the existing terminal send/failure contract and never start a wait. Prompt preflight and
-post-submission failures use `orchbee.cli.failure.agent-prompt`; post-submission failures
-include the receipt so callers cannot mistake a wait failure for unsubmitted input.
-A confirmed send without `--wait` remains authoritative if cancellation races its reply.
-During a wait, cancellation is exit 130 with the accepted receipt. Ambiguous submitted
-input stays exit 8 even under cancellation. All sessions drop before signal finalization
-and output. No prompt text is included in receipts.
-
-Evidence covers blocked/not-ready refusals without terminal effects, exact literal paste
-plus Enter, one admission and no replay, active/idle activity gates, newer completed
-outcomes, pinned-session reads, total/activity deadlines, partial and unknown sends,
-cancellation settlement, and schema validation. Native canonical observations remain the
-only Agent status authority; this command does not add screen inference or a provider API.
-
-## Agent wait policy
-
-Windows and macOS `agent wait` and `agent prompt --wait` default to no total timeout and the ordered conditions `idle`, `done`, `blocked`. `--forever` remains an explicit synonym and conflicts with `--timeout`; prompt requires `--wait`. Finite timeouts remain 1–3600000 ms. Admission, resolution and each read remain bounded to five seconds; interruption stops the wait and never reconnects. Existing Linux polling defaults are unchanged. Prompt retains its five-second non-working activity gate.
-
-Windows wait establishes an authenticated changes checkpoint before its first canonical Get, then consumes contiguous retained pages before subsequent Gets. The single admitted session, optional monotonic total deadline and cancellation owner cover all steps. Each evaluation drains at most 512 changes, 100 per page, retaining at most one matching change. No cursor reset or foreign boot is silently recovered: lost history is an explicit rejection. A partial/failed read cannot become a matching observation.
-
-Wait version 1 on Windows adds nullable `matchedChange`. Null means the current sample matched; otherwise the historical change is the matching evidence, while `revision` and `session` remain the separate latest Get sample. The historical record never overwrites current status. `source.requestId` identifies the matching Get or changes read. Requested condition order is preserved. `--after-revision` remains a global revision fence, not turn causality. Linux wait and prompt success retain version 1. Finite/infinite failures keep their existing version and null timeout distinction.
-
-`blocked` matches fresh needs-attention; `done` currently matches fresh succeeded/failed/canceled/interrupted. Client-relative unseen enrichment is a separate dependent consumer and is not implied by the change feed. Evidence covers transient states, unrelated sessions, ordered pages, reset refusal, retained identity, deadline and cancellation cleanup.
-
-For canonical session targets, Windows `agent wait --client <id>` pins one exact Client as well as the resolved Agent. Every condition uses canonical current/change-page matching independently of Client acknowledgement. A missing/stale Client version exposes null seen without suppressing idle or an explicit outcome. Historical canonical events never invent a historical Client acknowledgement. Loss of the selected Client ends the wait rather than choosing another.
-
-Selected-Client wait uses v1 with a required `client` projection and existing nullable `matchedChange`; unselected Windows wait remains v1. Each Client read, cursor proof and canonical sample shares one five-second evaluation bound within the original total deadline. Reads remain valid under Busy without acknowledging or navigating. Finite expiry and cancellation preserve the existing wait failure/finalization contract. Explicit canonical status conditions may return historical evidence even when current Client status differs.
-
-Selected-Client composition keeps missing/stale Client selection failures in `orchbee.cli.failure.client-control` v1. Other Client read failures use that envelope v1 with required `stage: client-agent-read`; their kind distinguishes denial, rejection, lost transport, invalid reply, deadline and cancellation. Existing Agent and admission failures keep their original contracts.
 
 ## Inputs and trust boundary
 
@@ -687,388 +116,15 @@ Selected-Client composition keeps missing/stale Client selection failures in `or
 
 ## Public grammar
 
-Option scan runs left to right over tokens before `--`; `--` terminates option recognition only.
+Help wraps at 78 display cells and never queries a terminal, inspects `COLUMNS`, or reads configuration or runtime state, so its output is the same in terminals and in redirected output. Hosts narrower than 78 columns may wrap the text further themselves.
 
-- `--format text|json` or `--format=text|json`: at most one selection, any position before `--`.
-  `--format` with a missing, empty, or unknown value, or a repeated selection, is a format
-  failure: `invalid-usage`, exit 2, empty stdout. The complete pre-`--` format envelope is
-  scanned before ordinary grammar validation: a format defect anywhere in that envelope answers
-  with empty stdout, and one valid unique selection shapes every later grammar failure's
-  envelope regardless of where it sits.
-- `--project <target>`, `--workspace <target>`, `--tab <target>`: named value filters and
-  context operands, single use each. The next token is consumed as the value even when it
-  begins with a dash; a bare `--` is never consumed as a value (missing value →
-  `invalid-usage`). A consumed filter value is not a format selector. Each flag is valid only
-  on a command that declares it (`--project` on `workspace list`/`workspace create`/
-  `worktree list`,
-  `--workspace` on `tab list`/`tab create`,
-  `--tab` on `panel list`); anywhere else,
-  including `get` commands, is `invalid-usage`. Filters are never silently dropped: a filter
-  flag on a command that does not declare it is `invalid-usage` before any runtime access, so
-  `workspace list` rejects `--workspace`, `--tab`, and `--standalone`.
-- `--directory <directory-id>`: single-use value flag for the registered-directory form of `worktree list`, valid nowhere else. Windows and macOS also have a source-based form without this flag; see [Windows Worktrees](windows-worktrees.md#source-based-discovery). The value is a `WorkbenchDirectoryId` only — a strict nonzero 32-lowercase-hex
-  identifier, never a filesystem path, label, or prefix. A missing, malformed, uppercase,
-  zero-valued, or wrong-width value is `invalid-usage` before any runtime access; the CLI
-  performs no directory-membership precheck — membership is the running Session's authority, and
-  a well-formed but absent directory answers `not-found` with `{resource:"directory"}` under
-  the worktree failure envelope.
-- `--label <label>`: single-use value flag, required on `project create`, `project rename`, Linux `workspace create`, `workspace rename` and `tab rename`. Windows and macOS `tab create` and `panel split` allow omission, using the preflight Tab/Panel count plus one. An explicit `panel split` label also becomes the new Panel's custom label in the same creation commit, trimmed as `panel rename` trims it, so it is the visible name; omission keeps automatic naming. Explicit values are nonempty protocol-bounded Workbench labels; empty or oversized values are `invalid-usage`.
-- `--path <path>`: single-use value flag. On `workspace set-directory` it is required and accepts a `WorkbenchDirectoryPath`: a literal absolute local-platform path
-  (POSIX `/` or an absolute Windows drive path) of at most 4,096 UTF-8 bytes without NUL, without `~` or variable expansion. A missing, relative, NUL-bearing or overlong value is `invalid-usage`.
-  Windows and macOS Worktree Create/Open instead admit literal absolute, relative and leading-`~` operands under the [Worktree path policy](windows-worktrees.md#commands-and-defaults); the final executing CLI resolves them after complete grammar and machine routing, before configuration or runtime access. Neither form creates, repairs or probes the directory; filesystem facts remain the Server's authority after submission.
-- `--direction left|right|up|down` is the cardinal vocabulary. `tab move` uses
-  `--order previous|next|first|last`, exclusive with `--insert-index`. Unknown values fail
-  before runtime access.
-- `--cols <n>`, `--rows <n>`, `--cell-width <n>`, `--cell-height <n>` (unlisted): the terminal
-  geometry group on `tab create` and `panel split`, each taking one decimal `u16`. The
-  group is all-or-none: with all four absent the command requests the documented default
-  (80x24 logical grid, paired-zero unknown cell pixels); supplying any of the four requires
-  all four. The combined grid cells and pixel extents must satisfy the
-  protocol `WorkbenchTerminalGeometry` bounds; a partial, repeated, non-numeric, or
-  out-of-range set is `invalid-usage` before any runtime access.
-- `--exec <path>` / `--arg <value>`: the ephemeral launch selection, admitted only on
-  `tab create`, `panel split`, and `launch-profile create` (required there, optional on
-  the launch-bearing mutations). `--exec` is single-use and takes a nonempty absolute
-  UTF-8 executable path without NUL. `--arg` is repeatable and each value is appended
-  verbatim, in order, as `argv[1..]` — empty and dash-leading values are consumed as
-  values under the standard value rule, and `argv[0]` is synthesized from the
-  executable path. At most 128 `--arg` values and at most 30,720 UTF-8 bytes across the
-  executable plus all argument values; `--arg` without `--exec`, a repeated `--exec`,
-  or a violated bound is `invalid-usage` before any runtime access. Omitting `--exec`
-  keeps the resolved default shell; a selection is part of request identity and is
-  never persisted as a profile.
-- `--name <name>`: single-use value flag, required on `launch-profile create` and valid
-  nowhere else. The value is a `LaunchProfileName` — a nonempty UTF-8 literal of at
-  most 512 bytes; uniqueness is not required (the minted profile ID, not the name,
-  identifies the entry). A missing, empty, or overlong value is `invalid-usage`.
-- `--profile <selector>`: single-use value flag, admitted only on `tab create` and
-  `panel split`, mutually exclusive with the explicit `--exec`/`--arg` selection —
-  either combination is `invalid-usage` naming the conflicting options. The value is a
-  `LaunchProfileSelector`: a nonempty UTF-8 literal of at most 512 bytes passed
-  verbatim to the Server, which resolves it under the catalog's ID-first/name-cardinality
-  rule — the CLI never reads the catalog or guesses a match. A resolved profile supplies
-  the launch for that one request; it is not persisted anywhere else.
-- `--generation <n>`: single-use value flag, required on `operation resume` and valid
-  nowhere else. The value is the explicit attempt-generation fence: a nonzero decimal `u64`
-  without a leading zero — the protocol's `WorkbenchTabCloseAttemptGeneration` spelling. A
-  stale-but-valid generation is a semantic request the Server answers `stale`, never a
-  grammar concern; a missing, empty, zero, non-numeric, or overflowing value is
-  `invalid-usage` before any runtime access.
-- `--confirm`: valueless boolean, required on `tab close`, `panel close`,
-  `workspace close`, and `operation resume`; absent there or
-  present on any other command is `invalid-usage`. A `tab close` or `workspace close` with
-  `--dry-run` needs no `--confirm`.
-- `--match <text>`: single-use value flag on `terminal wait-output`, one of the two search
-  inputs — exactly one of `--match` or `--regex` is required. A nonempty UTF-8 literal up to
-  4096 bytes, matched case-sensitively. A missing, empty, non-UTF-8, or oversized value —
-  or supplying both search flags — is `invalid-usage`.
-- `--regex <pattern>`: single-use value flag, the alternate `terminal wait-output` search
-  input; a nonempty UTF-8 regular expression of at most 1024 bytes compiled once before
-  any runtime access under a 1 MiB program-size limit and a 1 MiB lazy-DFA cache limit.
-  A missing, empty, oversized, or non-compiling value — or coexistence with `--match` — is
-  `invalid-usage`.
-- `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (defaults to `30000` on every platform) and on `agent wait` (Windows and macOS default to no total timeout, Linux to `600000`); one decimal `u32` in `1..=3600000`.
-  A repeated, non-numeric, or out-of-range value is `invalid-usage`.
+PowerShell completion is a static grammar projection: it never executes user expressions or queries a Session; loading it is explicit and does not modify a shell profile. PowerShell 7 invokes it for a bare `-` and offers the root `-v`/`-V` aliases; Windows PowerShell 5.1 does not call native completers for that unfinished token. It reads plain ASCII decimal integer AST constants as literal source text, so `--insert-index 2` keeps completion active; variables, splats, expressions and scriptblocks are not evaluated.
 
-- `--target-panel <target>`: optional single-use value flag with `panel move --into-tab`;
-  admits a complete Panel ID or exact compact handle and resolves inside the destination Tab.
-- `--source visible|recent|recent-unwrapped|detection` and `--lines <n>` select output on
-  terminal/Agent reads and terminal waits. The default is recent, 80 physical rows; line counts
-  are unsigned 32-bit, clamp to 1000 and permit zero. Geometry commands use `--rows` as a dimension.
-- `--text <utf8>`, `--key <name>`, `--file <path>`, `--stdin`: the four mutually
-  exclusive `terminal send` input sources, valid on no other
-  command. `--text` and `--file` consume the next token as their value under the
-  standard value rule (a dash-leading token is consumed, a bare `--` is not);
-  `--key` takes one closed key name per occurrence and can repeat up to 64 times; the other sources are single-use. `--stdin` is valueless. `--text` must be a
-  nonempty UTF-8 literal whose byte length plus the optional folded CR stays
-  within the 4,096-byte record bound; `--file` stores its operand untouched —
-  the parser performs no filesystem validation, and every path, type, and
-  content check is the materializer's job under [Send input
-  sources](#send-input-sources). `--enter` is the text-bearing modifier: legal
-  on `--text`, `--file`, and `--stdin`, never on `--key` or alone. `--paste` is valid only with `--file` or `--stdin`; it produces a paste record and an optional trailing Enter record. Zero source kinds
-  or more than one is `invalid-usage`, with conflicts named in the fixed order
-  `--text`, `--key`, `--file`, `--stdin` regardless of argv order.
-- `--mouse on|off`: single-use value flag on explicit `tui`, `terminal attach` and
-  `agent attach` routes; host pointer capture defaults on. The attach interfaces use
-  the [Windows stream contract](windows-terminal-streams.md), including interactive
-  output with either global format. Both declared spellings
-  (`--mouse on` and `--mouse=on`) carry the same closed `on|off` vocabulary; a missing
-  or unknown value, a repeat under either spelling, or the flag on any other command
-  route, or the bare invocation, is `invalid-usage`.
-- `--include-ended`: valueless boolean flag, single use, admitted only on `agent list`;
-  includes sessions whose lifecycle is `ended` in the requested page.
-- `--worktrees`: valueless boolean flag, single use, admitted only on `workspace list`;
-  joins each row's live [Workspace worktree observation](#workspace-worktree-observations).
-  It combines with `--project`.
-- `--limit <n>`: single-use value flag, admitted only on `agent list`; the page size as
-  one decimal `u64` in `1..=100`, defaulting to the wire contract's 50. A repeated,
-  non-numeric, or out-of-range value is `invalid-usage`.
-- `--cursor <c>`: single-use value flag, admitted only on `agent list`. Windows and macOS use
-  a structured `u1.<base64url>` cursor capped at 1024 characters and bound to the Session,
-  source revisions, filters, Client choice and page position/fingerprint. Malformed cursors
-  fail as invalid input before live source reads. Determining whether a cursor is stale requires reading current sources, so stale structured
-  cursors are rejected only after those reads. Linux retains its canonical
-  Server cursor contract.
-- `--until <condition>`: repeatable value flag, admitted on `agent wait` and `agent prompt --wait`; one
-  condition name per occurrence drawn from the fourteen-name vocabulary
-  `blocked`, `done`, `needs-attention`, `failed`, `succeeded`, `canceled`, `interrupted`, `working`,
-  `idle`, `unknown`, `ended`, `fresh`, `stale`, `disconnected`. Repeated values
-  stay in requested order for matching and the emitted echo; a duplicate value or
-  an unknown name is `invalid-usage`. Absent `--until` entirely, the effective set
-  on Windows and macOS is `idle`, `done`, `blocked`; on Linux it is `needs-attention`, `failed`,
-  `succeeded`, `canceled`, `interrupted`, `idle`, `ended`, each in that order.
-- `--after-revision <n>`: single-use value flag, admitted only on `agent wait`;
-  the optional global-revision fence as one decimal `u64` in the safe-integer
-  range `0..=9007199254740991`. A repeated, non-numeric, or out-of-range value is
-  `invalid-usage`.
-
-- `-v`, `-V`, `--version`: equivalent version options, legal only as the sole root invocation;
-  each prints the same `orchbee <version>` line and exits `0` offline. Combining them or adding
-  a command, help flag or output format is usage. Option values and tokens after `--` stay data.
-- `-h`/`--help`: one flag anywhere before `--`; selects an exact family or the longest
-  recognized command path, ignoring operands and business requirements without effects.
-- `--` positionals: tokens after `--` are positional only, so `orchbee -- status` queries
-  status and `orchbee project get -- --help` resolves the literal label `--help`.
-
-Command paths (fixed words, no abbreviations or aliases):
-
-```
-orchbee                         # bare → TUI (unchanged)
-orchbee tui [--mouse on|off]    # TUI
-orchbee -v|-V|--version         # version line
-orchbee -h|--help | orchbee help   # root help
-orchbee status
-orchbee project list | project get <target>
-orchbee project create --label <label>
-orchbee project rename <target> --label <label>
-orchbee workspace list [--project <target>] [--worktrees] | workspace get <target>
-orchbee workspace create --project <target> --label <label>
-orchbee workspace rename <target> --label <label>
-orchbee workspace set-directory <target> --path <path>
-orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
-orchbee worktree list --directory <directory-id>
-orchbee tab list [--workspace <target>] | tab get <target>
-orchbee tab create [--workspace <target>] [--label <label>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
-orchbee tab rename <target> --label <label>
-orchbee tab move <target> (--order previous|next|first|last | --insert-index N)
-orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
-orchbee panel list [--tab <target> | --workspace <target>] | panel get <target>
-orchbee panel rename <target> (--label <text> | --clear)
-orchbee panel split [<target> | --current] --direction left|right|up|down [--label <label>] [--ratio <number>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
-orchbee panel close <target> --confirm
-orchbee panel move <target> --into-tab <target> [--target-panel <target>] --direction left|right|up|down
-orchbee terminal list [--workspace <target> | --tab <target> | --panel <target>] | terminal get <target> | terminal read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>]
-orchbee terminal wait-output <target> (--match <text> | --regex <pattern>) [--source <source>] [--lines <n>] [--forever] [--timeout <1-3600000>]
-orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
-orchbee launch-profile list | launch-profile get <selector>
-orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
-orchbee launch-profile delete <selector>
-orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <c>]
-orchbee agent get <target>
-orchbee agent read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>]
-orchbee agent send-keys <target> <key>...
-orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>] [--forever]
-orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>] [--forever]
-orchbee client list | client get <client-id>
-orchbee workspace focus <target> [--client <id>]
-orchbee tab focus <target> [--client <id>]
-orchbee panel focus [<target> | --current] [--client <id>]
-orchbee panel maximize [<target> | --current] [--toggle | --on | --off] [--client <id>]
-orchbee api snapshot
-orchbee api schema [<schema-id>] [--output <path>]
-orchbee server start
-orchbee server stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>]
-orchbee operation status <request-id>
-orchbee operation resume <request-id> --generation <n> --confirm [--detach] [--timeout <ms>]
-orchbee doctor
-orchbee config check
-orchbee completion bash|zsh|fish|powershell|elvish
-orchbee config default  # Windows and macOS
-orchbee --skill
-orchbee help <recognized path>
-orchbee <recognized path> -h|--help
-```
-
-Help topics include the root, every build-admitted family and complete command path including
-`tui`, and nested families such as `terminal session` and Windows `panel graphics`.
-`help` takes only a recognized path (no filters, no format); `help -h` and `help --help` show root
-help, and `help <path> -h|--help` preserves that exact path and option scope.
-A single `-h` or `--help` before `--` is the same request on the same path:
-`orchbee --help`, `project --help`, and `project get --help` emit exactly what `help`,
-`help project`, and `help project get` emit. Flag help also accepts supplied operands and
-recognized options (`project get x --format json --help` describes `project get` as text).
-It never applies those options or reads runtime state. Unknown options, missing values,
-duplicate options and unknown family verbs remain usage failures. Unlisted
-targets such as `help help`, `help version`, `help --version` are unknown paths → usage. Help,
-`-v`/`-V`/`--version`, `--skill`, `completion`, `api schema` without `--output`, and `config default` on Windows and macOS never touch platform, runtime, cohort, or Session state. Explicit Windows schema export touches only the caller-selected file destination and its owned sibling temporary.
-Help has three information levels, in both `en-US` and `zh-CN`:
-
-- Root help introduces Orchbee, shows a small set of common examples, groups each admitted
-  top-level command once, and explains global options and how to descend.
-- Family help describes that resource and lists each direct child with its purpose. Nested
-  families such as `panel graphics` have their own directories. A Synopsis
-  section repeats each direct child command's own usage line, without the leading `orchbee` and
-  the shared `--format` choice, so it follows the grammar; full option descriptions stay on the
-  child page. `completion` lists its supported shells. Every family and command
-  page displays `-h, --help`; the `server` directory includes `stop` and `status`, with
-  `--confirm` identified on `stop`.
-- Command help contains complete syntax, positional arguments, admitted options, an example,
-  and the command's defaults, effects and constraints. `status` also links its child commands.
-
-The help-path catalog in `src/invocation/help.rs` drives both path admission and directories.
-Business option membership uses the completion command table; root-mode options follow their
-existing grammar. Localized syntax and constraints are
-separate fields, and one pure renderer owns spacing and wrapping. Output is unstyled UTF-8
-with a trailing newline, aligned by display cells and wrapped without splitting grapheme
-clusters at 78 cells. Long labels use their own row. Examples identify their Shell, keep quoted operands intact, and use PowerShell or POSIX Shell continuation when a command spans rows. This width is deterministic in terminals
-and redirected output: help does not query a terminal, inspect `COLUMNS`, or read configuration
-or runtime state. Hosts narrower than 78 columns may wrap the text further themselves.
-Tests cover both locales, both help flags at every position of every admitted path, completion/help
-command agreement, directory coverage, 40/78/120-cell renderer inputs, and parsing illustrative
-examples without executing their effects. `cli_windows_server_stop` additionally exercises the real
-binary's version aliases, nested help and missing stop confirmation with an unusable runtime base;
-the existing stop receipt witnesses retain the lifecycle safety checks.
-
-On Windows and macOS, `config default` takes no other argument and emits canonical UTF-8 TOML from the build without reading user configuration or runtime-selection environment.
-The shared process router preserves this path before locale selection. Its named native ports
-retain Windows Session selection and Unix rejection of unavailable runtime routes; offline
-discovery continues to ignore Session selection.
-`--skill` must be the sole root argument and emits the localized, embedded CLI usage guide.
-PowerShell completion is a static grammar projection: it never executes user expressions or
-queries a Session; loading it is explicit and does not modify a shell profile.
-PowerShell 7 invokes it for a bare `-` and offers the root `-v`/`-V` aliases. Windows PowerShell
-5.1 does not call native completers for that unfinished token. The Windows witness checks every
-shared grammar case against the unchanged callback in both engines, checks the real completion
-pipeline, and explicitly records the two bare-dash short-alias cases as engine non-invocation
-boundaries in 5.1. Version argument parsing remains available in both shells.
-
-Elvish completion uses the same Rust-owned JSON grammar as PowerShell. Its callback receives
-literal words (command first, unfinished word last) from the interactive editor. Per invocation,
-the pure walker records completed positionals, seen flags, literal values and a pending value
-owner. `--` and terminal options stop completion; invalid scope, duplicates or conflicts leave
-no viable command. Viable paths determine the next command word, unused compatible flags,
-operand budget and closed enum values; a joined value keeps its `--flag=` prefix. Freeform
-values have no candidates. The callback emits each candidate once, leaving matching and quoting
-to Elvish. It evaluates no supplied word and starts no process. Registration covers the running
-executable's own stem with and without `.exe`, such as `orchbee` for release or
-`ob-dev-<16 lowercase hex>` for a development Client, without changing profiles or other
-completers. PowerShell registers the same two names. A stem outside ASCII letters, digits, `-`, `_`
-and `.` falls back to the cohort Client's name. The generated script is
-bounded by the shared 8 MiB output limit. A separate fixed-output test keeps every completion
-script and help body below 512 KiB (16 times under the runtime limit) to flag unexpected grammar growth. Load explicitly in interactive Elvish 0.21 with
-`eval (orchbee completion elvish | slurp)`.
-
-The shared completion fixtures check accepted and dead prefixes, help depth, target conflicts,
-enum ownership and joined spelling. The Elvish interpreter test is explicitly ignored by the
-portable gate and must be run with `ORCHBEE_TEST_ELVISH` pointing to an interpreter; absence
-fails that requested test. It supplies a registration namespace to exercise the unmodified script
-without an editor. Windows ConPTY evidence separately checks real interactive registration and
-loading. This proves static completion, not runtime target discovery or other operating systems.
-
-`help`, `completion`, `tui`, `-v`/`-V`/`--version`, `--skill`, the bare invocation, and `config default` on Windows and macOS are fixed text outputs that do
-not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
-JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
-commands (`status`, all `list`/`get`, `operation status`,
-`agent wait`, `api snapshot`, `api schema`, `server start`, `server stop`,
-`doctor`, and `config check`) and every
-mutation command accept `--format`. The `api` commands are the machine surface: a successful `api snapshot` or
-`api schema` emits the identical JSON document under both formats, while an `api` failure
-follows the selected format like any other command — under text/default it reports on stderr
-with empty stdout, and only `--format json` produces a failure envelope.
-
-`orchbee completion` prints a static projection of this grammar: verbs, complete help paths,
-each command's declared flags in both the separate and the joined `--flag=value` spelling,
-both `--format` spellings and its `text`/`json` values, the closed value vocabularies under
-either spelling (`--mouse`, `--direction`, `--key`, `--until`), `--`
-termination, and flag-value consumption contexts. It enumerates no Session state, resource
-names, or runtime data, and never guesses a freeform value.
-
-### Targets and filters
-
-`<target>` operands accept stable compact identities `@<kind>:0x<hex>`: 1–32 lowercase
-hex digits, nonzero and without leading zeros, expanded to an exact 32-digit typed identity.
-Lists and text diagnostics print these handles; JSON receipts retain canonical IDs. Completion
-accepts them as opaque operands and does not enumerate runtime identities. In PowerShell, quote
-the handle, for example `panel get '@panel:0x1'`. Their scope and lifetime equal the full ID;
-rediscover runtime terminal IDs after Server restart. Other resource changes cannot retarget them.
-Complete typed IDs contain exactly 32 lowercase hexadecimal characters and are nonzero.
-A recognized selector prefix requires its declared resource kind and an exact compact identity;
-malformed input is `invalid-identifier` (exit 2) before runtime access. Other `@` tokens keep
-label interpretation. Other tokens are an exact, case-sensitive label candidate requiring 1–512 Unicode scalars when the resource
-admits labels; empty or overlong tokens and the all-zero ID shape are `invalid-identifier`
-(exit 2). A label that itself has ID or selector shape can never be reached by label or selector
-matching — the entity remains reachable through its real ID. `panel` and `terminal` accept
-complete typed IDs and their own `@panel:`/`@terminal:` selectors only; anything else is
-`invalid-identifier`. Filters (`--project`, `--workspace`, `--tab`) use the same per-resource
-target rules, and so do every mutation operand and `--target-panel` (the `panel` rule, resolved
-inside the destination tab). `api schema` takes a nonempty schema ID; an empty one is
-`invalid-identifier` with `resource="schema"`, an unmatched one is `not-found`.
-`agent get` and `agent wait` take one positional token of 1–128
-characters drawn from `[A-Za-z0-9._:-]` (or an explicit Panel prefix), resolved by the ID-first rules above, or an
-explicit `--panel` or `--terminal` selector. Malformed tokens are `invalid-usage` before runtime access.
-`launch-profile get` and `launch-profile delete` take one positional `<selector>`, and
-`--profile` carries the same token: a `LaunchProfileSelector` — a nonempty UTF-8 literal
-of at most 512 bytes (the name bound, so every admitted selector can reach either rule).
-An empty or overlong token is `invalid-usage`; the CLI never splits it into an id/label
-case — the Server resolves it under the catalog lock: an exact profile ID first, then a
-name whose match cardinality must be exactly one. Zero matches answer `not-found`, a
-name matching more than one entry answers `ambiguous` with at most the first 8 candidate
-profile IDs plus the true `totalCount` — both under the dedicated launch-profile failure
-envelope.
-
-Resolution after a successful read: zero matches → `not-found` (3); multiple exact label
-matches → `ambiguous` (3), reporting at most the first 8 candidate typed IDs in canonical
-traversal order plus the true `totalCount`. Resolution uses the command's complete declared
-snapshot scope without an extra fetch. A filter naming an absent entity is `not-found`;
-an existing entity with an empty result set is a successful empty list. Every `not-found` text
-diagnostic — Project, Workspace, Tab, Panel, terminal, schema, directory, launch profile and
-Agent alike — and every `invalid-identifier` text diagnostic for Project, Workspace, Tab, Panel,
-terminal or schema — ends with its one hint: the command that lists that resource's valid targets
-(for example `Run 'orchbee tab list' to see valid targets.`).
+Load Elvish completion explicitly in interactive Elvish 0.21 with `eval (orchbee completion elvish | slurp)`. Its callback evaluates no supplied word and starts no process. The Elvish interpreter test is ignored by the portable gate and must be run with `ORCHBEE_TEST_ELVISH` pointing to an interpreter; absence fails that requested test.
 
 ## Query state machine and budgets
 
-Every network query (`status`, `list`/`get`, `api snapshot`) performs exactly this ordered
-sequence on Linux and macOS; the first failing stage wins and determines the failure:
-
-1. **Cohort** — `Cohort::current` under one checked 5-second monotonic deadline
-   (`Instant::now().checked_add(5s)`; a failed `checked_add` is `internal-failure`, exit 1).
-   Any cohort error (missing, invalid, unsafe, hash mismatch, cooperative deadline) is
-   `check-failed` stage `cohort`. Localized stderr gives repair guidance without raw I/O
-   details. It names an exact missing executable only when that sibling's open returned
-   `NotFound`; otherwise it never guesses which file is missing. Windows
-   `doctor --format json` v1 carries bounded `ioKind`/`osError` detail and, when
-   proven, the exact missing sibling, in its installation check. The failure envelope and exit code are unchanged.
-2. **Discovery** — resolve `ORCHBEE_RUNTIME_BASE`/default, then
-   `ModeCheckedLocalSessionRendezvous::validate_mode_checked` (`ExistingOnly`, no mkdir, no lock).
-   Classification uses the typed `RendezvousError` path compared with the resolved
-   `runtime_base`/`runtime_base.join(scope)`: a `System` error whose source is `NotFound` on the
-   scope directory is `service-unavailable` stage `discovery`; every other rendezvous or
-   filesystem validation failure is `check-failed` with stage `runtime-base` when the typed path
-   is the base or a base component and `runtime-directory` when it is the scope directory.
-   The pre-classification observation is not claimed atomic with the later open.
-3. **Socket** — `client_socket_exists()` reuses the existing type+owner+`0600`+no-follow
-   validation: absent → `service-unavailable` stage `discovery`; invalid/error → `check-failed`
-   stage `socket`.
-4. **Admission** — one new checked 5-second monotonic deadline is created immediately before
-   `LocalClient::connect_before`; the same `Instant` is reused unchanged for the snapshot read
-   and is never renewed, never falling back to the 50-second request default.
-5. **Read** — exactly one `submit_workbench_snapshot_read_before` with an original
-   `WorkbenchRequestId`, bounded by the same deadline. One OBLC admission plus one OBWP request;
-   no reconnect, retry, publication catch-up, or second read.
-6. **Release** — all owned `LocalClient`/socket handles are dropped (RAII) before any mapping,
-   formatting, or output; a slow stdout therefore never retains a Session. No shutdown exchange
-   exists or is claimed; the Server may observe EOF asynchronously.
-7. **Map** — pure deterministic projection of the validated snapshot into the command result.
-
-`config check` is purely local: no socket connect, no lock, no mkdir/chmod, one separate checked
-5-second cohort budget for its cohort check. `doctor` is local in the same way: its runtime folder
-check observes descriptor-relative paths and locks only, never creates a lock or a marker, and never
-repairs, over one cooperative 5-second budget checked between bounded filesystem operations; its
-only connection is the Session check's handshake `query`. Platforms other than Linux, macOS and Windows produce `service-unavailable`
-`{stage:"platform",reason:"unsupported-platform"}` for network queries and mutations and
-`service-unavailable` with the same details for `config check`; there is no fallback to unbounded
-connection APIs. `server start` outside Linux, macOS and Windows answers `service-unavailable` with the same platform details.
+Every network query uses one checked 5-second monotonic deadline, created immediately before admission, reused unchanged for the read and never renewed; it never falls back to the 50-second request default. A query performs one admission and one request, with no reconnect, retry, publication catch-up or second read. All owned `LocalClient` and socket handles are dropped before any mapping, formatting or output, so a slow stdout never retains a Session. No shutdown exchange exists or is claimed; the Server may observe EOF asynchronously.
 
 Capsule manifests use contract 1 with exactly `contractVersion` and `payloadSha256`.
 The integration result's `capsule.payloadSha256` replaces payload-version fields;
@@ -1082,85 +138,7 @@ managed installation is owned by the [Windows integration contract](windows-agen
 Windows Agent startup is specified in [Windows Agent startup](windows-agent-start.md); prompt
 composition is specified above.
 
-`terminal read`, `agent read` and `terminal wait-output` share the current source-selection
-and read-only viewer lifecycle in [native terminal output](native-terminal-output.md). The
-source defaults to recent (80 physical rows); `--lines` controls its bounded range and
-`--source recent-unwrapped` joins verified soft wraps. Internal read/history content projections have current schemas but are not CLI
-modes. Finite waits default to 30000 ms; `--forever` explicitly removes that deadline. `--after`
-pins fresh-output boundaries and refuses reset/eviction. Interruption, known-effect retention
-and detach evidence retain the [wait contract](native-cli-wait-model.md).
-
-`terminal send` samples one absolute 5-second deadline at command entry and shares it across
-everything below — source materialization for a declared `--file`/`--stdin` (the first
-effectful step, before the cohort check), the cohort check under the earlier of its own
-budget and that ceiling, discovery, admission, and the snapshot read consuming only what
-remains — then uses the same admitted session for exactly one `terminal.send` exchange
-under the same deadline. A `--text`/`--key` invocation has no materialization step at all:
-
-0. **Materialize** (declared sources only) — `--file`/`--stdin` is read in full into the
-   bounded byte or paste content described below (small UTF-8 input retains the text-record path), before any runtime access; see [Send input
-   sources](#send-input-sources). A source failure owns no request identity and never
-   reaches the Server.
-1. **Resolve** — the typed terminal ID is looked up in the validated snapshot's presentation
-   bindings; absent → `not-found` (3) with `{resource:"terminal",target}` and the session
-   drops. Labels are never consulted.
-2. **Send** — one `terminal.send` request carries an ordered record sequence under a
-   fresh request identity using the snapshot's Session, Worker, and terminal facts. `--text`
-   produces one UTF-8 record (4096 bytes including optional CR); `--file`/`--stdin`
-   produce one opaque byte record (1 MiB including optional CR), retaining the text path
-   for small UTF-8 content. `--paste` instead produces one paste record (256 KiB) with
-   an optional separate Enter record. Repeated `--key` produces up to 64 semantic-key
-   records in argument order; keys are protocol names, never canned escape strings.
-   The Client Connection is fully released before the typed result is mapped or output
-   prepared. The request is never retried, including after partial acceptance.
-3. **Answer** — the Server's `terminal.send.result` splits two axes the envelope reports
-   verbatim: `inputStatus` (`accepted` means the Host queued the input record — never that a
-   child process read or executed it; `rejected`/`not-submitted` mean the record provably never
-   reached the queue; `unknown` means it may already have landed) and `cleanupStatus`
-   (`not-needed`/`confirmed`/`unconfirmed`, where `unconfirmed` means the temporary input-only
-   attachment may persist until a later Worker cleanup detaches it, carrier teardown or
-   Host-epoch end — never a claim of release; a Host that refuses the Detach no longer holds the
-   attachment, so that cleanup is `confirmed`). The send rides the shared Worker↔Host link:
-   when that connection fails, other viewers on the same Host may be interrupted — a
-   transport-level side effect of the underlying connection, not a normal send seizing
-   control. An intact Host answer that contradicts the send never fails that connection. The result's physical `target` (`workerGeneration`, `hostEpoch`,
-   `hostTerminalId`) is the incarnation the Server actually admitted, projected verbatim;
-   pre-admission refusals carry none. Exit mapping: `accepted`+`confirmed` → 0;
-   `accepted`+`unconfirmed` → 5 with a do-not-resend warning (the input may already have
-   taken effect); `rejected` → 3; `not-submitted` → 4, except the protocol-fault reason
-   `host-protocol-fault` which is a transport-class defect → 5; `unknown` → 8 with a
-   never-retried warning. Every nonzero answer keeps `inputStatus` truthful — an accepted
-   input is never rewritten as unsent.
-
-`worktree list` shares steps 1–4 of the network preamble plus one snapshot read, all under
-one absolute 5-second deadline sampled once at command entry (`snapshot_session_until` —
-cohort, discovery, socket, admission, snapshot, and the worktree-list exchange each consume
-only what remains; there is no per-stage renewal). It then:
-
-1. **Resolve** — `--directory` is a strict globally stable Directory ID; no Project or local filesystem probe is needed.
-2. **Read** — submit one `workbench.worktree-list.read {directoryId}` on the admitted session and total deadline. Server validates the global Directory and dispatches one bounded Worker Git discovery job sharing a five-second TTL and 64 KiB stdout budget. CLI never retries, replays or reconnects.
-3. **Map** — release the session before projecting `orchbee.worktree.list` v1: `{directoryId,path,entries}`, without Project identity. Entries retain verbatim Git facts and byte alternates. Exchange failures use `orchbee.cli.failure.worktree`; missing Directory returns `not-found`, never partial entries.
-
-`launch-profile list` and `launch-profile get <selector>` share steps 1–4 of the network
-preamble plus one snapshot read, all under the same single 5-second deadline, then:
-
-1. **Read** — exactly one `workbench.launch-profile-catalog.read` request
-   `{selector|null}` under a fresh `WorkbenchRequestId`, bounded by the same deadline, on
-   the same admitted session. The selector passes verbatim; the Server resolves it under
-   the catalog lock (exact profile ID first, then name cardinality). The read is never
-   retried, replayed, or reconnected; an undetermined exchange maps through the failure
-   matrix.
-2. **Map** — the session is fully dropped before the typed `launch-profile-catalog.result`
-   is projected. `Catalog` yields the `orchbee.launch-profile.list` document
-   `{catalogRevision,profiles:[{profileId,name,launch}]}` (at most 64 entries, verbatim);
-   `Profile` yields the `orchbee.launch-profile.get` document
-   `{catalogRevision,profile:{profileId,name,launch}}`. Every failure the exchange
-   produces — including transport and protocol defects — wears the dedicated
-   `orchbee.cli.failure.launch-profile` envelope; `not-found{resource:"launch-profile"}`
-   is the unmatched-selector answer and `ambiguous` carries the bounded candidate IDs.
-   Both success envelopes carry `source:{kind:"launch-profile-catalog",sessionId,
-catalogRevision}` — the catalog-private revision, distinct from the Workbench
-   navigation revision.
+For `terminal send`, `accepted` means the Host queued the input record, never that a child process read or executed it. The request is never retried, including after partial acceptance, because the input may already have taken effect. The send rides the shared Worker-Host link: when that connection fails, other viewers on the same Host may be interrupted, which is a transport-level side effect of the underlying connection, not a send seizing control.
 
 ### Send input sources
 
@@ -1181,31 +159,6 @@ commands refuse before source, signal or Session effects.
 Regular-file stdin retains direct reads. Process startup and termination remain OS
 scheduling boundaries, not hard real-time guarantees.
 
-The adapter uses the already admitted `winsafe` system-directory and `winapi-util`
-handle-type bindings at their existing locked versions, with no authored unsafe code.
-States are admitted -> starting -> reading -> complete/failed/timed-out/cancelled -> child-reaped;
-only complete can reach submission. `source/input.rs` owns opaque-byte/paste routing:
-file/stdin is not restricted to UTF-8. This algorithm and finish projection compile through the common source facade; the Unix port (with its Linux signalfd and macOS kqueue captures) and the Windows port retain acquisition and signal ownership, and `source_finalization/` retains the original emit-time release. Windows tests exercise real reader processes
-for EOF, limits, and timeout, and inject a signal observation to test cancellation;
-they do not simulate physical Ctrl+C. This workflow uses implementation tests.
-
-`--file` and `--stdin` are declared local sources. Grammar validation precedes
-source acquisition; cohort discovery, admission, snapshot and submission happen
-only after the complete bounded source exists. Small valid UTF-8 content retains
-the text-record path; other content becomes opaque bytes. Paste content becomes
-one paste record and, with `--enter`, a separate trailing Enter record.
-
-- **Pure input boundary.** The four source families are mutually exclusive;
-  `--key` alone is repeatable, up to 64 records. `--enter` cannot accompany keys,
-  and `--paste` requires file/stdin. Pre-admission source failures submit nothing
-  and own no request identity.
-- **One shared budget.** The absolute 5-second deadline sampled at command entry covers
-  source setup, materialization, and the entire send lifecycle; it is never reset or
-  renewed. Only the Windows pipe reader's start moves it later, by that start's own
-  length. A deadline check precedes every source wait and every read — including a
-  read whose wait ended at the deadline — and also arbitrates the completion boundary
-  itself: an end of input observed after the budget closed is `timeout`, never a clean
-  record. No runtime admission runs after it expires.
 - **Unix file admission.** `--file` opens `O_RDONLY|O_NONBLOCK|O_CLOEXEC` — the open itself
   cannot block on a FIFO or device — then `fstat` on the already-open descriptor must
   report a regular file, which also closes the path-replacement race: a swapped path
@@ -1222,12 +175,6 @@ one paste record and, with `--enter`, a separate trailing Enter record.
   no private reopen — `/dev/fd/0` shares the caller's description — so a FIFO is read in
   place on the borrowed descriptor, flags untouched, each read gated on its poll. Every
   other kind (socket, device, …) is rejected.
-- **Bounded record.** File/stdin acquisition reads at most the 1 MiB byte bound
-  plus one probe byte, or the 256 KiB paste-content bound plus one. Opaque bytes,
-  including NUL and non-UTF-8 data, are preserved without trimming, BOM removal or
-  CRLF normalization. Empty input is refused. The optional folded CR counts toward
-  the non-paste bound; paste uses a separate Enter record. Literal `--text` retains
-  its 4096-byte UTF-8 bound including CR. Payload is never included in diagnostics.
 - **Source signal guard.** On macOS and Linux the source stage owns process signal capture for
   its duration — single-threaded, with no other signal owner and no child spawned before
   handoff. The eligible set is {SIGHUP, SIGINT, SIGQUIT, SIGTERM} minus every signal the
@@ -1271,14 +218,6 @@ one paste record and, with `--enter`, a separate trailing Enter record.
   common `main` emit attempts the output, then the old mask is restored on that same
   path — a later signal may still terminate the process after output completes, and no
   exit-status claim is made against it.
-- **Failure compatibility.** Validation and local causes stay on the standard
-  `invalid-usage` path (no details). Source timeout and cancellation carry the
-  `orchbee.cli.failure.source` v1 envelope — `{stage:"input", inputSource:"file"|"stdin"}`
-  plus `timeoutMs` (the configured shared budget, never a measured duration) on timeout
-  only — with no authority `source` and no request identity, because nothing was
-  admitted. Source cancellation exits conventionally `128 + signo` (129/130/131/143)
-  through the same common emit finalizer as every other output — the status override
-  exists only for this envelope — while source timeout keeps exit 7.
 - **Stated OS limits.** The deadline is a logical bound around each syscall, not inside
   it: a kernel-stalled regular-file read is not preemptible, so no prompt-termination
   promise exists there. The pre-arm window before the mask swap runs under inherited
@@ -1288,37 +227,6 @@ one paste record and, with `--enter`, a separate trailing Enter record.
   procfs, consistent with the procfd input admission. On macOS they rest on the kernel
   discarding a blocked ignored signal, and a FIFO read can stall only when another reader
   of the same pipe drains it between the poll and the read.
-
-`agent list` and `agent get` run the same cohort → discovery → socket →
-admission preamble as every network query under one absolute 5-second command budget
-sampled once at invocation entry: the preamble, admission, optional name resolution
-and OBAP read all share that ceiling, which is never refreshed between stages — a stage with
-no budget left never starts, and a step completing at or past the ceiling settles as the
-command's own timeout. They skip the Workbench snapshot read entirely. On the single
-admitted Client Connection they resolve the target when necessary as described above,
-then perform one Agent Observation Protocol (OBAP) read exchange; a machine-document `agent get`
-whose get read found the session follows it with the session's Explain exchange under the same
-ceiling; an Explain exchange that gives no explanation leaves `explanation` null as described
-under `orchbee.agent.get`, and any other failed Explain exchange fails the command with no partial
-document:
-
-Apple Silicon macOS development builds currently expose this path for `agent list` without
-`--client`; `get`, `wait`, `changes`, and the Client projection retain their documented
-platform limits.
-
-1. **Request** — one OBAP frame (`OBAP` magic, version 1) under a freshly minted
-   `ObapRequestId`: `agent.session.list.request` (kind 1) carrying `includeEnded`,
-   `limit`, and an optional `cursor` (omitted on the first page — never serialized as
-   `null`, and an explicit `null` on the wire is rejected); `agent.session.get.request`
-   (kind 3) or `agent.session.explain.request` (kind 5) carrying the parsed `sessionId`.
-   The encoded request is bounded at 16 KiB.
-2. **Result** — exactly one matching result frame (kinds 2/4/6), bounded at 1 MiB for
-   list and 128 KiB for get/explain; a small refusal rides the ≤1 KiB bound. The frame's
-   `requestId` must equal the issued identity and the result kind must match the issued
-   operation — any mismatch is `protocol-invalid` stage `agent-read`.
-3. **Release** — the Client Connection is fully dropped before the outcome is mapped or
-   output is prepared. An ambiguous post-submission outcome retires the session and is
-   never replayed: no reconnect, no second admission, no retry.
 
 On macOS and Linux the Agent read commands own a separate, narrower signal watch for the whole
 armed span — {SIGINT, SIGTERM} only, armed before any runtime contact through the same
@@ -1341,192 +249,23 @@ runs only after the admitted session is dropped. A provisional wake observation
 surviving a clear arbitration is an `internal-failure`, never a transport or timeout
 verdict.
 
-Semantic answers map to fixed failure kinds under the `orchbee.cli.failure.agent`
-document: `listed`/`found` are the only success outcomes; `rejected{read-denied}` →
-`denied`; `rejected{not-found}` → `not-found` (get/explain only, naming the session);
-`rejected{cursor-invalid|cursor-stale}` → `rejected` (list only); `unavailable` →
-`service-unavailable` with `reason:"runtime-unavailable"`. A deadline elapsed inside the
-exchange is `timeout` with `timeoutMs:5000`; a transport fault is `transport-loss`; a
-malformed, mismatched, or miscorrelated frame is `protocol-invalid`. Failures from these read exchanges carry `{stage:"agent-read",operation:"list"|"get"|"explain"}` (`"wait"` on the wait command's arms); the correlated
-`agent-read` source is attached only to trustworthy semantic answers — transport,
-timeout, protocol-invalid, and cancelled failures carry none. Agent reads observe the Server's
-canonical Agent sessions only; an `ended` session is reported, never resurrected, and
-`--include-ended` widens the page filter rather than the lifecycle itself. A session whose every
-presentation attachment sits on a Tab, Panel, set, Workspace or group that an accepted Close is
-removing is absent from `agent list` and answers `not-found` on the Agent reads, until that Close
-publishes or stops; the canonical state is unchanged.
-
-`agent wait` holds one admitted Client Connection. Windows follows canonical changes as described
-in the Agent wait policy above and also reads current detail, as macOS does; Linux uses Get polling.
-Every exchange has a fresh request identity, and no historical fields overwrite current detail. One
-optional absolute monotonic deadline sampled at command start covers admission, every read, and
-every backoff; `--forever` omits only that total ceiling; each poll runs under `min(5 s, remaining total)`. Between non-matching
-observations the loop sleeps an interruptible private backoff starting at 50 ms,
-doubling per quiet poll, capped at 500 ms and by the remaining budget — the signal wake
-descriptor joins the sleep, and the held session is dropped before the single finish
-arbitration exactly like a single read. There is no re-admission, replay, or new
-session after a retired or ambiguous exchange.
-
-Each returned document is evaluated client-side in requested order. The three freshness
-conditions (`fresh`, `stale`, `disconnected`) match the observation's freshness
-directly; every status condition additionally requires `fresh` freshness. Native status
-conditions match the status `kind`; `blocked` and `done` use the compositions above. Multiple conditions may match one document —
-`matchedConditions` echoes them in the order `--until` requested them. There is no
-baseline or poll-0 change semantics: the first read may match immediately.
-`--after-revision` is a caller-supplied global-revision fence — it is not a turn-scoped
-or event-causal identity. When the fence is greater than the first returned revision
-the command refuses at exit 3 (`rejected`, `revisionAheadDetails`) after exactly one
-observation; revision is monotonic so the refusal can never fire later. A read that
-returns `rejected{not-found}` at any poll — initial or mid-wait — is `not-found` (3);
-`read-denied` is `denied`; `unavailable` is `service-unavailable`; each carries the
-correlated `agent-read` source of its answering poll.
-
-Two distinct deadline classes both exit 7 as `timeout` under
-`{stage:"agent-read", operation:"wait"}`. `wait-deadline` is the shared absolute budget
-expiring — post-step settlement wins over any late-arriving match, so a condition that
-lands after the budget is never published. `read-deadline` is one poll's own
-`min(5 s, remaining)` bound firing while the total still had room: the held session is
-retired by the exchange and is never re-admitted, and the details record the admitted
-`readBudgetMs` — the document does not claim the requested conditions were absent for
-the whole wait. Timeout details carry the configured `timeoutMs`, monotonic
-`elapsedMs`, `completedObservations`, and the last completed observation's
-`lastStatusKind`/`lastFreshness`/`lastRevision` — all omitted when zero observations
-completed. Cancellation inside the armed span is the same `cancelled` 130 with no
-source; admission failures keep the generic failure family. The text diagnostic names the
-deadline that ended the wait — the `--timeout` value for `wait-deadline`, the read budget
-for `read-deadline`, the five-second activity gate for a prompt's `effect-deadline` — and
-the `--until` conditions it was waiting for; those conditions reach standard error only.
-
-The existing Linux wait samples the current projected state at each completed poll — it is not a
-subscription and provides no change notification. A transition that begins and ends
-between two completed observations is missed: pending requests may clear, turn
-outcomes are replaced by later turns, and freshness moves between polls. The miss
-window is not bounded by the poll interval alone — Server read duration and scheduling
-also widen it — and no sticky-state guarantee exists even for conditions that stay
-true once reached. On a match the emitted `orchbee.agent.wait` envelope (version 1)
-carries `matchedConditions`, the satisfying `revision`, the full `session` detail
-verbatim, and a `wait` echo `{until, afterRevision, timeoutMs, observations,
-elapsedMs}`; its `source` is the decisive poll's `agent-read` requestId only — failed,
-cancelled, and untrusted exchanges publish none. Text output is a single line:
-`session <id> matched <conditions> at revision <n> after <ms>ms`. A physical Agent terminal
-match names the terminal by the handle a person targets it with — its Panel's `@panel:0x<hex>`
-for a primary terminal, otherwise its own `@terminal:0x<hex>` — never by presentation ID:
-`<handle> matched <conditions> at state sequence <n> after <ms>ms`. A physical `agent prompt`
-receipt names its terminal the same way.
+The Linux wait samples the current projected state at each completed poll; it is not a subscription and provides no change notification. A transition that begins and ends between two completed observations is missed: pending requests may clear, turn outcomes are replaced by later turns, and freshness moves between polls. The miss window is not bounded by the poll interval alone, because Server read duration and scheduling also widen it, and no sticky-state guarantee exists even for conditions that stay true once reached.
 
 ## Session activation
 
-`server start` is the headless form of the TUI's local startup: both call the single shared
-connect-or-activate core (`crates/workbench-client/src/local_activation.rs`) — the sequence is identical and only the
-failure projection differs. One absolute 20-second deadline starts before cohort validation
-and is never reset per stage:
+`server start` is the headless form of the TUI's local startup: both call the single shared connect-or-activate core in the workbench-client crate, so the sequence is identical and only the failure projection differs. One absolute 20-second deadline starts before cohort validation and is never reset per stage.
 
-1. **Cohort** — `Cohort::current(deadline)` first, before any runtime-directory work.
-   Its typed io kind classifies: `InvalidData` → `incompatible`, `NotFound` →
-   `service-unavailable`, `PermissionDenied` → `denied`, `TimedOut` → `timeout`, every other
-   kind → `internal-failure` — all with `{stage:"cohort"}`.
-2. **Prepare** — resolve `ORCHBEE_RUNTIME_BASE` or create the default
-   `<data root>/internal/runtime`, select the Session (`default` unless routed), then
-   `prepare_mode_checked` in create-if-missing mode: the runtime directory may be created even
-   on an invocation that later refuses. Rendezvous errors classify exactly like a query's
-   discovery stage. A data folder the admission rules refuse, on every platform, is
-   `check-failed` `{stage:"runtime-base",refusal}`, or keeps the stage its rendezvous error
-   classifies to; its text names the item at fault and the fix with the TUI's startup refusal
-   copy, whichever stage met it. `refusal` is `{reason,path}`: `path` is the refused folder or
-   file, spelled as `dataRoot` is, and `reason` the rule it breaks, one of `other-owner`,
-   `others-can-change`, `others-can-read`, `permissions-not-kept`, `locks-unsupported`,
-   `symbolic-link`, `access-control-list` or `unsafe-socket-folder`. On Windows and macOS,
-   before `prepare_mode_checked`, a release or test Client outside the release store whose
-   selected Session has no Client endpoint hands the start to the store's active version and waits
-   for it under the same deadline
-   ([store start](windows-cli-configuration.md#windows-release-installation)); the steps below
-   still run and alone decide the result.
-3. **Socket budget** — every derived socket path must fit this platform's `sockaddr_un`;
-   an over-budget path is `service-unavailable`
-   `{stage:"runtime-directory",reason:"address-too-long"}` before any lock or admission attempt.
-4. **Connect or activate** — try an admitted `LocalClient` (a missing or refusing socket is
-   retryable inside the deadline; every other connect failure classifies through the query
-   `admission` mapping verbatim); take the activation lock, re-check the socket, read the
-   marker, take the Session lifetime lock, refuse `rejected` with
-   `{stage:"activation",reason:"recovery-required"}` when the marker or sockets show no live
-   owner, commit the marker,
-   spawn `orchbee-server --runtime-directory <runtime-directory>` from the validated cohort, then
-   poll connect plus `try_wait` until readiness. On Windows a refusal whose recovery verdict
-   observed a registered process alive adds `blockingProcess`: its `role` (`server`, `worker` or
-   `terminal-host`), `program`, the file name of its program and never a path, and `processId`;
-   the text names that process and says that ending it or restarting the computer clears the
-   refusal. An unknown observation names nothing. A Server the system refused to create is
-   `rejected` `{stage:"activation",reason:"server-not-started",ioKind,osError}`: `ioKind` uses the
-   closed vocabulary of the `status client` cohort diagnostic and `osError` is the system's error
-   number or null. Nothing ran, and the text says what the system refused. On Windows only the
-   process creation itself answers this way; a Session record failure around it, and a `try_wait`
-   failure everywhere, is the same `recovery-required` refusal — the marker may already be
-   committed, so the answer is never a clean-timeout claim. A lock, the marker or a socket
-   probe that meets a refused item is `check-failed` `{stage:"runtime-directory",refusal}`;
-   any other of their I/O failures is `internal-failure` `{stage:"activation"}`.
-5. **Probe** — the admitted probe `LocalClient` is dropped before output; a success implies
-   no held session, grant, or Session identity receipt.
-
-`result.outcome` reports the branch this invocation actually took: `started` only when it, or
-the store's Client it ran, spawned the Server child, `already-running` when an existing Session
-admitted the probe. A
-On Linux, a `timeout` answer means readiness stayed unconfirmed — before marker commit nothing was left
+On Linux, a `timeout` answer means readiness stayed unconfirmed: before marker commit nothing was left
 behind, between commit and spawn a marker without a live owner may persist (the next
-invocation then answers `recovery-required`), and after spawn a Server may still be running;
-the command never claims a timeout proves no Server started, never retries `recovery-required`,
+invocation then answers `recovery-required`), and after spawn a Server may still be running.
+The command never claims a timeout proves no Server started, never retries `recovery-required`,
 and never force-cleans uncertain runtime state. Windows may have published a generation before marker
 commit; a later invocation rechecks exact process identities, registration and all recovery guards.
 Only a proved-dead generation is automatically reconciled, preserving its checkpoint. Signals stay inherited: no capture stage exists,
 so an interruption is process death under the conventional `128 + signo`, never a `cancelled`
-envelope. Windows explicit stop and subsequent start are described below; there is no repair verb.
+envelope. There is no repair verb.
 
 ## Runtime folder facts
-
-`doctor`'s runtime check carries the same closed runtime folder report in `details` on Linux,
-macOS and Windows. The same existing-only runtime path/SID scope is used without cohort admission,
-activation, endpoint connection or process discovery. Ordered rows describe the
-selected base, admitted runtime directory, marker, activation/lifetime locks and
-five named-pipe addresses. Windows reports the filesystem Host socket scope and POSIX mode/UID members as unsupported. `private` means the private owner rule (the token user, SYSTEM or
-Administrators) and the runtime DACL allowlist were checked, not a fresh security guarantee.
-
-The current schema distinguishes a present marker's `activation: active|stopped`; Stopped
-also carries `stopRequestId`. It is never rendered as absent. Only Active adds the
-activation-recorded advisory. This is the retained completion record's observation,
-not a new process-health check; a later start consumes the old stop receipt.
-
-Each row reports known/absent/uninspectable, with free/held/unsafe also available
-for the lifetime lock. A denied/invalid/missing parent prevents all descendant
-inspection. The activation lock is never acquired. The lifetime probe opens only
-an existing admitted file and briefly tries an exclusive lock; it may contend
-with startup. Pipe names are unauthenticated facts from at most 2048 namespace
-entries per endpoint. Exhaustion is `observation-limit`, never absent. A five-second
-cooperative deadline produces partial coverage; filesystem stalls are excluded.
-`complete` means every row was attempted or parent-derived, not healthy. All
-handles are RAII-owned, including process termination by Ctrl+C. No repair, file
-creation/deletion, process launch/stop or retry occurs. Marker and pipe advisories
-describe current recovery policy only. Public Windows tests cover absent/held/free,
-invalid marker, Unicode paths, schema and localized text, and zero creation;
-runtime and IPC tests cover admission, real listeners and bounded observation.
-
-On Windows, `unrecognizedRecords` lists the retained records that refuse the selected Session.
-`obsolete-identity` marks a runtime directory, deletion intent or catalog record whose own name
-derives this Session while it is stored at another location, as an earlier build's derivation
-leaves it; `unreadable` marks a record at the Session's own location that its admission rejects.
-Each item carries `record` (`runtime-directory`, `catalog-record` or `deletion-intent`), `reason`
-and the record's `path` or `pathUtf16`. The member's `state` is `known`, or `uninspectable` with
-`denied`, `io-error`, `invalid-path`, `parent-unavailable`, `deadline` or `observation-limit`;
-Linux and macOS report the member as unsupported. A non-empty list adds the `unrecognized-records`
-advisory: the records are retained as found and never migrated, they refuse only this Session,
-and the next step is another `--session` name or moving the listed paths away after confirming
-no older build still uses them. Doctor never moves, repairs or deletes a record.
-
-On Windows, when the Session's catalog record names a registered process whose exact identity, its
-process ID and creation time, is still alive, the runtime facts carry `blockingProcess` in the
-shape `server start` reports it and `recovery-blocked` leads the advisories; doctor's text line is
-then the sentence a refused start shows. This is the record read and identity observation
-`session list` uses for `recoverable`, under the record writer lock, so a Session whose lifetime
-lock is held, a lock another start holds, an unknown observation or an unreadable record names
-nothing. It connects to no endpoint and ends no process.
 
 The runtime folder report is the read-only counterpart of activation: it holds bounded facts about the
 selected local Session runtime without connecting to anything, creating anything, or
@@ -1539,29 +278,7 @@ probe whose `try_lock` result is immediately released on the same descriptor. Th
 lock is metadata only (presence/kind/owner/mode/link count) and is never acquired. No endpoint is connected — the Client socket least of all, where a connect would consume
 an admission slot — and no process is enumerated, signaled, or hashed.
 
-Every row is a closed-state fact document, never a health verdict: `runtimeBase` and
-`runtimeDirectory` carry `path`/`pathBytesHex`; `marker`, `locks:{activation,sessionLifetime}`,
-`endpoints:{client,worker,clientPending,agentObservation,hostEndpoint}`, and `hostScope` each
-report `state` in `known|absent|unsafe|uninspectable` (the lifetime lock also reports `free` and
-`held`), plus a concrete `reason` when not fully known — `symlink`, `invalid-kind`,
-`foreign-owner`, `invalid-mode`, `invalid-size`, `invalid-link-count`, `invalid-lock`,
-`denied`, `io-error`, `invalid-path`, `identity-changed`, `unsafe-parent`, `parent-unavailable`,
-or `deadline`. `Present` rows carry the raw facts (`kind`, `ownerMatch`, `mode`, `size`,
-`linkCount`) the verdict was computed from. A `held` lifetime lock means only that some owner
-held the lock at that observation instant — never that a Session, a Worker, or any process is
-alive — and `absent` is a pathname fact, never proof that an execution ended. The Host
-directory is admitted before the Host endpoint name is inspected; an unadmitted parent closes
-the endpoint row `uninspectable`/`unsafe-parent` without traversal. `complete` is the
-attempted-or-classified coverage fact — `false` only when the cooperative 5-second budget was
-spent between operations — never a runtime-health claim.
-
-`result.advisories` carries the conditional advisories the current activation predicate's own
-facts justify: `recovery-blocked` first when the Session's record names a registered process
-proven alive, `activation-recorded` when a fully valid marker was observed, `socket-residue`
-when a fully valid client or worker socket leaf was observed. Doctor warns with the first advisory
-only while its Session check is not-applicable. The advisory quotes current policy over
-observed facts; it never predicts the result of a nonatomic future `server start`, which
-attempts an authenticated join before it reads any residue.
+A `held` lifetime lock means only that some owner held the lock at that observation instant, never that a Session, a Worker, or any process is alive. `absent` is a pathname fact, never proof that an execution ended, and `complete` is a coverage fact, never a runtime-health claim.
 
 Unsafe and uninspectable rows are facts, not failures of the report: the runtime check fails only
 through the `config check` path rows. A temporary diagnostic lifetime-lock probe can contend with a
@@ -1571,378 +288,14 @@ never manufactures liveness or termination witnesses.
 
 ## Canonical data and results
 
-Project queries follow `navigation.projects` order. Workspace queries follow `workspaceOrder`,
-falling back to global `navigation.workspaces` order when absent or empty. Other traversal follows
-`terminalContexts` order then `tabs` order; panels depth-first with `children[0]` before
-`children[1]`; terminal bindings in that panel order with `primaryPresentation` before
-`childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
-
-Every machine document uses the envelope `{schema, version, source?, result}` of [CLI output](../../../docs/cli/output.md#machine-documents); staged workflows carry their phases inside `result`. All machine documents and the catalog use only version `1`. `api schema <id>` retrieves the complete current contract offline. Adding fields or schema IDs updates this current contract directly. The same command keeps the same members across platform and option choices, with unsupported capabilities explicit. Sources retain their owner's meaning:
-
-- `source.kind="workbench-snapshot"` with `sessionId` and decimal-string `revision` from the same
-  validated snapshot — present only after a complete valid read.
-- `source.kind="workbench-command"` with `sessionId`, `requestId`, and decimal-string
-  `expectedRevision` — produced mutation results, and command-stage failures after a valid
-  read.
-- `source.kind="embedded"` — the compiled-in schema dictionary (`api schema` results and its
-  `not-found` failure).
-- `source.kind="local-runtime"` — produced `config check` and `doctor` results and every `server start`
-  answer: the local runtime is the answering authority
-  for activation outcomes, refusals, offline diagnostics, and bounded runtime observations.
-- `source.kind="terminal.send"` — `sessionId`, the send `requestId`, and the decimal-string
-  `snapshotRevision` the binding resolved from, on typed `terminal send` answers.
-- `source.kind="terminal-launch-read"` — `sessionId` and the decimal-string `revision` the
-  Server joined under the coordinator lock, on `terminal get` answers.
-- `source.kind="worktree-list"` — `sessionId` and the decimal-string `revision` of the
-  committed Workbench at the Server's authoritative membership check, on `worktree list`
-  results and its post-snapshot failures.
-- `source.kind="agent-read"` — the correlated `requestId` the semantic answer carried
-  back, on produced agent read results and on post-admission semantic refusals.
-- `source.kind="launch-profile-catalog"` — `sessionId` and the decimal-string
-  `catalogRevision` of the resolved catalog, on `launch-profile list`/`get` results and
-  their post-session failures.
-- There is no freshness field; one consistent read is not a liveness guarantee.
-
-Result payloads (schema IDs are stable machine names):
-
-- `orchbee.status` → `{session:{reachable:true,sessionId,revision},
-counts:{projects,workspaces,tabs,panels,boundTerminals},
-worker:{status:"unknown",reason:"not-in-workbench-snapshot"},terminalRuntime?}`. `boundTerminals` counts
-  presentations with a `binding`; snapshot validation already guarantees terminal IDs are unique,
-  so each binding names a distinct terminal. `reachable` proves only this read succeeded.
-  Text reports a running Session only after a successful snapshot read, followed by the
-  localized resource counts. It omits the internal Session ID, snapshot revision, and Worker
-  observation detail; it does not claim Worker or Agent readiness. The JSON document is unchanged.
-- `orchbee.project.list` → `{projects:[{projectId,label,directoryCount,workspaceCount}]}`;
-  `orchbee.project.get` → `{project:{projectId,label,directories:[{directoryId,workerId,path}],
-workspaces:[{workspaceId,label}]}}`.
-- `orchbee.workspace.list` → `{workspaces:[{workspaceId,label,number,tabCount,panelCount,projectId,
-primaryDirectoryId|null,terminalContextId}]}` from global navigation, with required-nullable `projectId`; `workspace get` adds
-  `tabs:[{tabId,label}]` resolved through `terminalContextId`.
-- `orchbee.tab.list` → `{tabs:[{tabId,label,number,panelCount,pinned,groupId|null,
-context:{kind:"workspace",terminalContextId,
-workspaceId}}]}`; `workspaceId` is always required. `tab get` adds `root`, the
-  typed `PanelNode` subtree re-encoded without losing semantic fields. `tab get` text output
-  names the Tab, its number, Panel count, ID, pin and group, and its Workspace by name and ID;
-  `root` and the context stay in JSON.
-- `orchbee.panel.list` → `{panels:[{panelId,label,customLabel|null,displayLabel,workspaceId,tabId,terminalContextId,primaryPresentationId,
-presentationCount,primaryTerminalId|null,primaryUnavailableDirectory|null}]}` where `primaryTerminalId` reflects only
-  `primaryPresentation.binding` and `primaryUnavailableDirectory` names the saved directory a
-  restore held the unbound primary for; `panel get` → `{panel:{panelId,tabId,context,slotPath,
-primaryPresentation,childPresentations}}` with `slotPath` the `PanelSlot` IDs from root to leaf
-  (`[]` when the root itself is the panel) and each presentation `{presentationId,label,
-binding:{terminalId,workerId}|null,unavailableDirectory|null}`. `panel get` text output shows
-  the Panel's ID, name, Workspace (name and ID), Tab and primary terminal;
-  its Terminal row shows "Directory unavailable" / "目录不可用" for a held Panel. The context, slot
-  path, presentation IDs, Workers and child presentations stay in JSON; `terminal list --panel`
-  lists every terminal of the Panel. Windows and macOS `panel list` text output is the compact Agent table,
-  which has no terminal column; a held Panel shows `-` in its directory column there, and
-  `--format json` carries `primaryUnavailableDirectory`. Other platforms print `ID`, `NAME`,
-  `WORKSPACE`, `TAB` and `TERMINAL`. `project get` text lists each directory's ID and path; its
-  Worker stays in JSON. With `--client`, text names the Client and its selected Tab and Panel;
-  each Workspace's remembered Tab stays in JSON.
-- `orchbee.terminal.list` → `{terminals:[{terminalId,workerId,boundTo:{presentationId,panelId,
-tabId,terminalContextId},observation}]}`; the rows carry no lifecycle or process members.
-  `observation` is what this command observed of the row, tagged by `kind`: `observed`
-  `{title,cwd,agent,state}` after a Host frame read; `frame-unavailable` `{agent,state}` when the
-  row was sampled but its Host frame could not be read, so title and directory are unknown;
-  `not-sampled` beyond the 64-row sampled prefix, when its observation did not finish before the
-  deadline, or when it could not be verified against the returned snapshot; and the shared
-  `{kind:"unsupported"}` on
-  platforms without terminal observation. `title` is the raw Host frame title, unnamed and
-  lossless; `cwd`, `agent` and `state` are the facts behind the `CWD`, `AGENT` and `STATE` cells,
-  with `null` where those sources name none. `state` is a presentation report state (`idle`,
-  `working`, `blocked`, `done`, `error`) or `unknown` for an identified Agent without one, and
-  `null` without either. At most one of `--workspace`, `--tab` and `--panel` keeps only the terminals
-  bound inside that resolved member, with the standard filter rules: an absent member is
-  not-found and an existing member without terminals is an empty list. Windows text output is an
-  aligned `HANDLE`, `TITLE`, `AGENT`, `STATE`, `WORKSPACE`, `PANEL`, `CWD` table. Other platforms
-  keep the same identity table and render unavailable runtime columns as `-`, except `TITLE`. `HANDLE`,
-  `WORKSPACE` and `PANEL` use stable `@<kind>:0x<hex>` exact identities, so filtering and
-  changes to other members cannot affect resolution. All significant digits remain copyable. Every terminal reports its Workspace under `WORKSPACE`. The enrichment, for text and JSON alike, shares one five-second deadline and cancellation watch
-  across the snapshot, exact-presentation report batches, and at most 64 exact-bound Host viewer
-  reads; later rows retain `-` for enrichment. Observations are best effort: once the snapshot
-  read succeeds, the listing succeeds with every row of the snapshot it returns. Observation stops
-  one second before the deadline, leaving that second to verify the reports and the Workbench
-  revision. If either moved, the command reads the newer snapshot and observes it once more; if
-  that still cannot be verified, it returns the newest snapshot's rows with every observation
-  `not-sampled`. A returned observation is always verified against the snapshot named in
-  `source`. `TITLE` names the Host frame title by the TUI Tab
-  rule: an absolute drive or UNC path to an `.exe`, `.com`, `.cmd` or `.bat` program shows the
-  program in the display language (for example `PowerShell` or `Command Prompt`), keeping cmd's
-  ` - <command>` suffix, and any other title shows its stripped text. A row without a title shows its
-  Presentation's committed or failed-launch program, as a Tab and the `panel list` `TITLE` do, and
-  `-` without one; JSON never reports that program as a title. The
-  [native tab labels](native-tab-labels.md#canonical-state-and-display) contract owns that rule.
-  `TITLE` and `AGENT` are the only cells shortened, each at its declared width (24 and 14
-  cells); the closed `STATE` vocabulary, handles and `CWD` are never cut, so a row may exceed
-  80 cells. `CWD` is the validated terminal-frame directory, falling back to the observed root process directory;
-  it never substitutes the Workbench Workspace path. `AGENT` uses the exact presentation report,
-  then bounded foreground-process detection; `STATE` preserves a known presentation report state.
-  An identified Agent with no known report state displays `unknown`. Otherwise, when a Host frame
-  was observed, it displays `observed`, which does not mean the Shell is ready to accept input; with
-  neither fact it displays `-`. Missing or unverified observations render as `-`. Only a failed
-  snapshot read, a filter member that does not resolve, and cancellation fail the listing. Each attached viewer gets a
-  best-effort detach attempt on both successful and failed
-  observation paths. Text preserves printable path characters and escapes terminal controls.
-  `terminal get` returns the same identity facts under
-  `terminal`, which additionally carries a nested `launch` member — the document is
-  `{terminal:{terminalId,workerId,boundTo,launch}}`, never a sibling `result.launch`. Only
-  presentation-bound terminals are visible; a binding does not prove the process lives.
-  Unlike `terminal list`, `terminal get` does not answer from the Client-held snapshot: it sends
-  a `terminal.launch.read` request on the admitted session and the Server resolves the current
-  binding, routing, and retained launch fact under the coordinator lock — the snapshot only
-  supplies the typed target id. Its envelope is `version:1` with
-  `source:{kind:"terminal-launch-read",sessionId,revision}` where `revision` is the joined
-  workbench revision as a decimal string. `launch` is
-  `{state,workerGeneration,createOutcome,geometry}`: `state` is the retained phase verbatim —
-  `creating`, `awaiting-start`, `starting`, `started`, `unknown`, `unavailable` — or
-  `not-tracked` when no uniquely attributable consistent record exists for the visible binding;
-  `workerGeneration` is a positive decimal string, `null` only for `not-tracked`; `geometry` is
-  non-null only for `started`; `createOutcome` echoes the retained create outcome, `null` for
-  `creating` and `not-tracked`. The required sibling `launchProfile:{profileId,catalogRevision}`
-  carries resolved provenance when the launch named a catalog profile; it is `null` for
-  explicit `--exec` and default-shell launches. The
-  envelope is `version:1`. The state is a retained fact, never process liveness:
-  `creating` records a phase, not proof of dispatch, and a deferred-start failure reads
-  `unavailable` without a fabricated start reason. Exit codes stay the query contract —
-  `not-found` 3, `server-busy` unavailable 4 — and a `found` answer whose
-  `launch.state` is `unavailable` with `createOutcome.kind` `failed` still exits 0 because the
-  query itself succeeded. The exchange rides the admitted session under the same 5-second
-  network budget shared with admission and the snapshot read: a dropped or timed-out exchange
-  is `transport-loss` 5, and a correlation mismatch or invalid result is `protocol-invalid` 5 —
-  the launch read never reports `timeout`.
-  Explicit programs and named-profile launches fill the required nullable sibling `launchSelection:{exec,args}` with the actual program and arguments frozen at creation. Profile deletion and Panel movement never rewrite it. Default-shell and `not-tracked` facts leave it null; environment values are not exposed. Text output uses localized labels for the program and JSON argument array. This read does not guarantee launch-command persistence across restart.
-- `orchbee.terminal.read` → `{terminal,frame,content}`: `terminal` carries the same
-  `{terminalId,workerId,boundTo}` identity facts; `frame` carries the applied projection's
-  `{revision,generation,sequence}` as decimal strings (u64-safe), `alternateScreen`, `geometry`
-  `{columns,rows}`, and `cursor` `{row,column,visible}`; `content` carries `rows` (the emitted
-  grid rows as `{index,text,continuation:{fromPrevious,intoNext}}` — `text` joins the row's
-  cells, dropping wide-cell spacer tails and trimming grid padding), `rowCount` (every row the
-  applied frame held), `truncated`/`omittedRows`, and `limits` `{rows:4096,textBytes:4194304}`.
-  Logical-line rendering replaces the emitted `rows` member with `lines` — each
-  `{firstRow,lastRow,text,startsMidLine,endsMidLine}` a joined logical line or a flagged
-  window-edge fragment — plus `lineCount`; under `--lines` a `tail` member reports
-  `{requested,omitted,entries:"rows"|"lines"}`. Emitted rows are bounded by a 4 MiB summed
-  JSON-encoded-text budget; rows past the budget are
-  counted in `omittedRows` and `truncated` is true. Under text output each emitted row (or
-  logical line) prints as one escaped line, followed by the localized tail marker when
-  `tail.omitted>0` and the truncation marker when `omittedRows>0`. The read is a
-  single point-in-time frame: `revision`/`generation`/`sequence` are the host's counters at that
-  observation, not a CLI freshness claim.
-- `orchbee.terminal.history` → `{terminal,history,content}`: `history` carries the priced
-  window's facts — `revision`/`generation`, `alternateScreen`, `columns`, `screenRows`, the
-  decimal-string `scrollbackRows`/`totalRows`/`startRow`, `requestedRows`, and `windowRows` (the
-  Host window's complete row count); `content` carries `rows` (`{index,text,continuation}` with
-  `index` the absolute retained-plus-screen row coordinate as a decimal string), `rowCount`
-  (emitted rows), `truncated`/`omittedRows`, and `limits` `{rows:1000,textBytes:4194304}` —
-  with the same logical-line and `--lines` substitutions as `terminal read` (`lines` with
-  decimal-string `firstRow`/`lastRow`, `lineCount`, `tail`). `omittedRows` honestly counts
-  `min(requestedRows,scrollbackRows)` minus emitted rows — rows the
-  `MAXIMUM_FRAME_CELLS/columns` cap or the text budget never emitted — while rows older than
-  `startRow` were never requested, not omitted. Text output matches `terminal read`: one escaped
-  line per emitted row plus the marker.
-- `orchbee.terminal.send` → `{action:"terminal.send",requestId,sessionId,workerId,terminalId,
-payloadKind,records,recordBytes?,recordsAccepted,firstStoppedRecord,acceptedEncodedBytes,
-inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` is text, key, bytes, paste or sequence;
-  `records` is the submitted record count. `recordBytes` describes the single content record
-  (including a folded CR for text/bytes), never a guessed encoding size for trailing semantic
-  keys. `recordsAccepted`, nullable zero-based `firstStoppedRecord` and `acceptedEncodedBytes`
-  report confirmed progress verbatim; a lost-response failure envelope does not fabricate them.
-  `inputStatus` is accepted, rejected, partial-accepted, not-submitted or unknown;
-  `cleanupStatus` independently reports cleanup. `reason` is the typed rejection/unavailability
-  token. Optional `target` is the physical incarnation actually admitted by the Server
-  (`workerGeneration`, `hostEpoch`, `hostTerminalId`). Submitted content is never echoed in
-  receipts or diagnostics. The obsolete `key` and `acceptedBytes` fields are not part of the
-  current sequence receipt.
-- On the canonical non-Windows route, `orchbee.agent.list` v1 returns the `listed` outcome verbatim:
-  `{kind:"listed",items:[<session summary>…],nextCursor|null,revision}` where each summary
-  is the wire `AgentSessionSummary` (session/provider/lifecycle/semantic status/freshness/
-  observation counters/execution location/pending-request count ≤128/presentation
-  attachments) and `nextCursor` is the Server-minted continuation token for `--cursor`.
-- On the canonical non-Windows route, `orchbee.agent.get` returns the `found` outcome verbatim:
-  `{kind:"found",revision,session}` where `session` is the wire `AgentSessionDetail` —
-  the summary fields plus `capabilities` (≤10 unique tokens), `lastOutcome`, and
-  `pendingRequests`.
-- `orchbee.agent.get` always carries the nullable `explanation` and `detection` members. A
-  machine document fills one of them from the Explain read: `explanation` is a canonical session's
-  11-field object (`status`, `statusBasis`, `freshnessMeaning`, `capabilityCeiling`,
-  `fidelity`, `freshness`, `generation`, `sequence`, `source`, `actionPath`,
-  `contentAvailable`) — the Server's derived reading, never a CLI inference — and `detection` is a
-  physical terminal Agent's screen-rule evaluation with its [Agent identity](#agent-identity-diagnostics).
-  The Explain read only adds to a get that already answered: when it gives no explanation for the
-  target — unavailable (for example a terminal Agent reported under a name outside the provider
-  registry with no detected process has no screen rules), not found, out of time or cut off — its
-  member is null and the get still succeeds. A denial, a refusal, a protocol violation or a
-  cancellation of the Explain read still fails the command. Text output skips the Explain read and
-  leaves both null.
-- `orchbee.agent.wait` → the matched answer:
-  `{matchedConditions,revision,session,wait}` where `matchedConditions` is the
-  satisfying subset of the effective `until` list in requested order (1–14 unique
-  condition names), `revision` is the satisfying poll's global runtime revision,
-  `session` is that poll's wire `AgentSessionDetail` verbatim. `matchedChange` separates historical matching evidence from that sample; it is nullable on Windows and macOS and unsupported on Linux; `wait` echoes the
-  effective run `{until,afterRevision,timeoutMs,observations,elapsedMs}` —
-  `afterRevision` always present, null when no revision was selected.
-- `orchbee.api.snapshot` → `{snapshot}`: the complete `WorkbenchProtocolDocument::Snapshot`
-  semantic re-encode including `kind:"workbench.snapshot"`; envelope `sessionId`/`revision` agree
-  with the inner document.
-- `orchbee.api.schema` → `{schema:{schemaId,document}}` for a named schema, or
-  `{schemas:{schemaId:document,…}}` listing the whole delivered dictionary (draft 2020-12).
-  The catalog stays closed: `result.schemas` names exactly the registered ids and each
-  embedded document's `$id` matches its key. Introspection clients use the embedded current document from this same build.
-- `orchbee.worktree.list` → `{directoryId,path,worktrees:[<entry>…]}`: the
-  registered directory identity (`path` is the registered Workbench directory — distinct
-  from each entry's observed `worktreePath`) plus the verbatim `git worktree list
---porcelain -z` projection. Each entry carries exactly one of `worktreePath` (UTF-8) or
-  `worktreePathBytesHex` (lowercase-hex raw bytes), `head` as a 40- or 64-character
-  lowercase-hex object name or `null` for a bare repository (an all-zero HEAD is the real
-  Git value for an unborn repository and is preserved verbatim), exactly one of `branch`
-  (the verbatim full ref such as `refs/heads/main`, never stripped), `branchBytesHex`, or
-  `null` when no branch applies, and the `bare`/`detached`/`locked`/`prunable` flags.
-- `orchbee.cli.failure.worktree` → `{schema:"orchbee.cli.failure.worktree",version:1,
-failure:{kind,details?},source?}`: the dedicated failure envelope for every `worktree
-list` failure past the snapshot boundary (pre-boundary grammar, preamble, and project
-  resolution failures keep `orchbee.cli.failure`). Its `details` vocabulary is closed:
-  `{resource:"directory",target}` on `not-found`, `{stage:"worktree-list"[,reason]}` on
-  `denied`/`service-unavailable` (`server-busy`|`worker-unavailable`|`job-dead`|
-  `job-unknown`)/`transport-loss`/`protocol-invalid` (`reason:"correlation-mismatch"`),
-  `{stage:"probe"|"list",status}` (`status` integer or `null`) or `{stage:"parse"}` on
-  `check-failed`, `{stage:"worktree-list",
-timeoutMs:5000}` on `timeout`, and `{stage:"worktree-list",origin,limitBytes}` on
-  `output-too-large` (`origin` `git-probe`|`git-list` → 65536, `worker-result` → 7936,
-  `workbench-result` → 32768).
-- `orchbee.launch-profile.list` → `{catalogRevision,profiles:[<entry>…]}`: the decimal-string
-  catalog-private revision plus every catalog entry (at most 64) in catalog order —
-  `{profileId,name,launch:{exec,args}}`, all verbatim.
-- `orchbee.launch-profile.get` → `{catalogRevision,profile:<entry>}`: the same entry
-  shape for the single Server-resolved profile.
-- `orchbee.cli.failure.launch-profile` → `{schema:"orchbee.cli.failure.launch-profile",
-version:1,failure:{kind,details?},source?}`: the dedicated envelope for every
-  `launch-profile` query failure past the session boundary and for profile-resolution
-  failures on `launch-profile delete`, `tab create --profile`, and `panel split
---profile` (pre-boundary grammar and preamble failures keep `orchbee.cli.failure`).
-  Its `details` vocabulary is closed: `{resource:"launch-profile",target}` on
-  `not-found`, `{resource:"launch-profile",target,candidates≤8,totalCount}` on
-  `ambiguous` (candidate IDs under the profile-id grammar),
-  `{stage:"launch-profile-catalog"}` on `denied`/`transport-loss`, the same plus
-  `reason:"service-unavailable"` on `service-unavailable`, the same plus
-  `reason:"correlation-mismatch"` on correlation `protocol-invalid`, and
-  `{stage:"launch-profile-catalog",timeoutMs:5000}` on `timeout`. `source` is the
-  `workbench-snapshot` source on read failures and the `workbench-command` source on
-  mutation-side failures.
-- `orchbee.mutation.result` → `{action,outcome,revision?,acceptedRevision?,closeRequestId?,
-attemptGeneration?,<resolved typed IDs>,direction?,label?,terminal?,catalogRevision?,
-profileId?,name?}` per
-  the mutation matrix above:
-  `revision` on `committed`/`unchanged`, `acceptedRevision`+`closeRequestId` on `accepted`,
-  `closeRequestId`+`attemptGeneration` on `resumed`,
-  and `terminal:{outcome,reason?,geometry?}` on `tab create`/`panel split`. The
-  launch-profile actions add `catalogRevision` plus `profileId` on both receipts and
-  `name` on `launch-profile.create`; the envelope is `version:1`. Text output of this receipt and
-  of the Windows Workspace and terminal creation receipts shares one localized shape: a sentence
-  naming what happened, then aligned rows for each created or affected Project, Workspace, Tab,
-  Panel and launch profile, with label, directory and terminal outcome. A Project, Workspace, Tab
-  or Panel row shows the `@<kind>:0x<hex>` handle a person types next; the JSON keeps the
-  canonical ID. Revisions, request IDs, and context, directory, split, slot and presentation IDs
-  appear only in JSON. A receipt whose terminal started or is starting ends with a
-  `terminal list --panel @panel:0x<hex>` hint for the new Panel, because the spawn outcome does
-  not carry the terminal ID. Other text receipts and hints follow the same rule: report, metadata,
-  relocation, swap, layout, Project-close and worktree receipts name Panels, Tabs, Workspaces and
-  Projects by handle, and `terminal clear` names its terminal by `@terminal:0x<hex>`. The
-  `operation status` hint names the close request ID, which that command requires.
-  `panel current` text starts with the current Panel ID. `workspace get`, `terminal get` and `panel process-info` text likewise opens
-  with one sentence followed by aligned labels: the Workspace view shows its Project and primary
-  directory path before any Agent or worktree supplement; the terminal view shows its Panel, Tab
-  and launch state; the process view names the foreground process with its PID, UTC start time,
-  directory and command, omitting the shell initialization Orchbee appends to interactive
-  PowerShell, then lists every sampled process. Worker, context, presentation and directory IDs,
-  raw launch structures and FILETIME values remain JSON-only.
-- `orchbee.project.rename` → `{action:"project.rename",outcome,revision,projectId,label}`
-  with `outcome` in `committed|unchanged`: the dedicated v1 document for `project rename`
-  receipts, so the shared `orchbee.mutation.result` action enum stays closed and untouched.
-- `orchbee.config.check` → `{ok,checks:[{name,status,details}]}` in fixed order
-  `runtime-base`, `runtime-directory`, `cohort`, `locale`, `sockets`; all five always report.
-  A failed check still produces this success schema with `ok:false` and exit 1.
-- `orchbee.server.start` → `{outcome,restoreNotice,scope,runtimeBase,negotiatedCapabilities}`:
-  `outcome` is `started` or `already-running` (the branch this invocation took, not a Session
-  identity receipt), `restoreNotice` is what this Session's restore reported, `recovered` from a
-  backup, `empty` when every checkpoint was corrupt, otherwise null, `scope` is the Session name,
-  `runtimeBase` carries exactly one of `path` (UTF-8) or `pathBytesHex` (non-UTF-8, never a lossy
-  display string), and `negotiatedCapabilities` lists, in bytewise order, the capability names both
-  sides listed in this invocation's `client-server` handshake. The window's Update reads it to
-  prove that the active window version joins this Session; it is optional in the schema because
-  Clients before the window self-update release omit it.
-- `orchbee.doctor` → `{ok,checks:{installation,settings,records,runtime,session,integrations}}`:
-  each check is `{status,reason,details}` or `{kind:"unsupported"}`; `details` are the
-  `orchbee.status.client` result, the `user-config` and `records` row details, the runtime folder
-  report, the `orchbee.status.server` result or a failed Session check's failure details. A failed check still produces this success schema with
-  `ok:false` and exit 1; see [runtime status and doctor](native-runtime-status.md#doctor).
-- `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
-source?}`; no English `message` field exists. `source` is attached only from an already trusted
-  source (a validated snapshot for post-read failures, `embedded` for `api schema` not-found,
-  `workbench-command` for every command-stage mutation failure, `local-runtime` for every
-  `server start` answer including its refusals, `terminal-launch-read` for `terminal get`
-  output-preparation failures after a trusted join); pre-read and grammar failures have none.
-- `orchbee.cli.failure.source` → `{schema:"orchbee.cli.failure.source",version:1,
-failure:{kind,details}}` — the send source-stage envelope for `timeout` and `cancelled`
-  only. `details` is `{stage:"input",inputSource:"file"|"stdin"}` plus `timeoutMs` on
-  timeout; there is never an authority `source`, a request identity, a path, or a payload
-  byte, because the failure provably precedes any runtime effect.
-- `orchbee.cli.failure.agent` → `{schema:"orchbee.cli.failure.agent",version:1,failure:
-{kind,details?},source?}` — the post-admission agent read failure document: `kind` ∈
-  `{cancelled,denied,internal-failure,not-found,protocol-invalid,rejected,
-service-unavailable,timeout,transport-loss}` with a closed per-kind `details` vocabulary
-  (`{stage:"agent-read",operation[,reason|sessionId|timeoutMs]}` where `operation` ∈
-  `{explain,get,list,wait}`; `wait` adds `revisionAheadDetails`
-  `{sessionId,afterRevision,revision}` on `rejected` and `waitTimeoutDetails`
-  `{timeoutMs:null|1-3600000,elapsedMs,reason:wait-deadline|read-deadline,readBudgetMs?,
-completedObservations,lastStatusKind?,lastFreshness?,lastRevision?}` on `timeout`
-  while the three single-read verbs keep `timeoutMs:5000`), and `source` only on
-  trustworthy semantic answers. Pre-admission failures on the agent commands keep the
-  generic `orchbee.cli.failure` document instead.
-
-### Config checks
-
-| check               | rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `runtime-base`      | `ORCHBEE_RUNTIME_BASE`/default resolved and observed: pass when it exists as a directory; `not-applicable` with reason `not-started` and `exists:false` when it is a Windows development or test build's default base that does not exist yet (the environment has not been started); fail on invalid path, absence, unsafe entry, or I/O error.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `runtime-directory` | `not-applicable` when the base failed, with reason `not-started` beside a not-started base, or when the scope directory is absent under a valid base (a Session that is not running is not a configuration error); pass on a validated existing directory; fail on unsafe owner/mode/type or I/O error.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `cohort`            | pass with `verified:true` when `Cohort::current` validates under its 5-second budget; fail on absence, invalidity, hash mismatch (`invalid-cohort`) or deadline (`deadline`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `locale`            | informational pass carrying `locale` (`en-US`/`zh-CN`) and `source` (`LC_ALL`/`LC_MESSAGES`/`LANG`/`default`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `sockets`           | `client`/`worker` report `presence` `present`/`absent`/`unchecked` with the existing type+owner+`0600`+no-follow rule after a safely inspected runtime directory. `clientPending`/`host` are derived-path budget entries only: `presence` is always `unchecked`, the address fits yields `not-applicable`/`presence-not-inspected`, and an over-budget address yields `fail`/`address-too-long`; both always carry `path`/`pathBytesHex` plus `addressBytes`/`addressCapacityBytes`. Any entry's `fail` fails the check; otherwise at least one compliant present `client`/`worker` passes; anything else is `not-applicable`. Presence never claims service or Worker liveness, and a fitting budget never claims the endpoint exists — `not-applicable` here means presence was deliberately not inspected, not that the budget is unknown. A derived socket path whose byte length exceeds this platform's `sockaddr_un` capacity fails `address-too-long` regardless of presence — it can never be bound or connected. |
-
-Typed details only: `runtime-base`/`runtime-directory` carry `path` (UTF-8) or `pathBytesHex`
-(non-UTF-8, never replacement characters), `exists` only when the path state was established —
-`false` for an established absence, `true` for an observed entry, and the field is omitted when
-inspection itself failed (permission, path, or I/O error) — plus `reason` in
-`{invalid-path,absent,unsafe,io-error,not-started}`; `sockets` reasons are `{unsafe,io-error,
-runtime-unavailable,address-too-long,presence-not-inspected}`. The `clientPending`/`host`
-budget entries and every `address-too-long` entry carry `path`/`pathBytesHex` plus
-`addressBytes` (the derived path's encoded byte length) and `addressCapacityBytes` (the
-platform socket-address capacity). No cross-file atomic health claim is made.
+- A creation receipt whose terminal started or is starting ends with a `terminal list --panel @panel:0x<hex>` hint for the new Panel, because the spawn outcome does not carry the terminal ID.
+- `orchbee.server.start` lists `negotiatedCapabilities`: the capability names both sides listed in this invocation's `client-server` handshake. The window's Update reads it to prove that the active window version joins this Session; it is optional in the schema because Clients before the window self-update release omit it.
 
 ## Mutations
 
 `terminal send` mutates Host input state, not the Workbench document: it rides the admitted
 session's OBCS `terminal.send` exchange described above and does not touch `expectedRevision`,
 the Workbench command channel, or the TUI's controller/viewer/resize ownership.
-
-Fifteen commands mutate Workbench state through the admitted OBWP `workbench.command` channel:
-`project create`/`rename`, `workspace create`/`rename`/`set-directory`/`close`,
-`tab create`/`rename`/`move`/`close`, `panel split`/`close`/`move`, and
-`launch-profile create`/`delete`. Each invocation runs
-the query state machine's stages 1–5
-unchanged — one cohort check, one discovery and admission, one bounded snapshot read — then
-performs two further stages under the same 5-second deadline:
-
-6. **Resolve** — a pure projection of the validated snapshot into the wire action: every
-   target resolves with the query resolver's exact semantics (`not-found`/`ambiguous`
-   possible, zero commands submitted), the snapshot supplies `sessionId` and
-   `expectedRevision`, and one fresh `WorkbenchRequestId` is generated.
-7. **Command** — one `workbench.command` submission on the admitted session. A definite
-   `revision-mismatch` refusal repeats stages 5–7 on the same session under the same deadline,
-   at most three more times, as described below. The Client Connection is then fully released
-   before the outcome is mapped or output prepared.
 
 The `expectedRevision` choice is the protocol's optimistic-concurrency contract: the Server
 compares the command's base revision to its current revision before any effect and rejects a
@@ -1985,31 +338,6 @@ Safety contract:
   destructive; the parser requires the explicit `--confirm` flag so a noninteractive
   invocation can never close by default. `operation resume` owes the same flag:
   opening a fresh attempt window on a retained close is itself an effect.
-- **Close waiting.** `tab close` and `workspace close` by default read fresh snapshots after
-  acceptance until the Tab or Workspace is gone, within a total `--timeout` (1..3600000 ms,
-  default 30000). The text receipt then reports the closed name and terminal count. Expiry exits
-  with a `timeout` failure (`details:{stage:"wait",timeoutMs,observed}`) while the close
-  continues in the session; the text diagnostic names the `tab list` or `operation status <close-request-id>`
-  command. An observation step that fails only after the total deadline, such as a cohort check
-  that ran out the remaining time, outlasted the wait and settles as that same `timeout`. `--detach` keeps the `accepted` receipt returned at acceptance and conflicts with
-  `--timeout`. `--dry-run` submits nothing and returns the `terminal list` result filtered to that
-  Tab or Workspace, with text opened by one dry-run sentence; it conflicts with `--detach` and
-  `--timeout`. The JSON receipt shape is unchanged.
-
-Outcomes: `committed` reports the new `revision` (base + 1); `unchanged` — a rename or move
-that changed nothing — reports the current revision; `accepted` — the closes — reports
-`acceptedRevision` plus the Server's `closeRequestId` for the asynchronous close.
-`tab create` and `panel split` additionally carry `terminal`: `pending` while the Server
-still owes a spawn, or the typed spawn outcome (`started` with the echoed `geometry`,
-`unavailable`/`failed` with a reason, `unknown`).
-
-`project create` is the only mutation with no target operand and no filesystem effect: the
-action carries just the label, the Server allocates the new `projectId` and returns it on the
-`committed` receipt, and the created Project starts with no directory or Workspace. Duplicate
-labels are legal — the label never uniquely identifies the new Project; the receipt's
-`projectId` does.
-
-`workspace set-directory` submits `WorkspacePrimaryDirectoryAccept` for the globally resolved Workspace ID, without Project identity; its receipt keeps the action `workspace.accept-directory`. `--path` keeps its literal absolute-path, 4096 UTF-8 byte and no-NUL admission; CLI never creates, repairs or probes directories. Server probes authoritatively and refuses a Workspace that already has a primary Directory. Windows and macOS `workspace create` admits the new Workspace's directory within one launch and needs no separate set-directory command.
 
 Geometry is always explicit in the request: a non-TTY invocation cannot inherit terminal
 dimensions, so `tab create` and `panel split` accept the four flags as an all-or-none
@@ -2019,177 +347,14 @@ display fact. `--cols`/`--rows` are grid cells and
 `--cell-width`/`--cell-height` are per-cell pixel extents; every dimension is a `u16`
 bounded by the protocol `WorkbenchTerminalGeometry` validation before any runtime access.
 
-`tab create` and `panel split` launch through one of three selections: the resolved
-default shell, the explicit `--exec`/`--arg` pair, or `--profile <selector>`. The
-selector is passed verbatim in the command — the Server resolves it under the catalog
-lock at command time (exact ID, then a singly-matching name) and the retained launch
-becomes the terminal's provenance. An unresolved selector is a zero-change committed
-outcome the CLI maps to `not-found`; a multi-matching name maps to `ambiguous` — both
-under the launch-profile failure envelope with the command's `workbench-command` source.
+Launch selections cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.
 
-`launch-profile create` and `launch-profile delete` mutate the catalog itself through
-the same one-command envelope. `create` carries `--name` plus the same validated
-`LaunchSelection` the explicit flags build and the committed receipt reports `revision`
-(the Workbench revision), `catalogRevision` (the catalog-private counter), the minted
-`profileId`, and the stored `name` verbatim. `delete` carries the selector unresolved —
-the Server applies the ID-first/name-cardinality rule under the catalog lock; the
-committed receipt reports `revision`, `catalogRevision`, and the deleted `profileId`.
-A `ProfileUnavailable` settled outcome maps to `not-found{resource:"launch-profile"}`
-and `ProfileAmbiguous` maps to `ambiguous` with the bounded candidate IDs — both under
-the launch-profile failure envelope; catalog capacity refusals arrive as ordinary
-command-stage rejections under the generic envelope.
-
-Workspace and organization mutations use `schema:"orchbee.mutation.result"`, `version:1`; other existing actions retain v1, with
-`source:{kind:"workbench-command",sessionId,requestId,expectedRevision}` and a `result` carrying
-`action` (the dotted command name), `outcome`, the outcome's revision fields, the resolved
-typed IDs, and `direction`/`label`/`terminal`/`catalogRevision`/`profileId`/`name` where
-the command has them. Text output
-renders the same fields one per line under the same escaping rules as queries.
-`project rename` is the single exception: its receipt uses the dedicated
-`schema:"orchbee.project.rename"`, `version:1` document — the same `workbench-command`
-`source` shape, and a `result` closed to `action:"project.rename"`, `outcome`
-(`committed`/`unchanged`), `revision`, `projectId`, and `label`.
-
-`workspace close` submits the `WorkspaceClose` action — the Server-authoritative close of
-every terminal the Workspace's Clients use, reusing the same terminal-tab-close lifecycle
-machinery as `tab close`/`panel close` at the whole-context scope. After terminal cleanup,
-the Workspace and its terminal context leave the active projection; its checkout, branch,
-and directories are preserved. An `accepted` receipt carries `acceptedRevision`, the operation's
-`closeRequestId`, and the resolved `workspaceId`/`terminalContextId`; the Session
-finishes the close asynchronously and the retained operation record outlives the
-Workspace's active projection. Re-running `workspace close` is never a resume — a resumable
-retained operation is continued only through `operation resume <close-request-id>`.
-An unfinished close continues by itself on the Server: it retries up to about three 30-second
-attempts and only then reports one failure, so `operation resume` is for a script that wants to
-continue a close that finally stopped.
-
-`operation status <close-request-id>` reads that retained record by its close request ID
-alone, so a completed close still answers with its `closed` tombstone `revision`.
-`operation resume <close-request-id> --generation <n> --confirm` submits exactly one resume
-exchange under the caller's last-observed attempt fence; only resumable lifecycle states
-resume, and a stale fence settles as the typed `stale` answer, never as a second attempt.
+Re-running `workspace close` is never a resume: a resumable retained operation is continued only through `operation resume <close-request-id>`. An unfinished close continues by itself on the Server, which retries up to about three 30-second attempts and only then reports one failure, so `operation resume` is for a script that wants to continue a close that finally stopped.
 
 Deliberately not delivered: `project close`, `panel resize`, terminal open operations, Session lifecycle
 restart, disable, recovery or repair commands (Windows stop/status are supported), and every remote operation.
 
 ## Failure matrix
-
-Exit codes: 0 success (empty lists included); 1 local config/output/internal determinate failure;
-2 usage/invalid target; 3 not-found/ambiguous/denied/rejected; 4 service-unavailable (including
-`connection-capacity`); 5 transport-loss/protocol-invalid; 6 incompatible; 7 `timeout`
-(`terminal wait-output` deadline exhausted without a match, or the send source-stage shared
-deadline expiring during materialization); 8 outcome-unknown; 130 `cancelled` (a handled
-SIGINT-class interruption — a HUP/INT/QUIT/TERM during `terminal wait-output` or an interrupted
-`doctor` — and, more generally, a handled `terminal send`
-source-stage signal exits conventionally
-`128 + signo`: 129/130/131/143 for the eligible set). During an `agent` read a captured
-SIGINT or SIGTERM settles as the typed `cancelled` agent failure at status 130 — both
-members, by contract — while the unwatched SIGHUP/SIGQUIT keep their inherited
-dispositions. An eligible signal the source guard
-never captured is delivered to its original disposition — an OS default termination follows
-the shell's `128 + signal` convention and is not a synthesized CLI result.
-
-| Source                                                                                                                                    | `failure.kind`                                                             | exit      | `details`                                                                                               |
-| ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------- |
-| argv envelope/grammar/format/target shape errors                                                                                          | `invalid-usage`                                                            | 2         | omitted                                                                                                 |
-| zero-ID/empty/overlong label, malformed panel/terminal ID                                                                                 | `invalid-identifier`                                                       | 2         | `{resource,target}`                                                                                     |
-| valid target or schema ID without a match                                                                                                 | `not-found`                                                                | 3         | `{resource,target}`                                                                                     |
-| multiple exact label matches                                                                                                              | `ambiguous`                                                                | 3         | `{resource,target,candidates≤8,totalCount}`                                                             |
-| `Cohort::current` error                                                                                                                   | `check-failed`                                                             | 1         | `{stage:"cohort"}`                                                                                      |
-| base invalid/missing/not-a-directory, unsafe runtime/socket, other validation                                                             | `check-failed`                                                             | 1         | `{stage:"runtime-base"                             \| "runtime-directory"   \| "socket"}`               |
-| valid base with absent scope directory or absent Client socket                                                                            | `service-unavailable`                                                      | 4         | `{stage:"discovery"}`                                                                                   |
-| `ConnectClientError::ConnectFailed`                                                                                                       | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                                   |
-| `ConnectClientError::Io`                                                                                                                  | `transport-loss`                                                           | 5         | `{stage:"admission"}`                                                                                   |
-| OBLC `Rejected(CapacityExceeded)`                                                                                                         | `connection-capacity`                                                      | 4         | `{stage:"admission"}`                                                                                   |
-| OBLC `Rejected(HandshakeTimeout)`                                                                                                         | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                                   |
-| handshake `Refused(initiator-too-old)`                                                                                                    | `incompatible`                                                             | 6         | `{stage:"admission",reason:"client-too-old",clientVersion,sessionVersion}`                              |
-| handshake `Refused(initiator-too-new)`, `PredatesHandshake`                                                                               | `incompatible`                                                             | 6         | `{stage:"admission",reason:"session-too-old",clientVersion,sessionVersion?}`                            |
-| handshake `Refused(environment-mismatch \| fingerprint-mismatch)`                                                                         | `incompatible`                                                             | 6         | `{stage:"admission",reason:"environment-mismatch" \| "fingerprint-mismatch"}`                           |
-| OBLC `Protocol(IncompatibleVersion)` after an answer                                                                                      | `incompatible`                                                             | 6         | `{stage:"admission"}`                                                                                   |
-| handshake `Refused(capacity)`                                                                                                             | `connection-capacity`                                                      | 4         | `{stage:"admission"}`                                                                                   |
-| handshake `Refused(stopping)`, OBLC `Rejected(Stopping)`                                                                                  | `service-unavailable`                                                      | 4         | `{stage:"admission",reason:"stopping"}`                                                                 |
-| handshake `Refused(timeout)`                                                                                                              | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                                   |
-| `Rejected(WrongMessage                                                        \| MalformedFrame)`, `UnexpectedResponse`, other `Protocol` | `protocol-invalid`                                                         | 5         | `{stage:"admission"}`                                                                                   |
-| `RequestIoConfiguration`, `ConnectionUnavailable`, `RequestEncoding`                                                                      | `internal-failure`                                                         | 1         | omitted                                                                                                 |
-| `SnapshotReadError::RequestNotSubmitted` (any cause)                                                                                      | `transport-loss`                                                           | 5         | `{stage:"snapshot"}`                                                                                    |
-| `Failed(Write                                                                 \| ResponseDeadline)`, `Failed(Response(Io))`               | `transport-loss`                                                           | 5         | `{stage:"snapshot"}`                                                                                    |
-| `Failed(Response(InvalidHeader                                                \| Contract))`, `UnexpectedResponse`                        | `protocol-invalid`                                                         | 5         | `{stage:"snapshot"}`                                                                                    |
-| `Failed(CorrelationMismatch)`                                                                                                             | `protocol-invalid`                                                         | 5         | `{stage:"snapshot",reason:"correlation-mismatch"}`                                                      |
-| outcome `Denied`                                                                                                                          | `denied`                                                                   | 3         | omitted                                                                                                 |
-| outcome `Unavailable`                                                                                                                     | `service-unavailable`                                                      | 4         | `{stage:"snapshot"}`                                                                                    |
-| viewer `RequestNotSubmitted`, `OutcomeUnknown(Write\|Read)`                                                                               | `transport-loss`                                                           | 5         | `{stage:"viewer"}`                                                                                      |
-| viewer `OutcomeUnknown(InvalidResult\|UnexpectedResult)`, wrong outcome kind                                                              | `protocol-invalid`                                                         | 5         | `{stage:"viewer"}`                                                                                      |
-| viewer `OutcomeUnknown(CorrelationMismatch)`                                                                                              | `protocol-invalid`                                                         | 5         | `{stage:"viewer",reason:"correlation-mismatch"}`                                                        |
-| viewer outcome `Rejected(AlreadyAttached\|TerminalUnavailable)` or `Unavailable`                                                          | `service-unavailable`                                                      | 4         | `{stage:"viewer"}`                                                                                      |
-| viewer outcome `Rejected(FeedbackMismatch)`, record rejected by the projection                                                            | `protocol-invalid`                                                         | 5         | `{stage:"viewer"}`                                                                                      |
-| `ReadRows` outcome `RowsRejected(LimitExceeded)`                                                                                          | `rejected`                                                                 | 3         | `{stage:"viewer",operation:"read-history",reason:"limit-exceeded"}`                                     |
-| `ReadRows` outcome `RowsRejected` (other producible reason)                                                                               | `service-unavailable`                                                      | 4         | `{stage:"viewer",operation:"read-history",reason}`                                                      |
-| `ReadRows` outcome `RowsRejected(InvalidField\|InvalidAcknowledgement)`, mismatched/malformed row-window record                           | `protocol-invalid`                                                         | 5         | `{stage:"viewer"}`                                                                                      |
-| launch-read `RequestNotSubmitted`, `OutcomeUnknown(Write\|Read)` (incl. an exhausted shared network budget)                               | `transport-loss`                                                           | 5         | `{stage:"launch-read"}`                                                                                 |
-| launch-read `OutcomeUnknown(InvalidResult\|UnexpectedResult)`, wrong outcome kind                                                         | `protocol-invalid`                                                         | 5         | `{stage:"launch-read"}`                                                                                 |
-| launch-read `OutcomeUnknown(CorrelationMismatch)`                                                                                         | `protocol-invalid`                                                         | 5         | `{stage:"launch-read",reason:"correlation-mismatch"}`                                                   |
-| launch-read outcome `Unavailable(ServerBusy)`                                                                                             | `service-unavailable`                                                      | 4         | `{stage:"launch-read"}`                                                                                 |
-| `DefinitelyNotSubmitted::RequestNotSubmitted` (command)                                                                                   | `transport-loss`                                                           | 5         | `{stage:"command"}`                                                                                     |
-| `DefinitelyNotSubmitted::ConnectionUnavailable`/`RequestEncoding`                                                                         | `internal-failure`                                                         | 1         | omitted                                                                                                 |
-| command `Rejected` precommit                                                                                                              | `rejected`                                                                 | 3         | `{stage:"command",reason,revision}`                                                                     |
-| command `Denied` precommit                                                                                                                | `denied`                                                                   | 3         | omitted                                                                                                 |
-| command `Unavailable` precommit                                                                                                           | `service-unavailable`                                                      | 4         | `{stage:"command",reason}`                                                                              |
-| `OutcomeUnknown` (any reason)                                                                                                             | `outcome-unknown`                                                          | 8         | `{stage:"command",requestId,reason}`                                                                    |
-| worktree-list `RequestNotSubmitted`, write/io response failure, or the `TransportLoss` outcome (post-delivery response loss)              | `transport-loss`                                                           | 5         | `{stage:"worktree-list"}` under `orchbee.cli.failure.worktree`                                          |
-| worktree-list invalid/unexpected response                                                                                                 | `protocol-invalid`                                                         | 5         | `{stage:"worktree-list"[,reason:"correlation-mismatch"]}` under the worktree envelope                   |
-| worktree-list response deadline, or the shared 5 s command deadline expiring                                                              | `timeout`                                                                  | 7         | `{stage:"worktree-list",timeoutMs:5000}` under the worktree envelope                                    |
-| worktree-list outcome `NotFound` (directory absent from global navigation at the Server check)                                            | `not-found`                                                                | 3         | `{resource:"directory",target}` under the worktree envelope                                             |
-| worktree-list outcome `Denied`                                                                                                            | `denied`                                                                   | 3         | `{stage:"worktree-list"}` under the worktree envelope                                                   |
-| worktree-list `Unavailable`/`SpawnUnavailable`/`SpawnFailed`/`OwnerIo`                                                                    | `service-unavailable`                                                      | 4         | `{stage:"worktree-list",reason:"server-busy"                                                            | "worker-unavailable"                                           | "job-dead" | "job-unknown"}` |
-| worktree-list `GitFailed` (probe/list carry the exact exit status, `null` when signaled) or `MalformedListing`                            | `check-failed`                                                             | 1         | `{stage:"probe"                                                                                         | "list",status}`or`{stage:"parse"}` under the worktree envelope |
-| worktree-list `TooLarge` (shared Git stdout, OBCN result, or Workbench result budget crossed)                                             | `output-too-large`                                                         | 1         | `{stage:"worktree-list",origin,limitBytes}` under the worktree envelope                                 |
-| launch-profile-catalog `RequestNotSubmitted`, write/io response failure                                                                   | `transport-loss`                                                           | 5         | `{stage:"launch-profile-catalog"}` under `orchbee.cli.failure.launch-profile`                           |
-| launch-profile-catalog invalid/unexpected response                                                                                        | `protocol-invalid`                                                         | 5         | `{stage:"launch-profile-catalog"[,reason:"correlation-mismatch"]}` under the profile envelope           |
-| launch-profile-catalog response deadline                                                                                                  | `timeout`                                                                  | 7         | `{stage:"launch-profile-catalog",timeoutMs:5000}` under the profile envelope                            |
-| launch-profile-catalog outcome `NotFound`                                                                                                 | `not-found`                                                                | 3         | `{resource:"launch-profile",target}` under the profile envelope                                         |
-| launch-profile-catalog outcome `Ambiguous`                                                                                                | `ambiguous`                                                                | 3         | `{resource:"launch-profile",target,candidates≤8,totalCount}` under the profile envelope                 |
-| launch-profile-catalog outcome `Denied`                                                                                                   | `denied`                                                                   | 3         | `{stage:"launch-profile-catalog"}` under the profile envelope                                           |
-| launch-profile-catalog outcome `Unavailable`                                                                                              | `service-unavailable`                                                      | 4         | `{stage:"launch-profile-catalog",reason:"service-unavailable"}` under the profile envelope              |
-| launch-profile mutation `ProfileUnavailable` (settled zero-change outcome on `delete`, `tab create --profile`, `panel split --profile`)   | `not-found`                                                                | 3         | `{resource:"launch-profile",target}` under the profile envelope                                         |
-| launch-profile mutation `ProfileAmbiguous` (settled zero-change outcome, same commands)                                                   | `ambiguous`                                                                | 3         | `{resource:"launch-profile",target,candidates≤8,totalCount}` under the profile envelope                 |
-| send `RequestNotSubmitted` (the request provably never reached the wire)                                                                  | `transport-loss`                                                           | 5         | `{stage:"send"}`                                                                                        |
-| send `ConnectionUnavailable`/`RequestEncoding`                                                                                            | `internal-failure`                                                         | 1         | omitted                                                                                                 |
-| send `OutcomeUnknown` (write/read/invalid-result/correlation)                                                                             | `outcome-unknown`                                                          | 8         | `{stage:"send",requestId,reason}`                                                                       |
-| `terminal.send.result` `Rejected`/`Unavailable`                                                                                           | typed answer, not a failure envelope                                       | 3/4       | send result `reason`, `cleanupStatus`; `host-protocol-fault` exits 5                                    |
-| `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                                 | typed answer, not a failure envelope                                       | 5         | send result `recordsAccepted`, `acceptedEncodedBytes`, `cleanupStatus`                                  |
-| agent `RequestNotSubmitted`/`Write`/`ResponseDeadline`/`Response(Io)` (deadline not elapsed)                                              | `transport-loss`                                                           | 5         | `{stage:"agent-read",operation}`                                                                        |
-| agent exchange or post-admission step with the shared total deadline elapsed                                                              | `timeout`                                                                  | 7         | `{stage:"agent-read",operation,timeoutMs:5000}`                                                         |
-| agent armed span captures an eligible SIGINT or SIGTERM (any stage; HUP/QUIT stay raw)                                                    | `cancelled`                                                                | 130       | `{stage:"agent-read",operation}`                                                                        |
-| agent `Response(wire fault)`/`UnexpectedResponse`/`CorrelationMismatch`, wrong result kind                                                | `protocol-invalid`                                                         | 5         | `{stage:"agent-read",operation}`                                                                        |
-| agent outcome `Rejected(NotFound)` (get/explain)                                                                                          | `not-found`                                                                | 3         | `{stage:"agent-read",operation,sessionId}`                                                              |
-| agent outcome `Rejected(ReadDenied)`                                                                                                      | `denied`                                                                   | 3         | `{stage:"agent-read",operation,reason:"read-denied"}`                                                   |
-| agent list outcome `Rejected(CursorInvalid\|CursorStale)`                                                                                 | `rejected`                                                                 | 3         | `{stage:"agent-read",operation:"list",reason:"cursor-invalid"\|"cursor-stale"}`                         |
-| agent outcome `Unavailable`                                                                                                               | `service-unavailable`                                                      | 4         | `{stage:"agent-read",operation,reason:"runtime-unavailable"}`                                           |
-| agent `ConnectionUnavailable`/`RequestEncoding`                                                                                           | `internal-failure`                                                         | 1         | omitted                                                                                                 |
-| send source validation: unopenable/non-regular path, terminal or unsupported stdin, empty, oversized                                      | `invalid-usage`                                                            | 2         | omitted (localized stderr names the declared option and concrete cause)                                 |
-| send source deadline expired during materialization                                                                                       | `timeout` under `orchbee.cli.failure.source`                               | 7         | `{stage:"input",inputSource,timeoutMs}`                                                                 |
-| eligible signal captured during send source materialization                                                                               | `cancelled` under `orchbee.cli.failure.source`                             | 128+signo | `{stage:"input",inputSource}`                                                                           |
-| send source signal setup/read/restore failure                                                                                             | `internal-failure`                                                         | 1         | omitted                                                                                                 |
-| prepared output over 8 MiB                                                                                                                | `output-too-large`                                                         | 1         | `{limitBytes:8388608}`                                                                                  |
-| stdout write/flush failure                                                                                                                | `output-failed`                                                            | 1         | no second stdout document                                                                               |
-| `config check` finishes with failures                                                                                                     | success schema `ok:false`                                                  | 1         | five runtime checks preserved; Windows and macOS add user-config; records last                          |
-| Windows release `server stop`, `session stop` or `session delete` refused by the release confirmation                                     | `denied`                                                                   | 3         | `{stage:"confirmation",reason:"confirm-option"\|"not-interactive"\|"session-unknown"\|"name-mismatch"}` |
-| `server start` cohort `InvalidData`/`NotFound`/`PermissionDenied`/`TimedOut`/other io kind                                                | `incompatible`/`service-unavailable`/`denied`/`timeout`/`internal-failure` | 6/4/3/7/1 | `{stage:"cohort"}`                                                                                      |
-| `server start` socket path over the `sockaddr_un` budget                                                                                  | `service-unavailable`                                                      | 4         | `{stage:"runtime-directory",reason:"address-too-long"}`                                                 |
-| `server start` connect/admission failure                                                                                                  | the `ConnectClientError` rows above, verbatim                              | 4/5/6     | `{stage:"admission"}`                                                                                   |
-| `server start` marker or sockets committed without a live owner; record failure around Server creation; `try_wait` io failure             | `rejected`                                                                 | 3         | `{stage:"activation",reason:"recovery-required",blockingProcess?}`                                      |
-| `server start` Server creation refused by the system                                                                                      | `rejected`                                                                 | 3         | `{stage:"activation",reason:"server-not-started",ioKind,osError}`                                       |
-| `server start` activation deadline elapsed; lock acquisition `TimedOut`                                                                   | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                                  |
-| `server start` data folder or file the admission rules refuse while preparing                                                             | `check-failed`                                                             | 1         | `{stage:"runtime-base" \| "runtime-directory" \| "socket",refusal:{reason,path}}`                       |
-| `server start` marker/probe/lock io failure (non-timeout) that meets a refused item                                                       | `check-failed`                                                             | 1         | `{stage:"runtime-directory",refusal:{reason,path}}`                                                     |
-| `server start` other marker/probe/lock io failure (non-timeout)                                                                           | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                                  |
-| `--create-window-folder-v1` could not create the data root or Desktop's folder                                                            | `check-failed`                                                             | 1         | `{stage:"data-root"[,refusal:{reason,path}]}`                                                           |
-| A command that opens the data root, when the admission rules refuse its `internal/version.json`                                           | `check-failed`                                                             | 1         | `{stage:"data-root",refusal:{reason,path}}`                                                             |
-| Network query, mutation, `server start` or `config check` outside Linux/macOS/Windows                                                     | `service-unavailable`                                                      | 4         | `{stage:"platform",reason:"unsupported-platform"}`                                                      |
-| A `plugin`, `popup` or `channel` invocation in a release build (0.1.0-beta.1 also withheld `update`)                                      | `service-unavailable`                                                      | 4         | `{stage:"release",reason:"withheld-in-release",feature}`                                                |
-| `terminal wait-output` deadline exhausted without a match                                                                                 | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                                     |
-| HUP/INT/QUIT/TERM during `terminal wait-output`                                                                                           | `cancelled`                                                                | 130       | `{stage:"wait",cleanup}`                                                                                |
-| `terminal wait-output` match with unconfirmed `Detach`                                                                                    | typed viewer-stage failure                                                 | *         | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                                             |
 
 On Windows, a Session started as administrator labels its endpoints High (see
 [local IPC](../../../crates/local-ipc/README.md#windows-transport-refinement)), so a Client below
@@ -2202,77 +367,7 @@ connection. A Session started at standard integrity admits its own user's admini
 such as a shell over Win32-OpenSSH, which an administrator account receives elevated; the
 elevated-Session rule above stays.
 
-`resource` is `project|workspace|tab|panel|terminal|schema`; `stage` is
-`cohort|data-root|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|agent-read|platform|wait`.
-The dedicated `orchbee.cli.failure.worktree` envelope admits `resource:"directory"` and the
-`worktree-list|probe|list|parse` stage vocabulary documented with its schema above — those
-values belong to that envelope only, not to the generic `orchbee.cli.failure` vocabulary.
-The source-stage `input` stage lives only in the `orchbee.cli.failure.source` envelope —
-it is not admitted into the standard `orchbee.cli.failure` stage vocabulary.
-Stages and reasons are finite schema values; no exception text becomes a machine field. `details`
-is a closed per-kind vocabulary — `{resource,target}`,
-`{resource,target,candidates≤8,totalCount}`, `{stage[,reason]}`, `{stage,refusal}`,
-`{stage:"command",reason,revision}`, `{stage:"command",requestId,reason}`,
-`{stage:"send",requestId,reason}`,
-`{stage:"viewer",operation:"read-history"|"wait-output",reason}`,
-`{stage:"wait",timeoutMs,observed}`, `{stage:"wait",cleanup}`,
-`{stage:"viewer",matchObserved,cleanup}`, `{limitBytes}`,
-`{stage:"platform",reason}`, or the agent-read family —
-`{stage:"agent-read",operation}`, `{stage:"agent-read",operation,sessionId}`,
-`{stage:"agent-read",operation,reason}`, `{stage:"agent-read",operation,timeoutMs}` —
-and the embedded schemas reject documents outside those shapes. Read-path errors never become
-outcome-unknown/failed-effect: only the command stage can produce an undetermined effect, and
-`rejected`/`denied`/`unavailable` precommit answers are definite — the Server applied nothing.
-Of these, only `revision-mismatch` earns the bounded fresh-read retry described under
-[Mutations](#mutations); a `rejected` failure with that reason means the retries were spent or
-the target no longer resolved to the same identity.
-The send stage follows the same rule for its single input record: a `RequestNotSubmitted` is
-definite non-submission, an `OutcomeUnknown` means the record may already have landed, and the
-typed `terminal.send.result` answers are the Server's own verdicts, never a client guess. A
-declared `--file`/`--stdin` source is stricter still: every one of its failures happens before
-any runtime access, so it can never produce `outcome-unknown`, and a captured-signal
-cancellation or an expired shared deadline exits without a wire request ever existing.
-
-## Output contract and side effects
-
-- stdout carries only the contract document: one pretty (2-space) JSON document ending in `\n`
-  under `--format json` (and always for `api` commands), or the localized human document under
-  text/default. stderr carries localized human diagnostics; query paths print no progress.
-- The shared `timeout` diagnostic names the deadline that elapsed. The `terminal send` source
-  stage says its input was not read. A wait whose local session kept answering names what it
-  awaited: an expired `terminal wait-output` says the text did not appear, an expired
-  `tab close` or `workspace close` wait says the close was not confirmed finished, and an
-  `agent prompt --wait` deadline or activity gate names its `--until` conditions in the
-  `agent wait` wording. Every other shared-envelope timeout, including a prompt read that
-  outlived its own budget, says the local session did not answer in time.
-- The shared `cancelled` diagnostic names what the interrupt cut short: the `terminal send`
-  source read, a `terminal wait-output` or post-prompt wait that reports no match, or
-  otherwise the command itself, without claiming that accepted work stopped. Dedicated
-  failure envelopes keep their own timeout and cancellation wording; JSON is unchanged.
-- `invalid-usage` failures write one localized stderr diagnostic naming a single concrete
-  cause — an unknown command or option, an option or argument the command does not take, a
-  duplicated option, conflicting options, a missing option value, a missing required option
-  or operand, a missing command, an unknown help path, a misplaced help/version flag, an
-  invalid option value or geometry set, or a non-Unicode/oversized argument list — and end
-  with a help hint. The hint names `orchbee <path> --help` for a recognized command or
-  family context and falls back to `orchbee --help` otherwise; every emitted hint is a real
-  path that exits 0 without a Session. Echoed untrusted tokens reuse the quoted/escaped
-  rendering below, first cut to a 256-Unicode-scalar prefix marked with an ellipsis when
-  more scalars remain; non-Unicode or oversized
-  argument lists are never echoed. The machine envelope stays unchanged — the diagnostic
-  lives only on stderr.
-- Text renders user-controlled strings as quoted escaped values: backslash and quote use `\\`/
-  `\"`; C0/C1 controls (including ESC), U+2028/U+2029, and bidi formatting controls use
-  unambiguous `\uXXXX` escapes; other Unicode is preserved. List tables truncate only label
-  display to 80 display columns with an ellipsis while keeping escapes and the closing quote
-  intact; IDs are never truncated; `get` field values are complete. JSON preserves source data
-  with standard lossless encoding — never the TUI replacement-character sanitizer.
-- The full output is constructed in a bounded buffer before the first stdout write; preparation
-  over 8 MiB fails `output-too-large` without touching stdout. A real OS write failure may leave
-  partial bytes but never appends a second document; stderr still reports and the exit is nonzero.
-- Machine output is locale-neutral and contains no English `message`; stderr diagnostics are
-  localized en-US/zh-CN. Machine `kind`, field names, and enum values are never localized; user
-  label/path data is preserved as data.
+Stages and reasons are finite schema values; no exception text becomes a machine field. Read-path errors never become outcome-unknown or failed-effect: only the command stage can produce an undetermined effect, and `rejected`/`denied`/`unavailable` precommit answers are definite, because the Server applied nothing. Of these, only `revision-mismatch` earns the bounded fresh-read retry described under [Mutations](#mutations); a `rejected` failure with that reason means the retries were spent or the target no longer resolved to the same identity. The send stage follows the same rule for its single input record: a `RequestNotSubmitted` is definite non-submission, an `OutcomeUnknown` means the record may already have landed, and the typed `terminal.send.result` answers are the Server's own verdicts, never a client guess. A declared `--file`/`--stdin` source is stricter still: every one of its failures happens before any runtime access, so it can never produce `outcome-unknown`.
 
 ## Invariants
 
@@ -2345,93 +440,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 - The CLI-owned 5-second budgets are checked deadlines; a construction failure is
   `internal-failure`, while transport-internal `RequestNotSubmitted` stays `transport-loss`.
 
-## Scenario matrix and evidence
-
-| Scenario                                                                                                                                                                                                          | Expected                                                                                          | Evidence                                                             |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Exhaustive grammar: formats, positions, `--`, help forms, duplicates, invalids                                                                                                                                    | exact parse/failure kinds                                                                         | `src/invocation` tests                                               |
-| Format envelope ordering: a defect anywhere leaves stdout empty; a valid json anywhere shapes later failures                                                                                                      | envelope precedence over grammar errors                                                           | `src/invocation` tests + `tests/cli_query.rs`                        |
-| Filter scope: `workspace list` accepts only `--project`; wrong-command filters are usage before runtime                                                                                                           | complete matrix, no silently dropped filter                                                       | `src/invocation` tests + `tests/cli_query.rs`                        |
-| Target rules: ID/label/zero/overlong/ambiguous precedence                                                                                                                                                         | resolver verdicts                                                                                 | `src/cli` resolver tests                                             |
-| Validated snapshot → every result shape, empty collections, nulls                                                                                                                                                 | exact JSON/text fixtures                                                                          | `src/cli` output tests + JSON Schema validation (dev `jsonschema`)   |
-| Schema dictionary ↔ emitted envelopes                                                                                                                                                                             | every success/failure fixture validates; rejected variants fail                                   | schema contrast tests                                                |
-| API failure format: text/default failures keep stdout empty, `--format json` yields the envelope                                                                                                                  | caller-selected failure format on `api schema`/`api snapshot`                                     | `tests/cli_query.rs` + `src/cli` tests                               |
-| No Session on disk                                                                                                                                                                                                | `service-unavailable`, zero fs/process/lock mutation                                              | `tests/cli_query.rs`                                                 |
-| Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI                                                                                                          | success/`connection-capacity`/unchanged structure                                                 | `tests/local_startup_process`                                        |
-| Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect                                                                                                                  | typed kinds per matrix; never labeled real-Server evidence                                        | `tests/cli_query.rs`                                                 |
-| Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect                                                                      | `terminal read` success + typed viewer-stage failures                                             | `tests/cli_query.rs`                                                 |
-| Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, aged-pin re-pin, window mismatch, oversized                                           | retained-row projection success + typed failures                                                  | `tests/cli_query.rs`                                                 |
-| Scripted OBCS send peer: UTF-8 text with optional folded CR and semantic keys arrive as one request, target/request identity, accepted/rejected/unavailable/unknown answers, stalled answer, no retry             | `terminal send` exit 0/3/4/5/8 with the two-axis result fields                                    | `tests/cli_send.rs`                                                  |
-| Send source grammar: four-source exclusivity, fixed-order conflict naming, `--enter` scoping, flag scope                                                                                                          | exact parse/`invalid-usage` before any runtime access                                             | `src/invocation` tests                                               |
-| File/stdin materialization: nonblocking open + `fstat` type gate, regular-file shared offset, private FIFO reopen, cap+1, opaque bytes, empty/non-regular/unsupported rejections                                  | bounded record or typed source `invalid-usage`; zero runtime effect                               | `src/cli/source` unit tests + `tests/cli_send.rs`                    |
-| Source deadline/cancellation: stalled pipe exits at the shared deadline (7), captured eligible signal exits `128+signo` under `orchbee.cli.failure.source`, inherited IGN/BLK preserved, restore failure internal | source envelope facts, no wire request, exact mask restore                                        | `src/cli/source` tests + labelled OS/process evidence                |
-| Scripted OBCS send peer with declared sources: materialized file/stdin arrives as one `terminal.send` text request                                                                                                | identical envelope to `--text`; exactly one request                                               | `tests/cli_send.rs`                                                  |
-| Windows owned pipe reader: raw bytes, EOF, empty input, byte/paste boundaries, deadline, injected cancellation, child retirement                                                                                  | exact payload or typed refusal; no surviving pipe reader                                          | `src/cli/source/windows/pipe.rs` tests                               |
-| Windows public process and PowerShell 5.1/7 pipeline source validation                                                                                                                                            | source completion reaches the text control's same post-source refusal; invalid sources fail first | `tests/cli_windows_input.rs`                                         |
-| PowerShell 5.1/7 completion and offline localized skill                                                                                                                                                           | scoped candidates, repeated keys, paste exclusions, sole-root skill without runtime access        | `src/cli/completion/powershell/tests.rs` + `tests/process.rs`        |
-| Scripted OBCS viewer peer + hand-built OBTF/OBRW records: increasing `requestSequence`, visible/history boundary window, real `FrameApplied` per frame, stale re-pin, excerpt tail match, deadline incl. preamble | `terminal wait-output` success + typed failures                                                   | `tests/cli_query.rs`                                                 |
-| Scripted OBLC/OBAP peers: list/get/explain verbatim outcomes, option→wire echo, denied/not-found/cursor/unavailable answers, malformed/wrong-kind/miscorrelated frames, no-retry                                  | agent read success + typed `agent-read` failures                                                  | `tests/cli_agent.rs` (Linux)                                         |
-| Agent envelopes ↔ embedded schemas: emitted success/failure documents validate; wire-impossible variants (count 129, duplicate capabilities/ceiling) rejected                                                     | schema restatement of the wire contract                                                           | `tests/cli_agent.rs` (Linux)                                         |
-| Real staged-cohort Server + live TUI terminal: `wait-output` matches existing/later/scrolled-off/UTF-8 output, short deadline exits 7, cancel frees the slot                                                      | public wait observation coexisting with the TUI's own viewer                                      | `tests/local_startup_process`                                        |
-| Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                                                                                              | real read-only observation coexisting with the TUI's own viewer                                   | `tests/local_startup_process`                                        |
-| Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                                                                                          | exact parse/failure kinds before runtime access                                                   | `src/invocation` tests                                               |
-| Mutation scripted peers: all fifteen commands, precommit verdicts, ambiguous and unapplied outcomes                                                                                                               | one command per call; `outcome-unknown` never replayed                                            | `tests/cli_mutation.rs`                                              |
-| Workspace close grammar: `close` target+`--confirm`; `status`/`resume` strict request IDs, `--generation` fence, stale-but-valid generation parses                                                                | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                               |
-| Worktree list grammar: `--directory` only; Project rejected, strict directory-ID value rule, flag scopes                                                                                                          | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                               |
-| Launch-profile grammar: four command paths, verbatim selector, `--name`/`--exec` required pair, `--profile` exclusivity and scope                                                                                 | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                               |
-| Launch-profile document/failure envelopes: entry member names, closed details vocabulary, dual `source` shapes                                                                                                    | every fixture validates; rejected variants fail                                                   | schema contrast tests                                                |
-| Worktree list document/failure envelopes: entry XOR byte fields, bare/detached/HEAD invariants, closed details vocabulary                                                                                         | every fixture validates; rejected variants fail                                                   | `tests/cli_query.rs` schema contrast tests                           |
-| Worker discovery job: real disposable Git repository (init + commit + detached linked worktree, per-command `-c` identity only), shared TTL/stdout budget attribution                                             | verbatim `-z` bytes, real HEAD/ref, typed outcomes                                                | `apps/orchbee-worker` `worktree_discovery_job` tests                 |
-| Server worktree-list handler: `-z` parser acceptance/rejection matrix, membership authority, outcome→failure mapping                                                                                              | byte-exact projection; malformed listings are `check-failed`                                      | `apps/orchbee-server` `worktree_list` tests                          |
-| Non-TTY; stdout blocked after the session is gone; >8 MiB prepared output on every format; real write failure                                                                                                     | documented exits; transport owners dropped before blocking                                        | `tests/local_startup_process` + emit unit tests                      |
-| `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                                                                                                                     | five runtime checks; Windows additionally checks user configuration                               | `tests/cli_query.rs` + `src/cli/config` tests                        |
-| `server start` real staged cohort: cold start spawns + admits, second/overlapping starts, marker-without-owner refusal, held-lock deadline, cohort faults, signals, non-UTF-8 base, zh-CN text                    | `started`/`already-running` truth; refused wedge leaves marker byte-identical; bounded deadline   | `tests/local_startup_process`                                        |
-| `doctor` grammar and runtime folder observation matrix: format-only options, every row state/reason, conditional advisories, held/free/unsafe lifetime lock, unadmitted parent, spent budget, zero creation       | exact parse; closed fact rows; no connect/create/repair; no liveness claim                        | `src/invocation` tests + `src/cli/runtime_folder` + rendezvous tests |
-| Completion scripts project the grammar (bash/zsh executed, fish structural parity)                                                                                                                                | positive and negative contexts; no runtime enumeration                                            | `tests/cli_query.rs`                                                 |
-| Bilingual text/failure output                                                                                                                                                                                     | exact en-US/zh-CN strings                                                                         | `tests/process.rs` + `tests/cli_query.rs`                            |
-
-This slice adds no Server state machine, persistence or retry. `terminal read` uses the existing `terminal.viewer` attach/poll/detach lifecycle; source selection adds a bounded `read-rows`/`rows-rejected` exchange, and `terminal wait-output` repeats poll plus one bounded `read-rows` per applied frame. The command settlement obligations—flag sampling, cleanup provenance and the late sample—use the implementation tests in [CLI wait evidence](native-cli-wait-model.md). Shared protocol changes require their affected retained cores; inventory output alone is not execution evidence.
-
-## Per-launch cwd and environment
-
-`tab create` and `panel split` accept an absolute `--cwd` and repeated literal
-`--env NAME=VALUE`, independently of default shell, `--exec` or `--profile` selection.
-Explicit cwd overrides the Workspace's current directory (its first terminal's directory, else its accepted directory) only for that launch; if neither
-is present the existing Worker-home default applies. Placement, Workspace membership,
-and stored profiles remain unchanged. The Host checks the actual directory and reports
-the existing failed-launch result without creating a directory or substituting a fallback.
-
-The environment overlays inherited/default values. It admits at most 32 pairs and 1024
-combined UTF-8 name/value bytes; names are ASCII identifiers of 1–148 bytes. NUL and
-case-insensitive duplicate names are rejected. Empty values and literal equals signs in
-values are allowed. `ORCHBEE_*`, `TERM`, `COLORTERM` and `TERM_PROGRAM` are reserved,
-ignoring ASCII case. There is no shell expansion, profile mutation or global environment
-mutation. Usage diagnostics and debug projections omit environment values.
-
-Options participate in request/replay identity. Pending Tab and split operations verify
-resolved cwd and environment before commit and on completion. Empty options retain the
-legacy JSON and binary encoding. Nonempty OBCN environment uses a zero executable-length
-sentinel (invalid in the legacy layout), extension version 1, optional explicit selection,
-and bounded length-prefixed pairs. New decoders accept legacy payloads; old decoders reject
-the extension rather than discard it. Rollout uses matching cohort hashes. Combined maximum
-cwd, argv and environment remain within the 40,960-byte frame bound.
-
-Evidence covers constructor/decoder rejection, legacy and extended roundtrips, combined
-maximum sizes, CLI scope and redaction, Server composition and replay identity, and a
-Windows child observing cwd/environment after public Tab and split commands. No new
-macOS/Linux adapter or execution claim is included; This workflow uses implementation tests.
-
-Native launch commands use a dedicated 96 KiB JSON request budget so maximum escaped cwd, argv, label and environment fit together. OBWP command kind 2 admits this bound before allocation; non-launch intents retain 16 KiB and results retain their existing bounds. OBCS v1 frames admit 63 KiB; OBCN admits 40 KiB. The OBCS v1 schema/corpus covers these launch values; shared Workbench schemas and the Desktop binding still do not establish support for the native extensions.
-
 ## Calling Panel context
-
-`panel current [<panel-id-or-selector> | --current] [--client <id>]` reads a
-Windows Panel using the [current Panel contract](native-current-panel.md), shared with
-`panel process-info`. Explicit Panel selectors ignore caller environment and need no Client.
-Explicit `--client` ignores caller environment and conflicts with explicit Panel selectors.
-Otherwise, only two absent caller variables permit unique current Client fallback; partial,
-malformed, or stale caller information fails. Current Panel reads accept Ready or Busy Clients;
-process-info retains Ready-only selection. The Panel must still belong to the reported Context and Tab. Ambiguous Client selection requires `--client`.
 
 The Windows Worker writes `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` from admitted
 launch authorization into child environments, overriding inherited conflicts. These product
@@ -2439,95 +448,23 @@ identities are lookup hints, not credentials; both must be complete nonzero lowe
 IDs. Malformed, empty, non-Unicode, or partially missing values fail `invalid-usage` (exit 2),
 with localized guidance and no value echo. Explicit Panel or Client mode bypasses this metadata.
 
-One validated snapshot owns Panel membership. A valid Terminal/Worker binding resolves its
-containing Panel, including child Presentations and Panels moved to another Tab or Workspace.
-An absent or mismatched binding fails `not-found` (exit 3); duplicate identity fails
-`protocol-invalid` (exit 5). Invalid caller binding never falls back. Snapshot and optional
-Client observations are not atomic. The answer is bounded by their observation times.
-
-Windows current Panel uses `orchbee.panel.current` v1 with an explicit `currentPresentation`:
-primary for an explicit Panel, exact caller terminal, or the selected Client member. Like
-`panel get`, every presentation carries `unavailableDirectory`. Agent,
-terminal title/cwd/processes, reports, metadata and scroll share this member while canonical
-primary/child structure stays intact. Explicit/caller selection stays headless. The original
-Client selection and local member token are fenced; changes fail without a partial result. The
-five-second deadline, cancellation, read-only operations, Viewer cleanup and Windows evidence
-are owned by the linked contract. The offline catalog lists the current documents and command paths. No activation, input,
-control-authority or focus effects; non-Windows current retains v1. This workflow uses implementation tests.
-
 Windows Worker identities are fresh per Server connection using the existing OS random source;
 one Worker shares that ID across its terminals. Terminal IDs can repeat across Sessions, so exact
 Worker matching rejects callers from a previous or different Session. No reconnect or adoption is
 introduced. Tab close acceptance is not removal: lookup reflects membership until the Server
 publishes removal, after which the old binding is not found.
 
-## Directory Workspace creation
-
-The Windows and macOS `workspace create` [contract](windows-workspace-creation.md) owns optional Project, label, source, directory and focus. Its default creates an ungrouped Workspace and default shell, with no Project/label form or automatic AI launch. Explicit advanced options remain available. `orchbee.workspace.creation` v1 records Workspace, directory provenance and optional focus, with no Project setup phase. IDs and terminal facts live in `workspace.result`, including required-nullable `projectId`.
-
-The Worker probes the requested directory before the Server atomically registers the Workspace, directory, Terminal Context and first Tab/Panel/Presentation at one revision. Failed admission creates none of them. A successful commit retains the nested mutation v1 envelope with action `workspace.create`, `projectId`, `workspaceId`, `directoryId`, `terminalContextId`, `tabId`, `panelId`, `presentationId`, literal `path`, `label`, and `terminal`. Project metadata is required-nullable; catalog v1 publishes this changed contract. Terminal launch can remain pending or fail after commit: keep the returned IDs, inspect the Workspace and explicitly close it if unwanted. An unknown response is never automatically replayed or rolled back.
-
-Native `workspace.launch` uses tagged placement: `ungrouped`, `project`, `new-project` or `alongside`. Ordinary CLI creation selects ungrouped or an explicitly resolved existing project, with label, geometry and required cwd; launch/profile remain mutually exclusive. Server receipts carry exact structural IDs and nullable Project metadata; pending/launched preserve admission and terminal settlement separately. Activate and roll back one complete matched cohort.
-
-## Agent Panel targeting model
-
-Targeted Agent commands accept `--panel <id|@panel:0x<hex>>` exclusively with the positional target. A positional full Panel ID first resolves as an exact
-retained Session ID; only a definite not-found permits Panel fallback. A prefixed `@panel:` target selects a Panel
-without consulting aliases. Workbench owns Panel identity and its primary presentation;
-Agent state owns live, navigable presentation attachments. Hidden attachments remain eligible.
-The CLI reads one Workbench snapshot on the held Client Connection and passes the primary
-presentation ID to the existing OBAP names family. Its presentation selector resolves,
-assigns or releases under the Agent state fold: zero live matches is not-found, one is
-selected, and multiple sessions are ambiguous. Repeated attachments of one session count
-once. No paging, first-match choice, terminal-text inference or client-side alias table is used.
-
-The workflow is parse → existing-only admission → optional exact ID resolution →
-Panel snapshot resolution → OBAP presentation resolution/operation → pinned Session read,
-wait or terminal operation. It shares the caller's deadline and cancellation wake; failure
-before the final names mutation is a read failure, not an unknown mutation. A lost mutation
-reply remains outcome-unknown with no replay. Waiters never follow a later Panel occupant.
-Terminal operations retain the selected primary presentation and reject a missing binding
-or changed Agent attachment before sending; Server terminal authorization remains authoritative.
-Workbench and Agent reads are sequential samples, not a cross-owner atomic transaction.
-Existing receipt sources remain unchanged. Resolve receipts may
-report `resolvedBy: presentation`; ambiguity is a bounded rejection without a candidate list.
-
-Native grammar and Panel projection tests cover selector exclusivity and primary/child
-separation; Agent fold tests cover zero/one/multiple sessions and ended/non-navigable/hidden
-attachments. Windows process tests cover the shared admission,
-pinned waits, pre-mutation read failures and exact terminal selection.
-Real Session/Worker/ConPTY evidence covers the integrated command path. These checks do not
-establish provider foreground ownership or readiness. This workflow uses implementation tests.
-
 ## Panel process information
 
 ### Windows interpretation and Agent input preflight
 
-`src/cli/processes.rs` owns a bounded, stateless interpretation of the validated Host
-sample. The Host alone owns process collection. Each process adds nullable `argv` and
-`providerId`; `foreground` reports `kind`, nullable `pid`, and nullable `providerId`.
-The Client selects no foreground from its sample: every process read is followed by one
-Workbench Panel Agent `identify` read on the same connection and budget, and `foreground`
-projects the Server's identity result and run anchor.
-The process result is version 1. Windows `CommandLineToArgvW`, through the existing
-safe `winsafe` shell binding, interprets nonempty command lines of at most 4096 UTF-16
-units without NUL. Empty or unavailable commands remain null; there is no substitution
-of the CLI's own command line, shell expansion, file lookup, or environment access.
-These are Windows argument parsing rules, not proof of another executable's parser.
-The Windows-only feature adds no crate, version, build script, or process execution.
+The Host alone owns process collection. The CLI interprets the validated Host sample statelessly and selects no foreground from it: every process read is followed by one Workbench Panel Agent `identify` read on the same connection and budget, and `foreground` projects the Server's identity result and run anchor. Windows `CommandLineToArgvW` interprets nonempty command lines of at most 4096 UTF-16 units without NUL; these are Windows argument parsing rules, not proof of another executable's parser. Empty or unavailable commands remain null: there is no substitution of the CLI's own command line, shell expansion, file lookup, or environment access.
 
 The executable image must identify an Agent directly, or identify a known runtime
 whose actual script entrypoint identifies one. Eval/command payloads and arbitrary
 later arguments never identify an Agent. Known package entrypoints and executable
 aliases are explicit. Provider matching is a diagnostic heuristic, not executable
 authentication. It does not create canonical Agent state or establish readiness.
-
-| Server identity state                          | Foreground projection              | Input preflight                   |
-| ---------------------------------------------- | ---------------------------------- | --------------------------------- |
-| A published run (`anchor` present)             | `agent-chain`, anchor PID/provider | Current evidence, then provider   |
-| No run, `unknown` with `ambiguous-candidates`  | `ambiguous`, null PID/provider     | Refuse: `agent-runtime-ambiguous` |
-| No run, retained root is present in the sample | `root`, root PID, null provider    | Refuse: `agent-not-running`       |
-| No run, root absent from the sample            | `unavailable`, null PID/provider   | Refuse: `agent-not-running`       |
 
 A published run only shows. The Server keeps publishing it until one of its own later samples
 ends it, and keeps it under `unknown` results, so input requires current evidence in this order:
@@ -2554,51 +491,9 @@ handling, and the retained-Job boundary belong to the shared sample verdict the 
 Ambiguity stays explicit rather than looking like an available shell. No POSIX foreground
 process group is claimed.
 
-For canonical session targets on Windows, `agent send-keys` and `agent prompt` resolve the canonical session and its
-exact terminal, query this terminal on the same admitted session, check the expected
-canonical provider ID (not an executable alias), then re-read the pinned Agent before sending. The second read must preserve
-provider, live lifecycle, and the selected navigable presentation and its generation. Prompt freshness
-and blocker checks use this latest observation as well. All steps share the existing
-five-second input deadline; each viewer has a detach attempt before the next step, with session
-drop as cleanup fallback. A preflight failure sends no input. The low-level `terminal
-send` remains available for explicit terminal input. The checks and later input are
-not atomic: a process can exit after observation. Existing send receipts and unknown
-outcome rules still apply; there is no retry or process lease.
-
-Runtime mismatches use `orchbee.cli.failure.agent-runtime` v1 with the correlated
-process source and bounded `stage/reason/sessionId/expectedProvider/detectedProvider`
-details. Unknown providers, absent Agents, ambiguous chains, unidentified Agents, provider
-mismatch, and changed canonical binding are distinct refusals. Collection and transport failures
-retain their original typed failure. Verification covers Windows Unicode/quoting,
-empty-command protection, runtime eval decoys, ancestor/cycle/reused-parent cases,
-closed result schemas, real CLI/named-pipe preflight ordering and no-input refusals,
-and a real isolated Windows Job witness. These checks do not prove provider task
-completion, authentication, or atomic foreground ownership.
-
-`panel process-info [<panel-id> | --current] [--client <id>]` reads the processes an exact Terminal owns: its Windows Job, or on macOS and Linux its own process session. A positional Panel target and `--current` are exclusive; complete IDs and `@panel:0x<hex>` use the existing Panel resolver and primary binding. Without an explicit selector, valid `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` retain the caller's exact primary or child Terminal; partial or stale metadata fails. With absent caller metadata, require one current Client; `--client` selects an exact current Client and ignores caller metadata. Client selection passively resolves its actual member and validates the same binding and local attachment token before publication. The [current Panel contract](native-current-panel.md) owns revision fences, deadline and cancellation. No unavailable member falls back to a primary terminal.
-
-One existing-only Client Connection and one absolute five-second budget cover snapshot, transient read-only viewer admission, one process read, best-effort detach, and one identity read. Client Connection drop owns remaining viewer cleanup. The Server revalidates Worker generation and physical terminal binding; Worker and Host retain process authority. Success publishes the exact typed Windows Job sample with Panel/Terminal routing context and correlated read provenance. The sequential snapshot and sample do not claim an atomic cross-owner observation. Host failures remain explicit, are never empty process success, and are not retried. Strings are escaped in text output; machine creation times remain decimal strings. The response describes owned processes, not a Windows foreground process group or Agent interactive readiness.
-
-The JSON envelope is `orchbee.panel.process-info` v1; the schema catalog and bilingual help/completion ship with the command. Evidence covers implicit and explicit targets, conflicts before I/O, primary-versus-child selection, absent primary bindings, denied reads, wrong response identities, preserved Host errors, bounded output, viewer cleanup, and the real Windows Session/Worker/Host process route. The shared typed read is also the actual dependency for subsequent Agent launch/readiness work; it does not close those obligations by itself.
-
-Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounded failure code; invalid responses and transport failures retain the generic CLI failure contract. Successful `source` records snapshot revision, OBCS request ID, and Host correlation, epoch, attachment, and physical Terminal ID as distinct identities. The catalog lists the current documents and command paths.
-
 ### Agent identity diagnostics
 
-`panel process-info` and the `detection` member of `agent get --format json` both carry `identity`: the Server's current Agent
-identity result for the exact Terminal generation. It is one closed object discriminated by `result`:
-
-| `result`      | Members                                                                | Text (en-US / zh-CN)                                           |
-| ------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `agent`       | `providerId` (native provider ID), `grade` `confirmed` or `recognized` | `claude-code Agent, recognized` / `claude-code 智能体，已识别` |
-| `none`        | none                                                                   | `No Agent` / `没有智能体`                                      |
-| `unknown`     | `reason` from the closed list below                                    | `Unknown: <reason>` / `未知：<reason>`                         |
-| `unsupported` | `reason` `platform` or `remote-execution`                              | `Unsupported: <reason>` / `不支持：<reason>`                   |
-
-Unknown reasons are `settling`, `sample-failed`, `sample-limit`, `command-line-unreadable`,
-`ambiguous-candidates`, `unclassified-arguments`, `unverified-provenance`, and `detached-console`.
-A generation the Server has not sampled yet reports `unknown` with `settling`. The discriminator is
-`result`, never `kind`, so the value cannot be mistaken for the shared `unsupported` capability shape.
+The discriminator of the `identity` object is `result`, never `kind`, so the value cannot be mistaken for the shared `unsupported` capability shape. A generation the Server has not sampled yet reports `unknown` with `settling`.
 
 Physical Explain receives the identity inside the Server's `explained` result. `panel process-info`
 sends one Workbench Panel Agent `identify` request after the process sample, on the same connection
@@ -2610,143 +505,23 @@ identity remain separate observations, but `foreground` is derived from the iden
 Agent chain always names the Server's published run. Text output adds one localized Identity row;
 JSON carries the value verbatim.
 
-## Windows Agent startup
-
-[Windows Agent startup](windows-agent-start.md) owns `agent start`, its places (`--new-tab`, `--split`, `--here`), initial `--cwd` and Client `--focus`/`--no-focus`, first-command start, single submission, early check, reservation and readiness workflow, Windows quoting, budgets and recovery. `agent list` shows a pending reservation's name on its terminal row; names failures use v1 for launch-pending. The catalog exposes the current documents and command paths.
-
 ## Windows Session stop
 
-The managed Windows Server saves committed Workbench changes after a 500ms debounce, refreshes sampled per-terminal directories every 30 seconds, and performs a fresh final save before clean-stop terminal disposal. A later admitted start restores layout/Launch Profiles and launches fresh default shells. Saved terminal cwd precedes workspace/home defaults; a missing saved directory falls back to Worker home. Save failure retains preceding valid snapshots, invalid originals and live terminals; explicitly retry after resolving the failure. After the Worker exits, the final save keeps each terminal's last sampled directory, and the stop fails as `host-exit` `refused` while that Worker's Host still runs, because nothing may end it; a Server whose Worker and Host are both gone stops on its own. Startup retains unreadable snapshots and falls back to an older valid copy, or opens an empty workspace with a warning when none remain valid. The owning [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) defines compatibility and recovery limits. Old processes, live Agent state, Client views, terminal screens and history are not restored.
-
-`server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` stops the existing managed Session without activating one. The ID is a nonzero lowercase 128-bit value, generated once if omitted; `--retry` requires it. The CLI issues one start/retry request, then only status reads. `--detach` returns the admitted attempt immediately; otherwise one absolute deadline (65000 ms by default, 1–3600000 ms) covers runtime/cohort admission, request and polling. Cancellation or timeout stops waiting, never rolls back the admitted shutdown. Every runtime answer retains the request ID so `operation status <id>` can query it. Status is a fact document, not a second mutation. The `orchbee.server.stop` v1 envelope distinguishes stopped, exited, pending, failed, busy, not-recorded, unmanaged and unavailable/unknown outcomes. Every answer includes `wait`: `null` when no wait disposition exists, or detached, timed-out or cancelled for the applicable pending/transport outcome. Known Server failures preserve attempt, phase, cause and per-attempt disposal count. Only the matching strict stopped activation record plus a free existing lifetime lock proves completion; disappearance, invalid records and a different ID never do. A later start consumes this receipt; not-recorded cannot disprove an earlier stop. macOS takes the same request; its Session publishes a final checkpoint, so the next start relaunches its terminals in their saved directories, and a `SIGTERM` or `SIGINT` to its Server, which a logout or system shutdown sends, records a stop under the Server's own identity. There `SIGINT` and `SIGTERM` keep their inherited action in the CLI and end a waiting `server stop` at once, as `128 + signo` with no document, so pass `--request-id` or `--detach` to keep a handle for `operation status`. Linux returns unsupported-platform without runtime effects. In the Windows and macOS release builds, `server stop`, `session stop` and `session delete` take no `--confirm` and pass the [release confirmation](../README.md#release-destructive-confirmation) first, which also logs every request. `--machine <selector> server stop` is not this request carried to another computer: the [remote Session stop](machines.md#remote-session-stop) owns it.
+Cancellation or timeout stops waiting and never rolls back the admitted shutdown. Only the matching strict stopped activation record plus a free existing lifetime lock proves completion; disappearance, invalid records and a different ID never do. A later start consumes this receipt, so `not-recorded` cannot disprove an earlier stop. On macOS a `SIGTERM` or `SIGINT` to the Server, which a logout or system shutdown sends, records a stop under the Server's own identity; in the CLI those signals keep their inherited action and end a waiting `server stop` at once, as `128 + signo` with no document, so pass `--request-id` or `--detach` to keep a handle for `operation status`. `--machine <selector> server stop` is not this request carried to another computer: the [remote Session stop](machines.md#remote-session-stop) owns it.
 
 A Session whose Server refuses this build's offer is handled by kind; status reads never take this path. A Session from before the handshake gets `unavailable` `predates-handshake`: no shim speaks to it, so the text names the action, running `server stop` with the Orchbee that started it, as `pnpm desktop` does. A Server that refuses as too old, as another development build, or with `stopping` is asked for its terminal count with one `query` control request. With none open, one `exit` request ends that Server and its Worker, and the CLI waits for the Session lifetime lock to be released before reporting `exited` (exit 0); there is no stop record, and the next start recovers the Session from its last checkpoint, counting no crash when that Server recorded its `exit`. With terminals open the answer is `unavailable` `terminals-open`, or `draining` for a Server that refused with `stopping`, because `exit` never ends a terminal and, until Host `exit` arrives in P1, only the build that started a Session can end its terminals. A Server that answers `exit` `unsupported` gets `exit-unsupported` with the same action. An `exit` whose reply was lost after submission, or whose Session still holds its lifetime lock at the deadline, is `unknown` with reason `transport` or `session-lifetime`.
 
-The stop/status workflow, request identity selection, receipt rendering and cancellation decisions compile on every host. Native capability admission precedes entropy, signal registration and runtime access. Stop transport and strict activation-record observation stay behind named platform ports. Transport failure retains both the original failure and submission truth; unsupported ports perform no exchange and cannot manufacture a completion receipt.
-
-## Windows retained Worktree operations
-
-The [Worktree contract](windows-worktrees.md) owns `worktree create/open/remove/status/resume`, their source/Project inference, per-command flags, operation identity, confirmation, waiting, output and recovery. It extends this record's earlier list-only grammar: Create/Open admit optional --client, --focus/--no-focus, label and terminal geometry, source Workspace or cwd, and path/branch selectors; Create also admits base. Remove admits force and requires Workspace plus confirmation; Resume requires operation ID, generation and confirmation. All five admit text/JSON; only mutation commands admit request identity, trust and waiting as documented there. The `orchbee.worktree.operation` v1 envelope includes nullable original Project metadata, optional focus and shell restoration receipts, without a Project preparation phase. The offline catalog publishes its current schema.
-
-Windows and macOS `worktree list` additionally accept a source Workspace/cwd and optional command-local trust, with validated caller/selected-Client defaults and cwd only when both are absent and no Project requirement. The earlier registered-directory grammar and envelope in this record apply only to the registered `--directory` form (v1, no Project). The [source discovery contract](windows-worktrees.md#source-based-discovery) owns the separate `orchbee.worktree.query` v1 result (catalog v1), mutual exclusions, total deadline, failure exits and known Workspace associations.
-
-## Project close-all projection
-
-Windows `project close-all <target> --confirm` explicitly closes captured members of one Project, with `--request-id`, `--detach` and `--timeout` (1–3600000 ms, default 120000). `operation status <operation-id>` has a five-second read budget; `operation resume <operation-id> --generation <1..64> --confirm` admits the same detach/timeout options. Ordinary `workspace close` closes only the selected Workspace; retired `--group` forms are rejected. Both preserve Git checkouts/branches. Project close-all retains the Project; dissolve only ungroups and retains Workspaces.
-
-`orchbee.project.close-all` v1 separates retained Server truth from nullable wait disposition. Source is `local-workspace-group` with required-nullable Session ID. Results have only a Project scope; at most 256 captured members carry Workspace ID, label and nullable child Close. Empty groups are valid. Start/Resume submits once, followed only by reads of the same attempt/members; unknown effects are never replayed. Exit codes and partial truth follow [Project close-all](windows-worktrees.md#project-close-all). Help, `--skill` and completion declare these commands offline.
-
-## Windows and macOS Client navigation
-
-[Windows Client view control](windows-client-control.md) owns `client list/get/status`, `workspace focus`, `tab focus`, `panel focus` and `panel maximize`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. The current catalog includes `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`; view/control are v1, routing failure is v1 and composed Agent Client read failure is v1. No operating-system window activation is added. macOS admits the same control; Linux admits only the read-only `client list` and `client get`.
-
 ## Offline schema export
 
-Text `api schema` without an ID lists the catalog: one row per schema ID with its versions and title, then how to read one schema or every document. `api schema <schema-id>`, `api schema --format json` and file export answer the JSON document. `api schema [<schema-id>] --output <path>` explicitly publishes the same complete JSON document that `api schema [<schema-id>] --format json` writes to stdout. It accepts `--format text|json` for failure presentation; successful stdout and file bytes remain identical JSON with a final newline. Omitting `--output` retains the existing read-only behavior.
-
-The parser admits a nonempty literal file path of at most 4,096 UTF-8 bytes, validates all arguments before effects, and never expands variables or a leading tilde. Relative paths resolve against the invoking process directory. On Windows, device names, alternate data streams and ambiguous drive-relative paths are refused; macOS and Linux take any POSIX path that names a file, refusing only a trailing `/` and a last component of `.` or `..`. This does not select or start a Session, inspect runtime configuration, or use the network to obtain schemas. Windows and macOS publish the file; Linux refuses before any file operation.
-
 The schema owner resolves the embedded ID and prepares the entire bounded document before any filesystem operation. Unknown IDs preserve existing not-found behavior and create nothing. The shared publication workflow resolves the destination, refuses an existing non-regular/reparse target through the Windows metadata port, creates one exclusively owned random sibling `.orchbee-schema-<nonce>.tmp`, writes and synchronizes the complete document, closes the handle, then publishes with one rename. Existing regular destinations may be replaced; parent directories are never created. There is no truncation fallback or automatic retry.
-The Windows port retains the exclusive temporary-file open mode. The macOS and Linux port refuses an existing target that is not a regular file, a symbolic link included, and creates the temporary exclusively with mode `0600`; schema export and the diagnostic bundle publish through it on macOS. Schema export on Linux returns unsupported-platform after the same schema preparation, without resolving the file destination, generating a random temporary name or performing file operations.
 
-| Phase                                       | Result and ownership                                                                                               |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Grammar or embedded lookup fails            | No filesystem effects; existing typed failure                                                                      |
-| Destination/temporary preparation fails     | Target unchanged; local export failure                                                                             |
-| Write, synchronization or publication fails | No successful publication; remove the owned temporary and report the exact failed phase                            |
-| Temporary cleanup fails                     | Retain and report its path so the caller can remove that owned residue                                             |
-| Rename succeeds                             | Complete destination published; emit the already prepared stdout; later stdout failure does not roll the file back |
-
-The dedicated `orchbee.cli.failure.schema-export` version 1 document carries `write-failed`, a closed phase, the literal destination and nullable retained temporary path; it exits 1. It appears on stdout only with `--format json`, alongside a localized stderr diagnostic. No provider, terminal, canonical Workbench state or runtime identity is changed. A process crash may leave a recognizable unpublished sibling temporary; publication does not claim power-loss durability for the parent directory.
-
-Maintained Windows process checks cover Unicode/space and relative paths, full and selected schemas, replacement, grammar/unknown-ID isolation, absent parents, directories, a locked destination preserving its previous bytes, schema-valid failure output and absence of normal cleanup residue. File export uses the Orchbee schema envelope and complete-file publication.
-
-## Windows Panel layout queries
-
-`panel layout`, `panel neighbor --direction left|right|up|down` and `panel edges` inspect an exact Windows TUI Client. They accept a positional Panel or `--current`, and `--client` when routing is ambiguous. Reads preserve focus and terminal sizes, including inactive or unvisited targets. `orchbee.panel.layout` v1 retains cell geometry, nullable hidden rectangles, unmaximized neighbors, physical-edge results and the operation receipt. See the [geometry contract](windows-client-layout.md). The offline catalog lists the current documents and command paths.
-
-`panel focus [source] --direction left|right|up|down` finds one neighbor in the selected TUI's unmaximized cell layout and preserves the maximized state. No neighbor returns `direction-unchanged` without activating the source Tab. A found destination is pinned and returns `direction-focused` only after a successful draw. Receipt reads never repeat the movement.
-
-`panel resize [panel] --direction left|right|up|down [--amount <number>]` adjusts one eligible split border, preserving focus and the maximized state. `layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` sets an exact binary split path. Both route to one Windows TUI and retain a `layout-adjusted` receipt. Selected changes wait for a draw; inactive changes store without navigation. Finite ratios clamp to 0.1–0.9, and finite resize amounts normalize to an absolute magnitude at most 0.5 (default 0.05). Ratios belong to that TUI session and are not restored after restart. See the [layout contract](windows-client-layout.md).
-
-## Shared Panel titles
-
-`panel rename <panel-id> --label <text>` sets the shared primary Presentation override; `--clear` (or blank text) removes it and resumes automatic chrome naming. Its canonical `displayLabel` still falls back to the immutable creation label. It accepts an exact ID or `@panel:0x<hex>`, with no focus or terminal effect. The [Panel label contract](native-panel-labels.md) owns normalization, revision/replay rules and coordinated cohort compatibility. `orchbee.panel.rename` v1 distinguishes `renamed` from `unchanged`; its nullable `customLabel` echoes normalized request metadata. `panel get` and `panel current` v1 expose immutable `label`, nullable `customLabel` and effective `displayLabel`. `api snapshot` v1 preserves the canonical optional override. The offline catalog lists the current documents and command paths.
-
-Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. The Windows CLI separately acknowledges source focus through the original Client; known canonical commits survive later failure or unknown focus. [Native Panel swap](native-panel-swap.md) owns the workflow, receipt and evidence.
-
-Windows and macOS `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their v1 receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a Client-local `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` v1 separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
-
-## Tab insertion boundary
-
-On Windows, `tab move <id|@tab:0x<hex>|label> (--order previous|next|first|last | --insert-index N)`
-requires exactly one placement flag. `N` is a zero-based boundary in the original context order,
-not a final ordinal: 0 means first, the Tab count means last, and the source boundary or immediately
-following boundary leaves order unchanged. Parse accepts integers 0..256; the Server rejects values
-above the current count without clamping. Exact target resolution uses one snapshot and one command
-under the existing total mutation budget, with no Client selection or implicit focus.
-
-Indexed movement emits `orchbee.tab.move` v1 with `action: tab.move`, requested `insertIndex`, exact
-context/Tab, request/Session/base revision and committed or unchanged revision. Direction movement
-keeps `orchbee.mutation.result` v1. The offline catalog lists the current documents and command paths. A definite
-bounds rejection retains the Server reason. An ambiguous submission retires the carrier, reports
-outcome unknown and never replays or compensates. Old direction behavior remains available on its
-existing platforms; this new CLI form is Windows-only. There is no new disk persistence or migration.
-
-Index-command runtime failures use `orchbee.cli.failure.tab-move` v1, adding definite
-`tab-move-order-conflict` when the exact requested placement would break a pinned prefix or split
-a contiguous group. Direction movement uses that v1 envelope only for this new reason; all other
-direction and parser failures retain their existing generic envelope. The embedded schema preserves
-closed v1 and rejects the new reason under v1. A refusal leaves order, metadata and authority intact. The index carrier admits a context-close `terminal-busy` as definite
-precommit, without widening the direction carrier contract.
-
-PowerShell completion reads plain ASCII decimal integer AST constants as literal source text, so
-`--insert-index 2` keeps completion active. Variables, splats, expressions and scriptblocks are
-not evaluated or admitted by this repair.
-
-## Source-selected terminal output
-
-Linux, macOS and Windows reads use `--source` and `--lines`, defaulting to recent80. Plain JSON emits
-`orchbee.terminal.output` v1; ANSI emits v1. `--plain` exports UTF-8 directly and excludes JSON.
-`--ansi` preserves styled blanks and Unicode using SGR, with no PTY-byte or graphics replay.
-The [output contract](native-terminal-output.md) owns source
-ranges, joining, output limits, cursor fencing and sample validation.
-
-Source waits default to 30000 ms and recent80, with `--forever` for explicit unbounded waiting.
-They emit v1, or v1 with `--after`; existing output can match without a cursor. A match alone
-is not command completion. Reads and waits never take terminal control or change Client focus.
-
-Bare `status` reads the Workbench and then lists the Session's processes and their versions with one handshake `query`; `doctor` checks this executable offline and its v1 JSON includes bounded I/O diagnostics when cohort admission is unavailable. Both accept `--format text|json` and never activate a Session. An absent explicitly selected Session names `orchbee --session <name> server start`; without an explicit selection the hint is `orchbee server start`. The [runtime status contract](native-runtime-status.md) owns the five-second budget, refusals, schemas and failures. Update-channel management remains unavailable.
-
-## Agent navigation
-
-Windows `agent focus <target> [--client <id>]` resolves a canonical Session or terminal-backed Agent to one navigable primary Panel. One `agent-focus` control retains the exact Agent and Presentation identity through Client navigation and completion. The Client rechecks its observation; a physical target also requires its matching Host frame. Successful explicit focus marks current known versions in the selected Tab seen, including an already-focused target and outer focus loss. Ordinary paint keeps its existing rules. `--request-id`, `--detach`, the 30000 ms default total deadline and retained status recovery remain unchanged. An unready Client refuses before Agent reads; loss/replacement yields rejection or incomplete navigation, without retargeting. A `stale-view` rejection is settled before anything reaches the Client, and an Agent read that the Workbench outran ends as `changed`; either reads a fresh snapshot and resolves the Client and Agent again under the same deadline, at most three times. A rejected control is submitted again, under a fresh operation identity, only when the Client and intent are identical and `--request-id` did not name the operation; otherwise the last rejection stands. Incomplete, pending and unknown outcomes are never submitted again. `orchbee.client.control` v1 carries this operation; no OS window activation occurs. The [Agent navigation contract](native-agent-navigation.md) owns identity, acknowledgement and final acceptance.
-
-## Windows Agent prompt activity
-
-For canonical session targets, Windows `agent prompt --wait` checkpoints the retained Agent change journal after runtime preflight and before submitting input once. A failed checkpoint prevents submission. The checkpoint must cover the preflight revision. Each later fully validated page preserves transient activity; a fresh newer provider version must show working/blocked or a turn-finished transition to open the activity gate. Only working/blocked conditions can match that gate event; settled conditions must match a current sample, so a transient completion followed by working keeps waiting. Metadata and freshness changes alone do not establish activity. The five-second activity gate, original total/read deadlines, pinned identity and cancellation owner remain. A current canonical sample must cover the journal head. Windows v1 separates nullable `matchedChange` and its source from the current observation; Linux remains v1. History loss or a foreign cursor fails explicitly and preserves the accepted input receipt. This proves observed activity after the checkpoint, not causality or exclusive ownership of the submitted turn.
-
-For canonical session targets, Windows `agent prompt <target> <text> --wait --client <id>` preflights one exact Client before sending and reads its attention on each later sample. The canonical activity gate still applies. Idle/done match only its current corroborated resting projection; missing/stale versions keep waiting. A lost Client or read failure stops the wait with the accepted input receipt retained. The Client read bundle is bounded to two seconds inside the existing five-second evaluation and original total deadline. No read acknowledges, focuses or resubmits. Selected-Client success is v1 with required `client`; ordinary Windows prompt remains v1 and Linux v1. `--client` requires `--wait`; macOS runs it as Windows does, and Linux has no implementation.
+A process crash may leave a recognizable unpublished sibling temporary; publication does not claim power-loss durability for the parent directory.
 
 ## Windows unified Agent projection
 
-Windows `agent list` joins canonical Server sessions and physical terminal Agents into `orchbee.agent.list` v1. Its `source.kind` is `agent-projection`; the source carries `sessionId` (32 lowercase hex), decimal-string `workbenchRevision` and `reportRevision`, and safe-integer `canonicalRevision`. Its `result` is `{kind:"listed",revision,nextCursor,items,clientId}`; `nextCursor` is null or a `u1` cursor. Each row has a one-based `ordinal` (1–4096), `provider`, semantic `status` (`unknown`, `idle`, `working`, `blocked`, `done`, `error`, `ended`), identity `source` (`canonical`, `terminal`, `both`), the existing nullable canonical `AgentSessionSummary`, and a nullable physical terminal record with its existing launch binding, nonempty provider, `PanelAgentState` and decimal-string sequence. `source` controls which facets are present. Physical and `both` rows always carry `placement` with 32-hex Panel, Presentation, Terminal, Terminal Context and Tab IDs; canonical-only rows may also carry placement when a current terminal incarnation is observed with no Agent. `workspaceId` within placement is nullable. `cwd` is a nullable string. When `--include-ended` is used, ended sessions sort after all current live rows, keeping live ordinals stable; ended rows follow canonical ID order and are listed for inspection only, since no selector addresses an ended session in this release. While an accepted Close (Tab, Panel, set, Workspace or group) is removing a terminal, that terminal yields no physical row, and a session whose every presentation attachment sits on that Close's presentations yields no canonical row; both return when the Close stops.
-
-Windows rows also carry `name`: the row's live alias, or null when it has none. No command assigns a name in this release. The list reads the Session's names on its own connection before confirming the projection; a terminal binding names the row with that exact launch binding, a pending launch reservation names its terminal, and a session binding names the row with that `sessionId`. A row's own target wins, so a terminal's name takes precedence over its session's. macOS carries `name` as Windows does; Linux marks it unsupported. The text table prints `#`, `HANDLE`, `AGENT`, `NAME`, `STATE` and `CWD`; the identity `source` stays in JSON, and `agent get` text names the Agent and its state without it. On Linux, `agent list` text prints `SESSION`, `AGENT` and `STATE`, and `agent get` text prints the session, provider, lifecycle, status, last outcome and the kinds of pending requests; freshness, execution location, observation coordinates, capabilities, request IDs and presentation attachments stay in JSON.
-
-`clientId` and every row's `client` are always present, null on Windows when no Client was selected, with canonical and terminal Client facets kept separate. Client unread state never supplies semantic Agent status. Optional cwd enrichment covers at most 64 rows per page and returns null when unavailable. Pages contain 1–100 rows (default 50); the joined output ceiling is 4096 rows and 8 MiB. Source admission can fail earlier: the canonical source is bounded to 512 sessions/six pages of 100, and physical source registration is bounded to 1024 entries. The 4096-row output ceiling does not promise that many physical sources.
-
 Windows cursors use `u1.<base64url>` and are at most 1024 characters. The payload is canonical JSON encoded as base64url. Cursors bind to Session, source revisions, `includeEnded`/Client filters, page offset and fingerprint; they require no retained files. Malformed cursors are rejected as invalid input before live source reads. The CLI must read current sources to determine whether a `u1` cursor is stale, so it can reject a stale `u1` cursor only after those reads; the caller must restart at the first page.
 
-Windows `agent get` emits `orchbee.agent.get` v1 with and without `--client`, using the same projection `source`. `result` is `{kind:"projected",agent,inspection}`. `agent` has the projection row's provider, status, source, canonical/terminal facets, placement and cwd, without `ordinal` or `client`; `inspection` is the existing current canonical or terminal inspection. Detailed process, terminal metadata, management and Client evidence stay in their facet-specific inspection shape.
-
-A terminal whose Close the Server has accepted contributes no physical row. Its Agent leaves the
-list and `@agent:<n>` numbering at acceptance, and an Agent command naming its Panel answers
-not-found ([rule owner](../../orchbee-server/docs/agent-report-model.md#physical-semantic-observations)).
-
 Windows Get, Read, Prompt, Send Keys, Wait and Focus share one resolver. `@agent:<kind>` selects a provider only when the complete current projection proves it unique. `@agent:<n>` selects a one-based ordinal in the complete list order, never a page-relative position; the resolver accepts live rows only, and no selector reaches an ended session in this release. Bare names preserve Server alias precedence before provider fallback. Partial reads cannot establish provider uniqueness. Mutating effects retain the complete physical binding and revalidate it immediately before the write.
-
-Projection failures use `orchbee.cli.failure.agent-projection` v1. The closed `failure.details` has `stage:"agent-projection"`, a reason from `unavailable`, `denied`, `changed`, `invalid`, `too-large`, `timeout`, `cancelled`, `cursor-restart`, `target-not-found` or `target-ambiguous`, and optional `selector`/`candidates`. Candidate entries carry `selector:"@agent:<n>"`, nullable `sessionId`, nullable `panelId` and nullable `AgentLaunchBinding`; at most 16 candidates are returned. The optional envelope `source` has the same typed projection shape used by Agent list/get, and failure envelopes have no `result`.
 
 The native provider registry now has 20 entries, including Windows Cursor, Qoder and Antigravity JSON hook onboarding and offline diagnosis. The Agent projection documents are registered in API catalog version 1.
 
@@ -2762,124 +537,9 @@ Devin adds Windows onboarding and offline diagnosis for six identity hooks. All 
 
 Hermes adds Windows plugin activation and content-free session observation. Its offline inspection reports that provider command inspection is required.
 
-## Windows persistent creation defaults
-
-[Windows CLI configuration](windows-cli-configuration.md) owns the bounded TOML reader, `ORCHBEE_CONFIG_FILE`, `[terminal] new_cwd`, `[worktrees] directory`, and precedence before any creation effect; creation takes those defaults from the Session's published configuration snapshot. Windows and macOS `config check` v1 preserves five runtime checks and adds `user-config`; every platform ends with `records`, which warns with each record whose version this build cannot use, as `{record, problem, version, path}`, and text output prints each record message with its path. Any other command whose stores met such a record ends its stderr with that record's message, once per process. `orchbee.cli.failure.configuration` v1 reports bounded preparation errors. The offline catalog lists the current documents and command paths.
-
-The current Windows `config check` v1 keeps fatal file and environment admission as `fail`/exit 1 and reports admitted field fallbacks as `warning` with `ok:true`/exit 0. Its bounded `diagnostics` and exact `diagnosticsOmitted` count follow the current closed contract. `config reload` v1 carries the same admitted warning record in each successful snapshot. The embedded schema catalog is v1.
-
-## Windows terminal observation stream
-
-`terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` emits NDJSON from one existing binding without control or Host resizing. The [stream contract](windows-terminal-streams.md) owns full safe ANSI frames, resets, flush-before-ACK, deadlines and cleanup. Default viewport: 120×40; default duration: unlimited. Both output formats emit `orchbee.terminal.stream` v1 records. The catalog lists the current documents and command paths. Machine control now accepts NDJSON input through `terminal session control`; interactive terminal/Agent attach is implemented with remaining fidelity and acceptance obligations.
-
-### Panel relocation transfer receipts
-
-All shared mutation receipts use version 1, including Panel relocation.
-Relocation includes optional `transfer` facts:
-`targetTerminalContextId`, `closedSourceTab`, optional `closedSourceWorkspaceId` and
-`createdWorkspaceId`. Existing-Tab moves also preserve the returned Split and slot identities.
-Moving a Tab's final leaf removes that Tab without disposing its terminal; the result reports
-that removal. The local carrier checks destination kind/context, created-Workspace presence,
-source-removal consistency and result correlation before acknowledging a commit. The catalog lists the current documents and command paths.
-
-### Windows Panel relocation workflow
-
-```text
-panel move <panel> --into-tab <tab> --direction left|right|up|down [--target-panel <panel>] [--ratio <number>]
-panel move <panel> --new-tab [--workspace <workspace>] [--label <text>]
-panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>]
-```
-
-All forms accept `--focus|--no-focus`, `--client` and `--timeout`. Focus defaults to true.
-`--into-tab` also supports placement within the current Tab; `--target-panel` selects its neighbor. Ratios must be finite
-and are clamped to 0.1–0.9. New Tab labels are optional.
-
-Resolve one snapshot and an explicit, caller-associated or sole current Client. Ambiguity fails
-before effects. Without a Client, only `--no-focus` without an explicit ratio may proceed: choose
-the first target leaf and native default ratio, without claiming Client geometry or maximized state.
-With a Client, read-only source/target layouts determine the maximized state and the default target leaf.
-Maximized source/target Tabs return unchanged without mutation. Same-Tab placement submits the existing Panel move effect. An explicit
-target Panel must belong to the target Tab.
-
-A new Workspace joins an existing Project only through explicit `--project`; omission is ungrouped and never inherits the source Project or creates a default Project. Its directory follows observed terminal root cwd, falling back to invoking process cwd only when absent. Invalid observations fail. Validate path and label before effects.
-
-Phases are preflight → canonical transfer with new-Workspace Directory → optional ratio → focus → observed layouts, sharing one absolute deadline and cancellation. Server commits topology atomically without restarting the terminal; Directory joins that commit after Worker validation. `orchbee.panel.move` v1 removes the Project preparation receipt/stage and retains canonical and Client results separately. Never replay after failure, cancellation or uncertainty, or report partial success as complete.
-
-Ratio targets the returned Split/slot identities after snapshot refresh; same-Tab placement derives the moved Panel’s parent Split only from the exact movement receipt revision, refusing to follow concurrent rearrangement. Client follow-up waits
-for canonical convergence and preserves an unaffected prior selection; unrelated navigation
-refuses follow-up. Removal of the selected source permits ordinary selection repair. Other
-Clients keep independent navigation. Receipt layouts describe only the selected Client.
-An unchanged empty Ready view may enter the existing minimum-revision-fenced control without
-waiting for an unrelated navigation heartbeat; its observed revision must not regress. Inactive
-target layouts report that Client's remembered canonical Panel, or the first member when absent.
-Grammar/decision tests, receipt validation, cancellable transport checks and real Windows multiple-Client
-live-terminal/restart acceptance cover these boundaries. Generic events and existing child,
-grouped and pinned structure restrictions remain separate obligations.
-
-The offline catalog lists the current documents and command paths.
-
-## Reusable layout export
-
-Windows and macOS `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are listed in the current catalog.
-
 ## Programmatic semantic keys
 
-`terminal send --key` and `agent send-keys` share one parser. Named keys and modifiers use canonical lowercase spellings: `enter`, `escape`, `tab`, `backspace`, `delete`, `up`, `down`, `left`, `right`, `home`, `end`, `page-up`, `page-down`, `insert`, `space`, `f1`..`f25`, and `ctrl+`, `alt+`, `shift+`, `super+` before the base key. One non-control Unicode scalar and punctuation names (`plus`, `minus`, `comma`, `period`, `slash`, `backslash`, `quote`, `double-quote`, `semicolon`, `colon`, `percent`, `ampersand`, `backtick`) are accepted; ASCII uppercase characters imply Shift. Use `plus` for the plus key and quote shell metacharacters. Duplicate modifiers, multiple base keys, empty components, alternate names, leading-zero function numbers and modifiers after the base are usage errors before admission. Control-letter presses use `ctrl+c` and `ctrl+d`.
-
 Every semantic key uses one validated stroke record through both native protocols. Worker supplies physical identity, logical text, unshifted scalar and modifiers; shifted printable text consumes Shift for text generation while retaining it for negotiated full key reporting. Host encodes the current terminal mode, including CSI-u for Super character chords in the legacy terminal keyboard mode. Sequence order, at most 64 keys, a shared deadline, input-only attachment, prefix receipts and no replay after partial or unknown outcomes remain unchanged. Function keys may be mode-ignored where the child has not enabled a supporting keyboard protocol; receipts retain the actual encoded-byte count.
-
-The same-author regressions cover parser refusal, independent wire goldens, malformed scalar/flag boundaries, mixed record boundaries, Worker semantic projection and Host legacy/Kitty encoding. Focused verification does not replace final Windows cohort acceptance or full-goal regression.
-
-## Windows Panel metadata query
-
-The [Panel metadata contract](windows-panel-metadata.md#query-observation-model) owns batched primary reads and both final revision fences. [Current Panel](native-current-panel.md#current-member-enrichment) instead checks the exact resolved member's ID, Panel and binding. Panel list/get v1 and current v1 expose their metadata directly; Windows Agent Get v1 retains metadata and source-attributed `reportedAgent` in its terminal `inspection`. Actual report Agent/authority context selects guarded presentation while preserving raw source records and global tokens. Canonical OSC title, names, status and readiness remain distinct.
-
-Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.
-
-## Installed Agent detection manifests
-
-Windows and macOS `server agent-manifests` reads the running Session's installed rules, revision, engine version,
-configuration root and each provider's actual source/version/path/cache/warnings. It also reports the
-frozen update catalog, source errors, last update facts and persisted-status errors.
-`server reload-agent-manifests` reloads the startup configuration root
-and existing status, resets screen stabilization and switches sampling and Explain together.
-`server update-agent-manifests` downloads validated rules through the
-Server's owned curl worker (the Windows curl, and `/usr/bin/curl` on macOS), commits eligible cache versions and then activates the current
-local/cache/bundled selection. Local overrides continue to take precedence. The catalog comes only
-from `ORCHBEE_AGENT_DETECTION_CATALOG_URL`; there is no default. Without it, or with an
-invalid value, Update is unavailable, no check runs, the remote cache is ignored and the catalog reads
-`not configured` or reports the source error, while bundled and local rules remain usable. The source
-is frozen at Session startup. With a catalog, managed release Sessions automatically check at startup and
-every thirty minutes; no setting turns this off. Debug/test and standalone
-execution do not schedule checks. Rule Reload never reads `config.toml`, and a failed rule installation preserves the previous detector. Automatic results use
-a separate latest-result slot without consuming manual receipts.
-`operation status <operation-id>` reads either retained receipt without resubmitting.
-These commands require an already running Session and do not focus a Client or send terminal input.
-
-Each invocation uses one five-second admission/exchange budget. Reload and Update submit once and
-poll only status. Pending/unknown effects retain the operation ID and exit 8; read transport
-uncertainty exits 4. Denials/busy/not-recorded/capacity/kind-conflict/update-disabled failures exit 3;
-unavailable exits 4; cancelled operations exit 7; load/revision/internal errors exit 1. A complete
-update exits 0 only when every provider result and status persistence succeeded and activation was
-applied. Partial failure or failed/skipped activation exits 1 even when some cache files were written.
-Late interruption preserves the last admitted receipt. IDs are nonzero 32-character lowercase
-hexadecimal values; omission generates one. Same-kind accepted duplicates read the existing receipt;
-cross-kind reuse fails. One Reload/Update is active at a time, with 1,024 retained receipts for the
-Session generation and no eviction. Restart ends receipt scope; the last cache report remains on disk.
-
-`orchbee.server.agent-manifests` v1 includes Update, maintenance
-metadata, update reports and unknown-effect receipts. v1 adds automatic policy gates and the
-latest automatic operation. Reports show attempted/cached versions and
-per-provider failures separately from activation revision/failure. Text is localized and escaped.
-The offline catalog lists the current documents and command paths. The Server
-[installed-manifest maintenance contract](../../orchbee-server/docs/agent-screen-model.md#installed-manifest-maintenance)
-owns cache safety, installation, cancellation and receipt limits.
-
-Five Windows Panel report commands also accept `--presentation <full-id>` for an exact primary or child member of the positional Panel. Omission retains primary targeting with `presentationId:null`; an explicit member fills that same required field. [Agent reports](windows-panel-agent-reports.md#exact-member-targets) and [metadata reports](windows-panel-metadata.md#exact-member-targets) own identity checks, byte preflight and unknown-outcome handling. The catalog lists the current documents and command paths.
-
-## Agent sidebar configuration publication
-
-Windows `config check` v1 and `config reload` v1 expose the required bounded `agentSidebarProfile`, now a fixed value; configuration failure v1 includes Workspace sidebar admission diagnostics. The [Windows configuration owner](windows-cli-configuration.md#windows-agent-sidebar-rows) defines startup, fatal source boundaries, field-local admission, canonical publication and atomic Client application. The offline catalog lists the current documents and command paths.
 
 ## Windows CLI process verification
 
@@ -2894,11 +554,3 @@ The viewport-timeout peer may observe `BrokenPipe` when the CLI expires after se
 status poll but before receiving the queued response. It then stops writing; the consumer must
 still return the exact timeout failure with no partial result. Other write errors and malformed
 requests remain failures, and no receipt is fabricated after the connection closes.
-
-## Retained operation paths
-
-[Retained operation status](native-operation-status.md) defines `operation status <request-id>` and `operation resume <request-id> --generation <n> --confirm`, which find a retained operation by its request ID alone, with no family word.
-
-## Panel targets for terminal I/O
-
-`terminal run/read/send/wait-output` accept a terminal ID or `@terminal:`, a Panel ID or `@panel:`, or `--panel <panel>`. Panel targeting selects the primary presentation in one admitted snapshot; it never selects a child or changes focus. Use a child terminal ID explicitly. Missing, unbound and ambiguous Panels fail before input. Bare IDs that name different Panel and Terminal resources refuse; use typed handles to disambiguate. The response retains the actual terminal and placement identities. Example: `terminal run --panel @panel:0x1 "git status"`. The ordinary target and `--panel` are exclusive.

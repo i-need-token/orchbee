@@ -35,8 +35,7 @@ chrome names the program instead and keeps the command. Without a title, the pro
 committed with the Presentation's binding (`launchProgram`) is the next fallback, then the launched
 program from this Client's failed-creation record, then from the Presentation's launch failure, then
 the localized position (`Tab 1` in `en-US`, `标签页 1` in `zh-CN`). Titles are
-stripped as in [Panel terminal observations](native-cli-query.md#panel-terminal-observations), which
-removes one Windows elevation prefix and one activity prefix, and all displayed text is sanitized.
+stripped of one Windows elevation prefix and one activity prefix, and all displayed text is sanitized.
 A title the Server published arrives stripped and is never stripped again.
 This presentation never renames canonical state or claims an observed title is authoritative process
 identity; raw title observations remain unchanged. Canonical ordinal labels, CLI selectors, and
