@@ -171,7 +171,7 @@ adversarial read without calling it independent evidence.
 - Retrieve the authorities and source needed for the active outcome; reuse unchanged material.
   Summaries guide retrieval and do not replace required instruction reads or semantic review of
   changed documentation pairs.
-- Before composing an admitted product interface, follow the discovery and reuse requirements in
+- Reuse an existing composition before writing a new product interface, under
   [`frontend/experience-components.md`](frontend/experience-components.md). Existing authorization
   may cover the visible outcome; new reserved product decisions still require acceptance.
 - Establish domain decisions independently of framework integration when selected by

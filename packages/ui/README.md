@@ -52,7 +52,7 @@ The resizable component facade exports `ResizablePanelGroupHandle` for product a
 
 The package-level [`components.json`](components.json) pins the Base UI Nova style and directs the official CLI to `src/components/ui`.
 
-Use the package's `component:add` script only for checked-in components or explicit names admitted under the [experience-component rules](../../docs/frontend/experience-components.md). Do not import the entire registry; a Story alone does not establish product admission. Review CLI changes, preserve Orchbee adaptations and narrowed exports, and do not restore unused slots. Do not hand-write primitives available from shadcn.
+Use the package's `component:add` script only for checked-in components or explicit names a consumer needs under the [experience-component rules](../../docs/frontend/experience-components.md). Do not import the entire registry; a Story alone does not establish product admission. Review CLI changes, preserve Orchbee adaptations and narrowed exports, and do not restore unused slots. Do not hand-write primitives available from shadcn.
 
 The snapshot uses `@orchbee/foundation/react` where generated event callbacks need the repository's stable-identity and latest-render-value contract. Preserve that focused adaptation when refreshing the affected registry components unless upstream provides the same contract.
 

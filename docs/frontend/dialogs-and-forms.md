@@ -290,8 +290,8 @@ Before implementing a new or materially changed form or interrupting surface:
 1. State the user intent and why each lower-interruption surface is insufficient.
 2. Record every proposed value with its question-budget classification and remove derived,
    defaulted, or deferred controls from the primary path.
-3. Run the experience-component discovery workflow and choose reuse, extend, replace, or new. A
-   reusable Dialog composition does not itself satisfy modal admission.
+3. Reuse or extend an existing composition where one fits. A reusable Dialog composition does not
+   itself satisfy modal admission.
 4. Model applicable closed, editing, disclosed, invalid, submitting, cancelling, completed, failed,
    stale-completion, and re-entry transitions, including alternate-input modes, canonical versus
    draft values, the commit point, and effect owner.

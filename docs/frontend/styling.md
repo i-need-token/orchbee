@@ -67,7 +67,7 @@ Do not import the token registry twice. Storybook scaffolding never restyles com
 
 ## Shadcn component intake
 
-Use the UI package's `component:add` script to refresh explicit admitted component names. Admission follows [experience components](experience-components.md); a Story alone is insufficient. Do not import the complete official registry.
+Use the UI package's `component:add` script to refresh explicit admitted component names. Adding a primitive that no consumer needs yet is a product decision under [experience components](experience-components.md); a Story alone is insufficient. Do not import the complete official registry.
 
 The CLI reads `packages/ui/components.json` and writes to `packages/ui/src/components/ui`; use `--dry-run`, `--view`, and `--diff` when reviewing generated changes.
 

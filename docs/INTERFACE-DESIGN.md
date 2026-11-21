@@ -206,7 +206,7 @@ closing a picker must not silently persist it. GUI surface rules follow
 [`frontend/settings.md`](frontend/settings.md), and native surface rules follow
 [`tui/settings.md`](tui/settings.md).
 
-Reuse reviewed compositions within each Client. The GUI discovery workflow remains
+Reuse reviewed compositions within each Client. GUI reuse follows
 [`frontend/experience-components.md`](frontend/experience-components.md); TUI discovery, ownership,
 and recurring control contracts follow [`tui/components.md`](tui/components.md), and TUI surface
 selection follows [`tui/overlays-and-status.md`](tui/overlays-and-status.md). Share the interaction contract

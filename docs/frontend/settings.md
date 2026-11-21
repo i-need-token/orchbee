@@ -347,8 +347,8 @@ Before implementing a new or materially changed Settings surface or setting:
    validation, conflict resolution, cancellation, and async completion. Follow
    [`../MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md) for every applicable
    correctness trigger.
-4. Run experience-component discovery and choose reuse, extend, replace, or new. Record setting-row,
-   category, search-result, and management-surface invariants in the owning Manifest.
+4. Reuse or extend the existing setting-row, category, search-result, and management-surface
+   compositions where they fit.
 5. Map deterministic tests to effective-value precedence, source projection, scope-safe writes,
    reset, unavailable and enforced states, validation, stale completion, failure recovery, search
    ranking, and non-mutating navigation.

@@ -60,6 +60,11 @@ not implement parallel mutations for those invocation paths.
 - Every actionable command has a leading semantic `ProductIcon`. A checkbox or radio selection
   indicator may replace it only when the command has no separate action metaphor.
 - Group labels and separators are structural and do not receive decorative action icons.
+- A context menu holds only the frequent Actions of its target; lower-frequency Actions stay
+  discoverable in Action search.
+- When one action model has a dropdown trigger and a context-menu trigger, both menus show the same
+  entries in the same order, and a destructive entry asks for the same confirmation by pointer and
+  by keyboard.
 - Localize labels and accessible names. A visible shortcut uses the action's platform-formatted
   binding rather than a glyph embedded in translated copy.
 

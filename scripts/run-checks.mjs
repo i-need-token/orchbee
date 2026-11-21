@@ -99,7 +99,6 @@ export function checkSteps(task, scope, platform = process.platform, rustPart) {
 				'test:ghostty-source',
 				'test:style-contract',
 				'test:storage-contract',
-				'test:experience-contract',
 				'test:stage-local-runtime',
 				'test:release-feed',
 				'test:agent-observation-adapters',

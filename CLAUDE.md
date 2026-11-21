@@ -44,7 +44,7 @@
 - **Testing**: `docs/TESTING.md` — test admission, removal, layout, execution, and regression evidence
 - **Frontend Package Boundaries**: `docs/frontend/package-boundaries.md` — frontend workspace placement, semantic ownership, dependency direction, and platform ports
 - **Frontend React**: `docs/frontend/react.md` — component ownership, file boundaries, state, Effects, Hooks, Zustand, and testing
-- **Frontend Experience Components**: `docs/frontend/experience-components.md` — reviewed interaction vocabulary, package-local manifests, discovery, composition constraints, and lifecycle
+- **Frontend Experience Components**: `docs/frontend/experience-components.md` — reuse of reviewed compositions, ownership, composition constraints, and the direct reorder vocabulary
 - **Frontend Dialogs and Forms**: `docs/frontend/dialogs-and-forms.md` — interruption budgets, surface admission, question budgets, cancellation, focus, and evidence
 - **Frontend Settings**: `docs/frontend/settings.md` — setting admission, visual composition, scope, controls, commit, reset, and evidence
 - **Frontend Visual Foundations**: `docs/frontend/visual-foundations.md` — typography, hierarchy, spacing, radius, sizing, border, and surface selection rules

@@ -62,12 +62,11 @@ the form their reader or consumer needs.
 
 ## File and directory contract
 
-| Location                     | Contract                                                                                                                                                                   |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/` root                 | Contains only cross-repository standards indexed by `CLAUDE.md`; filenames use `UPPER-KEBAB-CASE.md`.                                                                      |
-| `docs/<engineering-domain>/` | Covers one stable discipline across workspace boundaries; filenames use `kebab-case.md`. New domains need review and lint-contract admission.                              |
-| `packages/<package>/docs/`   | Contains [package documents](#package-documents); filenames use `kebab-case.md`.                                                                                           |
-| `<owner>/docs/experience/`   | Contains schema-backed package-local experience Manifests under [`frontend/experience-components.md`](frontend/experience-components.md); filenames use `kebab-case.json`. |
+| Location                     | Contract                                                                                                                                      |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/` root                 | Contains only cross-repository standards indexed by `CLAUDE.md`; filenames use `UPPER-KEBAB-CASE.md`.                                         |
+| `docs/<engineering-domain>/` | Covers one stable discipline across workspace boundaries; filenames use `kebab-case.md`. New domains need review and lint-contract admission. |
+| `packages/<package>/docs/`   | Contains [package documents](#package-documents); filenames use `kebab-case.md`.                                                              |
 
 - Never store one product's or package's behavior under `docs/<product>/` or `docs/<package>/`.
 - Do not create catch-all directories or files such as `misc/`, `notes/`, `general/`, `shared/`, `misc.md`, `notes.md`, or `todo.md`.

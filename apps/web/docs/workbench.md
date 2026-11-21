@@ -128,10 +128,6 @@ for the first time keeps its initial focused Panel.
 The pure Project, Directory, Workspace, and client-local transition contracts live in the
 non-React `src/project-workspace` module, outside the visual Workbench and its runtime graph.
 
-## Experience catalog
-
-Workbench keeps reviewed interaction and business-component Manifests in [`experience`](experience). The records describe their intended and excluded use, invariants, composition dependencies, implementation roots, and Storybook inspection states without turning private components into public exports. Discover them from the repository root with `pnpm experience:find --owner @orchbee/web`, then inspect a selected record with `pnpm experience:show <id>` before composing a new complex Workbench interface.
-
 ## Project and Workspace
 
 The maintained model, ownership, and correctness contract lives in [`project-workspace.md`](project-workspace.md).
