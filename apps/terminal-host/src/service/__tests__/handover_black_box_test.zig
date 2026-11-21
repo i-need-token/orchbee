@@ -35,20 +35,6 @@ const matrix_scrollback_bytes = 64_000_000;
 
 // ---- the probe and its terminals ----
 
-/// A fixture whose Hosts have each launched the probe once: Windows keeps a key open in a process
-/// that first launches a new image, so that key is in every baseline a witness takes.
-fn createFixture() !*Fixture {
-    const f = try Fixture.createWith(.process);
-    errdefer f.destroy();
-    const probe = try probePath(f);
-    for ([_]Side{ .a, .b }) |side| try close(f, side, try f.createTerminalWith(side, probe, &.{"stall"}));
-    return f;
-}
-
-fn probePath(f: *Fixture) ![]const u8 {
-    return std.fs.path.resolve(f.arena(), &.{ options.build_root, options.probe });
-}
-
 fn hex(bytes: [16]u8) [32]u8 {
     return std.fmt.bytesToHex(bytes, .lower);
 }
@@ -69,50 +55,7 @@ fn expectProcesses(f: *Fixture, id: TerminalId, owner: Side, expected: Processes
     return error.ProcessChanged;
 }
 
-/// Waits until `side` reports the terminal's title as `title`, or as starting with it when
-/// `prefix`; returns the title.
-fn awaitTitle(f: *Fixture, side: Side, id: TerminalId, title: []const u8, prefix: bool, timeout_ms: u64) ![]const u8 {
-    const named = hex(id.bytes);
-    const deadline = f.timer.read() + timeout_ms * ms;
-    while (true) {
-        for (f.records.items) |record| {
-            if (record.side != side or !record.event or record.kind != MessageKind.terminal_metadata_changed) continue;
-            if (std.mem.indexOf(u8, record.payload, &named) == null) continue;
-            const Metadata = struct { title: ?[]const u8 = null };
-            const parsed = try std.json.parseFromSliceLeaky(Metadata, f.arena(), record.payload, .{ .ignore_unknown_fields = true });
-            const value = parsed.title orelse continue;
-            if (if (prefix) std.mem.startsWith(u8, value, title) else std.mem.eql(u8, value, title)) return value;
-        }
-        if (f.timer.read() > deadline) {
-            report("no title {s}{s} reported", .{ title, if (prefix) "…" else "" });
-            return error.TitleMissing;
-        }
-        try f.tick();
-    }
-}
-
-/// The number at the end of a title such as `lines-end 120`.
-fn titleNumber(title: []const u8) !u64 {
-    const space = std.mem.lastIndexOfScalar(u8, title, ' ') orelse return error.TitleMalformed;
-    return std.fmt.parseInt(u64, title[space + 1 ..], 10);
-}
-
 // ---- attachments ----
-
-const Capabilities = struct { input: bool = false, read: bool = false, resize: bool = false };
-
-fn attach(f: *Fixture, side: Side, id: TerminalId, capabilities: Capabilities) ![16]u8 {
-    var attachment: [16]u8 = undefined;
-    f.io.random(&attachment);
-    const payload = try std.fmt.allocPrint(f.arena(), "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":{},\"read\":{},\"resize\":{}}},\"requestResizeLease\":{},\"terminalId\":\"{s}\"}}", .{ &hex(attachment), capabilities.input, capabilities.read, capabilities.resize, capabilities.resize, &hex(id.bytes) });
-    try expectKind(try f.call(side, MessageKind.attach_terminal, .control_json, payload, 10_000), MessageKind.attachment_capabilities);
-    return attachment;
-}
-
-fn detach(f: *Fixture, side: Side, attachment: [16]u8) !void {
-    const payload = try std.fmt.allocPrint(f.arena(), "{{\"attachmentId\":\"{s}\"}}", .{&hex(attachment)});
-    try expectKind(try f.call(side, MessageKind.detach_terminal, .control_json, payload, 10_000), MessageKind.detach_terminal);
-}
 
 /// A terminal's screen and history as a Worker reads them on one Host.
 const View = struct {
@@ -127,13 +70,13 @@ const View = struct {
 
 /// Reads the terminal's view on `side` through an attachment of its own.
 fn capture(f: *Fixture, side: Side, id: TerminalId, with_text: bool) !View {
-    const attachment = try attach(f, side, id, .{ .read = true });
+    const attachment = try f.attachTerminal(side, id, .{ .read = true });
     const first = f.records.items.len;
     const demand = try std.fmt.allocPrint(f.arena(), "{{\"attachmentId\":\"{s}\",\"demand\":\"active\"}}", .{&hex(attachment)});
     try expectKind(try f.call(side, MessageKind.set_projection_demand, .control_json, demand, 10_000), MessageKind.projection_demand_accepted);
     const frame = try awaitSnapshot(f, side, attachment, first);
     const text = if (with_text) try exportAll(f, side, attachment, std.mem.readInt(u64, frame[72..80], .little)) else "";
-    try detach(f, side, attachment);
+    try f.detachTerminal(side, attachment);
     const masked = try f.arena().dupe(u8, frame);
     @memset(masked[16..80], 0);
     @memset(masked[145..153], 0);
@@ -178,26 +121,13 @@ fn exportAll(f: *Fixture, side: Side, attachment: [16]u8, generation: u64) ![]co
     }
 }
 
-/// Types `bytes` into the terminal on `side` and waits for the title it brings.
-fn typeAndAwait(f: *Fixture, side: Side, id: TerminalId, bytes: []const u8, title: []const u8, prefix: bool) ![]const u8 {
-    const attachment = try attach(f, side, id, .{ .input = true });
-    const payload = try f.arena().alloc(u8, 16 + 8 + bytes.len);
-    @memcpy(payload[0..16], &attachment);
-    std.mem.writeInt(u64, payload[16..24], 1, .little);
-    @memcpy(payload[24..], bytes);
-    try expectKind(try f.call(side, MessageKind.write_input, .raw_bytes, payload, 10_000), MessageKind.input_accepted);
-    const shown = try awaitTitle(f, side, id, title, prefix, 20_000);
-    try detach(f, side, attachment);
-    return shown;
-}
-
 /// Resizes the terminal on `side` and waits until its program reports the new size.
 fn resizeAndAwait(f: *Fixture, side: Side, id: TerminalId, columns: u16, rows: u16) !void {
-    const attachment = try attach(f, side, id, .{ .resize = true });
+    const attachment = try f.attachTerminal(side, id, .{ .resize = true });
     const payload = try std.fmt.allocPrint(f.arena(), "{{\"attachmentId\":\"{s}\",\"cellPixelHeight\":16,\"cellPixelWidth\":8,\"columns\":{d},\"rows\":{d}}}", .{ &hex(attachment), columns, rows });
     try expectKind(try f.call(side, MessageKind.resize_terminal, .control_json, payload, 10_000), MessageKind.resize_accepted);
-    _ = try awaitTitle(f, side, id, try std.fmt.allocPrint(f.arena(), "size-{d}x{d}", .{ columns, rows }), false, 20_000);
-    try detach(f, side, attachment);
+    _ = try f.awaitTitle(side, id, try std.fmt.allocPrint(f.arena(), "size-{d}x{d}", .{ columns, rows }), false, 20_000);
+    try f.detachTerminal(side, attachment);
 }
 
 /// Closes the terminal on `side`: its program and OpenConsole end, and it is disposed.
@@ -252,28 +182,6 @@ fn hasLines(f: *Fixture, text: []const u8, expected: []const []const u8) !bool {
     return false;
 }
 
-/// Requires `line-1` to `line-<last>` once each and in order.
-fn expectNumberedLines(text: []const u8, last: u64) !void {
-    var expected: u64 = 1;
-    var lines = std.mem.splitScalar(u8, text, '\n');
-    while (lines.next()) |raw| {
-        const line = std.mem.trimEnd(u8, raw, "\r ");
-        if (!std.mem.startsWith(u8, line, "line-")) continue;
-        const number = std.fmt.parseInt(u64, line["line-".len..], 10) catch {
-            report("a damaged numbered line: \"{s}\"", .{line});
-            return error.LineDamaged;
-        };
-        if (number != expected) {
-            report("line-{d} where line-{d} was expected", .{ number, expected });
-            return error.LineLostOrRepeated;
-        }
-        expected += 1;
-    }
-    if (expected == last + 1) return;
-    report("the history ends at line-{d}, the probe printed {d}", .{ expected - 1, last });
-    return error.LineLostOrRepeated;
-}
-
 /// Requires the flood's lines from the oldest the history kept to `last` once each, in order, and
 /// each exactly as the probe wrote it; returns the oldest.
 fn expectFloodLines(text: []const u8, last: u64) !u64 {
@@ -309,13 +217,12 @@ fn expectFloodLines(text: []const u8, last: u64) !u64 {
 // ---- the witnesses ----
 
 test "a numbered-line probe and a full-screen program move with their processes, screens, and history" {
-    var f = try createFixture();
+    var f = try Fixture.createWith(.process);
     defer f.destroy();
     const before = try f.counts();
-    const probe = try probePath(f);
 
     // The numbered-line probe moves four times while it prints, and once more at rest.
-    var lines = try f.createTerminalWith(.a, probe, &.{"lines"});
+    var lines = try f.createTerminal(.a);
     var owner: Side = .a;
     const lines_processes = try processesOf(f, lines, owner);
     try f.idle(300);
@@ -325,7 +232,7 @@ test "a numbered-line probe and a full-screen program move with their processes,
         try expectProcesses(f, lines, owner, lines_processes);
         try f.idle(250);
     }
-    const printed = try titleNumber(try typeAndAwait(f, owner, lines, "x", "lines-end ", true));
+    const printed = try moves.titleNumber(try f.typeAndAwait(owner, lines, "x", "lines-end ", true));
     try f.idle(200);
     const at_rest = try capture(f, owner, lines, true);
     lines = try move(f, owner, lines);
@@ -333,25 +240,25 @@ test "a numbered-line probe and a full-screen program move with their processes,
     try expectProcesses(f, lines, owner, lines_processes);
     const moved = try capture(f, owner, lines, true);
     try expectSameView(at_rest, moved);
-    try expectNumberedLines(moved.text, printed);
+    try moves.expectNumberedLines(moved.text, printed);
     report("a numbered-line probe moved five times, four while it printed: line-1 to line-{d} each once, the screen and {d} history rows unchanged by the last move", .{ printed, moved.history_rows });
 
     // After the move, input and a resize reach the program through the new Host, and closing it
     // there ends the program and OpenConsole.
-    _ = try typeAndAwait(f, owner, lines, "k", "key-k", false);
+    _ = try f.typeAndAwait(owner, lines, "k", "key-k", false);
     try resizeAndAwait(f, owner, lines, 100, 30);
     try close(f, owner, lines);
 
     // A full-screen program on the alternate screen moves the same way.
-    const screen = try f.createTerminalWith(.a, probe, &.{"screen"});
-    _ = try awaitTitle(f, .a, screen, "screen-ready", false, 10_000);
+    const screen = try f.createTerminalWith(.a, f.probe, &.{"screen"});
+    _ = try f.awaitTitle(.a, screen, "screen-ready", false, 10_000);
     const screen_processes = try processesOf(f, screen, .a);
     try f.idle(300);
     const drawn = try capture(f, .a, screen, true);
     const screen_on_b = try move(f, .a, screen);
     try expectProcesses(f, screen_on_b, .b, screen_processes);
     try expectSameView(drawn, try capture(f, .b, screen_on_b, true));
-    _ = try typeAndAwait(f, .b, screen_on_b, "k", "key-k", false);
+    _ = try f.typeAndAwait(.b, screen_on_b, "k", "key-k", false);
     try resizeAndAwait(f, .b, screen_on_b, 100, 30);
     try close(f, .b, screen_on_b);
     report("a full-screen program moved with its screen unchanged; input, a resize, and closing acted through the new Host", .{});
@@ -359,10 +266,10 @@ test "a numbered-line probe and a full-screen program move with their processes,
 }
 
 test "moves during output whose sequences cross reads park only at ground and lose or repeat no line" {
-    var f = try createFixture();
+    var f = try Fixture.createWith(.process);
     defer f.destroy();
     const before = try f.counts();
-    var id = try f.createTerminalWith(.a, try probePath(f), &.{"flood"});
+    var id = try f.createTerminalWith(.a, f.probe, &.{"flood"});
     var owner: Side = .a;
     try f.idle(300);
     var moved: usize = 0;
@@ -398,7 +305,7 @@ test "moves during output whose sequences cross reads park only at ground and lo
         moved += 1;
         try f.idle(200);
     }
-    const printed = try titleNumber(try typeAndAwait(f, owner, id, "x", "flood-end ", true));
+    const printed = try moves.titleNumber(try f.typeAndAwait(owner, id, "x", "flood-end ", true));
     try f.idle(300);
     const view = try capture(f, owner, id, true);
     const oldest = try expectFloodLines(view.text, printed);
@@ -412,12 +319,12 @@ test "moves during output whose sequences cross reads park only at ground and lo
 }
 
 test "a move while a program stops inside its own sequence is refused as passing and leaves the terminal on its old Host" {
-    var f = try createFixture();
+    var f = try Fixture.createWith(.process);
     defer f.destroy();
     const before = try f.counts();
-    const id = try f.createTerminalWith(.a, try probePath(f), &.{"stall"});
+    const id = try f.createTerminalWith(.a, f.probe, &.{"stall"});
     const processes = try processesOf(f, id, .a);
-    _ = try awaitTitle(f, .a, id, "stall-begin", false, 10_000);
+    _ = try f.awaitTitle(.a, id, "stall-begin", false, 10_000);
     try f.idle(300);
     // The pinned conpty passes the program's partial sequence through, so the reader stops inside
     // it, and no quiesce parks while the program waits for a key.
@@ -431,7 +338,7 @@ test "a move while a program stops inside its own sequence is refused as passing
     try f.expectCounts(.{ .b = before.b }, 5000);
 
     // The terminal reads on its old Host, where the key completes the sequence.
-    _ = try typeAndAwait(f, .a, id, "g", "stall-end", false);
+    _ = try f.typeAndAwait(.a, id, "g", "stall-end", false);
     try f.idle(200);
     const completed = try capture(f, .a, id, true);
     if (!try hasLines(f, completed.text, &.{ "stall-begin", "stall-red", "stall-end" }) or
@@ -569,12 +476,12 @@ fn withHost(baseline: Baseline, side: Side, count: u32) Baseline {
 }
 
 test "a failure forced at every step of a move leaves the terminal on its old Host with every handle back" {
-    var f = try createFixture();
+    var f = try Fixture.createWith(.process);
     defer f.destroy();
     const start = try f.counts();
     // Each Host's count while it serves no terminal; a restarted Host takes a new one.
     var idle = [2]u32{ start.a, start.b };
-    var id = try f.createTerminalLaunched(.a, try probePath(f), &.{"lines"}, .{ .scrollback_bytes = matrix_scrollback_bytes });
+    var id = try f.createTerminalLaunched(.a, f.probe, &.{"lines"}, .{ .scrollback_bytes = matrix_scrollback_bytes });
     var owner: Side = .a;
     const processes = try processesOf(f, id, owner);
     const cases = [_]struct { failure: Failure, first: Step, last: Step }{
@@ -625,19 +532,19 @@ test "a failure forced at every step of a move leaves the terminal on its old Ho
     }
 
     // Every line the probe printed through the forced failures is in the history once.
-    const printed = try titleNumber(try typeAndAwait(f, owner, id, "x", "lines-end ", true));
+    const printed = try moves.titleNumber(try f.typeAndAwait(owner, id, "x", "lines-end ", true));
     try f.idle(200);
-    try expectNumberedLines((try capture(f, owner, id, true)).text, printed);
+    try moves.expectNumberedLines((try capture(f, owner, id, true)).text, printed);
     try close(f, owner, id);
     try f.expectCounts(.{ .a = idle[0], .b = idle[1] }, 10_000);
     report("{d} forced failures: line-1 to line-{d} each once; both Hosts back at their counts", .{ forced, printed });
 }
 
 test "ending the old Host right after the quiesce leaves the program running, held by the Keeper" {
-    var f = try createFixture();
+    var f = try Fixture.createWith(.process);
     defer f.destroy();
     const before = try f.counts();
-    const id = try f.createTerminalWith(.a, try probePath(f), &.{"lines"});
+    const id = try f.createTerminal(.a);
     const processes = try processesOf(f, id, .a);
     const old_host = f.identity(.a);
     try f.idle(300);
@@ -701,9 +608,8 @@ fn nsMs(ns: u64) f64 {
 test "the pause from the quiesce to the claim at the default scrollback and at 100 MB of history" {
     // A measurement, whose report is its result: only `-Dhandover-pause` runs it.
     if (!options.measure_pause) return error.SkipZigTest;
-    var f = try createFixture();
+    var f = try Fixture.createWith(.process);
     defer f.destroy();
-    const probe = try probePath(f);
     const cases = [_]struct { name: []const u8, scrollback_bytes: ?usize, lines: u32 }{
         // More lines than each bound keeps, so the history is full; 120 × 40, as prototype 2.
         .{ .name = "the default scrollback", .scrollback_bytes = null, .lines = 16_000 },
@@ -712,9 +618,9 @@ test "the pause from the quiesce to the claim at the default scrollback and at 1
     for (cases) |case| {
         var count_buffer: [16]u8 = undefined;
         const count = try std.fmt.bufPrint(&count_buffer, "{d}", .{case.lines});
-        var id = try f.createTerminalLaunched(.a, probe, &.{ "fill", count }, .{ .columns = 120, .rows = 40, .scrollback_bytes = case.scrollback_bytes });
+        var id = try f.createTerminalLaunched(.a, f.probe, &.{ "fill", count }, .{ .columns = 120, .rows = 40, .scrollback_bytes = case.scrollback_bytes });
         const fill_begin = f.timer.read();
-        _ = try awaitTitle(f, .a, id, try std.fmt.allocPrint(f.arena(), "fill-end {d}", .{case.lines}), false, 400_000);
+        _ = try f.awaitTitle(.a, id, try std.fmt.allocPrint(f.arena(), "fill-end {d}", .{case.lines}), false, 400_000);
         try f.idle(500);
         const rows = (try capture(f, .a, id, false)).history_rows;
         report("filled {s} with {d} lines in {d:.1} s: {d} history rows", .{ case.name, case.lines, nsMs(f.timer.read() - fill_begin) / 1000, rows });

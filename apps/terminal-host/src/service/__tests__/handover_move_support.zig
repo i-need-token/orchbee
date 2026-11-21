@@ -3,7 +3,8 @@
 //! Keeper is that executable's `keep`. Host A is either a Host service in this process, as in the
 //! Keeper link witnesses, so a witness can read its screens and feed its parser, or, for the
 //! black-box run, a second process of the built Host. The test is the Worker of the Keeper and of
-//! both Hosts, so it reads every answer and event of both.
+//! both Hosts, so it reads every answer and event of both. The terminals run the probe programs of
+//! `handover_probe_windows.c`, which the build emits, and which report their state in the title.
 
 const std = @import("std");
 const harness = @import("service_harness.zig");
@@ -12,6 +13,7 @@ const support = @import("keeper-support");
 const transport = @import("black-box-transport");
 const handshake = @import("terminal-host-handshake");
 const build_options = @import("build-options");
+const probe_options = @import("handover_black_box_options");
 const ghostty_vt = @import("ghostty-vt");
 
 pub const protocol = harness.protocol;
@@ -137,10 +139,8 @@ pub const Fixture = struct {
     self_process: message.Process,
     /// The staged Host executable, which is also the Keeper.
     host_path: []u8,
-    /// The system's command processor.
-    comspec: []u8,
-    /// The system's `PING.EXE`, beside its command processor.
-    ping: []u8,
+    /// The probe programs' executable.
+    probe: []u8,
     keeper: ?Keeper = null,
     a_kind: HostKind,
     /// Host A while it runs in this process; never initialized when Host A is a process.
@@ -184,11 +184,14 @@ pub const Fixture = struct {
     }
 
     /// Runs and disposes one short terminal on each of the Hosts, so the handles a Host or the
-    /// Keeper opens once, on its first terminal, are in every baseline a witness takes.
+    /// Keeper opens once, on its first terminal, are in every baseline a witness takes. It runs the
+    /// probe, since Windows keeps a key open in a process that first launches a new image.
     pub fn warmUp(self: *Fixture, sides: []const Side) !void {
         var ids: [2]TerminalId = undefined;
-        for (sides, 0..) |side, index| ids[index] = try self.createTerminal(side, 2);
+        for (sides, 0..) |side, index| ids[index] = try self.createTerminal(side);
         for (sides, 0..) |side, index| {
+            // `x` ends the probe's lines and `q` ends the probe.
+            try self.typeInput(side, ids[index], "xq");
             _ = try self.awaitExitCode(side, ids[index], 10_000);
             try self.awaitEnded(ids[index], 10_000);
             try self.dispose(side, ids[index]);
@@ -205,10 +208,8 @@ pub const Fixture = struct {
         }
         const timer = try monotonic.Timer.start();
         const self_process = try support.selfProcess();
-        const comspec = try harness.pty_process.environmentVariableOwned(allocator, "ComSpec");
-        errdefer allocator.free(comspec);
-        const ping = try std.fs.path.join(allocator, &.{ std.fs.path.dirname(comspec) orelse return error.ComSpecMissing, "PING.EXE" });
-        errdefer allocator.free(ping);
+        const probe = try std.fs.path.resolve(allocator, &.{ probe_options.build_root, probe_options.probe });
+        errdefer allocator.free(probe);
         const host_path = try besideSelf(allocator, "orchbee-terminal-host.exe");
         errdefer allocator.free(host_path);
         const self = try allocator.create(Fixture);
@@ -219,8 +220,7 @@ pub const Fixture = struct {
             .timer = timer,
             .self_process = self_process,
             .host_path = host_path,
-            .comspec = comspec,
-            .ping = ping,
+            .probe = probe,
             .a_kind = a_kind,
             .a_live = a_kind == .service,
         };
@@ -242,8 +242,7 @@ pub const Fixture = struct {
         self.aliases.deinit(self.allocator);
         for (self.records.items) |record| self.allocator.free(record.payload);
         self.records.deinit(self.allocator);
-        self.allocator.free(self.ping);
-        self.allocator.free(self.comspec);
+        self.allocator.free(self.probe);
         self.allocator.free(self.host_path);
         self.arena_state.deinit();
         self.allocator.destroy(self);
@@ -594,12 +593,11 @@ pub const Fixture = struct {
 
     // ---- terminals ----
 
-    /// A terminal whose program, `ping`, sends `pings` echo requests a second apart and then exits,
-    /// held by the Keeper once it runs. Each reply line names `TTL=` in every display language.
-    pub fn createTerminal(self: *Fixture, side: Side, pings: u16) !TerminalId {
-        var count_buffer: [8]u8 = undefined;
-        const arguments = [_][]const u8{ "-n", try std.fmt.bufPrint(&count_buffer, "{d}", .{pings}), "127.0.0.1" };
-        return self.createTerminalWith(side, self.ping, &arguments);
+    /// A terminal whose program, the probe, prints `line-N` every timer tick until it reads `x`,
+    /// held by the Keeper once it runs. It then shows `lines-end N` and each key it reads, and `q`
+    /// ends it.
+    pub fn createTerminal(self: *Fixture, side: Side) !TerminalId {
+        return self.createTerminalWith(side, self.probe, &.{"lines"});
     }
 
     /// A terminal running `executable`, held by the Keeper once it runs.
@@ -935,9 +933,75 @@ pub const Fixture = struct {
         return actual == expected orelse return true;
     }
 
+    // ---- attachments, input, and titles ----
+
+    pub const Capabilities = struct { input: bool = false, read: bool = false, resize: bool = false };
+
+    /// A new attachment of the terminal on `side`.
+    pub fn attachTerminal(self: *Fixture, side: Side, id: TerminalId, capabilities: Capabilities) ![16]u8 {
+        var attachment: [16]u8 = undefined;
+        self.io.random(&attachment);
+        const payload = try std.fmt.allocPrint(self.arena(), "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":{},\"read\":{},\"resize\":{}}},\"requestResizeLease\":{},\"terminalId\":\"{s}\"}}", .{ &std.fmt.bytesToHex(attachment, .lower), capabilities.input, capabilities.read, capabilities.resize, capabilities.resize, &std.fmt.bytesToHex(id.bytes, .lower) });
+        try expectKind(try self.call(side, MessageKind.attach_terminal, .control_json, payload, 10_000), MessageKind.attachment_capabilities);
+        return attachment;
+    }
+
+    pub fn detachTerminal(self: *Fixture, side: Side, attachment: [16]u8) !void {
+        const payload = try std.fmt.allocPrint(self.arena(), "{{\"attachmentId\":\"{s}\"}}", .{&std.fmt.bytesToHex(attachment, .lower)});
+        try expectKind(try self.call(side, MessageKind.detach_terminal, .control_json, payload, 10_000), MessageKind.detach_terminal);
+    }
+
+    /// Writes `bytes` as the first input of an attachment that may send input.
+    fn writeInput(self: *Fixture, side: Side, attachment: [16]u8, bytes: []const u8) !void {
+        const payload = try self.arena().alloc(u8, 16 + 8 + bytes.len);
+        @memcpy(payload[0..16], &attachment);
+        std.mem.writeInt(u64, payload[16..24], 1, .little);
+        @memcpy(payload[24..], bytes);
+        try expectKind(try self.call(side, MessageKind.write_input, .raw_bytes, payload, 10_000), MessageKind.input_accepted);
+    }
+
+    /// Types `bytes` into the terminal on `side`. Input the Host accepted reaches the program after
+    /// its attachment detaches.
+    pub fn typeInput(self: *Fixture, side: Side, id: TerminalId, bytes: []const u8) !void {
+        const attachment = try self.attachTerminal(side, id, .{ .input = true });
+        try self.writeInput(side, attachment, bytes);
+        try self.detachTerminal(side, attachment);
+    }
+
+    /// Types `bytes` into the terminal on `side` and waits for the title it brings.
+    pub fn typeAndAwait(self: *Fixture, side: Side, id: TerminalId, bytes: []const u8, title: []const u8, prefix: bool) ![]const u8 {
+        const attachment = try self.attachTerminal(side, id, .{ .input = true });
+        try self.writeInput(side, attachment, bytes);
+        const shown = try self.awaitTitle(side, id, title, prefix, 20_000);
+        try self.detachTerminal(side, attachment);
+        return shown;
+    }
+
+    /// Waits until `side` reports the terminal's title as `title`, or as starting with it when
+    /// `prefix`; returns the title.
+    pub fn awaitTitle(self: *Fixture, side: Side, id: TerminalId, title: []const u8, prefix: bool, timeout_ms: u64) ![]const u8 {
+        const named = std.fmt.bytesToHex(id.bytes, .lower);
+        const deadline = self.timer.read() + timeout_ms * ms;
+        while (true) {
+            for (self.records.items) |record| {
+                if (record.side != side or !record.event or record.kind != MessageKind.terminal_metadata_changed) continue;
+                if (std.mem.indexOf(u8, record.payload, &named) == null) continue;
+                const Metadata = struct { title: ?[]const u8 = null };
+                const parsed = try std.json.parseFromSliceLeaky(Metadata, self.arena(), record.payload, .{ .ignore_unknown_fields = true });
+                const value = parsed.title orelse continue;
+                if (if (prefix) std.mem.startsWith(u8, value, title) else std.mem.eql(u8, value, title)) return value;
+            }
+            if (self.timer.read() > deadline) {
+                report("no title {s}{s} reported", .{ title, if (prefix) "…" else "" });
+                return error.TitleMissing;
+            }
+            try self.tick();
+        }
+    }
+
     // ---- Host A's screen ----
 
-    /// Host A's screen of the terminal as plain text, read under the terminal lock.
+    /// Host A's history and screen of the terminal as plain text, read under the terminal lock.
     pub fn screenText(self: *Fixture, id: TerminalId) ![]const u8 {
         const runtime = harness.findRuntime(&self.service, id) orelse return error.RuntimeMissing;
         const state = harness.runtimeState(runtime);
@@ -950,13 +1014,19 @@ pub const Fixture = struct {
         return writer.written();
     }
 
-    /// Requires that Host A's screen of the terminal shows every one of `pings` replies once.
-    pub fn expectReplies(self: *Fixture, id: TerminalId, pings: usize) !void {
-        const text = try self.screenText(id);
-        const replies = std.mem.count(u8, text, "TTL=");
-        if (replies == pings) return;
-        report("{d} replies on the screen, expected {d}:\n{s}", .{ replies, pings, text });
-        return error.RepliesLostOrRepeated;
+    /// Waits until Host A's text of the terminal, its history included, has the line `line`, and
+    /// returns that text. A title can arrive before the text the program wrote ahead of it.
+    pub fn awaitLine(self: *Fixture, id: TerminalId, line: []const u8, timeout_ms: u64) ![]const u8 {
+        const deadline = self.timer.read() + timeout_ms * ms;
+        while (true) {
+            const text = try self.screenText(id);
+            if (hasLine(text, line)) return text;
+            if (self.timer.read() > deadline) {
+                report("no line \"{s}\" on Host A:\n{s}", .{ line, text });
+                return error.LineMissing;
+            }
+            try self.tick();
+        }
     }
 
     /// Feeds bytes to Host A's parser of the terminal as if its reader had read them.
@@ -967,6 +1037,41 @@ pub const Fixture = struct {
 };
 
 // ---- helpers ----
+
+/// The number at the end of a title such as `lines-end 120`.
+pub fn titleNumber(title: []const u8) !u64 {
+    const space = std.mem.lastIndexOfScalar(u8, title, ' ') orelse return error.TitleMalformed;
+    return std.fmt.parseInt(u64, title[space + 1 ..], 10);
+}
+
+/// Whether `text` has the line `line`, without its trailing blanks.
+pub fn hasLine(text: []const u8, line: []const u8) bool {
+    var lines = std.mem.splitScalar(u8, text, '\n');
+    while (lines.next()) |raw| if (std.mem.eql(u8, std.mem.trimEnd(u8, raw, "\r "), line)) return true;
+    return false;
+}
+
+/// Requires the probe's `line-1` to `line-<last>` once each and in order.
+pub fn expectNumberedLines(text: []const u8, last: u64) !void {
+    var expected: u64 = 1;
+    var lines = std.mem.splitScalar(u8, text, '\n');
+    while (lines.next()) |raw| {
+        const line = std.mem.trimEnd(u8, raw, "\r ");
+        if (!std.mem.startsWith(u8, line, "line-")) continue;
+        const number = std.fmt.parseInt(u64, line["line-".len..], 10) catch {
+            report("a damaged numbered line: \"{s}\"", .{line});
+            return error.LineDamaged;
+        };
+        if (number != expected) {
+            report("line-{d} where line-{d} was expected", .{ number, expected });
+            return error.LineLostOrRepeated;
+        }
+        expected += 1;
+    }
+    if (expected == last + 1) return;
+    report("the history ends at line-{d}, the probe printed {d}", .{ expected - 1, last });
+    return error.LineLostOrRepeated;
+}
 
 /// A path beside this executable, where the runner staged the Host and the pinned conpty.
 fn besideSelf(allocator: std.mem.Allocator, name: []const u8) ![]u8 {

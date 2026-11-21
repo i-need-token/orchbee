@@ -14,13 +14,20 @@ const ReaderParkWait = harness.subject.ReaderParkWait;
 
 const allocator = std.testing.allocator;
 const pause_cycles = 1000;
-/// Most cycles must meet the program writing, or the probe would test an idle reader.
+/// The cycles that must meet the program writing, or the probe would test an idle reader.
 const minimum_cycles_with_output = 100;
-/// Lets the program write between cycles; Windows rounds it up to its timer tick.
-const pause_gap_ns = 5 * std.time.ns_per_ms;
-const flood_lines = 20_000;
+/// The numbered lines that must pass through the pauses, each once and in order. The cycles go on
+/// past `pause_cycles` until both minimums are met, since a cycle is shorter than the time between
+/// two lines.
+const minimum_lines = 100;
+/// Lets the program write between cycles, 1 to 4 ms in turn, so the pauses meet every phase of its
+/// output.
+const pause_gap_unit_ns = std.time.ns_per_ms;
+/// Enough lines that the flood outlasts every pause: cmd writes a few thousand a second, a POSIX
+/// shell's `seq` tens of thousands at once.
+const flood_lines = if (builtin.os.tag == .windows) 5_000 else 20_000;
 const flood_pauses = 20;
-const flood_pause_gap_ns = 100 * std.time.ns_per_ms;
+const flood_pause_gap_ns = 50 * std.time.ns_per_ms;
 /// The quiesce's own bound on reaching a park.
 const park_timeout_ns = std.time.ns_per_s;
 const output_timeout_ns = 60 * std.time.ns_per_s;
@@ -174,17 +181,29 @@ test "reader pause and resume 1,000 times loses and repeats no numbered line" {
     defer harness.destroyRuntimeWithIdentityRetry(runtime);
 
     try output.awaitText("line-1");
+    var cycles: usize = 0;
     var cycles_with_output: usize = 0;
-    for (0..pause_cycles) |_| {
+    var timer = try monotonic.Timer.start();
+    while (true) : (cycles += 1) {
+        // The lines are counted only every 100 cycles past the first 1,000: each count reads the
+        // whole stream.
+        if (cycles >= pause_cycles and cycles % 100 == 0 and cycles_with_output >= minimum_cycles_with_output and
+            try output.numberedLines("line-") >= minimum_lines) break;
+        if (timer.read() >= output_timeout_ns) return error.ProbeOutputTimedOut;
         const before = output.length();
         try runtime.pauseReader();
         try std.testing.expectEqual(ReaderParkWait.parked, runtime.awaitReaderParked(park_timeout_ns));
         try runtime.resumeReader();
-        monotonic.sleep(pause_gap_ns);
+        try spin((1 + cycles % 4) * pause_gap_unit_ns);
         if (output.length() > before) cycles_with_output += 1;
     }
-    try std.testing.expect(cycles_with_output >= minimum_cycles_with_output);
-    try std.testing.expect(try output.numberedLines("line-") >= minimum_cycles_with_output);
+    try std.testing.expect(try output.numberedLines("line-") >= minimum_lines);
+}
+
+/// Waits without sleeping: Windows rounds a sleep up to its timer tick, about 16 ms.
+fn spin(duration_ns: u64) !void {
+    var timer = try monotonic.Timer.start();
+    while (timer.read() < duration_ns) std.Thread.yield() catch {};
 }
 
 test "reader pause during a flood parks within the quiesce bound and loses nothing" {

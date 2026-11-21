@@ -993,6 +993,10 @@ pub fn build(builder: *std.Build) void {
             "Also measure the pause of moves during a flood and at up to 100 MB of history (ReleaseSafe)",
         ) orelse false;
         handover_black_box_options.addOption(bool, "measure_pause", measure_handover_pause);
+        // Every move witness runs the probe, the in-process ones included. One module serves every
+        // importer, since a file may belong to only one module of a compilation.
+        const handover_black_box_options_module = handover_black_box_options.createModule();
+        handover_move_support_module.addImport("handover_black_box_options", handover_black_box_options_module);
         // A Debug Host runs Ghostty's integrity checks on every page, so it neither measures the pause
         // that ships nor fills 100 MB of history inside the test's bounds.
         const handover_pause_in_debug: ?*std.Build.Step = if (measure_handover_pause and optimize == .Debug)
@@ -1005,7 +1009,7 @@ pub fn build(builder: *std.Build) void {
             .optimize = optimize,
         });
         handover_test_module.addImport("handover-move-support", handover_move_support_module);
-        handover_test_module.addOptions("handover_black_box_options", handover_black_box_options);
+        handover_test_module.addImport("handover_black_box_options", handover_black_box_options_module);
         handover_test_module.addIncludePath(builder.path("src/transport"));
         handover_test_module.addCSourceFile(.{
             .file = builder.path("src/transport/local_ipc_windows.c"),
@@ -1043,7 +1047,7 @@ pub fn build(builder: *std.Build) void {
             .optimize = optimize,
         });
         handover_black_box_module.addImport("handover-move-support", handover_move_support_module);
-        handover_black_box_module.addOptions("handover_black_box_options", handover_black_box_options);
+        handover_black_box_module.addImport("handover_black_box_options", handover_black_box_options_module);
         handover_black_box_module.addIncludePath(builder.path("src/transport"));
         handover_black_box_module.addCSourceFile(.{
             .file = builder.path("src/transport/local_ipc_windows.c"),
