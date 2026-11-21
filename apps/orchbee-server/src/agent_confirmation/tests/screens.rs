@@ -32,7 +32,7 @@ fn layouts() -> Layouts {
 }
 
 fn read(screen: &str) -> Option<Dialog> {
-    layouts().read(AgentReportProvider::Claude, screen)
+    layouts().read(AgentReportProvider::Claude, screen, None)
 }
 
 fn rows(lines: &[&str]) -> Vec<String> {
@@ -42,7 +42,7 @@ fn rows(lines: &[&str]) -> Vec<String> {
 fn assert_reads(provider: AgentReportProvider, table: &[((&str, &str), Expected)]) {
     let layouts = layouts();
     for ((name, screen), expected) in table {
-        let dialog = layouts.read(provider, screen);
+        let dialog = layouts.read(provider, screen, None);
         let found = dialog.as_ref().map(|dialog| {
             (
                 dialog.layout.as_str(),
@@ -323,7 +323,7 @@ fn every_captured_gemini_screen_reads_as_what_it_shows() {
 #[test]
 fn a_gemini_dialog_that_differs_from_its_layout_is_not_read() {
     let (_, screen) = screen!("gemini", "10-shell-mkdir");
-    let read = |screen: &str| layouts().read(AgentReportProvider::Gemini, screen);
+    let read = |screen: &str| layouts().read(AgentReportProvider::Gemini, screen, None);
     assert!(read(screen).is_some());
     // One row of the box around the command, as wide as the captured ones.
     let inner = |text: &str| format!("│ │ {text:<72} │ │\n");
@@ -394,7 +394,7 @@ fn a_gemini_dialog_that_differs_from_its_layout_is_not_read() {
         1,
     );
     let dialog = layouts()
-        .read(AgentReportProvider::Gemini, &shortened)
+        .read(AgentReportProvider::Gemini, &shortened, None)
         .expect("the layout still matches");
     assert_eq!(judge(&dialog, WINDOWS), Err(Wait::NotVisible));
     let hidden = write.replacen(
@@ -403,7 +403,7 @@ fn a_gemini_dialog_that_differs_from_its_layout_is_not_read() {
         1,
     );
     let dialog = layouts()
-        .read(AgentReportProvider::Gemini, &hidden)
+        .read(AgentReportProvider::Gemini, &hidden, None)
         .expect("the layout still matches");
     assert_eq!(judge(&dialog, WINDOWS), Err(Wait::NotVisible));
     // The counter of a queued confirmation never hides a protected name, and a path with a
@@ -412,7 +412,7 @@ fn a_gemini_dialog_that_differs_from_its_layout_is_not_read() {
     assert!(queued.contains("Writing to aab-q1.txt  "));
     let protected = queued.replacen("Writing to aab-q1.txt", "Writing to .env      ", 1);
     let dialog = layouts()
-        .read(AgentReportProvider::Gemini, &protected)
+        .read(AgentReportProvider::Gemini, &protected, None)
         .expect("the layout still matches");
     assert_eq!(dialog.text, rows(&[".env"]));
     assert_eq!(judge(&dialog, WINDOWS), Err(Wait::ProtectedFile));
@@ -423,16 +423,25 @@ fn a_gemini_dialog_that_differs_from_its_layout_is_not_read() {
     };
     assert_eq!(judge(&padded, WINDOWS), Err(Wait::NotUnderstood));
     let spaced = queued.replacen("Writing to aab-q1.txt", "Writing to aab q1.txt", 1);
-    assert_eq!(layouts().read(AgentReportProvider::Gemini, &spaced), None);
+    assert_eq!(
+        layouts().read(AgentReportProvider::Gemini, &spaced, None),
+        None
+    );
     // Another Agent's layouts never read Gemini CLI's screen.
-    assert_eq!(layouts().read(AgentReportProvider::Claude, screen), None);
-    assert_eq!(layouts().read(AgentReportProvider::Codex, screen), None);
+    assert_eq!(
+        layouts().read(AgentReportProvider::Claude, screen, None),
+        None
+    );
+    assert_eq!(
+        layouts().read(AgentReportProvider::Codex, screen, None),
+        None
+    );
 }
 
 #[test]
 fn a_codex_dialog_that_differs_from_its_layout_is_not_read() {
     let (_, screen) = screen!("codex", "10-command-mkdir");
-    let read = |screen: &str| layouts().read(AgentReportProvider::Codex, screen);
+    let read = |screen: &str| layouts().read(AgentReportProvider::Codex, screen, None);
     assert!(read(screen).is_some());
     let title = "  Would you like to run the following command?\n";
     let command = "  $ mkdir aab-dir2\n";
@@ -522,7 +531,10 @@ fn a_codex_dialog_that_differs_from_its_layout_is_not_read() {
     let dialog = read(&hidden).expect("the layout still matches");
     assert_eq!(judge(&dialog, WINDOWS), Err(Wait::NotVisible));
     // Another Agent's layouts never read Codex's screen.
-    assert_eq!(layouts().read(AgentReportProvider::Claude, screen), None);
+    assert_eq!(
+        layouts().read(AgentReportProvider::Claude, screen, None),
+        None
+    );
 }
 
 #[test]
@@ -577,7 +589,10 @@ fn a_dialog_that_differs_from_its_layout_is_not_read() {
         assert_eq!(read(&screen.replacen(from, to, 1)), None, "{change}");
     }
     // Another Agent's layouts never read Claude Code's screen.
-    assert_eq!(layouts().read(AgentReportProvider::Codex, screen), None);
+    assert_eq!(
+        layouts().read(AgentReportProvider::Codex, screen, None),
+        None
+    );
     assert!(!layouts().supports(AgentReportProvider::Cursor));
     assert!(layouts().supports(AgentReportProvider::Claude));
     assert!(layouts().supports(AgentReportProvider::Codex));

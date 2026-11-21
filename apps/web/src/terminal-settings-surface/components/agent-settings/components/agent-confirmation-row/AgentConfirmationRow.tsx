@@ -11,7 +11,8 @@ import { SettingsRow } from '../../../settings-row/SettingsRow';
 type AgentConfirmationSetting =
 	| 'agents.auto_allow.claude'
 	| 'agents.auto_allow.codex'
-	| 'agents.auto_allow.gemini';
+	| 'agents.auto_allow.gemini'
+	| 'agents.auto_allow.opencode';
 
 interface AgentConfirmationRowProps {
 	/** The Agent type's name, which is the row's label. */

@@ -247,6 +247,15 @@ layout takes such a row for command text, so that dialog waits. With several con
 pending, the title ends in a counter such as `1 of 2`, so a written file's path takes no space and
 the counter is matched apart from it; otherwise `.env   1 of 2` would not be the protected name.
 
+OpenCode draws the command, or a file's path, behind the same bar and two spaces as its title, so
+its title must be the only one on the screen; its box is laid out from the title down, so a dialog
+with any row on the screen has its title there. Its options differ only in colour, and a mouse
+moving over the dialog with no button pressed selects the option under it with no change to the
+text. Chosen: when a screen holds an OpenCode dialog, the Server also reads the screen's styled
+rows at the frame of its text, and reads the dialog only while "Allow once" is drawn apart from the
+two other options. The styled read already serves Clients, so no protocol changes. The box cuts a
+long command without a mark, so a command that fills the box waits.
+
 - Layouts are compiled into the Server and never read from a local override or a downloaded
   catalog: a rule that can press a key ships only inside a signed release.
 - Layouts are matched exactly and not pinned to Agent versions (Decided as announced). Evidence
@@ -393,6 +402,11 @@ replace-in-file confirmation waits: the title joins the path and two pieces of t
 with `: `, which a folder name may contain on macOS, so the path cannot be told from the text.
 Gemini CLI can run a command in another folder the person added to its workspace without drawing
 which; the command is judged as run in the Agent's folder.
+
+OpenCode is answered for its shell command confirmation and for its file edit, which also covers a
+file written whole. Every other permission waits. OpenCode runs a session's tools in that
+session's folder and writes paths from it; a session of another folder opened from inside OpenCode
+is judged as working in the Agent's folder.
 
 Hermes Agent waits for a product-owner decision. In its default configuration it asks nothing
 before a routine command; the only confirmation it draws is its own approval of a command it

@@ -94,6 +94,13 @@ export function AgentSettings({
 					settingKey='agents.auto_allow.gemini'
 					userSettings={userSettings}
 				/>
+				<AgentConfirmationRow
+					label={intl.formatMessage(agentObservationMessages.providerOpenCode)}
+					query={query}
+					settingId='agents.auto-allow.opencode'
+					settingKey='agents.auto_allow.opencode'
+					userSettings={userSettings}
+				/>
 			</SettingsGroup>
 		</>
 	);

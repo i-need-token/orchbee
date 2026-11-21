@@ -11,7 +11,7 @@ mod run;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use layout::{Dialog, Layouts};
+pub(crate) use layout::{Dialog, Layouts, StyledRow};
 pub(crate) use place::Scope;
 pub(crate) use run::{Choice, Facts, Frame, Outcome, Refusal, Run, Seen, Settings, Step};
 

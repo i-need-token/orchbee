@@ -4,6 +4,7 @@ use super::super::{
     WorkerOutcome, WorkerRequest, routing,
 };
 use crate::{
+    agent_confirmation::StyledRow,
     agent_screen::{Detection, ScreenDetector, ScreenInput},
     local_terminal_service::agent_confirmation::ConfirmationScreen,
     local_terminal_service::tab_close::evidence::{CloseFacts, CloseSample, ShellReport},
@@ -12,7 +13,8 @@ use crate::{
 use orchbee_capability_node_protocol::{OperationId, ViewerRowDetail, ViewerSnapshotReason};
 use orchbee_terminal_protocol::{
     TerminalProcessInfo, TerminalProgramStatus, TerminalProgress, TerminalTextFrame,
-    decode_terminal_text_frame, decode_terminal_text_row_window, decode_transport_envelope,
+    TerminalTextStyle, decode_terminal_render_row_window, decode_terminal_text_frame,
+    decode_terminal_text_row_window, decode_transport_envelope,
 };
 use std::{
     sync::atomic::{AtomicBool, Ordering},
@@ -366,6 +368,10 @@ struct CapturedScreen {
     sequence: u64,
     generation: u64,
     revision: u64,
+    /// The visible rows with their styles, read only when a confirmation layout needs them.
+    styles: Option<Vec<StyledRow>>,
+    /// A confirmation layout needed the styles of this frame and they could not be read.
+    styles_refused: bool,
 }
 impl CapturedScreen {
     fn input(&self) -> ScreenInput<'_> {
@@ -382,22 +388,29 @@ fn capture(
     stop: &AtomicBool,
 ) -> Option<CapturedScreen> {
     let frame = fresh_frame(viewer, template, stop)?;
-    capture_frame(viewer, template, stop, frame)
+    capture_frame(viewer, template, stop, &frame)
 }
-fn capture_frame(
+/// The record of the frame's visible rows in `detail`, read at the frame's own revision under
+/// `request_sequence`.
+fn visible_rows(
     viewer: &mut ViewerAttachment<'_>,
     template: WorkerRequest,
     stop: &AtomicBool,
-    frame: TerminalTextFrame,
-) -> Option<CapturedScreen> {
+    frame: &TerminalTextFrame,
+    detail: ViewerRowDetail,
+    request_sequence: std::num::NonZeroU64,
+) -> Option<Vec<u8>> {
     let action = Action::ReadRows {
         attachment_id: viewer.attachment_id.clone(),
-        detail: orchbee_client_server_protocol::ViewerRowDetail::Text,
+        detail: match detail {
+            ViewerRowDetail::Text => orchbee_client_server_protocol::ViewerRowDetail::Text,
+            ViewerRowDetail::Render => orchbee_client_server_protocol::ViewerRowDetail::Render,
+        },
         start_row: frame.scrollback_rows,
         row_count: frame.geometry.rows,
         revision: frame.route.revision,
         generation: frame.route.generation,
-        request_sequence: frame.route.sequence,
+        request_sequence,
         maximum_bytes: 8 * 1024 * 1024,
     };
     let (operation, WorkerOutcome::Record(record)) = request(
@@ -405,21 +418,34 @@ fn capture_frame(
         template,
         stop,
         WorkerAction::ReadRows {
-            detail: ViewerRowDetail::Text,
+            detail,
             start_row: frame.scrollback_rows,
             row_count: frame.geometry.rows,
             revision: frame.route.revision,
             generation: frame.route.generation,
-            request_sequence: frame.route.sequence,
+            request_sequence,
             maximum_bytes: 8 * 1024 * 1024,
         },
     )?
     else {
         return None;
     };
-    if !routing::valid_rows_record(&action, viewer, operation, &record) {
-        return None;
-    }
+    routing::valid_rows_record(&action, viewer, operation, &record).then_some(record)
+}
+fn capture_frame(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+    frame: &TerminalTextFrame,
+) -> Option<CapturedScreen> {
+    let record = visible_rows(
+        viewer,
+        template,
+        stop,
+        frame,
+        ViewerRowDetail::Text,
+        frame.route.sequence,
+    )?;
     let envelope = decode_transport_envelope(&record).ok()?;
     let window = decode_terminal_text_row_window(envelope.payload).ok()?;
     if window.columns != frame.geometry.columns
@@ -438,7 +464,63 @@ fn capture_frame(
         sequence: frame.route.sequence.get(),
         generation: frame.route.generation.get(),
         revision: frame.route.revision,
+        styles: None,
+        styles_refused: false,
     })
+}
+/// The frame's visible rows with each cell's style, for a confirmation layout that tells the
+/// chosen option by style. Read at the revision the text was read at, so both show one frame.
+fn capture_styles(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+    frame: &TerminalTextFrame,
+) -> Option<Vec<StyledRow>> {
+    // The Host takes a row read only with a request sequence above the attachment's last one,
+    // and the text of this frame was read at the frame's own sequence.
+    let record = visible_rows(
+        viewer,
+        template,
+        stop,
+        frame,
+        ViewerRowDetail::Render,
+        frame.route.sequence.checked_add(1)?,
+    )?;
+    let envelope = decode_transport_envelope(&record).ok()?;
+    let window = decode_terminal_render_row_window(envelope.payload).ok()?;
+    let projection = window.projection();
+    if projection.geometry().columns != frame.geometry.columns
+        || projection.rows().len() != usize::from(frame.geometry.rows)
+        || window.route().total_rows
+            != frame
+                .scrollback_rows
+                .checked_add(u64::from(frame.geometry.rows))?
+    {
+        return None;
+    }
+    let style = |style: TerminalTextStyle| {
+        u128::from(style.foreground)
+            | u128::from(style.background) << 32
+            | u128::from(style.underline_color) << 64
+            | u128::from(style.flags) << 96
+            | u128::from(style.underline) << 112
+    };
+    let rows = projection
+        .rows()
+        .map(|row| {
+            let mut styled = StyledRow::default();
+            // The second cell of a wide character holds no text of its own; an empty cell is a
+            // space, as a text read gives it.
+            for cell in row.cells().filter(|cell| cell.width != 2) {
+                styled.cells.push((styled.text.len(), style(cell.style)));
+                styled
+                    .text
+                    .push_str(if cell.text.is_empty() { " " } else { cell.text });
+            }
+            styled
+        })
+        .collect();
+    Some(rows)
 }
 /// A query predicts against the selected report provider; screen text never infers provider identity.
 pub(super) fn explain(
@@ -575,7 +657,20 @@ pub(super) fn observe(
         // A confirmation decision reads the screen even when a status report decides the state.
         let captured = (status.is_none()
             || viewer.service.reads_agent_confirmation(selected.provider))
-        .then(|| projection.and_then(|frame| capture_frame(viewer, template, stop, frame)))
+        .then(|| {
+            projection.and_then(|frame| {
+                let mut captured = capture_frame(viewer, template, stop, &frame)?;
+                // Only a screen that holds a dialog told apart by style costs the styled read.
+                if viewer
+                    .service
+                    .confirmation_needs_styles(selected.provider, &captured.text)
+                {
+                    captured.styles = capture_styles(viewer, template, stop, &frame);
+                    captured.styles_refused = captured.styles.is_none();
+                }
+                Some(captured)
+            })
+        })
         .flatten();
         let detection = status.or_else(|| {
             captured.as_ref().and_then(|captured| {
@@ -615,11 +710,16 @@ pub(super) fn observe(
         viewer.target,
         agent,
         &sample,
-        captured.as_ref().map(|captured| ConfirmationScreen {
-            text: &captured.text,
-            generation: captured.generation,
-            revision: captured.revision,
-        }),
+        // Without the styles it needs, a dialog is neither known to be there nor known to be gone.
+        captured
+            .as_ref()
+            .filter(|captured| !captured.styles_refused)
+            .map(|captured| ConfirmationScreen {
+                text: &captured.text,
+                generation: captured.generation,
+                revision: captured.revision,
+                styles: captured.styles.as_deref(),
+            }),
         detection.is_some_and(|detection| {
             detection.state == orchbee_workbench_protocol::PanelAgentState::Blocked
         }),

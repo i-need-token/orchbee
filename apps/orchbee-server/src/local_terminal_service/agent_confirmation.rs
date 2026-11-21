@@ -26,8 +26,8 @@ use orchbee_workbench_protocol::{
 
 use super::{LocalTerminalService, placement};
 use crate::agent_confirmation::{
-    Choice, Facts, Frame, Kind, Layouts, Outcome, Refusal, Run, Scope, Seen, Settings, Step, Wait,
-    judge,
+    Choice, Facts, Frame, Kind, Layouts, Outcome, Refusal, Run, Scope, Seen, Settings, Step,
+    StyledRow, Wait, judge,
 };
 use crate::session_coordinator::HostAgentRun;
 use crate::terminal_coordinator::BindingViewerTarget;
@@ -41,6 +41,8 @@ const CLAUDE_KEY: &str = "agents.auto_allow.claude";
 const CODEX_KEY: &str = "agents.auto_allow.codex";
 /// The saved setting that turns answering on for every Gemini CLI run.
 const GEMINI_KEY: &str = "agents.auto_allow.gemini";
+/// The saved setting that turns answering on for every OpenCode run.
+const OPENCODE_KEY: &str = "agents.auto_allow.opencode";
 /// The saved setting a person's "no" to an offer turns off.
 const OFFER_KEY: &str = "agents.auto_allow.offer";
 /// A run no sampler turn has observed for this long is forgotten when another run is first seen.
@@ -51,6 +53,8 @@ pub(in crate::local_terminal_service) struct ConfirmationScreen<'a> {
     pub(in crate::local_terminal_service) text: &'a str,
     pub(in crate::local_terminal_service) generation: u64,
     pub(in crate::local_terminal_service) revision: u64,
+    /// The same rows with their styles, read at the same frame, when a layout needs them.
+    pub(in crate::local_terminal_service) styles: Option<&'a [StyledRow]>,
 }
 
 /// The saved settings, read in one step before any other lock.
@@ -59,6 +63,7 @@ struct Saved {
     claude: bool,
     codex: bool,
     gemini: bool,
+    opencode: bool,
     offer: bool,
 }
 impl Saved {
@@ -68,6 +73,7 @@ impl Saved {
                 AgentReportProvider::Claude => self.claude,
                 AgentReportProvider::Codex => self.codex,
                 AgentReportProvider::Gemini => self.gemini,
+                AgentReportProvider::OpenCode => self.opencode,
                 _ => false,
             },
             offer: self.offer,
@@ -81,6 +87,7 @@ fn type_key(provider: AgentReportProvider) -> Option<&'static str> {
         AgentReportProvider::Claude => Some(CLAUDE_KEY),
         AgentReportProvider::Codex => Some(CODEX_KEY),
         AgentReportProvider::Gemini => Some(GEMINI_KEY),
+        AgentReportProvider::OpenCode => Some(OPENCODE_KEY),
         _ => None,
     }
 }
@@ -309,6 +316,19 @@ impl LocalTerminalService {
         self.agent_confirmations.supports(provider)
     }
 
+    /// Whether the sampler also reads the styles of a screen it captured from `provider`'s
+    /// terminal: the screen holds a dialog that a layout tells apart by style.
+    pub(in crate::local_terminal_service) fn confirmation_needs_styles(
+        &self,
+        provider: AgentReportProvider,
+        screen: &str,
+    ) -> bool {
+        self.agent_confirmations
+            .layouts
+            .as_ref()
+            .is_some_and(|layouts| layouts.needs_styles(provider, screen))
+    }
+
     /// Before startup installs configuration every setting reads as off.
     fn confirmation_saved(&self) -> Saved {
         self.configuration
@@ -316,12 +336,14 @@ impl LocalTerminalService {
                 claude: settings.values.auto_allow_claude,
                 codex: settings.values.auto_allow_codex,
                 gemini: settings.values.auto_allow_gemini,
+                opencode: settings.values.auto_allow_opencode,
                 offer: settings.auto_allow_offer,
             })
             .unwrap_or(Saved {
                 claude: false,
                 codex: false,
                 gemini: false,
+                opencode: false,
                 offer: false,
             })
     }
@@ -406,7 +428,7 @@ impl LocalTerminalService {
                 });
                 let step = match (frame, &screen) {
                     (Some(frame), Some(screen)) => {
-                        let dialog = layouts.read(agent.provider, screen.text);
+                        let dialog = layouts.read(agent.provider, screen.text, screen.styles);
                         let scope = Scope {
                             root: root.as_ref().map(|root| root.as_str()),
                             directory: directory.as_deref(),

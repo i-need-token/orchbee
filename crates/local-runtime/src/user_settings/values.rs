@@ -33,12 +33,13 @@ pub enum UserSettingsField {
     AutoAllowClaude,
     AutoAllowCodex,
     AutoAllowGemini,
+    AutoAllowOpenCode,
     LaunchProfiles,
 }
 
 impl UserSettingsField {
     /// Every field, so a caller that walks the values cannot silently omit one.
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 21] = [
         Self::Locale,
         Self::ApplicationTheme,
         Self::LightTheme,
@@ -58,6 +59,7 @@ impl UserSettingsField {
         Self::AutoAllowClaude,
         Self::AutoAllowCodex,
         Self::AutoAllowGemini,
+        Self::AutoAllowOpenCode,
         Self::LaunchProfiles,
     ];
 
@@ -83,6 +85,7 @@ impl UserSettingsField {
             Self::AutoAllowClaude => "agents.auto_allow.claude",
             Self::AutoAllowCodex => "agents.auto_allow.codex",
             Self::AutoAllowGemini => "agents.auto_allow.gemini",
+            Self::AutoAllowOpenCode => "agents.auto_allow.opencode",
             Self::LaunchProfiles => return None,
         })
     }
@@ -109,6 +112,7 @@ impl UserSettingsField {
             Self::AutoAllowClaude => "autoAllowClaude",
             Self::AutoAllowCodex => "autoAllowCodex",
             Self::AutoAllowGemini => "autoAllowGemini",
+            Self::AutoAllowOpenCode => "autoAllowOpencode",
             Self::LaunchProfiles => "launchProfiles",
         }
     }

@@ -798,6 +798,15 @@ pub const SETTING_KEYS: &[SettingKey] = &[
     )
     .page(),
     key(
+        "agents.auto_allow.opencode",
+        V::Boolean,
+        D::Boolean(false),
+        (C::Agents, G::Confirmations),
+        SERVER,
+        "Let Orchbee press OpenCode's one-time Allow on routine confirmations; destructive commands always wait.",
+    )
+    .page(),
+    key(
         "agents.auto_allow.offer",
         V::Boolean,
         D::Boolean(true),

@@ -7,7 +7,7 @@ reaches the terminal. The rules are the module `agent_confirmation`, which is pu
 file and no clock of its own; `local_terminal_service/agent_confirmation.rs` connects them to the
 screen sampler, the settings and the Clients. The
 [proposal](../../../proposals/agent/automatic-confirmation.md) owns the design that is not built:
-the Agents after Claude Code, Codex and Gemini CLI.
+the Agents after Claude Code, Codex, Gemini CLI and OpenCode.
 
 Every rule fails closed. A screen, a command or a path the module cannot read completely is one
 that waits for the person, and each wait carries one reason from a closed list: destructive
@@ -26,16 +26,19 @@ never read from a local override or a downloaded catalog: a rule that can press 
 inside a release. A layout that does not parse or compile is an error when the bundled set is
 built, which the module's tests do.
 
-| Field    | Meaning                                                                            |
-| -------- | ---------------------------------------------------------------------------------- |
-| `top`    | One pattern per file: a row that can be the dialog's top border or title           |
-| `fence`  | Optional, one per file: a row that text a model supplies cannot draw               |
-| `name`   | The layout's name inside its Agent; part of a prompt's identity                    |
-| `kind`   | `command`, `create` or `edit`                                                      |
-| `accept` | The key that accepts; `enter` is the only value read                               |
-| `rows`   | Patterns joined into one expression that must match the whole dialog region        |
-| `text`   | Patterns that take the command or path out of each captured row, tried in order    |
-| `danger` | Optional pattern over the Agent's own notes; a match marks the dialog as dangerous |
+| Field        | Meaning                                                                             |
+| ------------ | ----------------------------------------------------------------------------------- |
+| `top`        | One pattern per file: a row that can be the dialog's top border or title            |
+| `fence`      | Optional, one per file: a row that text a model supplies cannot draw                |
+| `only`       | Optional, one per file: the row `top` matches must be the only one on the screen    |
+| `name`       | The layout's name inside its Agent; part of a prompt's identity                     |
+| `kind`       | `command`, `create` or `edit`                                                       |
+| `accept`     | The key that accepts; `enter` is the only value read                                |
+| `rows`       | Patterns joined into one expression that must match the whole dialog region         |
+| `text`       | Patterns that take the command or path out of each captured row, tried in order     |
+| `danger`     | Optional pattern over the Agent's own notes; a match marks the dialog as dangerous  |
+| `selected`   | Optional: the capture of the option the accept key chooses, told apart by its style |
+| `unselected` | With `selected`: the captures of the other options, two at least                    |
 
 - **Region.** Rows are trimmed of trailing spaces. The region runs from the last row that matches
   `top` to the last row that is not blank, so text scrolled above the dialog is not part of it and
@@ -46,6 +49,15 @@ built, which the module's tests do.
   dialog's, so the dialog starts on the screen and its own title is there; being the only one,
   the matched row is that title. A dialog taller than the screen and a screen with two titles
   are not read.
+- **Only.** An Agent whose dialog is laid out from its title down, so that a dialog with any row
+  on the screen has its title there, names `only` in place of a fence: the row `top` matches must
+  be the only such row on the screen.
+- **Selection by style.** An Agent that tells the chosen option only by colour names it with
+  `selected` and the other options with `unselected`. The dialog is read only while every visible
+  cell of the selected option has one style and every visible cell of the other options shares
+  one other style, and only while each styled row is the text row it stands for. With one other
+  option, two options drawn apart would not tell which is chosen. Without styled rows such a
+  layout reads nothing.
 - **Whole match.** `rows` is anchored at both ends of the region. Extra rows, a missing footer,
   the highlight on another row, a pager hint and a truncated dialog all fail to match. The
   highlighted row is written into the pattern as the Agent's one-time accept; no pattern accepts
@@ -60,14 +72,17 @@ built, which the module's tests do.
 
 Evidence for a layout is a set of screens captured from the real Agent, kept under
 `src/agent_confirmation/tests/screens/` with user names and session identifiers replaced by
-neutral text of the same width. Add a layout with its captures and their expected answers in the
-same change; a layout without captures is not admitted.
+neutral text of the same width. A capture for a layout that reads styles keeps the escape
+sequences the terminal drew, and its text is what a text read of the same frame gives. Add a
+layout with its captures and their expected answers in the same change; a layout without captures
+is not admitted.
 
 | Agent       | Layouts                                     | Not read                                                |
 | ----------- | ------------------------------------------- | ------------------------------------------------------- |
 | Claude Code | Bash command, file create, file edit        | Its trust prompt and its screens after an answer        |
 | Codex       | Shell command, under the first-column fence | Every other approval, such as a patch or network access |
 | Gemini CLI  | Shell command, whole-file write             | Replace in a file, its trust prompt, every other tool   |
+| OpenCode    | Shell command, file edit, by style          | Every other permission, and a dialog its box cuts       |
 
 Codex's reason rows cannot start with the command's `$`, so the first `$` row is the command's,
 and the command is every row from there to the two blank rows above the options. Where Codex
@@ -94,6 +109,25 @@ rules come from how it draws:
   Enter answers the dialog shown. The write layout takes the counter apart from the path, and a
   path with a space, which cannot be told from a path and a counter, is not read. A long title
   with the counter takes a second row, which no layout reads.
+
+OpenCode draws its permission dialog as a box at the bottom of the screen with a bar in its third
+column, and draws the command, or a file's path and diff, behind the same bar and two spaces as
+the title. A line of a command can therefore draw a second title, so the file names `only`. Four
+rules come from how it draws:
+
+- Its three options differ only in colour, and a mouse moving over the dialog with no button
+  pressed selects the option under it with no change to the text. The layouts read a dialog only
+  while "Allow once" is drawn apart from the two others; "Always allow" selected also changes the
+  text above the options.
+- The box is at most 15 rows tall and cuts a longer command with no mark: after its sixth row
+  where the keys have a row of their own, after its eighth where they sit beside the options from
+  80 columns on. A command that fills those rows waits. In a Panel shorter than the box its last
+  rows are cut, and no layout reads it.
+- A file written whole and a file changed in place both show as an edit of the path. A path
+  outside the Agent's folder is written from the home folder or in full, and a long path continues
+  on rows of its own, which the path check does not take as one row.
+- From about 120 columns a sidebar may write the folder at the right end of the last row; a
+  sidebar's text anywhere else in the dialog fails the match.
 
 ## Command check
 
@@ -208,8 +242,11 @@ steps against the Terminal Host's gate.
   When both samples name the same Agent process, the Session publishes that run for the terminal,
   and the Agent has a layout, the sampler hands the run, the capture and the later sample to the
   decision in the same turn. A terminal whose Agent has a layout is captured on every turn, also
-  when a program status report already decides the Agent's state. A turn without a capture changes
-  nothing; it can only send a hold that is owed.
+  when a program status report already decides the Agent's state. When a capture holds a dialog
+  region of an Agent whose layouts read styles, the sampler also reads the visible rows with their
+  styles at the revision and generation of the text, under the next row request sequence; a
+  refused styled read leaves the decision without a capture for that turn. A turn without a
+  capture changes nothing; it can only send a hold that is owed.
 - **Scope.** The Workspace's directory is the path of the primary Directory of the Workspace whose
   terminals include this one. The Agent's working directory is the current directory of its
   process in the later sample.

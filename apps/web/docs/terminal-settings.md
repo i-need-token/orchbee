@@ -102,8 +102,8 @@ resumes.
 
 The Allow routine confirmations group holds one switch for each Agent type whose routine
 confirmations the Server can answer, named by the Agent's product name: `agents.auto_allow.claude`
-for Claude Code, `agents.auto_allow.codex` for Codex, and `agents.auto_allow.gemini` for
-Gemini CLI. A switch reads and edits its key through the window's settings control and has no
+for Claude Code, `agents.auto_allow.codex` for Codex, `agents.auto_allow.gemini` for Gemini CLI,
+and `agents.auto_allow.opencode` for OpenCode. A switch reads and edits its key through the window's settings control and has no
 capability gate; the Server applies a change at once, and Off also stops an answer it had already
 decided. The group's closing line asks for more Agents in a GitHub issue and opens the project's
 issue page where the host wires an external browser; elsewhere it is text. The

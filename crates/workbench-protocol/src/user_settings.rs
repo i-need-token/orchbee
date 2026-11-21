@@ -106,6 +106,9 @@ pub struct UserSettingsValues {
     /// Whether the Server answers Gemini CLI's routine confirmations for the person.
     #[serde(default)]
     pub auto_allow_gemini: bool,
+    /// Whether the Server answers OpenCode's routine confirmations for the person.
+    #[serde(default)]
+    pub auto_allow_opencode: bool,
     pub launch_profiles: UserLaunchProfiles,
 }
 impl Default for UserSettingsValues {
@@ -130,6 +133,7 @@ impl Default for UserSettingsValues {
             auto_allow_claude: false,
             auto_allow_codex: false,
             auto_allow_gemini: false,
+            auto_allow_opencode: false,
             launch_profiles: UserLaunchProfiles::default(),
         }
     }

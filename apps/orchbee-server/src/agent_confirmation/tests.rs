@@ -6,6 +6,7 @@ mod commands;
 mod places;
 mod runs;
 mod screens;
+mod styled_screens;
 
 const POSIX: Scope<'static> = Scope {
     root: Some("/work/app"),

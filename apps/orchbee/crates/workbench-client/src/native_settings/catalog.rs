@@ -245,6 +245,7 @@ impl Group {
                 Row::AutoAllowClaude,
                 Row::AutoAllowCodex,
                 Row::AutoAllowGemini,
+                Row::AutoAllowOpenCode,
             ],
             Self::About => vec![Row::Version, Row::Updates],
             // The saved machines' own rows come from the facts the TUI reports.
