@@ -380,10 +380,12 @@ Native product copy — diagnostics, help, labels, and confirmations shown to a 
 `en-US` and `zh-CN` like every other product message. Frontend catalogs follow
 [Frontend Localization](frontend/localization.md); native executables follow these rules.
 
-- One `localization` module per executable owns every human-facing string. Domain, protocol, and
-  adapter modules return typed outcomes and never format prose.
-- The supported locales are a closed enum. Every message is a `match` over that enum with no
-  wildcard arm, so adding a locale fails to compile until every message is translated.
+- Every human-facing string ships in every supported locale through the types of the executable's
+  `localization` module. A feature may own its words beside its own declaration; domain, protocol,
+  and adapter modules return typed outcomes and never format prose.
+- The supported locales are closed: a message is a `match` over the locale enum with no wildcard
+  arm, or a value of a type with one field per locale, so adding a locale fails to compile until
+  every message is translated.
 - Locale selection reads `LC_ALL`, `LC_MESSAGES`, and `LANG` in that order, ignores empty values,
   and falls back to `en-US` for an absent, non-Unicode, or unsupported value. Traditional Chinese
   variants resolve to `zh-CN`.
