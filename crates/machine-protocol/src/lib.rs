@@ -36,20 +36,27 @@ pub use value::{
     PathText, Prompt, ResetReason, SessionName, Target, Time, Token,
 };
 
+/// A machine's free capacity, shared by both connections' `capacity` replies.
+pub mod capacity {
+    pub use crate::record::capacity::{Bytes, Capacity, Cpu, Disk, Memory};
+}
+
 /// The records of `machine-link` generation 1.
 pub mod link {
-    pub use crate::record::link::{Channel, ChannelKind, Event, Facts, Link, Outcome};
+    pub use crate::record::link::{
+        Channel, ChannelKind, Event, Facts, Link, Outcome, Reply, Request,
+    };
 }
 
 /// The records of `machine-hub` generation 1.
 pub mod hub {
     pub use crate::record::hub::{
-        AnswerEndpoint, Attach, AttachOutcome, Catalog, Channel, ChannelKind, ClaimOutcome,
-        Claimant, Connect, ConnectFailure, ConnectOutcome, ConnectResult, ConnectWaiting,
-        DisconnectOutcome, DismissOutcome, Draft, Event, Hub, HubState, LoginEnd, LoginEvent,
-        LoginFailedCause, LoginPhase, MAXIMUM_CATALOG_MACHINES, MachineEvent, MachineState,
-        MachineStateName, NeedsLoginCause, NeedsUpdateCause, OfflineCause, Origin, Outcome,
-        Question, QuestionKind, ReconnectCause, ReloadOutcome, Remote, Reply, Request, Stage,
-        StopSessionOutcome, Trigger, UnsupportedCause, WaitReason,
+        AnswerEndpoint, Attach, AttachOutcome, CapacityOutcome, Catalog, Channel, ChannelKind,
+        ClaimOutcome, Claimant, Connect, ConnectFailure, ConnectOutcome, ConnectResult,
+        ConnectWaiting, DisconnectOutcome, DismissOutcome, Draft, Event, Hub, HubState, LoginEnd,
+        LoginEvent, LoginFailedCause, LoginPhase, MAXIMUM_CATALOG_MACHINES, MachineEvent,
+        MachineState, MachineStateName, NeedsLoginCause, NeedsUpdateCause, OfflineCause, Origin,
+        Outcome, Question, QuestionKind, ReconnectCause, ReloadOutcome, Remote, Reply, Request,
+        Stage, StopSessionOutcome, Trigger, UnsupportedCause, WaitReason,
     };
 }

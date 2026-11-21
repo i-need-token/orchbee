@@ -185,7 +185,7 @@ fn kind(error: Error) -> FailureKind {
         ) => FailureKind::CheckFailed,
         Error::Catalog(CatalogError::NotFound) => FailureKind::NotFound,
         Error::Catalog(CatalogError::Ambiguous) => FailureKind::Ambiguous,
-        Error::DisabledMachine => FailureKind::Rejected,
+        Error::Catalog(CatalogError::Reserved) | Error::DisabledMachine => FailureKind::Rejected,
         Error::AuthFailed | Error::HostUntrusted | Error::HostKeyChanged => FailureKind::Denied,
         Error::Catalog(
             CatalogError::Busy | CatalogError::Capacity | CatalogError::RevisionExhausted,

@@ -1,0 +1,68 @@
+{
+	"cases": [
+		{
+			"name": "link-capacity-with-member",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity\",\"id\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+			"layer": "record"
+		},
+		{
+			"name": "link-capacity-result-free-above-total",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":1,\"memory\":{\"totalBytes\":1024,\"freeBytes\":2048}}",
+			"layer": "record"
+		},
+		{
+			"name": "link-capacity-result-total-zero",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":1,\"disk\":{\"path\":\"/\",\"totalBytes\":0,\"freeBytes\":0}}",
+			"layer": "record"
+		},
+		{
+			"name": "link-capacity-result-share-above-100",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":1,\"cpu\":{\"logical\":8,\"freePercent\":101}}",
+			"layer": "record"
+		},
+		{
+			"name": "link-capacity-result-no-processor",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":1,\"cpu\":{\"logical\":0,\"freePercent\":50}}",
+			"layer": "record"
+		},
+		{
+			"name": "link-capacity-result-unknown-fact",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":1,\"swap\":{\"totalBytes\":1,\"freeBytes\":1}}",
+			"layer": "record"
+		},
+		{
+			"name": "hub-capacity-result-sampled-without-time",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":12,\"outcome\":\"sampled\",\"capacity\":{}}",
+			"layer": "record"
+		},
+		{
+			"name": "hub-capacity-result-not-online-with-capacity",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":12,\"outcome\":\"not-online\",\"capacity\":{}}",
+			"layer": "record"
+		}
+	]
+}

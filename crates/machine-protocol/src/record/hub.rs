@@ -1,7 +1,7 @@
 //! The records of `machine-hub` generation 1, the connection from a TUI, a CLI command, or
 //! Desktop's bundled Client to the hub: the requests and their replies, the state events, the
-//! login episode and its questions, and the channel kinds `session` and `route`. The
-//! capability-gated `install` request, the `connect` member `install`, the `machine` members
+//! login episode and its questions, the channel kinds `session` and `route`, and the `capacity`
+//! request of capability `capacity`. The capability-gated `install` request, the `connect` member `install`, the `machine` members
 //! `offer` and `transfer`, the state `installing`, and the wait reason `install-consent` are not
 //! part of this build: they decode as unknown types, unknown members, or growable fallbacks.
 //!
@@ -16,7 +16,10 @@ use crate::{
     AnswerToken, Count, HostKey, Id, InvalidValue, MachineId, Name, PathText, Prompt, ResetReason,
     SessionName, Target, Time, Token,
     protocol::{KindRules, Members, Protocol, Refused, sealed::Codec},
-    record::{closed, members_of},
+    record::{
+        capacity::{Capacity, WireCapacity},
+        closed, members_of,
+    },
     value::{SHARED_RESET_REASONS, True, name_enum},
 };
 
@@ -163,6 +166,12 @@ pub enum Request {
     StopSession {
         /// The Machine.
         machine: MachineId,
+    },
+    /// Asks what a Machine has free, or this computer when `machine` is absent; capability
+    /// `capacity`.
+    Capacity {
+        /// The Machine.
+        machine: Option<MachineId>,
     },
 }
 
@@ -351,6 +360,27 @@ name_enum!(
     }
 );
 
+/// The `capacity-result` outcome; it grows with fallback `unknown`.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum CapacityOutcome {
+    /// What the machine had free when the hub last heard, at `sampled_at` on the hub's clock.
+    Sampled {
+        /// Each fact the machine could read.
+        capacity: Capacity,
+        /// When the hub received it.
+        sampled_at: Time,
+    },
+    /// The Machine is not `online`.
+    NotOnline,
+    /// The catalog holds no such Machine.
+    NotFound,
+    /// The hub is closing.
+    Stopping,
+    /// The machine did not answer in time or serves no `capacity`, or an outcome this build does
+    /// not know.
+    Unknown,
+}
+
 /// A reply the hub sends to a request.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Reply {
@@ -368,6 +398,8 @@ pub enum Reply {
     Dismiss(DismissOutcome),
     /// `stop-session-result`.
     StopSession(StopSessionOutcome),
+    /// `capacity-result`.
+    Capacity(CapacityOutcome),
 }
 
 /// The catalog the hub serves: at most 64 machine ids in catalog order. A Machine absent from the
@@ -885,6 +917,7 @@ const DISCONNECT: &str = "disconnect";
 const CLAIM: &str = "claim";
 const DISMISS: &str = "dismiss";
 const STOP_SESSION: &str = "stop-session";
+const CAPACITY: &str = "capacity";
 
 const HUB: &str = "hub";
 const CATALOG: &str = "catalog";
@@ -897,6 +930,23 @@ const QUESTION: &str = "question";
 #[serde(deny_unknown_fields)]
 struct WireMachineMember {
     machine: MachineId,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct WireOptionalMachine {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    machine: Option<MachineId>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct WireCapacityResult {
+    outcome: Name,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    capacity: Option<WireCapacity>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sampled_at: Option<Time>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -1179,6 +1229,42 @@ fn decode_reload_result(wire: WireReloadResult) -> Result<ReloadOutcome, Refused
         ("stopping", _) => ReloadOutcome::Stopping,
         _ => ReloadOutcome::Unknown,
     })
+}
+
+fn decode_capacity_result(wire: WireCapacityResult) -> Result<CapacityOutcome, Refused> {
+    let name = wire.outcome.as_str();
+    let known = matches!(name, "sampled" | "not-online" | "not-found" | "stopping");
+    let sampled = name == "sampled";
+    let capacity = member_of(known, sampled, true, wire.capacity)?;
+    let sampled_at = member_of(known, sampled, true, wire.sampled_at)?;
+    Ok(match (name, capacity, sampled_at) {
+        ("sampled", Some(capacity), Some(sampled_at)) => CapacityOutcome::Sampled {
+            capacity: Capacity::decode(capacity)?,
+            sampled_at,
+        },
+        ("not-online", _, _) => CapacityOutcome::NotOnline,
+        ("not-found", _, _) => CapacityOutcome::NotFound,
+        ("stopping", _, _) => CapacityOutcome::Stopping,
+        _ => CapacityOutcome::Unknown,
+    })
+}
+
+fn encode_capacity_result(outcome: &CapacityOutcome) -> WireCapacityResult {
+    let (name, capacity, sampled_at) = match outcome {
+        CapacityOutcome::Sampled {
+            capacity,
+            sampled_at,
+        } => ("sampled", Some(capacity.encode()), Some(*sampled_at)),
+        CapacityOutcome::NotOnline => ("not-online", None, None),
+        CapacityOutcome::NotFound => ("not-found", None, None),
+        CapacityOutcome::Stopping => ("stopping", None, None),
+        CapacityOutcome::Unknown => ("unknown", None, None),
+    };
+    WireCapacityResult {
+        outcome: Name::literal(name),
+        capacity,
+        sampled_at,
+    }
 }
 
 fn decode_connect_result(wire: WireConnectResult) -> Result<ConnectResult, Refused> {
@@ -1553,6 +1639,9 @@ impl Codec for Hub {
             STOP_SESSION => Request::StopSession {
                 machine: closed::<WireMachineMember>(members)?.machine,
             },
+            CAPACITY => Request::Capacity {
+                machine: closed::<WireOptionalMachine>(members)?.machine,
+            },
             _ => return Ok(None),
         }))
     }
@@ -1566,6 +1655,7 @@ impl Codec for Hub {
             Request::Claim { .. } => CLAIM,
             Request::Dismiss { .. } => DISMISS,
             Request::StopSession { .. } => STOP_SESSION,
+            Request::Capacity { .. } => CAPACITY,
         }
     }
 
@@ -1586,6 +1676,9 @@ impl Codec for Hub {
             Request::Claim { login } | Request::Dismiss { login } => {
                 members_of(&WireLoginMember { login: *login })
             }
+            Request::Capacity { machine } => members_of(&WireOptionalMachine {
+                machine: machine.clone(),
+            }),
         }
     }
 
@@ -1611,6 +1704,7 @@ impl Codec for Hub {
                 StopSessionOutcome::from_name(simple(members)?.as_str())
                     .unwrap_or(StopSessionOutcome::Unknown),
             ),
+            CAPACITY => Reply::Capacity(decode_capacity_result(closed(members)?)?),
             _ => return Ok(None),
         }))
     }
@@ -1624,6 +1718,7 @@ impl Codec for Hub {
             Reply::Claim(_) => CLAIM,
             Reply::Dismiss(_) => DISMISS,
             Reply::StopSession(_) => STOP_SESSION,
+            Reply::Capacity(_) => CAPACITY,
         }
     }
 
@@ -1663,6 +1758,7 @@ impl Codec for Hub {
             Reply::Claim(outcome) => simple(outcome.as_str()),
             Reply::Dismiss(outcome) => simple(outcome.as_str()),
             Reply::StopSession(outcome) => simple(outcome.as_str()),
+            Reply::Capacity(outcome) => members_of(&encode_capacity_result(outcome)),
         }
     }
 

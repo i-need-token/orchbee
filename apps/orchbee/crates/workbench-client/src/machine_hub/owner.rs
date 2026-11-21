@@ -14,6 +14,7 @@ use super::{
     data_root,
 };
 use crate::machine_endpoint::LocalStream;
+use orchbee_connection_handshake::{CAPACITY, CapabilitySet};
 use orchbee_local_runtime::{DataRoot, LogLevel, LogValue, log_event};
 use orchbee_machine_protocol::{
     ByeReason, Connection, Delivery, FrameDecoder, Id, Message, ResetReason, SendError, Violation,
@@ -205,6 +206,8 @@ struct Current {
     stream: Arc<LocalStream>,
     /// Requests in flight: the ticket, and the attachment an `attach` states.
     pending: BTreeMap<Id, (u64, Option<Attachment>)>,
+    /// The capability names the hub's answer listed.
+    capabilities: CapabilitySet,
 }
 
 /// Where a protocol violation ended an attached connection.
@@ -389,6 +392,10 @@ impl HubClient {
             }
             let ticket = state.next_ticket;
             let sent = match state.current.as_mut() {
+                // A gated request goes only to a hub whose answer lists its capability.
+                Some(current) if !serves(&current.capabilities, &request) => {
+                    return Err(RequestFailure::Unsupported);
+                }
                 Some(current) => match current.connection.request(request.clone()) {
                     Ok(id) => {
                         current.pending.insert(id, (ticket, attachment));
@@ -1103,6 +1110,14 @@ const fn failure_token(failure: &AttachFailure) -> &'static str {
     }
 }
 
+/// Whether a hub whose answer listed `capabilities` serves `request`.
+fn serves(capabilities: &CapabilitySet, request: &Request) -> bool {
+    match request {
+        Request::Capacity { .. } => capabilities.contains(CAPACITY),
+        _ => true,
+    }
+}
+
 /// Makes `link` the attached connection and returns what the reader needs to read it; `None` when
 /// the carrier cannot be shared between the reader and the writer.
 fn install(state: &mut State, link: Link) -> Option<Reading> {
@@ -1114,6 +1129,7 @@ fn install(state: &mut State, link: Link) -> Option<Reading> {
         connection: link.connection,
         stream: Arc::new(writer),
         pending: BTreeMap::new(),
+        capabilities: link.capabilities,
     });
     Some(Reading {
         stream: link.stream,

@@ -1,0 +1,95 @@
+{
+	"cases": [
+		{
+			"name": "link-capacity",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity\",\"id\":1}"
+		},
+		{
+			"name": "link-capacity-result-every-fact",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":1,\"cpu\":{\"logical\":8,\"freePercent\":63},\"memory\":{\"totalBytes\":34359738368,\"freeBytes\":25769803776},\"disk\":{\"path\":\"/home/dev\",\"totalBytes\":512110190592,\"freeBytes\":332859965440}}"
+		},
+		{
+			"name": "link-capacity-result-nothing-read",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":1}"
+		},
+		{
+			"name": "link-capacity-result-at-limits",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":1,\"cpu\":{\"logical\":9007199254740991,\"freePercent\":100},\"memory\":{\"totalBytes\":9007199254740991,\"freeBytes\":9007199254740991},\"disk\":{\"path\":\"/\",\"totalBytes\":1,\"freeBytes\":0}}"
+		},
+		{
+			"name": "hub-capacity-of-this-computer",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity\",\"id\":11}"
+		},
+		{
+			"name": "hub-capacity-of-a-machine",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity\",\"id\":12,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}"
+		},
+		{
+			"name": "hub-capacity-result-sampled",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":12,\"outcome\":\"sampled\",\"capacity\":{\"cpu\":{\"logical\":8,\"freePercent\":63},\"memory\":{\"totalBytes\":34359738368,\"freeBytes\":25769803776},\"disk\":{\"path\":\"/home/dev\",\"totalBytes\":512110190592,\"freeBytes\":332859965440}},\"sampledAt\":1795229530000}"
+		},
+		{
+			"name": "hub-capacity-result-sampled-nothing-read",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":12,\"outcome\":\"sampled\",\"capacity\":{},\"sampledAt\":1795229530000}"
+		},
+		{
+			"name": "hub-capacity-result-not-online",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":12,\"outcome\":\"not-online\"}"
+		},
+		{
+			"name": "hub-capacity-result-not-found",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":12,\"outcome\":\"not-found\"}"
+		},
+		{
+			"name": "hub-capacity-result-unknown",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":12,\"outcome\":\"unknown\"}"
+		},
+		{
+			"name": "hub-capacity-result-stopping",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":12,\"outcome\":\"stopping\"}"
+		},
+		{
+			"name": "hub-capacity-result-unknown-outcome-reads-unknown",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"capacity-result\",\"id\":12,\"outcome\":\"throttled\",\"sampledAt\":1795229530000}"
+		}
+	]
+}

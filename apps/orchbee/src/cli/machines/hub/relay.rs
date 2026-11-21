@@ -370,6 +370,7 @@ impl Hub {
             self.relays.remove(key);
         }
         self.forget_stop_waiters(peer);
+        self.forget_capacity_waiters(peer);
     }
 
     pub(super) fn link_accepted(&mut self, carrier: u64, link: u32) {
@@ -466,6 +467,7 @@ impl Hub {
             self.end_pair(key, ending, None);
         }
         self.end_stops_on(carrier);
+        self.end_capacity_on(carrier);
     }
 
     /// Applies closing at `now`, closing having begun at `began`, to every pair and every run. A

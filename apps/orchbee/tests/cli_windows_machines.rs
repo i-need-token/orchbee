@@ -20,6 +20,7 @@ fn saved_machine_commands_round_trip_without_local_activation_or_remote_stop() {
     let root = fixture.data_root().state();
     let list = document(fixture.run(&["machine", "list", "--format=json"]), 0);
     assert_eq!(list["result"]["profiles"], json!([]));
+    assert_eq!(list["result"]["machines"][0]["local"], true);
     assert!(!root.exists());
     let mut cache = PrivateCache::acquire(&root, "machines").unwrap();
     cache
@@ -32,6 +33,14 @@ fn saved_machine_commands_round_trip_without_local_activation_or_remote_stop() {
         )
         .unwrap();
     drop(cache);
+    // Without a hub nothing carries the machine; `local` names this computer in any letter case.
+    let list = document(fixture.run(&["machine", "list", "--format=json"]), 0);
+    assert_eq!(list["result"]["machines"][1]["state"], "offline");
+    let reserved = document(
+        fixture.run(&["machine", "rename", ID, "--label=Local", "--format=json"]),
+        3,
+    );
+    assert_eq!(reserved["result"]["error"], "reserved-name");
     for (args, revision, changed) in [
         (
             vec!["machine", "rename", ID, "--label=中文工作", "--format=json"],

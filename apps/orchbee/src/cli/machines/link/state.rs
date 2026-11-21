@@ -2,6 +2,7 @@
 //! link ended, under one lock that no thread holds across I/O. The carrier's threads wait on one
 //! signal; each channel's workers wait on their channel's own.
 
+use super::super::capacity::Sampler;
 use orchbee_machine_protocol::{ByeReason, Connection, ResetReason, link};
 use orchbee_workbench_client::application::machine_endpoint::LocalStream;
 use std::{
@@ -38,16 +39,19 @@ pub(super) struct State {
     pub(super) last_received: Instant,
     /// The writer stopped: `bye` was written, nothing was left, or standard output failed.
     pub(super) writer_done: bool,
+    /// What answers `capacity`, while the hub negotiated it.
+    pub(super) capacity: Option<Arc<Sampler>>,
 }
 
 impl State {
-    pub(super) fn new(connection: Connection<link::Link>) -> Self {
+    pub(super) fn new(connection: Connection<link::Link>, capacity: Option<Arc<Sampler>>) -> Self {
         Self {
             connection,
             channels: Table::default(),
             end: None,
             last_received: Instant::now(),
             writer_done: false,
+            capacity,
         }
     }
 

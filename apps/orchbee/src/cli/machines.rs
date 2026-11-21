@@ -1,9 +1,11 @@
 //! Saved-machine commands; remote readiness and local publication have separate outcomes.
 use crate::cli_text::CliText;
 pub(crate) mod askpass;
+mod capacity;
 mod connect;
 pub(crate) mod hub;
 pub(crate) mod link;
+mod list;
 pub(crate) mod routing;
 mod shared_carrier;
 use super::{
@@ -76,6 +78,7 @@ impl Error {
                 CatalogError::Busy => "busy",
                 CatalogError::NotFound => "not-found",
                 CatalogError::Ambiguous => "ambiguous-machine",
+                CatalogError::Reserved => "reserved-name",
                 CatalogError::Capacity => "capacity",
                 CatalogError::RevisionExhausted => "revision-exhausted",
             },
@@ -115,7 +118,9 @@ impl Error {
     }
     fn status(self) -> u8 {
         match self {
-            Self::Catalog(CatalogError::NotFound | CatalogError::Ambiguous)
+            Self::Catalog(
+                CatalogError::NotFound | CatalogError::Ambiguous | CatalogError::Reserved,
+            )
             | Self::DisabledMachine
             | Self::AuthFailed
             | Self::HostUntrusted
@@ -187,6 +192,8 @@ struct Report {
     remote_version: Option<String>,
     /// A removed Machine's remembered answers could not all be deleted.
     unforgotten: bool,
+    /// `machine list`: this computer, then each saved machine.
+    machines: Option<Vec<list::Listed>>,
 }
 impl Report {
     const fn new() -> Self {
@@ -198,6 +205,7 @@ impl Report {
             remote: Remote::NotContacted,
             remote_version: None,
             unforgotten: false,
+            machines: None,
         }
     }
 }
@@ -316,10 +324,7 @@ fn execute(
     let store = Store::configured().map_err(Error::Catalog)?;
     match command {
         MachineCommand::NotYetAvailable(_) => Err(Error::NotYetAvailable),
-        MachineCommand::List => {
-            report.catalog = Some(store.read().map_err(Error::Catalog)?);
-            context.check()
-        }
+        MachineCommand::List => list::list(store.read().map_err(Error::Catalog)?, context, report),
         MachineCommand::Add(draft) => connect::add(&store, draft, context, report, locale),
         MachineCommand::Rename { machine, label } => {
             commit_selected(&store, machine, context, report, |id| Edit::Rename {
@@ -423,6 +428,7 @@ fn emit(
             "profiles":report.catalog.as_ref().map(|c| c.profiles.iter().map(crate::machines::Profile::json).collect::<Vec<_>>()),
             "changed":report.changed,"committed":report.committed,"remote":report.remote.token(),
             "remoteVersion":report.remote_version,
+            "machines":report.machines.as_ref().map(|machines| machines.iter().map(list::Listed::json).collect::<Vec<_>>()),
             "error":error.map(Error::code),"interrupted":interrupted }});
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&document),
@@ -447,47 +453,24 @@ fn emit(
                     text.push_str(&crate::cli_text::escape::escape(version));
                     text.push('\n');
                 }
-            } else if let Some(catalog) = &report.catalog {
-                if matches!(command, MachineCommand::List) {
-                    if catalog.profiles.is_empty() {
-                        text.push_str(CliText::new(locale).cli_machine_message("empty"));
-                        text.push('\n');
-                    }
-                    for profile in &catalog.profiles {
-                        text.push_str(&format!(
-                            "{}\t{}\t{}\t{}\t{}\n",
-                            profile.id.as_str(),
-                            crate::cli_text::escape::escape(&profile.draft.label),
-                            crate::cli_text::escape::escape(
-                                profile.draft.ssh_target().unwrap_or_else(
-                                    || CliText::new(locale).cli_machine_message("unsupported")
-                                )
-                            ),
-                            profile.draft.session.as_str(),
-                            CliText::new(locale).cli_machine_message(if profile.enabled {
-                                "enabled"
-                            } else {
-                                "disabled"
-                            }),
-                        ));
-                    }
+            } else if let Some(machines) = &report.machines {
+                text.push_str(&list::text(machines, locale));
+            } else if report.catalog.is_some() {
+                text.push_str(CliText::new(locale).cli_machine_message(if report.changed {
+                    "saved"
                 } else {
-                    text.push_str(CliText::new(locale).cli_machine_message(if report.changed {
-                        "saved"
-                    } else {
-                        "unchanged"
-                    }));
-                    if let Some(id) = &report.id {
-                        text.push(' ');
-                        text.push_str(id.as_str());
-                    }
+                    "unchanged"
+                }));
+                if let Some(id) = &report.id {
+                    text.push(' ');
+                    text.push_str(id.as_str());
+                }
+                text.push('\n');
+                if let Some(version) = &report.remote_version {
+                    text.push_str(CliText::new(locale).cli_machine_message("remote-version"));
+                    text.push(' ');
+                    text.push_str(&crate::cli_text::escape::escape(version));
                     text.push('\n');
-                    if let Some(version) = &report.remote_version {
-                        text.push_str(CliText::new(locale).cli_machine_message("remote-version"));
-                        text.push(' ');
-                        text.push_str(&crate::cli_text::escape::escape(version));
-                        text.push('\n');
-                    }
                 }
             }
             output::encode_text(&text)

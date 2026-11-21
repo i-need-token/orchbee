@@ -16,9 +16,9 @@ use super::{
 use orchbee_machine_protocol::{
     Delivery, FrameDecoder, Id, Message,
     hub::{
-        AttachOutcome, ClaimOutcome, Connect, ConnectFailure, ConnectOutcome, ConnectResult,
-        DisconnectOutcome, DismissOutcome, Draft, MachineState, Origin, ReloadOutcome, Reply,
-        Request, StopSessionOutcome,
+        AttachOutcome, CapacityOutcome, ClaimOutcome, Connect, ConnectFailure, ConnectOutcome,
+        ConnectResult, DisconnectOutcome, DismissOutcome, Draft, MachineState, Origin,
+        ReloadOutcome, Reply, Request, StopSessionOutcome,
     },
 };
 use orchbee_workbench_client::application::machine_endpoint::LocalStream;
@@ -181,6 +181,22 @@ fn deliver(
         }
         Delivery::Message(Message::Request {
             id: request,
+            request: Request::Capacity { machine },
+            ..
+        }) => {
+            let answered = shared.lock().capacity_request(id, request, machine);
+            if let Some(outcome) = answered {
+                let _replied = line
+                    .lock()
+                    .connection
+                    .reply(request, Reply::Capacity(outcome));
+            }
+            // A wait began, which the supervisor bounds.
+            shared.wake();
+            true
+        }
+        Delivery::Message(Message::Request {
+            id: request,
             request: body,
             ..
         }) => {
@@ -261,7 +277,8 @@ fn connect_request(shared: &Arc<Shared>, line: &Line, id: u64, request: Id, conn
     hub.machine(&connect.machine, |machine, cx| machine.connect(waiter, cx));
 }
 
-/// Answers every request other than `reload`, `stop-session`, and `connect`, under the hub lock.
+/// Answers every request other than `reload`, `stop-session`, `connect` and `capacity`, under the
+/// hub lock.
 fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
     let closing = hub.lifetime.is_closing();
     let reply = match body {
@@ -369,13 +386,14 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             }
             Reply::Dismiss(outcome)
         }
-        // `deliver` hands `reload`, `stop-session`, and `connect` to their own paths.
+        // `deliver` hands `reload`, `stop-session`, `connect` and `capacity` to their own paths.
         Request::Connect(_) => Reply::Connect(ConnectResult {
             outcome: ConnectOutcome::NotOnline(ConnectFailure::Stopping),
             state: None,
         }),
         Request::Reload => Reply::Reload(ReloadOutcome::Stopping),
         Request::StopSession { .. } => Reply::StopSession(StopSessionOutcome::Stopping),
+        Request::Capacity { .. } => Reply::Capacity(CapacityOutcome::Stopping),
     };
     let _answered = line.lock().connection.reply(request, reply);
 }

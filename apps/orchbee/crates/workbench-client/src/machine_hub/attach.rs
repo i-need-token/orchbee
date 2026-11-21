@@ -6,8 +6,9 @@
 use super::{AttachFailure, Attached, Attachment, HUB_ENTRY, Incompatible, control, holders};
 use crate::machine_endpoint::{LocalStream, refused_from_above};
 use orchbee_connection_handshake::{
-    AcceptorMessage, Build, ConnectionKind, InitiatorMessage, Offer, OfferFailure, ProductVersion,
-    Rejection, RejectionReason, conclude_offer, encode_initiator_frame, read_acceptor_message,
+    AcceptorMessage, Build, CapabilitySet, ConnectionKind, InitiatorMessage, Offer, OfferFailure,
+    ProductVersion, Rejection, RejectionReason, conclude_offer, encode_initiator_frame,
+    read_acceptor_message,
 };
 use orchbee_local_runtime::{
     DataRoot, RetainedChild, create_private_directory, machine_hub_endpoint, spawn_retained,
@@ -57,6 +58,8 @@ pub(super) struct Link {
     pub(super) decoder: FrameDecoder,
     pub(super) early: Vec<Delivery<hub::Hub>>,
     pub(super) attached: Attached,
+    /// The capability names the hub's answer lists; a gated request goes only where it is listed.
+    pub(super) capabilities: CapabilitySet,
 }
 
 /// Whether a call may start a hub.
@@ -185,13 +188,14 @@ pub(super) fn attach(
         }
         let mut stopping = false;
         match attempt(&endpoint, attachment, deadline, cancel) {
-            Ok((stream, connection, decoder, early, hub)) => {
+            Ok(((stream, connection, decoder, early, hub), capabilities)) => {
                 return Ok(Link {
                     stream,
                     connection,
                     decoder,
                     early,
                     attached: Attached { hub, starts },
+                    capabilities,
                 });
             }
             Err(Attempt::Stopping) => stopping = true,
@@ -353,13 +357,14 @@ type Exchanged = (
     hub::HubState,
 );
 
-/// One connection: connect, offer `machine-hub`, and attach, with its reads ended by `cancel`.
+/// One connection: connect, offer `machine-hub`, and attach, with its reads ended by `cancel`; the
+/// capability names the answer lists come with it.
 fn attempt(
     endpoint: &Path,
     attachment: Attachment,
     deadline: Instant,
     cancel: &Cancel,
-) -> Result<Exchanged, Attempt> {
+) -> Result<(Exchanged, CapabilitySet), Attempt> {
     let stream = connect(endpoint, deadline).map_err(|reached| match reached {
         Reached::Nothing => Attempt::Nothing,
         Reached::Lost => Attempt::Lost,
@@ -369,11 +374,12 @@ fn attempt(
     let Some(_watch) = cancel.watch(&stream) else {
         return Err(Attempt::Lost);
     };
-    offer(&stream, deadline)?;
-    exchange_attach(stream, attachment, deadline)
+    let capabilities = offer(&stream, deadline)?;
+    exchange_attach(stream, attachment, deadline).map(|exchanged| (exchanged, capabilities))
 }
 
-fn offer(stream: &LocalStream, deadline: Instant) -> Result<(), Attempt> {
+/// Offers `machine-hub` and returns the capability names the answer lists.
+fn offer(stream: &LocalStream, deadline: Instant) -> Result<CapabilitySet, Attempt> {
     let offer = Offer::local(
         ConnectionKind::MachineHub,
         ProductVersion::new(env!("CARGO_PKG_VERSION"))
@@ -384,7 +390,7 @@ fn offer(stream: &LocalStream, deadline: Instant) -> Result<(), Attempt> {
     let reply = exchange(stream, &InitiatorMessage::Offer(offer.clone()), deadline)
         .map_err(|_| Attempt::Lost)?;
     match conclude_offer(&offer, reply) {
-        Ok(_) => Ok(()),
+        Ok(answer) => Ok(answer.capabilities),
         Err(OfferFailure::Rejected(rejection)) => Err(Attempt::Refused(rejection)),
         Err(OfferFailure::InvalidAnswer | OfferFailure::UnexpectedReply) => Err(Attempt::Foreign),
     }

@@ -43,7 +43,7 @@
 		"machine-hub": {
 			"generations": { "lowest": 1, "highest": 1 },
 			"superseded": [],
-			"capabilities": [],
+			"capabilities": [{ "name": "capacity", "addedIn": "0.1.0-beta.23" }],
 			"fingerprintInputs": [
 				"crates/connection-handshake/src",
 				"crates/machine-protocol/src",
@@ -54,7 +54,7 @@
 		"machine-link": {
 			"generations": { "lowest": 1, "highest": 1 },
 			"superseded": [],
-			"capabilities": [],
+			"capabilities": [{ "name": "capacity", "addedIn": "0.1.0-beta.23" }],
 			"fingerprintInputs": [
 				"crates/connection-handshake/src",
 				"crates/machine-protocol/src",
@@ -133,6 +133,12 @@
 		{
 			"path": "schemas/machine/v1/fixtures/boundary.json",
 			"sha256": "6ee3acd59171e403ef5f53a2276caa9cbacf9f107aa1bc7de8025a95292565d0"
+		},
+		{
+			"path": "schemas/machine/v1/fixtures/capacity-invalid.json"
+		},
+		{
+			"path": "schemas/machine/v1/fixtures/capacity.json"
 		},
 		{
 			"path": "schemas/machine/v1/fixtures/invalid.json",

@@ -6,7 +6,7 @@
 
 use super::{
     super::{
-        super::{Remote, Report, connect},
+        super::{Report, connect},
         Refusal,
     },
     Context, Error, Stopped, mapped,
@@ -62,15 +62,7 @@ pub(in crate::cli::machines) fn carry(
         stopped => return Ok(stopped),
     }
     context.deadline = Instant::now() + CONNECT;
-    let mut report = Report {
-        catalog: None,
-        id: None,
-        changed: false,
-        committed: false,
-        remote: Remote::NotContacted,
-        remote_version: None,
-        unforgotten: false,
-    };
+    let mut report = Report::new();
     connect::ask_connect(client, machine, waiting, context, &mut report)?;
     ask(client, machine, context)
 }

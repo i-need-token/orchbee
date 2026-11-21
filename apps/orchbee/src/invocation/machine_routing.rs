@@ -56,6 +56,10 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     let Some(selector) = take_machine(&mut arguments)? else {
         return scan(arguments);
     };
+    // `local` names this computer wherever a machine is named, so the command runs here.
+    if crate::machines::names_this_computer(&selector) {
+        return scan(arguments);
+    }
     if !super::machines::valid_selector(&selector) {
         return Err(usage_with(
             UsageReason::MissingValue {

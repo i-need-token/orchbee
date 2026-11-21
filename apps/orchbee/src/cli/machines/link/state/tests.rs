@@ -78,9 +78,10 @@ fn session(name: &str) -> link::Channel {
 /// cannot yet answer. The far end's `session` and `ensure-session` workers are not started: the
 /// test puts those channels where their workers would, so no Session is reached.
 fn end_link(ending: Ending) -> (Connection<link::Link>, Arc<Shared>, Channels, Seen) {
-    let far = Arc::new(Shared::new(State::new(Connection::<link::Link>::acceptor(
-        facts(),
-    ))));
+    let far = Arc::new(Shared::new(State::new(
+        Connection::<link::Link>::acceptor(facts()),
+        None,
+    )));
     let mut hub = Connection::<link::Link>::initiator();
     let mut channels = Channels {
         connecting: hub.open(session("alpha")).unwrap(),

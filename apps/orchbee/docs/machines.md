@@ -25,7 +25,11 @@ have distinct IDs. At most 128 KiB is admitted.
 Every command that names a saved machine takes `<id|label>` and resolves it with the one rule
 that `--machine` uses: an exact ID first, otherwise the only machine with that exact,
 case-sensitive label. No match is `not-found`; several machines with that label are
-`ambiguous-machine`, and only the ID selects one of them. Edits resolve the operand under the
+`ambiguous-machine`, and only the ID selects one of them. `local`, in any letter case, always
+means this computer, so a person or an Agent can name every machine, this one included, the same
+way: no saved machine is added or renamed to it, and naming it where a saved machine is expected
+is `reserved-name`. A record an earlier version saved under that label still loads, and its ID
+names it. Edits resolve the operand under the
 writer lock, so the machine changed is the one the catalog names at commit time.
 
 A command that commits an edit then asks a running [machine hub](#machine-hub) to `reload`,
@@ -196,7 +200,7 @@ own confirmation and is offered only while the Machine is `online`.
 
 ## Command routing contract
 
-`orchbee --machine <id-or-exact-label> <command>` selects an enabled saved machine by the [`<id|label>` rule](#catalog-and-transitions) and never changes the catalog. Help is local. Local management, installation, TUI, and terminal interactive streams are refused before anything is read, as a usage failure that names the command and points at `orchbee machine --help`, since the option itself is valid. `server stop` is never routed as a command line: with the prefix it is the [remote Session stop](#remote-session-stop), and a far end of this build refuses an older near side's routed `server stop` as not submitted.
+`orchbee --machine <id-or-exact-label> <command>` selects an enabled saved machine by the [`<id|label>` rule](#catalog-and-transitions) and never changes the catalog; `--machine local` runs the command on this computer as if the option were absent. Help is local. Local management, installation, TUI, and terminal interactive streams are refused before anything is read, as a usage failure that names the command and points at `orchbee machine --help`, since the option itself is valid. `server stop` is never routed as a command line: with the prefix it is the [remote Session stop](#remote-session-stop), and a far end of this build refuses an older near side's routed `server stop` as not submitted.
 
 The owner is the [machine hub](#machine-hub), not the local IPC transport. The command reaches it
 through the [client owner](#client-owner), attached with neither `presence`, `asks` nor `watch`,

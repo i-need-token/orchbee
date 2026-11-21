@@ -182,9 +182,11 @@ impl Locale {
                 "请输入地址，例如 user@10.0.0.8，或 SSH 配置里的主机。"
             }
             (Self::EnUs, ManageProblem::Name) => {
-                "A name has 1 to 128 characters and no control characters."
+                "A name has 1 to 128 characters, no control characters, and is not local, which always means this computer."
             }
-            (Self::ZhCn, ManageProblem::Name) => "名称为 1 到 128 个字符，不能含控制字符。",
+            (Self::ZhCn, ManageProblem::Name) => {
+                "名称为 1 到 128 个字符，不能含控制字符，也不能是 local（它始终指这台电脑）。"
+            }
             (Self::EnUs, ManageProblem::Save) => "The machine list couldn't be saved.",
             (Self::ZhCn, ManageProblem::Save) => "没能保存机器列表。",
         }

@@ -2,11 +2,14 @@
 //! one reader of standard input, the one writer of standard output, and the supervisor that ends
 //! the link on idleness and settles what its channels started.
 
-use super::super::shared_carrier::{acceptor_profile, answer, frames, query};
+use super::super::{
+    capacity::Sampler,
+    shared_carrier::{acceptor_profile, answer, frames, query},
+};
 use super::state::{End, Shared, State};
 use orchbee_connection_handshake::{
-    AcceptorLoad, AcceptorMessage, CANDIDATE_DEADLINE, ConnectionKind, Decision, DrainResult,
-    ExitResult, Extensions, ProcessRole, ProcessState, RejectionReason, RequestKind,
+    AcceptorLoad, AcceptorMessage, CANDIDATE_DEADLINE, CAPACITY, ConnectionKind, Decision,
+    DrainResult, ExitResult, Extensions, ProcessRole, ProcessState, RejectionReason, RequestKind,
     read_initiator_message,
 };
 use orchbee_machine_protocol::{Connection, Frame, FrameDecoder, FrameKind, PathText, Token, link};
@@ -50,7 +53,7 @@ pub(super) fn serve() -> u8 {
         return REFUSED;
     };
     match admit(input, &mut output, started) {
-        Admission::Link(input) => run(input, output, facts),
+        Admission::Link { input, capacity } => run(input, output, facts, capacity),
         Admission::Done(status) => status,
     }
 }
@@ -83,8 +86,9 @@ fn facts() -> Option<link::Facts> {
 }
 
 enum Admission {
-    /// The offer was answered; the link runs on this input.
-    Link(File),
+    /// The offer was answered; the link runs on this input, answering `capacity` when the hub
+    /// negotiated it.
+    Link { input: File, capacity: bool },
     /// The frame was answered and the helper exits with this status.
     Done(u8),
 }
@@ -129,8 +133,9 @@ fn admit(mut input: File, output: &mut File, started: Instant) -> Admission {
     };
     match profile.decide(&message, load) {
         Decision::Accept(reply) => {
+            let capacity = reply.capabilities.contains(CAPACITY);
             if answer(output, &AcceptorMessage::Answer(reply)) {
-                Admission::Link(input)
+                Admission::Link { input, capacity }
             } else {
                 Admission::Done(ENDED)
             }
@@ -165,10 +170,12 @@ fn admit(mut input: File, output: &mut File, started: Instant) -> Admission {
 }
 
 /// Runs the admitted link until it ends and its farewell and commands settle.
-fn run(input: File, output: File, facts: link::Facts) -> u8 {
-    let link = Arc::new(Shared::new(State::new(Connection::<link::Link>::acceptor(
-        facts,
-    ))));
+fn run(input: File, output: File, facts: link::Facts, capacity: bool) -> u8 {
+    let sampler = if capacity { Sampler::start() } else { None };
+    let link = Arc::new(Shared::new(State::new(
+        Connection::<link::Link>::acceptor(facts),
+        sampler,
+    )));
     let writer = {
         let link = link.clone();
         thread::Builder::new()

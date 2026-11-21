@@ -72,6 +72,20 @@ pub(super) fn deliver(link: &Arc<Shared>, state: &mut State, delivery: Delivery<
             state.channels.finish(channel);
         }
         Delivery::Message(Message::Bye { .. }) => state.end(End::Hub),
+        // The last reading answers at once; a fact the sampler could not read stays absent.
+        Delivery::Message(Message::Request {
+            id,
+            request: link::Request::Capacity,
+            ..
+        }) => {
+            let capacity = state
+                .capacity
+                .as_ref()
+                .and_then(|sampler| sampler.latest())
+                .map(|sample| sample.capacity)
+                .unwrap_or_default();
+            let _replied = state.connection.reply(id, link::Reply::Capacity(capacity));
+        }
         // The hub accepts and closes nothing here, and the state machine answers its requests.
         Delivery::Message(_)
         | Delivery::Accept { .. }

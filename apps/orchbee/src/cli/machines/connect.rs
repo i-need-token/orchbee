@@ -18,7 +18,7 @@ mod remember;
 
 pub(super) use requests::{
     add, ask, ask_connect, ask_reload, close, connect, disconnect, open, reload_running,
-    stop_session,
+    stop_session, wait, watch_present,
 };
 
 mod requests {
@@ -509,10 +509,21 @@ mod requests {
     /// `None` when none does or it is closing. It starts, replaces and waits for no hub, and the
     /// owner ends instead of starting one when that hub goes.
     fn open_present(context: &mut Context) -> Result<Option<Arc<HubClient>>, Error> {
+        present(context, false)
+    }
+
+    /// Attaches as [`open_present`] does, watching the catalog and every Machine's state.
+    pub(in super::super) fn watch_present(
+        context: &mut Context,
+    ) -> Result<Option<Arc<HubClient>>, Error> {
+        present(context, true)
+    }
+
+    fn present(context: &mut Context, watch: bool) -> Result<Option<Arc<HubClient>>, Error> {
         let attachment = Attachment {
             presence: false,
             asks: false,
-            watch: false,
+            watch,
         };
         match wait(context, move |deadline| {
             HubClient::open_with(
@@ -550,7 +561,7 @@ mod requests {
     /// Runs `work` against the command's deadline on its own thread and waits for it, looking for
     /// an interrupt meanwhile. An interrupt abandons the work, which ends at the deadline or with
     /// the process.
-    fn wait<T: Send + 'static>(
+    pub(in super::super) fn wait<T: Send + 'static>(
         context: &mut Context,
         work: impl FnOnce(std::time::Instant) -> T + Send + 'static,
     ) -> Result<T, Error> {

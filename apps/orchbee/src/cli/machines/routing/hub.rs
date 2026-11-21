@@ -5,7 +5,7 @@
 //! An interrupt resets the channel and leaves the Machine's connection to the hub.
 
 use super::{
-    super::{Context, Error, Remote, Report, connect},
+    super::{Context, Error, Report, connect},
     INPUT_SOURCE, Outcome, Refusal, mapped,
 };
 use orchbee_machine_protocol::{
@@ -77,15 +77,7 @@ fn carry(
         Err(Failed::Reset(ResetReason::NotOnline | ResetReason::Stopping)) => {}
         result => return result.map_err(Failed::refusal),
     }
-    let mut report = Report {
-        catalog: None,
-        id: None,
-        changed: false,
-        committed: false,
-        remote: Remote::NotContacted,
-        remote_version: None,
-        unforgotten: false,
-    };
+    let mut report = Report::new();
     connect::ask_connect(client, machine, waiting, context, &mut report).map_err(mapped)?;
     attempt(client, machine, packet, limit, context, outcome).map_err(Failed::refusal)
 }

@@ -17,8 +17,8 @@ use super::{
     state::Shared,
 };
 use orchbee_connection_handshake::{
-    AcceptorMessage, Build, ConnectionKind, InitiatorMessage, Offer, ProductVersion, ReadError,
-    encode_initiator_frame, read_acceptor_message,
+    AcceptorMessage, Build, CAPACITY, ConnectionKind, InitiatorMessage, Offer, ProductVersion,
+    ReadError, encode_initiator_frame, read_acceptor_message,
 };
 use orchbee_machine_protocol::{
     ByeReason, Connection, Delivery, Frame, FrameDecoder, MachineId, Message, SessionName,
@@ -451,6 +451,8 @@ fn read(shared: &Shared, carrier: u64, line: &LinkLine, mut output: PipeReader) 
         let mut hub = shared.lock();
         match answer {
             Ok(AcceptorMessage::Answer(answer)) => {
+                hub.capacities
+                    .answered(carrier, answer.capabilities.contains(CAPACITY));
                 let version = answer.product_version;
                 hub.machine_of(carrier, |machine, _| machine.answered(carrier, version));
                 true
@@ -562,6 +564,18 @@ fn receive(shared: &Shared, carrier: u64, line: &LinkLine, frame: &Frame) -> boo
             true
         }
         Delivery::Message(Message::Bye { .. }) => false,
+        Delivery::Message(Message::Reply {
+            id,
+            reply: link::Reply::Capacity(capacity),
+            ..
+        }) => {
+            hub.capacity_result(carrier, id, Some(capacity));
+            true
+        }
+        Delivery::Message(Message::Unsupported { id, .. }) => {
+            hub.capacity_result(carrier, id, None);
+            true
+        }
         Delivery::Accept { channel, .. } => {
             hub.link_accepted(carrier, channel);
             true

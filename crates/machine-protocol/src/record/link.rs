@@ -1,10 +1,8 @@
 //! The records of `machine-link` generation 1, the connection from the hub to the remote helper:
-//! the helper's `facts` event and the channel kinds `session`, `route`, and `ensure-session` with
-//! their outcomes and reasons. The capability-gated `install` channel and the `facts` members
-//! `origin` and `install` are not part of this build: an `install` open is an unknown kind and a
-//! gated member is an unknown member.
-
-use std::convert::Infallible;
+//! the helper's `facts` event, the channel kinds `session`, `route`, and `ensure-session` with
+//! their outcomes and reasons, and the `capacity` request of capability `capacity`. The
+//! capability-gated `install` channel and the `facts` members `origin` and `install` are not part
+//! of this build: an `install` open is an unknown kind and a gated member is an unknown member.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Map;
@@ -12,7 +10,7 @@ use serde_json::Map;
 use crate::{
     Name, PathText, ResetReason, SessionName, Token,
     protocol::{KindRules, Members, Protocol, Refused, sealed::Codec},
-    record::{closed, members_of},
+    record::{capacity::Capacity, closed, members_of},
     value::{SHARED_RESET_REASONS, name_enum},
 };
 
@@ -107,7 +105,22 @@ pub enum Event {
     Facts(Facts),
 }
 
+/// A request the hub sends to the helper.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Request {
+    /// Asks what the helper's machine has free; capability `capacity`.
+    Capacity,
+}
+
+/// The helper's reply to a request.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum Reply {
+    /// What the machine has free, each fact present when the helper could read it.
+    Capacity(Capacity),
+}
+
 const FACTS: &str = "facts";
+const CAPACITY: &str = "capacity";
 
 const SESSION_REASONS: [ResetReason; 7] = [
     SHARED_RESET_REASONS[0],
@@ -180,8 +193,8 @@ impl Codec for Link {
     type Channel = Channel;
     type ChannelKind = ChannelKind;
     type Outcome = Outcome;
-    type Request = Infallible;
-    type Reply = Infallible;
+    type Request = Request;
+    type Reply = Reply;
     type Event = Event;
 
     fn decode_open(kind: &str, members: Members) -> Result<Option<Channel>, Refused> {
@@ -281,28 +294,43 @@ impl Codec for Link {
         )
     }
 
-    fn decode_request(_name: &str, _members: Members) -> Result<Option<Infallible>, Refused> {
-        Ok(None)
+    fn decode_request(name: &str, members: Members) -> Result<Option<Request>, Refused> {
+        if name != CAPACITY {
+            return Ok(None);
+        }
+        closed::<WireEmpty>(members)?;
+        Ok(Some(Request::Capacity))
     }
 
-    fn request_name(request: &Infallible) -> &'static str {
-        match *request {}
+    fn request_name(request: &Request) -> &'static str {
+        match request {
+            Request::Capacity => CAPACITY,
+        }
     }
 
-    fn encode_request(request: &Infallible) -> Members {
-        match *request {}
+    fn encode_request(request: &Request) -> Members {
+        match request {
+            Request::Capacity => Map::new(),
+        }
     }
 
-    fn decode_reply(_request: &str, _members: Members) -> Result<Option<Infallible>, Refused> {
-        Ok(None)
+    fn decode_reply(request: &str, members: Members) -> Result<Option<Reply>, Refused> {
+        if request != CAPACITY {
+            return Ok(None);
+        }
+        Ok(Some(Reply::Capacity(Capacity::decode(closed(members)?)?)))
     }
 
-    fn reply_request(reply: &Infallible) -> &'static str {
-        match *reply {}
+    fn reply_request(reply: &Reply) -> &'static str {
+        match reply {
+            Reply::Capacity(_) => CAPACITY,
+        }
     }
 
-    fn encode_reply(reply: &Infallible) -> Members {
-        match *reply {}
+    fn encode_reply(reply: &Reply) -> Members {
+        match reply {
+            Reply::Capacity(capacity) => members_of(&capacity.encode()),
+        }
     }
 
     fn decode_event(name: &str, members: Members) -> Result<Option<Event>, Refused> {

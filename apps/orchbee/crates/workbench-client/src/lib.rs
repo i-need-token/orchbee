@@ -24,6 +24,7 @@ mod local_client;
 mod localization;
 mod machine_add;
 mod machine_agents;
+mod machine_capacity;
 mod machine_carrier;
 mod machine_credentials;
 mod machine_discovery;
@@ -257,6 +258,10 @@ pub mod application {
         };
     }
 
+    pub mod machine_capacity {
+        pub use crate::machine_capacity::{UNKNOWN, gigabytes, summary};
+    }
+
     pub mod machine_credentials {
         pub use crate::machine_credentials::{
             Deleted, Failure, Item, Remembering, Secret, SecretKind, Store, readable_label,
@@ -324,8 +329,8 @@ pub mod application {
 
     pub mod machines {
         pub use crate::machines::{
-            Catalog, Connection, Draft, Edit, Error, Profile, ProfileId, RemoteInstall, Store,
-            default_label, valid_label, valid_target,
+            Catalog, Connection, Draft, Edit, Error, LOCAL, Profile, ProfileId, RemoteInstall,
+            Store, default_label, names_this_computer, valid_label, valid_target,
         };
     }
 

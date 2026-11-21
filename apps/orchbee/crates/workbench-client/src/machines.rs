@@ -148,6 +148,13 @@ impl Draft {
 pub fn valid_label(value: &str) -> bool {
     !value.trim().is_empty() && value.len() <= 128 && !value.chars().any(char::is_control)
 }
+/// The name that means this computer wherever a machine is named.
+pub const LOCAL: &str = "local";
+/// Whether `value` is [`LOCAL`] in any letter case. No saved machine can take that name; one an
+/// older catalog already holds under it still loads and is named by its ID.
+pub fn names_this_computer(value: &str) -> bool {
+    value.eq_ignore_ascii_case(LOCAL)
+}
 /// The label `machine add` saves when none is given: the host part of an admitted target, so
 /// `user@10.0.0.8` becomes `10.0.0.8` and `ssh://u@[2001:db8::1]:22` becomes `2001:db8::1`.
 pub fn default_label(target: &str) -> String {
@@ -325,6 +332,8 @@ pub enum Error {
     NotFound,
     /// A label several machines share; only the ID selects one of them.
     Ambiguous,
+    /// The name means this computer: no saved machine takes it or is selected by it.
+    Reserved,
     Capacity,
     RevisionExhausted,
 }
@@ -365,6 +374,9 @@ impl Catalog {
     /// The machine an `<id|label>` operand names: the exact ID first, otherwise the one machine
     /// with that exact label. Several machines with that label are ambiguous; nothing falls back.
     pub fn resolve(&self, selector: &str) -> Result<&Profile, Error> {
+        if names_this_computer(selector) {
+            return Err(Error::Reserved);
+        }
         if let Some(profile) = self.profiles.iter().find(|p| p.id.as_str() == selector) {
             return Ok(profile);
         }
@@ -386,11 +398,17 @@ impl Catalog {
                 if self.profiles.iter().any(|p| p.id == *id) {
                     return Err(Error::InvalidCatalog);
                 }
+                if names_this_computer(&draft.label) {
+                    return Err(Error::Reserved);
+                }
                 next.profiles.push(Profile::new(id.clone(), draft.clone()));
             }
             Edit::Rename { id, label } => {
                 if !valid_label(label) {
                     return Err(Error::InvalidCatalog);
+                }
+                if names_this_computer(label) {
+                    return Err(Error::Reserved);
                 }
                 next.profile_mut(id)?.draft.label.clone_from(label);
             }

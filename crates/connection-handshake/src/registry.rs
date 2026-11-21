@@ -70,6 +70,11 @@ pub const KEEPER: &str = "keeper";
 /// claim a terminal for a Host move. No build offers it before the Worker moves terminals.
 pub const HANDOVER: &str = "handover";
 
+/// The `machine-hub` and `machine-link` capability before a client may ask the hub, and the hub
+/// may ask a remote machine's helper, what that machine has free with the `capacity` request. A
+/// peer without it is never asked and reads every machine's capacity as unknown.
+pub const CAPACITY: &str = "capacity";
+
 /// A connection that starts with an `OBHS` offer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConnectionKind {
@@ -147,7 +152,8 @@ impl ConnectionKind {
                 UPDATE_CHECK,
             ],
             Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_SEND],
-            Self::Keeper | Self::MachineHub | Self::MachineLink => &[],
+            Self::MachineHub | Self::MachineLink => &[CAPACITY],
+            Self::Keeper => &[],
         };
         capability_set(names)
     }

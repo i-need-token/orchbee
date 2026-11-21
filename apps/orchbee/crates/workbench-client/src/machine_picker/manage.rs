@@ -9,7 +9,9 @@ use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use crate::machine_add::Stage;
 use crate::machine_discovery::Observation;
 use crate::machine_status::{Action, Explanation, Facts};
-use crate::machines::{Profile, ProfileId, default_label, valid_label, valid_target};
+use crate::machines::{
+    Profile, ProfileId, default_label, names_this_computer, valid_label, valid_target,
+};
 use crate::terminal_events::keys::Binding;
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 use orchbee_machine_protocol::hub::MachineStateName;
@@ -143,6 +145,7 @@ pub(crate) enum Check {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Problem {
     Address,
+    /// The name is not a label, or it means this computer.
     Name,
     Save,
 }
@@ -549,7 +552,7 @@ impl Picker {
             }
             Page::Rename { machine, name } => {
                 let label = name.text().trim().to_owned();
-                if !valid_label(&label) {
+                if !valid_label(&label) || names_this_computer(&label) {
                     self.manage.notice = Some(Notice::Failed(Problem::Name));
                     return true;
                 }
@@ -836,7 +839,7 @@ impl AddForm {
         } else {
             name.to_owned()
         };
-        if !valid_label(&label) {
+        if !valid_label(&label) || names_this_computer(&label) {
             self.problem = Some(Problem::Name);
             self.field = Field::Name;
             return None;

@@ -6,6 +6,8 @@
 //! and the races kept here; the contract in
 //! `schemas/machine` owns every byte.
 mod askpass;
+mod capacities;
+mod capacity_answers;
 mod carrier;
 mod catalog;
 mod draft_ledger;

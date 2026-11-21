@@ -6,6 +6,7 @@
 //! other, and none is held across I/O.
 
 use super::{
+    capacities::Capacities,
     carrier::Handle,
     catalog::{Conditions, Machines, Outcome},
     draft_ledger::DraftLedger,
@@ -79,6 +80,8 @@ pub(super) struct Hub {
     pub(super) relays: Relays,
     /// Every `stop-session` run until its outcome.
     pub(super) stops: Stops,
+    /// What answers `capacity`, and the requests waiting for a link.
+    pub(super) capacities: Capacities,
     pub(super) controls: usize,
     pub(super) candidates: usize,
     /// Catalog reads in flight, which closing waits for.
@@ -138,6 +141,7 @@ impl Hub {
             question,
             relays: Relays::default(),
             stops: Stops::default(),
+            capacities: Capacities::default(),
             controls: 0,
             candidates: 0,
             reloads: 0,

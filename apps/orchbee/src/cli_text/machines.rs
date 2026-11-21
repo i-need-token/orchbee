@@ -143,18 +143,18 @@ impl super::CliText {
         let (usage, english, chinese) = match path {
             C::MachineList => (
                 "orchbee machine list [--format text|json]",
-                "Read the saved machine catalog without contacting any machine or creating directories. Enabled is a saved preference, not a live connection observation. A machine a later version saved with a connection kind this version does not know is listed as unsupported.",
-                "读取已保存的机器目录，不连接任何机器，也不创建目录。启用状态是已保存的偏好，不代表实时连接。更新版本保存的、使用此版本不认识的连接方式的机器显示为不支持。",
+                "List this computer first, as local, then each saved machine with its state and its free processor share, memory and disk; disk is the volume of the home folder. States and other machines' capacity come from the background machine hub running now, which reads this computer once a second and asks a connected machine at most once every 3 seconds; the command starts no hub, connects no machine and creates no directories. Without a hub nothing carries a saved machine, which reads offline, disabled or unsupported as its record says, and only this computer's memory and disk are read. A value that cannot be read shows as — in text and \"unknown\" in JSON. A machine a later version saved with a connection kind this version does not know is listed as unsupported.",
+                "先列出这台电脑（local），再列出每台已保存的机器及其状态和空闲的处理器份额、内存和磁盘；磁盘指主目录所在的卷。状态和其他机器的空闲资源来自正在运行的后台连接进程：它每秒读取一次这台电脑，对已连接的机器最多每 3 秒询问一次。本命令不启动连接进程，不连接机器，也不创建目录。没有连接进程时，已保存的机器无人连接，按记录显示为离线、已停用或不支持，这台电脑只读取内存和磁盘。读取不到的值在文本中显示为 —，在 JSON 中为 \"unknown\"。更新版本保存的、使用此版本不认识的连接方式的机器显示为不支持。",
             ),
             C::MachineAdd => (
                 "orchbee machine add <ssh-target> [--label <label>] [--remote-session <name>] [--format text|json]",
-                "The label defaults to the target's host name; names may repeat, and the ID then tells machines apart. The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Sign-in questions are asked as machine connect asks them, and preparation has a 90-second deadline that time spent answering them does not count against. Failed preparation does not save the machine; an already started remote session is retained. Automatic remote installation is not available yet.",
-                "名称默认使用目标的主机名；名称可以重复，此时用 ID 区分。远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。登录问题的询问方式与 machine connect 相同；准备过程期限为 90 秒，回答登录问题的时间不计入。准备失败不保存机器；已启动的远端会话会保留。自动安装远端程序暂不可用。",
+                "The label defaults to the target's host name; names may repeat, and the ID then tells machines apart. The name local, in any letter case, always means this computer and is refused. The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Sign-in questions are asked as machine connect asks them, and preparation has a 90-second deadline that time spent answering them does not count against. Failed preparation does not save the machine; an already started remote session is retained. Automatic remote installation is not available yet.",
+                "名称默认使用目标的主机名；名称可以重复，此时用 ID 区分。名称 local（不区分大小写）始终指这台电脑，不能使用。远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。登录问题的询问方式与 machine connect 相同；准备过程期限为 90 秒，回答登录问题的时间不计入。准备失败不保存机器；已启动的远端会话会保留。自动安装远端程序暂不可用。",
             ),
             C::MachineRename => (
                 "orchbee machine rename <id|label> --label <label> [--format text|json]",
-                "Rename the machine with this ID, or the only machine with this exact name. Labels cannot be blank or contain control characters and are limited to 128 UTF-8 bytes.",
-                "重命名具有此 ID 的机器，或唯一使用此完整名称的机器。名称不能为空白或含控制字符，最多 128 UTF-8 字节。",
+                "Rename the machine with this ID, or the only machine with this exact name. Labels cannot be blank or contain control characters and are limited to 128 UTF-8 bytes. The name local, in any letter case, always means this computer and is refused.",
+                "重命名具有此 ID 的机器，或唯一使用此完整名称的机器。名称不能为空白或含控制字符，最多 128 UTF-8 字节。名称 local（不区分大小写）始终指这台电脑，不能使用。",
             ),
             C::MachineRemove => (
                 "orchbee machine remove <id|label> [--stop-session [--confirm]] [--format text|json]",
@@ -190,6 +190,36 @@ impl super::CliText {
                 Locale::ZhCn => chinese,
             },
         )
+    }
+
+    /// The heading row of `machine list`.
+    pub(crate) const fn cli_machine_list_headers(self) -> [&'static str; 6] {
+        match self.locale {
+            Locale::EnUs => [
+                "ID",
+                "NAME",
+                "ADDRESS",
+                "SESSION",
+                "STATE",
+                "FREE CPU · MEMORY · DISK",
+            ],
+            Locale::ZhCn => [
+                "ID",
+                "名称",
+                "地址",
+                "会话",
+                "状态",
+                "空闲 CPU · 内存 · 磁盘",
+            ],
+        }
+    }
+
+    /// The name `machine list` gives the computer it runs on.
+    pub(crate) const fn cli_machine_this_computer(self) -> &'static str {
+        match self.locale {
+            Locale::EnUs => "This computer",
+            Locale::ZhCn => "这台电脑",
+        }
     }
 
     pub(crate) fn cli_machine_message(self, code: &str) -> &'static str {
@@ -249,6 +279,12 @@ impl super::CliText {
             }
             (Locale::ZhCn, "ambiguous-machine") => {
                 "多台已保存的机器使用此名称，请改用 ‘orchbee machine list’ 中的 ID。"
+            }
+            (Locale::EnUs, "reserved-name") => {
+                "local always means this computer: no saved machine takes that name, and one that already has it is named by its ID."
+            }
+            (Locale::ZhCn, "reserved-name") => {
+                "local 始终指这台电脑：已保存的机器不能用这个名称，已经叫这个名称的机器请用它的 ID 指明。"
             }
             (Locale::EnUs, "not-yet-available") => {
                 "This machine command is not available yet. Nothing was read or changed."

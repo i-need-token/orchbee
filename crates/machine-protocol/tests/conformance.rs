@@ -13,6 +13,9 @@ use crate::support::{self, TestResult};
 const VALID: &str = include_str!("../../../schemas/machine/v1/fixtures/valid.json");
 const BOUNDARY: &str = include_str!("../../../schemas/machine/v1/fixtures/boundary.json");
 const INVALID: &str = include_str!("../../../schemas/machine/v1/fixtures/invalid.json");
+const CAPACITY: &str = include_str!("../../../schemas/machine/v1/fixtures/capacity.json");
+const CAPACITY_INVALID: &str =
+    include_str!("../../../schemas/machine/v1/fixtures/capacity-invalid.json");
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -85,7 +88,7 @@ fn round_trip<P: Protocol>(case: &Case) -> TestResult {
 
 #[test]
 fn valid_and_boundary_cases_decode_and_re_encode_to_an_equal_value() -> TestResult {
-    for source in [VALID, BOUNDARY] {
+    for source in [VALID, BOUNDARY, CAPACITY] {
         let fixtures: Cases = serde_json::from_str(source)?;
         assert!(!fixtures.cases.is_empty());
         for case in &fixtures.cases {
@@ -143,17 +146,19 @@ fn refuse<P: Protocol>(case: &Case, layer: &str) -> TestResult {
 
 #[test]
 fn every_invalid_case_is_refused_by_its_first_layer() -> TestResult {
-    let fixtures: Cases = serde_json::from_str(INVALID)?;
-    assert!(!fixtures.cases.is_empty());
-    for case in &fixtures.cases {
-        let layer = case
-            .layer
-            .as_deref()
-            .ok_or_else(|| format!("{} names its layer", case.name))?;
-        match case.connection.as_str() {
-            "machine-hub" => refuse::<Hub>(case, layer)?,
-            "machine-link" => refuse::<Link>(case, layer)?,
-            other => return Err(format!("{}: unknown connection {other}", case.name).into()),
+    for source in [INVALID, CAPACITY_INVALID] {
+        let fixtures: Cases = serde_json::from_str(source)?;
+        assert!(!fixtures.cases.is_empty());
+        for case in &fixtures.cases {
+            let layer = case
+                .layer
+                .as_deref()
+                .ok_or_else(|| format!("{} names its layer", case.name))?;
+            match case.connection.as_str() {
+                "machine-hub" => refuse::<Hub>(case, layer)?,
+                "machine-link" => refuse::<Link>(case, layer)?,
+                other => return Err(format!("{}: unknown connection {other}", case.name).into()),
+            }
         }
     }
     Ok(())

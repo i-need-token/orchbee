@@ -4,6 +4,7 @@
 //! layer, closed objects, value grammars, and which end may send a known record. Whether a frame
 //! fits the channels and ledgers of a running connection is the channel layer's check.
 
+pub(crate) mod capacity;
 pub(crate) mod hub;
 pub(crate) mod link;
 

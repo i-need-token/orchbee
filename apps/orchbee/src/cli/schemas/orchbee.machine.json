@@ -33,6 +33,7 @@
 				"committed",
 				"remote",
 				"remoteVersion",
+				"machines",
 				"error",
 				"interrupted",
 				"operation"
@@ -142,6 +143,21 @@
 						}
 					]
 				},
+				"machines": {
+					"anyOf": [
+						{
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 65,
+							"items": {
+								"$ref": "#/$defs/machine"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
 				"error": {
 					"enum": [
 						null,
@@ -151,6 +167,7 @@
 						"busy",
 						"not-found",
 						"ambiguous-machine",
+						"reserved-name",
 						"capacity",
 						"revision-exhausted",
 						"not-yet-available",
@@ -216,6 +233,32 @@
 				{
 					"if": {
 						"properties": {
+							"operation": {
+								"const": "list"
+							},
+							"error": {
+								"const": null
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"machines": {
+								"type": "array"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"machines": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
 							"error": {
 								"const": null
 							}
@@ -236,6 +279,178 @@
 		}
 	},
 	"$defs": {
+		"machine": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["local", "id", "label", "state", "capacity"],
+			"properties": {
+				"local": {
+					"type": "boolean"
+				},
+				"id": {
+					"type": ["string", "null"],
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"label": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 128
+				},
+				"state": {
+					"enum": [
+						null,
+						"disabled",
+						"connecting",
+						"online",
+						"reconnecting",
+						"offline",
+						"unresponsive",
+						"needs-login",
+						"login-failed",
+						"untrusted",
+						"key-changed",
+						"not-installed",
+						"unsupported",
+						"needs-update",
+						"local-needs-update",
+						"incompatible",
+						"unknown"
+					]
+				},
+				"capacity": {
+					"oneOf": [
+						{
+							"const": "unknown"
+						},
+						{
+							"$ref": "#/$defs/capacity"
+						}
+					]
+				}
+			},
+			"if": {
+				"properties": {
+					"local": {
+						"const": true
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"id": {
+						"type": "null"
+					},
+					"label": {
+						"type": "null"
+					},
+					"state": {
+						"type": "null"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"label": {
+						"type": "string"
+					},
+					"state": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"capacity": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["cpu", "memory", "disk", "sampledAt"],
+			"properties": {
+				"cpu": {
+					"oneOf": [
+						{
+							"const": "unknown"
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["logical", "freePercent"],
+							"properties": {
+								"logical": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 9007199254740991
+								},
+								"freePercent": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 100
+								}
+							}
+						}
+					]
+				},
+				"memory": {
+					"oneOf": [
+						{
+							"const": "unknown"
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["totalBytes", "freeBytes"],
+							"properties": {
+								"totalBytes": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 9007199254740991
+								},
+								"freeBytes": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								}
+							}
+						}
+					]
+				},
+				"disk": {
+					"oneOf": [
+						{
+							"const": "unknown"
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["path", "totalBytes", "freeBytes"],
+							"properties": {
+								"path": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								},
+								"totalBytes": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 9007199254740991
+								},
+								"freeBytes": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								}
+							}
+						}
+					]
+				},
+				"sampledAt": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
 		"unsupported": {
 			"type": "object",
 			"additionalProperties": false,

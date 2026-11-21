@@ -3,7 +3,10 @@
 //! Machine's timed transitions and the start of each carrier, and the closing that ends with
 //! `bye`, every carrier ended, the endpoint closed and the lock released.
 
-use super::super::shared_carrier::{acceptor_profile, answer, query};
+use super::super::{
+    capacity::Sampler,
+    shared_carrier::{acceptor_profile, answer, query},
+};
 use super::{
     askpass,
     carrier::{self, Launch},
@@ -131,6 +134,8 @@ pub(super) fn serve() -> u8 {
             this.clone(),
         ))
     });
+    // This computer's `capacity` answers come from a reading taken once a second from now on.
+    shared.lock().capacities.sample(Sampler::start());
     let profile = Arc::new(acceptor_profile(ConnectionKind::MachineHub));
     let stop = Arc::new(AtomicBool::new(false));
     let mut draft_writer = persister.spawn_writer();
@@ -494,10 +499,11 @@ fn supervise(shared: &Arc<Shared>, launch: &Arc<Launch>, base: Option<&Path>) {
             Some(ReadDue::At(at)) => at,
             _ => now.at + IDLE_WAKE,
         };
-        let wake_at = hub
-            .machines
-            .next_wake()
-            .map_or(read_at, |machine| machine.min(read_at));
+        hub.expire_capacity(Instant::now());
+        let wake_at = [hub.machines.next_wake(), hub.capacities.next_wake()]
+            .into_iter()
+            .flatten()
+            .fold(read_at, Instant::min);
         hub = shared.wait_until(hub, wake_at);
     }
 }
@@ -509,6 +515,7 @@ fn close(shared: &Shared) {
     let began = Instant::now();
     let mut hub = shared.lock();
     hub.machines(|machine, _| machine.closing());
+    hub.end_capacity_closing();
     for (number, _) in std::mem::take(&mut hub.starting) {
         hub.carriers.remove(&number);
     }

@@ -247,7 +247,7 @@ an unknown request type is answered `unsupported`, and an unknown event type is 
 ## Link records
 
 Generation 1 of `machine-link` defines one event, `facts`, from the acceptor; `bye` from either
-end; no request; and four channel kinds, opened by the initiator.
+end; one request, `capacity`, from the initiator; and four channel kinds, opened by the initiator.
 
 ### Facts
 
@@ -338,6 +338,22 @@ The opener's data is a sequence of records, without padding:
   store's active version is higher. A reset, a failed outcome, or a lost link leaves no usable
   partial version.
 - The helper raises its window on this channel to 4,194,304 bytes.
+
+### Capacity
+
+Requires capability `capacity`. The hub sends the request `capacity`, which has no member, and the
+helper replies `capacity-result` with what its machine has free. Each fact is present only when the
+helper could read it:
+
+| Member   | Value                                                                                                                                         |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cpu`    | `{logical, freePercent}`: the processors a program may run on, at least 1, and their unused share of time over the last few seconds, 0 to 100 |
+| `memory` | `{totalBytes, freeBytes}`: the physical memory, and what programs can still get without paging out                                            |
+| `disk`   | `{path, totalBytes, freeBytes}`: the helper's home folder, and its volume's space as the helper's user may use it                             |
+
+- Byte values are counts; `totalBytes` is above 0 and `freeBytes` never exceeds it.
+- The helper answers at once from what it last read and never waits on a measurement, so a reply
+  costs the link one round trip.
 
 ### Link liveness
 
@@ -572,18 +588,24 @@ The event `question` goes to the claimant only.
   opener's `end` to the link. When the link is lost later, the hub sends `close` with `lost`,
   which a `route` opener reads as an unknown outcome.
 
-### Remote Session and install requests
+### Remote Session, capacity and install requests
 
-| Request        | Members   | Outcomes                                                                             | Effect                                                          |
-| -------------- | --------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| `stop-session` | `machine` | `stopped`, `not-running`, `not-online`, `not-found`, `failed`, `unknown`, `stopping` | Stops the Machine's remote Session and every terminal in it     |
-| `install`      | `machine` | `started`, `not-offered`, `not-found`, `stopping`                                    | Consents to the Machine's current `offer`; capability `install` |
+| Request        | Members                | Outcomes                                                                                    | Effect                                                                                |
+| -------------- | ---------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `stop-session` | `machine`              | `stopped`, `not-running`, `not-online`, `not-found`, `failed`, `unknown`, `stopping`        | Stops the Machine's remote Session and every terminal in it                           |
+| `capacity`     | `machine` when present | `sampled` with `capacity` and `sampledAt`, `not-online`, `not-found`, `unknown`, `stopping` | What the Machine, or without `machine` this computer, has free; capability `capacity` |
+| `install`      | `machine`              | `started`, `not-offered`, `not-found`, `stopping`                                           | Consents to the Machine's current `offer`; capability `install`                       |
 
 - The hub stops a Session as an admitted Client of that Session does: over a link `session`
   channel it sends the Session's own stop request through the Session's Client admission, then
   reads the stop's status over further `session` channels until the Session ends; the link has no
   member for it. `unknown` means the request may have reached the Session and its end was not read.
 - After `install` replies `started`, the Machine's state reports progress and the result.
+- `capacity` without `machine` reads the hub's own computer. `capacity` is the link's
+  [`capacity-result`](#capacity) value, and `sampledAt` is when the hub read it, a time on the hub's
+  clock. For a Machine the hub reuses that Machine's last result while it is at most 3 seconds old;
+  otherwise it asks the link, one ask per link at a time, and waits at most 2 seconds. `unknown`
+  means the Machine did not answer in time or its link lacks capability `capacity`.
 
 ## Answer delivery
 
@@ -623,41 +645,44 @@ one-time code, or any other answer to a login question.
 
 ## Bounds
 
-| Bound                                           | Value                                   | Beyond it                                                 |
-| ----------------------------------------------- | --------------------------------------- | --------------------------------------------------------- |
-| JSON payload of one frame                       | 65,536 bytes                            | Violation                                                 |
-| `data` payload of one frame                     | 32,768 bytes                            | Violation                                                 |
-| Open channels per opener and connection         | 256                                     | `reset` with `capacity`                                   |
-| Outstanding credit per channel and direction    | 4,194,304 bytes                         | Violation                                                 |
-| Unanswered requests per sender                  | 64                                      | Violation                                                 |
-| Unanswered `ping` per sender                    | 1                                       | Violation                                                 |
-| Route request packet; reply packet              | 2,097,152; 25,165,824 bytes             | `reset` with `too-large`; violation                       |
-| Path of one install record                      | 1,024 bytes                             | `close` with `verification-failed`                        |
-| Install: files, one file, all content           | 4,096; 536,870,912; 2,147,483,648 bytes | `reset` with `too-large` at `open`                        |
-| Machines in `catalog`                           | 64                                      | Violation                                                 |
-| `prompt`                                        | 4,096 bytes                             | The hub truncates before sending                          |
-| Hub connection slots; control slots             | 256; 4                                  | `OBHS` rejection `capacity`                               |
-| Hub: wait of a `command` request for a login    | 120,000 ms                              | `auth-required`                                           |
-| Hub: expiry; closing allowance                  | 600,000 ms; 60,000 ms                   | Logins end once no work is in flight; channels end `lost` |
-| Link: hub send interval; helper receive silence | 30 s; 90 s                              | The helper exits                                          |
-| Helper: wait for a Session to report ready      | 30 s                                    | `close` with `unknown`                                    |
+| Bound                                             | Value                                   | Beyond it                                                 |
+| ------------------------------------------------- | --------------------------------------- | --------------------------------------------------------- |
+| JSON payload of one frame                         | 65,536 bytes                            | Violation                                                 |
+| `data` payload of one frame                       | 32,768 bytes                            | Violation                                                 |
+| Open channels per opener and connection           | 256                                     | `reset` with `capacity`                                   |
+| Outstanding credit per channel and direction      | 4,194,304 bytes                         | Violation                                                 |
+| Unanswered requests per sender                    | 64                                      | Violation                                                 |
+| Unanswered `ping` per sender                      | 1                                       | Violation                                                 |
+| Route request packet; reply packet                | 2,097,152; 25,165,824 bytes             | `reset` with `too-large`; violation                       |
+| Path of one install record                        | 1,024 bytes                             | `close` with `verification-failed`                        |
+| Install: files, one file, all content             | 4,096; 536,870,912; 2,147,483,648 bytes | `reset` with `too-large` at `open`                        |
+| Machines in `catalog`                             | 64                                      | Violation                                                 |
+| `prompt`                                          | 4,096 bytes                             | The hub truncates before sending                          |
+| Hub connection slots; control slots               | 256; 4                                  | `OBHS` rejection `capacity`                               |
+| Hub: wait of a `command` request for a login      | 120,000 ms                              | `auth-required`                                           |
+| Hub: expiry; closing allowance                    | 600,000 ms; 60,000 ms                   | Logins end once no work is in flight; channels end `lost` |
+| Link: hub send interval; helper receive silence   | 30 s; 90 s                              | The helper exits                                          |
+| Helper: wait for a Session to report ready        | 30 s                                    | `close` with `unknown`                                    |
+| Hub: wait for a link `capacity-result`; its reuse | 2,000 ms; 3,000 ms                      | `capacity-result` `unknown`; the link is asked again      |
 
 ## Baseline and capabilities
 
-| Part                                                                                                                                                         | Baseline | Capability                  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | --------------------------- |
-| Frame, channels, flow control, `message` classes, `unsupported`, `bye`, `ping`, `pong`                                                                       | Yes      | —                           |
-| Link: `facts` with `platform`, `architecture`, `executable`, `storeRoot`                                                                                     | Yes      | —                           |
-| Link: `session`, `route`, `ensure-session`                                                                                                                   | Yes      | —                           |
-| Link: `install` channel; `facts` members `origin` and `install`                                                                                              | No       | `install` on `machine-link` |
-| Hub: `attach`, `hub`, `catalog`, `machine`, `reload`                                                                                                         | Yes      | —                           |
-| Hub: `connect` with `origin`, `answers`, `draft`; `connect-waiting`; `disconnect`                                                                            | Yes      | —                           |
-| Hub: `login`, `question`, `claim`, `dismiss`; the answer delivery record                                                                                     | Yes      | —                           |
-| Hub: `session`, `route`; `stop-session`                                                                                                                      | Yes      | —                           |
-| Hub: `install` request; `connect` member `install`; `machine` members `offer` and `transfer`; state `installing`; `connect-waiting` reason `install-consent` | No       | `install` on `machine-hub`  |
+| Part                                                                                                                                                         | Baseline | Capability                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ---------------------------- |
+| Frame, channels, flow control, `message` classes, `unsupported`, `bye`, `ping`, `pong`                                                                       | Yes      | —                            |
+| Link: `facts` with `platform`, `architecture`, `executable`, `storeRoot`                                                                                     | Yes      | —                            |
+| Link: `session`, `route`, `ensure-session`                                                                                                                   | Yes      | —                            |
+| Link: `install` channel; `facts` members `origin` and `install`                                                                                              | No       | `install` on `machine-link`  |
+| Link: `capacity` request                                                                                                                                     | No       | `capacity` on `machine-link` |
+| Hub: `attach`, `hub`, `catalog`, `machine`, `reload`                                                                                                         | Yes      | —                            |
+| Hub: `connect` with `origin`, `answers`, `draft`; `connect-waiting`; `disconnect`                                                                            | Yes      | —                            |
+| Hub: `login`, `question`, `claim`, `dismiss`; the answer delivery record                                                                                     | Yes      | —                            |
+| Hub: `session`, `route`; `stop-session`                                                                                                                      | Yes      | —                            |
+| Hub: `install` request; `connect` member `install`; `machine` members `offer` and `transfer`; state `installing`; `connect-waiting` reason `install-consent` | No       | `install` on `machine-hub`   |
+| Hub: `capacity` request                                                                                                                                      | No       | `capacity` on `machine-hub`  |
 
-A baseline part is in every generation 1 peer and needs no capability name. Generation 1 lists no
-capability name until `install` ships. A later channel kind, request, event, or member arrives
+A baseline part is in every generation 1 peer and needs no capability name. Generation 1 lists
+`capacity`; `install` is listed once it ships. A later channel kind, request, event, or member arrives
 under its own capability name, and a peer without it answers `unsupported` or ignores the event.
 
 ## Fixtures and conformance
@@ -667,12 +692,14 @@ bytes; payload fixtures hold `kind`, the frame kind name, and `payload`, the exa
 on channel 0 for `message` and on channel 1 for every other kind. Each names its `connection` and
 its `direction`, `initiator` or `acceptor`.
 
-| File                                           | Claim                                                                                                                                                                          |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`valid.json`](v1/fixtures/valid.json)         | Each decodes in its connection and direction and re-encodes to an equal value                                                                                                  |
-| [`boundary.json`](v1/fixtures/boundary.json)   | Each value at its limit decodes                                                                                                                                                |
-| [`invalid.json`](v1/fixtures/invalid.json)     | Each fails to decode. `layer` names the first layer that refuses it: `frame`, `encoding`, or `record`                                                                          |
-| [`sequences.json`](v1/fixtures/sequences.json) | Each is an ordered list of frames with their senders and the verdict of the receiving state machine: accepted, discarded, a reply it must send, or a violation at a named step |
+| File                                                         | Claim                                                                                                                                                                          |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`valid.json`](v1/fixtures/valid.json)                       | Each decodes in its connection and direction and re-encodes to an equal value                                                                                                  |
+| [`boundary.json`](v1/fixtures/boundary.json)                 | Each value at its limit decodes                                                                                                                                                |
+| [`invalid.json`](v1/fixtures/invalid.json)                   | Each fails to decode. `layer` names the first layer that refuses it: `frame`, `encoding`, or `record`                                                                          |
+| [`capacity.json`](v1/fixtures/capacity.json)                 | Cases of capability `capacity`, held to the claims of `valid.json` and `boundary.json`                                                                                         |
+| [`capacity-invalid.json`](v1/fixtures/capacity-invalid.json) | Cases of capability `capacity`, held to the claim of `invalid.json`                                                                                                            |
+| [`sequences.json`](v1/fixtures/sequences.json)               | Each is an ordered list of frames with their senders and the verdict of the receiving state machine: accepted, discarded, a reply it must send, or a violation at a named step |
 
 A sequence case names its `connection`, the `machine` under test, `initiator` or `acceptor`, and
 its `steps` in order:
