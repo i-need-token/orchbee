@@ -252,7 +252,9 @@ function getActionableMenuPresentation(menu: HTMLElement): readonly {
 		}));
 }
 
-describe('Workbench Project and Workspace management', () => {
+// These tests open and close portaled menus and dialogs many times each; on a loaded runner one
+// of them has taken just over the default five seconds.
+describe('Workbench Project and Workspace management', { timeout: 15_000 }, () => {
 	it('opens exact row menus from both menu keys without activating same-named Workspaces', async () => {
 		const projectWorkspaceRuntime = createSnapshotRuntime(
 			orchbeeSnapshot(1, ['Primary', 'Primary']),
@@ -1590,7 +1592,7 @@ describe('Workbench Project and Workspace management', () => {
 				type: 'project-dissolved',
 			}),
 		);
-	}, 10_000);
+	});
 
 	it('drags a Workspace into another Project through the shown list and commits one move', async () => {
 		const projectWorkspaceRuntime = createSnapshotRuntime(dragSnapshot(1));
