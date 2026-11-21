@@ -7,6 +7,8 @@ export type { AgentStartMessageId } from './agent-start';
 
 export { enUSDesktopDiagnosticsMessages } from './desktop-diagnostics';
 export type { DesktopDiagnosticsMessageId } from './desktop-diagnostics';
+export { enUSDesktopMenuMessages } from './desktop-menu';
+export type { DesktopMenuMessageId } from './desktop-menu';
 export { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 export type { DesktopSecureKeyboardEntryMessageId } from './desktop-secure-keyboard-entry';
 export { enUSDesktopTrayMessages } from './desktop-tray';

@@ -225,8 +225,10 @@ Test build.
   `orchbee diagnostics create`, shows the bundle in its folder, and says in a dialog when it failed;
   one save runs at a time and cancelling the dialog writes nothing. The bundle's contents belong to
   the [CLI command](../orchbee/README.md#diagnostic-bundle).
-- The menu with the window Actions and, on macOS, Secure Keyboard Entry. It is installed once the
-  window has opened, because a hidden title bar never opens the menu that would refresh what its
+- The menu with the window Actions and, on macOS, Secure Keyboard Entry. Every menu and item, the
+  standard ones included, carries a label in the system's preferred language, as the icon's menu
+  and Main's dialogs do, so none shows Electron's English default; the standard items keep their
+  roles, so the system still performs them. It is installed once the window has opened, because a hidden title bar never opens the menu that would refresh what its
   accelerators may do. On macOS, Workbench owns `Command+W` as Close Terminal: the native Close
   Window item stays clickable but registers no accelerator, so a terminal-close key cannot fall
   through and close the window.

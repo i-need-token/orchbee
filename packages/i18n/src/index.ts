@@ -5,6 +5,7 @@ export {
 	agentStartMessages,
 	applicationRoutingMessages,
 	desktopDiagnosticsMessages,
+	desktopMenuMessages,
 	desktopSecureKeyboardEntryMessages,
 	desktopTrayMessages,
 	desktopWindowMessages,

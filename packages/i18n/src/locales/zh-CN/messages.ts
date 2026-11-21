@@ -10,6 +10,7 @@ import { zhCNAgentStartMessages } from './agent-start';
 import { zhCNApplicationRoutingMessages } from './application-routing';
 
 import { zhCNDesktopDiagnosticsMessages } from './desktop-diagnostics';
+import { zhCNDesktopMenuMessages } from './desktop-menu';
 import { zhCNDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 import { zhCNDesktopTrayMessages } from './desktop-tray';
 
@@ -33,6 +34,7 @@ export const zhCNMessages = {
 	...zhCNApplicationRoutingMessages,
 
 	...zhCNDesktopDiagnosticsMessages,
+	...zhCNDesktopMenuMessages,
 	...zhCNDesktopSecureKeyboardEntryMessages,
 	...zhCNDesktopTrayMessages,
 

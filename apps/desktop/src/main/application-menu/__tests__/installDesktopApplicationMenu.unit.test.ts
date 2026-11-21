@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 
 import type { ActionAvailability } from '@orchbee/actions';
+import { createOrchbeeIntl } from '@orchbee/i18n';
 import type { KeyboardEvent, Menu, MenuItem, MenuItemConstructorOptions } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -18,61 +19,65 @@ const ITEM_IDS = {
 	toggleMaximized: 'desktop-window-toggle-maximized',
 } as const;
 
-const labels = {
-	secureKeyboardEntry: 'Secure Keyboard Entry',
-	securityCategory: 'Input Security',
-	toggleFullScreen: 'Enter / Exit Full Screen',
-	toggleMaximized: 'Maximize / Restore Window',
-	windowCategory: 'Window',
-} as const;
+const englishText = { applicationName: 'Orchbee Test', intl: createOrchbeeIntl('en-US') };
 
 describe('installDesktopApplicationMenu', () => {
-	it('preserves native menu items and composes checked window and macOS security actions', () => {
-		const appRoot = fakeMenuItem({
-			role: 'appMenu',
-			submenu: fakeMenu([fakeMenuItem({ role: 'about' })]),
-		});
-		const viewRoot = fakeMenuItem({
-			role: 'viewMenu',
-			submenu: fakeMenu([
-				fakeMenuItem({ accelerator: 'CommandOrControl+R', label: 'Reload', role: 'reload' }),
-				fakeMenuItem({
-					accelerator: 'CommandOrControl+Shift+R',
-					label: 'Force Reload',
-					role: 'forceReload',
-				}),
-				fakeMenuItem({ role: 'togglefullscreen' }),
-			]),
-		});
-		const windowRoot = fakeMenuItem({
-			role: 'windowMenu',
-			submenu: fakeMenu([fakeMenuItem({ role: 'minimize' }), fakeMenuItem({ role: 'zoom' })]),
-		});
-		const previousMenu = fakeMenu([appRoot, viewRoot, windowRoot]);
+	it('labels every menu and item in the interface language', () => {
+		for (const platform of ['darwin', 'win32'] as const) {
+			const menuApi = createMenuApi(null);
+			installDesktopApplicationMenu(
+				{
+					...createActions(),
+					background: {
+						getQuitAllAvailability: () => enabledAvailability(),
+						getReopenAvailability: () => enabledAvailability(),
+						invokeQuitAll: vi.fn<() => void>(),
+						invokeReopen: vi.fn<() => void>(),
+					},
+					saveDiagnosticBundle: {
+						getAvailability: () => enabledAvailability(),
+						invoke: vi.fn<() => boolean>(() => true),
+					},
+				},
+				{ applicationName: 'Orchbee Test', intl: createOrchbeeIntl('zh-CN') },
+				platform,
+				menuApi,
+			);
+
+			const roots = menuApi.setApplicationMenu.mock.calls[0]?.[0]?.items ?? [];
+			// The macOS application menu is titled with the application's name.
+			const [applicationMenu, ...otherRoots] = roots;
+			const labels =
+				platform === 'darwin'
+					? [...menuLabels(applicationMenu?.submenu?.items ?? []), ...menuLabels(otherRoots)]
+					: menuLabels(roots);
+			expect(labels.length).toBeGreaterThan(roots.length);
+			expect(labels.filter((label) => !/\p{Script=Han}/u.test(label))).toEqual([]);
+		}
+	});
+
+	it('composes checked window and macOS security actions and restores the previous menu', () => {
+		const previousMenu = fakeMenu([]);
 		const actions = createActions();
 		const menuApi = createMenuApi(previousMenu);
 
-		const installation = installDesktopApplicationMenu(actions, labels, 'darwin', menuApi);
+		const installation = installDesktopApplicationMenu(actions, englishText, 'darwin', menuApi);
 		const installedMenu = menuApi.setApplicationMenu.mock.calls[0]?.[0];
 		const secureItem = installedMenu?.getMenuItemById(ITEM_IDS.secureKeyboardEntry);
 		const fullScreenItem = installedMenu?.getMenuItemById(ITEM_IDS.toggleFullScreen);
 		const maximizedItem = installedMenu?.getMenuItemById(ITEM_IDS.toggleMaximized);
-		expect(secureItem?.label).toBe('Secure Keyboard Entry');
-		expect(installedMenu?.items[0]?.submenu?.items.map((item) => item.role ?? item.id)).toEqual([
-			'about',
-			ITEM_IDS.secureKeyboardEntry,
-		]);
 		expect(fullScreenItem?.accelerator).toBe('Control+Command+F');
-		expect(installedMenu?.getMenuItemById(ITEM_IDS.reload)).toMatchObject({
-			accelerator: 'CommandOrControl+R',
-			registerAccelerator: false,
-			role: 'reload',
-		});
-		expect(installedMenu?.getMenuItemById(ITEM_IDS.forceReload)).toMatchObject({
-			accelerator: 'CommandOrControl+Shift+R',
-			registerAccelerator: false,
-			role: 'forceReload',
-		});
+		// Workbench resolves these keys first; the native items stay clickable.
+		for (const [id, role] of [
+			[ITEM_IDS.reload, 'reload'],
+			[ITEM_IDS.forceReload, 'forceReload'],
+			[ITEM_IDS.closeWindow, 'close'],
+		] as const) {
+			expect(installedMenu?.getMenuItemById(id)).toMatchObject({
+				registerAccelerator: false,
+				role,
+			});
+		}
 		secureItem?.click({ triggeredByAccelerator: false }, undefined, undefined);
 		fullScreenItem?.click({ triggeredByAccelerator: true }, undefined, undefined);
 		maximizedItem?.click({ triggeredByAccelerator: false }, undefined, undefined);
@@ -91,48 +96,12 @@ describe('installDesktopApplicationMenu', () => {
 		expect(menuApi.setApplicationMenu).toHaveBeenLastCalledWith(previousMenu);
 	});
 
-	it('keeps macOS Close Window clickable without registering its Workbench-owned accelerator', () => {
-		const nativeCloseItem = fakeMenuItem({
-			accelerator: 'CommandOrControl+W',
-			label: 'Close Window',
-			role: 'close',
-		});
-		const previousMenu = fakeMenu([
-			fakeMenuItem({
-				role: 'fileMenu',
-				submenu: fakeMenu([nativeCloseItem]),
-			}),
-		]);
-		const menuApi = createMenuApi(previousMenu);
-
-		const installation = installDesktopApplicationMenu(createActions(), labels, 'darwin', menuApi);
-		const installedMenu = menuApi.setApplicationMenu.mock.calls[0]?.[0];
-
-		expect(installedMenu?.getMenuItemById(ITEM_IDS.closeWindow)).toMatchObject({
-			accelerator: 'CommandOrControl+W',
-			label: 'Close Window',
-			registerAccelerator: false,
-			role: 'close',
-		});
-		expect(nativeCloseItem.registerAccelerator).toBe(true);
-
-		installation.dispose();
-		expect(menuApi.setApplicationMenu).toHaveBeenLastCalledWith(previousMenu);
-	});
-
 	it('omits Secure Keyboard Entry outside macOS', () => {
 		const actions = createActions();
 		const menuApi = createMenuApi(null);
 
-		installDesktopApplicationMenu(actions, labels, 'linux', menuApi);
+		installDesktopApplicationMenu(actions, englishText, 'linux', menuApi);
 
-		const firstTemplate = menuApi.buildFromTemplate.mock.calls[0]?.[0];
-		expect(firstTemplate).toEqual([
-			{ role: 'fileMenu' },
-			{ role: 'editMenu' },
-			{ role: 'viewMenu' },
-			{ role: 'windowMenu' },
-		]);
 		const installedMenu = menuApi.setApplicationMenu.mock.calls[0]?.[0];
 		expect(installedMenu?.getMenuItemById(ITEM_IDS.secureKeyboardEntry)).toBeNull();
 		expect(actions.getSecureKeyboardEntryAvailability).not.toHaveBeenCalled();
@@ -181,6 +150,14 @@ function createMenuApi(applicationMenu: Menu | null) {
 
 function enabledAvailability(): ActionAvailability {
 	return { checked: false, kind: 'enabled' };
+}
+
+/** Every label a menu shows, its submenus' included; separators show none. */
+function menuLabels(items: readonly MenuItem[]): string[] {
+	return items.flatMap((item) => [
+		...(item.type === 'separator' ? [] : [item.label]),
+		...menuLabels(item.submenu?.items ?? []),
+	]);
 }
 
 function fakeMenu(items: MenuItem[]): Menu {

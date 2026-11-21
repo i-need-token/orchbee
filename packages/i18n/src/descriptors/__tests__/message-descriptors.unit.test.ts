@@ -6,6 +6,7 @@ import { agentObservationMessages } from '../agent-observation';
 import { applicationRoutingMessages } from '../application-routing';
 
 import { desktopDiagnosticsMessages } from '../desktop-diagnostics';
+import { desktopMenuMessages } from '../desktop-menu';
 import { desktopSecureKeyboardEntryMessages } from '../desktop-secure-keyboard-entry';
 import { desktopTrayMessages } from '../desktop-tray';
 
@@ -25,6 +26,7 @@ const descriptorCollections: readonly (readonly [
 	['application routing', applicationRoutingMessages],
 
 	['Desktop diagnostics', desktopDiagnosticsMessages],
+	['Desktop menu', desktopMenuMessages],
 	['Desktop Secure Keyboard Entry', desktopSecureKeyboardEntryMessages],
 	['Desktop tray', desktopTrayMessages],
 

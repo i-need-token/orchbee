@@ -8,8 +8,6 @@ import path from 'node:path';
 import {
 	createOrchbeeIntl,
 	desktopDiagnosticsMessages,
-	desktopSecureKeyboardEntryMessages,
-	desktopTrayMessages,
 	desktopWindowMessages,
 	resolveOrchbeeLocale,
 } from '@orchbee/i18n';
@@ -461,9 +459,6 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 								() => void application.openWindow().catch(() => undefined),
 								undefined,
 							),
-							quitAllLabel: intl.formatMessage(desktopTrayMessages.quitAll),
-							quitKeepRunningLabel: intl.formatMessage(desktopTrayMessages.quitKeepRunning),
-							reopenLabel: intl.formatMessage(desktopTrayMessages.open),
 						},
 			getSecureKeyboardEntryAvailability: () => secureKeyboardEntryActions.getToggleAvailability(),
 			getToggleFullScreenAvailability: () => windowActions.getToggleFullScreenAvailability(),
@@ -481,19 +476,11 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 				false,
 			),
 			saveDiagnosticBundle: {
-				categoryLabel: intl.formatMessage(desktopDiagnosticsMessages.category),
 				getAvailability: () => diagnosticsActions.getSaveBundleAvailability(),
 				invoke: menuListener((source) => diagnosticsActions.invokeSaveBundle(source), false),
-				label: intl.formatMessage(desktopDiagnosticsMessages.saveBundle),
 			},
 		},
-		{
-			secureKeyboardEntry: intl.formatMessage(desktopSecureKeyboardEntryMessages.toggle),
-			securityCategory: intl.formatMessage(desktopSecureKeyboardEntryMessages.category),
-			toggleFullScreen: intl.formatMessage(desktopWindowMessages.toggleFullScreen),
-			toggleMaximized: intl.formatMessage(desktopWindowMessages.toggleMaximized),
-			windowCategory: intl.formatMessage(desktopWindowMessages.category),
-		},
+		{ applicationName: distribution.applicationName, intl },
 		process.platform,
 	);
 	return () => {

@@ -88,6 +88,17 @@ A person who uses Windows Terminal, iTerm2, Ghostty or the VS Code terminal ever
 
 A grey row says why only when the fix is not obvious, in one form each: **Terminal disconnected** (终端已断开), **Not in a Git repository** (不在 Git 仓库里), and **Select text first** (请先选中文本). Every other disabled row is simply grey, with no reason and no short form.
 
+## Desktop menu bar
+
+The menu bar's titles use the platform's own words, on macOS Apple's; its items use the product's term where one exists and the platform's word otherwise.
+
+| Concept                              | `en-US` | `zh-CN` | Avoid in the menu bar |
+| ------------------------------------ | ------- | ------- | --------------------- |
+| Menu of reload, zoom and full screen | View    | 显示    | 视图、查看            |
+| Item that copies the selection       | Copy    | 复制    | 拷贝                  |
+
+The Action category **View** keeps 视图 outside the menu bar.
+
 ## Status sentences
 
 A notice says one of three things, the same way in both clients:

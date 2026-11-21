@@ -3,6 +3,7 @@ export {
 	enUSAgentObservationMessages,
 	enUSAgentStartMessages,
 	enUSDesktopDiagnosticsMessages,
+	enUSDesktopMenuMessages,
 	enUSDesktopSecureKeyboardEntryMessages,
 	enUSDesktopTrayMessages,
 	enUSDesktopWindowMessages,

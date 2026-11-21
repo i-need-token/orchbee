@@ -9,6 +9,7 @@ import { enUSAgentObservationMessages } from './agent-observation';
 import { enUSAgentStartMessages } from './agent-start';
 
 import { enUSDesktopDiagnosticsMessages } from './desktop-diagnostics';
+import { enUSDesktopMenuMessages } from './desktop-menu';
 import { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 import { enUSDesktopTrayMessages } from './desktop-tray';
 
@@ -32,6 +33,7 @@ export const enUSMessages = {
 	...enUSAgentStartMessages,
 
 	...enUSDesktopDiagnosticsMessages,
+	...enUSDesktopMenuMessages,
 	...enUSDesktopSecureKeyboardEntryMessages,
 	...enUSDesktopTrayMessages,
 

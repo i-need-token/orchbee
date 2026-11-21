@@ -3,6 +3,7 @@ export { agentObservationMessages } from './agent-observation';
 export { agentStartMessages } from './agent-start';
 
 export { desktopDiagnosticsMessages } from './desktop-diagnostics';
+export { desktopMenuMessages } from './desktop-menu';
 export { desktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 export { desktopTrayMessages } from './desktop-tray';
 
