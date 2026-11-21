@@ -213,8 +213,24 @@ const StepReader = struct {
 
     /// The next read stays blocked: a pause stands for none of it.
     fn expectBlocked(self: *StepReader) !void {
+        // A Windows pause cancels only a read already started, and a read started after it in
+        // `through_pause` mode reads through it, with no output ever coming. A sleep alone lets a
+        // slowly scheduled reader start late, so the test waits for the start the PTY counts.
+        if (builtin.os.tag == .windows) try self.awaitStartedRead();
         monotonic.sleep(20 * std.time.ns_per_ms);
         try std.testing.expect(self.pending());
+    }
+
+    fn awaitStartedRead(self: *StepReader) !void {
+        const timer = try monotonic.Timer.start();
+        while (true) {
+            self.pty.read_mutex.lock();
+            const started = self.pty.read_active;
+            self.pty.read_mutex.unlock();
+            if (started) return;
+            if (timer.read() >= 10 * std.time.ns_per_s) return error.ReadDidNotStart;
+            monotonic.sleep(std.time.ns_per_ms);
+        }
     }
 };
 
