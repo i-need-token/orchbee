@@ -599,10 +599,15 @@ const localRuntimeBoundaries = {
 			cfg: 'target_os = "macos"',
 			reason: 'reviewed posix_spawn attributes, file actions and child waits are isolated here',
 		},
+		{
+			module: 'host_capacity_native',
+			cfg: 'target_os = "macos"',
+			reason: 'reviewed Mach host statistics and sysctl reads are isolated here',
+		},
 	],
 };
 
-test('the Rust lint gate admits one package with a private boundary per platform', () => {
+test('the Rust lint gate admits one package with several private boundaries on two platforms', () => {
 	withFixture((root) => {
 		admitUnsafeBoundaries(root, localRuntimeBoundaries);
 		const result = runTask(root, 'lint');

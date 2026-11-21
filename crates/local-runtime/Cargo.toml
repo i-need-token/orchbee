@@ -25,8 +25,8 @@ sha2.workspace = true
 [build-dependencies]
 sha2.workspace = true
 
-# Only the private Windows standard-rights and macOS retained-spawn adapters admit
-# reviewed FFI. The Rust runner pins these exceptions and keeps the remaining
+# Only the private Windows standard-rights, macOS retained-spawn and macOS host-capacity
+# adapters admit reviewed FFI. The Rust runner pins these exceptions and keeps the remaining
 # sources and tests denied.
 [lints.rust]
 unsafe_code = "deny"

@@ -18,6 +18,7 @@ This crate owns admitted shared capabilities and stable runtime lifecycle contra
 | `data_root`, `user_settings`, `plugins`, `user_path`                       | Server configuration and the Client's minimal `config.toml` reads (activation, release channel and `config check`) share the bounded settings schema; plugins and paths also serve Worker execution, and Windows path grammar stays explicit on every host. |
 | `command`, `command_outcome`, `command_child`, `directory`                 | Client commands/provisioning, Server restart and Worker commands/directory observations share encoding, outcomes and process settlement contracts.                                                                                                          |
 | `private_cache`, `private_filesystem`, `release_store`, `host_appearance`  | Runtime storage, CLI release storage and Server frame reads share exact handle admission; the Client's release commands and Session start share one store reader; Client and Worker share read-only Windows theme observation.                              |
+| `host_capacity`                                                            | The machine hub and the remote machine's link helper read the same free processor share, memory and disk; the sampling policy stays with them.                                                                                                              |
 
 ## Shared types and platform effects
 
@@ -260,6 +261,37 @@ environment and exit status; and checks that a missing executable starts nothing
 test starts a command with its own streams while such a descriptor is open, and checks that the
 command sees no other descriptor and leads its own group. An unmasked command is checked the same
 way, and a `DetachedChild` is checked to keep running after its drop and to report its status.
+
+## macOS host capacity
+
+Free memory is what programs can still get without paging: Windows' available physical memory,
+Linux's `MemAvailable`, and on macOS the free and inactive pages, which `vm_stat` prints as
+`Pages free`, `Pages speculative` and `Pages inactive`; macOS reports no single equivalent figure.
+
+macOS has no safe interface for its processor ticks and page counts, so they come from the private
+`src/host_capacity_native.rs` adapter, this crate's third authored unsafe boundary. It holds three
+calls, `host_statistics` with `HOST_CPU_LOAD_INFO`, `host_statistics64` with `HOST_VM_INFO64`, and
+`sysctlbyname` for `hw.memsize` and `vm.pagesize`, plus the `mach_host_self` they need, declared
+locally because the libc crate deprecates its declaration. It returns plain numbers or `None`, and
+no failure panics.
+
+- **Host port.** `mach_host_self` runs once per process and its send right is kept until the
+  process ends, when the kernel releases it with the task. Each call would add a user reference,
+  so taking it once holds exactly one and nothing is deallocated. A null port is refused.
+- **Counts.** Each host call gets a zeroed buffer of the libc structure and an in/out count equal to
+  that structure's size in `integer_t` units: 4 for `host_cpu_load_info`, `HOST_VM_INFO64_COUNT`
+  for `vm_statistics64`. The CPU reading is used only when the kernel wrote exactly 4 integers. A
+  kernel older than the libc declaration writes its own, shorter revision of `vm_statistics64`, so
+  the page reading is used only when the written count covers `free_count` and `inactive_count`,
+  located with `offset_of!`, and does not exceed the buffer; nothing past the written count is
+  read, and the zeroed buffer makes every bit pattern a valid value.
+- **Sysctl.** `sysctlbyname` gets the NUL-terminated name, an 8-byte buffer with its length, and no
+  new value; the kernel refuses a value that does not fit. Only a written length of 4 or 8 bytes is
+  read, as a native-endian integer. `vm.pagesize` is the kernel's page size, the unit of the page
+  counts; a process translated by Rosetta sees its own 4096-byte page in `hw.pagesize` on a
+  16384-byte kernel. A page size that is not a power of two of at least 4096 bytes yields `None`.
+- **Wrapping.** The processor ticks are 32-bit counters; the free share takes their difference
+  modulo 2³², exact while fewer than 2³² ticks pass between two readings.
 
 ## Data root
 

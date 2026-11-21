@@ -123,6 +123,13 @@ pub use diagnostic_log::{
 mod destructive_log;
 pub use data_root::{create_private_directory, prepare_default_runtime_base};
 pub use destructive_log::{DESTRUCTIVE_LOG_ROTATION_BYTES, append_destructive_request};
+pub mod host_capacity;
+#[cfg(target_os = "macos")]
+#[allow(
+    unsafe_code,
+    reason = "reviewed Mach host statistics and sysctl reads are isolated here"
+)]
+mod host_capacity_native;
 #[cfg(target_os = "macos")]
 #[allow(
     unsafe_code,
