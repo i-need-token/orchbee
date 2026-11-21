@@ -1,0 +1,24 @@
+● Creating nested directories and a file with a long name
+  ⎿  $ mkdir -p
+     aab-long/one/two/three/four/five/six/seven/eight/nine/ten/eleven/twelve &&
+     touch aab-long/one/two/three/four/five/six/seven/eight/nine/ten/eleven/twel
+     ve/a-file-with-a-really-long-name-to-force-wrapping.txt
+
+────────────────────────────────────────────────────────────────────────────────
+ Bash command
+ Tip: auto mode handles these prompts for you — choose "switch to auto mode"
+ below
+ Create nested directories and a file with a long name
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ │ mkdir -p
+ │ aab-long/one/two/three/four/five/six/seven/eight/nine/ten/eleven/twelve &&
+ │ touch aab-long/one/two/three/four/five/six/seven/eight/nine/ten/eleven/twelv
+ │ e/a-file-with-a-really-long-name-to-force-wrapping.txt
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. Yes, and don’t ask again for: mkdir *
+   3. Yes, and switch to auto mode · auto mode handles these prompts for you
+   4. No
+
+ Esc to cancel · Tab to amend

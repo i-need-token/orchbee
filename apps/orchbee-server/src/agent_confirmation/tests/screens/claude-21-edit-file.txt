@@ -1,0 +1,24 @@
+
+
+✻ Cooked for 5s · done 9:15 PM
+
+❯ Use the Edit tool to change hello to hello2 in aab-note.txt
+
+  Read 1 file
+
+● Update(aab-note.txt)
+
+────────────────────────────────────────────────────────────────────────────────
+ Edit file
+ aab-note.txt
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ 1 -hello
+ 1 +hello2
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Do you want to make this edit to aab-note.txt?
+ ❯ 1. Yes
+   2. Yes, and switch to accept edits (auto-approve file edits and common file
+      commands) for this session (shift+tab)
+   3. No
+
+ Esc to cancel · Tab to amend

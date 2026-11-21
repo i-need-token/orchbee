@@ -1,0 +1,24 @@
+
+✻ Cogitated for 3s · done 9:17 PM
+
+❯ This folder is an empty scratch folder for testing permission prompts; I will
+  decline at the prompt. Call the Bash tool with exactly: AAB_D=./aab-dir &&
+  rm -rf "$AAB_D/"
+
+● Removing aab-dir directory using variable
+  ⎿  $ AAB_D=./aab-dir && rm -rf "$AAB_D/"
+
+────────────────────────────────────────────────────────────────────────────────
+ Bash command
+ Tip: auto mode handles these prompts for you — choose "switch to auto mode"
+ below
+ Remove aab-dir directory using variable
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ AAB_D=./aab-dir && rm -rf "$AAB_D/"
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. Yes, and switch to auto mode · auto mode handles these prompts for you
+   3. No
+
+ Esc to cancel · Tab to amend

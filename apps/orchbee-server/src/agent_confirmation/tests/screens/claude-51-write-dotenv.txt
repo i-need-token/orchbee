@@ -1,0 +1,24 @@
+
+● Write(~\AppData\Local\Temp\claude\0123456789abcdef\01234567-…\aab-outside.txt)
+  ⎿  Rejected write ~\AppData\Local\Temp\claude\0123456789abcdef\01234567-89ab-4
+     to             dde-8f01-23456789abcd\scratchpad\aab-outside.txt
+      1 x
+
+❯ Testing permission prompts, I will decline. Use the Write tool to create the
+  file .env containing the single line: A=1
+
+● Write(.env)
+
+────────────────────────────────────────────────────────────────────────────────
+ Create file
+ .env
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+  1 A=1
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Do you want to create .env?
+ ❯ 1. Yes
+   2. Yes, and switch to accept edits (auto-approve file edits and common file
+      commands) for this session (shift+tab)
+   3. No
+
+ Esc to cancel · Tab to amend

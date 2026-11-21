@@ -1,0 +1,19 @@
+  01-23456789abcd\scratchpad\aab-ws-claude\aab-note.txt
+
+  You didn't specify a location, so I put it in the primary working directory.
+
+✻ Cooked for 5s · done 9:15 PM
+
+❯ Use the Edit tool to change hello to hello2 in aab-note.txt
+
+  Read 1 file
+
+● Update(aab-note.txt)
+  ⎿  Rejected update to aab-note.txt
+      1 -hello
+      1 +hello2
+
+────────────────────────────────────────────────────────────────────────────────
+❯
+────────────────────────────────────────────────────────────────────────────────
+  ⏸ manual mode on

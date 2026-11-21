@@ -47,20 +47,20 @@ Chosen: the first cut adds no CLI command and no option beyond these.
 Orchbee sends exactly one key, the layout's verified accept key, and only when every rule below
 holds for the screen the key lands on.
 
-| Rule            | Contract                                                                                                                                                                                                                                            |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Turned on       | Automatic confirmation is on for this Agent run: for the run, or for its Agent type. Turning it off also stops a key that was already decided ([one step](#check-and-write-are-one-step))                                                           |
-| Same Agent      | Two process samples around the screen capture select the same Agent process, by process id, creation time and provider, and the Terminal Host finds that process among the terminal's processes when it prepares the key                            |
-| Exact layout    | A frame the Server captured for this decision matches one bundled layout of that Agent completely, from the dialog's first row to the last row of the screen. A state the Agent reports about itself never stands in for the capture                |
-| One-time accept | The highlighted row is the Agent's one-time accept. Orchbee never moves the highlight and never picks a row that says always, session, or do not ask again                                                                                          |
-| Readable        | The whole command, or the whole file path, is on screen and contains only plain characters                                                                                                                                                          |
-| Not marked      | The Agent shows no danger marker of its own                                                                                                                                                                                                         |
-| Passes check    | The command passes the [command check](#the-command-check); a file change passes the [path check](#file-changes)                                                                                                                                    |
-| Settled         | The same prompt has been observed, unchanged in its layout, its command or path, and its highlighted row, for at least one second across at least three captures                                                                                    |
-| Person is away  | No person typed or clicked in this terminal at or after the revision at which the prompt was first seen, and none in the three seconds before the key. The Terminal Host owns both facts                                                            |
-| Once            | No key was written for this prompt before. A send whose outcome is unknown counts as written; a key the Host refused does not                                                                                                                       |
-| Still the same  | The Terminal Host writes the key only if the screen is still the one the rules read, in the same step as the write ([one step](#check-and-write-are-one-step))                                                                                      |
-| Not repeating   | The same prompt has not come back unchanged after three presses in this Agent run, counting written and unknown sends. The fourth time Orchbee stops pressing for the run, says so once, and the row's menu shows it off; the person may turn it on |
+| Rule            | Contract                                                                                                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Turned on       | Automatic confirmation is on for this Agent run: for the run, or for its Agent type. Turning it off also stops a key that was already decided ([one step](#check-and-write-are-one-step))                                                  |
+| Same Agent      | Two process samples around the screen capture select the same Agent process, by process id, creation time and provider, and the Terminal Host finds that process among the terminal's processes when it prepares the key                   |
+| Exact layout    | A frame the Server captured for this decision matches one bundled layout of that Agent completely, from the dialog's first row to the last row of the screen. A state the Agent reports about itself never stands in for the capture       |
+| One-time accept | The highlighted row is the Agent's one-time accept. Orchbee never moves the highlight and never picks a row that says always, session, or do not ask again                                                                                 |
+| Readable        | The whole command, or the whole file path, is on screen and contains only plain characters                                                                                                                                                 |
+| Not marked      | The Agent shows no danger marker of its own                                                                                                                                                                                                |
+| Passes check    | The command passes the [command check](#the-command-check); a file change passes the [path check](#file-changes)                                                                                                                           |
+| Settled         | The same prompt has been observed, unchanged in its layout, its command or path, and its highlighted row, for at least one second across at least three captures                                                                           |
+| Person is away  | No person typed or clicked in this terminal at or after the revision at which the prompt was first seen, and none in the three seconds before the key. The Terminal Host owns both facts                                                   |
+| Once            | No key was written for this prompt before. A send whose outcome is unknown counts as written; a key the Host refused does not                                                                                                              |
+| Still the same  | The Terminal Host writes the key only if the screen is still the one the rules read, in the same step as the write ([one step](#check-and-write-are-one-step))                                                                             |
+| Not repeating   | The same prompt has not come back unchanged after three presses in a row, counting written and unknown sends. The fourth time Orchbee stops pressing for the run, says so once, and the row's menu shows it off; the person may turn it on |
 
 Any rule that does not hold means the prompt waits for the person, exactly as today. A layout that
 does not match, a command that is only partly visible or paged, a command shape the check cannot
@@ -93,7 +93,9 @@ its refusal codes as `ScreenGatedKeyInput`, the
 Host keeps them, and the
 [Worker send transaction](../../apps/orchbee-worker/docs/worker-send-transaction.md#screen-gated-refinement)
 owns how a Server send carries the key and the hold; what follows states the design and its
-reasons. No Server path builds such a send yet.
+reasons. The Server's rules are built too: its
+[confirmation reference](../../apps/orchbee-server/docs/agent-confirmation.md) owns how a dialog is read, which commands and paths wait, and what a
+run remembers. No Server path calls those rules or builds such a send yet.
 
 The message names the key, the frame the Server matched by its generation and content revision,
 the revision of the frame in which the Server first saw this prompt, and the Agent process by its
@@ -208,106 +210,42 @@ an Agent that keeps them:
 
 ## Layouts
 
-Chosen. A layout describes one confirmation dialog of one Agent as that Agent draws it. Layouts
-live beside the detection manifests, in `apps/orchbee-server/resources/agent-confirmation/`, and
-are compiled into the Server. Unlike detection manifests they are never read from a local override
-or a downloaded catalog: a rule that can press a key ships only inside a signed release.
+Chosen and built. A layout describes one confirmation dialog of one Agent as that Agent draws it,
+as one anchored pattern from the dialog's top border to the last row of the screen; whatever the
+pattern does not describe is a mismatch. The [Server reference](../../apps/orchbee-server/docs/agent-confirmation.md#layouts) owns the format, the
+bounds and the admission rule.
 
-- A layout is one anchored pattern over the dialog region: from the Agent's own top border of the
-  dialog to the last row of the screen. It names the dialog kind (command, file create, file
-  edit), the captured command or path, the row that must carry the highlight, and the accept key.
-- Everything the pattern does not describe is a mismatch. Extra rows, a missing footer, another
-  highlighted row, a pager hint, a truncation mark, and a danger marker all fail the match.
-- Text the Agent takes from the model, such as the command, sits in the dialog's indented body.
-  The Agent's own chrome starts in a column that body text cannot reach, so a command cannot draw
-  a fake border or option row. Captured text that contains a control character, a box-drawing or
-  block character, an invisible or direction-changing character, or one of the Agent's chrome
-  glyphs waits.
+- Layouts are compiled into the Server and never read from a local override or a downloaded
+  catalog: a rule that can press a key ships only inside a signed release.
 - Layouts are matched exactly and not pinned to Agent versions (Decided as announced). Evidence
-  for each layout is a set of screens captured from the real Agent, kept as test fixtures with the
-  Agent version they came from.
-- A prompt's identity is its layout, its captured command or path, and its highlighted row. Parts
-  an Agent animates are matched but are not identity.
+  for each layout is a set of screens captured from the real Agent, kept as test fixtures.
 
 ## The command check
 
 The check is the only guard for Codex, OpenCode and Gemini CLI, which mark nothing as dangerous.
 It is also needed for Claude Code: its captured `rm -rf` confirmations carried no danger marker.
-The check reads text an Agent controls, so it is a trust boundary: it is a pure function with no
-I/O, bounded input, and no panic path, and anything it cannot read is a hold.
+The check reads text an Agent controls, so it is a trust boundary.
 
 Decided: the check is a list of what must wait, not a list of what may run. A command word it does
-not list is routine; a list of allowed commands would hold nearly every real command.
+not list is routine; a list of allowed commands would hold nearly every real command. A command
+word or a listed program's argument that hides behind a quote, a backtick, a caret, a backslash or
+a variable waits, and so does every shape whose reading differs between shells.
 
-The check never resolves quoting, escapes, or expansion, so it never has to agree with a shell
-about them. It reads the text the same way for POSIX shells, PowerShell and `cmd`:
+The [Server reference](../../apps/orchbee-server/docs/agent-confirmation.md#command-check) owns the rules as built, the fixture every spelling is a
+row of, and the list of what the check can never catch. Chosen beyond the first draft of this page,
+each stricter than it: `pwsh`, `powershell` and `cmd` wait in every form, not only with inline
+code; every `git push`, `git checkout` and `git restore` waits; a delete with a pattern waits; and
+a Windows switch such as `/s` waits like a path outside the Workspace.
 
-1. **Characters.** Only printable ASCII and letters or digits of other scripts pass.
-2. **Line breaks.** A dialog wraps long commands, so a line break on screen may be a wrap inside a
-   word, a wrap at a space, or a real new line that starts another command. Every reading of every
-   break is checked, and one failing reading holds the command. More than five breaks hold.
-3. **Structure.** The text is split into simple commands at `;`, `&&`, `||`, `|`, `&` and new
-   lines wherever they appear, inside quotes too, and each simple command into words at spaces.
-   Command substitution, process substitution, a here-document, a trailing line continuation and
-   an unclosed quote hold.
-4. **Command words.** A command word that contains a quote, a backtick, a caret, a backslash or a
-   variable holds: the check cannot say which program it names. A leading assignment such as
-   `FOO=1` holds too.
-5. **Code given inline** holds: a shell or interpreter with its inline-code option (`sh`, `bash`,
-   `zsh`, `dash` or `fish` with `-c`; `pwsh` or `powershell` with `-Command`, `-EncodedCommand`,
-   `-File` or any abbreviation of them; `cmd` with `/c` or `/k`; `python`, `python3` or `py` with
-   `-c`; `node` with `-e` or `-p`; `perl -e`, `ruby -e`, `php -r`), `Invoke-Expression`, `iex`,
-   `eval`, `source`, `.`, `xargs`, `wsl` and `ssh`. A word that runs another command holds as
-   well: `env`, `nohup`, `time`, `timeout`, `nice`, `command`, `exec`, `builtin`, `start`, and
-   `find` with `-delete`, `-exec`, `-execdir` or `-ok`.
-6. **Destructive families** hold: recursive or forced delete, disk overwrite or format,
-   `git reset --hard`, `git clean`, a forced push, branch or tag deletion, discarding changes,
-   `sudo` and other elevation, piping a download into a shell, `DROP` and `TRUNCATE`, recursive
-   permission or owner changes, stopping processes, registry or system changes, and well-known
-   tools' own destructive or outward subcommands, such as `docker rm`, `kubectl delete`,
-   `terraform destroy`, `gh repo delete`, `aws s3 rm` and `npm publish`. A family names a command
-   word and the subcommands and options that make it destructive, wherever they stand, so
-   `git -C dir reset --hard` holds. In a family's command, a quote, a caret and a backslash are
-   removed from each word before it is compared, so `git "reset" --hard` and `de^l /s` hold while
-   `git commit -m "fix"` and `git add src\main.rs` pass. A word with a backtick or a variable
-   holds, because those can spell a character the check would not see.
-7. **Paths.** An argument or redirection target that names a place outside the Workspace, a
-   protected file, a home or variable form such as `~`, `$HOME` or `%USERPROFILE%`, or a `..` step
-   holds. The null device is the one exception. Creating a link holds.
-
-Every spelling the families and rule 5 cover is a row of one fixture beside the check: a command,
-its shell, and whether it waits. The fixture holds the aliases (`ri`, `rd`, `rmdir`, `del`,
-`erase`, `iex`), abbreviated and bundled options, option-before-subcommand forms, and the quoted
-and escaped spellings above. The check must agree with every row, and a new spelling is added as
-a row first.
-
-What the check can never catch, which product copy must not claim otherwise:
-
-- A script, Makefile target, package script, or test the Agent wrote or changed and then runs.
-- An alias, shell function, or program that deletes or overwrites by itself, and a destructive
-  command of a tool the fixture does not list.
-- A command that reaches outside the Workspace through a link that already exists, or through the
-  shell's current directory after an earlier `cd`.
-- An Agent that draws a command other than the one it runs.
-
-So the feature is described as "answers routine confirmations" and "destructive commands always
-wait", never as making an Agent safe.
+Because of what the check cannot catch, the feature is described as "answers routine
+confirmations" and "destructive commands always wait", never as making an Agent safe.
 
 ## File changes
 
-A file confirmation is allowed when its path stays inside the Workspace and is not protected.
-
-- The path is resolved by its spelling alone, in Windows and POSIX forms, against the working
-  directory of the Agent process from the same process sample, and compared with the Workspace's
-  directory. A Workspace without a directory, an Agent whose working directory cannot be read, and
-  a path only partly on screen hold.
-- Protected, wherever they are: anything under `.git`; `.env` and `.env.*`; an Agent's own
-  configuration and instruction files (`.claude`, `.codex`, `.gemini`, `.opencode`, `.hermes`,
-  `.mcp.json`, `opencode.json`, `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`); and shell start files
-  (`.bashrc`, `.bash_profile`, `.profile`, `.zshrc`, `.zprofile`, `.zshenv`, `config.fish`, and
-  PowerShell profiles).
-- The content of the change is not judged. A change to a file the Workspace then runs is the
-  first item of what the check cannot catch.
+A file confirmation is allowed when its path stays inside the Workspace and is not protected. The
+path is placed by its spelling alone, against the Workspace's directory and the working directory
+of the Agent process from the same process sample; the content of the change is not judged. The
+[Server reference](../../apps/orchbee-server/docs/agent-confirmation.md#path-rules) owns the path forms and the protected names.
 
 ## State and wire
 
@@ -315,7 +253,8 @@ The Server owns every decision. Clients offer, show, and configure.
 
 **Per Agent run (Server memory, never persisted).** The choice for the run, the count of offers,
 the current prompt (identity, first-seen revision, captures, whether a key was sent, whether the
-Host reported a person there), and the count of presses per identity. A run ends with its Agent
+Host reported a person there), and the count of presses of one prompt in a row. A run ends with
+its Agent
 process, so "this Agent only" ends there, and a Server restart forgets it, which fails closed.
 
 **Saved (user settings).** One Boolean per supported Agent type, `agents.auto_allow.<agent>`,
@@ -378,7 +317,9 @@ Both Clients use the same words. English and Simplified Chinese ship together.
 
 ## Slices
 
-Main is released often, so nothing a person can reach changes until slice 5.
+Main is released often, so nothing a person can reach changes until slice 5. Slices 4 and 5 land
+in one push: a saved setting that turns pressing on must never exist without both Clients showing
+it.
 
 | Slice | Content                                                                                                                            | Visible |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------- | ------- |
@@ -389,6 +330,10 @@ Main is released often, so nothing a person can reach changes until slice 5.
 | 4     | Settings keys, snapshot field, and the two requests, with schemas and bindings; no Client entry                                    | No      |
 | 5     | Both Clients together: offer, row menu, notices, hover reason, Settings, both locales. Claude Code only                            | Yes     |
 | 6–9   | Codex, OpenCode, Gemini CLI, Hermes Agent: layouts, captured screens, Settings switch, one merge each                              | Yes     |
+
+Hermes Agent waits for a product-owner decision. In its default configuration it asks nothing
+before a routine command; the only confirmation it draws is its own approval of a command it
+calls dangerous, which this design never answers.
 
 Each slice updates its owning reference in the same change: the Host runtime model and terminal
 protocol reference (1), the Worker send transaction (2), a new Server reference for confirmation
