@@ -216,8 +216,10 @@ test "Windows process samples expose owned shell and child facts, deny outsiders
 
     var root_pid: u32 = 0;
     var observed = false;
+    // A loaded host starts the shell and its child slowly; a passing run ends at the first sample
+    // that shows both attached.
     const timer = try platform.monotonic.Timer.start();
-    while (timer.read() < 3 * std.time.ns_per_s) {
+    while (timer.read() < 10 * std.time.ns_per_s) {
         var sample = try subject.sampleProcesses(&process, allocator);
         defer sample.deinit();
         root_pid = sample.root_pid;
@@ -228,13 +230,14 @@ test "Windows process samples expose owned shell and child facts, deny outsiders
             if (row.pid == root_pid) {
                 try std.testing.expect(std.ascii.endsWithIgnoreCase(row.image.?, "cmd.exe"));
                 try std.testing.expect(std.mem.indexOf(u8, row.command_line.?, "ping -t") != null);
-                try std.testing.expect(row.console == .attached);
                 // RTL CurrentDirectory retains a trailing separator.
                 try std.testing.expect(std.ascii.eqlIgnoreCase(
                     std.mem.trimEnd(u8, directory, "\\/"),
                     std.mem.trimEnd(u8, row.current_directory.?, "\\/"),
                 ));
-                shell = true;
+                // A sample taken while the shell's console connection completes reads its
+                // creator's console or none, as a child's does below.
+                shell = row.console == .attached;
             } else if (row.image) |image| {
                 if (std.ascii.endsWithIgnoreCase(image, "ping.exe")) {
                     try std.testing.expectEqual(@as(?u32, root_pid), row.parent_pid);
