@@ -236,25 +236,35 @@ incarnation and installed viewport, bounded to 4 KiB. The Client view binding ve
 Panel, Ready/Busy view and minimum revision; the shared corpus covers null, child, bounds and
 mismatched receipts. Existing Client selection and primary viewport shapes remain closed.
 
-`workbench-client-viewport-contract.ts` validates ordered batches of 1–16 unique Panel
-viewport observations, decimal uint64 positions, source identity/geometry and the offset
-equations. Unknown, pending and live/history states remain distinct; primary binding,
-request membership and Ready/Busy view constraints are checked before accepting a receipt.
-Snapshots are bounded to 12 KiB within the existing Client control frames. Shared corpus
-cases exercise both bindings and JSON Schema without introducing a Desktop runtime.
+`workbench-client-viewport-contract.ts` validates ordered batches of 1–16 unique Panel viewport
+observations, decimal uint64 positions, source identity/geometry and the offset equations. Unknown,
+pending and live/history states remain distinct; primary binding, request membership and Ready/Busy
+view constraints are checked before accepting a receipt. Snapshots are bounded to 12 KiB within the
+existing Client control frames.
 
 `workbench-client-view-contract.ts` independently binds the [Client view contract](../../schemas/workbench/README.md#ephemeral-client-view-control) with strict Zod shapes and semantic checks. The [shared corpus](../../schemas/workbench/v1/workbench-client-view-conformance-v1.json) is also consumed by Rust and JSON Schema witnesses. It does not place Client-local selection in canonical Workbench snapshots or expose a Desktop CLI command.
 
-`workbench-client-layout-contract.ts` validates bounded cell rectangles, nullable visibility/focus, unique split/slot/Panel identities, finite ratios, physical containment and independently recomputed directional neighbors. Client view validation ties a layout read to the exact target and minimum revision; selected observations also match the published Client view. The shared corpus covers valid inactive/hidden targets and rejected cross-field, bounds and reference violations.
+`workbench-client-layout-contract.ts` validates bounded cell rectangles, nullable visibility/focus,
+unique split/slot/Panel identities, finite ratios, physical containment and independently recomputed
+directional neighbors. Client view validation ties a layout read to the exact target and minimum
+revision; selected observations also match the published Client view.
 
-Directional control adds `focus-direction` intent and `direction-focused` / `direction-unchanged` receipts on ordinary frames 25/26. Focus success validates an exact destination distinct from the source and its observed view. No-neighbor validates the source layout revision while allowing an unrelated current context. The shared corpus covers closed shapes, revisions, target/intent mismatches and invalid directions.
+Directional control adds `focus-direction` intent and `direction-focused` / `direction-unchanged`
+receipts on ordinary frames 25/26. Focus success validates an exact destination distinct from the
+source and its observed view. No-neighbor validates the source layout revision while allowing an
+unrelated current context.
 
 No-neighbor `direction-unchanged` may retain a Busy view because it does not dismiss the current
 mode or navigate. Starting remains invalid and source revision fences still apply; successful
 `direction-focused` still requires a settled view. Panel and directional focus admission delegates
 cancellable-mode validation to the native Client before any exit effect.
 
-Split adjustment adds strict `resize` and `set-split-ratio` intents and `layout-adjusted` receipts on frames 25/26. Amounts are finite 0–0.5, ratios finite 0.1–0.9, and binary split paths contain at most 16 indices. The bindings independently validate target/revision/view relationships, distinct ordered slots, the exact setter value or clamped signed resize delta, and the resize-only no-split result. Ordinary Applied cannot acknowledge either intent. The shared corpus contains 64 valid and 115 invalid documents; structural JSON Schema checks supplement independent semantic validators. Runtime lifetime, draw ordering and inactive storage belong to the Windows layout owner.
+Split adjustment adds strict `resize` and `set-split-ratio` intents and `layout-adjusted` receipts
+on frames 25/26. Amounts are finite 0–0.5, ratios finite 0.1–0.9, and binary split paths contain at
+most 16 indices. The bindings independently validate target/revision/view relationships, distinct
+ordered slots, the exact setter value or clamped signed resize delta, and the resize-only no-split
+result. Ordinary Applied cannot acknowledge either intent. Runtime lifetime, draw ordering and
+inactive storage belong to the Windows layout owner.
 
 ## Panel custom labels
 
@@ -262,7 +272,11 @@ The [Panel label contract](../../apps/orchbee/docs/native-panel-labels.md) requi
 
 Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. The Windows CLI separately acknowledges source focus through the original Client; known canonical commits survive later failure or unknown focus. [Native Panel swap](../../apps/orchbee/docs/native-panel-swap.md) owns the workflow, receipt and evidence.
 
-`set-split-ratio` accepts optional `expectedSplit:{splitId,firstSlotId,secondSlotId}`. When present all three are required, ordered slots must differ, and explicit null is invalid. The Client compares exact identity before writing; `layout-adjusted` receipts must match all three. Omission retains ordinary path-setter behavior. Shared corpus cases cover replaced identities, missing fields and duplicate slots. This additive field requires a matched cohort and adds no Desktop CLI command.
+`set-split-ratio` accepts optional `expectedSplit:{splitId,firstSlotId,secondSlotId}`. When present
+all three are required, ordered slots must differ, and explicit null is invalid. The Client compares
+exact identity before writing; `layout-adjusted` receipts must match all three. Omission retains
+ordinary path-setter behavior. This additive field requires a matched cohort and adds no Desktop CLI
+command.
 
 ## Tab insertion boundary contract
 
@@ -270,16 +284,14 @@ Panel swap uses the shared structural placement authority for one atomic same-Ta
 the original direction `tab.move` contract is unchanged. `insertIndex` is an integer in 0..256 and
 denotes a zero-based boundary in the original order. After exact context/target and tree membership
 composition, the Server rejects a value above its current Tab count as
-`tab-move-index-out-of-bounds`. Source/source+1 boundaries are unchanged; the count boundary appends.
-Both direction and indexed movement preserve pin/group metadata. Exact placement that would break
-the pinned prefix or split a contiguous group returns retained `tab-move-order-conflict` without
-mutation, retirement or implicit regrouping; valid placements retain complete Tab records.
-It reuses `tab-moved` and `unchanged`, the shared revision, retained results and atomic commit owner,
-without terminal or focus effects. The request fingerprint includes the action kind and boundary.
-The corpus covers bounds, decimal integer normalization, missing/extra/conflicting fields and
-negative/fraction/string/boolean/null refusal. Matching experimental cohorts activate and roll back
-together; old strict decoders cannot mix, and no durable migration is added. Executable evidence
-belongs to the Server/native CLI tests; the TLA asset is not executed in this parity work.
+`tab-move-index-out-of-bounds`. Source/source+1 boundaries are unchanged; the count boundary
+appends. Both direction and indexed movement preserve pin/group metadata. Exact placement that would
+break the pinned prefix or split a contiguous group returns retained `tab-move-order-conflict`
+without mutation, retirement or implicit regrouping; valid placements retain complete Tab records.
+It reuses `tab-moved` and `unchanged`, the shared revision, retained results and atomic commit
+owner, without terminal or focus effects. The request fingerprint includes the action kind and
+boundary. Matching experimental cohorts activate and roll back together; old strict decoders cannot
+mix, and no durable migration is added.
 
 ## Automatic Tab naming
 
@@ -355,23 +367,25 @@ read-only. Mutations use explicit Session-lifetime operation IDs; repeated same-
 retained receipt and cross-kind reuse refuses. Update reports retain per-provider attempted/cached
 versions and failures, catalog/time and persistence facts; unknown effects never claim success.
 Maintenance `sourceUrl`/`sourceError` distinguish a configured catalog (URL, null error), a rejected
-configuration (null URL, `invalid-source`) and no configured catalog (both null).
-The shared `workbench-agent-manifests-conformance-v1.json` corpus covers accepted/refused shapes,
-nullable fields, numeric versions, sources, revisions, duplicates and cross-field consistency.
-Semantic byte/version and cross-field checks supplement JSON Schema. The Server screen model owns
-source selection, downloading, installation, cancellation and receipt limits.
+configuration (null URL, `invalid-source`) and no configured catalog (both null). Semantic
+byte/version and cross-field checks supplement JSON Schema. The Server screen model owns source
+selection, downloading, installation, cancellation and receipt limits.
 
 Optional `maintenance.automatic` exposes the configured check and provenance, background/release/availability gates, effective enabled state and one latest automatic operation. Required nullable `lastOperation` retains pending, updated, failed or unknown facts; reload-only Applied is refused. Rust/TypeScript validate gate consistency and default provenance. Automatic work never consumes manual receipt IDs; scheduling belongs to the Server.
 
-Both Panel carriers also admit `read-presentations` and `presentations-read` for exact primary or child report/metadata observations: four unique ordered Presentation IDs, empty revision fences, required owning `panel` rows, and shared Panel IDs across different members. Rust/TypeScript enforce payload invariants and metadata field-order ownership identically to primary reads. Existing primary read/write shapes remain unchanged. The shared corpora cover exact-member bounds, strict wrappers, same-Panel members and unbound payloads; native callers additionally correlate Presentation, Panel and binding. Ship the protocol with its Server and native TUI consumers as a matched cohort.
+Both Panel carriers also admit `read-presentations` and `presentations-read` for exact primary or
+child report/metadata observations: four unique ordered Presentation IDs, empty revision fences,
+required owning `panel` rows, and shared Panel IDs across different members. Rust/TypeScript enforce
+payload invariants and metadata field-order ownership identically to primary reads. Existing primary
+read/write shapes remain unchanged. Ship the protocol with its Server and native TUI consumers as a
+matched cohort.
 
 Both Panel carriers additionally admit closed `report-presentation` / `presentation-reported`
-variants with required Panel, Presentation and expected/actual binding identities. Legacy
-`report` / `reported` remain closed and primary-only. Shared Rust/TypeScript/JSON vectors cover
-exact requests/replies, required IDs and legacy rejection; native correlation also requires the
-exact requested member. The [Agent report target contract](../../apps/orchbee/docs/windows-panel-agent-reports.md#exact-member-targets)
-and [metadata target contract](../../apps/orchbee/docs/windows-panel-metadata.md#exact-member-targets)
-own runtime semantics, submission receipts and matched-cohort compatibility.
+variants with required Panel, Presentation and expected/actual binding identities. Legacy `report` /
+`reported` remain closed and primary-only. The [Agent report target
+contract](../../apps/orchbee/docs/windows-panel-agent-reports.md#exact-member-targets) and [metadata
+target contract](../../apps/orchbee/docs/windows-panel-metadata.md#exact-member-targets) own runtime
+semantics, submission receipts and matched-cohort compatibility.
 
 The exact Presentation selection also accepts the strict unbound alternative
 `{presentationId, selectionGeneration}` with a nonzero decimal uint64 generation. It carries no
@@ -385,9 +399,11 @@ no read allocates an epoch or viewer. Roll out this private extension with its m
 
 The exported plugin request/result schemas validate matched-cohort OBWP kinds 45/46, closed context/log shapes, UTF-8 byte bounds, process outcomes and Worker/sequence cursor consistency. Shared plugin conformance cases are checked against Rust and JSON Schema. [Native plugin behavior](../../apps/orchbee/docs/windows-plugins.md) owns execution authority, output limits and remaining integration.
 
-Plugin Panel selectors in launch options are closed, bounded catalog identities admitted only by Tab/split creation. Normalization preserves non-null selectors and removes null/absent values. The shared command corpus covers identity bounds, unknown execution fields and launch/profile conflicts; it does not imply support for every plugin placement.
+Plugin Panel selectors in launch options are closed, bounded catalog identities admitted only by
+Tab/split creation. Normalization preserves non-null selectors and removes null/absent values.
 
-The plugin contract also carries read-only Panel membership requests and exact revision/binding responses. The shared corpus rejects zero revisions, unbound members and qualified local entrypoint names.
+The plugin contract also carries read-only Panel membership requests and exact revision/binding
+responses.
 
 ## Workspace Git status reads
 
@@ -452,7 +468,14 @@ Web Settings lists as its rows.
 
 The closed plugin union additionally validates exact read-only `panel-observe`/`panel-observed` membership and boolean settlement. Client `overlay` intent pins created and return member identities, expected binding, required nullable return binding and prior zoom. Self-return identities and Applied without zoom/multiple leaves fail semantic validation. The shared Rust/JSON Schema corpus covers these additive shapes; runtime ownership stays with the [Windows native Client and Server](../../apps/orchbee/docs/windows-plugins.md#overlay-lifecycle-model), with no Desktop placement or mutation permission. Use a matched native cohort.
 
-Panel launch options additionally carry optional bounded `pluginContext` only with `pluginPanel` on Tab/split creation. The shared command corpus covers null normalization, unknown fields, UTF-8/total context bounds and unsupported creation kinds. Context is display data: the Server validates source membership, supplies canonical labels and fixes invocation source/correlation before freezing protected plugin environment. It never selects executable, launch directory or Worker authority. Omission preserves legacy admission. Rust redacts the context from launch Debug; TypeScript shares its context schema without a launch/plugin import cycle and preserves the existing plugin export. Runtime semantics and acceptance scope belong to [Pane launch source context](../../apps/orchbee/docs/windows-plugins.md#panel-launch-source-context).
+Panel launch options additionally carry optional bounded `pluginContext` only with `pluginPanel` on
+Tab/split creation. Context is display data: the Server validates source membership, supplies
+canonical labels and fixes invocation source/correlation before freezing protected plugin
+environment. It never selects executable, launch directory or Worker authority. Omission preserves
+legacy admission. Rust redacts the context from launch Debug; TypeScript shares its context schema
+without a launch/plugin import cycle and preserves the existing plugin export. Runtime semantics and
+acceptance scope belong to [Pane launch source
+context](../../apps/orchbee/docs/windows-plugins.md#panel-launch-source-context).
 
 Launch options also accept nullable `agentStart`, a canonical provider id from the closed startable Agent catalog, on `tab.create`, `panel.split` and `workspace.launch`. It is refused beside `pluginPanel` and on `panel.create-terminal`, and normalizes away when null. The Server resolves the command a new shell runs first; the field never carries command text. A Worktree Create intent accepts the same id as optional, non-nullable `agentStart` for its new Workspace's first shell, matching the Rust binding's refusal of explicit null.
 
@@ -462,7 +485,11 @@ The configured-command request/result binding and Client `command-popup-open` in
 
 ## Panel image binding
 
-The Panel graphics binding shares the closed image, layer, chunk and producer contracts with Rust. It checks encoded and decoded byte bounds, canonical base64, resource ordering, damage rectangles and full-width sequence strings. Metadata catalogs contain no pixels. Renderer capability and visibility fields are observations supplied by an actual Client; nullable fields do not imply a supported renderer. The shared graphics conformance corpus tests TypeScript, Rust and JSON Schema boundaries.
+The Panel graphics binding shares the closed image, layer, chunk and producer contracts with Rust.
+It checks encoded and decoded byte bounds, canonical base64, resource ordering, damage rectangles
+and full-width sequence strings. Metadata catalogs contain no pixels. Renderer capability and
+visibility fields are observations supplied by an actual Client; nullable fields do not imply a
+supported renderer.
 
 The semantic and command boundaries independently validate canonical split ratios and the identified `layout.set-split-ratio` CAS. Native [shared ratio behavior](../../apps/orchbee-server/docs/shared-split-ratios.md) owns commit, persistence and draw acknowledgement; Client geometry remains viewport-specific.
 
