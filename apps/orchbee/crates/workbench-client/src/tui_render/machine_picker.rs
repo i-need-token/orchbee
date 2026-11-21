@@ -1179,7 +1179,27 @@ impl Picker {
         }
         let mut field = Rect::new(inner.x, inner.y, inner.width, 1);
         let clear_label = locale.machine_picker_text("picker-clear-hint");
-        let clear_width = u16::try_from(display_width(clear_label) + 4).unwrap_or(u16::MAX);
+        // The control's own measure, so its last cell ends on the field's right edge in every
+        // form it takes.
+        let clear_width = action_rect(
+            frame.area(),
+            field,
+            ActionSpec::new(
+                clear_label,
+                ActionKind::Secondary,
+                ControlSurface::Overlay,
+                component_state(
+                    PointerPresentation::Rest,
+                    NavigationState::None,
+                    CurrentState::NotCurrent,
+                    CheckedState::Unchecked,
+                    Availability::Enabled,
+                    OperationState::Idle,
+                ),
+            ),
+            theme,
+        )
+        .map_or(u16::MAX, |measured| measured.width);
         if field.width > clear_width.saturating_add(16) {
             let area = Rect::new(field.right() - clear_width, field.y, clear_width, 1);
             if let Some(painted) = self.render_agent_action(

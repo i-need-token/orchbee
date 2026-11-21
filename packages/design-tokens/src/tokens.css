@@ -1019,7 +1019,11 @@
 	--ob-sys-color-action-primary-text: var(--ob-ref-color-neutral-900);
 	--ob-sys-color-action-secondary: var(--ob-ref-color-neutral-800);
 	--ob-sys-color-action-secondary-hover: var(--ob-ref-color-neutral-700);
-	--ob-sys-color-action-secondary-pressed: var(--ob-ref-color-neutral-600);
+	--ob-sys-color-action-secondary-pressed: color-mix(
+		in oklab,
+		var(--ob-ref-color-neutral-600) 61%,
+		var(--ob-ref-color-neutral-700)
+	);
 	--ob-sys-color-action-secondary-text: var(--ob-ref-color-neutral-50);
 	--ob-sys-color-action-disabled: var(--ob-ref-color-neutral-800);
 	--ob-sys-color-action-disabled-text: var(--ob-ref-color-neutral-600);

@@ -13,6 +13,12 @@ interface ResolvedColor {
 /** The registry color that carries each color the native theme shares. */
 const SHARED_COLOR_TOKENS = new Map<string, string>([
 	['action', '--ob-sys-color-action-primary'],
+	['actionPrimary', '--ob-sys-color-action-primary'],
+	['actionPrimaryHover', '--ob-sys-color-action-primary-hover'],
+	['actionPrimaryPress', '--ob-sys-color-action-primary-pressed'],
+	['actionSecondary', '--ob-sys-color-action-secondary'],
+	['actionSecondaryHover', '--ob-sys-color-action-secondary-hover'],
+	['actionSecondaryPress', '--ob-sys-color-action-secondary-pressed'],
 	['agentAttention', '--ob-sys-color-status-attention'],
 	['agentDone', '--ob-sys-color-status-agent-done'],
 	['agentError', '--ob-sys-color-status-agent-error'],
@@ -232,6 +238,15 @@ function achromaticChannel(lightnessPercent: number): number {
 }
 
 function resolveColor(value: string, references: ReadonlyMap<string, string>): ResolvedColor {
+	// An opaque OKLab mix, such as a primary action's hover, resolves to its sRGB channels.
+	if (/^color-mix\(\s*in\s+oklab,/u.test(value)) {
+		const opaque = parseCssColor(value, references);
+		if (opaque.alpha !== 1) throw new Error(`Expected an opaque color: ${value}`);
+		const { r, g, b } = opaque.rgb;
+		return {
+			rgb: `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`,
+		};
+	}
 	const mix = /^color-mix\( ?in srgb, (?<color>\S+) (?<percent>\d+)%, transparent ?\)$/u.exec(
 		value,
 	)?.groups;

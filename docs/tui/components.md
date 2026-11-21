@@ -149,39 +149,59 @@ auxiliary-action slots required by any state that the component can enter.
 
 ## Action controls
 
-| Family        | Rest affordance                                                     | Use                                                                                                       |
-| ------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Button        | `[ Label ]`, with one blank cell inside each bracket                | A standalone commit, cancel, confirmation, or form action                                                 |
-| Inline action | A stable action glyph or formatted key followed by a localized verb | A command in a header, toolbar, action row, or footer where the group already communicates action context |
-| Row action    | The complete labeled row is the primary target                      | Opening, choosing, or activating the entity represented by a list or tree row                             |
-| Icon action   | A bracketed, width-stable glyph such as the close control           | A universally recognized action whose label cannot remain visible at the admitted geometry                |
+| Family        | Rest affordance                                                                                      | Use                                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Button        | A filled block with one blank cell on each side of the label; `[ Label ]` in monochrome and NO_COLOR | A standalone commit, cancel, confirmation, or form action                                                 |
+| Inline action | A stable action glyph or formatted key followed by a localized verb                                  | A command in a header, toolbar, action row, or footer where the group already communicates action context |
+| Row action    | The complete labeled row is the primary target                                                       | Opening, choosing, or activating the entity represented by a list or tree row                             |
+| Icon action   | A bracketed, width-stable glyph such as the close control                                            | A universally recognized action whose label cannot remain visible at the admitted geometry                |
 
 - A bare noun in ordinary text is not an action affordance. A quiet inline action remains
   recognizable at rest through its action glyph or displayed key and verb; hover is never its only
   action cue. Row overflow-menu triggers follow the collection rule below.
-- A button's brackets, inner padding, label, and reserved state slots form one painted and clickable
-  extent. The primary button in a decision context uses `accent-action` on its label at rest;
-  secondary buttons use `text-primary`. Resting brackets follow the label, except that a primary
-  button's use `text-primary`, so neither state looks like keyboard focus. Status roles never
-  distinguish primary, default, or destructive actions.
-- Outside a decision context, a persistent chrome button that announces a ready state the person
-  should act on, such as Update, may take the primary button treatment. A surface shows at most
-  one such button.
+- A button's padding, label, reserved state slots, and shortcut form one painted and clickable
+  extent. Where the terminal has color, a labeled button is a filled block with one blank cell on
+  each side of its label and no brackets. The primary button of a dialog, form, or prompt sets its label in
+  `text-inverse` on `surface-action-primary`; a secondary button sets `text-primary` on
+  `surface-action-secondary`, and a disabled button sets `text-disabled` on that ordinary fill.
+  Monochrome and NO_COLOR keep `[ Label ]` brackets with one blank cell inside each bracket. Status
+  roles never distinguish primary, default, or destructive actions.
+- The primary button is the one confirming action of a dialog, form, or prompt, and a surface shows
+  at most one. Standing chrome uses the ordinary fill, even for an action that announces a ready
+  state the person should act on, such as Update. A sidebar header or footer action and a tab
+  list's header action are standing chrome.
 - An explicitly destructive action may declare the shared destructive intent tone. Its label uses
-  `accent-destructive` independently of primary/secondary hierarchy; disabled content still uses
+  `accent-destructive` on the ordinary fill, independently of primary/secondary hierarchy; in a band
+  it takes the destructive hue. Disabled content still uses
   `text-disabled`. Row and button owners retain their ordinary hover, pressed, focus, and provisional
   tracks. They never construct a local warning color or borrow a status role for this intent.
-- A decision button keeps its owner-formatted shortcut inside the brackets, after two blank cells.
-  Shortcut text uses `text-secondary` and normal weight; terminal cells retain their host font size.
+- A decision button keeps its owner-formatted shortcut after two blank cells inside its block, or
+  inside its brackets in monochrome and NO_COLOR. Shortcut text uses `text-secondary` on the ordinary
+  fill, `text-inverse` on the primary fill, and `text-disabled` when disabled, always at normal
+  weight; terminal cells retain their host font size.
   It shares the button's complete fixed paint and hit extent and never creates a second action.
-- Buttons in a list's auxiliary-action slot use `text-secondary` at rest and inherit the row's
-  surface. Their own hover and press feedback remains local to the painted action extent, and
-  raises their label to `text-primary`.
-- The focused button shows keyboard focus on its brackets alone, in `accent-focus`, which
-  Monochrome underlines. No glyph marks a focused button, and a button group reserves no cell for
-  one. Pointer hover paints the full button extent with `surface-hover`; press uses
-  `surface-pressed` without erasing the focused brackets. An enabled button label takes `BOLD` only
-  while pressed.
+- Buttons in a list's auxiliary-action slot use the ordinary fill with `text-secondary` on the label
+  at rest. Their own hover and press feedback remains local to the painted action extent, and raises
+  the label to `text-primary`. Where there is no color, they keep their brackets and inherit the
+  row's surface.
+- A filled button owns its cells. On a row it keeps its fill or band over the row's hover, pressed,
+  and selection surfaces. A row that is itself the target of the button it holds shows pointer hover
+  and press on the button alone and takes no pointer surface of its own, so the two never merge.
+- A fill is never the surface beneath it. In a theme whose ordinary rest fill equals the surface a
+  button sits on, that button's ordinary fills move up one step: rest takes the hover fill, and
+  hover and press take the pressed fill.
+- Keyboard focus keeps a filled button's fill and label color and adds `BOLD` and `UNDERLINED` to
+  its label in every color mode. In monochrome and NO_COLOR the focused brackets keep the
+  `accent-focus` cue, which monochrome underlines. No glyph marks a focused button, and a button
+  group reserves no cell for one. Pointer hover uses the fill's own hover step; press uses its
+  pressed step. An enabled label takes `BOLD` while pressed, in every color mode.
+- Terminal-native and 16-color draw a filled button as a `REVERSED` band in the label's hue: the
+  primary band uses `accent-action`, a destructive band `accent-destructive`, a disabled band
+  `text-disabled`, and an ordinary band the host's own colors. Every cell of a band, its padding,
+  label, and shortcut alike, carries that one pair and the same modifiers, so the band shows one
+  background on a host that applies `DIM` before reverse video; a disabled band is dimmed whole, and
+  a shortcut is not dimmed inside a band. A band has no separate hover step, so the pointer adds no
+  feedback there beyond the press `BOLD`.
 - A dialog's action row ends at the right content edge with the primary button last, and one blank
   cell separates adjacent buttons. Initial focus follows
   [`overlays-and-status.md`](overlays-and-status.md#focus-and-pointer).

@@ -39,7 +39,8 @@ its localized content, typed token and `HitTarget`, availability reason, present
 and draw receipt. The shared module never imports a feature-specific state or token.
 
 Form and confirmation `ModalAction` values supply their effective bindings to `ActionSpec`'s
-optional shortcut slot. It measures and paints the subdued key inside the button brackets. Dialog
+optional shortcut slot. It measures and paints the subdued key inside the button's block, or inside its brackets where
+the theme has no color. Dialog
 footers carry only their right-aligned buttons; editing keys such as Backspace and Ctrl+u are
 conventions and never get a hint row, and only pickers keep a hint row. Settings adopts the same
 rule for Close, Back and its child decisions. The complete `[x]` paint also registers its exact
@@ -113,10 +114,11 @@ geometry agree without the caller knowing the tier. Hosts at least as wide as th
 plus that minimum (90 columns) are wide and show the sidebar by default; narrower hosts open it only
 as an explicitly requested overlay, or below 60 columns as the list screen.
 
-When directory input is supported, the sidebar fixes two action rows at the top: `[ New workspace ]` and
-`[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The first row starts at the sidebar's
+When directory input is supported, the sidebar fixes two action rows at the top: `New workspace` and
+`Search` as filled blocks, or `[ New workspace ]` and `[ Search ]` in monochrome and
+NO_COLOR (`新建工作区` and `搜索` in Chinese). The first row starts at the sidebar's
 top edge and ends with the [sidebar toggle](#sidebar-toggle-and-help), as the Settings row ends
-with Help. The bracketed action extent is
+with Help. The action extent is
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
 remain outside the scrolling navigation tree. Projects in their canonical
@@ -713,9 +715,8 @@ controls yet.
 ### Update control
 
 While the release store names a version newer than this Client active, `[ Update ]` (`[ 更新 ]`)
-ends the Settings row two blank cells before Help, as a primary button: its label in
-`accent-action` and its brackets in `text-primary`, the one
-[ready-state chrome button](../../../docs/tui/components.md#action-controls) the sidebar shows. It
+ends the Settings row two blank cells before Help, as an ordinary standing-chrome button: its label
+in `text-primary` on the ordinary fill, or `[ Update ]` brackets in monochrome and NO_COLOR. It
 invokes the Update Client Action through global chrome, as the action menu's Update row does. Its
 pointer tooltip is the effect line "Switch to Orchbee {version}. Terminals keep running."
 (`切换到 Orchbee {version}，终端继续运行。`). A development build never shows it. Each claim on the

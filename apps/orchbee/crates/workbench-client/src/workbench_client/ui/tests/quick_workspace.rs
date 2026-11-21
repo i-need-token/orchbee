@@ -835,7 +835,7 @@ fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
     let theme = crate::tui_theme::Theme::rgb_test_dark();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         // A host too small for the review creates nothing; Enter cannot accept unseen defaults.
-        for (width, height, drawn) in [(120, 40, true), (80, 24, true), (22, 8, false)] {
+        for (width, height, drawn) in [(120, 40, true), (80, 24, true), (16, 8, false)] {
             let (mut ui, mailbox, clock, snapshot) =
                 super::super::tests::workspace_setup::ready_snapshot(known.clone());
             ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory);

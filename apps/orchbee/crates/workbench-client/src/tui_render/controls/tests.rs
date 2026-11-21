@@ -55,6 +55,8 @@ fn action_shortcut_is_subordinate_inside_the_complete_fixed_button() {
         Theme::orchbee_light(),
         Theme::terminal_native(),
     ] {
+        // A band has no fill of its own: its label and shortcut take the band's hue.
+        let band = theme.style(Role::SurfaceActionPrimary).bg.is_none();
         for label in ["Close", "关闭"] {
             let mut extent = None;
             for pointer in [
@@ -81,28 +83,26 @@ fn action_shortcut_is_subordinate_inside_the_complete_fixed_button() {
                     .unwrap();
                 let text = symbols(&terminal, 0, rect.width);
                 // TestBackend stores a blank continuation cell after each wide glyph.
-                assert!(text.replace(' ', "").contains(&format!("[{label}")));
-                assert!(text.ends_with("  Enter ]"));
+                assert!(text.replace(' ', "").contains(label));
+                assert!(text.ends_with("  Enter "));
                 let key_x = (0..rect.width)
                     .find(|x| terminal.backend().buffer()[(*x, 0)].symbol() == "E")
                     .unwrap();
                 let key = &terminal.backend().buffer()[(key_x, 0)];
-                let action = &terminal.backend().buffer()[(2, 0)];
-                let bracket = &terminal.backend().buffer()[(0, 0)];
+                let action = &terminal.backend().buffer()[(1, 0)];
                 assert!(!key.modifier.contains(Modifier::BOLD));
-                if pointer == PointerPresentation::Rest {
+                if pointer == PointerPresentation::Rest && !band {
+                    // The shortcut and label share the accent fill: inverse text, never bold.
                     assert_eq!(
                         key.fg,
-                        theme.style(Role::TextSecondary).fg.unwrap_or(Color::Reset)
+                        theme.style(Role::TextInverse).fg.unwrap_or(Color::Reset)
                     );
                     assert_eq!(
-                        action.fg,
-                        theme.style(Role::AccentAction).fg.unwrap_or(Color::Reset)
-                    );
-                    // Resting primary brackets stay off the accent so they never read as focus.
-                    assert_eq!(
-                        bracket.fg,
-                        theme.style(Role::TextPrimary).fg.unwrap_or(Color::Reset)
+                        action.bg,
+                        theme
+                            .style(Role::SurfaceActionPrimary)
+                            .bg
+                            .unwrap_or(Color::Reset)
                     );
                 }
                 assert!(
@@ -151,19 +151,17 @@ fn terminal_native_destructive_action_rests_wholly_red_and_other_themes_keep_a_s
         let mut in_hint = false;
         for x in rect.x..rect.right() {
             let cell = &buffer[(x, 0)];
-            match cell.symbol() {
-                "E" => in_hint = true,
-                "]" => in_hint = false,
-                _ => {}
+            if cell.symbol() == "E" {
+                in_hint = true;
             }
             if cell.symbol() != " " {
                 let expected = if in_hint { hint } else { destructive };
                 assert_eq!(cell.fg, expected, "{x} {}", cell.symbol());
             }
             if wholly_red {
-                // ANSI red directly on the host default background: no backing patch.
+                // The band is the destructive hue in reverse video over the host background.
                 assert_eq!(cell.bg, Color::Reset, "{x}");
-                assert!(!cell.modifier.contains(Modifier::REVERSED));
+                assert!(cell.modifier.contains(Modifier::REVERSED), "{x}");
             }
         }
     }
@@ -178,7 +176,7 @@ fn symbols(terminal: &Terminal<TestBackend>, y: u16, width: u16) -> String {
 #[test]
 fn action_reserves_the_larger_localized_pending_label_without_moving_its_extent() {
     let theme = Theme::rgb_test_dark();
-    let width = 13;
+    let width = 11;
     let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
     let mut idle_rect = None;
     terminal
@@ -198,7 +196,6 @@ fn action_reserves_the_larger_localized_pending_label_without_moving_its_extent(
         })
         .unwrap();
     assert_eq!(idle_rect, Some(Rect::new(0, 0, width, 1)));
-    assert_eq!(&symbols(&terminal, 0, width)[..8], "[ Save  ");
 
     let mut pending_rect = None;
     terminal
@@ -227,7 +224,7 @@ fn action_reserves_the_larger_localized_pending_label_without_moving_its_extent(
         .unwrap();
     assert_eq!(pending_rect, idle_rect);
     assert_eq!(
-        terminal.backend().buffer()[(12, 0)].symbol(),
+        terminal.backend().buffer()[(width - 1, 0)].symbol(),
         theme.glyphs.status_bullet
     );
 }
@@ -263,7 +260,8 @@ fn pure_action_geometry_is_stable_before_pointer_projection_and_matches_paint() 
 #[test]
 fn action_refuses_narrow_or_clipped_geometry_without_partial_paint() {
     let theme = Theme::rgb_test_dark();
-    for (width, area) in [(7, Rect::new(0, 0, 7, 1)), (8, Rect::new(1, 0, 8, 1))] {
+    // "Save" needs six cells: its label plus one padding cell on each side.
+    for (width, area) in [(5, Rect::new(0, 0, 5, 1)), (6, Rect::new(1, 0, 6, 1))] {
         let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
         let mut painted = Some(Rect::new(0, 0, 0, 0));
         terminal
@@ -403,8 +401,14 @@ fn action_rejects_row_value_and_incomplete_pending_states_before_paint() {
 fn action_pointer_precedence_and_disabled_suppression_are_independent() {
     let theme = Theme::rgb_test_dark();
     let cases = [
-        (idle(PointerPresentation::Hovered), Role::SurfaceHover),
-        (idle(PointerPresentation::Pressed), Role::SurfacePressed),
+        (
+            idle(PointerPresentation::Hovered),
+            Role::SurfaceActionSecondaryHover,
+        ),
+        (
+            idle(PointerPresentation::Pressed),
+            Role::SurfaceActionSecondaryPressed,
+        ),
         (
             state(
                 FocusState::Focused,
@@ -415,7 +419,8 @@ fn action_pointer_precedence_and_disabled_suppression_are_independent() {
                 Availability::Disabled,
                 OperationState::Idle,
             ),
-            Role::SurfaceOverlay,
+            // Disabled suppresses the pointer, so the action rests on its ordinary fill.
+            Role::SurfaceActionSecondary,
         ),
     ];
     for (interaction, expected) in cases {
@@ -437,7 +442,7 @@ fn action_pointer_precedence_and_disabled_suppression_are_independent() {
             })
             .unwrap();
         let painted = painted.expect("action fits");
-        assert_eq!(painted, Rect::new(0, 0, 6, 1));
+        assert_eq!(painted, Rect::new(0, 0, 4, 1));
         let expected = theme.style(expected);
         for x in painted.x..painted.right() {
             let actual = terminal.backend().buffer()[(x, 0)].style();
@@ -451,39 +456,56 @@ fn action_pointer_precedence_and_disabled_suppression_are_independent() {
     }
 }
 
+/// At rest each kind shows its declared label role on a fill that is never the surface beneath,
+/// in every shipped theme and on every surface; hover then moves an ordinary fill again.
 #[test]
-fn action_hierarchy_uses_the_declared_content_role_at_rest() {
-    let theme = Theme::orchbee_light();
-    for (kind, role) in [
-        (ActionKind::Primary, Role::AccentAction),
-        (ActionKind::Secondary, Role::TextPrimary),
-        (ActionKind::Auxiliary, Role::TextSecondary),
-    ] {
+fn action_hierarchy_uses_the_declared_content_role_on_a_visible_fill() {
+    let paint = |theme: &Theme, kind, surface, pointer| {
         let mut terminal = Terminal::new(TestBackend::new(6, 1)).unwrap();
         terminal
             .draw(|frame| {
                 render_action(
                     frame,
                     frame.area(),
-                    ActionSpec::new(
-                        "Go",
-                        kind,
-                        ControlSurface::Chrome,
-                        idle(PointerPresentation::Rest),
-                    ),
-                    &theme,
+                    ActionSpec::new("Go", kind, surface, idle(pointer)),
+                    theme,
                 )
                 .unwrap();
             })
             .unwrap();
-        assert_eq!(terminal.backend().buffer()[(2, 0)].fg, theme.color(role));
-        let bracket = if role == Role::AccentAction {
-            Role::TextPrimary
-        } else {
-            role
-        };
-        assert_eq!(terminal.backend().buffer()[(0, 0)].fg, theme.color(bracket));
-        assert_eq!(symbols(&terminal, 0, 6), "[ Go ]");
+        terminal.backend().buffer()[(1, 0)].clone()
+    };
+    for named in orchbee_color_themes::shipped() {
+        let theme = Theme::named(named);
+        for surface in [
+            ControlSurface::Chrome,
+            ControlSurface::Strip,
+            ControlSurface::Overlay,
+            ControlSurface::Canvas,
+        ] {
+            let beneath = theme.style(surface.role()).bg.unwrap();
+            for (kind, label_role) in [
+                (ActionKind::Primary, Role::TextInverse),
+                (ActionKind::Secondary, Role::TextPrimary),
+                (ActionKind::Auxiliary, Role::TextSecondary),
+            ] {
+                let rest = paint(&theme, kind, surface, PointerPresentation::Rest);
+                let context = format!("{} {surface:?} {kind:?}", named.id());
+                assert_eq!(Some(rest.fg), theme.style(label_role).fg, "{context}");
+                assert_ne!(rest.bg, beneath, "{context}");
+                if kind == ActionKind::Primary {
+                    assert_eq!(
+                        Some(rest.bg),
+                        theme.style(Role::SurfaceActionPrimary).bg,
+                        "{context}"
+                    );
+                } else {
+                    let hovered = paint(&theme, kind, surface, PointerPresentation::Hovered);
+                    assert_ne!(hovered.bg, rest.bg, "{context}");
+                    assert_ne!(hovered.bg, beneath, "{context}");
+                }
+            }
+        }
     }
 }
 
@@ -495,19 +517,19 @@ fn press_bolds_the_enabled_label_and_hover_only_raises_secondary_text() {
             ActionKind::Primary,
             PointerPresentation::Rest,
             false,
-            Role::AccentAction,
+            Role::TextInverse,
         ),
         (
             ActionKind::Primary,
             PointerPresentation::Hovered,
             false,
-            Role::AccentAction,
+            Role::TextInverse,
         ),
         (
             ActionKind::Primary,
             PointerPresentation::Pressed,
             true,
-            Role::AccentAction,
+            Role::TextInverse,
         ),
         (
             ActionKind::Secondary,
@@ -552,15 +574,18 @@ fn press_bolds_the_enabled_label_and_hover_only_raises_secondary_text() {
                 );
             })
             .unwrap();
-        assert_eq!(painted, Some(Rect::new(0, 0, 6, 1)));
+        assert_eq!(painted, Some(Rect::new(0, 0, 4, 1)));
         let buffer = terminal.backend().buffer();
-        assert_eq!(
-            buffer[(2, 0)].style().add_modifier.contains(Modifier::BOLD),
-            label_bold
-        );
-        assert_eq!(buffer[(2, 0)].style().fg, theme.style(label_role).fg);
+        for x in [1, 2] {
+            assert_eq!(
+                buffer[(x, 0)].style().add_modifier.contains(Modifier::BOLD),
+                label_bold
+            );
+            assert_eq!(buffer[(x, 0)].style().fg, theme.style(label_role).fg);
+        }
+        // The band's padding cells never bold: only the label carries press.
         assert!(!buffer[(0, 0)].style().add_modifier.contains(Modifier::BOLD));
-        assert!(!buffer[(5, 0)].style().add_modifier.contains(Modifier::BOLD));
+        assert!(!buffer[(3, 0)].style().add_modifier.contains(Modifier::BOLD));
     }
 }
 
@@ -602,38 +627,60 @@ fn reduced_color_action_paints_its_base_and_keeps_interaction_modifiers() {
                 })
                 .unwrap();
             let painted = painted.expect("action fits");
-            assert_eq!(painted, Rect::new(0, 0, 6, 1));
+            // A band is four cells with one padding cell per side; a bracket pair takes six.
+            let width = if theme.filled_actions() { 4 } else { 6 };
+            assert_eq!(painted, Rect::new(0, 0, width, 1));
             let surface = match pointer {
                 PointerPresentation::Hovered => Role::SurfaceHover,
                 PointerPresentation::Pressed => Role::SurfacePressed,
                 PointerPresentation::Rest => unreachable!(),
             };
-            let focus = theme.content_on_surface(
-                Role::SurfaceOverlay,
-                Some(surface),
-                Some(Role::AccentFocus),
-                theme.style(Role::AccentFocus),
-            );
-            for x in [0, 5] {
-                let bracket = &terminal.backend().buffer()[(x, 0)];
-                assert_eq!(bracket.fg, focus.fg.unwrap_or(Color::Reset), "{theme:?}");
-                assert!(bracket.modifier.contains(focus.add_modifier), "{theme:?}");
-            }
-            let interaction = theme.style(surface);
-            for x in painted.x..painted.right() {
-                let actual = terminal.backend().buffer()[(x, 0)].style();
-                assert_eq!(
-                    actual.bg,
-                    interaction.bg.or(theme.style(Role::SurfaceOverlay).bg),
-                    "x={x}, pointer={pointer:?}, theme={theme:?}"
+            let buffer = terminal.backend().buffer();
+            if theme.filled_actions() {
+                // A band is reverse video in every state, and focus marks its label alone.
+                for x in painted.x..painted.right() {
+                    assert!(
+                        buffer[(x, 0)]
+                            .style()
+                            .add_modifier
+                            .contains(Modifier::REVERSED),
+                        "x={x}, pointer={pointer:?}, theme={theme:?}"
+                    );
+                }
+                for x in [1, 2] {
+                    assert!(
+                        buffer[(x, 0)]
+                            .style()
+                            .add_modifier
+                            .contains(Modifier::BOLD | Modifier::UNDERLINED),
+                        "x={x}, pointer={pointer:?}, theme={theme:?}"
+                    );
+                }
+            } else {
+                let focus = theme.content_on_surface(
+                    Role::SurfaceOverlay,
+                    Some(surface),
+                    Some(Role::AccentFocus),
+                    theme.style(Role::AccentFocus),
                 );
-                assert!(actual.add_modifier.contains(interaction.add_modifier));
+                for x in [0, 5] {
+                    let bracket = &buffer[(x, 0)];
+                    assert_eq!(bracket.fg, focus.fg.unwrap_or(Color::Reset), "{theme:?}");
+                    assert!(bracket.modifier.contains(focus.add_modifier), "{theme:?}");
+                }
+                let interaction = theme.style(surface);
+                for x in painted.x..painted.right() {
+                    let actual = buffer[(x, 0)].style();
+                    assert_eq!(
+                        actual.bg,
+                        interaction.bg.or(theme.style(Role::SurfaceOverlay).bg),
+                        "x={x}, pointer={pointer:?}, theme={theme:?}"
+                    );
+                    assert!(actual.add_modifier.contains(interaction.add_modifier));
+                }
             }
-            assert_eq!(
-                terminal.backend().buffer()[(7, 0)].style().bg,
-                Some(Color::Magenta)
-            );
-            assert_eq!(terminal.backend().buffer()[(7, 0)].symbol(), "y");
+            assert_eq!(buffer[(7, 0)].style().bg, Some(Color::Magenta));
+            assert_eq!(buffer[(7, 0)].symbol(), "y");
         }
     }
 }

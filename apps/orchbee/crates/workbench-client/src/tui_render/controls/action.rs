@@ -8,7 +8,7 @@ use crate::{
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Modifier,
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
 };
@@ -21,7 +21,7 @@ use super::{
 /// Reading hierarchy for a standalone action.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ActionKind {
-    /// The primary action in a decision context.
+    /// The one confirming action of a dialog, form, or prompt. Standing chrome never uses it.
     Primary,
     /// A secondary or cancelling action.
     Secondary,
@@ -158,6 +158,73 @@ pub(crate) fn render_action(
         format!("  {}", sanitize_terminal_text(shortcut))
     });
     let shortcut = pad_to_width(&shortcut, layout.shortcut_width);
+    if theme.filled_actions() {
+        let block = filled_block(
+            theme,
+            spec.surface,
+            action_fill_role(
+                spec.kind,
+                spec.tone,
+                enabled,
+                state.pointer,
+                ordinary_fill_is_surface(theme, spec.surface),
+            ),
+            band_hue_role(spec.kind, spec.tone, enabled),
+        );
+        let label_role = filled_label_role(spec.kind, spec.tone, enabled, state.pointer);
+        let mut content = filled_text(theme, block, label_role);
+        // Focus and press mark the label alone; the shortcut stays subordinate.
+        if matches!(state.focus, FocusState::Focused) {
+            content = content.add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+        }
+        if enabled && state.pointer == PointerPresentation::Pressed {
+            content = content.add_modifier(Modifier::BOLD);
+        }
+        let shortcut_style = filled_text(
+            theme,
+            block,
+            filled_shortcut_role(spec.kind, spec.tone, enabled),
+        );
+        let (status, status_role) = if state.operation == OperationState::Pending {
+            (
+                pad_to_width(theme.glyphs.status_bullet, layout.status_width),
+                Role::StatusPending,
+            )
+        } else {
+            (" ".repeat(layout.status_width), label_role)
+        };
+        let status_style = content_style(
+            theme,
+            spec.surface,
+            interaction,
+            Some(status_role),
+            theme.style(status_role),
+        );
+        // The block owns its cells: whatever colors and modifiers the row beneath left there go
+        // first, so a fill or band never mixes with a surface it sits on.
+        let status_width = u16::try_from(layout.status_width).unwrap_or(layout.rect.width);
+        frame.buffer_mut().set_style(
+            Rect::new(
+                layout.rect.x,
+                layout.rect.y,
+                layout.rect.width.saturating_sub(status_width),
+                1,
+            ),
+            Style::reset(),
+        );
+        // The block is one cell of padding on each side of the label, so the action has no brackets.
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(" ", block),
+                Span::styled(label, content),
+                Span::styled(shortcut, shortcut_style),
+                Span::styled(" ", block),
+                Span::styled(status, status_style),
+            ])),
+            layout.rect,
+        );
+        return Some(layout.rect);
+    }
     let mut label_style = content_style(
         theme,
         spec.surface,
@@ -256,8 +323,10 @@ fn resolve_action_layout(
         .pending_label
         .map(|_| display_width(theme.glyphs.status_bullet).max(1))
         .unwrap_or(0);
+    // Brackets with a blank inside each take four cells; a filled action pads with one blank each side.
+    let chrome_width = if theme.filled_actions() { 2 } else { 4 };
     let width = label_width
-        .checked_add(4)?
+        .checked_add(chrome_width)?
         .checked_add(shortcut_width)?
         .checked_add(status_width)?;
     let width = u16::try_from(width).ok()?;
@@ -274,6 +343,127 @@ fn resolve_action_layout(
         shortcut_width,
         status_width,
     })
+}
+
+/// Whether a theme's ordinary rest fill is the very color of the surface an action sits on, where
+/// the action would read as plain text.
+fn ordinary_fill_is_surface(theme: &Theme, surface: ControlSurface) -> bool {
+    let rest = theme.style(Role::SurfaceActionSecondary);
+    !is_band(rest) && rest.bg.is_some() && rest.bg == theme.style(surface.role()).bg
+}
+
+/// The fill under a filled action, by intent and pointer state. A disabled action rests on the
+/// ordinary fill, and so does a destructive one: its red label carries the meaning, and the accent
+/// fill belongs to the primary action alone. Where the ordinary rest fill is the surface itself,
+/// `lifted` moves every ordinary step up one, so the action stays a block; press then keeps the
+/// pressed fill and its bold label.
+fn action_fill_role(
+    kind: ActionKind,
+    tone: ActionTone,
+    enabled: bool,
+    pointer: PointerPresentation,
+    lifted: bool,
+) -> Role {
+    let pointer = if enabled {
+        pointer
+    } else {
+        PointerPresentation::Rest
+    };
+    let primary = enabled && kind == ActionKind::Primary && matches!(tone, ActionTone::Ordinary);
+    match (primary, pointer) {
+        (true, PointerPresentation::Rest) => Role::SurfaceActionPrimary,
+        (true, PointerPresentation::Hovered) => Role::SurfaceActionPrimaryHover,
+        (true, PointerPresentation::Pressed) => Role::SurfaceActionPrimaryPressed,
+        (false, PointerPresentation::Rest) if !lifted => Role::SurfaceActionSecondary,
+        (false, PointerPresentation::Rest) => Role::SurfaceActionSecondaryHover,
+        (false, PointerPresentation::Hovered) if !lifted => Role::SurfaceActionSecondaryHover,
+        (false, PointerPresentation::Hovered | PointerPresentation::Pressed) => {
+            Role::SurfaceActionSecondaryPressed
+        }
+    }
+}
+
+/// The label of a filled action: inverse text on the accent fill, primary text on the ordinary
+/// fill, the destructive hue on the ordinary fill, and disabled text when unavailable.
+fn filled_label_role(
+    kind: ActionKind,
+    tone: ActionTone,
+    enabled: bool,
+    pointer: PointerPresentation,
+) -> Role {
+    match (enabled, tone, kind) {
+        (false, _, _) => Role::TextDisabled,
+        (true, ActionTone::Destructive, _) => Role::AccentDestructive,
+        (true, ActionTone::Ordinary, ActionKind::Primary) => Role::TextInverse,
+        (true, ActionTone::Ordinary, ActionKind::Secondary) => Role::TextPrimary,
+        (true, ActionTone::Ordinary, ActionKind::Auxiliary) => {
+            if pointer == PointerPresentation::Rest {
+                Role::TextSecondary
+            } else {
+                Role::TextPrimary
+            }
+        }
+    }
+}
+
+/// The block a filled action paints. A colored fill is its own background. A reverse-video band
+/// is one explicit pair on every cell: the hue that names its action, or primary text, over the
+/// action's base surface, with that role's modifiers. A host may apply `DIM` before reverse video
+/// swaps the pair, so a band whose cells differed in `DIM` would show two backgrounds.
+fn filled_block(
+    theme: &Theme,
+    surface: ControlSurface,
+    fill_role: Role,
+    hue: Option<Role>,
+) -> Style {
+    let fill = theme.style(fill_role);
+    if !is_band(fill) {
+        return fill;
+    }
+    let ink = theme.style(hue.unwrap_or(Role::TextPrimary));
+    fill.fg(ink.fg.unwrap_or(Color::Reset))
+        .bg(theme.style(surface.role()).bg.unwrap_or(Color::Reset))
+        .add_modifier(ink.add_modifier)
+}
+
+/// Whether a fill is the resolver's reverse-video fallback instead of a color.
+fn is_band(fill: Style) -> bool {
+    fill.add_modifier.contains(Modifier::REVERSED)
+}
+
+/// The hue that names a filled action in a band: the accent for the primary action, the
+/// destructive hue for a destructive one, and the disabled text role when unavailable, whose `DIM`
+/// then covers the whole band. The ordinary action takes primary text.
+fn band_hue_role(kind: ActionKind, tone: ActionTone, enabled: bool) -> Option<Role> {
+    if !enabled {
+        return Some(Role::TextDisabled);
+    }
+    match tone {
+        ActionTone::Destructive => Some(Role::AccentDestructive),
+        ActionTone::Ordinary if kind == ActionKind::Primary => Some(Role::AccentAction),
+        ActionTone::Ordinary => None,
+    }
+}
+
+/// The shortcut inside a filled action: inverse text on the accent, secondary text elsewhere.
+fn filled_shortcut_role(kind: ActionKind, tone: ActionTone, enabled: bool) -> Role {
+    match (enabled, tone, kind) {
+        (false, _, _) => Role::TextDisabled,
+        (true, ActionTone::Ordinary, ActionKind::Primary) => Role::TextInverse,
+        (true, _, _) => Role::TextSecondary,
+    }
+}
+
+/// Text on a filled block: the role's foreground and modifiers over a colored fill. A band's text
+/// is the band itself, so the label, the shortcut and the padding stay one block.
+fn filled_text(theme: &Theme, block: Style, role: Role) -> Style {
+    if is_band(block) {
+        return block;
+    }
+    let text = theme.style(role);
+    text.fg
+        .map_or(block, |foreground| block.fg(foreground))
+        .add_modifier(text.add_modifier)
 }
 
 /// Resolves the complete close-target extent before pointer projection or paint.

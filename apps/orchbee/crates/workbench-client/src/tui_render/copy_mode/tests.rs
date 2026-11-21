@@ -462,9 +462,9 @@ fn toolbar_uses_action_boolean_and_icon_grammars_with_typed_targets() {
             .unwrap();
         let text = visible_screen(terminal.backend().buffer(), width, height);
         assert!(text.contains(if locale == Locale::EnUs {
-            "[ Copy ]"
+            " Copy "
         } else {
-            "[ 复制 ]"
+            " 复制 "
         }));
         assert!(text.contains(if selecting {
             "[x] 选择"
@@ -523,12 +523,12 @@ fn search_toolbar_keeps_direction_as_static_state_and_reverse_as_a_labeled_actio
             })
             .unwrap();
         let text = visible_screen(terminal.backend().buffer(), width, height);
-        assert!(text.contains("[ 查找 ]"));
-        assert!(text.contains("[ 返回 ]"));
-        assert!(text.contains("[ 反转 ]"));
+        assert!(text.contains(" 查找 "));
+        assert!(text.contains(" 返回 "));
+        assert!(text.contains(" 反转 "));
         assert!(text.contains(match direction {
-            CopySearchDirection::Forward => "> [ 反转 ]",
-            CopySearchDirection::Backward => "< [ 反转 ]",
+            CopySearchDirection::Forward => ">  反转 ",
+            CopySearchDirection::Backward => "<  反转 ",
         }));
         let map = hits.finish();
         for control in [
@@ -564,7 +564,7 @@ fn disabled_copy_controls_keep_their_shape_and_checked_value() {
         })
         .unwrap();
     let text = visible_screen(terminal.backend().buffer(), width, height);
-    assert!(text.contains("[ Copy ]"));
+    assert!(text.contains(" Copy "));
     assert!(text.contains("[x] Select"));
     assert!(text.contains("[<]"));
     assert!(text.contains("[>]"));

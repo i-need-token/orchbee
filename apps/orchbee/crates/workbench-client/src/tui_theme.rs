@@ -65,6 +65,14 @@ pub enum Role {
     SurfaceCurrent,
     SurfaceRelated,
     SurfaceInactive,
+    /// The primary action's fill, under `TextInverse`.
+    SurfaceActionPrimary,
+    SurfaceActionPrimaryHover,
+    SurfaceActionPrimaryPressed,
+    /// The ordinary action's fill, under `TextPrimary`.
+    SurfaceActionSecondary,
+    SurfaceActionSecondaryHover,
+    SurfaceActionSecondaryPressed,
     HintKey,
     HintLabel,
 }
@@ -73,7 +81,7 @@ impl Role {
     /// Test/validator helper for totality checks; production consumes roles
     /// individually.
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 38] = [
+    pub(crate) const ALL: [Self; 44] = [
         Self::TextPrimary,
         Self::TextSecondary,
         Self::TextMuted,
@@ -110,6 +118,12 @@ impl Role {
         Self::SurfaceCurrent,
         Self::SurfaceRelated,
         Self::SurfaceInactive,
+        Self::SurfaceActionPrimary,
+        Self::SurfaceActionPrimaryHover,
+        Self::SurfaceActionPrimaryPressed,
+        Self::SurfaceActionSecondary,
+        Self::SurfaceActionSecondaryHover,
+        Self::SurfaceActionSecondaryPressed,
         Self::HintKey,
         Self::HintLabel,
     ];
@@ -323,6 +337,12 @@ pub(crate) struct RoleStyles {
     pub(crate) surface_current: Style,
     pub(crate) surface_related: Style,
     pub(crate) surface_inactive: Style,
+    pub(crate) surface_action_primary: Style,
+    pub(crate) surface_action_primary_hover: Style,
+    pub(crate) surface_action_primary_pressed: Style,
+    pub(crate) surface_action_secondary: Style,
+    pub(crate) surface_action_secondary_hover: Style,
+    pub(crate) surface_action_secondary_pressed: Style,
     pub(crate) hint_key: Style,
     pub(crate) hint_label: Style,
 }
@@ -367,6 +387,12 @@ impl RoleStyles {
             Role::SurfaceCurrent => self.surface_current,
             Role::SurfaceRelated => self.surface_related,
             Role::SurfaceInactive => self.surface_inactive,
+            Role::SurfaceActionPrimary => self.surface_action_primary,
+            Role::SurfaceActionPrimaryHover => self.surface_action_primary_hover,
+            Role::SurfaceActionPrimaryPressed => self.surface_action_primary_pressed,
+            Role::SurfaceActionSecondary => self.surface_action_secondary,
+            Role::SurfaceActionSecondaryHover => self.surface_action_secondary_hover,
+            Role::SurfaceActionSecondaryPressed => self.surface_action_secondary_pressed,
             Role::HintKey => self.hint_key,
             Role::HintLabel => self.hint_label,
         }
@@ -410,6 +436,12 @@ impl RoleStyles {
             surface_current: apply(self.surface_current),
             surface_related: apply(self.surface_related),
             surface_inactive: apply(self.surface_inactive),
+            surface_action_primary: apply(self.surface_action_primary),
+            surface_action_primary_hover: apply(self.surface_action_primary_hover),
+            surface_action_primary_pressed: apply(self.surface_action_primary_pressed),
+            surface_action_secondary: apply(self.surface_action_secondary),
+            surface_action_secondary_hover: apply(self.surface_action_secondary_hover),
+            surface_action_secondary_pressed: apply(self.surface_action_secondary_pressed),
             hint_key: apply(self.hint_key),
             hint_label: apply(self.hint_label),
         }
@@ -762,6 +794,13 @@ impl Theme {
                 // Unknown host colors cannot promise a softer fill; ancestry keeps its marker.
                 surface_related: Style::new().bg(Color::Reset),
                 surface_inactive: Style::new().bg(Color::Reset),
+                // Filled actions have no host fill: a reverse-video band, as hover has.
+                surface_action_primary: interaction_surface_fallback(),
+                surface_action_primary_hover: interaction_surface_fallback(),
+                surface_action_primary_pressed: interaction_surface_fallback(),
+                surface_action_secondary: interaction_surface_fallback(),
+                surface_action_secondary_hover: interaction_surface_fallback(),
+                surface_action_secondary_pressed: interaction_surface_fallback(),
                 hint_key: Style::new().fg(Color::Reset).add_modifier(Modifier::BOLD),
                 hint_label: dim,
             },
@@ -832,6 +871,12 @@ impl Theme {
                 surface_current: Style::new().bg(Color::Rgb(33, 39, 49)),
                 surface_related: Style::new().bg(Color::Rgb(22, 27, 35)),
                 surface_inactive: Style::new().bg(Color::Rgb(11, 14, 20)),
+                surface_action_primary: Style::new().bg(Color::Rgb(245, 245, 245)),
+                surface_action_primary_hover: Style::new().bg(Color::Rgb(250, 250, 250)),
+                surface_action_primary_pressed: Style::new().bg(Color::Rgb(229, 229, 229)),
+                surface_action_secondary: Style::new().bg(Color::Rgb(38, 38, 38)),
+                surface_action_secondary_hover: Style::new().bg(Color::Rgb(33, 39, 49)),
+                surface_action_secondary_pressed: Style::new().bg(Color::Rgb(64, 64, 64)),
                 hint_key: Style::new()
                     .fg(Color::Rgb(211, 218, 232))
                     .add_modifier(Modifier::BOLD),
@@ -1090,6 +1135,12 @@ impl Theme {
             .add_modifier(surface.add_modifier)
     }
 
+    /// Labeled actions are filled blocks wherever color paints them. Without color (Monochrome or
+    /// NO_COLOR) they keep their brackets, and their keyboard focus stays on those brackets.
+    pub(crate) const fn filled_actions(&self) -> bool {
+        !self.no_color && !matches!(self.color_level, ColorLevel::Monochrome)
+    }
+
     /// The key hint inside an action. Terminal-native destructive wording is red across the
     /// whole button, so its hint keeps that hue; every other theme and Monochrome keep the
     /// hint as supporting text.
@@ -1210,7 +1261,13 @@ impl Theme {
             | Role::SurfaceSelection
             | Role::SurfaceCurrent
             | Role::SurfaceRelated
-            | Role::SurfaceInactive => style.bg,
+            | Role::SurfaceInactive
+            | Role::SurfaceActionPrimary
+            | Role::SurfaceActionPrimaryHover
+            | Role::SurfaceActionPrimaryPressed
+            | Role::SurfaceActionSecondary
+            | Role::SurfaceActionSecondaryHover
+            | Role::SurfaceActionSecondaryPressed => style.bg,
             _ => style.fg,
         }
         .unwrap_or(Color::Reset)
@@ -1463,6 +1520,19 @@ impl Theme {
         {
             styles.surface_hover = interaction_surface_fallback();
             styles.surface_pressed = interaction_surface_fallback();
+        }
+        // Filled actions are a reverse-video band at 16 colors, where no fill quantizes faithfully.
+        if level == ColorLevel::Ansi16 {
+            for fill in [
+                &mut styles.surface_action_primary,
+                &mut styles.surface_action_primary_hover,
+                &mut styles.surface_action_primary_pressed,
+                &mut styles.surface_action_secondary,
+                &mut styles.surface_action_secondary_hover,
+                &mut styles.surface_action_secondary_pressed,
+            ] {
+                *fill = interaction_surface_fallback();
+            }
         }
         // A field band that quantizes onto its dialog, or any Monochrome fill, falls back to brackets.
         if level == ColorLevel::Monochrome || styles.surface_field.bg == styles.surface_overlay.bg {

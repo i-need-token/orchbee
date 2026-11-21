@@ -11,6 +11,10 @@ const AGENT_ERROR: Rgb = Rgb::new(0xff, 0x5f, 0x57);
 
 const BODY_FLOOR: f64 = 4.5;
 const NON_TEXT_FLOOR: f64 = 3.0;
+/// The GUI's primary-action hover and press keep these shares of the accent, the rest mixed
+/// toward the label's contrast pole (`client_files.rs` writes the same proportions).
+const ACTION_HOVER_KEEP_PERCENT: u8 = 88;
+const ACTION_PRESSED_KEEP_PERCENT: u8 = 76;
 
 /// The resolved color of every role a theme supplies, named as in the visual-foundations role
 /// inventory. Text and semantic accents meet their floors on shared painted surfaces; muted rests on chrome.
@@ -38,6 +42,19 @@ pub struct Roles {
     pub surface_selection: Rgb,
     /// An inactive pane's mask; the same value as `surface_canvas`.
     pub surface_inactive: Rgb,
+    /// The primary action's fill: the accent itself, under `text_inverse`.
+    pub surface_action_primary: Rgb,
+    /// The primary action's fill under the pointer: the accent mixed toward the pole that gives
+    /// `text_inverse` more contrast.
+    pub surface_action_primary_hover: Rgb,
+    /// The primary action's fill while pressed: the same mix, with a larger share of the pole.
+    pub surface_action_primary_pressed: Rgb,
+    /// The ordinary action's fill; the same value as `surface_hover`, under `text_primary`.
+    pub surface_action_secondary: Rgb,
+    /// The ordinary action's fill under the pointer; the same value as `surface_current`.
+    pub surface_action_secondary_hover: Rgb,
+    /// The ordinary action's fill while pressed; the same value as `surface_pressed`.
+    pub surface_action_secondary_pressed: Rgb,
     /// The focused pane or overlay frame; the same value as `accent_focus`.
     pub frame_focused: Rgb,
     /// Indent guides and the quietest rules.
@@ -321,6 +338,23 @@ impl Roles {
                 yellow: on_sel(tab_groups.yellow, BODY_FLOOR),
             },
         };
+        // The primary label is `text_inverse`, so the accent's hover and press move toward the
+        // pole that gives that label more contrast, as the GUI's primary-action states do.
+        let text_inverse = contrast::raise(background, accent_action, BODY_FLOOR);
+        let action_pole = if contrast::ratio(text_inverse, Rgb::new(255, 255, 255))
+            < contrast::ratio(text_inverse, Rgb::new(0, 0, 0))
+        {
+            Rgb::new(0, 0, 0)
+        } else {
+            Rgb::new(255, 255, 255)
+        };
+        let action_fill = |keep_percent: u8| {
+            oklab::mix(
+                accent_action,
+                action_pole,
+                f64::from(100 - keep_percent) / 100.0,
+            )
+        };
         Self {
             surface_canvas: background,
             surface_chrome: chrome,
@@ -333,6 +367,12 @@ impl Roles {
             surface_pressed: toward_text(0.14),
             surface_selection: selection,
             surface_inactive: background,
+            surface_action_primary: accent_action,
+            surface_action_primary_hover: action_fill(ACTION_HOVER_KEEP_PERCENT),
+            surface_action_primary_pressed: action_fill(ACTION_PRESSED_KEEP_PERCENT),
+            surface_action_secondary: toward_text(0.08),
+            surface_action_secondary_hover: toward_text(0.11),
+            surface_action_secondary_pressed: toward_text(0.14),
             frame_focused: accent_action,
             frame_guide: toward_text(0.10),
             frame_divider: toward_text(0.18),
@@ -341,7 +381,7 @@ impl Roles {
             text_secondary,
             text_muted,
             text_disabled: oklab::mix(text_muted, chrome, 0.45),
-            text_inverse: contrast::raise(background, accent_action, BODY_FLOOR),
+            text_inverse,
             text_selection: canvas
                 .selection_foreground
                 .map_or(foreground, crate::PaletteColor::value),

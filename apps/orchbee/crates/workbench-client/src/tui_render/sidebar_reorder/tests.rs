@@ -72,11 +72,12 @@ fn drag_feedback_replaces_the_previous_notice_and_draws_the_footer_only_for_proj
                     } else {
                         // An action shows whole or not at all, so a footer too narrow for the
                         // target leaves its row cleared.
-                        let zone = format!("[ {} ]", locale.sidebar_drop_zone());
+                        // A filled target pads one cell on each side of its label.
+                        let zone = format!(" {} ", locale.sidebar_drop_zone());
                         let fits = display_width(&zone) <= usize::from(footer.width);
                         assert_eq!(
                             row_text(buffer, footer).trim_end(),
-                            if fits { zone.as_str() } else { "" }
+                            if fits { zone.trim_end() } else { "" }
                         );
                     }
                     for x in status.x..status.right() {
@@ -149,10 +150,15 @@ fn preview_preserves_identity_styles_clips_wide_labels_and_keeps_monochrome_cues
                             .iter()
                             .all(|cell| !cell.symbol().chars().any(char::is_control))
                     );
-                    // The bracketed drop target is the non-color cue of a Project drag only, shown
-                    // when the footer fits it whole.
-                    let zone = format!("[ {} ]", locale.sidebar_drop_zone());
-                    if !workspace && display_width(&zone) <= usize::from(row_width) {
+                    // A Project drag's drop target shows whole when the footer fits it. Its brackets
+                    // are the non-color cue in Monochrome; a color theme shows the filled label.
+                    let label = locale.sidebar_drop_zone();
+                    let fits = usize::from(row_width);
+                    if !workspace && theme.filled_actions() && display_width(label) + 2 <= fits {
+                        let footer = Rect::new(0, height - 2, row_width, 1);
+                        assert!(row_text(buffer, footer).contains(label));
+                    }
+                    if !workspace && !theme.filled_actions() && display_width(label) + 4 <= fits {
                         assert!((0..row_width).any(|x| buffer[(x, height - 2)].symbol() == "["));
                     }
                 }

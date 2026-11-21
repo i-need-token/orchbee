@@ -940,7 +940,7 @@ fn workspace_and_project_close_shell_matrix_discloses_exact_scope_and_requires_a
                     (120, 40, true),
                     (60, 24, true),
                     (50, 30, true),
-                    (22, 8, false),
+                    (16, 8, false),
                     (19, 4, false),
                 ] {
                     let (mut ui, mailbox, _, _) = ready(scope);

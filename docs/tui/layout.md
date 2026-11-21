@@ -197,7 +197,7 @@ A dialog that does not fit gives up space in a fixed order, only along the axis 
 1. The outer margin of two columns and one row shrinks to none.
 2. Width: the dialog narrows below its class minimum while its complete action row fits, and the
    title, target, and fields truncate. Then buttons drop their key text, as in
-   `[ Cancel ]  [ Rename ]`; the keys keep working.
+   `[ Cancel ]  [ Rename ]` (filled blocks where the terminal has color); the keys keep working.
 3. Height: blank rows go, then help lines, then a form's context line and suggestion-list
    headings; errors and a confirmation's target line stay. Then prose truncates to one line with
    `…`.

@@ -103,7 +103,7 @@ pub(super) fn render(
         (
             SidebarCommand::NewWorkspace,
             SidebarFixedAction::NewWorkspace,
-            ActionKind::Primary,
+            ActionKind::Secondary,
         ),
         (
             SidebarCommand::Search,
@@ -223,7 +223,7 @@ pub(super) fn render(
     let update = resolved.zip(update).and_then(|(action, version)| {
         let mut control = TouchAction {
             label: locale.update_control(),
-            kind: ActionKind::Primary,
+            kind: ActionKind::Secondary,
             enabled: true,
             target: sidebar_chrome::update_target(),
             place: settings_place,

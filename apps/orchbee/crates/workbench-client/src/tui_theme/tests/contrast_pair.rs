@@ -230,3 +230,44 @@ fn disabled_selected_content_keeps_contrast_across_named_themes_and_color_levels
         }
     }
 }
+
+/// A filled action's label must keep the contrast floor on its fill in every shipped theme and
+/// state. The shortcut and the destructive label also sit on the ordinary fills, whose pressed step
+/// is the hardest. A disabled label is exempt from the floor (WCAG 1.4.3 exempts inactive
+/// components).
+#[test]
+fn filled_action_labels_meet_the_contrast_floor_in_every_shipped_theme() {
+    let ordinary = [
+        Role::SurfaceActionSecondary,
+        Role::SurfaceActionSecondaryHover,
+        Role::SurfaceActionSecondaryPressed,
+    ];
+    let rules: [(Role, &[Role]); 4] = [
+        (
+            Role::TextInverse,
+            &[
+                Role::SurfaceActionPrimary,
+                Role::SurfaceActionPrimaryHover,
+                Role::SurfaceActionPrimaryPressed,
+            ],
+        ),
+        (Role::TextPrimary, &ordinary),
+        (Role::TextSecondary, &ordinary),
+        (Role::AccentDestructive, &ordinary),
+    ];
+    for named in orchbee_color_themes::shipped() {
+        let theme = Theme::named(named);
+        for (label, fills) in rules {
+            let foreground = theme.style(label).fg.unwrap();
+            for fill in fills {
+                let background = theme.style(*fill).bg.unwrap();
+                let contrast = contrast_ratio(foreground, background);
+                assert!(
+                    contrast >= 4.5,
+                    "{} {label:?} on {fill:?}: {contrast}",
+                    named.id()
+                );
+            }
+        }
+    }
+}

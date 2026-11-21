@@ -293,7 +293,8 @@ Every dialog uses the same rows from top to bottom. An omitted row closes up wit
 - The primary button names the outcome with the title's verb: `Rename`, `Create`, `Move`, `Close`,
   `Remove`. Generic labels such as `Submit`, `OK`, `Yes`, `Confirm`, `提交`, or `确定` are not used.
   Add the object only when the verb alone is ambiguous.
-- Each button carries its key inside its brackets: `Esc` on the cancel or close action, `Enter` on
+- Each button carries its key inside its block, or inside its brackets in monochrome and NO_COLOR:
+  `Esc` on the cancel or close action, `Enter` on
   the primary, and a lowercase letter on any other button. These keys never appear again in a hint
   row.
 - A confirmation that ends programs, deletes files or a checkout, or discards a draft gives its

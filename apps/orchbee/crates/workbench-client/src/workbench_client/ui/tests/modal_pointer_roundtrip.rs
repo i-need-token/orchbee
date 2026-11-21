@@ -253,7 +253,7 @@ fn workspace_close_action_roundtrips_hover_release_and_geometry_cancellation() {
     let hovered = harness.render(&mut ui, 120, 40, &theme, Some("p3-workspace-close-hover"));
     assert_eq!(
         hovered.background(x, y),
-        theme.color(Role::SurfaceHover),
+        theme.color(Role::SurfaceActionSecondaryHover),
         "AnyMotion must project the exact rendered action's hover cue"
     );
 
@@ -261,7 +261,10 @@ fn workspace_close_action_roundtrips_hover_release_and_geometry_cancellation() {
     assert!(ui.view().workspace_close_confirmation().is_some());
     assert!(mailbox.try_recv().unwrap().is_none(), "press cannot decide");
     let pressed = harness.render(&mut ui, 120, 40, &theme, Some("p3-workspace-close-pressed"));
-    assert_eq!(pressed.background(x, y), theme.color(Role::SurfacePressed));
+    assert_eq!(
+        pressed.background(x, y),
+        theme.color(Role::SurfaceActionSecondaryPressed)
+    );
     harness.dispatch(&mut ui, &sgr_release(x, y));
     assert!(ui.view().workspace_close_confirmation().is_none());
     assert!(matches!(
@@ -522,21 +525,26 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                         &drawn.buffer,
                         modal_inner,
                         &format!(
-                            "[ {}  Enter ]",
+                            " {}  Enter ",
                             locale.setup_submit_label(SetupStage::WorkspaceProjectName)
                         ),
                     );
                     let actions = visible_row(&drawn.buffer, action.1);
-                    assert!(actions.contains(&format!("[ {}  Esc ]", locale.setup_cancel_label())));
+                    assert!(actions.contains(&format!(" {}  Esc ", locale.setup_cancel_label())));
                     assert!(!visible_row(&drawn.buffer, action.1 - 1).contains("Esc"));
                     assert!(cursor.y < action.1);
+                    // A band names its primary action with the accent hue; a colored fill carries
+                    // the inverse text instead.
+                    let band = theme.style(Role::SurfaceActionPrimary).bg.is_none();
                     assert_eq!(
-                        drawn.buffer[(action.0 + 2, action.1)].fg,
+                        drawn.buffer[(action.0, action.1)].fg,
                         theme
                             .style(if fault {
                                 Role::TextDisabled
-                            } else {
+                            } else if band {
                                 Role::AccentAction
+                            } else {
+                                Role::TextInverse
                             })
                             .fg
                             .unwrap()

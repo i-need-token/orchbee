@@ -112,14 +112,14 @@ ordinary role resolver and interaction fallbacks.
 The theme contract also provides `accent-action`, `surface-hover` and `surface-pressed`. In
 Orchbee Light and Orchbee Dark these roles carry the
 [shared theme colors](../../../schemas/workbench/README.md#cross-client-parity-sources), which the
-GUI's CSS registry also resolves to: primary action, hover and press respectively, beside the Agent
+GUI's CSS registry also resolves to: primary and ordinary action fills, each with hover and press, beside the Agent
 state colors. The Light cell-grid adapter makes the translucent hover and press colors opaque over
 its chrome surface. A conformance test reads that file, as the CSS registry's test does, and
 neither reads the other's source. Every other shipped theme keeps the catalog resolver's roles.
 These roles are available to renderers, but each surface still requires consumer render evidence
 before it can claim adoption.
 
-**Vetoable decision: keep `shared-theme-colors-v1.json` scoped to Orchbee action, hover, press, dark Agent idle/working, and traffic lights.** The shared contract does not unify TUI and GUI destructive, link, status, or Chrome's GUI Tab-group colors: Chrome's un-adapted solid-pill Tab-group colors (`#f9ab00` at 1.68:1, `#fa7b17` at 2.31:1, and dark grey `#5f6368` at 2.44:1 on Chrome surfaces) fall below TUI 4.5:1 text contrast, and GUI status tokens use Tailwind blue/orange rather than the ANSI cyan/yellow families shared by all 16 TUI themes. Both Orchbee TUI themes resolve those remaining roles directly from `crates/color-themes`, with `roles.selection.accent_action` recomputed after overriding `accent_action`.
+**Vetoable decision: keep `shared-theme-colors-v1.json` scoped to Orchbee primary and ordinary action fills with hover and press, dark Agent idle/working, and traffic lights.** The shared contract does not unify TUI and GUI destructive, link, status, or Chrome's GUI Tab-group colors: Chrome's un-adapted solid-pill Tab-group colors (`#f9ab00` at 1.68:1, `#fa7b17` at 2.31:1, and dark grey `#5f6368` at 2.44:1 on Chrome surfaces) fall below TUI 4.5:1 text contrast, and GUI status tokens use Tailwind blue/orange rather than the ANSI cyan/yellow families shared by all 16 TUI themes. Both Orchbee TUI themes resolve those remaining roles directly from `crates/color-themes`, with `roles.selection.accent_action` recomputed after overriding `accent_action`.
 
 The sidebar's explicit red Delete intent uses independent `accent-destructive` metadata and palette
 ownership, never `status-error`. Named themes take the catalog's destructive accent, and
@@ -127,9 +127,10 @@ terminal-native uses ANSI red. Disabled content resolves to `text-disabled` befo
 cannot acquire hover or pressed styling. Enabled destructive wording keeps its accent separately
 from surrounding focus, navigation, current, hover and pressed tracks. At rest, terminal-native
 destructive wording is ANSI red directly on the host default background without a backing fill:
-a destructive menu row and a whole destructive confirmation button, including its brackets and key
-hint, read as red text. Reference contrast for ANSI red on the host default is about 3.2:1 in
-Campbell and VS Code Dark+ and 3.3:1 to 3.5:1 in One Half Light. Every named theme keeps the
+a destructive menu row reads as red text, and a destructive confirmation button in a filled block
+is a reverse band of that red with the host background as its label. Reference contrast for ANSI red on the host default is about 3.2:1 in
+Campbell and VS Code Dark+ and 3.3:1 to 3.5:1 in One Half Light; the band's label pair is the same, so it sits at that reference
+rather than the 4.5:1 floor. Every named theme keeps the
 destructive key hint in `text-secondary`. On named truecolor and 256-color `surface-selection`, the
 theme resolver supplies pre-adjusted semantic hues (action, destructive, focus, link, and status
 roles) directly on `surface-selection` without giving `accent-destructive` a separate black/white

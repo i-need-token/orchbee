@@ -39,6 +39,12 @@ fn shared_orchbee_colors(polarity: orchbee_color_themes::Polarity, roles: &mut R
             roles.accent_action = Rgb::new(0x27, 0x78, 0xc1);
             roles.surface_hover = composite(ink, roles.surface_chrome, 8);
             roles.surface_pressed = composite(ink, roles.surface_chrome, 12);
+            roles.surface_action_primary = Rgb::new(0x27, 0x78, 0xc1);
+            roles.surface_action_primary_hover = Rgb::new(0x20, 0x67, 0xa7);
+            roles.surface_action_primary_pressed = Rgb::new(0x1a, 0x57, 0x8f);
+            roles.surface_action_secondary = Rgb::new(0xf5, 0xf5, 0xf5);
+            roles.surface_action_secondary_hover = Rgb::new(0xe5, 0xe5, 0xe5);
+            roles.surface_action_secondary_pressed = Rgb::new(0xd4, 0xd4, 0xd4);
         }
         orchbee_color_themes::Polarity::Dark => {
             roles.accent_action = Rgb::new(0xf5, 0xf5, 0xf5);
@@ -46,6 +52,12 @@ fn shared_orchbee_colors(polarity: orchbee_color_themes::Polarity, roles: &mut R
             roles.surface_pressed = Rgb::new(0x40, 0x40, 0x40);
             roles.status_idle = Rgb::new(0x58, 0x58, 0x58);
             roles.status_working = Rgb::new(0xe5, 0xe5, 0xe5);
+            roles.surface_action_primary = Rgb::new(0xf5, 0xf5, 0xf5);
+            roles.surface_action_primary_hover = Rgb::new(0xfa, 0xfa, 0xfa);
+            roles.surface_action_primary_pressed = Rgb::new(0xe5, 0xe5, 0xe5);
+            roles.surface_action_secondary = Rgb::new(0x26, 0x26, 0x26);
+            roles.surface_action_secondary_hover = Rgb::new(0x40, 0x40, 0x40);
+            roles.surface_action_secondary_pressed = Rgb::new(0x4b, 0x4b, 0x4b);
         }
     }
     roles.selection.accent_action = roles.raise_on_selection(roles.accent_action, 3.0);
@@ -132,6 +144,12 @@ impl Theme {
                 surface_current: bg(roles.surface_current),
                 surface_related: bg(roles.surface_related),
                 surface_inactive: primary.bg(rgb(roles.surface_inactive)),
+                surface_action_primary: bg(roles.surface_action_primary),
+                surface_action_primary_hover: bg(roles.surface_action_primary_hover),
+                surface_action_primary_pressed: bg(roles.surface_action_primary_pressed),
+                surface_action_secondary: bg(roles.surface_action_secondary),
+                surface_action_secondary_hover: bg(roles.surface_action_secondary_hover),
+                surface_action_secondary_pressed: bg(roles.surface_action_secondary_pressed),
                 hint_key: primary.add_modifier(Modifier::BOLD),
                 hint_label: secondary,
             },

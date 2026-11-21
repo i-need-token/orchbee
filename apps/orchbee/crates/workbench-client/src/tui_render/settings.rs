@@ -809,15 +809,31 @@ fn render_row(
         rect.height,
     );
     let pointer = hits.projected_pointer(HitLayer::Overlay, inner, inner, &target, spec);
-    let interaction = pointer_surface(pointer).or(is_focused.then_some(Role::SurfaceSelection));
+    let name_x = rect.x + NAME_INSET;
+    let end = rect.right().saturating_sub(END_INSET);
+    let pending = page.waits(row);
+    let available = usize::from(end.saturating_sub(name_x));
+    // About's update action is a labeled button: the shared control paints it whole at the row's
+    // end, and the name gives up cells to it. Where it cannot fit beside the least a name needs,
+    // the row shows no button and stays an ordinary row.
+    let button = update_action_label(row, page, locale)
+        .filter(|_| first_drawn)
+        .and_then(|label| {
+            let rest = update_action_spec(label, enabled && !pending, ProjectedPointer::Rest);
+            let slot = Rect::new(name_x, rect.y, end.saturating_sub(name_x), 1);
+            let width = super::controls::action_rect(frame.area(), slot, rest, theme)?.width;
+            (usize::from(width) + 1 + BUTTON_NAME_MINIMUM <= available).then_some((label, width))
+        });
+    // The whole row is the button's target, and the button alone shows the pointer: a row fill
+    // beneath it would be the button's own fill, or join its band.
+    let interaction = pointer_surface(pointer)
+        .filter(|_| button.is_none())
+        .or(is_focused.then_some(Role::SurfaceSelection));
     let base = BASE;
     for y in rect.y..rect.bottom() {
         paint_sides(frame, rect, y, theme);
     }
     fill(frame, inner, base, interaction, theme);
-    let name_x = rect.x + NAME_INSET;
-    let end = rect.right().saturating_sub(END_INSET);
-    let pending = page.waits(row);
     let editing = is_focused && page.text().is_some();
     let content_role = if enabled {
         Role::TextPrimary
@@ -891,15 +907,18 @@ fn render_row(
                 style(Role::AccentFocus),
             );
         }
-        let available = usize::from(end.saturating_sub(name_x));
         let control = control_text(row, page, locale, theme);
-        let control_width = control
-            .as_ref()
-            .map_or(0, |control| display_width(&control.text).min(available / 2));
+        let control_width = button.map_or_else(
+            || {
+                control
+                    .as_ref()
+                    .map_or(0, |control| display_width(&control.text).min(available / 2))
+            },
+            |(_, width)| usize::from(width),
+        );
         let control_role = match about_control(row, page) {
             _ if pending => Role::StatusPending,
             Some(AboutControl::Checking) => Role::StatusPending,
-            Some(AboutControl::Action) if enabled => Role::AccentAction,
             _ if enabled => Role::TextSecondary,
             _ => Role::TextDisabled,
         };
@@ -959,7 +978,17 @@ fn render_row(
                 theme,
             ));
         }
-        if let Some(control) = control {
+        if let Some((label, width)) = button {
+            // The button shows the row's pointer state, and its whole extent lies inside the
+            // row's recorded rectangle.
+            let painted = super::controls::render_action(
+                frame,
+                Rect::new(end - width, y, width, 1),
+                update_action_spec(label, enabled && !pending, pointer),
+                theme,
+            );
+            debug_assert_eq!(painted, Some(Rect::new(end - width, y, width, 1)));
+        } else if let Some(control) = control {
             let control_x = end.saturating_sub(u16::try_from(control_width).unwrap_or(0));
             let text = truncate_display(&control.text, control_width, theme.glyphs.ellipsis);
             put(
@@ -1075,6 +1104,8 @@ fn render_row(
 
 /// Blank cells between a row's restore action and the text or control beside it.
 const RESTORE_GAP: usize = 2;
+/// The cells a row's name keeps beside a button: one glyph and the ellipsis.
+const BUTTON_NAME_MINIMUM: usize = 2;
 /// The cells a changed marker takes after a title: one blank cell and the marker.
 const MARKER_WIDTH: usize = 2;
 
@@ -1143,7 +1174,54 @@ fn about_control(row: Row, page: PageView<'_>) -> Option<AboutControl> {
     )
 }
 
-/// The control a row shows at its right edge.
+/// The label of the button About's Updates row offers: the Update control's switch while a newer
+/// version is offered, otherwise Check for updates.
+fn update_action_label(row: Row, page: PageView<'_>, locale: Locale) -> Option<&'static str> {
+    matches!(about_control(row, page), Some(AboutControl::Action)).then(|| {
+        if page.about().update().is_some() {
+            locale.update_control()
+        } else {
+            locale.about_check()
+        }
+    })
+}
+
+/// The Updates row's button as the shared action control draws it. It is not a dialog's
+/// confirming action, so it takes the ordinary fill, as the sidebar's Update does.
+fn update_action_spec(
+    label: &str,
+    enabled: bool,
+    pointer: ProjectedPointer,
+) -> super::controls::ActionSpec<'_> {
+    use super::controls::{
+        ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState,
+        FocusState, InteractionState, NavigationState, OperationState, PointerPresentation,
+    };
+    ActionSpec::new(
+        label,
+        ActionKind::Secondary,
+        ControlSurface::Overlay,
+        InteractionState::new(
+            FocusState::Unfocused,
+            match pointer {
+                ProjectedPointer::Rest => PointerPresentation::Rest,
+                ProjectedPointer::Hovered => PointerPresentation::Hovered,
+                ProjectedPointer::Pressed => PointerPresentation::Pressed,
+            },
+            NavigationState::None,
+            CurrentState::NotCurrent,
+            CheckedState::Unchecked,
+            if enabled {
+                Availability::Enabled
+            } else {
+                Availability::Disabled
+            },
+            OperationState::Idle,
+        ),
+    )
+}
+
+/// The text control a row shows at its right edge.
 fn control_text(
     row: Row,
     page: PageView<'_>,
@@ -1163,10 +1241,11 @@ fn control_text(
                 .trim_start()
                 .to_owned(),
         ),
-        Row::Updates => plain(match about_control(row, page) {
-            Some(AboutControl::Checking) => locale.about_checking().to_owned(),
-            _ if page.about().update().is_some() => format!("[{}]", locale.update_control()),
-            _ => format!("[{}]", locale.about_check()),
+        // The row's action is a button, which the shared control draws whole. This text stands
+        // in only where the button cannot fit, cut like any other row's value.
+        Row::Updates => plain(match update_action_label(row, page, locale) {
+            Some(label) => label.to_owned(),
+            None => locale.about_checking().to_owned(),
         }),
         _ if page.checked(row).is_some() => plain(
             if page.checked(row) == Some(true) {

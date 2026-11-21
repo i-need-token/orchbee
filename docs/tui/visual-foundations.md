@@ -120,8 +120,9 @@ Theme rules:
   hierarchy, focus, current context, hover, and press. It has its own palette value and never borrows
   `status-error`. Disabled intent uses `text-disabled`. In `terminal-native`, resting destructive
   wording is the host palette's red directly on the host default background, without a backing
-  fill: a destructive menu row reads as red text, and so does a destructive button, including its
-  brackets and key hint. Every other theme keeps the destructive key hint in `text-secondary`. The
+  fill: a destructive menu row reads as red text, and a destructive button is the red band that
+  [`components.md`](components.md#action-controls) describes. Every other theme keeps the destructive
+  key hint in `text-secondary`. The
   theme resolver shifts semantic hues (including `accent-destructive`) via OKLab/OKLCH lightness on
   named truecolor/256-color `surface-selection` fills so they meet their floor without a separate
   black/white box, and retains `accent-destructive` on a contrast pair when a native reverse band
@@ -130,9 +131,8 @@ Theme rules:
   without introducing warning bold, underline, or blink. Named ANSI contrast is checked against
   the reference palette and actual host evidence; a customized host palette is not inferred from
   RGB tests.
-- `accent-action` identifies the one primary action in the current decision context, or the one
-  ready-state chrome button that [`components.md`](components.md#action-controls) admits outside
-  it, while it is at rest. It never identifies keyboard focus, selection, or a successful outcome;
+- `accent-action` identifies the one primary action of the current dialog, form, or prompt, while
+  it is at rest. It never identifies keyboard focus, selection, or a successful outcome;
   those meanings keep their own roles.
 - An RGB theme is designed for one background polarity and declares it. It paints only when the
   host appearance is known through a probe or an explicit setting, and only at truecolor: a lower
@@ -181,10 +181,13 @@ Hierarchy describes information priority, not interaction state.
   pairs with `text-selection` (without `DIM`) on `surface-selection`. Where a theme has no
   measurable step, as in `terminal-native` and Monochrome, it equals `text-secondary`. Additional
   structure comes from spacing, grouping, or a frame, not from more colors or `ITALIC`.
+- The 4.5:1 floor does not apply to the label of a disabled control, because WCAG 1.4.3 exempts
+  inactive components.
 - `BOLD` marks a heading, a current item whose owner documents bold identity, such as the active
-  Tab, or the label or glyph of a pressed enabled action; it never marks pointer hover or a warning.
-  `UNDERLINED` marks only `accent-link`, `terminal-native` current context, current context where
-  no current fill can show, and Monochrome `accent-focus`.
+  Tab, the label of a focused filled button, or the label or glyph of a pressed enabled action; it
+  never marks pointer hover or a warning. `UNDERLINED` marks only `accent-link`, `terminal-native`
+  current context, current context where no current fill can show, Monochrome `accent-focus`, and the
+  label of a focused filled button in every color mode.
   `REVERSED` is available only to the theme resolver as a terminal-native or reduced-color fallback
   for an interactive band; component renderers never request it directly. `BLINK` is forbidden
   everywhere.
@@ -192,19 +195,19 @@ Hierarchy describes information priority, not interaction state.
 
 ## Interaction states
 
-| State                 | Presentation                                                                                                                                                                                                                                                                                               |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Focused region        | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated marker                                                                                                                                                                                                          |
-| Unfocused pane        | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it                                                                                                                                                                                                         |
-| Pointer hover         | `surface-hover` across the effective hit rectangle, without `BOLD`; an enabled action label resting in `text-secondary` rises to `text-primary`; an icon action instead strengthens its glyph to `text-primary` without a fill; action menus may move the provisional candidate and use its selection fill |
-| Pointer pressed       | `surface-pressed` plus `BOLD` on the enabled action label or glyph while the primary button remains held on the armed target                                                                                                                                                                               |
-| Provisional selection | `surface-selection` across the complete row plus the shared `accent-selection` navigation marker when the component provides one                                                                                                                                                                           |
-| Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn                                                                                                                                                                                     |
-| Current context       | Neutral `surface-current` across the complete row; current identity adds `BOLD` or a stable marker independently of focus, or its owner documents the fill as the only cue and underlines the row where no fill can show; `terminal-native` always underlines the complete row                             |
-| Checked value         | A stable glyph using `accent-selection` for the value at the control's declared boundary; navigation remains independent                                                                                                                                                                                   |
-| Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; `terminal-native` also underlines the Tab; keyboard focus and provisional navigation remain separate                                                                                                                                     |
-| Pending               | Fixed-width `status-pending` glyph plus a localized verb; the control footprint stays fixed                                                                                                                                                                                                                |
-| Disabled              | `text-disabled`; no hover or pressed treatment; the action stays in help with its reason                                                                                                                                                                                                                   |
+| State                 | Presentation                                                                                                                                                                                                                                                                                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Focused region        | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated marker                                                                                                                                                                                                                                               |
+| Unfocused pane        | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it                                                                                                                                                                                                                                              |
+| Pointer hover         | `surface-hover` across the effective hit rectangle, or a filled button's own hover step, without `BOLD`; an enabled action label resting in `text-secondary` rises to `text-primary`; an icon action instead strengthens its glyph to `text-primary` without a fill; action menus may move the provisional candidate and use its selection fill |
+| Pointer pressed       | `surface-pressed` plus `BOLD` on the enabled action label or glyph while the primary button remains held on the armed target; a filled button uses its fill's pressed step                                                                                                                                                                      |
+| Provisional selection | `surface-selection` across the complete row plus the shared `accent-selection` navigation marker when the component provides one                                                                                                                                                                                                                |
+| Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn                                                                                                                                                                                                                          |
+| Current context       | Neutral `surface-current` across the complete row; current identity adds `BOLD` or a stable marker independently of focus, or its owner documents the fill as the only cue and underlines the row where no fill can show; `terminal-native` always underlines the complete row                                                                  |
+| Checked value         | A stable glyph using `accent-selection` for the value at the control's declared boundary; navigation remains independent                                                                                                                                                                                                                        |
+| Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; `terminal-native` also underlines the Tab; keyboard focus and provisional navigation remain separate                                                                                                                                                                          |
+| Pending               | Fixed-width `status-pending` glyph plus a localized verb; the control footprint stays fixed                                                                                                                                                                                                                                                     |
+| Disabled              | `text-disabled`; no hover or pressed treatment; the action stays in help with its reason                                                                                                                                                                                                                                                        |
 
 Exactly one region shows focus at a time. Focus is visible in every layout tier. Project it once at
 the keyboard-owner boundary: a framed collection uses its `frame-focused` border, while an unframed

@@ -137,7 +137,7 @@ pub(in crate::tui_render) fn render(
     };
     let action = source.clone().map(|source| TouchAction {
         label: locale.menu_action(MenuLabel::NewTab),
-        kind: ActionKind::Primary,
+        kind: ActionKind::Secondary,
         enabled: true,
         target: InteractionTarget::TabCreate(source),
         place,

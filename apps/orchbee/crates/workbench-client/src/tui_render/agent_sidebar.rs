@@ -190,7 +190,7 @@ fn render_actions(
         (
             SidebarCommand::NewWorkspace,
             SidebarFixedAction::NewWorkspace,
-            ActionKind::Primary,
+            ActionKind::Secondary,
         ),
         (
             SidebarCommand::Search,
@@ -417,7 +417,7 @@ pub(super) fn render(
         let target = super::sidebar_chrome::update_target();
         let control = FixedAction {
             label: locale.update_control(),
-            kind: ActionKind::Primary,
+            kind: ActionKind::Secondary,
             enabled: true,
             target: target.clone(),
         };

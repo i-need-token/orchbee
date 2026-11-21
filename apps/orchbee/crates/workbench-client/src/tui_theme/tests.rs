@@ -151,6 +151,12 @@ struct SharedColor {
 fn shared_color_role(name: &str) -> Role {
     match name {
         "action" => Role::AccentAction,
+        "actionPrimary" => Role::SurfaceActionPrimary,
+        "actionPrimaryHover" => Role::SurfaceActionPrimaryHover,
+        "actionPrimaryPress" => Role::SurfaceActionPrimaryPressed,
+        "actionSecondary" => Role::SurfaceActionSecondary,
+        "actionSecondaryHover" => Role::SurfaceActionSecondaryHover,
+        "actionSecondaryPress" => Role::SurfaceActionSecondaryPressed,
         "hover" => Role::SurfaceHover,
         "press" => Role::SurfacePressed,
         "agentAttention" => Role::AgentAttention,

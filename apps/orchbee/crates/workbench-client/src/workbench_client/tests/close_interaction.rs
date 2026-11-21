@@ -243,9 +243,10 @@ fn assert_complete_close_frame(
     expected.extend(displayed_content_rows(&expected_warning, warning_area));
     expected.extend([
         String::new(),
-        // Focus on the primary shows on its brackets alone; no glyph precedes them.
+        // The two actions sit side by side as filled blocks: a blank cell pads each label, and
+        // one more blank cell separates the actions.
         format!(
-            "[ {}  Esc ] [ {}  Enter ]",
+            "{}  Esc   {}  Enter",
             locale.tab_close_cancel_label(),
             locale.tab_close_confirm_label()
         ),
@@ -355,8 +356,8 @@ fn narrow_localized_close_keeps_complete_rows_and_tokens_through_suspend_cancel_
         let (buffer, hits) = draw_close_frame(&mut workbench_client, &view, locale, 80, 24)?;
         assert_complete_close_frame(&buffer, &hits, token, locale, &view);
         dispatcher.publish_hit_map(hits);
-        let (_, hidden_hits) = draw_close_frame(&mut workbench_client, &view, locale, 20, 8)?;
-        assert!((0..8).all(|y| (0..20).all(|x| !matches!(
+        let (_, hidden_hits) = draw_close_frame(&mut workbench_client, &view, locale, 14, 8)?;
+        assert!((0..8).all(|y| (0..14).all(|x| !matches!(
             hidden_hits.hit_target_at(x, y),
             Some(HitTarget::TabClose { .. })
         ))));

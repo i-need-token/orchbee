@@ -341,8 +341,15 @@ fn project_group_gap_stays_inert_while_hover_raises_only_the_inline_disclosure_g
                                 map.hit_target_at(column, row),
                                 Some(HitTarget::SidebarMenu(_))
                             ))));
-                            assert!((0..width).all(|column| candidate[(column, project_y)].bg
-                                == theme.color(Role::SurfaceChrome)));
+                            // The heading stays on chrome; a revealed Create keeps its own fill.
+                            assert!((0..width).all(|column| {
+                                candidate[(column, project_y)].bg
+                                    == theme.color(Role::SurfaceChrome)
+                                    || matches!(
+                                        map.hit_target_at(column, project_y),
+                                        Some(HitTarget::CreateMenu(_))
+                                    )
+                            }));
                             assert_eq!(
                                 candidate[(disclosure_x, project_y)].fg,
                                 theme.color(if on_row {

@@ -276,7 +276,8 @@ fn mobile_return_keeps_its_complete_control_before_the_shortcut_hint() {
 #[test]
 fn narrow_sidebar_regions_drop_the_icons_before_their_actions_without_overlap() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let settings_width = u16::try_from(display_width(locale.settings_title())).unwrap() + 4;
+        // A filled action pads one cell on each side of its label.
+        let settings_width = u16::try_from(display_width(locale.settings_title())).unwrap() + 2;
         for width in 3..=24 {
             let height = 12;
             let view = visible_view(120, 40, 30);
@@ -412,7 +413,7 @@ fn environment_marker_takes_only_what_settings_and_help_leave() {
             }),
             legend: Vec::new(),
         };
-        let settings_width = u16::try_from(display_width(locale.settings_title())).unwrap() + 4;
+        let settings_width = u16::try_from(display_width(locale.settings_title())).unwrap() + 2;
         for width in 3..=40 {
             let mut view = visible_view(120, 40, 30);
             view.set_environment_marker(Some(development));
@@ -522,9 +523,10 @@ fn update_gives_way_after_help_without_crowding_its_neighbours() {
         Theme::orchbee_light(),
     ] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            let settings_width = cells(locale.settings_title()) + 4;
-            let update_width = cells(locale.update_control()) + 4;
-            let label = format!("[ {} ]", locale.update_control());
+            // Every theme here fills its actions: one padding cell on each side of the label.
+            let settings_width = cells(locale.settings_title()) + 2;
+            let update_width = cells(locale.update_control()) + 2;
+            let label = format!(" {} ", locale.update_control());
             let effect = TooltipContent::Effect {
                 text: locale.update_tooltip("9.9.9"),
             };
@@ -593,18 +595,6 @@ fn update_gives_way_after_help_without_crowding_its_neighbours() {
                         );
                     }
                     assert_eq!(text(&buffer, last, update.x, update.right()), label);
-                    assert_eq!(
-                        buffer[(update.x + 2, last)].fg,
-                        theme.color(Role::AccentAction),
-                        "{case}"
-                    );
-                    for x in [update.x, update.right() - 1] {
-                        assert_eq!(
-                            buffer[(x, last)].fg,
-                            theme.color(Role::TextPrimary),
-                            "{case} at {x}"
-                        );
-                    }
                     for x in update.x..update.right() {
                         assert_eq!(
                             tooltips[usize::from(x)],
@@ -632,11 +622,6 @@ fn update_gives_way_after_help_without_crowding_its_neighbours() {
             let offered = hits.tooltip_content_at(x, row).cloned();
             let map = hits.finish();
             assert_eq!(offered, Some(effect.clone()), "{locale:?}");
-            assert_eq!(
-                buffer[(x + 2, row)].fg,
-                theme.color(Role::AccentAction),
-                "{locale:?}"
-            );
             let help_start = (0..area.width)
                 .find(|&x| map.hit_target_at(x, row) == Some(&HitTarget::ShortcutsButton))
                 .unwrap_or_else(|| panic!("{locale:?}: Help"));

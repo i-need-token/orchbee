@@ -75,7 +75,7 @@ pub(super) fn render_controls(
             frame,
             remaining,
             locale.copy_find_label(),
-            ActionKind::Primary,
+            ActionKind::Secondary,
             HitTarget::CopyControl {
                 token,
                 control: CopyControl::SubmitSearch,
@@ -352,7 +352,7 @@ fn paint_search_direction_and_reverse(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
-    // The direction glyph and one blank cell precede the action's left bracket.
+    // The direction glyph and one blank cell precede the action.
     let reverse_area = Rect::new(
         area.x.saturating_add(2),
         area.y,

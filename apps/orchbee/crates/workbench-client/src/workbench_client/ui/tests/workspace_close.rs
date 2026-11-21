@@ -556,7 +556,7 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                 (120, 40, true),
                 (60, 24, true),
                 (50, 30, true),
-                (22, 8, false),
+                (16, 8, false),
                 (19, 4, false),
             ] {
                 let (mut ui, mailbox, _, _) = ready();
@@ -606,16 +606,15 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                     assert!(alnum(&text).contains("项目space界"));
                     let compact = text.replace(' ', "");
                     assert!(
-                        compact
-                            .contains(&format!("[{}Esc]", locale.workspace_close_cancel_label()))
+                        compact.contains(&format!("{}Esc", locale.workspace_close_cancel_label()))
                     );
-                    assert!(compact.contains(&format!(
-                        "[{}Enter]",
-                        locale.workspace_close_confirm_label()
-                    )));
+                    assert!(
+                        compact
+                            .contains(&format!("{}Enter", locale.workspace_close_confirm_label()))
+                    );
                     assert_eq!(
                         cancel_controls,
-                        4 + crate::terminal_text::display_width(
+                        2 + crate::terminal_text::display_width(
                                 locale.workspace_close_cancel_label()
                             )
                             + 2 + 3 // Gap and Esc inside the button.
@@ -623,7 +622,7 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                     );
                     assert_eq!(
                         confirm_controls,
-                        4 + crate::terminal_text::display_width(
+                        2 + crate::terminal_text::display_width(
                             locale.workspace_close_confirm_label()
                         ) + 2
                             + 5 // Gap and Enter inside the button.

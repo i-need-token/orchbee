@@ -165,12 +165,12 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
                     assert!(
                         drawn
                             .text
-                            .contains(&format!("[{}Esc]", cancel_label.replace(' ', "")))
+                            .contains(&format!("{}Esc", cancel_label.replace(' ', "")))
                     );
                     assert!(
                         drawn
                             .text
-                            .contains(&format!("[{}Enter]", submit_label.replace(' ', "")))
+                            .contains(&format!("{}Enter", submit_label.replace(' ', "")))
                     );
 
                     let hint_y = (0..height)
@@ -191,11 +191,11 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
                         .unwrap();
                     let footer = visible_row(&drawn.buffer, width, hint_y);
                     assert!(
-                        footer.contains(&format!("[ {cancel_label}  Esc ]")),
+                        footer.contains(&format!(" {cancel_label}  Esc ")),
                         "{locale:?}: {footer:?}"
                     );
                     assert!(
-                        footer.contains(&format!("[ {submit_label}  Enter ]")),
+                        footer.contains(&format!(" {submit_label}  Enter ")),
                         "{locale:?}: {footer:?}"
                     );
                     let secondary_hints = visible_row(&drawn.buffer, width, hint_y - 1);
@@ -218,16 +218,16 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
                             })
                             .count()
                     };
-                    // The button owns its brackets, two spaces and Esc; the frame's [x] is its own
+                    // The button owns its padding, two spaces and Esc; the frame's [x] is its own
                     // Close target with the same effect.
                     assert_eq!(
                         target_count(ModalControl::Cancel),
-                        4 + crate::terminal_text::display_width(cancel_label) + 5
+                        2 + crate::terminal_text::display_width(cancel_label) + 5
                     );
                     assert_eq!(target_count(ModalControl::Close), 3);
                     assert_eq!(
                         target_count(ModalControl::Submit),
-                        4 + crate::terminal_text::display_width(submit_label) + 7
+                        2 + crate::terminal_text::display_width(submit_label) + 7
                     );
                     assert!(target_count(ModalControl::NextField) > 0);
                     assert!(
@@ -598,7 +598,7 @@ fn a_result_without_an_operation_offers_only_close() {
                 &crate::tui_theme::Theme::rgb_test_dark(),
             );
             let close = locale.worktree_cancel_label(WorktreeStage::Result);
-            assert!(drawn.text.contains(&format!("[{close}Esc]")), "{notice:?}");
+            assert!(drawn.text.contains(&format!("{close}Esc")), "{notice:?}");
             assert_eq!(targets(&drawn, ModalControl::Abandon), 0, "{notice:?}");
             assert_eq!(targets(&drawn, ModalControl::Submit), 0, "{notice:?}");
             assert!(targets(&drawn, ModalControl::Cancel) > 0, "{notice:?}");
@@ -634,7 +634,7 @@ fn a_result_without_an_operation_offers_only_close() {
         WorktreeStage::Waiting
     );
     let close = Locale::EnUs.worktree_cancel_label(WorktreeStage::Waiting);
-    assert!(drawn.text.contains(&format!("[{close}Esc]")));
+    assert!(drawn.text.contains(&format!("{close}Esc")));
 }
 
 #[test]
@@ -683,8 +683,8 @@ fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto
                     );
                     assert!(drawn.text.contains(&shown("C:/trees/猫")));
                     assert!(drawn.text.contains(&branch.replace(' ', "")));
-                    assert!(drawn.text.contains(&format!("[{cancel}Esc]")));
-                    assert!(drawn.text.contains(&format!("[{remove}Enter]")));
+                    assert!(drawn.text.contains(&format!("{cancel}Esc")));
+                    assert!(drawn.text.contains(&format!("{remove}Enter")));
                     assert_eq!(
                         ui.worktrees.launcher.view().unwrap().stage(),
                         WorktreeStage::Remove
@@ -956,12 +956,12 @@ fn abandoning_a_retained_removal_needs_a_drawn_confirmation_and_frees_the_launch
         let (hint, confirm, notice) = match locale {
             // The notice's first line; the rest wraps.
             crate::localization::Locale::EnUs => (
-                "[StopTracking…x]",
-                "[StopTrackingEnter]",
+                "StopTracking…x",
+                "StopTrackingEnter",
                 "The removal continues;",
             ),
             crate::localization::Locale::ZhCn => {
-                ("[停止跟踪…x]", "[停止跟踪Enter]", "移除会继续进行，")
+                ("停止跟踪…x", "停止跟踪Enter", "移除会继续进行，")
             }
         };
         let (launcher, origin, _) = failed_removal(removal::failure(1, true));

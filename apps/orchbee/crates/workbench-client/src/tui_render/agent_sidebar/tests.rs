@@ -449,9 +449,11 @@ fn settings_sits_alone_on_the_sidebar_last_row_as_an_exact_action_without_a_shor
                 let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), width, height);
                 let last = height - 1;
                 let footer = &rows[usize::from(last)];
-                assert!(footer.contains("[ "), "{footer:?}");
-                assert!(footer.contains(locale.settings_title()), "{footer:?}");
-                assert!(footer.contains(" ]"), "{footer:?}");
+                // A filled action pads one cell on each side of its complete label.
+                assert!(
+                    footer.contains(&format!(" {} ", locale.settings_title())),
+                    "{footer:?}"
+                );
                 let configured_hint = view
                     .bindings()
                     .action_labels_with_glyphs(
@@ -772,8 +774,8 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let theme = Theme::terminal_native();
     let (rows, hits) = paint(&view, Locale::EnUs, &theme, 60, 12);
     let row_of = |text: &str| rows.iter().position(|row| row.contains(text)).unwrap();
-    let search = row_of("[ Search ]");
-    assert!(row_of("[ New workspace ]") < search, "{rows:?}");
+    let search = row_of(" Search ");
+    assert!(row_of(" New workspace ") < search, "{rows:?}");
     // The heading over ungrouped Workspaces names the group without a member count; its
     // disclosure always shows.
     let heading = Locale::EnUs.machine_picker_text("sidebar-recents");
@@ -793,7 +795,7 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let agent = row_of("build");
     assert!(rows[agent].contains(theme.glyphs.tree_guide), "{rows:?}");
     assert!(search < recents && recents < workspace && workspace < agent);
-    assert!(rows[11].contains("[ Settings ]"), "{rows:?}");
+    assert!(rows[11].contains(" Settings "), "{rows:?}");
     let (search, agent) = (search as u16, agent as u16);
     assert!(
         (0..30).any(|x| matches!(hits.hit_target_at(x, search), Some(HitTarget::SearchButton)))
@@ -943,22 +945,23 @@ fn compact_overlay_sidebar_rows_and_fixed_actions_paint_the_hover_band_under_the
                 .unwrap();
             (terminal.backend().buffer().clone(), hits.finish())
         };
-        let hover = theme.style(Role::SurfaceHover);
-        let band_cells = |buffer: &ratatui::buffer::Buffer, y: u16| {
-            (0..width)
-                .filter(|x| {
-                    let cell = &buffer[(*x, y)];
-                    if hover.add_modifier.contains(Modifier::REVERSED) {
-                        cell.modifier.contains(Modifier::REVERSED)
-                    } else {
-                        Some(cell.bg) == hover.bg
-                    }
-                })
-                .map(|x| buffer[(x, y)].symbol().to_owned())
-                .collect::<String>()
+        let band_cells =
+            |buffer: &ratatui::buffer::Buffer, y: u16, hover: ratatui::style::Style| {
+                (0..width)
+                    .filter(|x| {
+                        let cell = &buffer[(*x, y)];
+                        if hover.add_modifier.contains(Modifier::REVERSED) {
+                            cell.modifier.contains(Modifier::REVERSED)
+                        } else {
+                            Some(cell.bg) == hover.bg
+                        }
+                    })
+                    .map(|x| buffer[(x, y)].symbol().to_owned())
+                    .collect::<String>()
+            };
+        let banded = |buffer: &ratatui::buffer::Buffer, y: u16, hover: ratatui::style::Style| {
+            display_width(&band_cells(buffer, y, hover))
         };
-        let banded =
-            |buffer: &ratatui::buffer::Buffer, y: u16| display_width(&band_cells(buffer, y));
         for is_target in [
             (|target: Option<&HitTarget>| {
                 matches!(target, Some(HitTarget::MachineWorkspaceRow { .. }))
@@ -978,8 +981,11 @@ fn compact_overlay_sidebar_rows_and_fixed_actions_paint_the_hover_band_under_the
                 .flat_map(|y| (0..width).map(move |x| (x, y)))
                 .find(|(x, y)| is_target(map.hit_target_at(*x, *y)))
                 .unwrap();
-            assert_eq!(banded(&rest, y), 0, "{}", theme.name);
             let search = matches!(map.hit_target_at(x, y), Some(HitTarget::SearchButton));
+            let row_hover = theme.style(Role::SurfaceHover);
+            if !search {
+                assert_eq!(banded(&rest, y, row_hover), 0, "{}", theme.name);
+            }
             pointer.publish(map);
             let _ = pointer.event(
                 &mut view,
@@ -994,16 +1000,26 @@ fn compact_overlay_sidebar_rows_and_fixed_actions_paint_the_hover_band_under_the
                 },
             );
             let (hovered, _) = paint(&view, &pointer);
+            // A fixed action paints its own fill, which moves under the pointer in a color theme;
+            // a band theme paints the same band at rest.
+            let hover = if search {
+                let fill = hovered[(x, y)].style();
+                if !fill.add_modifier.contains(Modifier::REVERSED) {
+                    assert_ne!(fill.bg, rest[(x, y)].style().bg, "{}", theme.name);
+                }
+                fill
+            } else {
+                row_hover
+            };
             assert!(
-                banded(&hovered, y) >= 6,
+                banded(&hovered, y, hover) >= 6,
                 "{} {:?} at ({x}, {y})",
                 theme.name,
                 row_text(&rest, y)
             );
-            // A fixed action's hover band is its bracketed extent alone, with no blank cell
-            // before its opening bracket.
+            // A fixed action's hover band is its padded label extent alone.
             if search {
-                assert_eq!(band_cells(&hovered, y), "[ Search ]", "{}", theme.name);
+                assert_eq!(band_cells(&hovered, y, hover), " Search ", "{}", theme.name);
             }
         }
     }

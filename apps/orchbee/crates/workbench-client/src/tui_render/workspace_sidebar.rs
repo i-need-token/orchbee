@@ -1012,6 +1012,11 @@ impl<'a> AuxiliaryAction<'a> {
         )
     }
 
+    /// Whether this action paints its own fill or band, which no row surface may replace.
+    fn filled(&self, theme: &Theme) -> bool {
+        self.density == layout::Density::Comfortable && theme.filled_actions()
+    }
+
     fn render(
         &self,
         frame: &mut Frame<'_>,
@@ -1035,7 +1040,7 @@ impl<'a> AuxiliaryAction<'a> {
             )
         };
         debug_assert_eq!(painted, Some(self.rect));
-        if pointer == PointerPresentation::Rest && parent_surface.is_some() {
+        if pointer == PointerPresentation::Rest && parent_surface.is_some() && !self.filled(theme) {
             for x in self.rect.x..self.rect.right() {
                 let cell = &mut frame.buffer_mut()[(x, self.rect.y)];
                 cell.set_style(theme.content_on_surface(
@@ -1829,8 +1834,10 @@ pub(super) fn render(
             );
         }
 
+        // A bracketed Create inherits the row surface here; a filled one paints last, below.
         if create_target.is_some()
             && let Some(action) = create_action.as_ref()
+            && !action.filled(theme)
         {
             action.render(frame, create_pointer, interaction, theme);
         }
@@ -1941,19 +1948,27 @@ pub(super) fn render(
         }
         if let Some(target) = create_target
             && let Some(action) = create_action.as_ref()
-            && paint_pointer_target(
-                frame,
-                action.rect,
-                ControlSurface::Chrome,
-                create_pointer,
-                Role::TextSecondary,
-                Availability::Enabled,
-                theme,
-            )
-            .is_some()
-            && let Some(hits) = hits.as_deref_mut()
         {
-            hits.record_interaction(layer, action.rect, action.rect, target, auxiliary_spec);
+            // A filled Create keeps its own fill and its hover and pressed steps over the restored
+            // row surface; a bracketed one takes the row's pointer surface on its extent.
+            let painted = if action.filled(theme) {
+                action.render(frame, create_pointer, interaction, theme);
+                true
+            } else {
+                paint_pointer_target(
+                    frame,
+                    action.rect,
+                    ControlSurface::Chrome,
+                    create_pointer,
+                    Role::TextSecondary,
+                    Availability::Enabled,
+                    theme,
+                )
+                .is_some()
+            };
+            if painted && let Some(hits) = hits.as_deref_mut() {
+                hits.record_interaction(layer, action.rect, action.rect, target, auxiliary_spec);
+            }
         }
         if let Some((rect, target)) = close
             && paint_pointer_target(

@@ -931,8 +931,8 @@ neither reads the other's source.
   produce the same sets. It compares target policy only; lifecycle sequencing and empty-group
   cleanup stay with each host owner.
 - The [shared theme colors](v1/shared-theme-colors-v1.json) are the one authority for the colors
-  the GUI's Light and Dark themes share with the native Orchbee Light and Dark: the primary action,
-  hover and press, and the Agent state colors, with `everyTheme` holding the traffic light that
+  the GUI's Light and Dark themes share with the native Orchbee Light and Dark: the primary and ordinary action fills,
+  each with hover and press, and the Agent state colors, with `everyTheme` holding the traffic light that
   every theme uses. Each color is an exact `#rrggbb` sRGB value; `opacity` marks a translucent
   color that lies over the surface beneath it. The `@orchbee/design-tokens` registry must resolve
   the matching system color to that value, and the native theme's matching role must carry it,

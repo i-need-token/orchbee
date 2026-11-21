@@ -481,9 +481,9 @@ fn fixed_actions_keep_complete_labels_and_exact_button_hits_above_the_first_grou
         ] {
             let y = action_row(&target);
             let row = &rows[usize::from(y)];
-            assert!(row.contains("[ "), "{row:?}");
-            assert!(row.contains(locale.sidebar_navigation_action(command)));
-            assert!(row.contains(" ]"), "{row:?}");
+            // A filled action pads one cell on each side of its complete label.
+            let label = locale.sidebar_navigation_action(command);
+            assert!(row.contains(&format!(" {label} ")), "{row:?}");
             let exact = (0..29)
                 .filter(|x| hits.hit_target_at(*x, y) == Some(&target))
                 .collect::<Vec<_>>();

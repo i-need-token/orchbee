@@ -127,15 +127,20 @@ this Client's version and its build kind (release, test or development), and Upd
 nothing to activate, so the status line names no primary key on it, nor on Updates while a check
 runs or none can.
 
-Updates shows Check for updates, or the Update control's `[Update]` while the release store names a
-newer version, with the control's own sentence as its description. A press on Check for updates
+Updates ends in a button drawn by the shared button control: Check for updates, or the Update
+control's Update while the release store names a newer version, with the control's own sentence as
+its description. The button takes the ordinary fill, or `[ Label ]` brackets in monochrome and
+NO_COLOR, and stays whole: the row's name gives up cells to it. The whole row is the button's target,
+so the pointer anywhere on the row shows hover and press on the button and the row takes no pointer
+surface. A row too narrow for the whole button beside two cells of its name shows the label as cut
+text instead, as other rows show a value. A press on Check for updates
 sends `workbench.update-check` `start` to the Session's Server, which runs its scheduled
 automatic-update job now through the same helper and state ([automatic updates
 proposal](../../../proposals/platform/automatic-updates.md#manual-check)). The row then shows
 Checking… and reads the run with `read` about once a second while About shows. A run that ends up to
 date or failed says so on the description line, in `status-success` or `status-error`; a run that
 installed a version stays Checking until the store watcher, asked to read at once, makes the Update
-control Ready, and the row then offers `[Update]`. Only a run this TUI asked for reports its end: a
+control Ready, and the row then offers Update. Only a run this TUI asked for reports its end: a
 scheduled run About saw under way returns the row to its idle description, and returning to About
 clears an earlier result. A lost or unmatched answer ends an asked check as failed and never closes
 the TUI or the connection. The row is unavailable, with the reason on its description line, in a
