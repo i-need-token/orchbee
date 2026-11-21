@@ -275,7 +275,7 @@ fn measure<'v>(
                     theme.glyphs.disclosure_closed,
                 );
                 marker_width
-                    .saturating_add(color_track_width(action, theme))
+                    .saturating_add(check_track_width(menu.source, action, theme))
                     .saturating_add(display_width(&label))
                     .saturating_add(
                         trailing(binding_labels[index].as_deref(), menu.notes[index], locale)
@@ -560,6 +560,11 @@ fn title(measured: &Measured<'_>, area: Rect, locale: Locale, theme: &Theme) -> 
         } else if matches!(menu.source, MenuTarget::TabProfiles(_)) {
             locale
                 .menu_action(crate::localization::MenuLabel::NewTab)
+                .to_owned()
+        } else if matches!(menu.source, MenuTarget::AgentConfirmations { .. }) {
+            // Opened by its key, the answers say what they are about.
+            locale
+                .menu_action(crate::localization::MenuLabel::AgentConfirmations)
                 .to_owned()
         } else if matches!(menu.source, MenuTarget::Create(_)) {
             // Every row of a `+` menu creates a Workspace; a Project's name would read as adding one.
@@ -1207,7 +1212,7 @@ fn render_row(
         .min(row.width.saturating_sub(1));
     let navigation = Rect::new(row.x, row.y, marker_width, 1);
     let color = matches!(action, MenuAction::GroupColor(_));
-    let checked = color.then(|| {
+    let checked = (check_track_width(menu.source, action, theme) > 0).then(|| {
         Rect::new(
             navigation.right(),
             row.y,
@@ -1215,8 +1220,12 @@ fn render_row(
             1,
         )
     });
-    let swatch = checked.map(|rect| Rect::new(rect.right() + 1, row.y, 2, 1));
-    let label_left = swatch.map_or(navigation.right(), |rect| rect.right() + 1);
+    let swatch = checked
+        .filter(|_| color)
+        .map(|rect| Rect::new(rect.right() + 1, row.y, 2, 1));
+    let label_left = swatch
+        .or(checked)
+        .map_or(navigation.right(), |rect| rect.right() + 1);
     // Text stops before the row's right padding cell; a destructive band still reaches the edge.
     let content_right = row.right().saturating_sub(1);
     let binding_width = trailing
@@ -1289,7 +1298,9 @@ fn render_row(
     if let Some(rect) = checked {
         tracks = tracks.with_checked(rect, theme.glyphs.checked_marker);
     }
-    let applied = if menu.tabs.is_some_and(|tabs| tabs.checked(action)) {
+    let applied = if menu.tabs.is_some_and(|tabs| tabs.checked(action))
+        || menu.notes[action_index] == Some(MenuRowNote::Applied)
+    {
         CheckedState::Checked
     } else {
         CheckedState::Unchecked
@@ -1434,9 +1445,10 @@ fn trailing(
     note: Option<MenuRowNote>,
     locale: Locale,
 ) -> Option<(&str, Role)> {
-    binding
-        .map(|binding| (binding, Role::HintKey))
-        .or_else(|| note.map(|note| (locale.menu_row_note(note), Role::TextSecondary)))
+    binding.map(|binding| (binding, Role::HintKey)).or_else(|| {
+        note.and_then(|note| locale.menu_row_note(note))
+            .map(|note| (note, Role::TextSecondary))
+    })
 }
 
 fn action_label(
@@ -1470,6 +1482,13 @@ fn action_label(
     if let MenuAction::StartAgentInTab(provider) = action {
         // Under the Agents heading a row names only its Agent, as the picker does.
         return crate::agent_provider::product_name(provider).to_owned();
+    }
+    if let (
+        MenuAction::AgentConfirmation(crate::localization::ConfirmationAnswer::AgentType),
+        Some(agent),
+    ) = (action, label)
+    {
+        return locale.confirmation_agent_type(agent);
     }
     if let MenuAction::NewTabWithProfile(profile) = action {
         let name = locale.launch_profile_label(profile.name.as_deref());
@@ -1526,11 +1545,18 @@ fn key_row_label(locale: Locale, row: KeyRow, separator: &str) -> String {
     }
 }
 
-fn color_track_width(action: &MenuAction, theme: &Theme) -> usize {
-    if matches!(action, MenuAction::GroupColor(_)) {
-        display_width(theme.glyphs.checked_marker) + 4
-    } else {
-        0
+/// The cells a single-choice row keeps before its label: the check, a gap, and for a color its
+/// swatch and another gap. An offer's answers are no such choice: none of them is in force.
+fn check_track_width(source: &MenuTarget, action: &MenuAction, theme: &Theme) -> usize {
+    let check = display_width(theme.glyphs.checked_marker);
+    match action {
+        MenuAction::GroupColor(_) => check + 4,
+        MenuAction::AgentConfirmation(_)
+            if matches!(source, MenuTarget::AgentConfirmations { offer: false, .. }) =>
+        {
+            check + 1
+        }
+        _ => 0,
     }
 }
 

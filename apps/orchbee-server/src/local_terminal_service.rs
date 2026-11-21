@@ -36,6 +36,7 @@ use crate::{
 };
 
 mod agent_catalog;
+mod agent_confirmation;
 mod agent_drain_read;
 mod agent_integration;
 mod agent_names;
@@ -109,6 +110,7 @@ pub(crate) struct LocalTerminalService {
     #[cfg(any(windows, target_os = "macos"))]
     agent_resume: agent_resume::AgentResume,
     agent_start_delivery: agent_start_delivery::AgentStartDelivery,
+    agent_confirmations: agent_confirmation::AgentConfirmations,
     #[cfg(windows)]
     plugin_hooks: plugins::PluginHooks,
     worktree_maintenance: operation_maintenance::OperationMaintenance,
@@ -164,6 +166,7 @@ impl LocalTerminalService {
             #[cfg(any(windows, target_os = "macos"))]
             agent_resume: agent_resume::AgentResume::default(),
             agent_start_delivery: agent_start_delivery::AgentStartDelivery::default(),
+            agent_confirmations: agent_confirmation::AgentConfirmations::default(),
             #[cfg(windows)]
             plugin_hooks: plugins::PluginHooks::default(),
             worktree_maintenance: operation_maintenance::OperationMaintenance::new(

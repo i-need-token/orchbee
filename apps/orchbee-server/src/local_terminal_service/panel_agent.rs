@@ -28,6 +28,14 @@ impl LocalTerminalService {
         }
         if matches!(
             request.action,
+            orchbee_workbench_protocol::PanelAgentAction::Confirmations { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::ConfirmationChoose { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::ConfirmationDecline { .. }
+        ) {
+            return self.execute_agent_confirmation(&request);
+        }
+        if matches!(
+            request.action,
             orchbee_workbench_protocol::PanelAgentAction::Identify { .. }
         ) {
             let outcome = self.coordinator.lock().map_or(
@@ -97,7 +105,10 @@ impl LocalTerminalService {
                 | orchbee_workbench_protocol::PanelAgentAction::Identify { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::Read { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. }
-                | orchbee_workbench_protocol::PanelAgentAction::Report { .. } => false,
+                | orchbee_workbench_protocol::PanelAgentAction::Report { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::Confirmations { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::ConfirmationChoose { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::ConfirmationDecline { .. } => false,
             };
             if !valid {
                 return unavailable;

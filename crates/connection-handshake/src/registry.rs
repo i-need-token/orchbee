@@ -10,9 +10,17 @@ include!(concat!(env!("OUT_DIR"), "/fingerprints.rs"));
 /// prompt. A peer without it gets no gated send and no ungated fallback.
 pub const PROMPT_GATED_INPUT: &str = "prompt-gated-input";
 
-/// The `worker-host` capability before a Worker may send a `ScreenGatedKeyInput`. A Host without
-/// it gets no gated key and no ungated fallback.
+/// The `worker-host` capability of the first Hosts that served `ScreenGatedKeyInput`, sealed with
+/// 0.1.0-beta.22. Such a Host counts the cleanup of every attachment that goes away as a person's
+/// input, so a key sent from a send's own attachment is refused for good after one refusal. No
+/// Worker offers this name or sends a gated key under it; it stays declared because `worker-host`
+/// changes only by addition.
 pub const SCREEN_GATED_INPUT: &str = "screen-gated-input";
+
+/// The `worker-host` capability before a Worker may send a `ScreenGatedKeyInput`: the Host types
+/// it only on the frame it names, and an attachment that goes away holding no key and no mouse
+/// button leaves no person's input. A Host without it gets no gated key and no ungated fallback.
+pub const SCREEN_GATED_SEND: &str = "screen-gated-send";
 
 /// The `client-server` capability before a Client may ask physical Explain to place the Agent's
 /// input area. A Server without it never receives the flag.
@@ -48,6 +56,11 @@ pub const CONFIGURED_COMMAND_SOURCE_EXITED: &str = "configured-command-source-ex
 /// `terminal-limit-reached`, when the Session already retains its bound of terminals. A Client
 /// without it reads `server-busy` for that refusal, as its own release did.
 pub const TERMINAL_LIMIT_REACHED: &str = "terminal-limit-reached";
+
+/// The `client-server` capability before a Client may read or change how a Server answers an
+/// Agent's routine confirmations, with the `confirmations`, `confirmation-choose` and
+/// `confirmation-decline` Panel Agent actions. A Client without it shows nothing about them.
+pub const AGENT_CONFIRMATION: &str = "agent-confirmation";
 
 /// The `worker-host` capability before a Worker may ask a Host to attach a Keeper and hold its
 /// terminals' handles there. No build offers it before the Worker uses the Keeper.
@@ -123,6 +136,7 @@ impl ConnectionKind {
     pub fn capabilities(self) -> CapabilitySet {
         let names: &[&str] = match self {
             Self::ClientServer => &[
+                AGENT_CONFIRMATION,
                 AGENT_INPUT_AREA,
                 COMPATIBILITY_WINDOW,
                 CONFIGURED_COMMAND_SOURCE_EXITED,
@@ -132,7 +146,7 @@ impl ConnectionKind {
                 TERMINAL_RUNTIME,
                 UPDATE_CHECK,
             ],
-            Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_INPUT],
+            Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_SEND],
             Self::Keeper | Self::MachineHub | Self::MachineLink => &[],
         };
         capability_set(names)
@@ -143,9 +157,13 @@ impl ConnectionKind {
     #[must_use]
     pub fn declared_capabilities(self) -> CapabilitySet {
         match self {
-            Self::WorkerHost => {
-                capability_set(&[HANDOVER, KEEPER, PROMPT_GATED_INPUT, SCREEN_GATED_INPUT])
-            }
+            Self::WorkerHost => capability_set(&[
+                HANDOVER,
+                KEEPER,
+                PROMPT_GATED_INPUT,
+                SCREEN_GATED_INPUT,
+                SCREEN_GATED_SEND,
+            ]),
             Self::ClientServer | Self::Keeper | Self::MachineHub | Self::MachineLink => {
                 self.capabilities()
             }

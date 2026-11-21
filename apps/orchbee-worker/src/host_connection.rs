@@ -86,8 +86,8 @@ pub(crate) struct HostBrokerConnection {
     negotiated_limits: NegotiatedHostLimits,
     /// The Host's answer listed `prompt-gated-input`.
     prompt_gated_input: bool,
-    /// The Host's answer listed `screen-gated-input`.
-    screen_gated_input: bool,
+    /// The Host's answer listed `screen-gated-send`.
+    screen_gated_send: bool,
     stream: UnixStream,
     /// The Host record every reader of `stream` continues.
     inbound: RefCell<events::PartialRecord>,
@@ -167,7 +167,7 @@ impl HostBrokerConnection {
     ) -> Result<Self, DialFailure> {
         let deadline = bounds.deadline;
         let offer = offer::local().map_err(DialFailure::Handshake)?;
-        let (mut transport, prompt_gated_input, screen_gated_input) = loop {
+        let (mut transport, prompt_gated_input, screen_gated_send) = loop {
             let mut transport =
                 admission::Admission::connect(endpoint, deadline).map_err(DialFailure::Connect)?;
             #[cfg(windows)]
@@ -186,11 +186,11 @@ impl HostBrokerConnection {
             transport.set_deadline(deadline.min(Instant::now() + CANDIDATE_DEADLINE));
             if let offer::Outcome::Answered {
                 prompt_gated_input,
-                screen_gated_input,
+                screen_gated_send,
             } = offer::exchange(&mut transport, &offer).map_err(DialFailure::Handshake)?
             {
                 transport.set_deadline(deadline);
-                break (transport, prompt_gated_input, screen_gated_input);
+                break (transport, prompt_gated_input, screen_gated_send);
             }
             if Instant::now() + offer::RETRY_INTERVAL >= bounds.busy_until.min(deadline) {
                 return Err(DialFailure::Busy(offer::still_busy()));
@@ -211,7 +211,7 @@ impl HostBrokerConnection {
             host_epoch,
             negotiated_limits,
             prompt_gated_input,
-            screen_gated_input,
+            screen_gated_send,
             stream: transport.stream,
             inbound: RefCell::default(),
             viewers: RefCell::new(HostViewers::default()),
@@ -231,17 +231,17 @@ impl HostBrokerConnection {
         let offer = offer::local()?;
         // A Host still ending the previous Worker session asks this one to dial again.
         let busy_deadline = Instant::now() + CANDIDATE_DEADLINE;
-        let (mut stream, prompt_gated_input, screen_gated_input) = loop {
+        let (mut stream, prompt_gated_input, screen_gated_send) = loop {
             let mut stream = UnixStream::connect(endpoint)?;
             require_same_effective_user(&stream)?;
             stream.set_read_timeout(Some(CANDIDATE_DEADLINE))?;
             stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT))?;
             if let offer::Outcome::Answered {
                 prompt_gated_input,
-                screen_gated_input,
+                screen_gated_send,
             } = offer::exchange(&mut stream, &offer)?
             {
-                break (stream, prompt_gated_input, screen_gated_input);
+                break (stream, prompt_gated_input, screen_gated_send);
             }
             if Instant::now() + offer::RETRY_INTERVAL >= busy_deadline {
                 return Err(offer::still_busy());
@@ -263,7 +263,7 @@ impl HostBrokerConnection {
             host_epoch,
             negotiated_limits,
             prompt_gated_input,
-            screen_gated_input,
+            screen_gated_send,
             stream,
             inbound: RefCell::default(),
             viewers: RefCell::new(HostViewers::default()),
@@ -300,8 +300,8 @@ impl HostBrokerConnection {
 
     /// Whether this Host types a screen-gated key only while the screen is still the frame its
     /// sender read.
-    pub(crate) const fn screen_gated_input(&self) -> bool {
-        self.screen_gated_input
+    pub(crate) const fn screen_gated_send(&self) -> bool {
+        self.screen_gated_send
     }
 
     /// Routes one intact Host event to connection state. An event this Worker cannot use never

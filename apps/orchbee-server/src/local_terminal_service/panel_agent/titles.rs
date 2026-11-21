@@ -60,6 +60,8 @@ fn state_context(
         PanelAgentOutcome::Failed { reason } => Err(reason),
         PanelAgentOutcome::Titles { .. }
         | PanelAgentOutcome::PresentationTitles { .. }
+        | PanelAgentOutcome::Confirmations { .. }
+        | PanelAgentOutcome::ConfirmationChosen { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::Explained { .. }
         | PanelAgentOutcome::Identified { .. }

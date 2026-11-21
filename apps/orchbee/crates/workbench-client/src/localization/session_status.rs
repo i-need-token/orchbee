@@ -191,6 +191,14 @@ impl Locale {
         notice: crate::localization::WorkbenchClientNotice,
         context: Option<&NoticeContext>,
     ) -> Vec<String> {
+        if let (
+            crate::localization::WorkbenchClientNotice::ConfirmationAllowed(kind),
+            Some(NoticeContext::Confirmation(text)),
+        ) = (notice, context)
+        {
+            // One form: the line cuts a long command at its end.
+            return vec![self.confirmation_allowed(kind, text)];
+        }
         let full = self.native_notice(notice);
         match (context, self.native_notice_shorter(notice)) {
             (None, None) => vec![full],
@@ -213,6 +221,8 @@ impl Locale {
                 "{} · {message}",
                 crate::terminal_text::sanitize_terminal_text(id)
             ),
+            // Only its own notice names it, and that notice has one form.
+            NoticeContext::Confirmation(_) => message.to_owned(),
         }
     }
 
@@ -235,6 +245,7 @@ impl Locale {
             N::LaunchProfileUnavailable => {
                 Some(self.say("Couldn't create the terminal.", "没能创建终端。"))
             }
+            N::ConfirmationStopped => Some(self.confirmation_stopped_forms()[1].to_owned()),
             N::CopyModeSearchLimit => Some(self.say("Couldn't search for that.", "没能搜索。")),
             N::PopupUnavailable => Some(self.say(
                 "Popup connection or cleanup uncertain",
@@ -311,9 +322,12 @@ impl Locale {
             N::WorkspaceCloseUnavailable => {
                 say("Select a Workspace to close.", "请选择要关闭的工作区。")
             }
-            N::WorkspaceChanged | N::DraftCancelled => {
+            N::WorkspaceChanged | N::DraftCancelled | N::ConfirmationNotChanged => {
                 say("Couldn't apply the change.", "没能应用更改。")
             }
+            // Without its command the notice still says what happened.
+            N::ConfirmationAllowed(kind) => self.confirmation_allowed(kind, "…"),
+            N::ConfirmationStopped => self.confirmation_stopped_forms()[0].to_owned(),
             N::AgentUnavailable => say("Couldn't go to the Agent.", "没能跳到这个智能体。"),
             N::NoWorkspace => self.no_current_workspace().to_owned(),
             N::WorkspaceNotReady => say(

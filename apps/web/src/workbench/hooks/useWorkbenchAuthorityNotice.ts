@@ -24,6 +24,10 @@ import {
 	workbenchWorktreeProgressNotice,
 	type WorkbenchAuthorityNotice,
 } from '../model/workbench-authority-notice';
+import {
+	createWorkbenchAgentConfirmationNews,
+	isWorkbenchAgentConfirmationAllowedNotice,
+} from '../model/workbench-agent-confirmation-news';
 import { formatWorkbenchConfiguredCommandName } from '../model/workbench-configured-command-name';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type {
@@ -36,6 +40,7 @@ import type {
 import type { WorkbenchAgentCatalogSource } from '../types/workbench-agent-start';
 import type { WorkbenchConfiguredCommands } from '../types/workbench-configured-commands';
 import type { WorkbenchWorktrees } from '../types/workbench-worktrees';
+import { listShownTerminalPresentationIds } from '../utils/listShownTerminalPresentationIds';
 import { formatWorkbenchAgentProvider } from '../utils/workbench-agent-names';
 
 export interface WorkbenchAuthorityNoticeView {
@@ -212,7 +217,8 @@ function sameWords(
  * one Tab's close says Closing only while it runs slow after its Tab left. Dissolving a Project
  * says that its Workspaces remain. A resume the Server gave up after a restart is said once, and
  * the same words already showing keep their time; so is an Agent start a new terminal carried that
- * did not happen.
+ * did not happen. A confirmation Orchbee answered for an Agent in view is said once, and so is
+ * answering that stopped.
  */
 export function useWorkbenchAuthorityNotice(
 	authority: WorkbenchAuthority,
@@ -262,6 +268,7 @@ export function useWorkbenchAuthorityNotice(
 		() => ({
 			minimumSplitPercent: authority.minimumSplitPercent,
 			agentCatalog: authority.agentCatalog,
+			agentConfirmations: authority.agentConfirmations,
 			change: async (context, change) => {
 				setNotice(null);
 				const result = await authority.change(context, change);
@@ -437,6 +444,22 @@ export function useWorkbenchAuthorityNotice(
 			}),
 		[agentStartNotices, startNoticeFor, setNotice],
 	);
+	const agentConfirmations = authority.agentConfirmations;
+	React.useEffect(() => {
+		if (agentConfirmations === undefined) return undefined;
+		const news = createWorkbenchAgentConfirmationNews();
+		const read = (): void => {
+			const shown = new Set(listShownTerminalPresentationIds(projectWorkspaceRuntime));
+			const next = news(agentConfirmations.getSnapshot(), (id) => shown.has(id));
+			if (next === null) return;
+			// As in the TUI, a newer answer replaces an older one and nothing else still being read.
+			setNotice((current) =>
+				current === null || isWorkbenchAgentConfirmationAllowedNotice(current) ? next : current,
+			);
+		};
+		read();
+		return agentConfirmations.subscribe(read);
+	}, [agentConfirmations, projectWorkspaceRuntime, setNotice]);
 	const withdrawDirectoryRefusal = useMemoizedFn(() => {
 		setNotice((current) =>
 			current !== null && isWorkbenchDirectoryRefusalNotice(current) ? null : current,

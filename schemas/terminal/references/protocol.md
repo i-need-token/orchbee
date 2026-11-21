@@ -417,7 +417,9 @@ bit `0` and every byte after the flags to zero, and names no key. The Worker is 
 sender; no TypeScript producer exists.
 
 A person's input is every client input except a focus report, pointer motion with no button held,
-and a screen-gated key. It counts whether or not it encodes to bytes: a click a program does not
+a screen-gated key, and the cleanup of an attachment that goes away while it holds no key and no
+mouse button. Every send's own attachment goes away like that, so a refused key leaves no
+person's input behind. It counts whether or not it encodes to bytes: a click a program does not
 track still shows a person at the terminal. The Host records the content revision and its own
 monotonic time of the latest one.
 
@@ -452,9 +454,15 @@ no `reason` member, and its code names the first rule that failed: `screen-agent
 `invalid-phase` like other input. The sender never resends a refused key; it reads the screen
 again and decides again.
 
-A Host that serves `ScreenGatedKeyInput` lists the capability `screen-gated-input` in its
-`worker-host` handshake answer. A Worker whose Host answer lacks it sends no gated key and never
-types the key as ordinary input.
+A Host that serves `ScreenGatedKeyInput` as this section describes lists the capability
+`screen-gated-send` in its `worker-host` handshake answer. A Worker whose Host answer lacks it
+sends no gated key and never types the key as ordinary input.
+
+`screen-gated-input` is the name the Hosts of 0.1.0-beta.22 list. They serve the same record under
+the same seven rules, but record the cleanup of every attachment that goes away as a person's
+input, so after one refusal they refuse every later key for the same prompt. A Host that lists
+`screen-gated-send` lists `screen-gated-input` too, because the older name stays true of it and
+`worker-host` changes only by addition. No Worker offers the older name or sends a key under it.
 
 A terminal the Host did not launch itself, such as one restored from a
 [Host handover](#host-handover), starts with a person's input recorded on every revision, so the

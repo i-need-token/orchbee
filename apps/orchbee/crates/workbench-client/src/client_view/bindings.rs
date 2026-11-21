@@ -347,6 +347,13 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
     },
     PrefixGroup {
         members: &[member(
+            key(KeyCode::Char('y')),
+            ClientAction::AgentConfirmations,
+        )],
+        desc: PrefixDesc::AgentConfirmations,
+    },
+    PrefixGroup {
+        members: &[member(
             key(KeyCode::Char('m')),
             ClientAction::TogglePointerCapture,
         )],
@@ -414,6 +421,7 @@ impl Bindings {
             sidebar: label(PrefixDesc::SidebarToggle),
             pointer: label(PrefixDesc::PointerCapture),
             start_agent: label(PrefixDesc::StartAgent),
+            confirmations: label(PrefixDesc::AgentConfirmations),
         }
     }
 }

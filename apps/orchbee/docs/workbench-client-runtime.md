@@ -2206,7 +2206,7 @@ The [Tab label contract](native-tab-labels.md) refines the label facts above: pr
 
 ## Background terminal titles
 
-`workbench_client/terminal_titles.rs` owns the UI's `presentation-titles` State streams on the
+`workbench_client/presentation_rows.rs` owns the UI's `presentation-titles` State streams on the
 shared connection, with no bridge thread, as the window-title stream does. Each control tick polls
 them with the bound Presentations of the latest accepted snapshot, in the canonical order the
 Agent index keeps; they open once the control observation names the Session, close when the
@@ -2220,6 +2220,32 @@ view shows what recording it would show. A frame title is compared after project
 spinner frame in an activity prefix is no arrival. Cursors belong to one Session, ride in the
 retained bank across a targeted surface replacement, and are released when the Client retires.
 Naming no longer reads retained frames, which keep only pixels.
+
+## Agent confirmation rows
+
+The same module follows the Server's `confirmations` rows, one per bound Presentation, on State
+streams opened only once the Session's handshake answer lists `agent-confirmation`; the question is
+asked again every 5 seconds while the answer is unknown, and another Session drops the streams and
+every row. `ui/agent_confirmations.rs` keeps the latest row for each Presentation with the
+terminal it was read for, and a row for another terminal than the Presentation now shows names no
+Agent. The Server owns every value. A choice the person makes is sent as `confirmation-choose` or
+`confirmation-decline` with the row's terminal as `expected_binding`, one request at a time with a
+10 second reply window; the choice shown changes only when the Server's answer or its next row
+reports it, and a request that was refused, lost or not answered says so on the status line.
+
+What the rows say to the person:
+
+- **Offer.** While the Server offers and no other notice shows, the status line asks the question
+  and names the key that answers it. The subject is the focused Panel's Agent, else another Agent
+  the active Tab shows.
+- **Allowed.** A press is said once, for 4 seconds, only for a terminal the active Tab shows, and
+  never when it was made before this Client first read that terminal's row. A newer press replaces
+  an older one still showing; no press replaces another notice.
+- **Stopped.** Said once for a terminal in any Tab.
+- **Why it waits.** The Agent row's state tooltip adds the row's reason after the state.
+
+The [action menu contract](native-action-menus.md) owns the menus that answer, and the
+[Server reference](../../orchbee-server/docs/agent-confirmation.md) owns what is pressed and when.
 
 ## Native grouped and pinned Tab projection
 

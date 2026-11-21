@@ -52,6 +52,8 @@ import styles from './WebApplication.module.css';
 /** Desktop and capable browsers list installed fonts the same way; others type a family. */
 const BROWSER_LOCAL_FONT_CATALOG = createBrowserLocalFontCatalog();
 const ORCHBEE_INSTALL_URL = 'https://orchbee.com/#install';
+/** Where a person asks for another Agent's routine confirmations to be answered. */
+const ORCHBEE_ISSUES_URL = 'https://github.com/i-need-token/orchbee/issues';
 
 export interface WebApplicationProps {
 	readonly actionRuntime: ActionRuntime;
@@ -140,6 +142,10 @@ export function WebApplication({
 		setWasSettingsOpen(view.settingsOpen);
 		if (view.settingsOpen) setAboutUpdateFailureCount(0);
 	}
+	const requestAgent = React.useMemo(
+		() => (openExternal === undefined ? undefined : () => openExternal(ORCHBEE_ISSUES_URL)),
+		[openExternal],
+	);
 	const about = React.useMemo<TerminalSettingsAbout>(
 		() => ({
 			build: clientBuild?.distribution ?? null,
@@ -244,6 +250,7 @@ export function WebApplication({
 			</div>
 			<TerminalSettingsSurface
 				about={about}
+				requestAgent={requestAgent}
 				applicationLocaleController={applicationLocaleController}
 				controller={terminalSettingsController}
 				folderPicker={projectFolderAcquisition}

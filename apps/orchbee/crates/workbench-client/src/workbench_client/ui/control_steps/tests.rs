@@ -243,6 +243,8 @@ fn decoded_local_input_reaches_pending_focus_before_terminal_routing() {
                 notifications: None,
                 window_title: None,
                 terminal_titles: None,
+                agent_confirmations: None,
+                agent_confirmations_check: None,
                 client_control: Some(control),
                 backend: ClientBackend::Native(Box::new(native)),
                 task: None,

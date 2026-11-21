@@ -21,6 +21,9 @@ pub enum Row {
     Scrollback,
     /// Whether the Server installs new versions in the background (`update.automatic`).
     AutomaticUpdates,
+    /// Whether the Server answers Claude Code's routine confirmations
+    /// (`agents.auto_allow.claude`).
+    AutoAllowClaude,
     LaunchProfiles,
     /// Where a new terminal starts (`terminal.new_cwd`).
     NewTerminalFolder,

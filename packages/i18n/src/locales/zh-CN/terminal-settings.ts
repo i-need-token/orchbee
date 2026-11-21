@@ -220,6 +220,12 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.resumeAgents.label': '重启后恢复智能体会话',
 	'terminal.settings.page.resumeAgents.description':
 		'重启后恢复 Windows 上的 Claude Code；其他 Agent 需带会话 ID 启动。',
+	'terminal.settings.page.groups.agentConfirmations': '自动允许常规确认',
+	'terminal.settings.page.agentConfirmations.description':
+		'替你按下智能体的单次允许。破坏性命令始终等你确认。',
+	'terminal.settings.page.agentConfirmations.rowDescription':
+		'Orchbee 只检查显示的命令，不检查脚本做了什么。',
+	'terminal.settings.page.agentConfirmations.request': '可在 GitHub issue 中申请更多智能体。',
 	'terminal.settings.page.profiles.add': '添加启动配置',
 	'terminal.settings.page.profiles.edit': '编辑',
 	'terminal.settings.page.profiles.done': '完成',

@@ -7,13 +7,6 @@ mod agent;
 #[cfg(any(unix, windows))]
 mod agent_catalog;
 #[cfg(any(unix, windows))]
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the screen sampler takes these decisions in the next change; nothing can turn them on yet"
-    )
-)]
 mod agent_confirmation;
 #[cfg(any(unix, windows))]
 mod agent_screen;

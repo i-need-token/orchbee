@@ -64,37 +64,44 @@ fn physical_observation_answers_only_matching_binding_and_contiguous_cursor() {
 }
 #[test]
 fn panel_agent_shared_corpus_and_carrier_bounds() {
-    let corpus: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../schemas/workbench/v1/workbench-panel-agent-conformance-v1.json"
-    ))
-    .unwrap();
-    for (group, expected) in [("valid", true), ("invalid", false)] {
-        for case in corpus[group].as_array().unwrap() {
-            let bytes = serde_json::to_vec(&case["document"]).unwrap();
-            let mut frame = vec![];
-            if case["direction"] == "request" {
-                let parsed = parse_workbench_request(&bytes);
-                assert_eq!(parsed.is_ok(), expected, "{}", case["name"]);
-                if let Ok(request) = parsed {
-                    write_workbench_request(&mut frame, &request).unwrap();
-                    assert_eq!(&frame[6..8], &35_u16.to_be_bytes());
-                    assert_eq!(
-                        read_workbench_request(&mut frame.as_slice()).unwrap(),
-                        request
-                    );
-                    assert!(read_workbench_response(&mut frame.as_slice()).is_err());
-                }
-            } else {
-                let parsed = parse_workbench_response(&bytes);
-                assert_eq!(parsed.is_ok(), expected, "{}", case["name"]);
-                if let Ok(response) = parsed {
-                    write_workbench_response(&mut frame, &response).unwrap();
-                    assert_eq!(&frame[6..8], &36_u16.to_be_bytes());
-                    assert_eq!(
-                        read_workbench_response(&mut frame.as_slice()).unwrap(),
-                        response
-                    );
-                    assert!(read_workbench_request(&mut frame.as_slice()).is_err());
+    let corpora: Vec<serde_json::Value> = [
+        include_str!("../../../schemas/workbench/v1/workbench-panel-agent-conformance-v1.json"),
+        include_str!(
+            "../../../schemas/workbench/v1/workbench-panel-agent-confirmation-conformance-v1.json"
+        ),
+    ]
+    .into_iter()
+    .map(|source| serde_json::from_str(source).unwrap())
+    .collect();
+    for corpus in &corpora {
+        for (group, expected) in [("valid", true), ("invalid", false)] {
+            for case in corpus[group].as_array().unwrap() {
+                let bytes = serde_json::to_vec(&case["document"]).unwrap();
+                let mut frame = vec![];
+                if case["direction"] == "request" {
+                    let parsed = parse_workbench_request(&bytes);
+                    assert_eq!(parsed.is_ok(), expected, "{}", case["name"]);
+                    if let Ok(request) = parsed {
+                        write_workbench_request(&mut frame, &request).unwrap();
+                        assert_eq!(&frame[6..8], &35_u16.to_be_bytes());
+                        assert_eq!(
+                            read_workbench_request(&mut frame.as_slice()).unwrap(),
+                            request
+                        );
+                        assert!(read_workbench_response(&mut frame.as_slice()).is_err());
+                    }
+                } else {
+                    let parsed = parse_workbench_response(&bytes);
+                    assert_eq!(parsed.is_ok(), expected, "{}", case["name"]);
+                    if let Ok(response) = parsed {
+                        write_workbench_response(&mut frame, &response).unwrap();
+                        assert_eq!(&frame[6..8], &36_u16.to_be_bytes());
+                        assert_eq!(
+                            read_workbench_response(&mut frame.as_slice()).unwrap(),
+                            response
+                        );
+                        assert!(read_workbench_request(&mut frame.as_slice()).is_err());
+                    }
                 }
             }
         }

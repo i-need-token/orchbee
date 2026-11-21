@@ -95,6 +95,12 @@ pub const Ledger = struct {
         return attachment.focused;
     }
 
+    /// Whether the attachment holds a key or a mouse button its cleanup would release.
+    pub fn attachmentHoldsInput(self: *const Ledger, attachment_id: AttachmentId) bool {
+        const attachment = self.attachments.get(attachment_id) orelse return false;
+        return attachment.repairEntries() != 0;
+    }
+
     pub fn focusedCount(self: *const Ledger) usize {
         return self.focused_count;
     }

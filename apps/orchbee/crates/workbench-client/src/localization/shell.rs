@@ -116,6 +116,7 @@ pub(crate) struct ShellBindings {
     pub(crate) sidebar: String,
     pub(crate) pointer: String,
     pub(crate) start_agent: String,
+    pub(crate) confirmations: String,
 }
 
 impl ShellBindings {
@@ -127,6 +128,9 @@ impl ShellBindings {
         if notice.contains(EXIT_KEY_SLOT) {
             *notice = notice.replace(EXIT_KEY_SLOT, &self.exit);
         }
+        if notice.contains(CONFIRMATIONS_KEY_SLOT) {
+            *notice = notice.replace(CONFIRMATIONS_KEY_SLOT, &self.confirmations);
+        }
     }
 }
 
@@ -136,6 +140,8 @@ impl ShellBindings {
 pub(crate) const START_AGENT_KEY_SLOT: &str = "\u{e000}start-agent\u{e001}";
 /// The slot for the key that leaves the view, which [`ShellBindings::fill_notice`] fills.
 pub(crate) const EXIT_KEY_SLOT: &str = "\u{e000}exit\u{e001}";
+/// The slot for the key that opens the answers about an Agent's confirmations.
+pub(crate) const CONFIRMATIONS_KEY_SLOT: &str = "\u{e000}confirmations\u{e001}";
 
 /// Temporary render-owned strings; the borrowed shell text remains cheap to copy.
 pub(crate) struct BoundShellText<'a> {

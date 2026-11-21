@@ -125,7 +125,7 @@ fn fixture() -> Result<(HostBrokerConnection, UnixStream), Box<dyn Error>> {
         endpoint: std::path::PathBuf::new(),
         host_epoch: HostEpoch::from_bytes([4; 16])?,
         prompt_gated_input: true,
-        screen_gated_input: true,
+        screen_gated_send: true,
         negotiated_limits: NegotiatedHostLimits {
             frame_bytes: 1_048_576,
             input_bytes: 4096,

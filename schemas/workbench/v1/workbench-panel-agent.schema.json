@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "urn:orchbee:schema:workbench-panel-agent:v1",
-	"$comment": "Bindings additionally enforce normalized Agent labels, view consistency, unique Panel IDs and encoded limits. Title bindings additionally enforce unique presentation IDs and 64 KiB UTF-8 title bytes. Presentation title bindings additionally enforce unique presentation IDs, 1 KiB UTF-8 title bytes, a binding naming its row's Presentation, and an unavailable title for a null binding.",
+	"$comment": "Bindings additionally enforce normalized Agent labels, view consistency, unique Panel IDs and encoded limits. Title bindings additionally enforce unique presentation IDs and 64 KiB UTF-8 title bytes. Presentation title bindings additionally enforce unique presentation IDs, 1 KiB UTF-8 title bytes, a binding naming its row's Presentation, and an unavailable title for a null binding. Confirmation bindings additionally enforce unique presentation IDs in an outcome, the 512 UTF-8 byte bound of a pressed text and the 64 UTF-8 byte bound of an agent label.",
 	"oneOf": [
 		{
 			"$ref": "#/$defs/request"
@@ -337,6 +337,59 @@
 						}
 					},
 					"required": ["kind", "bindings"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "confirmations"
+						},
+						"presentationIds": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/identity"
+							},
+							"maxItems": 64,
+							"uniqueItems": true
+						}
+					},
+					"required": ["kind", "presentationIds"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "confirmation-choose"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/identity"
+						},
+						"expectedBinding": {
+							"$ref": "#/$defs/binding"
+						},
+						"choice": {
+							"$ref": "#/$defs/confirmationChoice"
+						}
+					},
+					"required": ["kind", "presentationId", "expectedBinding", "choice"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "confirmation-decline"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/identity"
+						},
+						"expectedBinding": {
+							"$ref": "#/$defs/binding"
+						}
+					},
+					"required": ["kind", "presentationId", "expectedBinding"]
 				}
 			]
 		},
@@ -700,6 +753,36 @@
 						}
 					},
 					"required": ["kind", "presentations"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "confirmations"
+						},
+						"presentations": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/presentationConfirmationRow"
+							}
+						}
+					},
+					"required": ["kind", "presentations"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "confirmation-chosen"
+						},
+						"presentation": {
+							"$ref": "#/$defs/presentationConfirmationRow"
+						}
+					},
+					"required": ["kind", "presentation"]
 				}
 			]
 		},
@@ -1488,6 +1571,150 @@
 				}
 			},
 			"required": ["binding", "observation"]
+		},
+		"confirmationChoice": {
+			"enum": ["off", "run", "agent-type"]
+		},
+		"confirmationWait": {
+			"enum": [
+				"destructive",
+				"leaves-workspace",
+				"protected-file",
+				"not-understood",
+				"not-visible",
+				"marked-dangerous",
+				"not-answered",
+				"person",
+				"changing",
+				"repeating",
+				"host-too-old"
+			]
+		},
+		"confirmationPress": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"serial": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4294967295
+				},
+				"kind": {
+					"enum": ["command", "create", "edit"]
+				},
+				"text": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512,
+					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+				}
+			},
+			"required": ["serial", "kind", "text"]
+		},
+		"confirmationView": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"type": "string",
+					"maxLength": 64,
+					"allOf": [
+						{
+							"$ref": "#/$defs/normalizedAgent"
+						}
+					]
+				},
+				"choice": {
+					"$ref": "#/$defs/confirmationChoice"
+				},
+				"offer": {
+					"type": "boolean"
+				},
+				"wait": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/confirmationWait"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"pressed": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/confirmationPress"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"stopped": {
+					"type": "boolean"
+				}
+			},
+			"required": ["agent", "choice", "offer", "wait", "pressed", "stopped"],
+			"if": {
+				"properties": {
+					"offer": {
+						"const": true
+					}
+				},
+				"required": ["offer"]
+			},
+			"then": {
+				"properties": {
+					"choice": {
+						"const": "off"
+					}
+				}
+			}
+		},
+		"presentationConfirmationRow": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/identity"
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/binding"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"confirmation": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/confirmationView"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["presentationId", "binding", "confirmation"],
+			"if": {
+				"properties": {
+					"confirmation": {
+						"type": "object"
+					}
+				},
+				"required": ["confirmation"]
+			},
+			"then": {
+				"properties": {
+					"binding": {
+						"$ref": "#/$defs/binding"
+					}
+				}
+			}
 		}
 	}
 }

@@ -23,6 +23,7 @@ pub(crate) enum SettingsRow {
     Sound,
     Scrollback,
     AutomaticUpdates,
+    AutoAllowClaude,
     LaunchProfiles,
     NewTerminalFolder,
     PrefixKey,
@@ -72,6 +73,7 @@ pub(crate) enum SettingsGroup {
     WhenToNotify,
     SoundDelivery,
     Prefix,
+    AgentConfirmations,
     About,
 }
 

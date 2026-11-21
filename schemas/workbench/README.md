@@ -808,6 +808,29 @@ IDs, the byte bound and an unavailable title for a null binding in addition to J
 Schema. Shared conformance cases cover those rules, a launch binding in place of the
 Workbench binding, nullability, the omitted revision, closed fields and bounds.
 
+Routine confirmation reads and changes add three Panel Agent actions and two outcomes.
+`confirmations` takes at most 64 unique Presentation IDs and answers one row per ID in
+request order from what the Server already holds, without waiting on a Worker.
+`confirmation-choose` takes one Presentation ID, the binding the Client expects and a
+choice of `off`, `run` or `agent-type`; it sets whether Orchbee answers the routine
+confirmations of the Agent in that terminal, and `agent-type` saves the setting for every
+Agent of its type while `off` and `run` clear it. `confirmation-decline` takes the same ID
+and binding and answers an offer with no; the Server then saves that it offers nothing
+again, for any Agent. The `confirmations` outcome carries the rows, and
+`confirmation-chosen` carries the Presentation's row after a choice or a declined offer
+took effect. Neither outcome carries a Workbench revision, so a State stream of them
+changes only when a row changes. A row carries the Presentation's binding or null and a
+confirmation view or null; the view is null when no Agent Orchbee can answer runs in the
+terminal. A present view needs a non-null binding and carries a trimmed Agent label of at
+most 64 UTF-8 bytes, the choice, `offer` (true only while the choice is `off`), a closed
+`wait` reason or null, `pressed` or null, and `stopped`. `pressed` has a serial from 1 to
+4294967295, a `command`, `create` or `edit` kind, and text of 1 to 512 UTF-8 bytes
+without control characters. Rust and TypeScript enforce unique IDs, the byte bounds and
+the binding rule in addition to JSON Schema. A Client sends these actions only after the
+Server's handshake answer lists the `client-server` capability `agent-confirmation`.
+Shared conformance cases in `workbench-panel-agent-confirmation-conformance-v1.json`
+cover the actions, the outcomes, each choice, a pressed text and the rejected shapes.
+
 ## Workspace Git status reads
 
 [`workbench-workspace-git.schema.json`](v1/workbench-workspace-git.schema.json)

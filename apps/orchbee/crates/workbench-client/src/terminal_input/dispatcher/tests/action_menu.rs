@@ -1436,6 +1436,33 @@ fn ux_menu_disabled_decision_packets_stay_captured_until_cancel_and_fresh_draw()
     assert_eq!(forwarded_bytes(&port.calls), b"normal");
 }
 
+/// `Ctrl+b y` asks the Workbench owner for the answers about an Agent's confirmations without
+/// naming the Agent, and the rest of its packet reaches no terminal: there an Agent may be
+/// waiting on a confirmation.
+#[test]
+fn prefix_y_opens_the_confirmation_answers_and_keeps_the_packet_from_the_terminal() {
+    let mut port = Port::new(MenuAction::AgentConfirmation(
+        crate::localization::ConfirmationAnswer::Run,
+    ));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(80);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02y\r1");
+    assert_eq!(
+        port.target,
+        Some(MenuTarget::AgentConfirmations {
+            presentation: None,
+            offer: false
+        })
+    );
+    assert!(port.menu.active());
+    assert_eq!(
+        port.menu.confirmed(),
+        None,
+        "the packet's Enter answers nothing"
+    );
+    assert!(forwarded_bytes(&port.calls).is_empty());
+}
+
 /// `Ctrl+b ?` asks where a shortcut is; the answer is the action menu, already searching.
 #[test]
 fn prefix_question_mark_opens_the_menu_with_typing_in_its_search() {

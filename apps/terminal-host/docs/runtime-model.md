@@ -2795,13 +2795,19 @@ the first one turns PSReadLine history saving off.
 `ScreenGatedKeyInput` types one key only while the screen is still the frame its sender decided
 on; the [protocol reference](../../../schemas/terminal/references/protocol.md) owns its payload,
 its seven rules, and its refusal codes. `engine/runtime/screen_gate.zig` holds the rules as one
-pure check over the named frame, the terminal's facts and an input record.
+pure check over the named frame, the terminal's facts and an input record. The Host lists two
+capability names for it: `screen-gated-input`, which the Hosts of 0.1.0-beta.22 listed, and
+`screen-gated-send`, which adds that an attachment's cleanup is not a person's input and is the
+only name a Worker sends the key under.
 
 The input mutex owns the input record: the revision and monotonic time of the latest person's
 input, and the revision the last gated key was typed on. Publication of a client entry writes the
 record under the same lock that queues the entry, and a client input that encodes to no bytes
 writes it when it commits. A focus report and pointer motion with no button held leave it alone;
-a gated key records only where it was typed. A runtime that this Host launched starts with no
+a gated key records only where it was typed. The cleanup of an attachment that goes away is the
+Host's own bookkeeping, and every send ends with one, a refused gated key included: it writes the
+record only when it releases a key or a mouse button the attachment still held, and the focus
+report it may carry never does. A runtime that this Host launched starts with no
 person's input. Any other runtime starts with one on every revision and no time, which refuses
 every gated key until a person acts there: the Host cannot know what was typed before it held the
 terminal.

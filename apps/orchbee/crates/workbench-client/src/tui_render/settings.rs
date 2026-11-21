@@ -620,6 +620,21 @@ fn render_entries(
                     );
                 }
             }
+            Entry::Note(group) => {
+                if let Some(y) = column.y(line) {
+                    paint_sides(frame, column.area, y, theme);
+                    if let Some(note) = locale.settings_group_note(group) {
+                        put(
+                            frame,
+                            column.area.x + 2,
+                            y,
+                            column.area.width.saturating_sub(4),
+                            note,
+                            theme.style(Role::TextMuted),
+                        );
+                    }
+                }
+            }
             Entry::ConfigFile => {
                 if let Some(y) = column.y(line + 1) {
                     let label = locale.settings_config_file();

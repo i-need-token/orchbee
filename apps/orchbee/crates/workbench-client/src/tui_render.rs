@@ -346,6 +346,15 @@ pub fn render_terminal_shell_with_resize<'a>(
                         .completion_reminder()
                         .map(|reminder| vec![locale.command_completion_reminder(reminder)])
                 })
+                // The offer waits for an answer, so every passing notice shows before it.
+                .or_else(|| {
+                    native.confirmation_offer().map(|agent| {
+                        locale.confirmation_offer_forms(
+                            crate::agent_provider::product_name(agent),
+                            crate::localization::CONFIRMATIONS_KEY_SLOT,
+                        )
+                    })
+                })
                 .unwrap_or_default();
             // A command's login notice waits while something else holds the keyboard.
             if secondary_notice.is_empty()

@@ -8,9 +8,15 @@ import {
 import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 import type { MouseEvent, ReactNode } from 'react';
 
-import type { WorkbenchPanelTargetInput } from '../../../../../../actions/workbench-action-ids';
+import type {
+	WorkbenchAgentConfirmationChooseInput,
+	WorkbenchPanelTargetInput,
+} from '../../../../../../actions/workbench-action-ids';
 import { WorkbenchAgentStateGlyph } from '../../../../../workbench-agent-state-glyph/WorkbenchAgentStateGlyph';
-import type { WorkbenchActionMenuEntry } from '../../../../../../types/workbench-action-menu';
+import type {
+	WorkbenchActionMenuChoice,
+	WorkbenchActionMenuEntry,
+} from '../../../../../../types/workbench-action-menu';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../../../types/workbench-agent-overview';
 import { WorkbenchActionContextMenuContent } from '../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import type { WorkbenchProjectNavigationMessages } from '../../../../types/workbench-sidebar-types';
@@ -18,6 +24,7 @@ import { SidebarTruncationTooltip } from '../../../sidebar-truncation-tooltip/Si
 import styles from './WorkspaceAgentList.module.css';
 
 interface WorkspaceAgentListProps {
+	readonly chooseAgentConfirmation: (input: WorkbenchAgentConfirmationChooseInput) => void;
 	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly navigateAgent: (presentationId: TerminalPresentationId) => void;
@@ -27,11 +34,13 @@ interface WorkspaceAgentListProps {
 
 /**
  * A Workspace's Agents, one line each as in the TUI: the state glyph, title · provider, and the
- * unread dot. The glyph names its state under the pointer and the dot says Unread. A right-click
- * opens the Agent's menu: Rename, which only a Panel's primary terminal offers, then Close, which
- * asks first.
+ * unread dot. The glyph names its state under the pointer, with why a confirmation waits where one
+ * does, and the dot says Unread. A right-click opens the Agent's menu: Rename, which only a Panel's
+ * primary terminal offers, Allow confirmations where the Server answers them for this Agent, then
+ * Close, which asks first.
  */
 export function WorkspaceAgentList({
+	chooseAgentConfirmation,
 	closeAgentPanel,
 	messages,
 	navigateAgent,
@@ -48,20 +57,54 @@ export function WorkspaceAgentList({
 					tabId: row.tabId,
 					terminalContextId: row.terminalContextId,
 				};
-				const renameEntries: readonly WorkbenchActionMenuEntry[] = row.primary
-					? [
-							{
-								icon: 'edit',
-								id: 'rename-agent',
-								kind: 'command',
-								label: messages.agentMenuRename,
-								onSelect: () => renameAgentPanel(panel),
-							},
-							{ id: 'rename-agent-separator', kind: 'separator' },
-						]
-					: [];
-				const menuEntries: readonly WorkbenchActionMenuEntry[] = [
-					...renameEntries,
+				const choose = (answer: WorkbenchAgentConfirmationChooseInput['answer']) => () =>
+					chooseAgentConfirmation({ answer, presentationId: row.presentationId });
+				const agentEntries: readonly (WorkbenchActionMenuChoice | WorkbenchActionMenuEntry)[] = [
+					...(row.primary
+						? [
+								{
+									icon: 'edit',
+									id: 'rename-agent',
+									kind: 'command',
+									label: messages.agentMenuRename,
+									onSelect: () => renameAgentPanel(panel),
+								} as const,
+							]
+						: []),
+					...(row.confirmation === undefined
+						? []
+						: [
+								{
+									icon: 'keyboard',
+									id: 'agent-confirmations',
+									kind: 'choice',
+									label: messages.agentMenuConfirmations,
+									options: [
+										{
+											id: 'off',
+											label: messages.agentMenuConfirmationsOff,
+											onSelect: choose('off'),
+										},
+										{
+											id: 'run',
+											label: messages.agentMenuConfirmationsRun,
+											onSelect: choose('run'),
+										},
+										{
+											id: 'agent-type',
+											label: row.confirmation.agentTypeLabel,
+											onSelect: choose('agent-type'),
+										},
+									],
+									value: row.confirmation.choice,
+								} as const,
+							]),
+				];
+				const menuEntries: readonly (WorkbenchActionMenuChoice | WorkbenchActionMenuEntry)[] = [
+					...agentEntries,
+					...(agentEntries.length === 0
+						? []
+						: [{ id: 'agent-separator', kind: 'separator' } as const]),
 					{
 						destructive: true,
 						icon: 'close',
@@ -108,7 +151,9 @@ export function WorkspaceAgentList({
 								<TooltipTrigger render={<span className={styles['glyph']} />}>
 									<WorkbenchAgentStateGlyph status={row.status} />
 								</TooltipTrigger>
-								<TooltipContent side='bottom'>{row.status.status}</TooltipContent>
+								<TooltipContent side='bottom'>
+									{row.statusReason ?? row.status.status}
+								</TooltipContent>
 							</Tooltip>
 							<SidebarTruncationTooltip
 								content={provider === null ? title : `${title} · ${provider}`}

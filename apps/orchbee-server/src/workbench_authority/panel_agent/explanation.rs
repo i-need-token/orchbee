@@ -40,6 +40,8 @@ impl WorkbenchAuthority {
             Outcome::Failed { reason } => return Err(reason),
             Outcome::Titles { .. }
             | Outcome::PresentationTitles { .. }
+            | Outcome::Confirmations { .. }
+            | Outcome::ConfirmationChosen { .. }
             | Outcome::PresentationsRead { .. }
             | Outcome::Explained { .. }
             | Outcome::Identified { .. }

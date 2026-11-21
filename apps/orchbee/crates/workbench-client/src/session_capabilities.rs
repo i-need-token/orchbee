@@ -4,9 +4,9 @@
 //! owner still checks the answer again at its effect boundary.
 
 use orchbee_connection_handshake::{
-    AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CONFIGURED_COMMAND_SOURCE_EXITED, CapabilitySet,
-    PROMPT_GATED_INPUT, STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED, TERMINAL_RUNTIME,
-    UPDATE_CHECK,
+    AGENT_CONFIRMATION, AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CONFIGURED_COMMAND_SOURCE_EXITED,
+    CapabilitySet, PROMPT_GATED_INPUT, STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED,
+    TERMINAL_RUNTIME, UPDATE_CHECK,
 };
 
 /// A TUI action that only a Session listing a certain capability can serve.
@@ -21,6 +21,9 @@ pub(crate) enum SessionAction {
 
 /// Every capability this build's `client-server` offer lists, with the TUI actions that need it.
 const NEEDED_BY: &[(&str, &[SessionAction])] = &[
+    // The confirmations follower reads it itself: without it, the TUI asks for no confirmation
+    // rows and shows no offer, menu entry or reason for them.
+    (AGENT_CONFIRMATION, &[]),
     // Only the CLI's recent Agent read asks for the input area, and it reads without one.
     (AGENT_INPUT_AREA, &[]),
     // Update reads it itself: without it, a press waits instead of leaving for the new version.

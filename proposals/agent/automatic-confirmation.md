@@ -118,7 +118,10 @@ Rules 3 to 7 are checked when the key is prepared and again at publication, in t
 step as the write.
 
 **Person input** is every client input except a focus report, pointer motion without a button,
-and a screen-gated key. An input that encodes to no bytes counts, such as a click in a terminal
+a screen-gated key, and the cleanup the Host does when an attachment goes away, unless that
+cleanup releases a key or a mouse button a person still held. Every send ends with such a
+cleanup, the Server's own refused key included, so counting it would let one refusal for a
+changing screen stop every later key for the same prompt. An input that encodes to no bytes counts, such as a click in a terminal
 whose program does not track the pointer: it shows a person is at this terminal. The Host owns
 this definition and the record of the last person input, its revision and its time. The Server
 keeps no record of its own and learns that a person was there from the refusal.
@@ -143,8 +146,20 @@ same ordered path that did not carry the hold.
 
 This refines the announced pick "the Server decides and sends": the Server still decides, and the
 Host alone is where deciding and writing meet. A Host, Worker, or Server that does not offer the
-gate refuses the request, and Orchbee does not press. Nothing falls back to an ungated send. Each
-carrier gains one capability name, and neither changes generation.
+gate refuses the request, and Orchbee does not press. Nothing falls back to an ungated send.
+Neither carrier changes generation: `client-server` gains `agent-confirmation`, and `worker-host`
+gains two names.
+
+**Hosts of 0.1.0-beta.22.** The first Hosts that served the key list `screen-gated-input`, and
+0.1.0-beta.22 shipped them before any Server sent one. They record the cleanup of every attachment
+that goes away as person input, and every send ends with one, so after one refusal they refuse
+every later key for the same prompt. A Host can outlive many updates, so a later Server still meets
+them. The corrected rule therefore has its own name, `screen-gated-send`, and a Worker sends a
+gated key only to a Host that lists it. `screen-gated-input` stays in the registry and in the
+Host's answer, because `worker-host` changes only by addition and the name stays true of the Host;
+no Worker offers it. In a terminal such a Host runs, a confirmation waits for the person, and the
+reason says that an older Orchbee started the terminal. Nothing offers to restart it: a terminal
+moves to a newer Host only by the product's own update path.
 
 **Host handover.** The gate identifies a frame by generation and revision, and a terminal that
 moves to another Host keeps both. A key decided before the move must not match the moved
@@ -261,22 +276,31 @@ process, so "this Agent only" ends there, and a Server restart forgets it, which
 default false, shown in Settings and effective at once; and `agents.auto_allow.offer`, default
 true, set false by the answer "no" and kept in the settings file only.
 
-**Snapshot.** A Presentation whose terminal runs a supported Agent carries one runtime-only field
-with the provider, the effective choice (off, run, type; off once the Host answered the hold),
-and, when present: an open offer, the reason the current confirmation waits, the last press (kind
-and bounded text), and that pressing stopped for the run. Absent means no supported Agent runs
-there, so Clients show no entry.
+**Rows.** A Client reads one row per Presentation with a Panel Agent action that a State stream
+may follow. The row of a Presentation whose terminal runs a supported Agent carries the provider,
+the effective choice (off, run, type; off once the Host answered the hold), and, when present: an
+open offer, the reason the current confirmation waits, the last press (a serial number, its kind
+and bounded text), and that pressing stopped for the run. A row without these means no supported
+Agent runs there, so Clients show no entry. The rows are run state, never part of the Workbench
+snapshot: they change without a commit and are forgotten with the run.
 
-**Requests.** One Workbench command sets the choice for the Agent in a Panel to off, run, or type.
-The Server applies the run state and the saved setting together, so the row's three states never
-disagree. One command answers an offer, including "no". Both need the grant that navigation
+**Requests.** One Panel Agent action sets the choice for the Agent in a Presentation to off, run,
+or type. The Server applies the run state and the saved setting together, so the row's three
+states never disagree. One action answers an offer with "no". Both need the grant that navigation
 changes need. Settings switches are ordinary setting edits.
+
+**Compatibility.** The three actions are sent only to a Server whose handshake answer lists the
+`client-server` capability `agent-confirmation`. A Client without it, or connected to a Server
+without it, shows nothing of the feature, and such a Server never presses: nothing can turn it on.
+The built contract is in the [Server reference](../../apps/orchbee-server/docs/agent-confirmation.md)
+and the Workbench schemas.
 
 **Wait reasons** are a closed list, each with one localized sentence: destructive command, leaves
 the Workspace, protected file, command not fully understood, command not fully visible, marked
 dangerous by the Agent, not a prompt Orchbee answers, you typed or clicked in this terminal, the
-screen keeps changing, the same confirmation keeps coming back, and this terminal's host is too
-old to check the screen.
+screen keeps changing, the same confirmation keeps coming back, and an older Orchbee started this
+terminal, said once the Worker has refused a send because the terminal's Host does not list
+`screen-gated-send`.
 
 **Failure containment.** A layout that fails to compile fails the build. At run time a screen,
 rule, or Client message that cannot be handled yields "wait" and one diagnostic line of the form
@@ -288,32 +312,44 @@ is. No path in this feature ends a process or blocks a terminal's input or outpu
 
 Both Clients use the same words. English and Simplified Chinese ship together.
 
-| Place                | English                                                                                         | Chinese                                                                      |
-| -------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Offer                | Let Orchbee allow routine {agent} confirmations?                                                | 让 Orchbee 自动允许 {agent} 的常规确认？                                     |
-| Offer answers        | This Agent only · Always for {agent} · No                                                       | 仅此智能体 · {agent} 始终允许 · 不用                                         |
-| Row menu             | Allow confirmations: Off · This Agent only · Always for {agent}                                 | 自动允许确认：关闭 · 仅此智能体 · {agent} 始终允许                           |
-| After a press        | Allowed: {command}                                                                              | 已允许：{command}                                                            |
-| Stopped              | Stopped allowing: the same confirmation keeps coming back.                                      | 已停止自动允许：同一个确认反复出现。                                         |
-| Hover reason         | Needs attention · destructive command, waiting for you                                          | 需要处理 · 破坏性命令，等你确认                                              |
-| Settings group       | Allow routine confirmations                                                                     | 自动允许常规确认                                                             |
-| Settings description | Orchbee presses the Agent's one-time Yes. Destructive commands always wait for you.             | Orchbee 替你按下智能体的单次允许。破坏性命令始终等你确认。                   |
-| Settings second line | Orchbee checks the command shown, not what a script does. Request more Agents in a GitHub issue | Orchbee 只检查显示的命令，不检查脚本内容。可在 GitHub issue 中申请更多智能体 |
+| Place                | English                                                                       | Chinese                                                       |
+| -------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Offer                | Let Orchbee allow routine {agent} confirmations?                              | 让 Orchbee 自动允许 {agent} 的常规确认？                      |
+| Offer answers        | This Agent only · Always for {agent} · No                                     | 仅此智能体 · {agent} 始终允许 · 不用                          |
+| Row menu             | Allow confirmations: Off · This Agent only · Always for {agent}               | 自动允许确认：关闭 · 仅此智能体 · {agent} 始终允许            |
+| After a press        | Allowed: {command}                                                            | 已允许：{command}                                             |
+| Stopped              | Stopped allowing: the same confirmation keeps coming back.                    | 已停止自动允许：同一个确认反复出现。                          |
+| Hover reason         | Needs attention · destructive command, waiting for you                        | 需要处理 · 破坏性命令，等你确认                               |
+| Settings group       | Allow routine confirmations                                                   | 自动允许常规确认                                              |
+| Change not applied   | Couldn't apply the change.                                                    | 没能应用更改。                                                |
+| Settings description | Presses the Agent's one-time Yes. Destructive commands always wait.           | 替你按下智能体的单次允许。破坏性命令始终等你确认。            |
+| Settings switch      | {agent}, described: Orchbee checks the command shown, not what a script does. | {agent}，说明：Orchbee 只检查显示的命令，不检查脚本做了什么。 |
+| Settings last line   | Request more Agents in a GitHub issue.                                        | 可在 GitHub issue 中申请更多智能体。                          |
 
 - **Offer.** A status notice, never a dialog: the person may be typing, and a surface that takes
   the keyboard could turn an Enter meant for the Agent into an answer. The GUI notice carries the
-  three answers as buttons. The TUI notice names the key that opens the same three answers as a
-  menu, and the Agent row's menu holds them too. The notice stays until answered or until the
-  Server withdraws the offer.
+  three answers as buttons, and a pointer press on one leaves the focus in the terminal. The TUI
+  notice names the key that opens the same three answers as a menu (`Ctrl+b y` by default, which
+  later opens the choices for the Agent in view), and the Agent row's menu holds the choices too.
+  The notice stays until answered or until the Server withdraws the offer, shows only while no
+  other notice does, and is about the focused Panel's Agent first, then another Agent the active
+  Tab shows (Chosen).
 - **Row menu.** A submenu with three single-choice items and a mark on the current one, shown only
   for a supported Agent.
 - **After a press.** A timed status notice, shown by a Client only while that terminal is in its
-  active Tab (Chosen). File changes read `Allowed: create {path}` and `Allowed: edit {path}`.
+  active Tab (Chosen). File changes read `Allowed: create {path}` and `Allowed: edit {path}`. A
+  press made before a Client first read the terminal's row is not said, a newer press replaces an
+  older one still showing, and no press replaces another notice (Chosen).
+- **Change not applied.** The Server owns the choice, so a Client shows a new choice only once the
+  Server reports it; a request the Server did not apply says so in a timed status notice.
 - **Hover reason.** Added to the state's tooltip, only while automatic confirmation is on for the
   Agent and a confirmation waits.
-- **Settings.** In the Agents category, one group with a switch per supported Agent type, the
-  description above, and a way to open the issue page where the Client can open a link. Settings
-  has no footer in either Client, so the request line is the group's description.
+- **Settings.** In the Agents category, one group with the description above, a switch per
+  supported Agent type named by the Agent's product name, and a closing line under the switches
+  that asks for more Agents. The GUI's closing line opens the project's GitHub issue page where
+  the window can open a link; the TUI's is text (Chosen). The offer's own switch,
+  `agents.auto_allow.offer`, is a key of the settings file that no page shows: a "no" turns it
+  off, and deleting the key brings the offer back.
 
 ## Slices
 
@@ -327,7 +363,7 @@ it.
 | 1     | Terminal Host: screen-gated key, its capability, protocol bindings and fixtures                                                    | No      |
 | 2     | Worker and Server-to-Worker protocol: the gated send and its outcomes                                                              | No      |
 | 3     | Server: layouts, command and path checks, the per-run decision, rule tests over captured Claude Code screens; no way to turn it on | No      |
-| 4     | Settings keys, snapshot field, and the two requests, with schemas and bindings; no Client entry                                    | No      |
+| 4     | Settings keys, the row read and the two requests behind their capability, with schemas and bindings; the sampler wiring            | No      |
 | 5     | Both Clients together: offer, row menu, notices, hover reason, Settings, both locales. Claude Code only                            | Yes     |
 | 6–9   | Codex, OpenCode, Gemini CLI, Hermes Agent: layouts, captured screens, Settings switch, one merge each                              | Yes     |
 

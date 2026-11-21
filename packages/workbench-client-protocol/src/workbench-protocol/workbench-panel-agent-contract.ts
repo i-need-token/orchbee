@@ -65,6 +65,53 @@ export const TerminalAgentBindingSchema = z
 		hostTerminalId: hostIdentity,
 	})
 	.readonly();
+/** The Server's routine-confirmation choice for one Agent: off, this run only, or every Agent of its type. */
+const AgentConfirmationChoiceSchema = z.enum(['off', 'run', 'agent-type']);
+const AgentConfirmationWaitSchema = z.enum([
+	'destructive',
+	'leaves-workspace',
+	'protected-file',
+	'not-understood',
+	'not-visible',
+	'marked-dangerous',
+	'not-answered',
+	'person',
+	'changing',
+	'repeating',
+	'host-too-old',
+]);
+const AgentConfirmationPressSchema = z
+	.strictObject({
+		serial: z.number().int().min(1).max(4294967295),
+		kind: z.enum(['command', 'create', 'edit']),
+		text: z
+			.string()
+			.refine(
+				(v) => v.length > 0 && !/\p{Cc}/u.test(v) && new TextEncoder().encode(v).length <= 512,
+			),
+	})
+	.readonly();
+/** An Agent's confirmation view: a label of at most 64 UTF-8 bytes; an offer only while the choice is off. */
+const AgentConfirmationViewSchema = z
+	.strictObject({
+		agent: normalizedLabel.refine((v) => new TextEncoder().encode(v).length <= 64),
+		choice: AgentConfirmationChoiceSchema,
+		offer: z.boolean(),
+		wait: AgentConfirmationWaitSchema.nullable(),
+		pressed: AgentConfirmationPressSchema.nullable(),
+		stopped: z.boolean(),
+	})
+	.refine((view) => !view.offer || view.choice === 'off')
+	.readonly();
+/** One requested Presentation; a confirmation view needs the Presentation's binding. */
+const PresentationConfirmationRowSchema = z
+	.strictObject({
+		presentationId: TerminalPresentationIdSchema,
+		binding: WorkbenchPresentationBindingSchema.nullable(),
+		confirmation: AgentConfirmationViewSchema.nullable(),
+	})
+	.refine((row) => row.confirmation === null || row.binding !== null)
+	.readonly();
 const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
@@ -148,6 +195,31 @@ const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 			panelId: WorkbenchPanelIdSchema,
 			expectedBinding: WorkbenchPresentationBindingSchema,
 			report: PanelAgentReportSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('confirmations'),
+			presentationIds: z
+				.array(TerminalPresentationIdSchema)
+				.max(64)
+				.refine((ids) => new Set(ids).size === ids.length)
+				.readonly(),
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('confirmation-choose'),
+			presentationId: TerminalPresentationIdSchema,
+			expectedBinding: WorkbenchPresentationBindingSchema,
+			choice: AgentConfirmationChoiceSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('confirmation-decline'),
+			presentationId: TerminalPresentationIdSchema,
+			expectedBinding: WorkbenchPresentationBindingSchema,
 		})
 		.readonly(),
 ]);
@@ -628,6 +700,22 @@ const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
 			disposition: PanelAgentDispositionSchema,
 			changed: z.boolean(),
 			view: PanelAgentViewSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('confirmations'),
+			presentations: z
+				.array(PresentationConfirmationRowSchema)
+				.max(64)
+				.refine((rows) => new Set(rows.map((row) => row.presentationId)).size === rows.length)
+				.readonly(),
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('confirmation-chosen'),
+			presentation: PresentationConfirmationRowSchema,
 		})
 		.readonly(),
 	z.strictObject({ kind: z.literal('failed'), reason: PanelAgentFailureSchema }).readonly(),

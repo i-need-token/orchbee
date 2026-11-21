@@ -40,6 +40,7 @@ impl SettingCategory {
 pub enum SettingGroup {
     Basics,
     Restore,
+    Confirmations,
     Updates,
     Theme,
     TerminalColors,
@@ -63,6 +64,7 @@ impl SettingGroup {
         match self {
             Self::Basics => "basics",
             Self::Restore => "restore",
+            Self::Confirmations => "confirmations",
             Self::Updates => "updates",
             Self::Theme => "theme",
             Self::TerminalColors => "tcolors",
@@ -768,6 +770,23 @@ pub const SETTING_KEYS: &[SettingKey] = &[
     )
     .page()
     .effect(SettingEffect::Restart),
+    key(
+        "agents.auto_allow.claude",
+        V::Boolean,
+        D::Boolean(false),
+        (C::Agents, G::Confirmations),
+        SERVER,
+        "Let Orchbee press Claude Code's one-time Yes on routine confirmations; destructive commands always wait.",
+    )
+    .page(),
+    key(
+        "agents.auto_allow.offer",
+        V::Boolean,
+        D::Boolean(true),
+        (C::Agents, G::Confirmations),
+        SERVER,
+        "Offer to turn on automatic confirmation when a supported Agent waits on a routine confirmation.",
+    ),
     key(
         "update.channel",
         V::Choice(&["stable", "preview"]),

@@ -61,6 +61,7 @@ import {
 	serverHostColors,
 	serverTerminalBindingKey,
 	settledServerTerminalLifecycle,
+	ServerAgentConfirmations,
 	ServerAgentNameSource,
 	ServerAgentCatalog,
 	ServerLeaving,
@@ -146,6 +147,11 @@ export interface CreateServerWorkbenchRuntimeOptions {
 		| TerminalPresentationConfigurationSource
 		| undefined;
 	/**
+	 * Whether the Session's Server answers Agent confirmations, as its handshake answer lists
+	 * `agent-confirmation`. Without it, the window neither reads nor changes them.
+	 */
+	readonly agentConfirmations?: boolean | undefined;
+	/**
 	 * Whether the Session's Server publishes `workbench.terminal-runtime`, as its handshake answer
 	 * lists `terminal-runtime`. Without it, every terminal keeps its own recovery.
 	 */
@@ -162,6 +168,7 @@ export interface CreateServerWorkbenchRuntimeOptions {
  * lifetime, so no local Presentation identity is ever consumed and first entry creates nothing.
  */
 export function createServerWorkbenchRuntime({
+	agentConfirmations = false,
 	applicationLocaleSource,
 	connection,
 	defaultDirectory,
@@ -309,8 +316,12 @@ export function createServerWorkbenchRuntime({
 		session,
 	});
 	const agentObservationSource = new ServerTerminalAgentSource(connection, session);
+	const confirmations = agentConfirmations
+		? new ServerAgentConfirmations(connection, session)
+		: undefined;
 	const authority = createServerWorkbenchAuthority({
 		agentCatalog,
+		agentConfirmations: confirmations,
 		configuredCommands: configuredCommands.commands,
 		defaultDirectory,
 		defaultWorkspaceLabel: () =>
@@ -404,6 +415,7 @@ export function createServerWorkbenchRuntime({
 		terminalRuntimeState = terminalRuntimeSource.getSnapshot();
 		if (disposed || previous === 'serving' || terminalRuntimeState !== 'serving') return;
 		agentObservationSource.reopenClosed();
+		confirmations?.reopenClosed();
 		titleSource.reopenClosed();
 	});
 	const windowTitle =
@@ -531,6 +543,7 @@ export function createServerWorkbenchRuntime({
 					() => stopTerminalRuntimeObservation?.(),
 					() => terminalRuntimeSource?.dispose(),
 					() => agentObservationSource.dispose(),
+					() => confirmations?.dispose(),
 					() => titleSource.dispose(),
 					() => workspaceLocationSource.dispose(),
 					() => projectionClient.dispose(),

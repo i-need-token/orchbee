@@ -597,6 +597,20 @@ impl WorkbenchClientUi {
             }
             target => target,
         };
+        let target = match target {
+            // The key names no Agent, and the Agent a row named may have ended since.
+            MenuTarget::AgentConfirmations {
+                presentation,
+                offer,
+            } => {
+                let Some(target) = self.confirmation_menu(presentation, offer) else {
+                    self.note_action_menu_unavailable();
+                    return false;
+                };
+                target
+            }
+            target => target,
+        };
         let creation_only = matches!(target, MenuTarget::Create(_));
         let entry = target.clone();
         let tab_creation = matches!(target, MenuTarget::TabCreate(_));
@@ -804,6 +818,17 @@ impl WorkbenchClientUi {
                     crate::action_menu::AGENT_ACTIONS.to_vec(),
                 )
             }
+            // The answers run without a Panel taking focus, so the entry alone names the Agent.
+            MenuTarget::AgentConfirmations { offer, .. } => {
+                if !live {
+                    return false;
+                }
+                (
+                    Target::Global,
+                    String::new(),
+                    super::agent_confirmations::menu_actions(offer),
+                )
+            }
             MenuTarget::Drawn { .. }
             | MenuTarget::Create(_)
             | MenuTarget::TabCreate(_)
@@ -823,6 +848,15 @@ impl WorkbenchClientUi {
         if self.update_version.is_none() {
             // The switch exists only while a newer version is active.
             actions.retain(|action| *action != MenuAction::Update);
+        }
+        let answerable = match &target {
+            Target::Agent { target } => self.agent_confirmation(&target.member).is_some(),
+            Target::Global => self.confirmation_subject().is_some(),
+            _ => false,
+        };
+        if !answerable {
+            // The row exists only for an Agent the Server can answer for.
+            actions.retain(|action| *action != MenuAction::AgentConfirmations);
         }
         let project_choices = if matches!(entry, MenuTarget::WorkspaceProjects(_)) {
             let Some(choices) = state.and_then(|state| sidebar::project_choices(state, &target))
@@ -960,6 +994,19 @@ impl WorkbenchClientUi {
             return false;
         }
         self.menus.menu.set_search_children(search_children);
+        // The product the "always" answer names, and the answer in force.
+        let confirmation = match intent.entry() {
+            MenuTarget::AgentConfirmations {
+                presentation: Some(presentation),
+                ..
+            } => self.agent_confirmation(presentation).map(|view| {
+                (
+                    crate::agent_provider::product_name(&view.agent).to_owned(),
+                    super::agent_confirmations::applied(view.choice),
+                )
+            }),
+            _ => None,
+        };
         let choices = sidebar::ChoiceLabels::new(
             self.menus.menu.view().map_or(&[][..], |menu| menu.actions),
             self.menus.discovery(),
@@ -983,6 +1030,9 @@ impl WorkbenchClientUi {
                 .and_then(|(_, name)| name.clone()),
             // The renderer turns the version into the row's tooltip sentence.
             MenuAction::Update => self.update_version.clone(),
+            MenuAction::AgentConfirmation(crate::localization::ConfirmationAnswer::AgentType) => {
+                confirmation.as_ref().map(|(agent, _)| agent.clone())
+            }
             _ => None,
         });
         if tab_profiles {
@@ -1033,6 +1083,18 @@ impl WorkbenchClientUi {
             }
             if hidden {
                 self.menus.menu.hide_candidate();
+            }
+        }
+        if let (Some((_, applied)), MenuTarget::AgentConfirmations { offer: false, .. }) =
+            (&confirmation, intent.entry())
+        {
+            let applied = MenuAction::AgentConfirmation(*applied);
+            self.menus.menu.set_notes(|action| {
+                (*action == applied).then_some(crate::action_menu::MenuRowNote::Applied)
+            });
+            if !hidden {
+                // The choice in force holds the candidate, as an applied color does.
+                self.menus.menu.select_action(applied);
             }
         }
         let facts = self.row_facts(intent.target());
@@ -1459,6 +1521,8 @@ impl WorkbenchClientUi {
                 state.focus_pane_ref().as_ref() == Some(pane)
                     && state.desired() == Some(pane.pane())
             }),
+            // The answers address the Agent's terminal, which needs no focus.
+            Target::Agent { .. } if action == MenuAction::AgentConfirmations => true,
             Target::Agent { target } => self
                 .state
                 .as_ref()
@@ -1500,6 +1564,29 @@ impl WorkbenchClientUi {
         }
         let facts = self.row_facts(intent.target());
         let mut changed = false;
+        if let MenuTarget::AgentConfirmations {
+            presentation: Some(presentation),
+            offer,
+        } = intent.entry()
+        {
+            // The Agent ended, or its terminal was replaced, under its open answers.
+            let Some(applied) = self
+                .agent_confirmation(presentation)
+                .map(|view| super::agent_confirmations::applied(view.choice))
+            else {
+                self.fail_action_menu();
+                return true;
+            };
+            if !offer && matches!(intent.stage(), Stage::Open) {
+                // Another Client, or Settings, can change the choice under the open menu.
+                let applied = MenuAction::AgentConfirmation(applied);
+                let before = self.menus.menu.view().map(|menu| menu.token);
+                self.menus.menu.set_notes(|action| {
+                    (*action == applied).then_some(crate::action_menu::MenuRowNote::Applied)
+                });
+                changed |= self.menus.menu.view().map(|menu| menu.token) != before;
+            }
+        }
         match intent.stage() {
             Stage::Open => {
                 if self.menus.menu.view().is_some_and(|menu| {
@@ -1519,7 +1606,7 @@ impl WorkbenchClientUi {
                 }
                 let state = self.state.as_ref();
                 let (menu, _, discovery) = self.menus.menu_with_facts();
-                changed = menu.refresh_availability(|action| {
+                changed |= menu.refresh_availability(|action| {
                     visible_unavailable(intent_availability(
                         &intent, state, discovery, action, facts,
                     ))
@@ -1623,6 +1710,12 @@ impl WorkbenchClientUi {
                                 prepared: false,
                                 deadline,
                             })
+                    }
+                    // The answers open beside the row and move no focus.
+                    Target::Agent { .. }
+                        if self.menus.menu.confirmed() == Some(MenuAction::AgentConfirmations) =>
+                    {
+                        Some(Stage::Offered(current.clone(), deadline))
                     }
                     // Rename and Close act on the focused Panel, so the Agent's Panel takes focus first.
                     Target::Agent { target } => match self.navigate_agent(target) {
@@ -1751,6 +1844,19 @@ impl WorkbenchClientUi {
                     colors: true,
                 })
             }
+            (Target::Agent { target }, MenuAction::AgentConfirmations) => {
+                Some(MenuTarget::AgentConfirmations {
+                    presentation: Some(target.member.clone()),
+                    offer: false,
+                })
+            }
+            // The global row answers for the same Agent as its key.
+            (Target::Global, MenuAction::AgentConfirmations) => {
+                Some(MenuTarget::AgentConfirmations {
+                    presentation: None,
+                    offer: false,
+                })
+            }
             _ => None,
         };
         // Open Worktree ▸ lists only what Git answered.
@@ -1774,6 +1880,21 @@ impl WorkbenchClientUi {
             self.menus.menu.take()?;
             self.menus.end();
             self.open_agent_picker_in_new_tab();
+            return None;
+        }
+        // The Server answers on a later turn; nothing here waits for it.
+        if let MenuAction::AgentConfirmation(answer) = action {
+            let MenuTarget::AgentConfirmations {
+                presentation: Some(presentation),
+                ..
+            } = intent.entry().clone()
+            else {
+                self.fail_action_menu();
+                return None;
+            };
+            self.menus.menu.take()?;
+            self.menus.end();
+            self.answer_agent_confirmation(&presentation, answer);
             return None;
         }
         // The read settles on its own, and the request captures what it installed.

@@ -166,7 +166,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-agents",
 			"states": [
-				"Inspect the Agents category: the resume-on-restore switch with its description, and nothing else."
+				"Inspect the Agents category: the resume-on-restore switch with its description, then the Allow routine confirmations group with its note, the Claude Code switch with its description, and the closing line that asks for more Agents in a GitHub issue."
 			]
 		},
 		{
@@ -265,7 +265,9 @@
 			"exportName": "ChineseAgents",
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-agents",
-			"states": ["Inspect the localized resume-on-restore switch."]
+			"states": [
+				"Inspect the localized resume-on-restore switch and the localized Allow routine confirmations group."
+			]
 		},
 		{
 			"exportName": "ChineseAbout",
@@ -324,7 +326,7 @@
 	],
 	"invariants": [
 		"Opening Settings shows one large dialog over the Workbench on a scrim: the Workbench and projected terminal attachments stay mounted and inert, and the close button or a press on the scrim returns exactly where the user was. Escape clears a non-empty search first and otherwise returns, unless a control consumes it. Below the medium breakpoint the navigation stacks above the content.",
-		"Each category shows its title, then groups of a small muted heading and one card; a category with three or fewer settings may use one unnamed card. Each row carries a name, an always-visible description of at most two lines, and exactly one control aligned to the row's end; only the new terminal folder row adds its folder field under its select, while that select shows Custom folder….",
+		"Each category shows its title, then groups of a small muted heading and one card; a category with three or fewer settings may use one unnamed card. A group may end with one muted closing line under its card, which hides with the group. Each row carries a name, an always-visible description of at most two lines, and exactly one control aligned to the row's end; only the new terminal folder row adds its folder field under its select, while that select shows Custom folder….",
 		"Every change is one edit of the settings file and shows once the file answers; the page has no Save, Discard, or footer. A setting the file sets shows a dot after its name and a Restore default action that removes only that key. A refused change leaves the control at the file's value with one short reason under the row.",
 		"While the settings file has a syntax error or cannot be read, the page shows the last valid values with read-only controls and one notice naming the file path, with line and column for a syntax error.",
 		"Long lists are one card with one entry per line, and a list of more than eight entries shows a filter box with the shown count.",

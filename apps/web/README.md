@@ -241,6 +241,12 @@ program, and an unreadable title, a failed stream, or a Server that does not pub
 the last title shown. A rebound terminal shows its launched program until a title arrives for it.
 Stream rows never change the current CWD, unread state, notifications, or Agent state.
 
+`ServerAgentConfirmations` reads the `confirmations` rows the same way, through the shared
+`ServerPresentationRowSource`, and is composed only where the Session's handshake answer lists
+`agent-confirmation`. It publishes how the Server answers each Agent's routine confirmations and
+sends the two requests that change it, each naming the terminal the row was read for. A choice
+shows only as the Server's answer or its next row reports it.
+
 Suspicious paste text opens one localized review dialog owned by the shared projected-terminal
 surface. It presents a bounded, control-visible preview of the retained original text and identifies
 multiline input and controls that will be replaced; text holding an embedded bracketed-paste
@@ -308,7 +314,8 @@ The Desktop composition uses one TanStack Router over memory history, because a 
 
 ## Settings
 
-Desktop Settings' Agents category holds the resume-after-restart switch. Startup, search, and
+Desktop Settings' Agents category holds the resume-after-restart switch and one switch for each
+Agent type whose routine confirmations Orchbee can answer. Startup, search, and
 category navigation perform no mutation; only an explicit control action changes a setting, as one
 edit of the settings file.
 

@@ -4,6 +4,7 @@
 			"generations": { "lowest": 1, "highest": 1 },
 			"superseded": [],
 			"capabilities": [
+				{ "name": "agent-confirmation", "addedIn": "0.1.0-beta.23" },
 				{ "name": "agent-input-area", "addedIn": "0.1.0" },
 				{ "name": "compatibility-window", "addedIn": "0.1.0-beta.14" },
 				{ "name": "configured-command-source-exited", "addedIn": "0.1.0-beta.15" },
@@ -68,7 +69,8 @@
 				{ "name": "handover", "addedIn": "0.1.0-beta.16" },
 				{ "name": "keeper", "addedIn": "0.1.0-beta.16" },
 				{ "name": "prompt-gated-input", "addedIn": "0.1.0" },
-				{ "name": "screen-gated-input", "addedIn": "0.1.0-beta.22" }
+				{ "name": "screen-gated-input", "addedIn": "0.1.0-beta.22" },
+				{ "name": "screen-gated-send", "addedIn": "0.1.0-beta.23" }
 			],
 			"fingerprintInputs": [
 				"apps/terminal-host/src/control",
@@ -278,6 +280,9 @@
 		{
 			"path": "schemas/workbench/v1/workbench-notification-conformance-v1.json",
 			"sha256": "77ad864db5814ab38df414b3ae644656fc6aad28c41bb335020e94c3aa075d0b"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-panel-agent-confirmation-conformance-v1.json"
 		},
 		{
 			"path": "schemas/workbench/v1/workbench-panel-agent-conformance-v1.json",

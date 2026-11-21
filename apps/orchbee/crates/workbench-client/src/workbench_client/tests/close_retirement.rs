@@ -82,6 +82,8 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         notifications: None,
         window_title: None,
         terminal_titles: None,
+        agent_confirmations: None,
+        agent_confirmations_check: None,
         client_control: None,
         backend: ClientBackend::Native(Box::new(ui::WorkbenchClientUi::new(mailbox, clock))),
         task: Some(ClientTask::Native(

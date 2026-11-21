@@ -87,6 +87,12 @@
 	font: var(--ob-sys-typography-label-sm);
 }
 
+.note {
+	margin: var(--ob-ref-space-2) var(--ob-ref-space-2) 0;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+
 .card {
 	display: flex;
 	flex-direction: column;

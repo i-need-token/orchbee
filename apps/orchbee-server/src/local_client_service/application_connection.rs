@@ -251,6 +251,17 @@ impl ApplicationRequest {
             )
         )
     }
+    /// A confirmation read, whose value changes with what the Server decides about an Agent's
+    /// confirmations as well as with commits, which move bindings and save settings.
+    pub(super) fn follows_agent_confirmations(&self) -> bool {
+        matches!(
+            self.workbench(),
+            Some(WorkbenchRequest::PanelAgent(request)) if matches!(
+                request.action,
+                orchbee_workbench_protocol::PanelAgentAction::Confirmations { .. }
+            )
+        )
+    }
     /// An Agent catalog read, whose value changes only with the catalog's own revisions.
     pub(super) fn follows_agent_catalog(&self) -> bool {
         matches!(self.workbench(), Some(WorkbenchRequest::AgentCatalog(_)))

@@ -115,6 +115,7 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
         Row::RestoreOutput => values.restore_terminal_output = !values.restore_terminal_output,
         Row::Sound => values.sound_enabled = !values.sound_enabled,
         Row::AutomaticUpdates => values.automatic_updates = !values.automatic_updates,
+        Row::AutoAllowClaude => values.auto_allow_claude = !values.auto_allow_claude,
         Row::Profile => {
             let count = values.launch_profiles.profiles.len();
             draft.profile = (draft.profile + if forward { 1 } else { count - 1 }) % count;

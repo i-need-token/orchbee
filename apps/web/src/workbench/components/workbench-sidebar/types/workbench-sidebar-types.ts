@@ -21,6 +21,10 @@ export interface WorkbenchWorktreeCommands {
 
 export interface WorkbenchProjectNavigationMessages {
 	readonly agentMenuClose: string;
+	/** The Agent row's Allow confirmations submenu and its two answers that name no Agent type. */
+	readonly agentMenuConfirmations: string;
+	readonly agentMenuConfirmationsOff: string;
+	readonly agentMenuConfirmationsRun: string;
 	readonly agentMenuRename: string;
 	readonly workspaceMoveToProject: string;
 	readonly workspaceCreateProject: string;

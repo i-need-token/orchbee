@@ -864,7 +864,8 @@ fn dispatch(
 /// Invalidation streams count commits. A terminal output frame only concerns the streams that
 /// deliver semantic values, so a printing terminal cannot make one Client reread its checkpoints.
 /// A published-title read follows commits, which move bindings, and title changes, never output;
-/// no other stream follows title changes. An Agent catalog read follows only the catalog's own
+/// no other stream follows title changes. A confirmation read follows commits and the Server's
+/// confirmation decisions, never output. An Agent catalog read follows only the catalog's own
 /// changes, and a terminal-runtime read only that state's.
 fn stream_revision(
     signal: &SessionChangeSignal,
@@ -879,6 +880,10 @@ fn stream_revision(
         signal
             .commit_revision()
             .wrapping_add(signal.titles_revision())
+    } else if request.follows_agent_confirmations() {
+        signal
+            .commit_revision()
+            .wrapping_add(signal.agent_confirmations_revision())
     } else if mode == StreamMode::Invalidations {
         signal.commit_revision()
     } else {

@@ -84,6 +84,11 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
         N::RestoreDirectoryUnavailable,
         N::RestoreAgentNotResumed,
         N::RestoreNotStarted,
+        N::ConfirmationAllowed(orchbee_workbench_protocol::AgentConfirmationKind::Command),
+        N::ConfirmationAllowed(orchbee_workbench_protocol::AgentConfirmationKind::Create),
+        N::ConfirmationAllowed(orchbee_workbench_protocol::AgentConfirmationKind::Edit),
+        N::ConfirmationStopped,
+        N::ConfirmationNotChanged,
         N::LinkNoLink,
         N::LinkBusy,
         N::LinkFailed,
@@ -262,6 +267,9 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             | N::RestoreDirectoryUnavailable
             | N::RestoreAgentNotResumed
             | N::RestoreNotStarted
+            | N::ConfirmationAllowed(_)
+            | N::ConfirmationStopped
+            | N::ConfirmationNotChanged
             | N::LinkNoLink
             | N::LinkBusy
             | N::LinkFailed

@@ -462,7 +462,7 @@ pub enum SendRejection {
     HostPromptGateUnsupported,
     /// The Host refused a screen-gated key and typed nothing; the state names its first unmet rule.
     ScreenRefused(SendScreenState),
-    /// The terminal's Host did not negotiate `screen-gated-input`, so a screen-gated send was
+    /// The terminal's Host did not negotiate `screen-gated-send`, so a screen-gated send was
     /// refused before any attachment.
     HostScreenGateUnsupported,
 }

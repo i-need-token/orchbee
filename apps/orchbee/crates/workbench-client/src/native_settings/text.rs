@@ -30,6 +30,7 @@ impl From<Row> for SettingsRow {
             Row::Sound => Self::Sound,
             Row::Scrollback => Self::Scrollback,
             Row::AutomaticUpdates => Self::AutomaticUpdates,
+            Row::AutoAllowClaude => Self::AutoAllowClaude,
             Row::LaunchProfiles => Self::LaunchProfiles,
             Row::NewTerminalFolder => Self::NewTerminalFolder,
             Row::PrefixKey => Self::PrefixKey,
@@ -83,6 +84,7 @@ impl From<Group> for SettingsGroup {
             Group::WhenToNotify => Self::WhenToNotify,
             Group::SoundDelivery => Self::SoundDelivery,
             Group::Prefix => Self::Prefix,
+            Group::AgentConfirmations => Self::AgentConfirmations,
             Group::About => Self::About,
         }
     }
@@ -218,6 +220,7 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
             }
             Row::Sound => Self::Toggle(values.sound_enabled),
             Row::AutomaticUpdates => Self::Toggle(values.automatic_updates),
+            Row::AutoAllowClaude => Self::Toggle(values.auto_allow_claude),
             Row::Scrollback => {
                 Self::ScrollbackMegabytes(super::scrollback_megabytes(values.scrollback_bytes))
             }

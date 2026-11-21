@@ -3,6 +3,7 @@ import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { ActionRuntime } from '@orchbee/actions';
 import { Workbench } from '../src/workbench';
 import type {
+	WorkbenchAgentConfirmation,
 	WorkbenchAgentObservation,
 	WorkbenchAgentSnapshot,
 	WorkbenchAuthority,
@@ -372,6 +373,78 @@ function createStoryAgentSource(
 		},
 	};
 }
+
+/**
+ * Three Claude Code terminals and how a Server answers their confirmations: the one in view is
+ * offered, the next waits on a destructive command, the last is answered for this run.
+ */
+const agentConfirmationsStory = (() => {
+	const fixture = createWorkspaceAgentOverviewStoryFixture();
+	const [offered, waiting, answered] = [
+		...fixture.agentObservationSource.getSnapshot().presentations.keys(),
+	];
+	const row = (confirmation: Partial<WorkbenchAgentConfirmation>): WorkbenchAgentConfirmation => ({
+		agent: 'claude',
+		choice: 'off',
+		offer: false,
+		pressed: null,
+		stopped: false,
+		wait: null,
+		...confirmation,
+	});
+	const rows = new Map<string, WorkbenchAgentConfirmation>();
+	if (offered !== undefined) rows.set(offered, row({ offer: true }));
+	if (waiting !== undefined) rows.set(waiting, row({ choice: 'agent-type', wait: 'destructive' }));
+	if (answered !== undefined) {
+		rows.set(
+			answered,
+			row({ choice: 'run', pressed: { kind: 'command', serial: 1, text: 'pnpm test' } }),
+		);
+	}
+	return {
+		agentObservationSource: createStoryAgentSource([
+			{ agent: 'claude', presentationId: offered, state: 'blocked' },
+			{ agent: 'claude', presentationId: waiting, state: 'blocked' },
+			{ agent: 'claude', presentationId: answered, state: 'working' },
+		]),
+		authority: {
+			...staticStoryAuthority,
+			agentConfirmations: {
+				choose: () => Promise.resolve(false),
+				decline: () => Promise.resolve(false),
+				getSnapshot: () => rows,
+				subscribe: () => () => undefined,
+			},
+		} satisfies WorkbenchAuthority,
+		projectWorkspaceRuntime: fixture.projectWorkspaceRuntime,
+	};
+})();
+
+export const AgentConfirmations: Story = {
+	args: {
+		actionRuntime: new ActionRuntime({ confirm: () => true }),
+		agentObservationSource: agentConfirmationsStory.agentObservationSource,
+		authority: agentConfirmationsStory.authority,
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: agentConfirmationsStory.projectWorkspaceRuntime,
+		shortcutPlatform: 'apple',
+		terminalSurface: FocusStoryTerminalSurface,
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const AgentConfirmationsChinese: Story = {
+	args: AgentConfirmations.args,
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='zh-CN'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
 
 /** A Server that reports where the named Workspaces stand. */
 function createStoryWorkspaceLocationSource(

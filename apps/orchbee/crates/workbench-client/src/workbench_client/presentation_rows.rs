@@ -1,15 +1,16 @@
-//! UI-owned `presentation-titles` State streams on the shared connection, without a bridge
-//! thread: the Session's bound Presentations in groups of at most 64, each group one stream. They
-//! keep no title. A failed or closed stream changes nothing, since a Presentation keeps the name
-//! it last showed, and it opens again after a delay.
+//! UI-owned State streams of one Panel Agent read on the shared connection, without a bridge
+//! thread: the Session's bound Presentations in groups of at most the read's row bound, each group
+//! one stream. They keep no row. A failed or closed stream changes nothing, since its consumer
+//! keeps what it last read, and it opens again after a delay.
 use crate::local_client::{
     LocalClientOrigin, LocalOperationClock,
     multiplex::{StreamEvent, Subscription as Stream},
 };
 use orchbee_workbench_protocol::{
-    MAXIMUM_PRESENTATION_TITLE_ROWS, PanelAgentAction, PanelAgentOutcome, PanelAgentRequest,
-    PresentationTitleRow, ProtocolVersion, SessionId, StreamMode, TerminalPresentationId,
-    WorkbenchRequest, WorkbenchResponse, read_workbench_response,
+    MAXIMUM_AGENT_CONFIRMATION_ROWS, MAXIMUM_PRESENTATION_TITLE_ROWS, PanelAgentAction,
+    PanelAgentOutcome, PanelAgentRequest, PresentationConfirmationRow, PresentationTitleRow,
+    ProtocolVersion, SessionId, StreamMode, TerminalPresentationId, WorkbenchRequest,
+    WorkbenchResponse, read_workbench_response,
 };
 use std::{
     io::Cursor,
@@ -19,6 +20,36 @@ use std::{
 /// An ended stream opens again after this long, so a Server that refused it for capacity or
 /// restarted publishes again without waiting for its Presentations to change.
 const REOPEN_DELAY: Duration = Duration::from_secs(5);
+
+/// One read whose answer is a row per requested Presentation.
+pub(super) struct Read<Row> {
+    /// The most Presentations one request may name.
+    limit: usize,
+    action: fn(Vec<TerminalPresentationId>) -> PanelAgentAction,
+    /// The rows of the read's own outcome; `None` for any other outcome but a failure.
+    rows: fn(PanelAgentOutcome) -> Option<Vec<Row>>,
+}
+
+/// The title each Presentation's terminal last reported.
+pub(super) const TITLES: Read<PresentationTitleRow> = Read {
+    limit: MAXIMUM_PRESENTATION_TITLE_ROWS,
+    action: |presentation_ids| PanelAgentAction::PresentationTitles { presentation_ids },
+    rows: |outcome| match outcome {
+        PanelAgentOutcome::PresentationTitles { presentations } => Some(presentations),
+        _ => None,
+    },
+};
+
+/// How the Server answers the routine confirmations of the Agent in each Presentation. Only a
+/// Session whose handshake answer lists `agent-confirmation` serves it.
+pub(super) const CONFIRMATIONS: Read<PresentationConfirmationRow> = Read {
+    limit: MAXIMUM_AGENT_CONFIRMATION_ROWS,
+    action: |presentation_ids| PanelAgentAction::Confirmations { presentation_ids },
+    rows: |outcome| match outcome {
+        PanelAgentOutcome::Confirmations { presentations } => Some(presentations),
+        _ => None,
+    },
+};
 
 struct Group {
     presentations: Vec<TerminalPresentationId>,
@@ -30,34 +61,35 @@ struct Group {
 /// Why a stream's records can no longer be trusted.
 struct Invalid;
 
-pub(super) struct Subscription {
+pub(super) struct Subscription<Row> {
+    read: Read<Row>,
     source: Option<(LocalClientOrigin, LocalOperationClock, SessionId)>,
     groups: Vec<Group>,
 }
 
-impl Subscription {
+impl<Row> Subscription<Row> {
     pub(super) fn spawn(
+        read: Read<Row>,
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
         session: SessionId,
     ) -> Self {
         Self {
+            read,
             source: Some((origin, clock, session)),
             groups: Vec::new(),
         }
     }
 
-    /// Follows `presentations` in groups of at most 64, reopening only the groups whose members
-    /// changed, and returns every row that arrived since the last call, in arrival order.
-    pub(super) fn poll(
-        &mut self,
-        presentations: &[TerminalPresentationId],
-    ) -> Vec<PresentationTitleRow> {
+    /// Follows `presentations` in groups of at most the read's bound, reopening only the groups
+    /// whose members changed, and returns every row that arrived since the last call, in arrival
+    /// order.
+    pub(super) fn poll(&mut self, presentations: &[TerminalPresentationId]) -> Vec<Row> {
         let Some((origin, clock, session)) = &self.source else {
             return Vec::new();
         };
         let now = clock.now();
-        let chunks = presentations.chunks(MAXIMUM_PRESENTATION_TITLE_ROWS);
+        let chunks = presentations.chunks(self.read.limit);
         if chunks.len() != self.groups.len()
             || chunks
                 .clone()
@@ -84,10 +116,14 @@ impl Subscription {
         let mut rows = Vec::new();
         for group in &mut self.groups {
             if group.open.is_none() && group.reopen_at.is_some_and(|at| now >= at) {
-                group.open = open(origin, session, &group.presentations);
+                group.open = open(
+                    origin,
+                    session,
+                    (self.read.action)(group.presentations.clone()),
+                );
                 group.reopen_at = group.open.is_none().then(|| now + REOPEN_DELAY);
             }
-            if read(group, now, &mut rows).is_err() {
+            if read(group, self.read.rows, now, &mut rows).is_err() {
                 // A Server of this cohort never sends such a record, so nothing it reports can
                 // be trusted.
                 self.close();
@@ -125,7 +161,7 @@ impl Subscription {
     }
 }
 
-impl Drop for Subscription {
+impl<Row> Drop for Subscription<Row> {
     fn drop(&mut self) {
         self.close();
     }
@@ -134,15 +170,13 @@ impl Drop for Subscription {
 fn open(
     origin: &LocalClientOrigin,
     session: &SessionId,
-    presentations: &[TerminalPresentationId],
+    action: PanelAgentAction,
 ) -> Option<(PanelAgentRequest, Stream)> {
     let request = PanelAgentRequest {
         protocol_version: ProtocolVersion,
         request_id: crate::machine_observation::request_id().ok()?,
         session_id: session.clone(),
-        action: PanelAgentAction::PresentationTitles {
-            presentation_ids: presentations.to_vec(),
-        },
+        action,
     };
     let stream = origin
         .subscribe(
@@ -153,12 +187,13 @@ fn open(
     Some((request, stream))
 }
 
-/// Drains one group's stream. A failed outcome, a gap or a disconnect keeps every title; an ended
+/// Drains one group's stream. A failed outcome, a gap or a disconnect keeps every row; an ended
 /// stream opens again after [`REOPEN_DELAY`].
-fn read(
+fn read<Row>(
     group: &mut Group,
+    rows_of: fn(PanelAgentOutcome) -> Option<Vec<Row>>,
     now: Instant,
-    rows: &mut Vec<PresentationTitleRow>,
+    rows: &mut Vec<Row>,
 ) -> Result<(), Invalid> {
     while let Some((request, stream)) = &group.open {
         match stream.poll() {
@@ -171,12 +206,8 @@ fn read(
                 if !result.answers(request) {
                     return Err(Invalid);
                 }
-                match result.outcome {
-                    PanelAgentOutcome::PresentationTitles { presentations } => {
-                        rows.extend(presentations);
-                    }
-                    PanelAgentOutcome::Failed { .. } => {}
-                    _ => return Err(Invalid),
+                if !matches!(result.outcome, PanelAgentOutcome::Failed { .. }) {
+                    rows.extend(rows_of(result.outcome).ok_or(Invalid)?);
                 }
             }
             Ok(Some(StreamEvent::Gap | StreamEvent::Disconnected)) => {}

@@ -1,0 +1,26 @@
+.root {
+	box-sizing: border-box;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--ob-ref-space-1);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-1) var(--ob-ref-space-1) var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	color: var(--ob-sys-color-text-secondary);
+	background: var(--ob-sys-color-surface-overlay);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	font: var(--ob-sys-typography-body-sm);
+	/* The notice region lets presses through to the terminal; the answers take theirs. */
+	pointer-events: auto;
+}
+
+.question {
+	min-inline-size: 0;
+	margin-inline-end: var(--ob-ref-space-1);
+}
+
+.root > button {
+	flex: none;
+}

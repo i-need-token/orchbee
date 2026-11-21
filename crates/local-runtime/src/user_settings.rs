@@ -88,6 +88,10 @@ pub struct UserSettings {
     pub update_channel_source: &'static str,
     pub cwd: Option<(DirectoryPolicy, Option<String>)>,
     pub worktree_root: Option<String>,
+    /// Whether the Server may offer to answer an Agent's routine confirmations
+    /// (`agents.auto_allow.offer`). No settings page shows it: a person's "no" to an offer turns
+    /// it off, and the per-Agent setting stays theirs to turn on.
+    pub auto_allow_offer: bool,
     /// The common values both Clients present, as the file gives them.
     pub values: UserSettingsValues,
     /// Settings only the desktop app applies.
@@ -201,6 +205,7 @@ impl Default for UserSettings {
             update_channel_source: "default",
             cwd: None,
             worktree_root: None,
+            auto_allow_offer: true,
             values: UserSettingsValues::default(),
             desktop: DesktopTerminalSettings::default(),
             file_values: std::collections::BTreeMap::new(),
@@ -473,6 +478,9 @@ fn parse(text: &str, path: &Path, env: &impl Fn(&str) -> Option<OsString>) -> Us
             Some(_) => fields.push("update.channel", "invalid-channel"),
             None => fields.push("update.channel", "wrong-type"),
         }
+    }
+    if let Some(offer) = fields.boolean("agents.auto_allow.offer") {
+        settings.auto_allow_offer = offer;
     }
     let launch_profiles = launch_profiles::parse(&mut fields);
     let lookup = std::cell::RefCell::new(&mut fields);

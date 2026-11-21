@@ -1646,4 +1646,137 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Status notice when starting a held Panel did not start its terminal, for example because the Panel changed.',
 	},
+	agentConfirmationOffer: {
+		id: 'workbench.agentConfirmation.offer',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.offer'],
+		description:
+			"Status notice offering to answer an Agent's routine confirmations for the person. {agent} is the Agent product name. Three answers follow it.",
+	},
+	agentConfirmationRun: {
+		id: 'workbench.agentConfirmation.run',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.run'],
+		description:
+			'Answer to the offer and single-choice menu item: Orchbee answers routine confirmations for this one running Agent until it exits.',
+	},
+	agentConfirmationAgentType: {
+		id: 'workbench.agentConfirmation.agentType',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.agentType'],
+		description:
+			'Answer to the offer and single-choice menu item: Orchbee answers routine confirmations for every Agent of this product, saved as a setting. {agent} is the Agent product name.',
+	},
+	agentConfirmationNo: {
+		id: 'workbench.agentConfirmation.no',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.no'],
+		description: 'Answer to the offer: Orchbee never offers again.',
+	},
+	agentConfirmationMenu: {
+		id: 'workbench.agentConfirmation.menu',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.menu'],
+		description:
+			'Agent row menu entry that opens the three single-choice items for answering routine confirmations.',
+	},
+	agentConfirmationOff: {
+		id: 'workbench.agentConfirmation.off',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.off'],
+		description: 'Single-choice menu item: Orchbee answers no confirmation for this Agent.',
+	},
+	agentConfirmationAllowedCommand: {
+		id: 'workbench.agentConfirmation.allowedCommand',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.allowedCommand'],
+		description:
+			"Timed status notice after Orchbee answered an Agent's confirmation of a command. {command} is the command text.",
+	},
+	agentConfirmationAllowedCreate: {
+		id: 'workbench.agentConfirmation.allowedCreate',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.allowedCreate'],
+		description:
+			"Timed status notice after Orchbee answered an Agent's confirmation to create a file. {path} is the file path.",
+	},
+	agentConfirmationAllowedEdit: {
+		id: 'workbench.agentConfirmation.allowedEdit',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.allowedEdit'],
+		description:
+			"Timed status notice after Orchbee answered an Agent's confirmation to edit a file. {path} is the file path.",
+	},
+	agentConfirmationStopped: {
+		id: 'workbench.agentConfirmation.stopped',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.stopped'],
+		description:
+			"Status notice when Orchbee stopped answering an Agent's confirmations because one confirmation came back after every answer.",
+	},
+	agentConfirmationNotChanged: {
+		id: 'workbench.agentConfirmation.notChanged',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.notChanged'],
+		description:
+			'Status notice when a choice about answering Agent confirmations did not reach the Server or was refused, so nothing changed.',
+	},
+	agentConfirmationWaitStatus: {
+		id: 'workbench.agentConfirmation.waitStatus',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.waitStatus'],
+		description:
+			'Agent state tooltip while a confirmation waits for the person: the state name, then why Orchbee did not answer it.',
+	},
+	agentConfirmationWaitDestructive: {
+		id: 'workbench.agentConfirmation.wait.destructive',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.destructive'],
+		description:
+			'Why a confirmation waits: the command deletes, overwrites, elevates, stops or sends something out.',
+	},
+	agentConfirmationWaitLeavesWorkspace: {
+		id: 'workbench.agentConfirmation.wait.leavesWorkspace',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.leavesWorkspace'],
+		description:
+			'Why a confirmation waits: the command or file reaches outside the Workspace folder.',
+	},
+	agentConfirmationWaitProtectedFile: {
+		id: 'workbench.agentConfirmation.wait.protectedFile',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.protectedFile'],
+		description:
+			'Why a confirmation waits: the file is one Orchbee never changes unattended, such as Git data, .env, Agent configuration or shell start files.',
+	},
+	agentConfirmationWaitNotUnderstood: {
+		id: 'workbench.agentConfirmation.wait.notUnderstood',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.notUnderstood'],
+		description: "Why a confirmation waits: the command has a shape Orchbee's check does not read.",
+	},
+	agentConfirmationWaitNotVisible: {
+		id: 'workbench.agentConfirmation.wait.notVisible',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.notVisible'],
+		description: 'Why a confirmation waits: the command or path is not completely on screen.',
+	},
+	agentConfirmationWaitMarkedDangerous: {
+		id: 'workbench.agentConfirmation.wait.markedDangerous',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.markedDangerous'],
+		description: 'Why a confirmation waits: the Agent itself marks the request as dangerous.',
+	},
+	agentConfirmationWaitNotAnswered: {
+		id: 'workbench.agentConfirmation.wait.notAnswered',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.notAnswered'],
+		description:
+			'Why an Agent waits: it shows something that is not a confirmation Orchbee answers.',
+	},
+	agentConfirmationWaitPerson: {
+		id: 'workbench.agentConfirmation.wait.person',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.person'],
+		description:
+			'Why a confirmation waits: the person typed or clicked in the terminal since the confirmation appeared.',
+	},
+	agentConfirmationWaitChanging: {
+		id: 'workbench.agentConfirmation.wait.changing',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.changing'],
+		description:
+			'Why a confirmation waits: the terminal screen changed every time Orchbee was about to answer.',
+	},
+	agentConfirmationWaitRepeating: {
+		id: 'workbench.agentConfirmation.wait.repeating',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.repeating'],
+		description:
+			'Why a confirmation waits: the same confirmation came back after every answer, so Orchbee stopped.',
+	},
+	agentConfirmationWaitHostTooOld: {
+		id: 'workbench.agentConfirmation.wait.hostTooOld',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.hostTooOld'],
+		description:
+			'Why a confirmation waits: the terminal was started by an Orchbee that cannot check the screen before typing.',
+	},
 });

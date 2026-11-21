@@ -58,7 +58,9 @@ impl Answer {
                 | PanelAgentOutcome::Observed { .. }
                 | PanelAgentOutcome::States { .. }
                 | PanelAgentOutcome::Titles { .. }
-                | PanelAgentOutcome::PresentationTitles { .. } => 5,
+                | PanelAgentOutcome::PresentationTitles { .. }
+                | PanelAgentOutcome::Confirmations { .. }
+                | PanelAgentOutcome::ConfirmationChosen { .. } => 5,
                 PanelAgentOutcome::Failed { reason } => match reason {
                     PanelAgentFailure::Denied
                     | PanelAgentFailure::NotFound

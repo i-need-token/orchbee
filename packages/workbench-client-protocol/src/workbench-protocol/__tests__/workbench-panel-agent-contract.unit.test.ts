@@ -9,6 +9,10 @@ const caseSchema = z.strictObject({
 	document: z.unknown(),
 	boundary: z.enum(['schema', 'semantic']).optional(),
 });
+const corpusFiles = [
+	'workbench-panel-agent-conformance-v1.json',
+	'workbench-panel-agent-confirmation-conformance-v1.json',
+];
 describe('Panel Agent reports', () => {
 	it('rejects unpaired title surrogates while admitting complete Unicode and explicit clear', () => {
 		const document = (title: string | null) => ({
@@ -39,23 +43,28 @@ describe('Panel Agent reports', () => {
 	});
 
 	it('matches the shared Rust report corpus and closed shapes', async () => {
-		const corpus = z
-			.strictObject({
-				contractVersion: z.literal(1),
-				valid: z.array(caseSchema),
-				invalid: z.array(caseSchema),
-			})
-			.parse(
-				JSON.parse(
-					await readFile(
-						new URL(
-							'../../../../../schemas/workbench/v1/workbench-panel-agent-conformance-v1.json',
-							import.meta.url,
+		const corpora = await Promise.all(
+			corpusFiles.map(async (file) =>
+				z
+					.strictObject({
+						contractVersion: z.literal(1),
+						valid: z.array(caseSchema),
+						invalid: z.array(caseSchema),
+					})
+					.parse(
+						JSON.parse(
+							await readFile(
+								new URL(`../../../../../schemas/workbench/v1/${file}`, import.meta.url),
+								'utf8',
+							),
 						),
-						'utf8',
 					),
-				),
-			);
+			),
+		);
+		const corpus = {
+			valid: corpora.flatMap((entry) => entry.valid),
+			invalid: corpora.flatMap((entry) => entry.invalid),
+		};
 		const schema = z
 			.record(z.string(), z.unknown())
 			.parse(

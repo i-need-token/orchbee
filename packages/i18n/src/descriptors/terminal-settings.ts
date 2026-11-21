@@ -235,6 +235,14 @@ export const terminalSettingsMessages = defineMessages({
 	pagePermissionAllow: message('terminal.settings.page.permission.allow'),
 	pageResumeAgentsLabel: message('terminal.settings.page.resumeAgents.label'),
 	pageResumeAgentsDescription: message('terminal.settings.page.resumeAgents.description'),
+	pageGroupAgentConfirmations: message('terminal.settings.page.groups.agentConfirmations'),
+	pageAgentConfirmationsDescription: message(
+		'terminal.settings.page.agentConfirmations.description',
+	),
+	pageAgentConfirmationsRowDescription: message(
+		'terminal.settings.page.agentConfirmations.rowDescription',
+	),
+	pageAgentConfirmationsRequest: message('terminal.settings.page.agentConfirmations.request'),
 	pageProfilesAdd: message('terminal.settings.page.profiles.add'),
 	pageProfilesEdit: message('terminal.settings.page.profiles.edit'),
 	pageProfilesDone: message('terminal.settings.page.profiles.done'),

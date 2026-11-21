@@ -356,6 +356,10 @@ async function run(
 
 	await userSettings.refresh();
 	runtime = createServerWorkbenchRuntime({
+		agentConfirmations: serverSessionServes(
+			bootstrap.negotiatedCapabilities,
+			'follow-agent-confirmations',
+		),
 		applicationLocaleSource: applicationLocaleController,
 		connection,
 		defaultDirectory: bootstrap.defaultDirectory,

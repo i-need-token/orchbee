@@ -75,6 +75,8 @@ impl Locale {
             Row::Sound => ("Notification sound", "通知声音"),
             Row::Scrollback => ("Terminal history", "终端历史"),
             Row::AutomaticUpdates => ("Automatic updates", "自动更新"),
+            // The Agent's product name, the same in every language.
+            Row::AutoAllowClaude => ("Claude Code", "Claude Code"),
             Row::LaunchProfiles => ("Default profile", "默认启动配置"),
             Row::NewTerminalFolder => ("New terminal folder", "新终端文件夹"),
             Row::PrefixKey => ("Prefix key", "前缀键"),
@@ -128,6 +130,9 @@ impl Locale {
             Group::LaunchProfiles => self.setting("Launch profiles", "启动配置"),
             Group::WhenToNotify => self.setting("When to notify", "何时通知"),
             Group::SoundDelivery => self.setting("Sound and delivery", "声音与显示"),
+            Group::AgentConfirmations => {
+                self.setting("Allow routine confirmations", "自动允许常规确认")
+            }
         })
     }
     /// The line under a described group's heading.
@@ -147,6 +152,23 @@ impl Locale {
             Group::DarkThemes => self.setting(
                 "Applies when the app appearance is Dark.",
                 "应用外观为深色时才会使用。",
+            ),
+            Group::AgentConfirmations => self.setting(
+                "Presses the Agent's one-time Yes. Destructive commands always wait.",
+                "替你按下智能体的单次允许。破坏性命令始终等你确认。",
+            ),
+            _ => return None,
+        })
+    }
+    /// The line a noted group ends with.
+    pub(crate) fn settings_group_note(
+        self,
+        group: impl Into<SettingsGroup>,
+    ) -> Option<&'static str> {
+        Some(match group.into() {
+            Group::AgentConfirmations => self.setting(
+                "Request more Agents in a GitHub issue.",
+                "可在 GitHub issue 中申请更多智能体。",
             ),
             _ => return None,
         })
@@ -278,6 +300,10 @@ impl Locale {
             Row::AutomaticUpdates => self.setting(
                 "Installs in the background; nothing restarts until you choose Update.",
                 "在后台下载并安装新版本。点击“更新”前不会重启任何内容。",
+            ),
+            Row::AutoAllowClaude => self.setting(
+                "Orchbee checks the command shown, not what a script does.",
+                "Orchbee 只检查显示的命令，不检查脚本做了什么。",
             ),
             Row::Reminders => self.setting(
                 "Tells you when an Agent you can’t see finishes or needs you.",

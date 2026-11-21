@@ -168,8 +168,12 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
             | PanelAgentAction::Identify { .. }
             | PanelAgentAction::States { .. }
             | PanelAgentAction::Observe { .. }
-            | PanelAgentAction::Read { .. } => Read,
-            PanelAgentAction::ReportPresentation { .. } | PanelAgentAction::Report { .. } => Intent,
+            | PanelAgentAction::Read { .. }
+            | PanelAgentAction::Confirmations { .. } => Read,
+            PanelAgentAction::ReportPresentation { .. }
+            | PanelAgentAction::Report { .. }
+            | PanelAgentAction::ConfirmationChoose { .. }
+            | PanelAgentAction::ConfirmationDecline { .. } => Intent,
         },
         WorkbenchRequest::PanelMetadata(request) => {
             match request.action {

@@ -155,7 +155,7 @@ pub(crate) fn execute(
     } else if screen_gated(&request) && !request.records.screen_key() {
         // The codec admits only one unmodified Enter; a hand-built request is refused the same way.
         Some(SendRejection::HostInputInvalid)
-    } else if screen_gated(&request) && !host.screen_gated_input() {
+    } else if screen_gated(&request) && !host.screen_gated_send() {
         // A Host that cannot hold a screen-gated key is too old for it: it is refused before any
         // attachment, never typed ungated.
         Some(SendRejection::HostScreenGateUnsupported)

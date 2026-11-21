@@ -11,8 +11,9 @@ mod run;
 #[cfg(test)]
 mod tests;
 
-use layout::Dialog;
-use place::Scope;
+pub(crate) use layout::{Dialog, Layouts};
+pub(crate) use place::Scope;
+pub(crate) use run::{Choice, Facts, Frame, Outcome, Refusal, Run, Seen, Settings, Step};
 
 /// What a confirmation asks to do.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -6,6 +6,7 @@ import type {
 	WorkbenchAgentStartProvider,
 } from '@orchbee/workbench-client-protocol';
 
+import type { WorkbenchAgentConfirmations } from './workbench-agent-confirmations';
 import type { WorkbenchAgentCatalogSource } from './workbench-agent-start';
 import type { WorkbenchConfiguredCommands } from './workbench-configured-commands';
 import type { WorkbenchFocusedPanel } from './workbench-focused-panel';
@@ -326,6 +327,8 @@ export interface WorkbenchAuthority {
 	readonly minimumSplitPercent: number;
 	/** Absent where no Server publishes the Session's Agent catalog, so no Agent can be started. */
 	readonly agentCatalog?: WorkbenchAgentCatalogSource | undefined;
+	/** Absent where no Server answers Agent confirmations for the person. */
+	readonly agentConfirmations?: WorkbenchAgentConfirmations | undefined;
 	/** Absent where no Server resumes Agent conversations after a restart. */
 	readonly agentResumeNotices?: WorkbenchAgentResumeNotices | undefined;
 	/** Absent where no Server delivers the Agent start a new terminal carries. */

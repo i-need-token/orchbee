@@ -97,6 +97,9 @@ pub struct UserSettingsValues {
     /// already installed still offers Update when this is off.
     #[serde(default = "default_automatic_updates")]
     pub automatic_updates: bool,
+    /// Whether the Server answers Claude Code's routine confirmations for the person.
+    #[serde(default)]
+    pub auto_allow_claude: bool,
     pub launch_profiles: UserLaunchProfiles,
 }
 impl Default for UserSettingsValues {
@@ -118,6 +121,7 @@ impl Default for UserSettingsValues {
             sound_enabled: false,
             scrollback_bytes: 10_000_000,
             automatic_updates: true,
+            auto_allow_claude: false,
             launch_profiles: UserLaunchProfiles::default(),
         }
     }

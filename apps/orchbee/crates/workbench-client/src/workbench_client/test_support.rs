@@ -501,6 +501,8 @@ pub(super) fn workbench_client_with_identity(
             notifications: None,
             window_title: None,
             terminal_titles: None,
+            agent_confirmations: None,
+            agent_confirmations_check: None,
             client_control: None,
             backend: ClientBackend::Native(Box::new(ui::WorkbenchClientUi::new(
                 Arc::clone(&mailbox),

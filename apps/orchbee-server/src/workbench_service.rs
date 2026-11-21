@@ -142,8 +142,12 @@ impl WorkbenchService {
                 | orchbee_workbench_protocol::PanelAgentAction::PresentationTitles { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::Explain { .. } | orchbee_workbench_protocol::PanelAgentAction::Identify { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::States { .. }
-                | orchbee_workbench_protocol::PanelAgentAction::Observe { .. } => self.policy.read,
-                orchbee_workbench_protocol::PanelAgentAction::Report { .. } | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. } => self.policy.manage_navigation,
+                | orchbee_workbench_protocol::PanelAgentAction::Observe { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::Confirmations { .. } => self.policy.read,
+                orchbee_workbench_protocol::PanelAgentAction::Report { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::ConfirmationChoose { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::ConfirmationDecline { .. } => self.policy.manage_navigation,
             },
             WorkbenchRequest::WorkspaceGit(_) | WorkbenchRequest::CurrentDirectory(_) | WorkbenchRequest::AgentCatalog(_) | WorkbenchRequest::TerminalRuntime(_) => self.policy.read,
             WorkbenchRequest::WorkspaceMetadata(request) => match request.action {
@@ -1122,6 +1126,7 @@ impl WorkbenchClientConnection<'_> {
         self.service.terminals.watch_titles(signal);
         self.service.terminals.watch_agent_catalog(signal);
         self.service.terminals.watch_terminal_runtime(signal);
+        self.service.terminals.watch_agent_confirmations(signal);
     }
     /// Metadata expiry is an owner deadline; the carrier waits without holding the Session gate.
     pub(crate) fn maintain_subscription_deadline(

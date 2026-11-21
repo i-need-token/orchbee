@@ -218,7 +218,7 @@ pub fn Type(comptime Runtime: type, comptime PreparedInput: type) type {
                 .focus_reporting_enabled = internal.focus_reporting_enabled,
                 .mouse_input_epoch = internal.mouse_input_epoch,
                 .ownership = internal.ownership,
-                .pointer_hover = internal.pointer_hover,
+                .unattended = internal.unattended,
                 .prompt_gate_serial = internal.prompt_gate_serial,
                 .screen_gate = internal.screen_gate,
                 .reservation = internal.reservation,

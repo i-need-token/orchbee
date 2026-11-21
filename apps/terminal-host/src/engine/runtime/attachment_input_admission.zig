@@ -120,6 +120,10 @@ fn prepareCleanup(
     const repairs_aggregate_focus =
         self.input_ownership.attachmentFocused(attachment_id) and
         self.input_ownership.focusedCount() == 1;
+    // A cleanup is the Host's own bookkeeping when an attachment goes away. Every send, a
+    // screen-gated one included, ends with one, so only a cleanup that releases what a person
+    // still held counts as that person acting; the focus report it may carry never does.
+    const releases_held = self.input_ownership.attachmentHoldsInput(attachment_id);
     var repair = try self.input_ownership.prepareRepair(
         self.allocator,
         attachment_id,
@@ -162,6 +166,7 @@ fn prepareCleanup(
         .ownership = repair.ownership,
         .reservation = reservation,
         .runtime = self,
+        .unattended = !releases_held,
     };
 }
 

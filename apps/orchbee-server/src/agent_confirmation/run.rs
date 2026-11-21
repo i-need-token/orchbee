@@ -92,6 +92,9 @@ pub(crate) enum Outcome {
     Unsupported,
     /// No answer, or one that does not say whether the key was written.
     Unknown,
+    /// The key provably never left for the Host: the terminal, its Worker or the choice changed
+    /// before it was sent, or the way there refused it.
+    NotSent,
 }
 
 /// The last confirmation Orchbee answered, for the status notice.
@@ -229,15 +232,35 @@ impl Run {
         }
     }
 
-    /// Takes one observation of the run's screen and says what to send, if anything.
-    pub(crate) fn observe(&mut self, now: Instant, settings: Settings, seen: Seen<'_>) -> Step {
-        self.track(now, seen);
-        let on = self.on(settings);
-        if self.was_on && !on {
+    /// Whether the Host is owed a hold: the choice went off since it was last seen on, or an
+    /// earlier hold has no answer yet.
+    pub(crate) fn owes_hold(&mut self, settings: Settings) -> bool {
+        if self.was_on && !self.on(settings) {
             self.was_on = false;
             self.hold_pending = true;
+        }
+        self.hold_pending
+    }
+
+    /// Whether the press the last observation asked for may still leave: the choice is on, no
+    /// hold is owed, and the press has no outcome yet. Read again when the key is published.
+    pub(crate) fn sending(&self, settings: Settings) -> bool {
+        self.on(settings)
+            && !self.hold_pending
+            && self
+                .current
+                .as_ref()
+                .is_some_and(|current| current.sent == Sent::Unknown)
+    }
+
+    /// Takes one observation of the run's screen and says what to send, if anything. A hold is
+    /// asked for again on every observation until it is answered.
+    pub(crate) fn observe(&mut self, now: Instant, settings: Settings, seen: Seen<'_>) -> Step {
+        self.track(now, seen);
+        if self.owes_hold(settings) {
             return Step::Hold;
         }
+        let on = self.on(settings);
         self.was_on = on;
         let Some(current) = &mut self.current else {
             return Step::Nothing;
@@ -314,6 +337,12 @@ impl Run {
                 }
             }
             Outcome::Unknown => self.count(),
+            Outcome::NotSent => {
+                if let Some(current) = &mut self.current {
+                    current.sent = Sent::No;
+                    current.retry_at = Some(now + QUIET);
+                }
+            }
             Outcome::Unsupported => {
                 self.unsupported = true;
                 if let Some(current) = &mut self.current {
@@ -337,7 +366,7 @@ impl Run {
         }
     }
 
-    /// The Host answered the hold, or the request's deadline passed without an answer.
+    /// The Host answered the hold, or cannot type a gated key at all.
     pub(crate) fn held(&mut self) {
         self.hold_pending = false;
     }
@@ -370,7 +399,7 @@ impl Run {
         };
         Facts {
             choice,
-            offer: self.offer,
+            offer: self.offer && settings.offer && !on,
             wait,
             pressed: self.pressed.clone(),
             stopped: self.stopped,

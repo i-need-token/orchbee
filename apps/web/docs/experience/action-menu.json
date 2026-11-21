@@ -34,6 +34,14 @@
 			]
 		},
 		{
+			"exportName": "AgentConfirmations",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--agent-confirmations",
+			"states": [
+				"Right-click an Agent row and open Allow confirmations: Off, This Agent only, and Always for Claude Code, with the check on the choice the Server reports for that row."
+			]
+		},
+		{
 			"exportName": "PanelWorkspace",
 			"file": "apps/web/stories/workbench.stories.tsx",
 			"id": "applications-web-workbench--panel-workspace",
@@ -59,6 +67,7 @@
 		"When the same action model has dropdown and context-menu triggers, both projections remain identical.",
 		"Moving the pointer into an open menu keeps the owning row and trigger in their open interaction state.",
 		"Every command entry has a semantic leading icon and destructive entries use the shared danger treatment.",
+		"A choice entry is a submenu of radio items, the value in force checked; choosing one asks for it and the check moves only when the model's value does. Only the context-menu projection renders it, since no ellipsis menu holds one.",
 		"The terminal viewport menu contains only frequent contextual terminal Actions; lower-frequency terminal Actions remain discoverable in Action search.",
 		"Action invocation does not encode pointer geometry into confirmation policy; destructive confirmation remains identical for pointer and keyboard menu selection."
 	],

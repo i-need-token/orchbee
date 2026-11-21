@@ -219,6 +219,11 @@ impl Registry {
         let slot = self.state.lock().ok()?;
         slot.as_ref().map(|state| read(&state.current.values))
     }
+    /// Reads the last valid settings, or `None` before startup installs configuration.
+    pub(super) fn with_settings<T>(&self, read: impl FnOnce(&UserSettings) -> T) -> Option<T> {
+        let slot = self.state.lock().ok()?;
+        slot.as_ref().map(|state| read(&state.current))
+    }
     #[cfg(all(test, windows))]
     fn execute(&self, request: &ConfigurationRequest) -> Outcome {
         self.respond(request, read_frozen).0
@@ -762,10 +767,14 @@ impl super::LocalTerminalService {
     /// Kept output lives beside the checkpoint; turning the setting off removes it at once,
     /// whether an edit or another editor turned it off. A Session that keeps no checkpoint keeps
     /// no output either.
+    ///
+    /// A commit can also turn automatic confirmation off for an Agent type. The holds that owes
+    /// are sent before the commit is answered, so no key decided earlier is typed after it.
     fn after_configuration_commit(&self, output_off: bool) {
         if output_off {
             self.remove_terminal_output();
         }
+        self.hold_agent_confirmations();
     }
 }
 

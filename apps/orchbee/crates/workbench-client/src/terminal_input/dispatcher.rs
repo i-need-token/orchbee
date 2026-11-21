@@ -2461,6 +2461,7 @@ impl InputDispatcher {
                     ClientAction::RequestWorktreeCreate
                         | ClientAction::RequestWorktreeOpen
                         | ClientAction::OpenActionMenu
+                        | ClientAction::AgentConfirmations
                         | ClientAction::FocusBusinessSidebar
                 )
             );
@@ -2509,6 +2510,26 @@ impl InputDispatcher {
                     self.pointer.invalidate_map_with_port(port);
                 }
                 return Some(disposition);
+            }
+            // The Workbench owner names the Agent, and says so when there is none to answer for.
+            if action == ClientAction::AgentConfirmations {
+                if self.pointer.can_open_action_menu()
+                    && !port.copy_mode_active()
+                    && Self::projected_capture(view, port).is_none()
+                    && port.open_action_menu(
+                        crate::action_menu::MenuTarget::AgentConfirmations {
+                            presentation: None,
+                            offer: false,
+                        },
+                        None,
+                        view.pointer_released(),
+                    )
+                {
+                    self.menu_packet = true;
+                    self.keys.capture_pending();
+                    self.pointer.invalidate_map_with_port(port);
+                }
+                return Some(ClientActionDisposition::KeepNavigator);
             }
             port.apply_client_action(crate::workbench_client::InputAction::for_decision(
                 action, captured,

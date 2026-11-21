@@ -238,6 +238,8 @@ fn terminal_explanation(
         )),
         PanelAgentOutcome::Titles { .. }
         | PanelAgentOutcome::PresentationTitles { .. }
+        | PanelAgentOutcome::Confirmations { .. }
+        | PanelAgentOutcome::ConfirmationChosen { .. }
         | PanelAgentOutcome::Identified { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::States { .. }

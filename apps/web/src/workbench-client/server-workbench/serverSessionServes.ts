@@ -6,10 +6,15 @@
  */
 
 /** A window action that only a Session listing a certain capability can serve. */
-type ServerSessionAction = 'check-for-updates' | 'follow-terminal-runtime';
+type ServerSessionAction =
+	| 'check-for-updates'
+	| 'follow-agent-confirmations'
+	| 'follow-terminal-runtime';
 
 /** Every capability this build's `client-server` offer lists, with the window actions that need it. */
 const NEEDED_BY: readonly (readonly [string, readonly ServerSessionAction[]])[] = [
+	// The window reads and changes how the Server answers Agent confirmations only where it is listed.
+	['agent-confirmation', ['follow-agent-confirmations']],
 	// Only the CLI's recent Agent read asks for the input area.
 	['agent-input-area', []],
 	// Main's Update reads it itself, before a switch.

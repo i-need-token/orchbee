@@ -11,6 +11,7 @@ type WorkbenchNoticeDescriptor = (typeof workbenchMessages)[keyof typeof workben
  * sentence.
  */
 const WORKBENCH_ACTION_NOT_APPLIED: Readonly<Partial<Record<string, WorkbenchNoticeDescriptor>>> = {
+	[WORKBENCH_ACTION_IDS.chooseAgentConfirmation]: workbenchMessages.agentConfirmationNotChanged,
 	[WORKBENCH_ACTION_IDS.closeActiveTab]: workbenchMessages.tabCloseSingleNotApplied,
 	[WORKBENCH_ACTION_IDS.closePanelTarget]: workbenchMessages.panelCloseNotApplied,
 	[WORKBENCH_ACTION_IDS.createTabAfterActive]: workbenchMessages.tabCreateNotCreated,

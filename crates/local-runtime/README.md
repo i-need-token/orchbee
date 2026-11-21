@@ -1218,7 +1218,7 @@ takes input (`general.language`, `appearance.*`, the terminal font, padding, opa
 selection-copy and blank-row keys, `notifications.*`, `keys.*`) and are read from the file on that
 Client's machine. `Server` keys describe what the Server does (`terminal.new_cwd`,
 `scrollback_bytes`, `restore_output`, the launch profiles and default profile,
-`worktrees.directory`, `agents.resume_on_restore`, `update.channel`, `update.automatic`)
+`worktrees.directory`, `agents.resume_on_restore`, `agents.auto_allow.claude`, `agents.auto_allow.offer`, `update.channel`, `update.automatic`)
 and are read from the attached Server's file. With a local Server both are the same file.
 
 ### Compatibility
@@ -1281,6 +1281,8 @@ every key's purpose, allowed values and default.
 | `keys.<action>`                                                                             | the action's built-in keys       | Keyboard (TUI)                       |
 | `[[keys.command]]` `command`, `type`, `key`, `description`, `width`, `height`               | no commands                      | file only                            |
 | `agents.resume_on_restore`                                                                  | `true`                           | Agents / Restore                     |
+| `agents.auto_allow.claude`                                                                  | `false`                          | Agents / Confirmations               |
+| `agents.auto_allow.offer`                                                                   | `true`                           | file only                            |
 | `update.channel`                                                                            | `"stable"`                       | file only, not in the reference      |
 | `update.automatic`                                                                          | `true`                           | General / Updates                    |
 

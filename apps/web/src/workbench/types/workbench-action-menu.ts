@@ -31,6 +31,23 @@ interface WorkbenchActionMenuSubmenu {
 	readonly label: string;
 }
 
+/**
+ * One value chosen among a few: a submenu whose options are the values, the one in force checked.
+ * Choosing an option asks for it; the check moves only when `value` does.
+ */
+export interface WorkbenchActionMenuChoice {
+	readonly icon: ProductIconName;
+	readonly id: string;
+	readonly kind: 'choice';
+	readonly label: string;
+	readonly options: readonly {
+		readonly id: string;
+		readonly label: string;
+		readonly onSelect: () => void;
+	}[];
+	readonly value: string;
+}
+
 export type WorkbenchActionMenuEntry =
 	| WorkbenchActionMenuCommand
 	| WorkbenchActionMenuSeparator

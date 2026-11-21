@@ -10,7 +10,7 @@
   checking as exact. The pre-admission fence (wrong worker, stale generation,
   stale epoch, disposed terminal, an idle-prompt request whose Host did not
   negotiate `prompt-gated-input`, a screen-gated request whose Host did not
-  negotiate `screen-gated-input`, negotiated-limit excess) is a declared
+  negotiate `screen-gated-send`, negotiated-limit excess) is a declared
   exclusion: it is a deterministic local decision that emits zero Host bytes
   and contains no interleaving, so its evidence stays with the scripted fence
   test (`send_fence_rejections_never_reach_the_host`). The model starts at the
@@ -238,8 +238,9 @@ carries exactly one unmodified Enter record. The Worker sends it as one Host `Sc
 between the transient attach and detach: a key the Host types only while the screen is still the
 frame the Server read, or a hold that types nothing and is accepted with zero bytes. Either is one
 exchange and is never split into, or replaced by, an ordinary key record. A Host whose `worker-host`
-handshake lacked `screen-gated-input` is refused in the fence as `HostScreenGateUnsupported` with
-not-needed cleanup. The Host's `screen-*` refusals are `InputRefused`, mapped to
+handshake lacked `screen-gated-send` is refused in the fence as `HostScreenGateUnsupported` with
+not-needed cleanup; `screen-gated-input` alone, which the Hosts of 0.1.0-beta.22 answer, is refused
+the same way, and the Worker's offer does not list it. The Host's `screen-*` refusals are `InputRefused`, mapped to
 `ScreenRefused(state)`: they type nothing, so the result has zero progress and the attachment is
 still detached. Evidence is the in-crate scripted Host (`host_connection::tests::screen_gated_send`):
 the one-exchange key, the six refusals, the hold, and the fence refusal with no Host bytes.

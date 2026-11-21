@@ -24,7 +24,10 @@ reminders are off, is hidden until it applies. General ends with Automatic updat
 (`update.automatic`) in an unnamed group; it shows only while the settings registry marks that key
 for the page, which the
 [automatic updates proposal](../../../proposals/platform/automatic-updates.md#phases) turns on with
-its slice 1 switch. The last line names More options in `config.toml` and
+its slice 1 switch. Agents holds the resume switch and the Allow routine confirmations group: a
+described heading, one switch for each Agent type the Server can answer for
+(`agents.auto_allow.<agent>`), and a closing line inside the frame that asks for more Agents in a
+GitHub issue. The page's last line names More options in `config.toml` and
 its path; a path too long for the line drops its leading folders first, so the file name stays.
 Text that does not fit its cells ends in the ellipsis at a grapheme boundary, counted in display
 cells, and every TUI description fits its row in a dialog 100 columns wide inside, which a window
@@ -248,6 +251,7 @@ name:
 | `soundEnabled`                     | No preview                                                                    | Eligible later reminders; host sound capability and per-Agent mute still apply                                     |
 | `scrollbackBytes`                  | No preview                                                                    | Newly created terminals capture the limit; existing/restored terminals keep theirs                                 |
 | `automaticUpdates`                 | No preview                                                                    | The Server's next background update check; Off stops the schedule and its downloads                                |
+| `autoAllowClaude`                  | No preview                                                                    | Confirmations Claude Code shows from now on; Off also stops an answer already decided                              |
 | `launchProfiles`                   | Child-page edits apply as one edit on leaving                                 | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                 |
 
 Native host configuration is a separate admitted surface, not extra shared-editor

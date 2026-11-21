@@ -34,8 +34,8 @@ pub const PersonInput = struct {
 
 /// What the runtime remembers about client input. Every client input is a
 /// person's, whether or not it encodes to bytes, except a focus report,
-/// pointer motion without a button, and a screen-gated key. input_mutex
-/// protects this.
+/// pointer motion without a button, a screen-gated key, and the cleanup of an
+/// attachment that held no key or button. input_mutex protects this.
 pub const InputRecord = struct {
     /// A runtime that does not know its history, such as one built from a
     /// handover record, starts as if a person had acted on every screen.

@@ -5,6 +5,8 @@ mod action_menu;
 pub(crate) use action_menu::{
     ActionSearchAlias, MenuHeading, MenuLabel, MenuRowNote, MenuUnavailable,
 };
+mod agent_confirmation;
+pub(crate) use agent_confirmation::ConfirmationAnswer;
 mod parameters;
 pub use parameters::Notice;
 pub(crate) use parameters::{BackendAction, PanelDirection};
@@ -84,7 +86,7 @@ pub(crate) use workspace_close::{WorkspaceCloseStatus, WorkspaceCloseText};
 mod workspace_setup;
 pub(crate) use workspace_setup::{FieldError, SetupStage, SetupStatus, WorkspaceCreationPhase};
 mod worktree_launch;
-pub(crate) use shell::{ShellBindings, ShellText};
+pub(crate) use shell::{CONFIRMATIONS_KEY_SLOT, ShellBindings, ShellText};
 pub(crate) use worktree_launch::{WorktreeFieldError, WorktreeMode, WorktreeNotice, WorktreeStage};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

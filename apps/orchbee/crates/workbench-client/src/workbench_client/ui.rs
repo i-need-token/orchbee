@@ -5,6 +5,7 @@
 
 mod action_menus;
 mod agent_attention;
+mod agent_confirmations;
 mod agent_not_resumed;
 mod agent_start_failure;
 mod captured_actions;
@@ -327,6 +328,9 @@ pub struct WorkbenchClientView<'a> {
     settings: Option<&'a settings::Coordinator>,
     duplication: Option<crate::localization::DuplicateProgress>,
     held_restore: Option<&'a held_restore::HeldRestore>,
+    agent_confirmations: Option<&'a agent_confirmations::AgentConfirmations>,
+    /// The report label of the Agent whose open offer the status line states.
+    confirmation_offer: Option<&'a str>,
     completion_reminder: Option<&'a super::completion_reminders::Reminder>,
     menu: Option<&'a action_menus::MenuEpisode>,
     state: Option<ClientStateView<'a>>,
@@ -438,6 +442,20 @@ impl<'a> WorkbenchClientView<'a> {
             focused: (self.focus == Some(panel.panel_id())).then(|| owner.focused(presentation)),
             pending: owner.pending(presentation),
         })
+    }
+    /// The Agent whose open offer to answer its routine confirmations the status line states, by
+    /// its report label.
+    pub(crate) fn confirmation_offer(&self) -> Option<&'a str> {
+        self.confirmation_offer
+    }
+    /// Why the confirmation shown by the Agent in this terminal waits for the person, while
+    /// Orchbee answers that Agent's confirmations.
+    pub(crate) fn confirmation_wait(
+        &self,
+        presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+        terminal: &orchbee_workbench_protocol::PresentationBinding,
+    ) -> Option<orchbee_workbench_protocol::AgentConfirmationWait> {
+        self.agent_confirmations?.wait(presentation, terminal)
     }
     /// A shell-local projection never changes the cache or canonical layout inspection.
     pub fn set_resize_projection(&mut self, resize: &'a crate::tui_layout::ResizeProjection) {
@@ -892,6 +910,10 @@ impl<'a> WorkbenchClientView<'a> {
             | (
                 WorkbenchClientNotice::LaunchProfileUnavailable,
                 context @ NoticeContext::LaunchProfile(_),
+            )
+            | (
+                WorkbenchClientNotice::ConfirmationAllowed(_),
+                context @ NoticeContext::Confirmation(_),
             ) => Some(context),
             _ => None,
         }
@@ -1378,6 +1400,8 @@ impl<'a> WorkbenchClientView<'a> {
             settings: None,
             duplication: None,
             held_restore: None,
+            agent_confirmations: None,
+            confirmation_offer: None,
             completion_reminder: None,
             state: None,
             resize: None,
@@ -1423,6 +1447,8 @@ impl<'a> WorkbenchClientView<'a> {
             settings: None,
             duplication: None,
             held_restore: None,
+            agent_confirmations: None,
+            confirmation_offer: None,
             completion_reminder: None,
             state: Some(state.view()),
             resize: None,
@@ -1551,6 +1577,7 @@ pub(super) struct WorkbenchClientUi {
     settings: settings::Coordinator,
     duplication: tab_duplication::Duplication,
     held_restore: held_restore::HeldRestore,
+    agent_confirmations: agent_confirmations::AgentConfirmations,
     /// The Server's resume facts this Client already decided to show or not.
     agent_not_resumed: agent_not_resumed::AgentNotResumedNotices,
     /// The Server's start facts this Client already decided to show or not.
@@ -1685,6 +1712,7 @@ impl WorkbenchClientUi {
             .chain(pending)
             .chain(self.duplication.wake())
             .chain(self.held_restore.wake())
+            .chain(self.agent_confirmations.wake())
             .chain(self.held_intent_wake())
             .chain(self.find_wake())
             .min()
@@ -1737,6 +1765,7 @@ impl WorkbenchClientUi {
             settings: settings::Coordinator::new(capabilities.login_shell),
             duplication: tab_duplication::Duplication::default(),
             held_restore: held_restore::HeldRestore::default(),
+            agent_confirmations: agent_confirmations::AgentConfirmations::default(),
             agent_not_resumed: agent_not_resumed::AgentNotResumedNotices::default(),
             agent_start_failure: agent_start_failure::AgentStartFailureNotices::default(),
             notice_timer: Default::default(),
@@ -1852,6 +1881,8 @@ impl WorkbenchClientUi {
             settings: Some(&self.settings),
             duplication: self.duplication.progress(),
             held_restore: Some(&self.held_restore),
+            agent_confirmations: Some(&self.agent_confirmations),
+            confirmation_offer: self.confirmation_offer(),
             completion_reminder: self
                 .retirement
                 .is_none()
@@ -2264,6 +2295,7 @@ impl WorkbenchClientUi {
             changed |= self.drive_settings();
             changed |= self.drive_duplication();
             changed |= self.drive_held_restore();
+            changed |= self.drive_agent_confirmations();
             changed |= self.attention.tick();
             changed |= self.drive_completion_reminders();
             {
@@ -3298,6 +3330,7 @@ impl WorkbenchClientUi {
             | ClientAction::NextAgent
             | ClientAction::FocusAgent(_)
             | ClientAction::OpenNotificationTarget
+            | ClientAction::AgentConfirmations
             | ClientAction::Update => ClientActionDisposition::KeepNavigator,
             ClientAction::RequestWorktreeCreate => self.request_worktree(WorktreeMode::Create),
             ClientAction::RequestWorktreeOpen => self.request_worktree(WorktreeMode::Open),

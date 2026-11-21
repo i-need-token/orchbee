@@ -76,6 +76,23 @@ pub(super) fn legend(
     items
 }
 
+/// An Agent state and why the confirmation it shows waits for the person, as one sentence.
+pub(super) fn waiting(
+    state: MetadataState,
+    wait: orchbee_workbench_protocol::AgentConfirmationWait,
+    locale: Locale,
+    theme: &Theme,
+) -> TooltipContent {
+    TooltipContent::Effect {
+        text: format!(
+            "{} {} {}",
+            locale.machine_picker_text(super::sidebar_text::state_role(state).0),
+            theme.glyphs.middle_dot,
+            locale.confirmation_wait(wait)
+        ),
+    }
+}
+
 /// A legend tooltip, or none when its target shows no glyph that needs a word.
 pub(super) fn describe(
     text: Option<TooltipText>,

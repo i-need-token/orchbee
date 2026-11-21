@@ -96,6 +96,8 @@ export interface TerminalSettingsSurfaceProps {
 	readonly keyboardShortcutsTakenByConfiguredCommands?: ReadonlyMap<string, string> | undefined;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly onRequestClose: () => void;
+	/** Opens the page where more Agents are requested; absent where no external browser is wired. */
+	readonly requestAgent?: (() => void) | undefined;
 	readonly terminalDefaultSettingsControl?: TerminalDefaultSettingsControl | undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalInteractionSettingsController?:

@@ -5,6 +5,7 @@ use super::super::{
 };
 use crate::{
     agent_screen::{Detection, ScreenDetector, ScreenInput},
+    local_terminal_service::agent_confirmation::ConfirmationScreen,
     local_terminal_service::tab_close::evidence::{CloseFacts, CloseSample, ShellReport},
     session_coordinator::{host_time_as_creation, identify_host_agent},
 };
@@ -564,24 +565,30 @@ pub(super) fn observe(
         return;
     };
     let selected = identify_host_agent(&before);
+    // The run both samples name and the screen captured between them, for a confirmation decision.
+    let mut bracketed = None;
     let (sample, detection) = if let Some(selected) = selected {
-        let reported = reported_detection(
+        let status = reported_detection(
             projection.as_ref().and_then(|frame| frame.program_status),
             selected.created(),
         );
-        let detection = reported.or_else(|| {
-            projection
-                .and_then(|frame| capture_frame(viewer, template, stop, frame))
-                .and_then(|captured| {
-                    detector
-                        .detect(Some(selected.provider), captured.input())
-                        .ok()
-                })
+        // A confirmation decision reads the screen even when a status report decides the state.
+        let captured = (status.is_none()
+            || viewer.service.reads_agent_confirmation(selected.provider))
+        .then(|| projection.and_then(|frame| capture_frame(viewer, template, stop, frame)))
+        .flatten();
+        let detection = status.or_else(|| {
+            captured.as_ref().and_then(|captured| {
+                detector
+                    .detect(Some(selected.provider), captured.input())
+                    .ok()
+            })
         });
         match process(viewer, template, stop) {
             Some(after) => {
-                let detection = detection.filter(|_| identify_host_agent(&after) == Some(selected));
-                (after, detection)
+                let same = identify_host_agent(&after) == Some(selected);
+                bracketed = same.then_some((selected, captured));
+                (after, detection.filter(|_| same))
             }
             None => (before, None),
         }
@@ -589,16 +596,34 @@ pub(super) fn observe(
         (before, None)
     };
     let directory = checkpoint_directory(reported, &sample);
-    if !stop.load(Ordering::Acquire) {
-        viewer.service.observe_host_process(
-            &viewer.handle,
-            viewer.target,
-            &sample,
-            detection,
-            directory,
-            started,
-        );
+    if stop.load(Ordering::Acquire) {
+        return;
     }
+    viewer.service.observe_host_process(
+        &viewer.handle,
+        viewer.target,
+        &sample,
+        detection,
+        directory,
+        started,
+    );
+    // After the Session has taken this sample, so that the run it publishes is the one read here.
+    let (agent, captured) = bracketed.unzip();
+    let captured: Option<CapturedScreen> = captured.flatten();
+    viewer.service.observe_agent_confirmation(
+        &viewer.handle,
+        viewer.target,
+        agent,
+        &sample,
+        captured.as_ref().map(|captured| ConfirmationScreen {
+            text: &captured.text,
+            generation: captured.generation,
+            revision: captured.revision,
+        }),
+        detection.is_some_and(|detection| {
+            detection.state == orchbee_workbench_protocol::PanelAgentState::Blocked
+        }),
+    );
 }
 
 /// The program status report decides when the Host received it after the Agent process was

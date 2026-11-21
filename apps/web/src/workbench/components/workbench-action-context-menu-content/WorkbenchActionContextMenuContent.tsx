@@ -3,6 +3,8 @@ import {
 	ContextMenuGroup,
 	ContextMenuItem,
 	ContextMenuLabel,
+	ContextMenuRadioGroup,
+	ContextMenuRadioItem,
 	ContextMenuSeparator,
 	ContextMenuShortcut,
 	ContextMenuSub,
@@ -12,10 +14,14 @@ import {
 } from '@orchbee/ui/components';
 import type * as React from 'react';
 
-import type { WorkbenchActionMenuEntry } from '../../types/workbench-action-menu';
+import type {
+	WorkbenchActionMenuChoice,
+	WorkbenchActionMenuEntry,
+} from '../../types/workbench-action-menu';
 
 interface WorkbenchActionContextMenuContentProps {
-	readonly entries: readonly WorkbenchActionMenuEntry[];
+	/** A choice shows only here: no ellipsis menu holds one. */
+	readonly entries: readonly (WorkbenchActionMenuChoice | WorkbenchActionMenuEntry)[];
 	readonly finalFocus?: React.ComponentProps<typeof ContextMenuContent>['finalFocus'];
 }
 
@@ -41,6 +47,29 @@ export function WorkbenchActionContextMenuContent({
 									<ContextMenuShortcut>{entry.shortcut}</ContextMenuShortcut>
 								)}
 							</ContextMenuItem>
+						);
+					case 'choice':
+						return (
+							<ContextMenuSub key={entry.id}>
+								<ContextMenuSubTrigger>
+									<ProductIcon name={entry.icon} size='menu-leading' />
+									{entry.label}
+								</ContextMenuSubTrigger>
+								<ContextMenuSubContent aria-label={entry.label}>
+									<ContextMenuRadioGroup value={entry.value}>
+										{entry.options.map((option) => (
+											<ContextMenuRadioItem
+												key={option.id}
+												closeOnClick
+												value={option.id}
+												onClick={option.onSelect}
+											>
+												{option.label}
+											</ContextMenuRadioItem>
+										))}
+									</ContextMenuRadioGroup>
+								</ContextMenuSubContent>
+							</ContextMenuSub>
 						);
 					case 'separator':
 						return <ContextMenuSeparator key={entry.id} />;

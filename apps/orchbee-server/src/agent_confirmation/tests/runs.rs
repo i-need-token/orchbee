@@ -203,6 +203,12 @@ fn each_refusal_is_followed_as_its_rule_says() {
     assert_eq!(bench.settle(ON, &prompt), press(10, 10));
     bench.end(Outcome::Unknown);
     assert_eq!(bench.see(ON, 5000, Some((&prompt, Ok(())))), Step::Nothing);
+    // A key that provably never left is decided again, after a pause.
+    let mut bench = Bench::new();
+    assert_eq!(bench.settle(ON, &prompt), press(10, 10));
+    bench.end(Outcome::NotSent);
+    assert_eq!(bench.see(ON, 2900, Some((&prompt, Ok(())))), Step::Nothing);
+    assert_eq!(bench.see(ON, 200, Some((&prompt, Ok(())))), press(10, 10));
     // A key on its way is not sent twice.
     let mut bench = Bench::new();
     assert_eq!(bench.settle(ON, &prompt), press(10, 10));
@@ -214,9 +220,15 @@ fn turning_off_owes_the_host_a_hold_and_shows_off_once_it_is_answered() {
     let prompt = dialog("cargo test");
     let mut bench = Bench::new();
     assert_eq!(bench.settle(ON, &prompt), press(10, 10));
-    // The key is on its way when the person turns the Agent type off.
+    // The key is on its way when the person turns the Agent type off: it may no longer leave.
+    assert!(bench.run.sending(ON));
+    assert!(!bench.run.sending(OFF));
     assert_eq!(bench.see(OFF, 50, Some((&prompt, Ok(())))), Step::Hold);
     assert_eq!(bench.run.facts(OFF).choice, Choice::Run);
+    // A hold without an answer is asked for again, and nothing is pressed while it is owed.
+    assert_eq!(bench.see(OFF, 50, Some((&prompt, Ok(())))), Step::Hold);
+    assert_eq!(bench.see(ON, 50, Some((&prompt, Ok(())))), Step::Hold);
+    assert!(!bench.run.sending(ON));
     bench.run.held();
     assert_eq!(bench.run.facts(OFF).choice, Choice::Off);
     assert_eq!(bench.see(OFF, 50, Some((&prompt, Ok(())))), Step::Nothing);
@@ -227,6 +239,9 @@ fn turning_off_owes_the_host_a_hold_and_shows_off_once_it_is_answered() {
     assert_eq!(bench.settle(OFF, &prompt), press(10, 10));
     assert_eq!(bench.run.facts(OFF).choice, Choice::Run);
     bench.run.choose(false);
+    // The choice owes the hold at once, before any further look at the screen.
+    assert!(!bench.run.sending(OFF));
+    assert!(bench.run.owes_hold(OFF));
     assert_eq!(bench.see(OFF, 50, Some((&prompt, Ok(())))), Step::Hold);
     // A run that was never on owes nothing.
     assert_eq!(

@@ -468,6 +468,34 @@ export const enUSWorkbenchMessages = {
 		'Nothing was typed: the shell is not at an empty prompt. Finish the running command, or clear the line and press Enter for a new prompt, then try again.',
 	'workbench.agentStart.terminalTooOld':
 		'Nothing was typed: this terminal was started by an older Orchbee. Open a new terminal.',
+	'workbench.agentConfirmation.offer': 'Let Orchbee allow routine {agent} confirmations?',
+	'workbench.agentConfirmation.run': 'This Agent only',
+	'workbench.agentConfirmation.agentType': 'Always for {agent}',
+	'workbench.agentConfirmation.no': 'No',
+	'workbench.agentConfirmation.menu': 'Allow confirmations',
+	'workbench.agentConfirmation.off': 'Off',
+	'workbench.agentConfirmation.allowedCommand': 'Allowed: {command}',
+	'workbench.agentConfirmation.allowedCreate': 'Allowed: create {path}',
+	'workbench.agentConfirmation.allowedEdit': 'Allowed: edit {path}',
+	'workbench.agentConfirmation.stopped':
+		'Stopped allowing: the same confirmation keeps coming back.',
+	'workbench.agentConfirmation.notChanged': "Couldn't apply the change.",
+	'workbench.agentConfirmation.waitStatus': '{status} · {reason}',
+	'workbench.agentConfirmation.wait.destructive': 'destructive command, waiting for you',
+	'workbench.agentConfirmation.wait.leavesWorkspace':
+		'reaches outside the Workspace, waiting for you',
+	'workbench.agentConfirmation.wait.protectedFile': 'protected file, waiting for you',
+	'workbench.agentConfirmation.wait.notUnderstood': 'command Orchbee cannot check, waiting for you',
+	'workbench.agentConfirmation.wait.notVisible': 'command not fully shown, waiting for you',
+	'workbench.agentConfirmation.wait.markedDangerous':
+		'marked dangerous by the Agent, waiting for you',
+	'workbench.agentConfirmation.wait.notAnswered': 'not a routine confirmation, waiting for you',
+	'workbench.agentConfirmation.wait.person': 'you typed in this terminal, waiting for you',
+	'workbench.agentConfirmation.wait.changing': 'screen keeps changing, waiting for you',
+	'workbench.agentConfirmation.wait.repeating':
+		'same confirmation keeps coming back, waiting for you',
+	'workbench.agentConfirmation.wait.hostTooOld':
+		'terminal started by an older Orchbee, waiting for you',
 } as const;
 
 export type WorkbenchMessageId = keyof typeof enUSWorkbenchMessages;

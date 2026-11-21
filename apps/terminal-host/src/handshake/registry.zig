@@ -14,19 +14,22 @@ pub const worker_host = struct {
     pub const name = "worker-host";
     pub const generations: message.GenerationRange = .{ .lowest = 1, .highest = 1 };
     /// Every capability the registry declares for `worker-host`, in its order.
-    pub const declared_capabilities: []const []const u8 = &.{ "handover", "keeper", "prompt-gated-input", "screen-gated-input" };
+    pub const declared_capabilities: []const []const u8 = &.{ "handover", "keeper", "prompt-gated-input", "screen-gated-input", "screen-gated-send" };
     /// The declared capabilities this Host implements and offers. `keeper`, on Windows only: this
     /// Host attaches Keepers, holds its running terminals there, and releases them first.
     /// `prompt-gated-input`: this Host types a `PromptLineInput` only at a confirmed idle prompt.
     /// `screen-gated-input`: this Host types a `ScreenGatedKeyInput` only on the frame it names.
+    /// `screen-gated-send`: and an attachment that goes away holding no key and no mouse button
+    /// leaves no person's input, which the Hosts of 0.1.0-beta.22 recorded; a Worker sends a gated
+    /// key only under this name.
     pub const capabilities: []const []const u8 = if (builtin.os.tag == .windows)
-        &.{ "keeper", "prompt-gated-input", "screen-gated-input" }
+        &.{ "keeper", "prompt-gated-input", "screen-gated-input", "screen-gated-send" }
     else
-        &.{ "prompt-gated-input", "screen-gated-input" };
+        &.{ "prompt-gated-input", "screen-gated-input", "screen-gated-send" };
     /// `capabilities` with `handover`, on Windows only: this Host moves running terminals to and
     /// from another Host through the Keeper.
     pub const capabilities_with_handover: []const []const u8 = if (builtin.os.tag == .windows)
-        &.{ "handover", "keeper", "prompt-gated-input", "screen-gated-input" }
+        &.{ "handover", "keeper", "prompt-gated-input", "screen-gated-input", "screen-gated-send" }
     else
         capabilities;
 

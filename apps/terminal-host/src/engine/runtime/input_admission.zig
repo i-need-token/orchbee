@@ -333,7 +333,7 @@ fn prepareMouseEncodedInputLocked(
     if (bytes.len == 0) return .{
         .bytes = null,
         .mouse_input_epoch = mouse_input_epoch,
-        .pointer_hover = isTransientMouseHover(input),
+        .unattended = isTransientMouseHover(input),
         .reservation = null,
         .runtime = self,
     };
@@ -355,7 +355,7 @@ fn prepareMouseEncodedInputLocked(
     return .{
         .bytes = copy,
         .mouse_input_epoch = mouse_input_epoch,
-        .pointer_hover = isTransientMouseHover(input),
+        .unattended = isTransientMouseHover(input),
         .reservation = reservation,
         .runtime = self,
     };

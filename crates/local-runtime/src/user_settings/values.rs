@@ -30,12 +30,13 @@ pub enum UserSettingsField {
     SoundEnabled,
     ScrollbackBytes,
     AutomaticUpdates,
+    AutoAllowClaude,
     LaunchProfiles,
 }
 
 impl UserSettingsField {
     /// Every field, so a caller that walks the values cannot silently omit one.
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self::Locale,
         Self::ApplicationTheme,
         Self::LightTheme,
@@ -52,6 +53,7 @@ impl UserSettingsField {
         Self::SoundEnabled,
         Self::ScrollbackBytes,
         Self::AutomaticUpdates,
+        Self::AutoAllowClaude,
         Self::LaunchProfiles,
     ];
 
@@ -74,6 +76,7 @@ impl UserSettingsField {
             Self::SoundEnabled => "notifications.sound",
             Self::ScrollbackBytes => "terminal.scrollback_bytes",
             Self::AutomaticUpdates => "update.automatic",
+            Self::AutoAllowClaude => "agents.auto_allow.claude",
             Self::LaunchProfiles => return None,
         })
     }
@@ -97,6 +100,7 @@ impl UserSettingsField {
             Self::SoundEnabled => "soundEnabled",
             Self::ScrollbackBytes => "scrollbackBytes",
             Self::AutomaticUpdates => "automaticUpdates",
+            Self::AutoAllowClaude => "autoAllowClaude",
             Self::LaunchProfiles => "launchProfiles",
         }
     }

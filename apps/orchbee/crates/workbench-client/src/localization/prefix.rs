@@ -29,6 +29,7 @@ pub enum PrefixDesc {
     AgentCycle,
     AgentIndex,
     OpenNotificationTarget,
+    AgentConfirmations,
     WorkspaceCreate,
     QuickWorkspaceCreate,
     WorktreeCreate,

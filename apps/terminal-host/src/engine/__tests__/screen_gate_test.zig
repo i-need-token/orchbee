@@ -135,6 +135,27 @@ const Fixture = struct {
         try waitForEmptyQueue(self.runtime);
     }
 
+    /// An attachment that may send input, as a Client's or a send's own.
+    fn attach(self: *Fixture, byte: u8) !harness.AttachmentId {
+        const attachment_id = harness.AttachmentId.fromBytes([_]u8{byte} ** 16);
+        var attachment = try self.runtime.prepareAttachment(attachment_id, .{ .input = true, .read = false, .resize = false });
+        attachment.commit();
+        return attachment_id;
+    }
+
+    fn attached(self: *Fixture, attachment_id: harness.AttachmentId, input: protocol.SemanticInput) !void {
+        var prepared = try self.runtime.prepareAttachmentSemanticInput(attachment_id, input, std.math.maxInt(usize));
+        defer prepared.deinit();
+        _ = try prepared.commit();
+    }
+
+    /// What a detach does to the attachment's input.
+    fn leave(self: *Fixture, attachment_id: harness.AttachmentId) !void {
+        var repair = try self.runtime.prepareAttachmentInputRepair(attachment_id);
+        defer repair.deinit();
+        _ = try repair.commit();
+    }
+
     fn pointer(self: *Fixture, action: protocol.MouseAction) !usize {
         return self.runtime.enqueueMouseInput(.{
             .action = action,
@@ -231,6 +252,50 @@ test "screen gate: a click that encodes to nothing is a person; a focus report a
         _ = try fixture.runtime.enqueueFocusInput(true);
         try std.testing.expectEqual(@as(usize, 0), try fixture.pointer(.{ .motion = .hover }));
         try fixture.expectTyped(fixture.freshKey());
+    }
+}
+
+// Every send ends by detaching its own attachment, a refused screen-gated send included. When
+// that cleanup counted as a person, one refusal for a changing screen made every later key for
+// the same prompt fail, so a real Agent's confirmation was never answered.
+test "screen gate: an attachment that goes away is a person only when it releases what one held" {
+    {
+        var fixture: Fixture = .{};
+        try fixture.init();
+        defer fixture.deinit();
+        // Focus reporting is on, so the cleanup of a focused attachment writes a focus report.
+        try fixture.output("\x1b[?1004h");
+        const first = fixture.revision();
+        const sender = try fixture.attach(0x61);
+        try fixture.leave(sender);
+        const viewer = try fixture.attach(0x62);
+        try fixture.attached(viewer, .{ .focus = .{ .focused = true } });
+        try fixture.leave(viewer);
+        try waitForEmptyQueue(fixture.runtime);
+        try fixture.expectTyped(fixture.key(first));
+    }
+    {
+        var fixture: Fixture = .{};
+        try fixture.init();
+        defer fixture.deinit();
+        const holder = try fixture.attach(0x63);
+        try fixture.attached(holder, .{ .key = .{
+            .action = .press,
+            .composing = false,
+            .consumed_modifiers = .{},
+            .key = "KeyA",
+            .modifiers = .{},
+            .text = "a",
+            .unshifted_codepoint = 'a',
+        } });
+        try waitForEmptyQueue(fixture.runtime);
+        // A prompt first seen after the press, and long after it.
+        try fixture.output("\r\nAllow?");
+        const first = fixture.revision();
+        fixture.after(60 * second);
+        try fixture.leave(holder);
+        try waitForEmptyQueue(fixture.runtime);
+        try fixture.expectRefused(error.ScreenPersonInput, fixture.key(first));
     }
 }
 

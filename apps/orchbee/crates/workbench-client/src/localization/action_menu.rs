@@ -98,6 +98,8 @@ pub(crate) enum MenuLabel {
     StartAgentInTab,
     MoreAgents,
     OpenNotificationTarget,
+    AgentConfirmations,
+    AgentConfirmation(super::ConfirmationAnswer),
     ReleasePointer,
     Detach,
     NextTab,
@@ -127,6 +129,8 @@ pub(crate) enum MenuHeading {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum MenuRowNote {
     DefaultProfile,
+    /// The row holds the value in force; it shows as the row's check, not as words.
+    Applied,
 }
 
 /// Why the action owner has withheld a menu action; never inferred from translated text. Only a
@@ -241,10 +245,12 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn menu_row_note(self, note: MenuRowNote) -> &'static str {
+    /// The words a note ends its row with; a note shown another way has none.
+    pub(crate) const fn menu_row_note(self, note: MenuRowNote) -> Option<&'static str> {
         match (self, note) {
-            (Self::EnUs, MenuRowNote::DefaultProfile) => "Default",
-            (Self::ZhCn, MenuRowNote::DefaultProfile) => "默认",
+            (Self::EnUs, MenuRowNote::DefaultProfile) => Some("Default"),
+            (Self::ZhCn, MenuRowNote::DefaultProfile) => Some("默认"),
+            (_, MenuRowNote::Applied) => None,
         }
     }
 
@@ -335,6 +341,16 @@ impl Locale {
             Self::EnUs => "Actions",
             Self::ZhCn => "操作",
         }
+    }
+    /// The "Always for {agent}" answer with the product it names.
+    pub(crate) fn confirmation_agent_type(self, agent: &str) -> String {
+        self.menu_action(MenuLabel::AgentConfirmation(
+            super::ConfirmationAnswer::AgentType,
+        ))
+        .replace(
+            "{agent}",
+            &crate::terminal_text::sanitize_terminal_text(agent),
+        )
     }
     pub(crate) fn menu_action(self, action: impl Into<MenuLabel>) -> &'static str {
         use MenuLabel::*;
@@ -506,6 +522,21 @@ impl Locale {
             (Self::ZhCn, MoreAgents) => "更多智能体…",
             (Self::EnUs, OpenNotificationTarget) => "Go to the Agent that notified",
             (Self::ZhCn, OpenNotificationTarget) => "跳到发通知的智能体",
+            (Self::EnUs, AgentConfirmations) => "Allow confirmations",
+            (Self::ZhCn, AgentConfirmations) => "自动允许确认",
+            (Self::EnUs, AgentConfirmation(super::ConfirmationAnswer::Off)) => "Off",
+            (Self::ZhCn, AgentConfirmation(super::ConfirmationAnswer::Off)) => "关闭",
+            (Self::EnUs, AgentConfirmation(super::ConfirmationAnswer::Run)) => "This Agent only",
+            (Self::ZhCn, AgentConfirmation(super::ConfirmationAnswer::Run)) => "仅此智能体",
+            // `{agent}` is the product name; the row fills it.
+            (Self::EnUs, AgentConfirmation(super::ConfirmationAnswer::AgentType)) => {
+                "Always for {agent}"
+            }
+            (Self::ZhCn, AgentConfirmation(super::ConfirmationAnswer::AgentType)) => {
+                "{agent} 始终允许"
+            }
+            (Self::EnUs, AgentConfirmation(super::ConfirmationAnswer::No)) => "No",
+            (Self::ZhCn, AgentConfirmation(super::ConfirmationAnswer::No)) => "不用",
             (Self::EnUs, ReleasePointer) => "Release mouse",
             (Self::ZhCn, ReleasePointer) => "释放鼠标",
             (_, Detach) => self.client_detach_label(),

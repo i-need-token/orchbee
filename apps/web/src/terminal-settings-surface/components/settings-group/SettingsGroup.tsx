@@ -16,13 +16,16 @@ interface SettingsGroupProps {
 	readonly label?: string | undefined;
 	/** A list that is one setting shows its changed state and restore on the heading. */
 	readonly modified?: boolean | undefined;
+	/** A closing line under the card. */
+	readonly note?: React.ReactNode;
 	readonly onRestore?: (() => void) | undefined;
 	readonly tag?: string | null | undefined;
 }
 
 /**
- * A named or unnamed group: a small muted heading, an optional one-line note, and one card. A
- * group whose card holds no visible entry, as during a search, is hidden by its stylesheet.
+ * A named or unnamed group: a small muted heading, an optional one-line note, one card, and an
+ * optional closing line. A group whose card holds no visible entry, as during a search, is hidden
+ * by its stylesheet.
  */
 export function SettingsGroup({
 	action,
@@ -31,6 +34,7 @@ export function SettingsGroup({
 	effect,
 	label,
 	modified = false,
+	note,
 	onRestore,
 	tag,
 }: SettingsGroupProps): React.ReactNode {
@@ -87,6 +91,7 @@ export function SettingsGroup({
 				<p className={styles['description']}>{description}</p>
 			)}
 			<div className={styles['card']}>{children}</div>
+			{note === undefined || note === null ? null : <p className={styles['note']}>{note}</p>}
 		</section>
 	);
 }

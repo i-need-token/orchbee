@@ -367,7 +367,10 @@ impl WorkbenchAuthority {
             Action::Explain { .. }
             | Action::Titles { .. }
             | Action::PresentationTitles { .. }
-            | Action::Identify { .. } => Err(Failure::Unavailable),
+            | Action::Identify { .. }
+            | Action::Confirmations { .. }
+            | Action::ConfirmationChoose { .. }
+            | Action::ConfirmationDecline { .. } => Err(Failure::Unavailable),
             Action::States { presentation_ids } => {
                 let outcome = self.agent_states(presentation_ids, &membership, &physical)?;
                 admit_result(&outcome)?;
@@ -461,7 +464,10 @@ impl WorkbenchAuthority {
                     | Action::States { .. }
                     | Action::Observe { .. }
                     | Action::Read { .. }
-                    | Action::Report { .. } => None,
+                    | Action::Report { .. }
+                    | Action::Confirmations { .. }
+                    | Action::ConfirmationChoose { .. }
+                    | Action::ConfirmationDecline { .. } => None,
                 };
                 let binding = if let Some(id) = presentation_id {
                     if membership.owners.get(id) != Some(panel_id) {

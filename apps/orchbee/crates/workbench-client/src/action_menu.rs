@@ -32,6 +32,13 @@ pub enum MenuTarget {
         target: Box<crate::machine_agents::Target>,
         title: String,
     },
+    /// The answers about Orchbee answering one Agent's routine confirmations: an open offer's
+    /// three, else the three choices. Without a Presentation it opens on the Agent in the active
+    /// Tab with an open offer, else on the focused Panel's.
+    AgentConfirmations {
+        presentation: Option<orchbee_workbench_protocol::TerminalPresentationId>,
+        offer: bool,
+    },
     Workspace(crate::workbench_projection::ClientContextLocation),
     WorkspaceProjects(crate::workbench_projection::ClientContextLocation),
     /// One Workspace's Open Worktree submenu: the Git Worktrees other than its own checkout.
@@ -131,8 +138,13 @@ pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
     MenuAction::RenameProject,
     MenuAction::DeleteProject,
 ];
-/// Rename and Close address the Agent's Panel, which the menu focuses before either runs.
-pub(crate) const AGENT_ACTIONS: &[MenuAction] = &[MenuAction::RenamePanel, MenuAction::ClosePane];
+/// Rename and Close address the Agent's Panel, which the menu focuses before either runs. Allow
+/// confirmations joins only for an Agent the Server can answer for.
+pub(crate) const AGENT_ACTIONS: &[MenuAction] = &[
+    MenuAction::RenamePanel,
+    MenuAction::AgentConfirmations,
+    MenuAction::ClosePane,
+];
 /// The Tab section acts on the current Tab, keeping selection and movement reachable by keyboard.
 pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::TabCreation,
@@ -191,6 +203,7 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::NextAgent,
     MenuAction::PreviousAgent,
     MenuAction::OpenNotificationTarget,
+    MenuAction::AgentConfirmations,
     MenuAction::ReleasePointer,
 ];
 /// Keys the global menu lists after every runnable row and shows only to a search: each works
@@ -274,6 +287,7 @@ pub(crate) fn menu_binding_action(
         (T::Global, M::Navigator) => PrefixAction::NavigatorToggle,
         (T::Global, M::StartAgent) => PrefixAction::Client(A::StartAgent),
         (T::Global, M::OpenNotificationTarget) => PrefixAction::Client(A::OpenNotificationTarget),
+        (T::Global, M::AgentConfirmations) => PrefixAction::Client(A::AgentConfirmations),
         (T::Global, M::ReleasePointer) => PrefixAction::Client(A::TogglePointerCapture),
         (T::Global, M::Detach) => PrefixAction::Client(A::Exit),
         (T::Global, M::NextTab) => PrefixAction::Client(A::SelectNextTab),

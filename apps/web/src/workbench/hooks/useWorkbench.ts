@@ -77,6 +77,7 @@ import {
 } from '../utils/workbench-shortcuts';
 import {
 	WORKBENCH_ACTION_IDS,
+	type WorkbenchAgentConfirmationChooseInput,
 	type WorkbenchPanelTargetInput,
 	type WorkbenchTerminalCreateInput,
 } from '../actions/workbench-action-ids';
@@ -189,6 +190,11 @@ interface WorkbenchView {
 	readonly authority: WorkbenchAuthorityNoticeView['authority'];
 	readonly authorityNotice: WorkbenchAuthorityNoticeView['notice'];
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
+	/** Answers about one Agent's confirmations, from its row's menu or the offer's buttons. */
+	readonly chooseAgentConfirmation: (
+		input: WorkbenchAgentConfirmationChooseInput,
+		source: 'button' | 'menu',
+	) => void;
 	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly renameAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly actionScope: ActionScope;
@@ -967,6 +973,17 @@ export function useWorkbench({
 		},
 		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
 		confirmProjectWorkspaceAction: () => pendingProjectWorkspaceConfirmation.current?.(true),
+		chooseAgentConfirmation: (input, source) => {
+			// An answered offer leaves; a key that pressed its button goes back to the terminal.
+			if (
+				source === 'button' &&
+				(document.activeElement?.closest('[data-slot="workbench-agent-confirmation-offer"]') ??
+					null) !== null
+			) {
+				findActiveTerminalFocusTarget(projectWorkspaceRuntime)?.focus();
+			}
+			actions.invoke(WORKBENCH_ACTION_IDS.chooseAgentConfirmation, input, source);
+		},
 		closeAgentPanel: (input) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.closePanelTarget, input, 'menu');
 		},
@@ -1074,6 +1091,9 @@ export function useWorkbench({
 		),
 		projectNavigationMessages: {
 			agentMenuClose: intl.formatMessage(workbenchMessages.panelClose),
+			agentMenuConfirmations: intl.formatMessage(workbenchMessages.agentConfirmationMenu),
+			agentMenuConfirmationsOff: intl.formatMessage(workbenchMessages.agentConfirmationOff),
+			agentMenuConfirmationsRun: intl.formatMessage(workbenchMessages.agentConfirmationRun),
 			agentMenuRename: intl.formatMessage(workbenchMessages.panelRenameMenu),
 			workspaceMoveToProject: intl.formatMessage(workbenchMessages.workspaceMoveToProject),
 			workspaceCreateProject: intl.formatMessage(workbenchMessages.workspaceCreateProject),

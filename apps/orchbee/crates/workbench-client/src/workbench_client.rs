@@ -12,10 +12,10 @@ mod diagnostic_events;
 pub(crate) mod input;
 pub use input::InputAction;
 mod configuration;
+mod presentation_rows;
 mod settings_lane;
 mod settings_notice;
 mod terminal_runtime;
-mod terminal_titles;
 mod window_title;
 mod worktree_lane;
 #[cfg(test)]
@@ -129,7 +129,13 @@ pub struct WorkbenchClient {
     configuration: Option<configuration::Watcher>,
     notifications: Option<crate::notifications::subscription::Subscription>,
     window_title: Option<window_title::Subscription>,
-    terminal_titles: Option<terminal_titles::Subscription>,
+    terminal_titles:
+        Option<presentation_rows::Subscription<orchbee_workbench_protocol::PresentationTitleRow>>,
+    agent_confirmations: Option<
+        presentation_rows::Subscription<orchbee_workbench_protocol::PresentationConfirmationRow>,
+    >,
+    /// When the Session's handshake answer is next asked whether it serves confirmation rows.
+    agent_confirmations_check: Option<std::time::Instant>,
     client_control: Option<ui::control_steps::ClientControl>,
     backend: ClientBackend,
     task: Option<ClientTask>,
@@ -221,6 +227,9 @@ impl WorkbenchClient {
         }
         if let Some(mut titles) = self.terminal_titles.take() {
             titles.close();
+        }
+        if let Some(mut confirmations) = self.agent_confirmations.take() {
+            confirmations.close();
         }
         focus
     }
@@ -369,6 +378,8 @@ impl WorkbenchClient {
             notifications: None,
             window_title: None,
             terminal_titles: None,
+            agent_confirmations: None,
+            agent_confirmations_check: None,
             client_control,
             backend: ClientBackend::Native(Box::new(native)),
             task: Some(ClientTask::Native(task)),
@@ -639,18 +650,61 @@ impl WorkbenchClient {
                         .as_ref()
                         .is_none_or(|titles| titles.follows_another(&session))
                 {
-                    self.terminal_titles = Some(terminal_titles::Subscription::spawn(
+                    self.terminal_titles = Some(presentation_rows::Subscription::spawn(
+                        presentation_rows::TITLES,
                         origin.clone(),
                         native.configuration_clock(),
                         session,
                     ));
                 }
+                let served_again = native.take_runtime_served();
                 if let Some(titles) = &mut self.terminal_titles {
-                    if native.take_runtime_served() {
+                    if served_again {
                         titles.reopen_now();
                     }
                     let rows = titles.poll(native.title_presentations());
                     configuration_changed |= native.receive_presentation_titles(rows);
+                }
+                if let Some(origin) = &self.origin
+                    && let Some((session, _)) = native.control_observation(false)
+                {
+                    let now = native.configuration_clock().now();
+                    let follows_another = self
+                        .agent_confirmations
+                        .as_ref()
+                        .is_some_and(|confirmations| confirmations.follows_another(&session));
+                    if follows_another {
+                        self.agent_confirmations = None;
+                        self.agent_confirmations_check = None;
+                        native.forget_agent_confirmations();
+                    }
+                    // Only a Session whose handshake answer lists the capability is asked: an
+                    // older one would refuse the read. The answer is asked again after a while,
+                    // since a reconnect replaces it.
+                    if self.agent_confirmations.is_none()
+                        && self.agent_confirmations_check.is_none_or(|at| now >= at)
+                    {
+                        self.agent_confirmations_check =
+                            Some(now + std::time::Duration::from_secs(5));
+                        if origin.session_capabilities().is_some_and(|answer| {
+                            answer.contains(orchbee_connection_handshake::AGENT_CONFIRMATION)
+                        }) {
+                            self.agent_confirmations =
+                                Some(presentation_rows::Subscription::spawn(
+                                    presentation_rows::CONFIRMATIONS,
+                                    origin.clone(),
+                                    native.configuration_clock(),
+                                    session,
+                                ));
+                        }
+                    }
+                }
+                if let Some(confirmations) = &mut self.agent_confirmations {
+                    if served_again {
+                        confirmations.reopen_now();
+                    }
+                    let rows = confirmations.poll(native.title_presentations());
+                    configuration_changed |= native.receive_agent_confirmations(rows);
                 }
                 let accepting = (!view.notifications.card_delivery()
                     || ui::notification_available(view, Some(native.view())))
@@ -1261,6 +1315,9 @@ impl WorkbenchClient {
         }
         if let Some(titles) = &mut self.terminal_titles {
             titles.close();
+        }
+        if let Some(confirmations) = &mut self.agent_confirmations {
+            confirmations.close();
         }
         if let Some(listener) = &mut self.notifications {
             listener.close();

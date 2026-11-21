@@ -5,7 +5,10 @@ import * as React from 'react';
 
 import { WorkbenchAgentProviderIcon } from '../components/workbench-agent-provider-icon/WorkbenchAgentProviderIcon';
 import { WorkbenchAgentStateGlyph } from '../components/workbench-agent-state-glyph/WorkbenchAgentStateGlyph';
-import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import {
+	collectPanelLeaves,
+	getDisplayedTerminal,
+} from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalContext,
@@ -16,6 +19,11 @@ import {
 	type WorkbenchAgentNavigationInput,
 } from '../model/project-workbench-agent-overview';
 import { resolveWorkbenchAgentTitle } from '../model/resolveWorkbenchAgentTitle';
+import { WORKBENCH_AGENT_CONFIRMATION_WAITS } from '../model/workbench-agent-confirmation-news';
+import type {
+	WorkbenchAgentConfirmation,
+	WorkbenchAgentConfirmations,
+} from '../types/workbench-agent-confirmations';
 import type { WorkbenchAgentNotificationObserver } from '../types/workbench-agent-notification';
 import type {
 	WorkbenchAgentNames,
@@ -23,7 +31,10 @@ import type {
 	WorkbenchAgentState,
 	WorkbenchAgentSource,
 } from '../types/workbench-agent-observation';
-import type { WorkbenchWorkspaceAgentOverviewView } from '../types/workbench-agent-overview';
+import type {
+	WorkbenchAgentConfirmationOfferView,
+	WorkbenchWorkspaceAgentOverviewView,
+} from '../types/workbench-agent-overview';
 import { formatWorkbenchAgentLocation } from '../utils/formatWorkbenchAgentLocation';
 import {
 	formatWorkbenchAgentGroupName,
@@ -40,6 +51,8 @@ import { useWorkbenchAgentAttention } from './useWorkbenchAgentAttention';
 import { useWorkbenchAgentNotifications } from './useWorkbenchAgentNotifications';
 
 interface UseWorkbenchAgentPresentationOptions {
+	/** How the Server answers Agent confirmations; absent where it answers none. */
+	readonly confirmations?: WorkbenchAgentConfirmations | undefined;
 	/** The names the Server reports for Agents, which an Agent row's title comes from first. */
 	readonly nameSource?: WorkbenchAgentNameSource | undefined;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
@@ -52,6 +65,11 @@ interface UseWorkbenchAgentPresentationOptions {
 }
 
 interface WorkbenchAgentPresentationView {
+	/**
+	 * The offer the status notice shows: the focused Panel's Agent first, then another Agent the
+	 * active Tab shows, as the TUI picks its key's subject.
+	 */
+	readonly confirmationOffer: WorkbenchAgentConfirmationOfferView | null;
 	/** Each reported Agent's status view by Presentation ID; a Panel header draws its displayed terminal's. */
 	readonly presentationAgentStatuses: ReadonlyMap<string, WorkbenchAgentStatusView>;
 	readonly tabIdentityIcons: ReadonlyMap<string, React.ReactNode>;
@@ -63,6 +81,7 @@ interface WorkbenchAgentPresentationView {
 
 const NO_PANEL_TABS: readonly [] = [];
 const NO_AGENT_NAMES: ReadonlyMap<string, WorkbenchAgentNames> = new Map();
+const NO_CONFIRMATIONS: ReadonlyMap<string, WorkbenchAgentConfirmation> = new Map();
 
 /** The active Tab's focused Panel's terminal: the open Workspace's current Agent, if it is one. */
 function focusedPresentationId(
@@ -90,6 +109,7 @@ const TAB_ADORNMENT_KINDS: Readonly<Record<WorkbenchAgentState, TabStatusAdornme
 };
 
 export function useWorkbenchAgentPresentation({
+	confirmations,
 	nameSource,
 	navigateAgent,
 	notificationObserver,
@@ -119,6 +139,13 @@ export function useWorkbenchAgentPresentation({
 		readAgentNames,
 		readAgentNames,
 	);
+	const readConfirmations = (): ReadonlyMap<string, WorkbenchAgentConfirmation> =>
+		confirmations?.getSnapshot() ?? NO_CONFIRMATIONS;
+	const confirmationRows = React.useSyncExternalStore(
+		confirmations?.subscribe ?? subscribeToNothing,
+		readConfirmations,
+		readConfirmations,
+	);
 	const panelWorkspaceStore = terminalContext?.panelWorkspaceStore;
 	const readPanelTabs = () => panelWorkspaceStore?.getSnapshot().tabs ?? NO_PANEL_TABS;
 	const panelTabs = React.useSyncExternalStore(
@@ -134,6 +161,24 @@ export function useWorkbenchAgentPresentation({
 		readActiveTabId,
 	);
 	const currentPresentationId = focusedPresentationId(panelTabs, activeTabId);
+	const confirmationOffer = React.useMemo((): WorkbenchAgentConfirmationOfferView | null => {
+		const active = panelTabs.find((tab) => tab.tabId === activeTabId);
+		if (active === undefined) return null;
+		const shown = collectPanelLeaves(active.root).map(
+			(panel) => getDisplayedTerminal(panel).presentationId,
+		);
+		const focused = shown.filter((presentationId) => presentationId === currentPresentationId);
+		for (const presentationId of [...focused, ...shown]) {
+			const confirmation = confirmationRows.get(presentationId);
+			if (confirmation?.offer === true) {
+				return {
+					agentLabel: formatWorkbenchAgentName(intl, confirmation.agent),
+					presentationId,
+				};
+			}
+		}
+		return null;
+	}, [activeTabId, confirmationRows, currentPresentationId, intl, panelTabs]);
 	const terminalTopologyRevision = React.useSyncExternalStore(
 		projectWorkspaceRuntime.subscribeTerminalTopology,
 		projectWorkspaceRuntime.getTerminalTopologyRevision,
@@ -252,7 +297,27 @@ export function useWorkbenchAgentPresentation({
 						const { agentLabel, titleLabel } = rowNames({ destination, observation });
 						const locationLabel = formatWorkbenchAgentLocation(intl, destination);
 						const status = formatWorkbenchAgentStatus(intl, observation.state);
+						const confirmation = confirmationRows.get(destination.presentationId);
 						return {
+							confirmation:
+								confirmation === undefined
+									? undefined
+									: {
+											agentTypeLabel: intl.formatMessage(
+												workbenchMessages.agentConfirmationAgentType,
+												{ agent: formatWorkbenchAgentName(intl, confirmation.agent) },
+											),
+											choice: confirmation.choice,
+										},
+							statusReason:
+								confirmation === undefined || confirmation.wait === null
+									? undefined
+									: intl.formatMessage(workbenchMessages.agentConfirmationWaitStatus, {
+											reason: intl.formatMessage(
+												WORKBENCH_AGENT_CONFIRMATION_WAITS[confirmation.wait],
+											),
+											status: status.status,
+										}),
 							accessibleLabel: intl.formatMessage(workbenchMessages.workspaceAgentNavigationLabel, {
 								location: locationLabel,
 								provider: agentLabel,
@@ -280,6 +345,7 @@ export function useWorkbenchAgentPresentation({
 		);
 	}, [
 		agentNames,
+		confirmationRows,
 		currentPresentationId,
 		foldedWorkspaceIds,
 		intl,
@@ -290,12 +356,19 @@ export function useWorkbenchAgentPresentation({
 	]);
 	return React.useMemo(
 		() => ({
+			confirmationOffer,
 			presentationAgentStatuses,
 			tabIdentityIcons: tabPresentation.identityIcons,
 			tabStatusAdornments: tabPresentation.statusAdornments,
 			toggleWorkspaceAgents,
 			workspaceAgentOverviews,
 		}),
-		[presentationAgentStatuses, tabPresentation, workspaceAgentOverviews, toggleWorkspaceAgents],
+		[
+			confirmationOffer,
+			presentationAgentStatuses,
+			tabPresentation,
+			workspaceAgentOverviews,
+			toggleWorkspaceAgents,
+		],
 	);
 }

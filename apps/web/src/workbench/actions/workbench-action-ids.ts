@@ -16,11 +16,13 @@ import {
 	WORKBENCH_AGENT_START_PLACES,
 	type WorkbenchAgentStartInput,
 } from '../types/workbench-agent-start';
+import type { WorkbenchAgentConfirmationAnswer } from '../types/workbench-agent-confirmations';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 import type { WorkbenchWorktreeFailureCause } from '../types/workbench-worktrees';
 
 export const WORKBENCH_ACTION_IDS = {
+	chooseAgentConfirmation: 'workbench.agent.confirmation.choose',
 	navigateAgent: 'workbench.agent.navigate',
 	activateWorkspace: 'workbench.workspace.activate',
 	createProject: 'workbench.project.create',
@@ -101,6 +103,12 @@ export const WORKBENCH_ACTION_IDS = {
 	removeWorktree: 'workbench.worktree.remove',
 	resumeWorktreeRemoval: 'workbench.worktree.resume-removal',
 } as const;
+
+/** The terminal whose Agent is answered for, and the answer. */
+export interface WorkbenchAgentConfirmationChooseInput {
+	readonly answer: WorkbenchAgentConfirmationAnswer;
+	readonly presentationId: TerminalPresentationId;
+}
 
 export interface WorkbenchAgentNavigateInput {
 	readonly presentationId: TerminalPresentationId;
@@ -273,6 +281,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.closeTabConfirmed]: ActionSignature<WorkbenchTabSetTargetInput>;
 	readonly [WORKBENCH_ACTION_IDS.closePanelTarget]: ActionSignature<WorkbenchPanelTargetInput>;
 	readonly [WORKBENCH_ACTION_IDS.closePanelTargetConfirmed]: ActionSignature<WorkbenchPanelTargetInput>;
+	readonly [WORKBENCH_ACTION_IDS.chooseAgentConfirmation]: ActionSignature<WorkbenchAgentConfirmationChooseInput>;
 	readonly [WORKBENCH_ACTION_IDS.navigateAgent]: ActionSignature<WorkbenchAgentNavigateInput>;
 	readonly [WORKBENCH_ACTION_IDS.activateWorkspace]: ActionSignature<WorkbenchWorkspaceActivationInput>;
 	readonly [WORKBENCH_ACTION_IDS.createProject]: ActionSignature<
@@ -361,6 +370,30 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.removeWorktree]: ActionSignature<WorkbenchWorktreeRemovalInput>;
 	readonly [WORKBENCH_ACTION_IDS.resumeWorktreeRemoval]: ActionSignature<WorkbenchWorktreeResumeInput>;
 }
+
+const AGENT_CONFIRMATION_ANSWERS: readonly WorkbenchAgentConfirmationAnswer[] = [
+	'agent-type',
+	'no',
+	'off',
+	'run',
+];
+
+export const workbenchAgentConfirmationChooseInput: ActionInputValidation<WorkbenchAgentConfirmationChooseInput> =
+	{
+		name: 'WorkbenchAgentConfirmationChooseInput',
+		parse: (input) => {
+			const failed = {
+				code: 'expected-workbench-agent-confirmation-choose-input',
+				success: false,
+			} as const;
+			if (!isRecord(input)) return failed;
+			const presentationId = TerminalPresentationIdSchema.safeParse(input['presentationId']);
+			const answer = AGENT_CONFIRMATION_ANSWERS.find((candidate) => candidate === input['answer']);
+			return presentationId.success && answer !== undefined
+				? { data: { answer, presentationId: presentationId.data }, success: true }
+				: failed;
+		},
+	};
 
 export const workbenchAgentNavigateInput: ActionInputValidation<WorkbenchAgentNavigateInput> = {
 	name: 'WorkbenchAgentNavigateInput',

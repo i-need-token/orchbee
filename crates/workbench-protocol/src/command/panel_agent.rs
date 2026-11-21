@@ -6,8 +6,14 @@ use crate::{
 use orchbee_agent_observation_protocol::{AgentReportSequence, normalize_agent_report_label};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeSet;
+mod confirmation;
 mod explanation;
 pub(super) mod manifest;
+pub use confirmation::{
+    AgentConfirmationChoice, AgentConfirmationKind, AgentConfirmationPress, AgentConfirmationView,
+    AgentConfirmationWait, MAXIMUM_AGENT_CONFIRMATION_ROWS, MAXIMUM_AGENT_CONFIRMATION_TEXT_BYTES,
+    PresentationConfirmationRow,
+};
 pub use manifest::{
     AgentDetectionManifest, AgentManifestSource, AgentManifestWarning, AgentManifestWarningKind,
 };
@@ -156,6 +162,25 @@ pub enum PanelAgentAction {
         expected_binding: PresentationBinding,
         report: Box<PanelAgentReport>,
     },
+    /// What the Server decided about answering each Presentation's Agent, from what it already
+    /// holds: a pure read that never waits on a Worker. A State stream of it changes only when a
+    /// row changes.
+    Confirmations {
+        presentation_ids: Vec<TerminalPresentationId>,
+    },
+    /// Sets whether Orchbee answers the routine confirmations of the Agent running in the
+    /// Presentation's terminal. `agent-type` saves the setting for every Agent of its type; `off`
+    /// and `run` clear that setting.
+    ConfirmationChoose {
+        presentation_id: TerminalPresentationId,
+        expected_binding: PresentationBinding,
+        choice: AgentConfirmationChoice,
+    },
+    /// Answers an offer with "no": the Server saves that it offers nothing again, for any Agent.
+    ConfirmationDecline {
+        presentation_id: TerminalPresentationId,
+        expected_binding: PresentationBinding,
+    },
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -224,6 +249,15 @@ impl PanelAgentRequest {
             PanelAgentAction::Read { .. } => Err(ContractError::InvalidDocument),
             PanelAgentAction::Report { report, .. }
             | PanelAgentAction::ReportPresentation { report, .. } => report.validate(),
+            PanelAgentAction::Confirmations { presentation_ids } => {
+                if confirmation::valid_presentation_ids(presentation_ids) {
+                    Ok(())
+                } else {
+                    Err(ContractError::InvalidDocument)
+                }
+            }
+            PanelAgentAction::ConfirmationChoose { .. }
+            | PanelAgentAction::ConfirmationDecline { .. } => Ok(()),
         }
     }
 }
@@ -384,6 +418,15 @@ pub enum PanelAgentOutcome {
         changed: bool,
         view: Box<PanelAgentView>,
     },
+    /// One row per requested Presentation, in request order. It carries no Workbench revision, so
+    /// a commit that changes no row leaves a State stream's value unchanged.
+    Confirmations {
+        presentations: Vec<PresentationConfirmationRow>,
+    },
+    /// The Presentation's row after a choice or a declined offer took effect.
+    ConfirmationChosen {
+        presentation: Box<PresentationConfirmationRow>,
+    },
     Failed {
         reason: PanelAgentFailure,
     },
@@ -472,6 +515,17 @@ impl PanelAgentResult {
             }
             PanelAgentOutcome::Reported { view, .. }
             | PanelAgentOutcome::PresentationReported { view, .. } => view.valid(),
+            PanelAgentOutcome::Confirmations { presentations } => {
+                presentations.len() <= MAXIMUM_AGENT_CONFIRMATION_ROWS
+                    && presentations
+                        .iter()
+                        .map(|r| &r.presentation_id)
+                        .collect::<BTreeSet<_>>()
+                        .len()
+                        == presentations.len()
+                    && presentations.iter().all(PresentationConfirmationRow::valid)
+            }
+            PanelAgentOutcome::ConfirmationChosen { presentation } => presentation.valid(),
             PanelAgentOutcome::Failed { .. } => true,
         };
         if valid {
@@ -558,6 +612,22 @@ impl PanelAgentResult {
                     binding,
                     ..
                 } if panel_id == actual && expected_binding == binding)
+                        || shared_failure
+                }
+                PanelAgentAction::Confirmations { presentation_ids } => {
+                    matches!(&self.outcome, PanelAgentOutcome::Confirmations { presentations } if presentation_ids.iter().eq(presentations.iter().map(|r| &r.presentation_id)))
+                        || shared_failure
+                }
+                PanelAgentAction::ConfirmationChoose {
+                    presentation_id,
+                    expected_binding,
+                    ..
+                }
+                | PanelAgentAction::ConfirmationDecline {
+                    presentation_id,
+                    expected_binding,
+                } => {
+                    matches!(&self.outcome, PanelAgentOutcome::ConfirmationChosen { presentation } if &presentation.presentation_id == presentation_id && presentation.binding.as_ref() == Some(expected_binding))
                         || shared_failure
                 }
             }

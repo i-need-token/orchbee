@@ -47,6 +47,7 @@ pub(crate) use terminal_selection::{
 mod target_lifecycle;
 mod terminal_retirement;
 pub(crate) use target_lifecycle::TargetLifecycle;
+mod agent_confirmation;
 mod agent_names;
 mod agent_registration;
 #[cfg(any(windows, target_os = "macos", test))]
@@ -68,8 +69,8 @@ pub(crate) use process_observation::SETTLE as PROCESS_IDENTITY_SETTLE;
 #[cfg(any(windows, target_os = "macos"))]
 pub(crate) use process_observation::decoded_argv;
 pub(crate) use process_observation::{
-    ProcessObservationTarget, host_time_as_creation, identify as identify_host_agent,
-    names_provider, resolve_script_operands, root_shell,
+    ProcessObservationTarget, Selected as HostAgentRun, host_time_as_creation,
+    identify as identify_host_agent, names_provider, resolve_script_operands, root_shell,
 };
 
 pub(crate) struct SessionCoordinator {

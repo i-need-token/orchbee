@@ -11,8 +11,9 @@ pub const Expectations = struct {
     focus_report: bool = false,
     focus_reporting_enabled: ?bool = null,
     mouse_input_epoch: ?u64 = null,
-    /// Pointer motion without a button is not a person typing for the screen gate.
-    pointer_hover: bool = false,
+    /// No person made this input, so the screen gate does not count it: pointer
+    /// motion without a button, or a cleanup that releases no held key or button.
+    unattended: bool = false,
     prompt_gate_serial: ?u64 = null,
     screen_gate: ?ScreenGate = null,
 
@@ -51,7 +52,7 @@ pub fn validatePreparedInputCommit(
     try validateMouseInputEpochLocked(self, expectations.mouse_input_epoch);
     try validatePreparedInputOwnershipLocked(self, ownership.*);
     commitPreparedInputOwnershipLocked(self, ownership);
-    if (!expectations.focus_report and !expectations.pointer_hover) notePersonInputLocked(self);
+    if (!expectations.focus_report and !expectations.unattended) notePersonInputLocked(self);
 }
 
 pub fn publishInput(self: *state.State, reservation: contracts.InputReservation, bytes: []u8) !void {
@@ -125,7 +126,7 @@ pub fn publishPreparedInput(
         self.typed_input_sequence +%= 1;
         if (expectations.screen_gate) |gate| {
             self.screen_gate_input.noteTyped(gate.revision);
-        } else if (!expectations.pointer_hover) {
+        } else if (!expectations.unattended) {
             notePersonInputLocked(self);
         }
     }

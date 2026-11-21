@@ -310,6 +310,9 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::OpenNotificationTarget => {
             built_in("orchbee.native.notification.target.open", C::Agent, AGENT)
         }
+        A::AgentConfirmations | A::AgentConfirmation(_) => {
+            built_in("orchbee.native.agent.confirmations.choose", C::Agent, AGENT)
+        }
         A::ReleasePointer => built_in("orchbee.native.pointer-capture.toggle", C::Input, MOUSE),
         A::Detach => built_in("orchbee.native.window.detach", C::Client, DETACH),
         A::NextTab => built_in("workbench.tab.select-next", C::Navigation, SELECT_TAB),

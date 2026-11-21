@@ -38,7 +38,7 @@ impl Category {
             Self::Terminal => &[Group::SelectionKeys, Group::Output, Group::LaunchProfiles],
             Self::Notifications => &[Group::WhenToNotify, Group::SoundDelivery],
             Self::Keyboard => &[Group::Prefix],
-            Self::Agents => &[Group::AgentRestore],
+            Self::Agents => &[Group::AgentRestore, Group::AgentConfirmations],
             Self::About => &[Group::About],
         }
     }
@@ -73,6 +73,8 @@ pub enum Group {
     SoundDelivery,
     Prefix,
     AgentRestore,
+    /// One row for each Agent whose routine confirmations Orchbee can answer.
+    AgentConfirmations,
     /// About's version and update rows; unnamed, since the category names it.
     About,
 }
@@ -99,12 +101,18 @@ impl Group {
             Self::SoundDelivery => vec![Row::Sound],
             Self::Prefix => vec![Row::PrefixKey],
             Self::AgentRestore => vec![Row::ResumeAgents],
+            Self::AgentConfirmations => vec![Row::AutoAllowClaude],
             Self::About => vec![Row::Version, Row::Updates],
         }
     }
 
     pub(crate) const fn is_theme_list(self) -> bool {
         matches!(self, Self::LightThemes | Self::DarkThemes)
+    }
+
+    /// A group that ends with a line of its own under its rows.
+    pub(crate) const fn noted(self) -> bool {
+        matches!(self, Self::AgentConfirmations)
     }
 }
 
@@ -126,6 +134,8 @@ pub(crate) enum Entry {
     Setting(Row),
     /// One option of the open choice list, under its row.
     Option(Choice),
+    /// The line a group ends with, under its rows.
+    Note(Group),
     /// The bottom edge of a group's frame.
     End,
     /// The closing line that points to the settings file.
@@ -223,6 +233,9 @@ pub(super) fn entries(
                 {
                     entries.extend(options.iter().copied().map(Entry::Option));
                 }
+            }
+            if group.noted() {
+                entries.push(Entry::Note(*group));
             }
             entries.push(Entry::End);
         }

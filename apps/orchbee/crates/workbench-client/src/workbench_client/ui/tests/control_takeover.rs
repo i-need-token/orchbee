@@ -329,6 +329,8 @@ fn a_viewer_with_stale_host_focus_claims_the_size_from_raw_focus_click_or_key() 
             notifications: None,
             window_title: None,
             terminal_titles: None,
+            agent_confirmations: None,
+            agent_confirmations_check: None,
             client_control: None,
             backend: ClientBackend::Native(Box::new(ui)),
             task: None,

@@ -1,7 +1,7 @@
 //! Screen-gated send witness: a `Screen` request is one Host `ScreenGatedKeyInput` between the
 //! transient attach and detach; each screen refusal comes back with its state and zero progress,
 //! leaves the attachment detached and serves the next send; a hold is accepted with zero bytes;
-//! and a Host without `screen-gated-input` is refused before any record reaches it.
+//! and a Host without `screen-gated-send` is refused before any record reaches it.
 use super::super::*;
 use orchbee_capability_node_protocol::{
     HostCreationId, HostTerminalId, HostTerminalIdentity, OperationId, SendCleanupStatus, SendKey,
@@ -33,14 +33,14 @@ const EPOCH: [u8; 16] = [4; 16];
 const TERMINAL: [u8; 16] = [5; 16];
 const REVISION: u64 = 9;
 
-fn host(screen_gated_input: bool) -> TestResult<(HostBrokerConnection, UnixStream)> {
+fn host(screen_gated_send: bool) -> TestResult<(HostBrokerConnection, UnixStream)> {
     let (stream, peer) = UnixStream::pair()?;
     Ok((
         HostBrokerConnection {
             endpoint: std::path::PathBuf::new(),
             host_epoch: HostEpoch::from_bytes(EPOCH)?,
             prompt_gated_input: true,
-            screen_gated_input,
+            screen_gated_send,
             negotiated_limits: NegotiatedHostLimits {
                 frame_bytes: 1_048_576,
                 input_bytes: 4096,

@@ -103,7 +103,7 @@ impl PageState {
             Entry::Heading(group) => gap + 1 + usize::from(self.described(group)),
             Entry::Setting(Row::ThemeOption(_)) => 1,
             Entry::Setting(_) => 2,
-            Entry::Option(_) | Entry::End | Entry::NoResults => 1,
+            Entry::Option(_) | Entry::Note(_) | Entry::End | Entry::NoResults => 1,
             Entry::ConfigFile => 2,
         }
     }
@@ -111,7 +111,7 @@ impl PageState {
     /// A group whose heading carries a description line.
     pub(super) fn described(&self, group: Group) -> bool {
         match group {
-            Group::LaunchProfiles => true,
+            Group::LaunchProfiles | Group::AgentConfirmations => true,
             Group::LightThemes => self.values.application_theme == ApplicationAppearance::Dark,
             Group::DarkThemes => self.values.application_theme == ApplicationAppearance::Light,
             _ => false,
@@ -428,6 +428,7 @@ impl PageState {
             Row::RestoreOutput => Some(values.restore_terminal_output),
             Row::Sound => Some(values.sound_enabled),
             Row::AutomaticUpdates => Some(values.automatic_updates),
+            Row::AutoAllowClaude => Some(values.auto_allow_claude),
             Row::Login => match &self.current_profile().command {
                 UserLaunchCommand::SystemShell { login } => Some(*login),
                 UserLaunchCommand::CustomExecutable { .. } => None,

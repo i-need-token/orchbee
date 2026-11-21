@@ -121,6 +121,12 @@ pub(crate) enum WorkbenchClientNotice {
         Option<crate::agent_provider::IntegrationId>,
         orchbee_workbench_protocol::AgentNotResumedReason,
     ),
+    /// Orchbee answered an Agent's confirmation; the notice's context is the command or path.
+    ConfirmationAllowed(orchbee_workbench_protocol::AgentConfirmationKind),
+    /// Orchbee stopped answering for one Agent run because a confirmation kept coming back.
+    ConfirmationStopped,
+    /// A choice about answering confirmations did not reach the Server or was refused.
+    ConfirmationNotChanged,
     LinkNoLink,
     LinkBusy,
     LinkFailed,
@@ -160,6 +166,8 @@ pub(crate) enum NoticeContext {
     /// A missing name is the localized built-in System default label.
     LaunchProfile(Option<String>),
     ConfiguredCommand(String),
+    /// The command or path of a confirmation Orchbee answered.
+    Confirmation(String),
 }
 
 /// Bounded launch facts for a failed member; no command arguments or environment.

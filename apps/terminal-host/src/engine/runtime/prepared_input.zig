@@ -19,8 +19,9 @@ pub fn Type(comptime Runtime: type) type {
         focus_reporting_enabled: ?bool = null,
         mouse_input_epoch: ?u64 = null,
         ownership: ?contracts.PreparedInputOwnership = null,
-        /// Pointer motion without a button is not a person typing for the screen gate.
-        pointer_hover: bool = false,
+        /// No person made this input, so the screen gate does not count it: pointer
+        /// motion without a button, or a cleanup that releases no held key or button.
+        unattended: bool = false,
         /// Prompt-gated input publishes only while this gate serial still holds.
         prompt_gate_serial: ?u64 = null,
         /// A screen-gated key publishes only while this frame is still the screen.
@@ -48,7 +49,7 @@ pub fn Type(comptime Runtime: type) type {
                 .focus_report = self.focus_report,
                 .focus_reporting_enabled = self.focus_reporting_enabled,
                 .mouse_input_epoch = self.mouse_input_epoch,
-                .pointer_hover = self.pointer_hover,
+                .unattended = self.unattended,
                 .prompt_gate_serial = self.prompt_gate_serial,
                 .screen_gate = self.screen_gate,
             };
@@ -59,7 +60,7 @@ pub fn Type(comptime Runtime: type) type {
             self.focus_reporting_enabled = null;
             self.mouse_input_epoch = null;
             self.ownership = null;
-            self.pointer_hover = false;
+            self.unattended = false;
             self.prompt_gate_serial = null;
             self.screen_gate = null;
             self.reservation = null;

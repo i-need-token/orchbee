@@ -2009,34 +2009,55 @@ pub(super) fn render(
             // remainder the Agents it hides, and the unread dot unread activity. The rest of the
             // row gives only the name it cuts, in full.
             let working_frame = view.machines.working_frame();
+            // While Orchbee answers this Agent's confirmations, the one it left says why.
+            let waiting = match row {
+                SidebarRow::Agent { row, .. } => row.sidebar_agent().and_then(|agent| {
+                    native?.confirmation_wait(&agent.target.member, &agent.target.terminal)
+                }),
+                SidebarRow::Context { .. }
+                | SidebarRow::Project { .. }
+                | SidebarRow::Recents { .. } => None,
+            };
             let parts = [
                 agent_state.map(|state| {
                     (
                         tracks.first_line(tracks.state),
-                        tooltip::legend([state], false, working_frame, locale, theme),
+                        match waiting {
+                            Some(wait) => Some(tooltip::waiting(state, wait, locale, theme)),
+                            None => tooltip::describe(
+                                None,
+                                tooltip::legend([state], false, working_frame, locale, theme),
+                            ),
+                        },
                     )
                 }),
                 status_line.and_then(|line| line.glyphs).map(|rect| {
                     (
                         rect,
-                        tooltip::legend(
-                            status_states.iter().copied(),
-                            false,
-                            working_frame,
-                            locale,
-                            theme,
+                        tooltip::describe(
+                            None,
+                            tooltip::legend(
+                                status_states.iter().copied(),
+                                false,
+                                working_frame,
+                                locale,
+                                theme,
+                            ),
                         ),
                     )
                 }),
                 unread_marker.then(|| {
                     (
                         tracks.first_line(tracks.unread),
-                        tooltip::legend([], true, working_frame, locale, theme),
+                        tooltip::describe(
+                            None,
+                            tooltip::legend([], true, working_frame, locale, theme),
+                        ),
                     )
                 }),
             ];
-            for (rect, legend) in parts.into_iter().flatten() {
-                if let Some(content) = tooltip::describe(None, legend) {
+            for (rect, content) in parts.into_iter().flatten() {
+                if let Some(content) = content {
                     hits.record_part_tooltip(layer, rect, hit_band, &target, content);
                 }
             }

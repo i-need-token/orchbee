@@ -125,6 +125,16 @@ reads it at its next restart and before each checkpoint capture; the row has no 
 The [Server contract](../../orchbee-server/docs/agent-session-resume.md) owns what it records and
 resumes.
 
+### Agent confirmation preference
+
+The Allow routine confirmations group holds one switch for each Agent type whose routine
+confirmations the Server can answer, named by the Agent's product name: `agents.auto_allow.claude`
+for Claude Code. A switch reads and edits its key through the window's settings control and has no
+capability gate; the Server applies a change at once, and Off also stops an answer it had already
+decided. The group's closing line asks for more Agents in a GitHub issue and opens the project's
+issue page where the host wires an external browser; elsewhere it is text. The
+[Server contract](../../orchbee-server/docs/agent-confirmation.md) owns what is answered.
+
 ### Terminal output replay preference
 
 General's After a restart group exposes “Restore terminal output after restart”, the
@@ -419,7 +429,7 @@ The categories keep a stable product-outcome order instead of exposing implement
 | Terminal      | Selection and keys; Output: new terminal folder, terminal history; Launch profiles     |
 | Notifications | When to notify; Sound and delivery                                                     |
 | Keyboard      | Window and panel shortcuts                                                             |
-| Agents        | After a restart: resume Agents                                                         |
+| Agents        | After a restart: resume Agents; Allow routine confirmations: one switch per Agent type |
 | About         | Version; Updates (unnamed card)                                                        |
 
 Every category but Themes and About ends with a "More options in config.toml" row that shows the path of

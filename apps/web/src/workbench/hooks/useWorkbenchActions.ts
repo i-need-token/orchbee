@@ -19,6 +19,7 @@ import * as React from 'react';
 
 import type { ProjectWorkspaceState } from '../../project-workspace';
 import { registerWorkbenchProjectWorkspaceActions } from '../actions/registerWorkbenchProjectWorkspaceActions';
+import { registerWorkbenchAgentConfirmationAction } from '../actions/registerWorkbenchAgentConfirmationAction';
 import { registerWorkbenchAgentNavigationAction } from '../actions/registerWorkbenchAgentNavigationAction';
 import { registerWorkbenchAgentStartActions } from '../actions/registerWorkbenchAgentStartActions';
 import { registerWorkbenchConfiguredCommandActions } from '../actions/registerWorkbenchConfiguredCommandActions';
@@ -232,6 +233,11 @@ export function useWorkbenchActions({
 			},
 		});
 		const registrations = [
+			registerWorkbenchAgentConfirmationAction({
+				confirmations: authority.agentConfirmations,
+				scope,
+				typedRuntime,
+			}),
 			registerWorkbenchAgentNavigationAction({
 				navigation,
 				projectWorkspaceRuntime,

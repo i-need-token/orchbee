@@ -22,6 +22,7 @@ import {
 	MINIMUM_LEFT_PANEL_WIDTH,
 	type WorkbenchLayoutStorage,
 } from '../workbench-layout-storage';
+import { WorkbenchAgentConfirmationOffer } from './components/workbench-agent-confirmation-offer/WorkbenchAgentConfirmationOffer';
 import { WorkbenchAgentStartDialog } from './components/workbench-agent-start-dialog/WorkbenchAgentStartDialog';
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
 import { WorkbenchEmptyWorkspace } from './components/workbench-empty-workspace/WorkbenchEmptyWorkspace';
@@ -181,6 +182,7 @@ export function Workbench({
 	});
 	const terminalContext = view.terminalContext;
 	const agentPresentation = useWorkbenchAgentPresentation({
+		confirmations: view.authority.agentConfirmations,
 		nameSource: agentNameSource,
 		navigateAgent: view.navigateAgent,
 		notificationObserver: agentNotificationObserver,
@@ -189,6 +191,7 @@ export function Workbench({
 		root: view.shortcutScopeReference,
 		terminalContext,
 	});
+	const confirmationOffer = agentPresentation.confirmationOffer;
 	const sidebarToggle = (
 		<WorkbenchSidebarToggle
 			isSidebarVisible={view.isSidebarVisible}
@@ -225,6 +228,7 @@ export function Workbench({
 						: workbenchEnvironmentMarkerView(environmentMarker, intl)
 				}
 				navigateAgent={view.navigateAgent}
+				chooseAgentConfirmation={(input) => view.chooseAgentConfirmation(input, 'menu')}
 				closeAgentPanel={view.closeAgentPanel}
 				renameAgentPanel={view.renameAgentPanel}
 				label={view.sidebarLabel}
@@ -418,6 +422,20 @@ export function Workbench({
 					>
 						{view.authorityNotice.message}
 					</span>
+				)}
+				{/* An offer never covers what just happened: it shows once the line is free. */}
+				{confirmationOffer === null ||
+				preferencesUnreadable ||
+				view.authorityNotice !== null ? null : (
+					<WorkbenchAgentConfirmationOffer
+						agentLabel={confirmationOffer.agentLabel}
+						onAnswer={(answer) =>
+							view.chooseAgentConfirmation(
+								{ answer, presentationId: confirmationOffer.presentationId },
+								'button',
+							)
+						}
+					/>
 				)}
 			</div>
 			{view.sidebarPresentation === 'overlay' ? (

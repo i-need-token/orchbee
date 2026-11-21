@@ -64,6 +64,9 @@ pub enum ClientAction {
     FocusAgent(u8),
     /// Opens the Agent the visible notification card announced.
     OpenNotificationTarget,
+    /// Opens the answers about Orchbee answering an Agent's routine confirmations: for an Agent
+    /// in the active Tab with an open offer, else for the focused Panel's.
+    AgentConfirmations,
     CloseWorkbenchNavigator,
     /// `Ctrl+B G` — opens the Start Agent picker.
     StartAgent,
@@ -155,6 +158,7 @@ impl ClientAction {
             | Self::OpenWorkbenchNavigator
             | Self::CloseWorkbenchNavigator
             | Self::StartAgent
+            | Self::AgentConfirmations
             | Self::TogglePointerCapture
             | Self::EnterHistory
             | Self::ForwardLiteralPrefix
@@ -246,6 +250,11 @@ pub enum MenuAction {
     MoreAgents,
     /// Shown only while an Agent notification card is current.
     OpenNotificationTarget,
+    /// Opens the answers about Orchbee answering one Agent's routine confirmations. Shown only
+    /// for an Agent the Server can answer for.
+    AgentConfirmations,
+    /// One of those answers.
+    AgentConfirmation(crate::localization::ConfirmationAnswer),
     ReleasePointer,
     Detach,
     NextTab,
@@ -358,6 +367,8 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::NextAgent => Self::NextAgent,
             MenuAction::PreviousAgent => Self::PreviousAgent,
             MenuAction::FocusSidebar => Self::FocusSidebar,
+            MenuAction::AgentConfirmations => Self::AgentConfirmations,
+            MenuAction::AgentConfirmation(answer) => Self::AgentConfirmation(*answer),
             MenuAction::ConfiguredCommand(_) => Self::ConfiguredCommand,
             MenuAction::Key(_) => Self::Key,
         }
@@ -374,6 +385,7 @@ impl MenuAction {
                 | Self::WorkspaceProjects
                 | Self::WorkspaceCreation
                 | Self::WorkspaceWorktrees
+                | Self::AgentConfirmations
         )
     }
     /// Addressed sidebar choices require their menu's frozen source owner.
@@ -467,7 +479,10 @@ impl MenuAction {
             | Self::DeleteProject
             // The menu's owner runs these through the picker's own new-Tab start.
             | Self::StartAgentInTab(_)
-            | Self::MoreAgents => return None,
+            | Self::MoreAgents
+            // The menu's owner sends these for the Agent its entry names.
+            | Self::AgentConfirmations
+            | Self::AgentConfirmation(_) => return None,
         })
     }
 }

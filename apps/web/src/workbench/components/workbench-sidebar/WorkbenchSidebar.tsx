@@ -10,7 +10,10 @@ import * as React from 'react';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
-import type { WorkbenchPanelTargetInput } from '../../actions/workbench-action-ids';
+import type {
+	WorkbenchAgentConfirmationChooseInput,
+	WorkbenchPanelTargetInput,
+} from '../../actions/workbench-action-ids';
 
 import type { WorkbenchTerminalLocationActivationOrigin } from '../../model/workbench-terminal-location-activation';
 import { NameDialog } from '../name-dialog/NameDialog';
@@ -53,6 +56,7 @@ interface WorkbenchSidebarProps {
 		  }
 		| undefined;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
+	readonly chooseAgentConfirmation: (input: WorkbenchAgentConfirmationChooseInput) => void;
 	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly renameAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly focusRequest: number;
@@ -110,6 +114,7 @@ export function WorkbenchSidebar({
 	createWorkspaceProject,
 	deleteWorkspace,
 	environmentMarker,
+	chooseAgentConfirmation,
 	closeAgentPanel,
 	navigateAgent,
 	renameAgentPanel,
@@ -303,6 +308,7 @@ export function WorkbenchSidebar({
 										workspaceActivation.cancel();
 										navigateAgent(input);
 									}}
+									chooseAgentConfirmation={chooseAgentConfirmation}
 									closeAgentPanel={closeAgentPanel}
 									renameAgentPanel={renameAgentPanel}
 									project={project}

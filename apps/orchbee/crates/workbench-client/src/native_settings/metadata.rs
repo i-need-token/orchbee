@@ -44,6 +44,9 @@ pub(crate) enum SettingEffect {
     NextRestart,
     /// Applies from the Server's next background update check.
     NextUpdateCheck,
+    /// Applies to the confirmations Agents show from now on; turning it off also stops an
+    /// answer already decided.
+    AgentConfirmations,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -56,7 +59,7 @@ pub(crate) struct SettingMetadata {
     pub(crate) effect: SettingEffect,
 }
 
-pub(crate) static SETTINGS: [SettingMetadata; 17] = [
+pub(crate) static SETTINGS: [SettingMetadata; 18] = [
     SettingMetadata {
         key: UserSettingsField::Locale,
         row: Row::Language,
@@ -180,6 +183,13 @@ pub(crate) static SETTINGS: [SettingMetadata; 17] = [
         control: SettingControl::Boolean,
         availability: SettingAvailability::Always,
         effect: SettingEffect::NextUpdateCheck,
+    },
+    SettingMetadata {
+        key: UserSettingsField::AutoAllowClaude,
+        row: Row::AutoAllowClaude,
+        control: SettingControl::Boolean,
+        availability: SettingAvailability::Always,
+        effect: SettingEffect::AgentConfirmations,
     },
     SettingMetadata {
         key: UserSettingsField::LaunchProfiles,

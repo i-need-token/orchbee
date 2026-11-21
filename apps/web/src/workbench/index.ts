@@ -104,6 +104,11 @@ export type {
 	WorkbenchAgentNotificationObserver,
 } from './types/workbench-agent-notification';
 export type {
+	WorkbenchAgentConfirmation,
+	WorkbenchAgentConfirmationChoice,
+	WorkbenchAgentConfirmations,
+} from './types/workbench-agent-confirmations';
+export type {
 	WorkbenchAgentNames,
 	WorkbenchAgentNameSource,
 	WorkbenchAgentObservation,
