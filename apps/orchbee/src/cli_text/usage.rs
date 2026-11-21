@@ -461,8 +461,8 @@ impl super::CliText {
                     }
                     (Locale::ZhCn, _) => format!("'{}' 不能在其他机器上运行。", context(*ctx)),
                 },
-                // The root help describes '--machine'.
-                hint(UsageContext::Root),
+                // The machine help, not the root's one-line option row, holds the prefix's rules.
+                hint(UsageContext::Path("machine")),
             ),
             UsageReason::DuplicateOption { option } => (
                 match self.locale {
