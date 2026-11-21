@@ -145,6 +145,14 @@ enabling.
   fallback if no valid background arrived, while other platforms settle Unknown.
 - Queries are issued and their replies consumed before ordinary key dispatch begins, or the decoder
   recognizes and removes reply sequences so they never reach a pane as typed input.
+- A host known to print a query it cannot parse as visible text receives none of the queries it
+  would print. The owning application records each such host by its detected name with the
+  observed defect, does not apply the record when a multiplexer or host pane is detected, and
+  settles every withheld capability to the value an unanswered probe gives.
+- Any other host may still print a query it cannot parse. When a probe settles without its own
+  answer, by its deadline or because an ordered sentinel answered in its place, the Client writes
+  every cell of the next frame in place, without clearing first, once no probe is still pending.
+  A host that answers every probe is never rewritten.
 - Inside a multiplexer the multiplexer answers queries about itself. Treat its answers as the host
   and do not assume the outer terminal's capabilities.
 - A documented vendor color indicator may supply a capability only when explicit color descriptors

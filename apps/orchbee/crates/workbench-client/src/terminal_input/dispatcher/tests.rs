@@ -1208,6 +1208,115 @@ fn prefixed_m_toggles_pointer_capture_through_the_mode_lease() {
     }
 }
 
+/// A host known to print queries it cannot parse receives no capability query on any path, and
+/// its capabilities are the ones an unanswered probe settles to.
+#[test]
+fn withheld_host_receives_no_capability_query() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    let now = Instant::now();
+    dispatcher.withhold_host_queries();
+    dispatcher.activate_graphics_probe(7);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let mut modes = Vec::new();
+    let mut mode = |request| {
+        modes.push(request);
+        Ok::<(), io::Error>(())
+    };
+    dispatcher.query_graphics((80, 24), now, &mut mode).unwrap();
+    dispatcher.begin_pointer_admission(now, &mut mode).unwrap();
+    dispatcher
+        .begin_grapheme_clustering(now, &mut mode)
+        .unwrap();
+    dispatcher
+        .synchronize(
+            &mut view,
+            &mut port,
+            now + Duration::from_secs(1),
+            &mut mode,
+        )
+        .unwrap();
+    assert!(
+        !modes.iter().any(|request| matches!(
+            request,
+            ModeRequest::GraphicsQuery(_)
+                | ModeRequest::PointerAdmissionQuery(_)
+                | ModeRequest::GraphemeQuery(_)
+        )),
+        "{modes:?}"
+    );
+    assert_eq!(
+        dispatcher.graphics_facts(),
+        crate::terminal_graphics::Facts::default()
+    );
+    assert_eq!(
+        dispatcher.pointer_capture,
+        PointerCaptureRequest::ButtonOnly
+    );
+    assert!(!dispatcher.rewrite_pending());
+}
+
+/// Text a host printed for a query it could not parse is covered by one rewrite after the last
+/// startup probe settles unanswered; a host that answers every probe is never rewritten.
+#[test]
+fn unanswered_probes_rewrite_the_frame_once_and_answered_probes_never() {
+    for answered in [false, true] {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let mut port = UnavailablePort(Rc::clone(&calls));
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        let now = Instant::now();
+        let mut mode = |_| Ok::<(), io::Error>(());
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        dispatcher.begin_pointer_admission(now, &mut mode).unwrap();
+        dispatcher
+            .begin_grapheme_clustering(now, &mut mode)
+            .unwrap();
+        if answered {
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    b"\x1b[?1003;2$y\x1b[?2027;2$y\x1b[?1;2c",
+                    &mut port,
+                    now,
+                    |_, _| Ok::<bool, io::Error>(false),
+                    &mut mode,
+                )
+                .unwrap();
+        }
+        dispatcher
+            .synchronize(
+                &mut view,
+                &mut port,
+                now + Duration::from_millis(100),
+                &mut mode,
+            )
+            .unwrap();
+        assert!(!dispatcher.rewrite_pending(), "answered: {answered}");
+        dispatcher
+            .synchronize(
+                &mut view,
+                &mut port,
+                now + Duration::from_millis(301),
+                &mut mode,
+            )
+            .unwrap();
+        assert_eq!(dispatcher.rewrite_pending(), !answered);
+        dispatcher.clear_full_repaint();
+        dispatcher
+            .synchronize(
+                &mut view,
+                &mut port,
+                now + Duration::from_secs(1),
+                &mut mode,
+            )
+            .unwrap();
+        assert!(!dispatcher.rewrite_pending(), "answered: {answered}");
+    }
+}
+
 #[test]
 fn exact_reset_reply_upgrades_global_tracking_once_after_the_query() {
     let calls = Rc::new(RefCell::new(Vec::new()));

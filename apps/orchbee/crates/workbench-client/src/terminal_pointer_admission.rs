@@ -68,6 +68,8 @@ enum State {
 #[derive(Debug, Default)]
 pub struct Probe {
     state: State,
+    /// The probe settled without the mode report it asked for since the owner last took this.
+    unanswered: bool,
 }
 
 impl Probe {
@@ -96,7 +98,10 @@ impl Probe {
             // Seeing Set contradicts that ordered baseline rather than
             // authorizing hover from an uncorrelated or stale observation.
             HostReply::Mode1003(ModeReportState::Reset) => Capability::Admitted,
-            HostReply::Mode1003(ModeReportState::Set) | HostReply::PrimaryDeviceAttributes => {
+            HostReply::Mode1003(ModeReportState::Set) => Capability::Unknown,
+            // The sentinel answered first: the host skipped the mode request.
+            HostReply::PrimaryDeviceAttributes => {
+                self.unanswered = true;
                 Capability::Unknown
             }
             HostReply::Mode1003(
@@ -118,7 +123,16 @@ impl Probe {
             return None;
         }
         self.state = State::Settled(Capability::Unknown);
+        self.unanswered = true;
         Some(Capability::Unknown)
+    }
+
+    pub(crate) const fn pending(&self) -> bool {
+        matches!(self.state, State::Pending { .. })
+    }
+
+    pub(crate) fn take_unanswered(&mut self) -> bool {
+        std::mem::take(&mut self.unanswered)
     }
 
     #[cfg(any(test, feature = "test-support"))]

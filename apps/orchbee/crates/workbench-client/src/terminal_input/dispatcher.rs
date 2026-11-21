@@ -53,6 +53,12 @@ pub struct InputDispatcher {
     grapheme_clustering: crate::terminal_grapheme_admission::Probe,
     /// Set once an enable reached the outer terminal; the next frame repaints every cell.
     full_repaint_pending: bool,
+    /// Set once a probe settled without its answer; the frame is rewritten once none is pending.
+    unanswered_probe: bool,
+    /// The next frame writes every cell in place over text a host printed for a query.
+    rewrite_pending: bool,
+    /// The outer terminal prints queries it cannot parse, so it receives no capability probe.
+    host_queries_withheld: bool,
     host_appearance: crate::terminal_host_appearance::Probe,
     host_background: Option<u32>,
     pointer_capture: PointerCaptureRequest,
@@ -335,7 +341,14 @@ impl InputDispatcher {
         )
     }
     pub fn activate_graphics_probe(&mut self, id: u32) {
-        self.graphics.activate(id);
+        if !self.host_queries_withheld {
+            self.graphics.activate(id);
+        }
+    }
+    /// Withholds the graphics probe and both DECRQM queries from an outer terminal known to print
+    /// queries it cannot parse. Each capability keeps the value an unanswered probe settles to.
+    pub fn withhold_host_queries(&mut self) {
+        self.host_queries_withheld = true;
     }
     pub fn graphics_facts(&self) -> crate::terminal_graphics::Facts {
         self.graphics.facts()
@@ -361,6 +374,7 @@ impl InputDispatcher {
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<(), Error> {
         if self.pointer_capture == PointerCaptureRequest::ButtonOnly
+            && !self.host_queries_withheld
             && let Some(query) = self.pointer_admission.begin(now)
         {
             mode(ModeRequest::PointerAdmissionQuery(query))?;
@@ -375,7 +389,9 @@ impl InputDispatcher {
         now: Instant,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<(), Error> {
-        if let Some(query) = self.grapheme_clustering.begin(now) {
+        if !self.host_queries_withheld
+            && let Some(query) = self.grapheme_clustering.begin(now)
+        {
             mode(ModeRequest::GraphemeQuery(query))?;
         }
         Ok(())
@@ -401,9 +417,36 @@ impl InputDispatcher {
         self.full_repaint_pending
     }
 
+    /// Whether the next frame must write every cell in place, without clearing first.
+    pub fn rewrite_pending(&self) -> bool {
+        self.rewrite_pending
+    }
+
     /// Clears the pending full repaint once the frame that repainted every cell is painted.
     pub fn clear_full_repaint(&mut self) {
         self.full_repaint_pending = false;
+        self.rewrite_pending = false;
+    }
+
+    /// A host that cannot parse a query may print it as text, which no later diff would cover. A
+    /// probe that settled without its answer therefore owes one rewrite of every cell, taken once
+    /// no probe is still pending so the startup probes share it. A host that answers every probe
+    /// is never rewritten.
+    fn settle_unanswered_probes(&mut self) -> bool {
+        self.unanswered_probe |= self.graphics.take_unanswered()
+            | self.pointer_admission.take_unanswered()
+            | self.grapheme_clustering.take_unanswered();
+        if !self.unanswered_probe
+            || self.graphics.pending()
+            || self.pointer_admission.pending()
+            || self.grapheme_clustering.pending()
+            || self.host_appearance.pending()
+        {
+            return false;
+        }
+        self.unanswered_probe = false;
+        self.rewrite_pending = true;
+        true
     }
 
     fn admitted_pointer_capture(&self) -> PointerCaptureRequest {
@@ -745,10 +788,12 @@ impl InputDispatcher {
                 .host_appearance
                 .settle_fallback(fallback)
                 .expect("appearance timeout owns one platform fallback settlement");
+            self.unanswered_probe = true;
             view.configure_host_appearance(appearance)
         } else {
             false
         };
+        let rewrite = self.settle_unanswered_probes();
         // Compare the settled owner from the preceding boundary with the
         // post-reconcile projection below. An asynchronously installed owner
         // is already visible to the pure projector here, but it has not yet
@@ -760,7 +805,8 @@ impl InputDispatcher {
         // even when no further bytes ever arrive. A release produced by
         // this call's own reconcile still guards the current packet tail.
         self.decoder.end_released(now);
-        let mut changed = appearance_changed | grapheme_enabled | self.reconcile(view, port, now);
+        let mut changed =
+            appearance_changed | grapheme_enabled | rewrite | self.reconcile(view, port, now);
         if idle {
             let events = self.decoder.tick(now);
             changed |= !events.is_empty();

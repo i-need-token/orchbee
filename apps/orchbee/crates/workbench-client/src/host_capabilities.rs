@@ -90,6 +90,20 @@ fn session_admits(capability: Capability) -> bool {
     unix::admits(capability)
 }
 
+/// Whether the outer terminal is one known to print a capability query it cannot parse. Such a
+/// host receives no graphics probe and no DECRQM query; each capability keeps the value an
+/// unanswered probe settles to.
+pub fn host_prints_unparsed_queries() -> bool {
+    #[cfg(windows)]
+    {
+        false
+    }
+    #[cfg(not(windows))]
+    {
+        unix::facts().query_echo
+    }
+}
+
 /// The existing default-shell adapter admits POSIX login mode only.
 pub(crate) const fn login_shell_available() -> bool {
     cfg!(unix)

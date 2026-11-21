@@ -41,6 +41,8 @@ pub(crate) struct Facts {
     /// The outer terminal is one whose notification sequence the terminal port can frame.
     pub(crate) terminal_notifications: bool,
     pub(crate) window_title: bool,
+    /// The outer terminal prints a query it cannot parse, so it receives no capability probe.
+    pub(crate) query_echo: bool,
 }
 
 /// The facts of this session, detected on first use and fixed for the process lifetime.
@@ -140,12 +142,17 @@ impl Facts {
         let window_title = term
             .as_deref()
             .is_some_and(|term| term != "dumb" && !term.starts_with("linux"));
+        // Terminal.app prints the body of an APC string and the final byte of a DECRQM request,
+        // where other terminals ignore what they cannot parse (observed with Terminal 2.14 on
+        // macOS 14). A multiplexer or host pane in between answers the queries itself.
+        let query_echo = program.as_deref() == Some("Apple_Terminal") && !nested_host(&set);
         Self {
             clipboard,
             browser,
             notifier,
             terminal_notifications,
             window_title,
+            query_echo,
         }
     }
 }
@@ -155,6 +162,13 @@ pub(crate) fn remote_login(env: impl Fn(&str) -> Option<OsString>) -> bool {
     ["SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"]
         .into_iter()
         .any(|name| env(name).is_some_and(|value| !value.is_empty()))
+}
+
+/// A multiplexer or host pane between the Client and the terminal its variables name.
+fn nested_host(set: &impl Fn(&str) -> bool) -> bool {
+    ["TMUX", "ZELLIJ", "STY", "HERDR_ENV", "ORCHBEE_TERMINAL_ID"]
+        .into_iter()
+        .any(set)
 }
 
 /// Terminals that apply an application's OSC 52 clipboard write under their default settings.

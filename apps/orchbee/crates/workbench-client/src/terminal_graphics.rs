@@ -1,4 +1,4 @@
-//! Bounded host graphics facts; only the admitted Windows shell activates probes.
+//! Bounded host graphics facts; the interactive shell activates the probe for its admitted terminal.
 pub use crate::terminal_events::graphics::Reply;
 use std::time::{Duration, Instant};
 
@@ -58,6 +58,8 @@ pub struct Probe {
     cells: Option<(u16, u16)>,
     cell: CellState,
     kitty: KittyState,
+    /// A query reached its deadline without a reply since the owner last took this.
+    unanswered: bool,
 }
 impl Probe {
     pub(crate) fn activate(&mut self, image_id: u32) {
@@ -104,10 +106,19 @@ impl Probe {
     pub(crate) fn tick(&mut self, now: Instant) {
         if matches!(self.cell, CellState::Pending { deadline, .. } if now >= deadline) {
             self.cell = CellState::Debt;
+            self.unanswered = true;
         }
         if matches!(self.kitty, KittyState::Pending { deadline } if now >= deadline) {
             self.kitty = KittyState::Settled(false);
+            self.unanswered = true;
         }
+    }
+    pub(crate) fn pending(&self) -> bool {
+        matches!(self.cell, CellState::Pending { .. })
+            || matches!(self.kitty, KittyState::Pending { .. })
+    }
+    pub(crate) fn take_unanswered(&mut self) -> bool {
+        std::mem::take(&mut self.unanswered)
     }
     pub(crate) fn reply(&mut self, reply: Reply, now: Instant) {
         self.tick(now);

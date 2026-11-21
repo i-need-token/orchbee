@@ -108,6 +108,22 @@ fn sessions_without_a_route_refuse_instead_of_assuming_one() {
     assert!(!console.window_title);
 }
 
+/// Terminal.app prints a query it cannot parse, so it is the one host that must receive none; a
+/// multiplexer or host pane in between answers for itself, and other hosts keep their probes.
+#[test]
+fn only_a_direct_terminal_app_withholds_capability_queries() {
+    let echo = |variables: &[(&str, &str)]| linux(variables, &[]).query_echo;
+    assert!(echo(&[("TERM_PROGRAM", "Apple_Terminal")]));
+    for nested in ["TMUX", "ZELLIJ", "STY", "HERDR_ENV", "ORCHBEE_TERMINAL_ID"] {
+        assert!(
+            !echo(&[("TERM_PROGRAM", "Apple_Terminal"), (nested, "1")]),
+            "{nested}"
+        );
+    }
+    assert!(!echo(&[("TERM_PROGRAM", "ghostty")]));
+    assert!(!echo(&[("TERM", "xterm-256color")]));
+}
+
 #[test]
 fn programs_resolve_only_from_absolute_search_entries() {
     let scratch = Scratch::new("locate");

@@ -54,6 +54,8 @@ enum State {
 pub struct Probe {
     state: State,
     enable_pending: bool,
+    /// The deadline passed without a report since the owner last took this.
+    unanswered: bool,
 }
 
 impl Probe {
@@ -86,7 +88,16 @@ impl Probe {
         };
         if now >= deadline {
             self.state = State::Settled;
+            self.unanswered = true;
         }
+    }
+
+    pub(crate) fn pending(&self) -> bool {
+        matches!(self.state, State::Pending { .. })
+    }
+
+    pub(crate) fn take_unanswered(&mut self) -> bool {
+        std::mem::take(&mut self.unanswered)
     }
 
     /// Takes an admitted enable once, so the caller emits it at most once.

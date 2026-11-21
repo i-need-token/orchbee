@@ -34,7 +34,7 @@ Rendering uses the actual Panel body after terminal content and before shell ove
 
 ## Bounded host measurement
 
-The interactive shell on Windows and macOS probes only its already-admitted terminal, after entering its owned modes and before the first ordinary draw. Every outer terminal receives the same probe, and only its replies select the renderer; Linux sends no probe, so it measures no cell pixels and admits no physical output. The existing lifecycle writer issues the xterm `CSI 16 t` cell-pixel query and a Kitty `a=q,t=d,f=32,s=1,v=1` query with a nonzero random image ID. Queries have a 300 ms deadline and never wait before rendering or create image placements. Terminal names, environment variables, font guesses and producer `transport` hints cannot establish these facts. These sequences follow the [xterm control contract](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html) and the [Kitty graphics contract](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
+The interactive shell on Windows and macOS probes only its already-admitted terminal, after entering its owned modes and before the first ordinary draw. Every outer terminal receives the same probe, except one [known to print queries it cannot parse](tui-platforms.md#outer-terminal-queries), and only its replies select the renderer; Linux sends no probe, so it measures no cell pixels and admits no physical output. The existing lifecycle writer issues the xterm `CSI 16 t` cell-pixel query and a Kitty `a=q,t=d,f=32,s=1,v=1` query with a nonzero random image ID. Queries have a 300 ms deadline and never wait before rendering or create image placements. Terminal names, environment variables, font guesses and producer `transport` hints cannot establish these facts. These sequences follow the [xterm control contract](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html) and the [Kitty graphics contract](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
 
 The existing input decoder owns complete cell reports and graphics APC replies before key, prefix, popup and confirmation dispatch. The same metadata is consumed during a native text modal; bracketed paste remains literal paste, including bytes that look like replies. A graphics reply is bounded at 256 bytes; oversized or timed-out replies drain to their string terminator without allocating or exposing the remaining reply as typed keys. A bare Alt+underscore retains its ordinary meaning when it is not followed by the graphics introducer. No reply, a malformed reply or a late reply establishes capability, increments human-activity intent or reaches a retained terminal.
 
@@ -106,7 +106,7 @@ built.
 An outer terminal that answers the Kitty query and reports cell pixels, such as WezTerm, Kitty or
 Ghostty, shows physical images. Windows Terminal supports Sixel but not Kitty, and on macOS iTerm2
 has its own image protocol and Terminal.app none, so the TUI paints the upper-half-block cell
-raster there once the query deadline passes unanswered; it emits no Sixel and writes no graphics bytes to a host
+raster there once the query deadline passes unanswered, or at once on Terminal.app, which gets no query; it emits no Sixel and writes no graphics bytes to a host
 without Kitty support. When the TUI sizes a Panel from an outer terminal that does not report cell
 pixels, the Host gets zero pixel metrics, so no client shows program images in that Panel.
 

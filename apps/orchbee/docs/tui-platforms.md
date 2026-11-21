@@ -63,7 +63,7 @@ and SSH-guard retirement scheduling keep their original cadence.
 | Host window title                                                              | Console title, original restored on exit    | OSC 0, original restored from the terminal's title stack on exit                         |
 | Terminal notification transport                                                | Ghostty/iTerm/WezTerm OSC 9 or Kitty OSC 99 | Same as Windows                                                                          |
 | System notification transport                                                  | Notification-area balloon                   | Terminal sequence, `osascript` or `notify-send`, by session route                        |
-| Terminal graphics                                                              | Existing Windows adapter and host admission | macOS: outer-terminal probe, as on Windows; Linux: unsupported                           |
+| Terminal graphics                                                              | Existing Windows adapter and host admission | macOS: as Windows, not [Terminal.app](#outer-terminal-queries); Linux: unsupported       |
 | Notification cards and ordinary terminal bell                                  | Shared TUI / admitted terminal              | Shared TUI / admitted terminal                                                           |
 | Login-shell preference                                                         | Unsupported by the Windows shell adapter    | Existing POSIX shell adapter                                                             |
 
@@ -85,6 +85,18 @@ retains its activation-generation checks and I/O failures. Linux keeps none yet;
 an unsupported capability without probing storage, and activation continues with no restore notice.
 Capability absence never hides a supported reader's I/O failure or fabricates a recovered or empty
 checkpoint.
+
+## Outer-terminal queries
+
+Terminal.app (`TERM_PROGRAM=Apple_Terminal`) prints the body of an APC string and the final byte of
+a DECRQM request instead of ignoring them (observed with Terminal 2.14 on macOS 14), as Neovim,
+yazi and chafa also special-case it. It therefore receives no graphics probe and neither DECRQM
+query; it still receives the OSC appearance query. Its graphics settle to the cell raster without
+cell pixels, pointer any-motion to unknown and grapheme clustering to withheld, exactly as when
+those probes go unanswered. The record does not apply under `TMUX`, `ZELLIJ`, `STY`, `HERDR_ENV`
+or `ORCHBEE_TERMINAL_ID`, where the multiplexer or host pane answers for itself. Any other host
+that leaves a probe unanswered gets one in-place rewrite of every cell after the last startup
+probe settles, so text it printed for the query does not stay on screen.
 
 ## Admission and unsupported outcomes
 

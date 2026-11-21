@@ -710,6 +710,9 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     retained_machines: &mut Option<machines::Manager>,
 ) -> Result<LoopCompletion, LoopFailure<B::Error>> {
     let mut dispatcher = InputDispatcher::default();
+    if crate::tui_capabilities::host_prints_unparsed_queries() {
+        dispatcher.withhold_host_queries();
+    }
     let wakeup = crate::workbench_client::UiWakeup::current();
     surface.active().set_ui_wakeup(Some(wakeup.clone()));
     let mut machines = matches!(surface, SurfaceSlot::Owned(_))
@@ -1077,6 +1080,16 @@ fn return_command(session: Option<&str>) -> String {
     }
 }
 
+/// Makes the next draw write every cell in place. The previous frame becomes one no real frame
+/// matches, so the diff covers every cell without the blank a clear would show first.
+fn invalidate_painted_frame<B: Backend>(terminal: &mut Terminal<B>) {
+    for cell in &mut terminal.current_buffer_mut().content {
+        // A one-column private-use symbol: no frame draws it, and a control byte would break widths.
+        cell.set_symbol("\u{10fffd}");
+    }
+    terminal.swap_buffers();
+}
+
 fn update_graphics_surface<B: Backend + ResizableBackend>(
     terminal: &Terminal<B>,
     dispatcher: &mut InputDispatcher,
@@ -1209,6 +1222,8 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
             dispatcher.invalidate_hit_map(surface);
             return Err(LoopFailure::Terminal(error));
         }
+    } else if dispatcher.rewrite_pending() {
+        invalidate_painted_frame(terminal);
     }
     let drawn = terminal.draw(|frame| {
         {

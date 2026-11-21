@@ -432,6 +432,7 @@ pub mod application {
     pub mod tui_capabilities {
         #[cfg(not(windows))]
         pub use crate::host_capabilities::Unsupported;
+        pub use crate::host_capabilities::host_prints_unparsed_queries;
         pub use crate::tui_capabilities::{Capabilities, Capability};
     }
 

@@ -107,6 +107,10 @@ impl Probe {
         self.colors
     }
 
+    pub(crate) const fn pending(&self) -> bool {
+        matches!(self.state, ProbeState::Pending { .. })
+    }
+
     /// Capture each queried component once inside the original bounded window.
     /// Background may arrive first; its polarity settles immediately, while a
     /// later foreground can complete the same observation without changing it.
