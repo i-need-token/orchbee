@@ -751,10 +751,7 @@ the [diagnostic bundle](#diagnostic-bundle).
 [Workbench Client lifecycle regressions](crates/workbench-client/src/workbench_client/tests.rs) cover interrupted Drop/join,
 unknown-input retirement and read-only input refusal. [Native transport regressions](crates/workbench-client/src/workbench_client/connection/native/tests.rs)
 and [mailbox traces](crates/workbench-client/src/workbench_client/mailbox/tests.rs) cover bounded admission, projection/feedback
-ordering and retirement. [Linux public startup/PTY witnesses](tests/local_startup_process.rs) and
-[native pointer witnesses](tests/local_startup_process/native_pointer.rs) cover retained shells,
-resize, pointer routing and terminal-mode restoration. Their finite deadlines are test bounds,
-not performance guarantees.
+ordering and retirement. Their finite deadlines are test bounds, not performance guarantees.
 
 `terminal_text` owns the forbidden display-scalar rule: Unicode control characters and
 U+2028/U+2029. Terminal-cell rendering uses this rule with its existing width checks, and the final
@@ -946,14 +943,6 @@ waits for the current bounded peer operation before fixture/cohort release. A fa
 command; a normally completed script leaves the CLI free to publish its result. The
 [fixture lifecycle witnesses](tests/cli_windows_fixture_lifecycle.rs) exercise full-duplex pipes,
 limits, early stdin closure, admission cancellation, peer joining and retained descendant exit.
-
-Set `ORCHBEE_TEST_NATIVE_COHORT` to an absolute staged directory to run the same real-process
-acceptance suite against the actual release artifacts. Fixtures validate that cohort and copy it
-into isolated directories; tests do not change the source cohort or default Session.
-
-```sh
-ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test local_startup_process --locked
-```
 
 ### Agent integration conformance fixtures
 

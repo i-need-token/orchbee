@@ -402,7 +402,6 @@ result at exit 1; `outcome-unknown` at exit 8 with request identity; no `--detac
 | `open`: NDJSON event order, self-contained rows, truncation flag, `ended` reasons, `--timeout`/`--frames`          | event grammar and bounds hold under fabricated streams                     | scripted-peer + golden NDJSON tests                             |
 | Secret non-leakage: content bytes absent from every output/diagnostic/completion surface                           | scan-based assertions on stdout/stderr/completion under both locales       | output tests                                                    |
 | Non-TTY execution, `SIGINT` mid-wait/mid-stream, stdout write failure                                              | documented exits; Session dropped before blocking                          | integration tests                                               |
-| Real staged-cohort Server: send-*/wait/open against a live terminal alongside a TUI holding the controller         | `controller-busy` denial; successful paths after release; no leaked grants | `tests/local_startup_process`                                   |
 
 Model obligations: this slice adds no new Server state machine, persistence, or retry — it
 composes the registered OBCS viewer/control models and one client-side bounded observation

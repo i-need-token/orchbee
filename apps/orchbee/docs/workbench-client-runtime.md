@@ -1996,16 +1996,6 @@ result on the viewer it already had, which still accepts input.
 rows' rule, and `ui/tab_groups/tests/move_keys.rs` owns the held run: press order, one request at a
 time, the refusal that ends it and the bound that ends it with the busy notice.
 
-At runtime source `f2467e8e`, the native binary suite passed 311 tests with one ignored, and the
-complete `local_startup_process` target passed all 23 tests on Linux under WSL. That run predates
-the keys' use of `tabs.configure`; over ungrouped Tabs the expected orders are the same. Its two Move
-scenarios exercise six Move steps over three Tabs, both directions and boundary wrap, distinct shell
-PIDs, fresh output and Resize, independent peer selection and explicit refresh, and canonical-first
-reopen followed by revisiting surviving terminals. Ordered completed-frame observers require one
-active marker and the resting status of its control mode. These process checks establish observable shell
-continuity; the worker and UI traces separately establish attachment preservation. They do not
-establish other operating systems, installation, restart recovery or Close.
-
 ## Model scope
 
 Formal evidence for this owner is the pane-incarnation core described in [Native Panel lifecycle evidence](native-panel-lifecycle.md#finite-model-evidence), plus the separate viewport, explicit control-takeover, refused-projection-record and focus-viewer-loss protocols. It does not enumerate every Create, Close, Move, Rename, refresh or context-removal combination.

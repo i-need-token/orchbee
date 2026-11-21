@@ -111,6 +111,13 @@ fn a_killed_worker_is_replaced_until_the_cap_and_a_confirmed_stop_ends_the_host(
     );
     let started = fixture.run(&["server", "start", "--session", "default"]);
     assert_eq!(started.code, Some(0), "{started}");
+    // The window's Update proves that a version joins this Session by this name.
+    assert!(
+        started.document["result"]["negotiatedCapabilities"]
+            .as_array()
+            .is_some_and(|names| names.iter().any(|name| name == "compatibility-window")),
+        "{started}"
+    );
     until("the layout is restored", STOPPED, || {
         let listed = fixture.run(&["workspace", "list"]);
         listed.document["result"]["workspaces"]
