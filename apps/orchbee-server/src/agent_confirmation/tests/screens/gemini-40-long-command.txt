@@ -1,0 +1,22 @@
+
+ℹ Request cancelled.
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+ > Testing permission prompts; I will decline. Create a file named
+   aab-outside.txt in the parent folder (one level above the current folder)
+   containing the single line: x
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ ? Shell Create a directory with a very long name in the current working di…  │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ mkdir                                                                    │ │
+│ │ aab-long-one-two-three-four-five-six-seven-eight-nine-ten-eleven-twelv   │ │
+│ │ e-thirteen-fourteen-fifteen-sixteen-seventeen-eighteen-nineteen-twenty   │ │
+│ │ -twentyone-twentytwo                                                     │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│ Allow execution of [Shell]?                                                  │
+│                                                                              │
+│ ● 1. Allow once                                                              │
+│   2. Allow for this session                                                  │
+│   3. No, suggest changes (esc)                                               │
+╰──────────────────────────────────────────────────────────────────────────────╯

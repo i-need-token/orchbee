@@ -218,7 +218,7 @@ impl Layouts {
                 )),*]
             };
         }
-        bundle!(Claude => "claude", Codex => "codex")
+        bundle!(Claude => "claude", Codex => "codex", Gemini => "gemini")
             .into_iter()
             .map(|(provider, source)| parse(provider, source))
             .collect::<Result<Vec<_>, _>>()

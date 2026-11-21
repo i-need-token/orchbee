@@ -34,6 +34,9 @@ pub enum Row {
     /// Whether the Server answers Codex's routine confirmations
     /// (`agents.auto_allow.codex`).
     AutoAllowCodex,
+    /// Whether the Server answers Gemini CLI's routine confirmations
+    /// (`agents.auto_allow.gemini`).
+    AutoAllowGemini,
     LaunchProfiles,
     /// Where a new terminal starts (`terminal.new_cwd`).
     NewTerminalFolder,
@@ -368,6 +371,16 @@ impl Row {
                     F::AutoAllowCodex,
                     E::AgentConfirmations,
                     flag!(auto_allow_codex),
+                ),
+            Self::AutoAllowGemini => row("Gemini CLI", "Gemini CLI")
+                .described(
+                    "Orchbee checks the command shown, not what a script does.",
+                    "Orchbee 只检查显示的命令，不检查脚本做了什么。",
+                )
+                .flag(
+                    F::AutoAllowGemini,
+                    E::AgentConfirmations,
+                    flag!(auto_allow_gemini),
                 ),
             Self::LaunchProfiles => row("Default profile", "默认启动配置")
                 .described(

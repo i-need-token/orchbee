@@ -8,7 +8,10 @@ import { SettingFailure } from '../../../setting-failure/SettingFailure';
 import { SettingsRow } from '../../../settings-row/SettingsRow';
 
 /** The saved settings that turn answering on, one for each Agent type Orchbee can answer for. */
-type AgentConfirmationSetting = 'agents.auto_allow.claude' | 'agents.auto_allow.codex';
+type AgentConfirmationSetting =
+	| 'agents.auto_allow.claude'
+	| 'agents.auto_allow.codex'
+	| 'agents.auto_allow.gemini';
 
 interface AgentConfirmationRowProps {
 	/** The Agent type's name, which is the row's label. */

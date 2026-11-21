@@ -7,7 +7,7 @@ reaches the terminal. The rules are the module `agent_confirmation`, which is pu
 file and no clock of its own; `local_terminal_service/agent_confirmation.rs` connects them to the
 screen sampler, the settings and the Clients. The
 [proposal](../../../proposals/agent/automatic-confirmation.md) owns the design that is not built:
-the Agents after Claude Code and Codex.
+the Agents after Claude Code, Codex and Gemini CLI.
 
 Every rule fails closed. A screen, a command or a path the module cannot read completely is one
 that waits for the person, and each wait carries one reason from a closed list: destructive
@@ -67,6 +67,7 @@ same change; a layout without captures is not admitted.
 | ----------- | ------------------------------------------- | ------------------------------------------------------- |
 | Claude Code | Bash command, file create, file edit        | Its trust prompt and its screens after an answer        |
 | Codex       | Shell command, under the first-column fence | Every other approval, such as a patch or network access |
+| Gemini CLI  | Shell command, whole-file write             | Replace in a file, its trust prompt, every other tool   |
 
 Codex's reason rows cannot start with the command's `$`, so the first `$` row is the command's,
 and the command is every row from there to the two blank rows above the options. Where Codex
@@ -75,6 +76,24 @@ A Codex dialog taller than its Panel fills the Panel: no row lies above the titl
 are shortened behind an arrow, and in a short Panel a marker row stands in place of the command
 rows that are not shown. The fence, the option rows and the command check's rule for text that
 is not all on the screen each make such a dialog wait.
+
+Gemini CLI puts the command, or a file's new content, in a box inside the dialog's box, so a row a
+model supplies starts behind two bars and cannot draw a border, the question or an option. Four
+rules come from how it draws:
+
+- A whole-file write creates a file or replaces one through the same dialog, so it is read as an
+  edit of the path in the title. Gemini CLI shortens a path beyond 35 characters with three dots;
+  a path with an ellipsis or three dots in it is not all on the screen and waits.
+- Its replace-in-file dialog is not read. The title joins the path and two pieces of the model's
+  text with `: `, which a folder name may contain on macOS, so the path cannot be told from the
+  text.
+- In a short terminal it draws the inner box empty, or hides rows of it behind a row that starts
+  with three dots. A layout needs a row of command text and no pattern takes such a row for one,
+  so the dialog is not read.
+- With several confirmations pending it ends the title row in a counter such as `1 of 2`, and
+  Enter answers the dialog shown. The write layout takes the counter apart from the path, and a
+  path with a space, which cannot be told from a path and a counter, is not read. A long title
+  with the counter takes a second row, which no layout reads.
 
 ## Command check
 
@@ -126,6 +145,9 @@ The check cannot catch, and product copy must not claim otherwise:
 - A place named inside a quoted argument, inside an option the check does not split, or reached
   through a link that already exists or through an earlier `cd`.
 - An Agent that draws a command other than the one it runs.
+- A folder the Agent runs the command in without drawing it. Gemini CLI can run a command in
+  another folder a person added to its workspace; the command is judged as run in the Agent's
+  folder.
 
 ## Path rules
 
@@ -138,6 +160,8 @@ A path is placed by its spelling alone; no file system is read.
   are read. Drive paths compare without case; POSIX paths compare exactly. A network or device
   path, a drive-relative path, a stream, a short name, a wildcard, and a step that ends in a dot
   or a space are not read and wait.
+- **Padding.** A path with a run of spaces in it is a row's padding taken with the name, and
+  waits.
 - **Inside.** A relative path without a `..` step is inside. An absolute path is inside when its
   steps start with the Workspace's. A `..` step, `~`, and a variable wait.
 - **Protected names** wait wherever they are, compared without case, without a stream and without
@@ -207,6 +231,7 @@ steps against the Terminal Host's gate.
   holds then.
 - **Settings.** `agents.auto_allow.claude` turns answering on for every Claude Code run.
   `agents.auto_allow.codex` turns answering on for every Codex run.
+  `agents.auto_allow.gemini` turns answering on for every Gemini CLI run.
   `agents.auto_allow.offer` is true until a person answers "no" to an offer. No settings page
   shows it and it is not among the common values Clients read: the Server reads it from the
   settings file and writes it there on a "no".

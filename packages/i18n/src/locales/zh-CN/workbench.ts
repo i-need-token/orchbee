@@ -448,7 +448,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.agentConfirmation.wait.leavesWorkspace': '超出工作区，等你确认',
 	'workbench.agentConfirmation.wait.protectedFile': '受保护的文件，等你确认',
 	'workbench.agentConfirmation.wait.notUnderstood': 'Orchbee 无法检查的命令，等你确认',
-	'workbench.agentConfirmation.wait.notVisible': '命令未完整显示，等你确认',
+	'workbench.agentConfirmation.wait.notVisible': '命令或路径未完整显示，等你确认',
 	'workbench.agentConfirmation.wait.markedDangerous': '智能体标记为危险，等你确认',
 	'workbench.agentConfirmation.wait.notAnswered': '不是常规确认，等你确认',
 	'workbench.agentConfirmation.wait.person': '你在此终端输入过，等你确认',

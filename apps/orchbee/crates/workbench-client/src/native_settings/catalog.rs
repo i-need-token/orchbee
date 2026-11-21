@@ -241,7 +241,11 @@ impl Group {
             Self::SoundDelivery => vec![Row::Sound],
             Self::Prefix => vec![Row::PrefixKey],
             Self::AgentRestore => vec![Row::ResumeAgents],
-            Self::AgentConfirmations => vec![Row::AutoAllowClaude, Row::AutoAllowCodex],
+            Self::AgentConfirmations => vec![
+                Row::AutoAllowClaude,
+                Row::AutoAllowCodex,
+                Row::AutoAllowGemini,
+            ],
             Self::About => vec![Row::Version, Row::Updates],
             // The saved machines' own rows come from the facts the TUI reports.
             Self::MachineList => vec![Row::AddMachine, Row::FindMachine, Row::ThisComputer],

@@ -239,6 +239,14 @@ must be the only one on the screen, and a row that starts in the first column, w
 text cannot reach, must lie above it. A dialog taller than the screen, or one with a second
 title anywhere, therefore waits.
 
+Gemini CLI draws its dialog as a box that starts in the first column and puts the command, or the
+new content of a file, in a second box inside it. Every row a model supplies therefore starts
+behind two bars and cannot draw a border, the question or an option. In a short terminal Gemini
+CLI draws the inner box empty or hides rows of it behind a row that starts with three dots; no
+layout takes such a row for command text, so that dialog waits. With several confirmations
+pending, the title ends in a counter such as `1 of 2`, so a written file's path takes no space and
+the counter is matched apart from it; otherwise `.env   1 of 2` would not be the protected name.
+
 - Layouts are compiled into the Server and never read from a local override or a downloaded
   catalog: a rule that can press a key ships only inside a signed release.
 - Layouts are matched exactly and not pinned to Agent versions (Decided as announced). Evidence
@@ -378,6 +386,13 @@ it.
 
 Codex is answered for its shell command confirmation only. Where Codex writes files through
 PowerShell, the command carries quotes, so it waits as not understood.
+
+Gemini CLI is answered for its shell command confirmation and for its whole-file write, which
+creates a file or replaces one and is read as an edit of the path in the dialog's title. Its
+replace-in-file confirmation waits: the title joins the path and two pieces of the model's text
+with `: `, which a folder name may contain on macOS, so the path cannot be told from the text.
+Gemini CLI can run a command in another folder the person added to its workspace without drawing
+which; the command is judged as run in the Agent's folder.
 
 Hermes Agent waits for a product-owner decision. In its default configuration it asks nothing
 before a routine command; the only confirmation it draws is its own approval of a command it

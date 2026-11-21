@@ -1,0 +1,27 @@
+   - aab-r2.txt containing y
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+ > In one turn, with two parallel tool calls and in this order,
+   create two new files: .env containing A=1 and aab-r3.txt
+   containing z
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+  ✓  WriteFile  aab-r3.txt → Accepted (+1, -0)
+
+      1 z
+
+
+✦ One succeeded (aab-r3.txt created). The .env failed due to a path
+  resolution issue. Let me retry:
+
+
+╭───────────────────────────────────────────────────────────────────╮
+│ ? WriteFile  Writing to ..\...\tmp\aab-ws-gemini\.env             │
+│ ╭───────────────────────────────────────────────────────────────╮ │
+│ │ 1 A=1                                                         │ │
+│ ╰───────────────────────────────────────────────────────────────╯ │
+│ Apply this change?                                                │
+│                                                                   │
+│ ● 1. Allow once                                                   │
+│   2. Allow for this session                                       │
+│   3. Modify with external editor                                  │
+│   4. No, suggest changes (esc)                                    │
+╰───────────────────────────────────────────────────────────────────╯

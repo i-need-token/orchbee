@@ -268,6 +268,7 @@ name:
 | `automaticUpdates`                 | No preview                                                                    | The Server's next background update check; Off stops the schedule and its downloads                                |
 | `autoAllowClaude`                  | No preview                                                                    | Confirmations Claude Code shows from now on; Off also stops an answer already decided                              |
 | `autoAllowCodex`                   | No preview                                                                    | Confirmations Codex shows from now on; Off also stops an answer already decided                                    |
+| `autoAllowGemini`                  | No preview                                                                    | Confirmations Gemini CLI shows from now on; Off also stops an answer already decided                               |
 | `launchProfiles`                   | Child-page edits apply as one edit on leaving                                 | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                 |
 
 Native host configuration is a separate admitted surface, not extra shared-editor

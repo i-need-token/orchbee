@@ -1,0 +1,59 @@
+# Gemini CLI's shell and file write confirmations, as Gemini CLI 0.70.0 draws them in an
+# 80-column terminal.
+#
+# The dialog is a box whose top and bottom borders start in the first column. The command or
+# the new content sits in a second box inside it, so every row of text a model supplies starts
+# behind two bars and cannot draw a border, the question or an option. The title row carries the
+# model's description, cut to one row.
+#
+# In a short terminal Gemini CLI draws the inner box empty, or hides rows of it behind a row
+# such as `... first 3 lines hidden (Ctrl+O to show) ...`. A layout needs at least one row of
+# command text and no pattern takes a row that starts with three dots for it, so that dialog is
+# not read.
+#
+# With several confirmations pending, the title row ends in a counter such as `1 of 2`, and a
+# long title then takes a second row, which no layout reads. Enter answers the dialog shown.
+
+top = '╭─{20,}╮'
+
+[[layout]]
+name = "shell"
+kind = "command"
+accept = "enter"
+rows = [
+	'╭─{20,}╮\n',
+	'│ \? Shell [^\n]*│\n',
+	'│ ╭─{20,}╮ │\n',
+	'(?P<text>(?:│ │ [^\n]*│ │\n){1,16})',
+	'│ ╰─{20,}╯ │\n',
+	'│ Allow execution of \[Shell\]\? +│\n',
+	'│ +│\n',
+	'│ ● 1\. Allow once +│\n',
+	'│   2\. Allow for this session +│\n',
+	'│   3\. No, suggest changes \(esc\) +│\n',
+	'╰─{20,}╯\n',
+]
+text = ['│ │ (?P<text> *(?:[^. \n]|\.[^.\n]|\.\.[^.\n])[^\n]*?| *\.{0,2}) *│ │']
+
+# Gemini CLI writes a new file and replaces an existing one through the same dialog, so the
+# write reads as an edit. The path is shortened with three dots beyond 35 characters, and a path
+# with three dots in it waits. The path takes no space: a path with one cannot be told from a
+# path and the counter, so it is not read.
+[[layout]]
+name = "write"
+kind = "file-edit"
+accept = "enter"
+rows = [
+	'╭─{20,}╮\n',
+	'│ \? WriteFile  Writing to (?P<text>[^ \n]+) +(?:[0-9]+ of [0-9]+ )?│\n',
+	'│ ╭─{20,}╮ │\n',
+	'(?:│ │ [^\n]*│ │\n){0,400}',
+	'│ ╰─{20,}╯ │\n',
+	'│ Apply this change\? +│\n',
+	'│ +│\n',
+	'│ ● 1\. Allow once +│\n',
+	'│   2\. Allow for this session +│\n',
+	'│   3\. Modify with external editor +│\n',
+	'│   4\. No, suggest changes \(esc\) +│\n',
+	'╰─{20,}╯\n',
+]

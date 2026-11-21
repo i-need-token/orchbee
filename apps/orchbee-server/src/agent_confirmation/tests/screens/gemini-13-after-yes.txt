@@ -1,0 +1,23 @@
+│ ✓  Shell mkdir aab-dir                                                   │
+│                                                                          │
+│ ... 6 hidden (Ctrl+O) ...                                                │
+│                                                                          │
+│                                                                          │
+│     Directory: C:\Users\demo\AppData\Local\Temp\claude\da6e61ff732be2b3  │
+│ \cde206bd-ae64-4d22-b9e5-23ae5cc694a0\scratchpad\aab-ws-gemini           │
+│                                                                          │
+│ Mode                 LastWriteTime         Length Name                   │
+│ ----                 -------------         ------ ----                   │
+│ d----          11/20/2026    21:23                aab-dir                │
+│                                                                          │
+╰──────────────────────────────────────────────────────────────────────────╯
+
+ Press Ctrl+O to show more lines of the last response
+ ⠸ Thinking... (esc to cancel, 3s)                              ? for shortcuts
+────────────────────────────────────────────────────────────────────────────────
+ Shift+Tab to accept edits                                             2 skills
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+ >   Type your message or @path/to/file
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+ workspace (/directory)      sandbox                                     /model
+ ~\...\aab-ws-gemini         no sandbox                           example-model

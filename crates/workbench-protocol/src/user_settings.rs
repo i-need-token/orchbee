@@ -103,6 +103,9 @@ pub struct UserSettingsValues {
     /// Whether the Server answers Codex's routine confirmations for the person.
     #[serde(default)]
     pub auto_allow_codex: bool,
+    /// Whether the Server answers Gemini CLI's routine confirmations for the person.
+    #[serde(default)]
+    pub auto_allow_gemini: bool,
     pub launch_profiles: UserLaunchProfiles,
 }
 impl Default for UserSettingsValues {
@@ -126,6 +129,7 @@ impl Default for UserSettingsValues {
             automatic_updates: true,
             auto_allow_claude: false,
             auto_allow_codex: false,
+            auto_allow_gemini: false,
             launch_profiles: UserLaunchProfiles::default(),
         }
     }

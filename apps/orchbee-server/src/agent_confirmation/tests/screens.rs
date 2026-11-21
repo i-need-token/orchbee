@@ -1,6 +1,6 @@
-//! Screens captured from Claude Code 2.1.330 and Codex CLI 0.171.0 in an 80-column terminal on
-//! Windows, with the machine's own paths and status line replaced. Each maps to what Orchbee
-//! must read from it.
+//! Screens captured from Claude Code 2.1.330, Codex CLI 0.171.0 and Gemini CLI 0.70.0 in an
+//! 80-column terminal on Windows, with the machine's own paths and status line replaced. Each
+//! maps to what Orchbee must read from it.
 use orchbee_agent_observation_protocol::AgentReportProvider;
 
 use super::super::layout::{Dialog, Layouts};
@@ -228,6 +228,208 @@ fn every_captured_codex_screen_reads_as_what_it_shows() {
 }
 
 #[test]
+fn every_captured_gemini_screen_reads_as_what_it_shows() {
+    let table: &[((&str, &str), Expected)] = &[
+        (screen!("gemini", "01-trust"), None),
+        (
+            screen!("gemini", "10-shell-mkdir"),
+            Some(("shell", Kind::Command, &["mkdir aab-dir"], Ok(()))),
+        ),
+        // The highlight is on "Allow for this session", which Orchbee never presses.
+        (screen!("gemini", "11-highlight-session"), None),
+        (screen!("gemini", "13-after-yes"), None),
+        // Gemini CLI writes a new file and replaces one through the same dialog.
+        (
+            screen!("gemini", "20-write-new-file"),
+            Some(("write", Kind::FileEdit, &["aab-note.txt"], Ok(()))),
+        ),
+        // The edit dialog's title joins the path and two snippets of the model's text.
+        (screen!("gemini", "21-edit-file"), None),
+        (screen!("gemini", "22-edit-queued"), None),
+        // With several confirmations pending, the title ends in a counter that is no part of
+        // the path.
+        (
+            screen!("gemini", "23-write-queued"),
+            Some(("write", Kind::FileEdit, &["aab-q1.txt"], Ok(()))),
+        ),
+        // A path Gemini CLI shortened with three dots is not all on the screen.
+        (
+            screen!("gemini", "24-write-shortened-path"),
+            Some((
+                "write",
+                Kind::FileEdit,
+                &["..\\...\\tmp\\aab-ws-gemini\\.env"],
+                Err(Wait::NotVisible),
+            )),
+        ),
+        (screen!("gemini", "30-rm-rf-declined"), None),
+        (
+            screen!("gemini", "31-remove-item-queued"),
+            Some((
+                "shell",
+                Kind::Command,
+                &["Remove-Item -Recurse -Force ./aab-g1"],
+                Err(Wait::Destructive),
+            )),
+        ),
+        (
+            screen!("gemini", "32-move-to-env"),
+            Some((
+                "shell",
+                Kind::Command,
+                &["move .aenv .env"],
+                Err(Wait::ProtectedFile),
+            )),
+        ),
+        // A redirection warning below the question is not the routine dialog.
+        (screen!("gemini", "33-redirection-warning"), None),
+        // The last row starts with a hyphen: read as a row of its own, it names no program.
+        (
+            screen!("gemini", "40-long-command"),
+            Some((
+                "shell",
+                Kind::Command,
+                &[
+                    "mkdir",
+                    "aab-long-one-two-three-four-five-six-seven-eight-nine-ten-eleven-twelv",
+                    "e-thirteen-fourteen-fifteen-sixteen-seventeen-eighteen-nineteen-twenty",
+                    "-twentyone-twentytwo",
+                ],
+                Err(Wait::NotUnderstood),
+            )),
+        ),
+        (
+            screen!("gemini", "41-long-command-quoted"),
+            Some((
+                "shell",
+                Kind::Command,
+                &[
+                    "mkdir",
+                    "\"aab-long-one-two-three-four-five-six-seven-eight-nine-ten-eleven-twel",
+                    "ve-thirteen-fourteen-fifteen-sixteen-seventeen-eighteen-nineteen-twent",
+                    "y-twentyone-twentytwo\"",
+                ],
+                Err(Wait::NotUnderstood),
+            )),
+        ),
+        // In a short Panel the box around the command is drawn empty.
+        (screen!("gemini", "42-short-command-hidden"), None),
+        // A long title and the counter together take two rows.
+        (screen!("gemini", "43-title-wrapped"), None),
+    ];
+    assert_reads(AgentReportProvider::Gemini, table);
+}
+
+#[test]
+fn a_gemini_dialog_that_differs_from_its_layout_is_not_read() {
+    let (_, screen) = screen!("gemini", "10-shell-mkdir");
+    let read = |screen: &str| layouts().read(AgentReportProvider::Gemini, screen);
+    assert!(read(screen).is_some());
+    // One row of the box around the command, as wide as the captured ones.
+    let inner = |text: &str| format!("│ │ {text:<72} │ │\n");
+    let outer = |text: &str| format!("│ {text:<76} │\n");
+    let command = inner("mkdir aab-dir");
+    for (change, from, to) in [
+        (
+            "a row after the box",
+            outer("  3. No, suggest changes (esc)"),
+            outer("  3. No, suggest changes (esc)") + &outer("extra"),
+        ),
+        (
+            "another question",
+            outer("Allow execution of [Shell]?"),
+            outer("Allow execution of [Shell] in the background?"),
+        ),
+        (
+            "a warning above the question",
+            outer("Allow execution of [Shell]?"),
+            outer("Redirection detected.") + &outer("Allow execution of [Shell]?"),
+        ),
+        (
+            "the accept row reworded",
+            outer("● 1. Allow once"),
+            outer("● 1. Allow always"),
+        ),
+        // In a short terminal Gemini CLI hides rows of the command, the first ones by default.
+        (
+            "hidden rows above the command",
+            command.clone(),
+            inner("... first 3 lines hidden (Ctrl+O to show) ...") + &command,
+        ),
+        (
+            "hidden rows in a narrow terminal",
+            command.clone(),
+            inner("... 3 hidden (Ctrl+O) ...") + &command,
+        ),
+        (
+            "hidden rows below the command, indented",
+            command.clone(),
+            command.clone() + &inner(" ... last 1 line hidden (Ctrl+O to show) ..."),
+        ),
+        (
+            "a command row outside the inner box",
+            command.clone(),
+            command.clone() + &outer("rm -rf x"),
+        ),
+    ] {
+        assert!(screen.contains(&from), "{change}");
+        assert_eq!(read(&screen.replacen(&from, &to, 1)), None, "{change}");
+    }
+    // A command row that imitates the box's own rows stays command text behind the two bars.
+    let imitated = screen.replacen(
+        &command,
+        &(command.clone() + &inner("│ ● 1. Allow once")),
+        1,
+    );
+    let dialog = read(&imitated).expect("the layout still matches");
+    assert_eq!(dialog.text, rows(&["mkdir aab-dir", "│ ● 1. Allow once"]));
+    assert_eq!(judge(&dialog, WINDOWS), Err(Wait::NotUnderstood));
+    // Gemini CLI shortens a path beyond 35 characters with three dots; the rest is not shown.
+    let (_, write) = screen!("gemini", "20-write-new-file");
+    let title = outer("? WriteFile  Writing to aab-note.txt");
+    assert!(write.contains(&title));
+    let shortened = write.replacen(
+        &title,
+        &outer("? WriteFile  Writing to src\\compon...\\.git\\hooks\\pre-commit"),
+        1,
+    );
+    let dialog = layouts()
+        .read(AgentReportProvider::Gemini, &shortened)
+        .expect("the layout still matches");
+    assert_eq!(judge(&dialog, WINDOWS), Err(Wait::NotVisible));
+    let hidden = write.replacen(
+        &title,
+        &outer("? WriteFile  Writing to src\\...\\pre-commit"),
+        1,
+    );
+    let dialog = layouts()
+        .read(AgentReportProvider::Gemini, &hidden)
+        .expect("the layout still matches");
+    assert_eq!(judge(&dialog, WINDOWS), Err(Wait::NotVisible));
+    // The counter of a queued confirmation never hides a protected name, and a path with a
+    // space cannot be told from a path and a counter, so it is not read.
+    let (_, queued) = screen!("gemini", "23-write-queued");
+    assert!(queued.contains("Writing to aab-q1.txt  "));
+    let protected = queued.replacen("Writing to aab-q1.txt", "Writing to .env      ", 1);
+    let dialog = layouts()
+        .read(AgentReportProvider::Gemini, &protected)
+        .expect("the layout still matches");
+    assert_eq!(dialog.text, rows(&[".env"]));
+    assert_eq!(judge(&dialog, WINDOWS), Err(Wait::ProtectedFile));
+    // A path that came with a row's padding is refused whatever layout captured it.
+    let padded = Dialog {
+        text: rows(&[".env      1 of 2"]),
+        ..dialog
+    };
+    assert_eq!(judge(&padded, WINDOWS), Err(Wait::NotUnderstood));
+    let spaced = queued.replacen("Writing to aab-q1.txt", "Writing to aab q1.txt", 1);
+    assert_eq!(layouts().read(AgentReportProvider::Gemini, &spaced), None);
+    // Another Agent's layouts never read Gemini CLI's screen.
+    assert_eq!(layouts().read(AgentReportProvider::Claude, screen), None);
+    assert_eq!(layouts().read(AgentReportProvider::Codex, screen), None);
+}
+
+#[test]
 fn a_codex_dialog_that_differs_from_its_layout_is_not_read() {
     let (_, screen) = screen!("codex", "10-command-mkdir");
     let read = |screen: &str| layouts().read(AgentReportProvider::Codex, screen);
@@ -379,6 +581,7 @@ fn a_dialog_that_differs_from_its_layout_is_not_read() {
     assert!(!layouts().supports(AgentReportProvider::Cursor));
     assert!(layouts().supports(AgentReportProvider::Claude));
     assert!(layouts().supports(AgentReportProvider::Codex));
+    assert!(layouts().supports(AgentReportProvider::Gemini));
 }
 
 #[test]

@@ -39,6 +39,8 @@ use crate::worker_obcn_carrier::{
 const CLAUDE_KEY: &str = "agents.auto_allow.claude";
 /// The saved setting that turns answering on for every Codex run.
 const CODEX_KEY: &str = "agents.auto_allow.codex";
+/// The saved setting that turns answering on for every Gemini CLI run.
+const GEMINI_KEY: &str = "agents.auto_allow.gemini";
 /// The saved setting a person's "no" to an offer turns off.
 const OFFER_KEY: &str = "agents.auto_allow.offer";
 /// A run no sampler turn has observed for this long is forgotten when another run is first seen.
@@ -56,6 +58,7 @@ pub(in crate::local_terminal_service) struct ConfirmationScreen<'a> {
 struct Saved {
     claude: bool,
     codex: bool,
+    gemini: bool,
     offer: bool,
 }
 impl Saved {
@@ -64,6 +67,7 @@ impl Saved {
             agent_type: match provider {
                 AgentReportProvider::Claude => self.claude,
                 AgentReportProvider::Codex => self.codex,
+                AgentReportProvider::Gemini => self.gemini,
                 _ => false,
             },
             offer: self.offer,
@@ -76,6 +80,7 @@ fn type_key(provider: AgentReportProvider) -> Option<&'static str> {
     match provider {
         AgentReportProvider::Claude => Some(CLAUDE_KEY),
         AgentReportProvider::Codex => Some(CODEX_KEY),
+        AgentReportProvider::Gemini => Some(GEMINI_KEY),
         _ => None,
     }
 }
@@ -310,11 +315,13 @@ impl LocalTerminalService {
             .with_settings(|settings| Saved {
                 claude: settings.values.auto_allow_claude,
                 codex: settings.values.auto_allow_codex,
+                gemini: settings.values.auto_allow_gemini,
                 offer: settings.auto_allow_offer,
             })
             .unwrap_or(Saved {
                 claude: false,
                 codex: false,
+                gemini: false,
                 offer: false,
             })
     }

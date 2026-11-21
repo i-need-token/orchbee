@@ -87,6 +87,13 @@ export function AgentSettings({
 					settingKey='agents.auto_allow.codex'
 					userSettings={userSettings}
 				/>
+				<AgentConfirmationRow
+					label={intl.formatMessage(agentObservationMessages.providerGeminiCli)}
+					query={query}
+					settingId='agents.auto-allow.gemini'
+					settingKey='agents.auto_allow.gemini'
+					userSettings={userSettings}
+				/>
 			</SettingsGroup>
 		</>
 	);

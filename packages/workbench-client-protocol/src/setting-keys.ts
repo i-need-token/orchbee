@@ -637,6 +637,17 @@ export const SETTING_KEY_TABLE = {
 			page: true,
 		},
 		{
+			path: 'agents.auto_allow.gemini',
+			type: 'boolean',
+			default: false,
+			scope: 'server',
+			clients: 'both',
+			effect: 'immediate',
+			category: 'agents',
+			group: 'confirmations',
+			page: true,
+		},
+		{
 			path: 'agents.auto_allow.offer',
 			type: 'boolean',
 			default: true,

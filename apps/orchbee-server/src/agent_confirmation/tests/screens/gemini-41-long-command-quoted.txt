@@ -1,0 +1,22 @@
+  will decline," I'm honoring that — I won't execute this command.
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+ > Run exactly this single shell command, unchanged: mkdir
+   aab-long-one-two-three-four-five-six-seven-eight-nine-ten-eleven-twelve-thir
+   teen-fourteen-fifteen-sixteen-seventeen-eighteen-nineteen-twenty-twentyone-t
+   wentytwo
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ ? Shell Create a new directory with a very long name in the current workin…  │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ mkdir                                                                    │ │
+│ │ "aab-long-one-two-three-four-five-six-seven-eight-nine-ten-eleven-twel   │ │
+│ │ ve-thirteen-fourteen-fifteen-sixteen-seventeen-eighteen-nineteen-twent   │ │
+│ │ y-twentyone-twentytwo"                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│ Allow execution of [Shell]?                                                  │
+│                                                                              │
+│ ● 1. Allow once                                                              │
+│   2. Allow for this session                                                  │
+│   3. No, suggest changes (esc)                                               │
+╰──────────────────────────────────────────────────────────────────────────────╯

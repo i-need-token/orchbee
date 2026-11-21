@@ -60,7 +60,10 @@ pub(crate) fn judge(dialog: &Dialog, scope: Scope<'_>) -> Result<(), Wait> {
     match dialog.kind {
         Kind::Command => command::check(&dialog.text, scope),
         Kind::FileCreate | Kind::FileEdit => match dialog.text.as_slice() {
-            [path] if path.contains('…') => Err(Wait::NotVisible),
+            // An Agent shortens a long path with an ellipsis or with three dots.
+            [path] if path.contains('…') || path.contains("...") => Err(Wait::NotVisible),
+            // A run of spaces is a row's padding, not a name: the layout took more than the path.
+            [path] if path.contains("  ") => Err(Wait::NotUnderstood),
             [path] => place::check(path, scope),
             _ => Err(Wait::NotVisible),
         },

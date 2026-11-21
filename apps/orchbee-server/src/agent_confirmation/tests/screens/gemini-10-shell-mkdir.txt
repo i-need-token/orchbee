@@ -1,0 +1,22 @@
+   ▝▜▄
+  ▗▟▀    Authenticated with example /auth
+ ▝▀
+
+
+⚠  Theme 'Default' (dark) might look incorrect on your light terminal
+   background. Type /theme to change theme.
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+ > Run exactly this shell command and nothing else: mkdir aab-dir
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ ? Shell  mkdir aab-dir                                                       │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ mkdir aab-dir                                                            │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│ Allow execution of [Shell]?                                                  │
+│                                                                              │
+│ ● 1. Allow once                                                              │
+│   2. Allow for this session                                                  │
+│   3. No, suggest changes (esc)                                               │
+╰──────────────────────────────────────────────────────────────────────────────╯
