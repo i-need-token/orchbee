@@ -211,6 +211,86 @@
 			]
 		},
 		{
+			"id": "agent-confirmation-press",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/AgentConfirmationPress.tla",
+			"config": "apps/orchbee-server/formal/tla/AgentConfirmationPress.cfg",
+			"claims": ["proposals/agent/automatic-confirmation.md"],
+			"triggers": [
+				"apps/orchbee-server/formal/tla/AgentConfirmationPress.cfg",
+				"apps/orchbee-server/formal/tla/AgentConfirmationPress.tla"
+			],
+			"requiredCoverage": [
+				"Raise",
+				"Draw",
+				"Redraw",
+				"ReadKey",
+				"Spontaneous",
+				"PersonType",
+				"HostQuiet",
+				"TurnOn",
+				"TurnOff",
+				"Capture",
+				"Decide",
+				"Stop",
+				"Timeout",
+				"GateWrite",
+				"GateRefuse",
+				"HoldApply"
+			],
+			"variants": [
+				{
+					"name": "person",
+					"constants": {
+						"TwoIdentities": false,
+						"MaxInst": 1,
+						"MaxRev": 3,
+						"MaxPerson": 2,
+						"MaxMsg": 2,
+						"PressLimit": 1,
+						"Orderly": false
+					}
+				},
+				{
+					"name": "astray",
+					"constants": {
+						"TwoIdentities": true,
+						"MaxInst": 2,
+						"MaxRev": 4,
+						"MaxPerson": 0,
+						"MaxMsg": 2,
+						"PressLimit": 1,
+						"Orderly": false
+					}
+				},
+				{
+					"name": "off",
+					"constants": {
+						"TwoIdentities": false,
+						"MaxInst": 1,
+						"MaxRev": 3,
+						"MaxPerson": 1,
+						"MaxMsg": 3,
+						"PressLimit": 1,
+						"Orderly": false
+					}
+				},
+				{
+					"name": "repeat",
+					"constants": {
+						"TwoIdentities": false,
+						"MaxInst": 4,
+						"MaxRev": 9,
+						"MaxPerson": 0,
+						"MaxMsg": 4,
+						"PressLimit": 3,
+						"Orderly": true
+					}
+				}
+			]
+		},
+		{
 			"id": "client-subscription-delivery",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",
