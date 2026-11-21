@@ -62,7 +62,16 @@ notification acknowledges that target instead of producing a second navigation. 
 View notification that no longer resolves the displayed route is a domain reconciliation and
 replaces, rather than pushes, the canonical fallback.
 
-The navigation port exposes a read-only `isActive` predicate for the currently accepted exact target. It excludes pending navigation to another target, unavailable routes and disposal. When the existing activation Action supplies a Project creation receipt, the coordinator retains at most one exact route acceptance owned by that Action. History dispatch commits the request but leaves its completion pending until `prepare` accepts that exact location and the full receipt still matches. Other navigation, a different or unavailable prepared route, abort, disposal, or a 10-second deadline settles a bounded blocked outcome and releases the timer and abort listener. A late prepare cannot settle a retired or replaced acceptance. No navigation is polled or replayed. Desktop New Folder then rechecks canonical and current receipt plus the accepted current route before success ACK. Source cases cover delayed prepare, retirement, replacement, timeout and target removal; ordinary navigation keeps its existing dispatch semantics.
+The navigation port exposes a read-only `isActive` predicate for the currently accepted exact
+target. It excludes pending navigation to another target, unavailable routes and disposal. When the
+existing activation Action supplies a Project creation receipt, the coordinator retains at most one
+exact route acceptance owned by that Action. History dispatch commits the request but leaves its
+completion pending until `prepare` accepts that exact location and the full receipt still matches.
+Other navigation, a different or unavailable prepared route, abort, disposal, or a 10-second
+deadline settles a bounded blocked outcome and releases the timer and abort listener. A late prepare
+cannot settle a retired or replaced acceptance. No navigation is polled or replayed. Desktop New
+Folder then rechecks canonical and current receipt plus the accepted current route before success
+ACK.
 
 ## Renderer reload focus recovery
 
@@ -97,11 +106,8 @@ The navigation port exposes a read-only `isActive` predicate for the currently a
   `relaunchPlace` of its first document, either the displayed terminal, projected as this record
   is, or else the selected Workspace, opened by itself. It replaces this record for that document,
   nothing stores it, and a place that no longer resolves changes nothing.
-- **Verification:** Deterministic tests cover primary and child targets, stale identity, strict
-  parsing, absence, storage failure, removal, and projection isolation. The Desktop system trace that
-  reloaded the renderer and sent input through the restored focus retired with the Desktop Electron
-  suite. TLA+ is not selected because the record has one
-  synchronous writer, no asynchronous completion, and no ordering or cancellation state.
+- TLA+ is not selected because the record has one synchronous writer, no asynchronous completion,
+  and no ordering or cancellation state.
 
 ## Resolution invariants
 
@@ -137,13 +143,7 @@ ports. Unsupported explicit runtime markers are rejected, and any other page ren
 No reusable package imports TanStack Router, reads `window.location`, inspects the user agent, or
 constructs an application URL.
 
-## Correctness evidence
-
-Deterministic tests cover route encoding, valid and unavailable resolution, root canonicalization,
-route-to-Client-View application, Client-View fallback, push-versus-replace history intent, and the
-re-entrancy guard. Integration tests cover in-app navigation and Back/Forward against the same
-Workbench runtime. Desktop tests cover scheme registration order, origin and method
-validation, path-containment checks, asset delivery, and navigation fallback to `index.html`.
+## Packaging
 
 The packaging command builds the Web renderer before Desktop, packages the renderer as a read-only
 resource, and places the executable Terminal Host outside `app.asar`. Release verification must

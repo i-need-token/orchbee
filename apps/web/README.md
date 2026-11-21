@@ -103,30 +103,24 @@ can stall recovery, and promotion checks the candidate's current transport avail
 and after its first-frame wait.
 
 When the Session's Server lists the `terminal-runtime` capability, which Desktop reads from its
-bootstrap's negotiated capability names, the surface also follows the Session's
-[terminal-runtime read](../../schemas/workbench/README.md#session-terminal-runtime-reads); without it,
-the behavior above stays. While the Server replaces a lost Worker, every shown terminal reads
-Reconnecting… with a description saying that programs keep running and that nothing typed is sent:
-the surface freezes as on an attachment loss, so typed input is dropped, and pauses its own retries.
-Serving again attaches each shown terminal at once without announcing it, and the Agent and title
-streams that closed meanwhile reopen. Once the Server gave up, each terminal reads Can't reconnect
-with the explanation as its description, and Quit All… replaces Retry and asks Desktop to open its
-existing [Quit All confirmation](../desktop/docs/window-lifecycle.md); where Desktop offers no Quit
-All, the button is absent. A closed or refused stream counts as serving and opens again after two
-seconds. The Stories under `Applications/Web/Projected Terminal/Connection Status` show both states
-in both locales, and the recovery controller's rule test covers dropped input while held and the
-attach on release.
+bootstrap's negotiated capability names, the surface also follows the Session's [terminal-runtime
+read](../../schemas/workbench/README.md#session-terminal-runtime-reads); without it, the behavior
+above stays. While the Server replaces a lost Worker, every shown terminal reads Reconnecting… with
+a description saying that programs keep running and that nothing typed is sent: the surface freezes
+as on an attachment loss, so typed input is dropped, and pauses its own retries. Serving again
+attaches each shown terminal at once without announcing it, and the Agent and title streams that
+closed meanwhile reopen. Once the Server gave up, each terminal reads Can't reconnect with the
+explanation as its description, and Quit All… replaces Retry and asks Desktop to open its existing
+[Quit All confirmation](../desktop/docs/window-lifecycle.md); where Desktop offers no Quit All, the
+button is absent. A closed or refused stream counts as serving and opens again after two seconds.
 
 The recovery controller reserves each opening attempt before notifying observers or acquiring its
-request. Synchronous retention, resumption, or disposal cannot overwrite a replacement attempt,
-leak a late request result, or continue promotion after its owner retires. Resource ownership moves
+request. Synchronous retention, resumption, or disposal cannot overwrite a replacement attempt, leak
+a late request result, or continue promotion after its owner retires. Resource ownership moves
 before cleanup callbacks run, including input unsubscription and frozen-frame replacement. Disposal
 attempts every owned cleanup once, preserves cleanup failures, and respects listeners cancelled
-during the final notification. Controlled recovery-controller tests cover these reentrant traces,
-late results, and throwing cleanup alongside the bounded retry policy; they do not model-check
-arbitrary callback programs or replace real renderer and transport integration evidence. The mounted
-surface uses the same cleanup discipline for its paste review, mobile-input and control
-subscriptions, and controller.
+during the final notification. The mounted surface uses the same cleanup discipline for its paste
+review, mobile-input and control subscriptions, and controller.
 
 Active-Tab handoff uses the same frozen-session discipline without keeping inactive terminal DOM or
 attachments mounted. When a surface becomes retained, it captures only its exact last-painted
@@ -207,18 +201,15 @@ whole word and Use regular expression; they are fixed keys of the surface, as En
 and each toggle's tooltip shows its key. Only actionable failures, timeouts, or retained-history notices expand the
 toolbar with complete localized feedback.
 
-The Find controller publishes selection-seeded opening as one complete snapshot. Query, option,
-and lifecycle transitions fence later search effects across synchronous subscriber and driver
-callbacks, so an obsolete call cannot restart or clear newer work. Independent notices and
-same-query refocusing preserve pending search admission. The
-[controller tests](src/workbench-client/terminal-find-surface/__tests__/TerminalFindController.unit.test.ts)
-cover replacement, close, disposal, reentrant reopening, and those admission-preserving updates.
+The Find controller publishes selection-seeded opening as one complete snapshot. Query, option, and
+lifecycle transitions fence later search effects across synchronous subscriber and driver callbacks,
+so an obsolete call cannot restart or clear newer work. Independent notices and same-query
+refocusing preserve pending search admission.
 
-Prompt navigation owns a replace-latest coordinator for one Action registration lifetime. Ownership changes before cancellation invokes observers, so a replacement
-started by an abort listener remains current and cancellable. Disposal closes admission before
-aborting current work; an already-cancelled caller cannot displace an active request. The controlled
-[navigation tests](src/workbench-client/projected-terminal-actions/__tests__/createProjectedTerminalPromptNavigationCoordinator.unit.test.ts)
-cover reentrant replacement, disposal, and cancelled admission.
+Prompt navigation owns a replace-latest coordinator for one Action registration lifetime. Ownership
+changes before cancellation invokes observers, so a replacement started by an abort listener remains
+current and cancellable. Disposal closes admission before aborting current work; an
+already-cancelled caller cannot displace an active request.
 
 After a projected frame commits, the renderer forwards its complete nullable title and
 current-directory metadata with the exact `TerminalPresentationId`. The shared client runtime
@@ -270,16 +261,6 @@ use the shared localized terminal status surface. These immediate terminal Actio
 confirmation step. An unavailable or unbound Apple Command shortcut remains native instead of
 being suppressed.
 
-The stable headed Canvas 2D witnesses `terminal-parity/IN-07-pre-input`,
-`terminal-parity/IN-09-action-scope`, `terminal-parity/IN-11-context`, and
-`terminal-parity/IN-12-actions` compose the production projected surface with its real containing
-Workbench runtime. They assert that buttonless application motion preserves retained history and
-Host selection while remaining reported, plus claimed/unclaimed and available/unavailable shortcut
-handling, application-mouse ownership, exact pinned context and stale-link rejection, the complete
-minimal catalog, synchronous availability, typed outcomes, no new confirmation, and both `en-US`
-and `zh-CN` feedback. Their clipboard and external-open effects are captured; they do not claim an
-operating-system menu, clipboard, or URL handler.
-
 The projected attachment stream can replace input authority live only after its environment owner
 commits an exact next capability revision in Terminal Host. The shared renderer immediately makes
 the existing textarea read-only, invalidates composition, native settlement, paste review, held
@@ -299,12 +280,6 @@ An already submitted transfer cannot be recalled: its receipt is reconciled even
 without another transfer. This cancellation boundary is a vetoable decision. An opening projection
 waits for the renderer's subscription before automatic activation, so its capability change cannot
 be published into an absent listener; closing releases that wait without submitting a transfer.
-
-The stable headed Canvas 2D `terminal-parity/IN-10-read-only` witness controls exact attachment
-capability revisions and observes immediate local repair, retained search/selection/history/copy,
-zero stale input commands, and only fresh upgraded input. Terminal Host's owner-local tests prove
-the authoritative rejection and repair ordering; this Browser fixture does not grant a renderer
-capability mutation or claim native permission behavior.
 
 The packaged `orchbee:` origin and Electron User-Agent token select Desktop mode, so a loopback development renderer inside Electron is Desktop too; Desktop authority arrives only through the validated Server-connection announcement from preload. Any other page resolves `unsupported` and renders nothing, and so does a page carrying an `orchbee-runtime` query parameter.
 
@@ -326,12 +301,6 @@ inputs, while explicit locale wins. Confirmed changes update mounted product cop
 While the settings file has a syntax error or cannot be read, the main window also shows a persistent notice. Activating it opens Settings, which names the file and the error's position; the notice clears when a snapshot reports a usable file.
 
 The common Settings action opens an application-owned dialog over the Workbench rather than navigating to another route; its close button, Escape, and a press outside it return where the user was. The Workbench subtree becomes inert, but its React tree and every projected terminal attachment remain mounted. Every setting the page shows is a key of the settings file, `config.toml` on the Session's machine: each change is one edit, a refused edit keeps the file's value and shows its reason under the row, and an edit whose outcome is unknown is never replayed. The page edits the terminal's font family and size; the file also holds its weights, ligatures, padding and opacity. On macOS Desktop, `terminal.macos_option_as_alt` selects whether neither, left, right, or both Option keys act as terminal Alt; the default is off and accepted changes update every mounted projected terminal without replacing its attachment. Seventy frequent Workbench and focused-terminal shortcuts, including application-wide font-size increase/decrease/reset, creating a terminal Tab in the exact displayed terminal's current directory, four directional Panel-focus commands, previous/next cyclic Panel focus, ten exact positional Panel-focus commands, visible Panel focus and swap, four directional Panel-movement commands, proportional Panel equalization, four directional Panel-divider moves, circular active-Tab movement within its pinned or unpinned section, and visible terminal Hints, use a separate strict local override record; accepted changes update the mounted Workbench and every projected terminal without replacing an attachment or connection. Standard defaults reserve unshifted terminal control sequences, while runtime Action availability remains authoritative before any key is consumed. Application theme remains separate from terminal display theme, and terminal overrides never mutate Host metadata, palette, cursor, VT, or OSC state. Desktop additionally injects a semantic shell-profile control over the settings file's launch-profile keys. Its list editor can create, rename, select a system or custom executable, preserve literal argument order, select the default, delete, and confirm a restore; every accepted change affects only terminals created after the shared catalog commits. The Notifications category owns a separate default-off completion-reminder policy whose notifications never include command text; reminders need OSC 133 command boundaries, which the Terminal Host's PowerShell integration supplies on Windows, while Zsh, Bash, and Fish emit them only through the user's own configuration. See [`docs/terminal-settings.md`](docs/terminal-settings.md) and [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md).
-
-The exact headed `terminal-parity/SU-09-theme` witness holds a prepared Host result and its
-revision-tagged frame before one release, then observes the terminal defaults, palette, cursor,
-overlays, pixels, and application surface publish one matching revision. It uses the controlled
-runtime-presentation Canvas fixture and does not claim a persisted settings migration, a native
-operating-system theme event, or a renderer-owned terminal palette.
 
 ## Desktop composition
 
@@ -375,36 +344,6 @@ environment-owned effect. A changed context settles as a localized blocked resul
 the stale target. Command-click on Apple platforms or Control-click elsewhere uses the same typed
 request and revalidation path. Host-projected text and hyperlink metadata remain data, never an
 effect capability.
-
-The headed Canvas 2D witnesses `terminal-parity/FS-05-file-links` and
-`terminal-parity/FS-06-url-policy` compose the production projected surface, Workbench Action, and
-Browser effect. They prove that `http`, `https`, and `mailto` alone expose hover, context, and direct
-activation, while automatic FTP text, unsupported explicit metadata, explicit file metadata,
-detected paths, and a direct file-effect request remain inactive. The controlled fixture uses
-synthetic generation-pinned Host row windows and a captured Browser opener; it does not exercise an
-operating-system URL handler or claim filesystem existence.
-
-The headed Canvas 2D witness `terminal-parity/FS-19-local-file-links` enables the optional local
-capability against the same real projected surface with a fake local effect. It proves
-relative-path resolution and modifier opening. Its captured opener does not launch an
-operating-system application, automate Finder, or grant Browser filesystem access.
-
-The headed Canvas 2D witness `terminal-parity/FS-07-keyboard-hints` uses that same production
-surface and bounded row fixture. `Mod+Shift+O` labels visible URL, path, file-location, and hash
-targets; label keys never reach terminal input, selecting the hash inserts its exact text, selecting
-the URL reaches the captured Browser opener, and Escape removes the overlay without an effect. The
-witness does not claim off-screen discovery, filesystem/editor activation, custom matchers, or
-operating-system URL delivery.
-
-The headed Canvas 2D witness `terminal-parity/LC-05-lan-capability` composes the production
-projected surface, Workbench Copy Action, Host-selection-content path, and Browser effect. On the
-loopback test origin it observes the real Chromium secure-context and transient-user-activation
-signals: no activation disables Copy without a Host request, while a trusted click admits one Host
-request and one captured plain-text writer call. It then proves that one rejected writer receives no
-retry, and that dynamically missing and controlled insecure capabilities disable the Action, invoke
-neither Host export nor writer, and retain localized feedback. The fixture captures rather than
-mutates the operating-system clipboard and controls the capability-loss and insecure-context probes;
-it does not claim browser permission-UI behavior or LAN transport security.
 
 Browser-owned request and presentation identifiers use `crypto.getRandomValues`; runtime code does not depend on the secure-context-only `crypto.randomUUID` API.
 

@@ -66,9 +66,8 @@ schemes, malformed percent escapes, and non-UTF-8 decoded bytes are ignored. Acc
 percent-decoded before replacing `currentCwd`; an ignored value preserves the prior current CWD,
 while a reported `null` clears it.
 
-Deterministic scenarios cover natural-title normalization,
-custom override, hidden natural updates, local hostname matching, URI decoding,
-and rejection classes. Projected metadata supplies no trusted command-execution or SSH state, so the policy does not suppress title or CWD updates on that basis.
+Projected metadata supplies no trusted command-execution or SSH state, so the policy does not
+suppress title or CWD updates on that basis.
 
 ## Decisions and transitions
 
@@ -171,12 +170,10 @@ The list's keys follow the TUI. Tab enters at the current Workspace, else the he
 it, else the first row. ↑ ↓ Home End move between headings, Workspaces and Agent rows; → unfolds a
 row and then moves into it; ← folds it and then moves to its parent. Enter or Space folds a heading
 and opens a Workspace or Agent, then hands the keyboard to its terminal, as a pointer click does.
-Shift+N starts a Workspace and F1 opens the shortcut reference; Ctrl+↑ and Ctrl+↓,
-⌘ on macOS, move a Project or Workspace among its siblings, as a drag does; Esc returns to the
-terminal. F2 renames the focused Project or Workspace, as F2 renames in a file list. The width
-changes only by dragging the divider. The rules
-live in the pure `resolveSidebarNavigationKey` and `resolveSiblingReorder`, which unit tests cover.
-The global New Workspace and shortcut-reference keys wait for shortcut catalog entries.
+Shift+N starts a Workspace and F1 opens the shortcut reference; Ctrl+↑ and Ctrl+↓, ⌘ on macOS, move
+a Project or Workspace among its siblings, as a drag does; Esc returns to the terminal. F2 renames
+the focused Project or Workspace, as F2 renames in a file list. The width changes only by dragging
+the divider. The global New Workspace and shortcut-reference keys wait for shortcut catalog entries.
 
 The row-local menu adapter uses the following decision model. It owns no Project, Workspace, or
 menu state: stable object IDs remain with the existing callbacks, while shared menu primitives own
@@ -196,12 +193,8 @@ Unchanged pre-open focus is not a later handoff.
 | Escape or outside dismissal                                                                     | The primitive closes the menu without invoking an action; Escape returns to the row's visible focus target (Workspace name or Project chevron), except that a menu the pointer opened and still holds returns to its trigger. Outside interaction keeps the primitive's focus policy.    |
 | An action opens a dialog or removes its row                                                     | Return is rejected when the trigger disappears, a dialog owns focus, or another live control has taken focus. Outside, focus-out, and sibling-menu dismissal also suppress explicit return. The adapter schedules no late return and never substitutes a sibling object's action target. |
 
-`WorkbenchProjectWorkspace.unit.test.tsx` covers target identity, key guards, cancellation, modal
-handoff, removal, and unchanged active location and disclosure. The navigation Stories are fixtures
-for real-browser Tab/Shift+Tab, computed visibility, single-menu, and focus-return traces; DOM-only
-tests do not establish CSS reachability. Capability-dependent entries and localized reasons remain
-the existing action model's responsibility. This synchronous adapter introduces no async owner or
-additional TLA+ model.
+Capability-dependent entries and localized reasons remain the existing action model's
+responsibility. This synchronous adapter introduces no async owner or additional TLA+ model.
 
 Row menus take the TUI's compositions, which [native-action-menus.md](../../../apps/orchbee/docs/native-action-menus.md) owns. The Project menu holds New Workspace ▸ and Rename, then a separated Ungroup. New Workspace ▸ holds New Worktree… from the repository of the Project's first Workspace, a Folders group with the Project's folders, each member Workspace's current directory (its first terminal's directory, else its primary Directory), and a Git Worktrees group once Git answers. Folders follow navigation order, one per directory spelling as the TUI compares them, and show their folder name, or their full path where folder names repeat; each creates a Workspace in that directory inside the Project. New Workspace leads and creates a Workspace in the Project at the default directory. Opening the Project menu starts Worktree discovery.
 
@@ -282,7 +275,9 @@ As in the TUI, every Workspace lists its Agent rows until this Client folds them
 
 `workbench.agent.navigate` targets only Workspace and terminal Presentation identity, confirms that the terminal still holds an Agent in that Workspace, re-resolves current topology and then selects the exact Tab, Panel and child, removing conflicting zoom. Its existing Action/projection coordinator rejects stale or superseded focus. Agent listing and navigation never start an Agent.
 
-Navigation origin and cancellation use the last committed React location; suspended or discarded renders cannot redirect that intent. Target readiness still comes from the latest Agent observation and runtime topology. Hook tests cover a newer Agent observation between navigation and completion, preserving focus after a discarded location render while canceling it after committed unrelated navigation.
+Navigation origin and cancellation use the last committed React location; suspended or discarded
+renders cannot redirect that intent. Target readiness still comes from the latest Agent observation
+and runtime topology.
 
 ## Dependencies and ownership
 
@@ -290,9 +285,8 @@ Workbench owns the read model, action adapters, dialogs and client-local views. 
 
 ## Correctness and verification
 
-Deterministic tests cover the client-local events and rejected transitions, and snapshot tests cover how publications project into this model. Client View tests cover reconciliation of stale references and its idempotence. Runtime tests preserve context object identity, focus, child selection and zoom across publications.
-
-Hook and component tests cover menus, stable management targets, Agent rows and late activation suppression. The Server owns Worktree Git effects, races and retained partial results; Web owns stable routes and unavailable identities. DOM tests do not establish native-window focus or actual shell process behavior. The repository integration gate remains the integration owner's responsibility.
+The Server owns Worktree Git effects, races and retained partial results; Web owns stable routes and
+unavailable identities.
 
 ## Delivery and recovery
 

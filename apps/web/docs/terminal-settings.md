@@ -35,9 +35,7 @@ arrives; a refusal shows on the notice line. No browser record holds the locale.
 Application theme, the Light and Dark theme slots, terminal colors, the two custom colors, and the
 terminal's font family, size, weights, ligatures, padding and background opacity are keys of the
 settings file under `appearance.*` and `terminal.*`. The appearance controller reads them from the
-snapshot, and an update sends one edit of every key it changes. The former browser records
-`orchbee:web:terminal-host-appearance:v1` and `orchbee:web:macos-terminal-input:v1` are no longer
-read or written; a value left in a browser is ignored and never migrated.
+snapshot, and an update sends one edit of every key it changes.
 
 The page sends only values it admits; the settings file owner decides what it stores. The font
 family is trimmed, parses as a CSS font-family list, and is at most 256 UTF-8 bytes. Font size is an integer from 8 through 48.
@@ -74,28 +72,6 @@ preview, which follows a highlighted theme as the lists preview it. Search hides
 Copy on select is the `terminal.copy_on_select` key. Its controller keeps its own subscription
 and publishes interaction configuration when a snapshot changes the value.
 
-The complete product default is:
-
-| Field                   | Default                                                            |
-| ----------------------- | ------------------------------------------------------------------ |
-| Application theme       | `system`                                                           |
-| Light theme             | `orchbee-light`                                                    |
-| Dark theme              | `orchbee-dark`                                                     |
-| Font family             | `"Orchbee JetBrains Mono", "Orchbee Symbols Nerd Font", monospace` |
-| Font size               | `13`                                                               |
-| Regular font weight     | `400`                                                              |
-| Bold font weight        | `700`                                                              |
-| Font ligatures          | `true`                                                             |
-| Terminal padding        | `0`                                                                |
-| Terminal display theme  | `theme`                                                            |
-| Custom foreground       | `#141414`                                                          |
-| Custom background       | `#fcfcfc`                                                          |
-| Background opacity      | `100`                                                              |
-| Copy on select          | `false`                                                            |
-| Resume Agents           | `true`                                                             |
-| Restore terminal output | `false`                                                            |
-| Automatic updates       | `true`                                                             |
-
 ### Agent trailing blank rows
 
 Trimming an Agent's trailing blank rows is fixed behaviour with no setting. It updates existing
@@ -111,10 +87,7 @@ not inspect terminal output or guess process names.
 This provider-neutral decision is passed to `@orchbee/terminal`, which owns the bounded display
 window and its fallback behavior; neither layer changes PTY geometry or retained history.
 
-A copy-on-select change is one edit and reaches installed presentations when its snapshot
-arrives. Deterministic controller tests cover publication of edited values. Derived-source
-tests cover Agent start, end, replacement, missing capability, and disposal;
-projected-terminal evidence owns the row-classification and Host-window boundaries.
+A copy-on-select change is one edit and reaches installed presentations when its snapshot arrives.
 
 ### Agent resume preference
 
@@ -267,8 +240,7 @@ composition supplies another current Terminal setting.
 edit is pending, and the last failure with the keys it covers. `ServerUserSettingsClient` fills it
 over the window's Session connection: a State stream of `read` carries every later change, whether
 another Client made it or the Server found it in the file, and a snapshot older than the one held,
-by revision, is dropped. `src/__tests__/memoryUserSettings.ts` is the in-memory control for tests
-and Stories.
+by revision, is dropped.
 
 A commit is one `edit` of every key it changes; restoring a key removes it from the file so its
 default applies, and the Server's editor removes a scalar key set to its default the same way. Controls show the file's value and change when the edited snapshot arrives; nothing
@@ -356,10 +328,9 @@ a press over a Panel only closes the list.
 The controller's snapshot carries `presented`, the committed preferences with any previewed theme in
 its slot, so a preview reaches every reader without a write: the Desktop window's terminals repaint
 in it, while the colors the window reports keep the committed theme. A committed pick stays shown
-until the Session answers, so a confirmed pick never flashes the
-previous theme; a refused or failed save restores the committed theme. Each group's Restore default
-returns its slot to the Orchbee theme. Stories show the shipped themes; tests prove the pickers with a test-only fixture
-pair that does not depend on the shipped data.
+until the Session answers, so a confirmed pick never flashes the previous theme; a refused or failed
+save restores the committed theme. Each group's Restore default returns its slot to the Orchbee
+theme.
 
 ## Effective terminal colors and opacity
 
@@ -547,50 +518,6 @@ notification. A future all-Tab command-completion monitor requires a separate li
 Workbench/Host event subscription rather than hidden renderers. Agent observation already uses
 such an application-level subscription and does not share this command-completion limitation;
 fully disconnected SSH delivery remains out of scope.
-
-## Required evidence
-
-- Protocol tests parse the shared settings corpus with the strict contract and keep the key table
-  equal to `schemas/workbench/v1/setting-keys-v1.json`. Settings-surface tests cover a refused
-  change returning to the file's value with its reason, and a syntax-error snapshot showing
-  read-only controls.
-- Application-locale controller tests cover System resolution, an explicit file language
-  winning, a confirmed selection applying live, invalid input, and disposal. Component tests cover
-  both choices and product-copy updates.
-- Source tests prove complete single presentation publication, independent interaction publication,
-  live attachment updates, application-theme isolation, terminal-setting isolation, stable
-  subscription, and disposal. Color-theme tests use a fixture pair to cover the
-  `data-color-theme` boundary, unknown and wrong-polarity fallback, preview without a write,
-  cancel and close restoring, commit to the polarity slot with the Appearance switch, and a refused
-  save restoring; a component test covers keyboard preview, Escape, and Enter.
-- `ServerUserSettingsClient` has no unit test of its own, and no real-window Settings run has yet
-  exercised it against a Session. Unknown edit outcomes and subscriber reentry have no current
-  evidence.
-- macOS input tests cover the default, publication after an edit and disposal; terminal tests cover
-  all four Option-side values, live source
-  publication, physical-side resolution, mounted-terminal updates, and Host encoding with the
-  semantic flag both disabled and enabled.
-- Renderer tests cover Host and override modes, explicit black/RGB/palette, inverse, underline,
-  cursor, Canvas 2D and WebGPU alpha, and unchanged Host metadata.
-- Component tests cover layered Escape, search matches grouped by category and the empty state,
-  the theme list preview, language persistence, copy on select, terminal history validation in
-  megabytes, the macOS Option-as-Alt row, an invalid font size kept as a draft, and shortcut
-  recording with its Restore default. Story browser review covers every category in English light
-  and Chinese dark.
-- Terminal-launch-profile protocol tests cover strict snapshots and malformed records. Settings
-  component tests cover
-  literal custom executable arguments, a kept draft after a refused save, create and default
-  selection, delete constraints, and restore confirmation.
-- Terminal-default-settings component tests cover bounds, capability gating, localized
-  validation, and the edit of the settings file. The Server-path clients that fill the launch-profile
-  and terminal-default controls have no tests of their own.
-- Terminal-feedback model tests cover default-off behavior, shared updates and Reset, duration
-  and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
-  explicit permission requests, and disposal. Settings has no notification component test.
-- Application composition tests cover the shared `ActionRuntime` wiring between the sidebar footer's
-  Update button and Settings › About, plus Check for updates transitioning through Checking… to the
-  failed escape hatch (`https://orchbee.com/#install`) and to the offered Update action. No
-  real-window Desktop test covers Settings on the Server path.
 
 ## Named theme pickers
 

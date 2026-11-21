@@ -156,13 +156,3 @@ owner and contract.
 - A reconciled Client View has exactly one entry per published Terminal Context and Tab and contains
   only resolving references.
 - Strict parsing rejects a malformed Client View; only well-formed stale references are reconciled.
-
-## Correctness evidence
-
-| Claim                                                                                        | Evidence                                                                                                  | Limits                                         |
-| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| The projection keeps the Server's structure and names terminals as the TUI does              | [Projection tests](../src/workbench-client/server-workbench/__tests__/projectServerSnapshot.unit.test.ts) | Snapshots come from the shared test fixture    |
-| An unchanged context keeps its models; a changed one keeps this window's choices and reports | `applyPublishedWorkbench` cases in the projection and runtime tests                                       | One renderer runtime                           |
-| Client Views are isolated and reconciliation is idempotent                                   | Two-view examples, stale-reference regression, and fixed-seed properties                                  | Generated bounds: eight Tabs, four Panels each |
-| A Tab without a chosen name follows its terminal                                             | Runtime title scenario across current directory and natural title                                         | The Server owns chosen names                   |
-| Client View observers hear this window's choices, not a Server rename                        | Runtime observer tests                                                                                    | Shared ordering is Server authority            |

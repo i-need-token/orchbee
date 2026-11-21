@@ -75,17 +75,6 @@ The reducer validates retained failure objects against the owned strict failure 
 | known non-retryable failure | The candidate or operation identity is invalid or conflicting.                 | Start a corrected operation with a new ID.                                                      |
 | unknown Host outcome        | Transport loss prevents deciding whether Host committed.                       | Reconcile the retained Host operation/revision/snapshot first; then complete locally or rebase. |
 
-## Correctness evidence
-
-| SU-09 claim                                                   | Deterministic refinement                                                                                                                                                                     |
-| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Host defaults, palette, and cursor commit together            | Terminal Host reserves the reply, preflights the complete physical update, then commits one operation/revision; its claim-mapped native tests reject partial failure.                        |
-| Pixels, overlays, cursor, and app surface publish together    | The reducer releases one complete snapshot only after exact Host/client agreement; the Web barrier synchronously commits every ready projected terminal before changing the app token theme. |
-| Superseded/stale/failed paths preserve presentation           | Operation-correlated events that are not the latest matching success return no publication command.                                                                                          |
-| Exact replay is idempotent; different-data ID reuse conflicts | Host request tests compare the complete terminal snapshot and return already-applied or a non-retryable conflict.                                                                            |
-| Unknown outcomes preserve observation and reconcile first     | Reducer tests retain the prior observed Host state, adopt the reconcile result, and choose committed, stale/rebase, or conflict by operation plus snapshot identity.                         |
-| A continuously ready current revision succeeds while visible  | Conditional on the successful publication branch represented by `Present`; typed presentation failure and retry are reducer/controller evidence.                                             |
-
 ## Implementation refinement
 
 The current exact terminal protocol registers `ApplyTerminalTheme` and `TerminalThemeResult`, carries

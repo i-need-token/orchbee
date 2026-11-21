@@ -127,22 +127,6 @@ to the engineering caller and never become raw product copy.
 - Closing, provider cancellation, picker cancellation, highlight, hover, and prefetch invoke no
   product Action.
 
-## Correctness evidence
-
-| Claim                                          | Owner section  | Deterministic evidence                                                                             | Bounds and exclusions                                                         |
-| ---------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Stale completion is excluded                   | Transitions    | Reordered completion and reopen regressions                                                        | Bounded providers, sessions, revisions, and attempts                          |
-| Subscription ownership survives failures       | Transitions    | Partial acquisition, throwing cleanup, repeated disposal, and disposal during acquisition          | Injected provider lifecycles; external provider internals are excluded        |
-| Reentrant callbacks preserve the latest run    | Transitions    | Abort/query replacement, listener replacement, model-change reentry, and close-before-start traces | Synchronous callbacks and Promise scheduling; provider internals are excluded |
-| Close clears provider projection               | Transitions    | Close, unmount, ignored-cancellation, and late-completion tests                                    | Provider correctness and network availability are excluded                    |
-| Current highlight remains valid                | Invariants     | Stateful interaction property tests                                                                | DOM focus is checked separately                                               |
-| Current provider-run identity remains fresh    | Transitions    | Direct replacement and stale-completion tests                                                      | Result content and ordering are not modeled                                   |
-| Completion order is observationally irrelevant | Canonical data | Permuted provider-completion property tests                                                        | Ranking inputs are held equal                                                 |
-| Retry is provider-local                        | Transitions    | Failed-group retry timeline tests                                                                  | Retry policy beyond explicit user retry is excluded                           |
-| Selection invokes at most once                 | Invariants     | Prepared-invocation integration tests                                                              | Action-domain result correctness is excluded                                  |
-| A picker read belongs to its entry             | Transitions    | Reading, rejected, empty, choices, back-while-reading and close-while-reading surface tests        | The reading port's own correctness is excluded                                |
-| Focus survives late completion                 | Ownership      | Deterministic browser trace with semantic focus checkpoints                                        | Supported desktop browser environment                                         |
-
 ## Maintenance
 
 - Keep provider transitions, coordinator, React adapters and deterministic/generated regressions aligned when provider lifecycle semantics change.
