@@ -638,7 +638,8 @@ test "stopped writer rejects reservations even when queue capacity remains" {
         error.TerminalExited,
         reserveInput(runtime, 1, false, .client),
     );
-    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    // A starting console's focus reply may still sit in the queue; it is not client input.
+    try std.testing.expectEqual(@as(usize, 0), inputQueueSnapshot(runtime).client_charge.bytes);
     try runtime.forceTerminate();
 }
 test "resize counter exhaustion leaves process and terminal geometry unchanged" {

@@ -447,9 +447,10 @@ test "discarding prepared input releases its ordered queue reservation" {
 
     var prepared = try runtime.prepareRawInput("abc");
     try std.testing.expectEqual(@as(usize, 3), prepared.byteCount());
-    try std.testing.expectEqual(@as(usize, 3), runtime.pendingInputBytes());
+    // A starting console's focus reply is not client input.
+    try std.testing.expectEqual(@as(usize, 3), inputQueueSnapshot(runtime).client_charge.bytes);
     prepared.deinit();
-    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), inputQueueSnapshot(runtime).client_charge.bytes);
     try runtime.forceTerminate();
 }
 test "prepared input losing the failure fence is unavailable and releases its reservation" {
@@ -2026,7 +2027,11 @@ test "input queue bounds entry metadata independently of byte charge" {
         reserveInput(runtime, 1, false, .client),
     );
     for (reservations) |reservation| cancelInput(runtime, reservation.identifier);
-    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    // A starting console turns on focus reporting, which the Host answers at once through the
+    // terminal-reply budget, so only the client charge is this test's to count.
+    const released = inputQueueSnapshot(runtime).client_charge;
+    try std.testing.expectEqual(@as(usize, 0), released.bytes);
+    try std.testing.expectEqual(@as(usize, 0), released.entries);
     try runtime.forceTerminate();
 }
 test "ordered input reservations prevent overtaking and cancellation leaves no gap" {
@@ -2062,7 +2067,8 @@ test "ordered input reservations prevent overtaking and cancellation leaves no g
     try publishInput(runtime, third, try std.testing.allocator.dupe(u8, if (builtin.os.tag == .windows) "C\r" else "C\n"));
     cancelInput(runtime, cancelled.identifier);
     try semantic_wait.writerQueueObservation(runtime, &writer_observation);
-    try std.testing.expectEqual(@as(usize, 3), runtime.pendingInputBytes());
+    // A starting console's focus reply is not client input.
+    try std.testing.expectEqual(@as(usize, 3), inputQueueSnapshot(runtime).client_charge.bytes);
     try publishInput(runtime, first, try std.testing.allocator.dupe(u8, "A"));
 
     _ = try runtime.waitForCompletion();
