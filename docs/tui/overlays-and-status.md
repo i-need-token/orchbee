@@ -12,7 +12,7 @@ Geometry follows [`layout.md`](layout.md#overlays); colors and hierarchy follow
 
 These rules are required for new and materially changed TUI behavior; their presence does not claim
 every current Client conforms. Runtime adoption requires source and the evidence in
-[`verification.md`](verification.md#contract-review). Record any staged gap with its owner and
+[`verification.md`](verification.md#outcomes). Record any staged gap with its owner and
 completion condition.
 
 The interruption budget in
@@ -504,16 +504,3 @@ pointer through help, menus, or the binding table.
 - A content region with nothing to show paints one localized statement of why and the binding that
   creates or loads content. It never paints an unlabeled blank area.
 - An empty state uses `text-secondary` and never a status role.
-
-## Verification
-
-| Change                  | Required check                                                                                                                                                                                                                                                |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Overlay addition        | Rendered at every required geometry in [`verification.md`](verification.md#render-evidence); fixed slots and footer order remain visible; new-size refusal, open-size suspension and resumption, and capture kind are tested                                  |
-| Child or dismissal flow | Tests restore focus, selection, query, viewport anchor, draft, and preview; each `Esc` unwinds one layer and leaves running work unchanged                                                                                                                    |
-| Preview or commit flow  | Tests distinguish focus, unaccepted reversible preview, validation, activation, immediate commit, staged commit, and cancellation; cancellation reverts only the active unaccepted preview and preserves an accepted parent draft or domain value             |
-| Confirmation addition   | Tests prove only the exact key confirms, `Esc` cancels, and the refused-geometry path does not run the effect                                                                                                                                                 |
-| Status segment change   | Tests cover every tier and prove the input indicator survives to the smallest tier                                                                                                                                                                            |
-| Notice change           | A test with injected time proves expiry schedules a redraw and a persistent error is not replaced                                                                                                                                                             |
-| Pointer tooltip change  | Tests with injected time prove the rest from real motion only, adjacent opening, key dismissal with the key still delivered, press quieting, and closing when a published frame moves the target; placement tests cover below, above, left shift, and refusal |
-| Asynchronous operation  | Tests prove local acceptance before background completion, delayed progress, active-generation completion, stale-result rejection, cancellation/ownership retirement, definite failure, unknown recovery, and that background completion does not focus       |

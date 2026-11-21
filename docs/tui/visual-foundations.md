@@ -282,13 +282,3 @@ combinations and control behavior.
   never interprets ANSI from user or process data.
 - Never shrink, drop, or abbreviate a required action or instruction to fit; use the tiers in
   [`layout.md`](layout.md#size-tiers) to choose a shorter documented form.
-
-## Verification
-
-| Change                             | Required check                                                                                                                        |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| New or changed surface             | Rendered under `terminal-native` and one RGB theme at every required geometry in [`verification.md`](verification.md#render-evidence) |
-| Runtime theme role or value change | Every consuming surface re-rendered; the 16-color quantization result contains no `Rgb` or `Indexed` cell                             |
-| Text with external origin          | A test proves control characters and escape sequences do not reach the buffer                                                         |
-| Truncation or wrapping             | A test includes wide characters and a token wider than the line                                                                       |
-| Glyph addition                     | Its ASCII fallback is declared and rendered in the simplified-glyph test                                                              |

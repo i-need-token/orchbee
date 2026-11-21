@@ -201,20 +201,3 @@ availability, or target rules.
   surfaces. Short labels may be documented variants of the same product term, not new action names.
 - Sanitize external target text before painting. Do not expose raw errors, secrets, terminal content,
   or user input through action metadata, progress, or diagnostics by default.
-
-## Verification
-
-| Changed claim               | Required evidence                                                                                                                                         |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity or resolution      | Tests cover exact scope, typed target, duplicate or stale definition, hidden capability, and no unrelated fallback                                        |
-| Availability                | Tests cover enabled, disabled reason, hidden, revalidation, checked-state independence, and refusal after state change                                    |
-| Invocation entry            | Keyboard, pointer, menu, and command paths reach the same action, input, target, confirmation, and commit point                                           |
-| Execution                   | Tests cover immediate and delayed completion, unique identity, exactly one terminal outcome, exception mapping, and current snapshot before subscription  |
-| Cancellation or concurrency | Controlled-order tests cover the declared policy, duplicate input, cancellation before and after commit, queued stale target, and out-of-order completion |
-| Presentation lifetime       | Tests reject stale surface and hit generations, preserve newer focus and drafts, and route late completion through nonintrusive feedback                  |
-| Discovery                   | Both shipped locales show effective labels, bindings, order, disabled reasons, compact truncation, and no hidden action                                   |
-
-Use cell-grid, input, resize, locale, and host evidence under
-[`verification.md`](verification.md). Add a formal model only when independently ordered actors or an
-effect ownership risk meet the triggers in
-[`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md); asynchronous syntax alone does not.

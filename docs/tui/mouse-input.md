@@ -12,7 +12,7 @@ which semantic intents; this standard defines the rules those mappings must sati
 
 This is the required contract for new and materially changed TUI pointer behavior. It does not
 assert that current Clients already conform; runtime adoption is established only by source and
-evidence under [`verification.md`](verification.md#contract-review). Record a staged gap with its
+evidence under [`verification.md`](verification.md#outcomes). Record a staged gap with its
 owner and completion condition. Until adoption, application-owned references remain the descriptive
 authority for current capture and pointer behavior.
 
@@ -214,15 +214,3 @@ must still be reachable from the keyboard.
   invalid UTF-8 export writes nothing.
 - A selection whose rows are evicted from retained history is cleared with a notice, not silently
   moved.
-
-## Verification
-
-| Change                     | Required check                                                                                                                                                                                                                         |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Capture policy change      | Byte traces prove preferred `1003` and fallback `1002` enable, exact release and restoration, `Shift` non-binding, hover clearing, and the released-state indicator                                                                    |
-| Hover behavior             | Tests prove enter, move, leave, occlusion, same-target coalescing, retained focus and committed selection, the declared menu candidate exception, no activation, and honest absence without any-motion reporting                       |
-| Region addition            | Tests resolve every edge and the exterior against the last successfully presented frame; visual-only repaint preserves authority, while stale, unpainted, occluded, resized, and unknown structural writes cannot authorize activation |
-| Gesture mapping change     | A table-driven test maps each gesture to one intent, preserves an arm across visual-only and unrelated repaints, cancels it on interaction-revision changes, exercises its commit boundary, and proves an equivalent keyboard route    |
-| Passthrough change         | Tests cover each requested event class, unrequested outer motion, pane-local translation, reporting off on primary and alternate screens, DEC `1007`, and chrome or boundary input                                                     |
-| Wheel normalization change | Tests cover a wheel stream, a trackpad stream, reversal, same-cadence coalescing, and the per-flush cap                                                                                                                                |
-| Selection change           | Tests cover gesture order, live/history projection, retained-history revision movement, interaction-revision cancellation, owner-local `Esc`, pane passthrough, multi-line Unicode export, and eviction                                |

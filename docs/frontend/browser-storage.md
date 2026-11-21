@@ -80,6 +80,6 @@ Before release, retain no old-key readers or migration. Strict validation must r
 ## Verification
 
 - `pnpm lint:storage` rejects direct browser-storage access outside application composition entries, scattered `orchbee:` literals, keys that do not match the versioned grammar, and storage deserialization that does not pass `JSON.parse(...)` directly to Zod.
-- Owner-module unit tests cover the canonical key, valid round trips, malformed input, range validation, unavailable storage, and write failures.
-- Integration tests verify capability injection, default restoration, and that writes occur only after a completed user interaction.
+- A stored preference survives a round trip under its canonical key. Malformed or out-of-range input, unavailable storage, and a failed write fall back to the default without throwing.
+- Storage reaches a module only as an injected capability, and a write happens only after a completed user interaction.
 - Update the owning package documentation whenever a public preference, default, constraint, key version, or migration behavior changes.

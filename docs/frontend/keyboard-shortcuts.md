@@ -77,6 +77,6 @@ Before adding a binding, search all scopes for the same canonical chord. Conditi
 
 - Register browser listeners in a responsibility-focused lifecycle Hook or application composition owner and remove the exact listener during cleanup.
 - Keep event normalization and descriptor matching pure so modifier, platform, composition, repeat, and non-match cases can be tested without React.
-- Test every default binding on Apple and non-Apple platform categories, including unexpected modifiers, composition, repeat, true and false context conditions, disabled action state, scope fallthrough, conflict precedence, and prevention behavior.
-- Browser verification invokes the visible control and the keyboard chord, confirms the same state transition, and checks that focus remains valid.
+- A binding invokes the same Action and state transition as its visible control on Apple and non-Apple platforms, and leaves focus valid.
+- A binding does not fire with unexpected modifiers, during composition, on a false context condition, or for a disabled Action; scope fallthrough, conflict precedence, and default prevention follow the declared rules.
 - Document concrete product bindings in the owning package guide, not in this repository standard.

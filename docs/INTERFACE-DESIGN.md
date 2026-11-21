@@ -227,13 +227,13 @@ and domain operation across adapters, while retaining components with their exis
    gate under [`VERIFICATION.md`](VERIFICATION.md). Review product differences explicitly; a
    passing CSS or Rust check alone does not establish cross-client consistency.
 
-| Changed claim             | Evidence                                                                                                                                                                                              |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Shared operation or state | Equivalent domain snapshots and intent traces produce the same target, eligibility, committed result, and outcome classification through both adapters; use existing contract fixtures when available |
-| Shortcut or mapping       | Both effective bindings invoke the same scoped action; test mnemonic correspondence, platform normalization, conflicts, overrides where supported, and protected editing or terminal input            |
-| Interaction lifecycle     | Cover selection versus activation, cancellation before commit, pending/failure/unknown results, and valid focus return through both entry paths as applicable                                         |
-| Visual role or layout     | Inspect the same scenario in both Clients under comparable product themes, then the adapter's required host, color, geometry, and locale cases                                                        |
-| Setting                   | Check the same scope, value interpretation, validation, default/reset, and propagation contract; distinguish unsupported and Client-local settings                                                    |
+| Changed claim             | Holds when                                                                                                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Shared operation or state | The same domain snapshot and intent produce the same target, eligibility, committed result, and outcome classification through both adapters                                                     |
+| Shortcut or mapping       | Both effective bindings invoke the same scoped action with corresponding mnemonics, resolve conflicts and supported overrides the same way, and leave protected editing and terminal input alone |
+| Interaction lifecycle     | Selection versus activation, cancellation before commit, pending, failure, and unknown results, and focus return behave the same through both entry paths                                        |
+| Visual role or layout     | The same scenario reads the same in both Clients under comparable product themes and in both shipped locales, within each adapter's host, color, and geometry limits                             |
+| Setting                   | Scope, value interpretation, validation, default and reset, and propagation agree; an unsupported or Client-local setting is shown as such                                                       |
 
 Use browser and Story evidence under [`frontend/storybook.md`](frontend/storybook.md) and cell-grid,
 input, and host evidence under [`tui/verification.md`](tui/verification.md). Assert shared meaning

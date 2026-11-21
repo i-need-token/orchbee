@@ -2,13 +2,12 @@
 
 ## Authority and scope
 
-This standard owns the evidence required for changes to Orchbee-authored command-line surfaces. It
-applies the repository test obligations in [`TESTING.md`](../TESTING.md) and
-[`RUST.md`](../RUST.md#testing) to the contracts in [`command-surface.md`](command-surface.md),
-[`output.md`](output.md), and [`process.md`](process.md). Change classification follows
-[`DEVELOPMENT.md`](../DEVELOPMENT.md#change-classification): a new command family, mutation verb,
-exit-code mapping, or request-identity rule is Modeled work, and a change to the exit-code
-vocabulary or a machine schema is Consequential.
+This standard states what must hold after a change to an Orchbee-authored command-line surface and
+how to show it. [`command-surface.md`](command-surface.md), [`output.md`](output.md), and
+[`process.md`](process.md) own the rules; [`TESTING.md`](../TESTING.md) decides which tests are
+admitted. Nothing here is a list of test cases that each change must add. A change to the exit-code
+vocabulary or a machine schema is a public contract under
+[`DEVELOPMENT.md`](../DEVELOPMENT.md#decision-authority).
 
 ## Structural prerequisites
 
@@ -25,96 +24,31 @@ Evidence below is only possible when the executable keeps these boundaries:
 A change that reads the environment, the filesystem, or a socket inside grammar or projection is
 refused in review regardless of its tests.
 
-## Grammar evidence
+## Outcomes
 
-- Every command path, option, value set, and target rule has a positive case and the usage cases
-  it rejects: unknown word, duplicate option, undeclared option, missing value, missing operand,
-  invalid value, misplaced help or version, and the `--` terminator.
-- Help, completion, and the machine schema listing are generated from or compared against the
-  grammar authority in a test that fails when any command exists in one and not the others.
-- Every help hint emitted by a usage diagnostic is executed in a test and exits `0` with no
-  runtime.
-- Argument-envelope bounds are exercised at the limit, one past the limit, and with a non-Unicode
-  argument.
+A change is complete when these hold for the commands and contracts it changed:
 
-## Parse-before-effect evidence
+| Outcome             | Holds when                                                                                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| One grammar         | Help, completion, and the machine schema listing name exactly the commands the grammar authority declares. Every help hint a usage diagnostic prints is a command that exits `0` without a runtime.                                                          |
+| Parse before effect | A usage failure and an offline command touch no filesystem, endpoint, or cohort capability.                                                                                                                                                                  |
+| Reads only read     | A read command performs one admission and one read: no create, lock, or grant. An observation command repeats bounded reads without an effect.                                                                                                               |
+| One submission      | A mutation submits once per effect and is never replayed. A failure after acceptance reports an unknown outcome that carries the request identity. A declared stale-base retry and a declared workflow stay inside their bounds and keep known effects.      |
+| Activation          | A cold invocation brings the service up, a repeat reports it already running, a half-activation refuses without changing committed state, and one invocation-owned deadline bounds the attempt.                                                              |
+| Exit codes          | Every failure kind and terminal result maps to exactly one exit code.                                                                                                                                                                                        |
+| Envelope            | Every success and failure document validates against the embedded schema. A failure under `text` leaves standard output empty and under `json` writes exactly one document. Detached acceptance and unknown outcome both carry the request identity.         |
+| Both locales        | Every diagnostic and help text renders under `en-US` and `zh-CN`, selected in the order `LC_ALL`, `LC_MESSAGES`, `LANG`. A machine document is byte-identical under both.                                                                                    |
+| Text safety         | Control characters, `ESC`, U+2028, and bidirectional controls in a label never reach the terminal raw; identifiers are never truncated.                                                                                                                      |
+| Bounds              | Output over the bound leaves standard output empty and exits with the local-failure code. A failing standard output writer exits nonzero with a diagnostic on standard error and no second document. A stream ends with a terminal record, typed on failure. |
+| Signals             | `SIGINT` during a wait exits `130` with no cancel request and no partial machine document. A termination signal to an activation verb ends the process by the signal disposition, never as a synthesized cancellation document.                              |
+| No terminal         | Every command except a declared interactive one behaves the same without a controlling terminal.                                                                                                                                                             |
 
-- Every usage failure is run with denied filesystem, endpoint, and cohort capabilities; the test
-  fails if any capability is touched.
-- Every offline command is run the same way and must succeed.
-- A read command is run against a scripted endpoint that records every request; the test asserts
-  exactly one admission and one read, and no create, lock, or grant. A declared observation command
-  additionally proves bounded repeated reads without an effect.
-- A mutation is run against a scripted endpoint that fails after accepting the submission; the
-  test asserts one submission, no retry, and an unknown-outcome document carrying the request
-  identity.
-- A command that declares the stale-base retry is run against a scripted endpoint that refuses
-  with a qualifying reason; the test asserts a fresh identity and fresh base per attempt, the same
-  resolved target, the attempt bound, and no further submission once a target resolves
-  differently or a caller-supplied identity was given.
-- A declared workflow faults every phase boundary and submission response. Evidence checks its
-  finite phase order, exact receipt dependencies, one submission per effect phase, unchanged total
-  deadline, and retained known effects on later failure, cancellation or unknown outcome. Rejected
-  and no-op paths prove which later phases cannot run.
-- An activation verb is run against a real or staged runtime fixture: a cold invocation brings
-  the service up, a repeat invocation reports already-running, a staged half-activation refuses
-  without mutating the committed state, and the whole attempt honors one invocation-owned
-  deadline.
+Show an outcome at the lowest layer that can judge it:
 
-## Exit code and envelope evidence
-
-| Class      | Required cases                                                                                                                        |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Mapping    | A table-driven test covering every failure kind and every terminal result kind, asserting the code and that no two kinds are unmapped |
-| Envelope   | Every success and failure document validates against the embedded schema, including the closed `details` shape per failure kind       |
-| Format     | Every failure kind under `text` leaves standard output empty and under `json` writes exactly one document                             |
-| Provenance | `source` appears only when derived from a validated snapshot; `null` and `"unknown"` cases are both exercised                         |
-| Identity   | Detached acceptance and unknown outcome both carry the request identity                                                               |
-
-## Text and localization evidence
-
-- Text rendering is tested with control characters, `ESC`, U+2028, bidirectional controls,
-  quotes, backslashes, wide characters, and labels beyond the truncation width; identifiers are
-  asserted untruncated.
-- Every standard error diagnostic and every help text renders under `en-US` and `zh-CN`, and the
-  locale-selection order over `LC_ALL`, `LC_MESSAGES`, and `LANG` is table-driven.
-- A machine document is byte-identical under both locales.
-
-## Bounds and stream evidence
-
-- The output bound is exercised one byte under and one byte over; the over case asserts empty
-  standard output and the local-failure code.
-- A failing standard output writer asserts a nonzero exit, no second document, and a diagnostic on
-  standard error.
-- A streamed command is tested for one record per line, source order, a terminal record on normal
-  end, and a typed terminal record with a nonzero exit on deadline and channel loss.
-
-## Process evidence
-
-Some behavior exists only in a real process: stream separation, exit-code propagation, signal
-handling, and launcher resolution.
-
-- Run the built executable as a child process with piped streams and assert standard output,
-  standard error, and the exit code separately.
-- Send `SIGINT` during a wait against a scripted endpoint and assert exit `130`, no cancel
-  request, and no partial machine document.
-- Send a termination signal to an activation verb and assert the process dies by the signal
-  disposition — never as a synthesized typed cancellation document.
-- Run without a controlling terminal and assert that every command except a declared interactive
-  one behaves identically.
-- Record the operating system and the endpoint fixture with the evidence; process evidence
-  supplements the deterministic classes above and never replaces them.
-
-## Change checklist
-
-| Change                       | Evidence                                                                                                        |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| New command or option        | Grammar class; help, completion, and schema agreement; parse-before-effect for its usage failures               |
-| New failure kind             | Mapping and envelope classes; both locales for its diagnostic                                                   |
-| Exit-code vocabulary         | Every mapping test across every Orchbee executable; owning guides updated in the same change                    |
-| Mutation verb                | One-submission, no-replay, unknown-outcome, and detachment cases against a scripted endpoint                    |
-| Wait verb or deadline        | Deadline expiry, interruption, cursor reset, and upper-bound cases                                              |
-| Activation verb              | Cold start, idempotent re-run, half-activation refusal with unchanged committed state, and one bounded deadline |
-| Text rendering or truncation | Text class; expected-text update reviewed as a visual diff                                                      |
-| Runtime discovery            | Unsafe path, absent endpoint, and cohort mismatch cases with denied repair                                      |
-| Repository gate              | The [applicable root gate](../VERIFICATION.md#merge-gate) passes                                                |
+- Deny or script each injected capability: a denied capability that is touched fails the test, and a
+  scripted endpoint records every request it receives.
+- Stream separation, exit-code propagation, signal handling, and launcher resolution exist only in a
+  real process. Run the built executable as a child process with piped streams and assert standard
+  output, standard error, and the exit code separately, and state the operating system and the
+  endpoint fixture with the result.
+- Review an expected-text update as a visual diff of the before and after output.

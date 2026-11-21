@@ -19,7 +19,7 @@ mode through the rules below.
 
 This is the required contract for new and materially changed TUI keyboard behavior. It does not
 assert that current Clients already conform; runtime adoption is established only by source and
-evidence under [`verification.md`](verification.md#contract-review). Record a staged gap with its
+evidence under [`verification.md`](verification.md#outcomes). Record a staged gap with its
 owner and completion condition. Until adoption, application-owned references remain the descriptive
 authority for current bindings and input behavior.
 
@@ -275,16 +275,3 @@ does not silently rebind a convention it claims to support.
 - Concrete product bindings, captions, and business actions stay in the owning application guide.
   Generate documentation from structured owners when practical, and verify explicit entries
   against the same intent and effective-binding tests.
-
-## Verification
-
-| Change            | Required check                                                                                                                                                                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Decoder change    | Tests cover every C0 normalization, uppercase implies `Shift`, `Ctrl+]`, lone `ESC`, split sequences, IME composition, and atomic or malformed paste                                                                                              |
-| Binding or intent | Tests prove exact-modifier matching, Apple and non-Apple labels, override and shadow resolution, and keyboard/pointer agreement on target, availability, and commit                                                                               |
-| Ownership change  | A table-driven test proves all four layers, visible focused-chrome admission and fallback, stale-target refusal, disabled focus policy, prefix behavior, pane `Esc`, and ordered passthrough                                                      |
-| Focusable control | Tests cover painted-target order, unconditional hidden-target relocation, both declared disabled-focus policies with reason discovery and no activation, focus versus selection, resize or occlusion fallback, and semantic focus return          |
-| Editor or draft   | Tests cover editing keys, length and paste bounds, IME, focus and overlay preservation, submit, explicit clear, staged cancel, cursor restoration, and multiline hints                                                                            |
-| Settings control  | Tests prove the declared policy: key and pointer produce the same change; one accepted change sends one request; `Esc` keeps the confirmed value of an open editor; child return restores its entry; closing discards only uncommitted local work |
-| Return behavior   | Tests derive the hint and handler from the same local step and cover its exact state, draft, work-cancellation, pointer, pane-passthrough, and focus-return effects                                                                               |
-| Confirmation      | A test proves trailing bytes in the decision packet do not reach the terminal and cancellation performs no destructive effect                                                                                                                     |

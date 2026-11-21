@@ -213,22 +213,3 @@ is replayed automatically.
   persisted UI state.
 - Account deletion, credential revocation, retained-history deletion, migration, and diagnostics are
   named workflows with their own effect and recovery boundaries, not setting toggles.
-
-## Verification
-
-| Changed claim         | Required evidence                                                                                                                                  |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Metadata or admission | Tests cover identity, type and bounds, default and absence, scope/source, availability, apply timing, reset meaning, and both locales              |
-| Composition or search | Cell-grid tests cover categories, descriptions, deterministic filtering, no orphan headers, empty results, child return, scrolling, and size tiers |
-| Typed control         | Keyboard and pointer tests reach the same edit or action and distinguish effective value, uncommitted edit, cursor, hover, lock, and pending state |
-| Preview               | Tests prove navigation-only preview, acceptance behavior, exact restoration on return, no persistence, and stale-preview rejection                 |
-| Instant apply         | Tests prove one accepted change sends one request naming its setting, only its row waits, navigation stays free, and a refusal puts the row back   |
-| External update       | Tests cover immediate refresh, semantic focus preservation, a pending row during refresh, and an unusable file                                     |
-| Result handling       | Controlled completions cover confirmed change, refusal, unknown, stale generation, no replay, and effect-horizon copy                              |
-| Reset or dependency   | Tests cover inherited versus default reset, reset only on changed rows, unavailable reason, scope safety, and sensitive-value exclusion            |
-
-Use render, input, resize, locale, reduced-color, and supported-host evidence under
-[`verification.md`](verification.md). Model competing writers, compare-and-set publication, or unknown
-commit outcomes when their risk meets
-[`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md); ordinary row rendering does not
-require a separate formal model.

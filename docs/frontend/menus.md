@@ -102,18 +102,13 @@ their consequence requires it. Do not add lines around individual menu items.
 
 ## Verification
 
-- Unit coverage fixes menu entry order, grouping, icons, availability, destructive treatment, and
-  the `16px` leading / `14px` trailing icon variants.
-- Integration coverage opens the same action model from ellipsis and `contextmenu`, verifies that
-  right-click has no navigation side effect, and closes each path with `Escape`.
-- Submenu coverage verifies that the parent trigger keeps its open-state classes while the submenu
-  is active.
-- Trigger coverage verifies empty and populated section disclosure, open-menu persistence, and
-  cleanup after dismissal.
-- Sidebar placement coverage verifies right-side opening when the full menu fits and the lower-left
-  fallback when right-side space is constrained.
-- Modal coverage verifies that a portaled menu renders above the owning dialog and remains pointer
-  operable.
-- Keyboard coverage verifies traversal, invocation, nested dismissal, and focus restoration.
-- Run `pnpm verify` after changing a menu primitive, shared menu model, trigger behavior, or this
-  standard.
+A menu change keeps these outcomes; [`TESTING.md`](../TESTING.md) decides the tests.
+
+- One action model serves the ellipsis trigger and `contextmenu`, and right-click has no navigation
+  side effect.
+- The keyboard alone traverses, invokes, and dismisses; `Escape` closes each path and nested menus
+  one level at a time; focus returns to the trigger.
+- A parent trigger keeps its open state while its submenu is active, and a section disclosure keeps
+  its open menu until dismissal and cleans up after it.
+- A menu opens fully visible: on the right in the sidebar when it fits and at the lower left
+  otherwise, and above an owning dialog, where it stays pointer operable.

@@ -84,25 +84,10 @@ Product composition stays with its application or product-capability package. An
 
 ## Verification
 
-After changing tokens, generated styles, dependencies, exports, or build configuration, run:
-
-```sh
-pnpm lint:styles
-pnpm --filter @orchbee/design-tokens... build
-pnpm --filter @orchbee/design-tokens typecheck
-pnpm --filter @orchbee/design-tokens test
-pnpm --filter @orchbee/design-tokens test:exports
-pnpm --filter @orchbee/ui... build
-pnpm --filter @orchbee/ui typecheck
-pnpm --filter @orchbee/ui test
-pnpm --filter @orchbee/ui test:exports
-```
-
-After a Tailwind dependency update, also run:
-
-```sh
-pnpm generate:tailwind-token-compat
-pnpm lint:styles
-```
+`pnpm lint:styles` checks the styling contract. The
+[applicable root gate](../VERIFICATION.md#merge-gate) builds, type-checks, tests, and export-checks
+`@orchbee/design-tokens`, `@orchbee/ui`, and their consumers after a change to tokens, generated
+styles, dependencies, exports, or build configuration. After a Tailwind dependency update, run
+`pnpm generate:tailwind-token-compat` before it.
 
 Primary references: [Tailwind theme variables](https://tailwindcss.com/docs/theme), [shadcn manual installation](https://ui.shadcn.com/docs/installation/manual), [Base UI support](https://ui.shadcn.com/docs/changelog/2026-01-base-ui), [`components.json`](https://ui.shadcn.com/docs/components-json), [Rslib CSS](https://rslib.rs/guide/advanced/css), and [Codicons](https://github.com/microsoft/vscode-codicons).

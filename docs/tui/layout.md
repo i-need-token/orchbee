@@ -12,7 +12,7 @@ thresholds; this standard defines the rules those decisions must satisfy.
 
 These rules are required for new and materially changed TUI behavior; their presence does not claim
 every current Client conforms. Runtime adoption requires source and the evidence in
-[`verification.md`](verification.md#contract-review). Record any staged gap with its owner and
+[`verification.md`](verification.md#outcomes). Record any staged gap with its owner and
 completion condition.
 
 ## Regions
@@ -281,14 +281,3 @@ dialog is suspended as described in
   too-small state in [`overlays-and-status.md`](overlays-and-status.md#lifecycle-and-return) rather
   than discarding a draft, required decision, accepted work, or recovery; normal rendering resumes
   when they fit again.
-
-## Verification
-
-| Change                         | Required check                                                                                                                                                                                                         |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Region or tier change          | Rendered at every required geometry in [`verification.md`](verification.md#render-evidence), including the too-small notice                                                                                            |
-| Alignment or row change        | Mixed-depth, mixed-status, absent-action, wrapped, and expanded rows retain their declared tracks; render and pointer hits use identical resolved heights                                                              |
-| Degradation order change       | One test per step proves the previous step's content is present and the next step's content is absent; required controls and hints remain whole                                                                        |
-| Overlay addition               | Tests cover the largest and clamped geometry, new-size refusal, open-size suspension and resumption; fixed slots remain fixed while content scrolls                                                                    |
-| Truncation or windowing change | Tests include wide characters, complete hint records, variable-height rows, an offscreen provisional cursor, and an active tab beyond the visible strip                                                                |
-| Content mutation or resize     | Tests preserve an ordinary semantic anchor and bottom-follow independently, apply focus-or-cursor visibility priority without changing domain selection, use the removal fallback, and reject stale pointer rectangles |

@@ -336,30 +336,26 @@ not an oversized setting row.
 
 ## Modeling and evidence
 
-Before implementing a new or materially changed Settings surface or setting:
+A new or materially changed Settings surface or setting keeps these outcomes;
+[`TESTING.md`](../TESTING.md) decides the tests and Stories.
 
-1. Record the user intent, setting admission, domain owner, stable identity, supported scopes,
-   precedence, effective-source projection, persistence boundary, and non-goals.
-2. Complete the [setting model](#setting-model) fields and model applicable unavailable, loading,
-   effective, editing, invalid, committing, committed, failed, enforced, stale-completion, reset,
-   and scope-switch transitions.
-3. Define decision cases for availability, inheritance, reset, effect horizon, dependencies,
-   validation, conflict resolution, cancellation, and async completion. Follow
-   [`../MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md) for every applicable
-   correctness trigger.
-4. Reuse or extend the existing setting-row, category, search-result, and management-surface
-   compositions where they fit.
-5. Map deterministic tests to effective-value precedence, source projection, scope-safe writes,
-   reset, unavailable and enforced states, validation, stale completion, failure recovery, search
-   ranking, and non-mutating navigation.
-6. Provide Stories for every control family and commit policy used, both shipped locales, light and
-   dark themes, narrow and wide layouts, zoom, inherited and overridden values, local-only and
-   enforced values, pending and failure, search results and empty state, keyboard navigation, and
-   focus restoration.
+- **One owner.** The setting has one domain owner, a stable identity, and the complete
+  [setting model](#setting-model) fields, and its row reuses or extends the existing setting-row,
+  category, search-result, or management-surface composition where one fits.
+- **Effective value.** The effective value and its source follow the declared precedence at every
+  supported scope, and a write changes only the scope the user chose.
+- **Named states.** Reset, unavailable and enforced values, validation, failure, and a scope switch
+  each leave the row in a state the model names; a stale completion cannot overwrite a newer value.
+- **Navigation is not mutation.** Search and navigation never change a value.
+- **Both locales and themes.** Every control family and commit policy the surface uses renders in
+  both shipped locales, light and dark themes, and narrow and wide layouts.
+- **Keyboard and focus.** The keyboard alone reaches and commits every control, and focus returns
+  to a valid target.
 
-Existing settings are not exempt when touched. Review the complete affected row or management flow,
-remove any newly exposed duplicate owner, and do not broaden hidden commit, roadmap, disabled-only,
-or scope-ambiguous behavior.
+Follow [`../MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md) for every applicable
+correctness trigger. Existing settings are not exempt when touched. Review the complete affected
+row or management flow, remove any newly exposed duplicate owner, and do not broaden hidden commit,
+roadmap, disabled-only, or scope-ambiguous behavior.
 
 ## References
 

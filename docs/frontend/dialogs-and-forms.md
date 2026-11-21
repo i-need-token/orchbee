@@ -285,25 +285,27 @@ close the modal and report progress through the owning nonintrusive activity sur
 
 ## Modeling and evidence
 
-Before implementing a new or materially changed form or interrupting surface:
+A new or materially changed form or interrupting surface keeps these outcomes;
+[`TESTING.md`](../TESTING.md) decides the tests and Stories.
 
-1. State the user intent and why each lower-interruption surface is insufficient.
-2. Record every proposed value with its question-budget classification and remove derived,
-   defaulted, or deferred controls from the primary path.
-3. Reuse or extend an existing composition where one fits. A reusable Dialog composition does not
-   itself satisfy modal admission.
-4. Model applicable closed, editing, disclosed, invalid, submitting, cancelling, completed, failed,
-   stale-completion, and re-entry transitions, including alternate-input modes, canonical versus
-   draft values, the commit point, and effect owner.
-5. Map Stories and tests to surface selection, both locales, initial and restored focus, keyboard
-   paths, validation timing, direct-selection and text-entry parity when applicable, stale candidate
-   results, duplicate submission, every cancellation path, recoverable failure, late completion,
-   and clean re-entry.
+- **Least interruption.** The surface is the least interrupting one that serves the user intent, and
+  it reuses or extends an existing composition where one fits. A reusable Dialog composition does not
+  itself satisfy modal admission.
+- **Question budget.** The primary path asks only for values inside the budget; derived, defaulted,
+  and deferred values are not asked.
+- **Both locales.** The surface renders in both shipped locales.
+- **Cancellation.** Every cancellation path leaves canonical values unchanged. A duplicate
+  submission, a stale candidate result, and a late completion cannot commit twice or change a
+  reopened surface.
+- **Input parity.** Direct selection and text entry reach the same value where both exist, and the
+  keyboard alone completes the flow.
+- **Focus.** Focus starts where the owner declares and returns to a valid target on every close
+  path.
 
-The owning Manifest records `useWhen`, `avoidWhen`, and invariants that preserve the chosen surface,
-question budget, cancellation, and focus behavior. Existing surfaces receive this review when they
-are materially changed; a touched surface must not expand a nonconforming interruption or field
-pattern.
+Model the transitions, the commit point, and the effect owner when
+[`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md) requires it. Existing surfaces
+receive this review when they are materially changed; a touched surface must not expand a
+nonconforming interruption or field pattern.
 
 ## References
 

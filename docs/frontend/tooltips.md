@@ -25,8 +25,10 @@ The provider's default open delay is `300ms`. Do not repeat that value at indivi
 
 ## Verification
 
-- Unit coverage fixes the `TooltipProvider` default at `300ms`.
-- Representative browser interaction verification confirms that the tooltip remains closed before the delay and opens after it.
-- Keyboard review reaches the trigger, exposes equivalent content, and closes it without trapping focus.
-- Localization review covers every shipped locale and keeps shortcut glyph formatting outside message catalogs.
-- Browser review checks placement, clipping, and contrast in the surfaces where the tooltip is consumed.
+A tooltip change keeps these outcomes; [`TESTING.md`](../TESTING.md) decides the tests.
+
+- A tooltip stays closed before the provider delay and opens after it.
+- Keyboard focus on the trigger exposes the same content and never traps focus.
+- The content renders in every shipped locale, and shortcut glyph formatting stays outside message
+  catalogs.
+- The tooltip is placed unclipped and with readable contrast in the surfaces that consume it.

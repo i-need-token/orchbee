@@ -112,8 +112,8 @@ navigation.emptyState.title
 | Rendering         | Representative interfaces render under `en-US` and `zh-CN`                                                            |
 | Raw strings       | Changed product code contains no unowned visible or accessibility-only product strings                                |
 | Language review   | Changed copy follows approved terminology and repeated interaction labels                                             |
-| Layout            | Storybook and visual review cover expansion, wrapping, zoom, and narrow layouts                                       |
-| Repository gate   | `pnpm verify` passes                                                                                                  |
+| Layout            | Translated text fits under expansion, wrapping, zoom, and narrow layouts                                              |
+| Repository gate   | The [applicable root gate](../VERIFICATION.md#merge-gate) passes                                                      |
 
 Assert behavior and message identity by default; assert exact translated output only when locale selection, interpolation, or copy is the behavior under test.
 

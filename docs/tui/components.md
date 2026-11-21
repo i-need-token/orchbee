@@ -463,21 +463,3 @@ renders only inside the returned content slot.
   the same stable target identity and interaction revision remain. Geometry, availability,
   occlusion, ownership, accepted gestures, or semantic target changes revise the target and cancel
   the gesture.
-
-## Verification
-
-| Change                             | Required evidence                                                                                                                                                                                                                                                |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Component addition or state change | Render rest, hover, pressed, focused, disabled, pending, and outcome; include current + focus, current + hover, checked + provisional, disabled + current, disabled + checked, disabled + outcome, and pending + focus while secondary hierarchy stays secondary |
-| Action family change               | Keyboard and pointer produce the same typed intent; hover preserves focus and committed selection, with only the declared menu candidate exception; press-drag-out does not activate; disabled and pending policies are covered                                  |
-| Value control change               | Off/on and admitted mixed values, checked draft versus confirmed basis, provisional radio navigation and ASCII fallback, bounded endpoints, editor and picker rest affordance, whole-target pointer and keyboard parity                                          |
-| List or tree change                | Stable columns with and without children, status, metadata, and auxiliary actions; full-height interaction bands; identity-preserving filter and collapse cases                                                                                                  |
-| Editor or picker change            | Draft and cursor restoration, retention of accepted results after return, rollback of unaccepted previews, distinct loading/empty/no-match/error states, acceptance, parent commit, cancellation, and wide character input                                       |
-| Modal change                       | Slot geometry at every required tier, complete clearing, paint-order occlusion, focus restoration, refusal when newly requested, suspension and resumption after opening, and stale hit removal                                                                  |
-| Theme interaction role             | `terminal-native`, one RGB theme, and 16-color output keep focus, current, checked, hover, provisional, pressed, disabled, and pending recognizable through required non-color cues                                                                              |
-| Shared component change            | Owner reference links the canonical source, types, behavior tests, and affected consumer adoption tests; render each state in isolation and run [`verification.md`](verification.md#whole-screen-visual-review) for every affected consumer                      |
-
-All render evidence includes `en-US` and `zh-CN`, wide content, the required geometries in
-[`verification.md`](verification.md#render-evidence), and a check that hidden targets leave no stale
-hit region. Passing a component render does not establish that an existing screen has adopted the
-component.

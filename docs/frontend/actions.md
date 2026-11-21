@@ -340,19 +340,25 @@ telemetry events.
 
 ## Verification
 
-| Boundary                 | Required evidence                                                                                          |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| Definition and registry  | Identity, duplicate rejection, scoped resolution, enumeration, disposal, and change notification           |
-| Availability             | Enabled, disabled reason, hidden, checked, stale target, recheck, and shortcut fallthrough                 |
-| Execution                | Immediate and promised handlers, exactly-once result, exception mapping, confirmation, and unsupported     |
-| Cancellation             | Before prepare, during confirmation, before commit, after commit, delayed cancellation, and owner disposal |
-| Concurrency              | Every declared policy, semantic key, stale queued target, replacement, and out-of-order completion         |
-| Progress                 | Initial snapshot, determinate and indeterminate phases, coalescing, late subscription, and terminal state  |
-| Invocation paths         | Visible control, applicable menu, shortcut, command result, and approved automation reach one operation    |
-| Focus and accessibility  | Pending, cancellation, failure, surface close, late completion, and no late focus theft                    |
-| Localization and privacy | Both shipped locales, formatted descriptors, structured failures, and redacted observation                 |
+A change to an Action keeps these outcomes; [`TESTING.md`](../TESTING.md) decides the tests.
 
-Use controlled completion order, cancellation, stale-result, failure and cleanup tests for Action workflows. Independently ordered actors justify a shared TLA protocol only when a specific ownership/commit/progress risk is inadequately covered by implementation traces, under [`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md). Async work or a cancellation branch alone does not require a feature model.
+- **One operation.** Every invocation path (visible control, applicable menu, shortcut, command
+  result, approved automation) reaches the same operation with the same availability, and a stale
+  target is refused.
+- **One result.** Each execution ends in exactly one result, also when the handler throws, is
+  cancelled before or after commit, or loses its owner.
+- **Declared concurrency.** A repeated, replaced, queued, or out-of-order completion follows the
+  Action's declared policy and semantic key.
+- **Progress.** A late subscriber sees the current snapshot, and progress ends in a terminal state.
+- **Focus.** Pending, cancellation, failure, surface close, and late completion never take focus
+  from newer work.
+- **Both locales and privacy.** Labels, disabled reasons, and failures render in both shipped
+  locales, and observation stays redacted.
 
-Browser verification invokes every visible path for a representative action and compares the owned
-semantic result, pending behavior, focus, and error presentation rather than only rendered pixels.
+Use controlled completion order for Action workflows. Independently ordered actors justify a shared
+TLA protocol only when a specific ownership, commit, or progress risk is inadequately covered by
+implementation traces, under [`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md). Async
+work or a cancellation branch alone does not require a feature model.
+
+In a browser, compare the owned semantic result, pending behavior, focus, and error presentation of
+the visible paths rather than only rendered pixels.

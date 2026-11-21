@@ -2,13 +2,11 @@
 
 ## Authority and scope
 
-This standard owns the evidence required for changes to Orchbee-authored terminal interfaces. It
-applies the repository test obligations in [`TESTING.md`](../TESTING.md) and
-[`RUST.md`](../RUST.md#testing) to the cell grid and selects the evidence classes the other `tui/`
-standards reference. Change classification and modeling follow
-[`DEVELOPMENT.md`](../DEVELOPMENT.md#change-classification) and
-[`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md); a new mode, gesture, overlay
-lifecycle, or ownership change is Modeled work.
+This standard states what must hold after a change to an Orchbee-authored terminal interface and how
+to show it. The other `tui/` standards own the rules; [`TESTING.md`](../TESTING.md) decides which
+tests are admitted, and [`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md) says when a
+new mode, gesture, overlay lifecycle, or ownership change needs a model. Nothing here is a list of
+test cases that each change must add.
 
 ## Structural prerequisites
 
@@ -26,52 +24,46 @@ Evidence below is only possible when the interface keeps these boundaries:
 A change that pulls I/O, time, or mutation into decision, layout, or render is refused in review
 regardless of its tests.
 
-## Contract review
+## Outcomes
 
-Before implementation, review the owning contract against
-[`components.md`](components.md), [`actions.md`](actions.md), and [`settings.md`](settings.md) as
-applicable. Identify the existing component to reuse or the justified extension, replacement, or
-new local component; specify state axes, slots, commit and return boundaries, effective bindings,
-hit targets, degradation, and effect ownership. Review common GUI/TUI semantics through
-[`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md). Keep this decision with the existing owning
-reference, types, or tests, not a separate task catalog.
+A change is complete when these hold for the surfaces and contracts it changed:
 
-Inspect the existing interface in a running terminal before choosing a presentation or interaction
-change. If the intended experience is unclear, use the relevant flow in the selected reference
-product to establish observable goals for hierarchy, discoverability, feedback and task completion.
+| Outcome                 | Holds when                                                                                                                                                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Both locales            | Every changed surface shows its complete content under `en-US` and `zh-CN`; wide characters occupy their display width wherever text truncates or wraps.                                                                                                |
+| One experience          | Keyboard, pointer, menu, and command routes reach the same action, typed target, availability, and commit point, and the GUI counterpart keeps the same meaning under [`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md).                                  |
+| Geometry                | A surface keeps its required content, controls, and hints at every [size tier](layout.md#size-tiers) that admits it and gives way to the too-small notice below them; nothing paints outside its region.                                                |
+| Hit regions             | Recorded hit rectangles match the painted targets of the last presented frame; a hidden, occluded, or stale target cannot be activated.                                                                                                                 |
+| State cues              | Focus, current context, checked value, provisional selection, availability, and operation status stay distinguishable under `terminal-native`, an RGB theme, 16-color output, and `NO_COLOR`, through the non-color cue their owning standard requires. |
+| Input ownership         | Each input has one owner; unconsumed bytes reach the pane in order; a hidden owner cannot act; `Esc` unwinds one local step; a confirmation accepts only its exact key and passes no trailing byte to the terminal.                                     |
+| Return and cancellation | Returning, closing, or cancelling restores the query, selection, scroll anchor, draft, preview, and focus its owner declares, and does not cancel accepted work.                                                                                        |
+| Late results            | A replaced request, removed target, closed surface, or stale generation cannot change a newer view or take focus.                                                                                                                                       |
+| Viewport                | Resize, filtering, insertion, and removal keep the declared identity or content anchor; following the bottom stays distinct from manual reading.                                                                                                        |
+| Terminal state          | Every mode the Client acquired is restored on normal exit, error, panic, supported signal, suspend, and external handoff, also after an earlier restore step fails.                                                                                     |
+| Output                  | Text of external origin places no control character or escape sequence in the buffer; a frame is one synchronized update; nothing is replayed after an unknown write.                                                                                   |
 
-A standards-only change is accepted through semantic, link, and applicable repository
-checks. It does not establish runtime conformance. Each affected implementation must supply the
-evidence below before claiming adoption. When using a reference product, distinguish observed
-behavior, source behavior at a named revision, and the proposed Orchbee requirement; differences
-between the installed product and source are not evidence that they implement the same revision.
+Show an outcome at the lowest layer that can judge it:
 
-## Render evidence
-
-- Render through `ratatui::backend::TestBackend` and assert invariants over the buffer: required
-  content and hints are present or truncated by their owning rule, nothing paints outside its
-  region, wide characters occupy their display width, recorded hit rectangles match painted targets,
-  and required state cues stay distinguishable. Compare complete expected text only for an owned
-  contract under [design-pinning assertions](../TESTING.md#design-pinning-assertions). Adding a
-  snapshot library is a dependency decision under
+- Drive typed events through the decision function and assert the whole resulting intent and state.
+- Render through `ratatui::backend::TestBackend` and assert invariants over the buffer. Compare
+  complete expected text only for an owned contract under
+  [design-pinning assertions](../TESTING.md#design-pinning-assertions); when an intended change
+  breaks such an assertion, that section decides between deleting it and reviewing the text update.
+  Check styles through theme roles, not literal colors.
+- Use injected time and a controlled completion order. Never sleep, and never accept "the last
+  rendered label looks right" in place of a stale-result check.
+- Adding a snapshot library is a dependency decision under
   [`DEVELOPMENT.md`](../DEVELOPMENT.md#decision-authority).
-- Every surface renders at these geometries: 80×24, 120×40, one Compact, one Minimal and one
-  Mobile geometry from [`layout.md`](layout.md#size-tiers), and the too-small geometry.
-- Every surface renders under the `terminal-native` theme and one RGB theme, and under `en-US` and
-  `zh-CN`. Wide-character fixtures are present wherever text truncates or wraps.
-- Changed controls cover applicable rest, hover, pressed, focus, current, provisional, checked,
-  disabled, pending, and outcome states. Include meaningful combinations from
-  [`components.md`](components.md#state-model), rather than every Cartesian combination.
-- Style assertions check roles through the theme, not literal colors, except the quantization test
-  that proves a 16-color level yields no `Rgb` or `Indexed` cell. Also exercise `NO_COLOR` and
-  collapsed host-default colors: focus, current context, checked value, provisional selection,
-  availability, and operation status remain distinguishable through their required markers, text,
-  or modifiers. Absence of RGB cells alone does not prove usable contrast.
-- When an intended change breaks a render assertion, apply
-  [design-pinning assertions](../TESTING.md#design-pinning-assertions): delete a design-pinning
-  assertion, and review an owned-contract text update as a visual diff of the before and after rows.
+
+A passing component render does not show that an existing screen adopted the component, and absence
+of RGB cells does not show usable contrast. A standards-only change passes the link and repository
+checks; it does not establish that any implementation conforms.
 
 ## Whole-screen visual review
+
+Inspect the existing interface in a running terminal before choosing a presentation or interaction
+change. When a reference product informs the goal, keep its observed behavior, its source at a named
+revision, and the proposed Orchbee requirement apart.
 
 Presentation and interaction changes require using the running Client in a real terminal emulator
 and reviewing actual window screenshots, starting with the default theme. Compare equivalent
@@ -110,47 +102,6 @@ the running interface cannot be exercised or captured, report implementation and
 separately and leave experience acceptance pending. Do not declare a presentation or interaction
 change complete solely because its tests, role assertions or rendered previews pass.
 
-## Input evidence
-
-| Class        | Required cases                                                                                                                                                                                                               |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Decoding     | Every C0 normalization, uppercase implies `Shift`, `Ctrl+]`, lone `ESC`, split sequences, atomic paste                                                                                                                       |
-| Binding      | Match, non-match with extra modifiers, host labels, effective overrides where supported, shadowing, and displayed hints matching the active definitions                                                                      |
-| Ownership    | Table-driven precedence for every owner pair; unconsumed bytes pass through in order; hidden owners and stale targets cannot act                                                                                             |
-| Mode         | Indicator visible, local `Esc` step, unbound keys ignored, modes do not nest, and pane `Esc` remains protected without a named owner                                                                                         |
-| Editor       | Every editing key, length bound, prefill, atomic paste, composition not consumed, and draft/cursor preservation across temporary tasks                                                                                       |
-| Confirmation | Only the exact key confirms, `Esc` cancels, trailing bytes in the decision packet do not reach the terminal                                                                                                                  |
-| Pointer      | Last successfully flushed hit map, child-target precedence, exact pane event-class filtering, hover without selection, same-target release, leave/capture-loss cancellation, stale-map invalidation, and wheel normalization |
-
-Input tests drive typed events through the decision function and assert the whole resulting intent
-and state, not individual fields.
-
-## Lifecycle evidence
-
-| Changed contract     | Required cases                                                                                                                                                                                                                                            |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Semantic action      | Keyboard, pointer, and discovery paths resolve the same action and typed target; eligibility is rechecked before effects; repeated invocation follows declared concurrency; each execution has one classified result                                      |
-| Nested surface       | Child return restores query, selection, logical scroll anchor, draft, preview, and valid focus; root close restores the invoker or declared fallback; closing does not silently cancel accepted work                                                      |
-| Preview and settings | Confirmed, effective, uncommitted, preview, and cursor values stay distinct; preview cancellation restores its entry value; refusal puts the row back; per-change commit, reset, external updates, and unknown results follow the owner's commit contract |
-| Async update         | A replaced request, removed target, closed/reopened surface, and stale generation cannot mutate a new view or take focus; valid results settle through the semantic owner                                                                                 |
-| Viewport             | Resize, filtering, insertion, removal, and wrapped-content changes preserve the declared identity or logical content anchor; explicit bottom following is distinct from manual reading                                                                    |
-
-Use injected time and controlled completion order. Do not replace stale-result tests with sleeps or
-assertions that only the last rendered label looks correct.
-
-## Environment evidence
-
-- Mode sequences or platform-adapter calls are tested for enable, restore, reverse order, partial
-  acquisition, repeated teardown, and every step running after an earlier failure. Include normal,
-  error, panic, supported signal, and external-program handoff paths.
-- Capability queries are tested with a timely reply, a late reply, no reply, and a reply interleaved
-  with key input.
-- Environment-variable precedence is table-driven and includes `NO_COLOR`.
-- The output loop is tested for one flush per cadence interval, one synchronized-update pair per
-  frame, effects only between frames, no replay after an unknown write, and bounded progress for
-  input under output and pointer-motion bursts. Hover redraws occur only on resolved-target changes
-  and follow the admitted capture and cadence policy.
-
 ## Host evidence
 
 Some behavior exists only in a real emulator: keyboard-protocol negotiation, pointer passthrough
@@ -163,7 +114,7 @@ encoding, appearance reports, and multiplexer interception.
   font, font size and display scale; identify unavailable metadata rather than inferring it.
   A PTY or ConPTY byte replay proves
   protocol behavior and cell composition; it does not prove physical host palette or font quality.
-- Host evidence supplements unit evidence; it never replaces the classes above.
+- Host evidence supplements the outcomes above; it never replaces them.
 
 ## Responsiveness and spatial stability
 
@@ -204,20 +155,5 @@ source mechanism does not establish its installed behavior or CI enforcement.
 
 Keep recurring scenario definitions and instrumentation with their semantic owner. Point-in-time
 measurements, screenshots and comparison judgments belong to the active issue/review with their
-consumer and release condition, not a tracked task report. These checks supplement the render,
-input, lifecycle and host evidence above; neither timing nor a screenshot replaces those contracts.
-
-## Change checklist
-
-| Change                      | Evidence                                                                                                |
-| --------------------------- | ------------------------------------------------------------------------------------------------------- |
-| New surface                 | Render evidence at every geometry, theme, and locale; ownership and footer tests when it captures input |
-| Component or composition    | Contract review, applicable state combinations, consumer adoption, and whole-screen visual review       |
-| Theme role or value         | Re-render of every consumer; quantization and non-color distinguishability                              |
-| Binding or mode             | Binding, ownership, and mode classes; help reflects effective definitions and local key maps            |
-| Gesture or region           | Pointer class; keyboard equivalent proven                                                               |
-| Action or settings          | Applicable lifecycle cases, semantic target, commit, failure, and concurrency evidence                  |
-| Terminal mode or query      | Environment class; host evidence for negotiation                                                        |
-| Layout tier or degradation  | Render evidence per tier; one test per degradation step                                                 |
-| Notice or pending indicator | Injected-time tests for expiry, replacement, and constant width                                         |
-| Repository gate             | The [applicable root gate](../VERIFICATION.md#merge-gate) passes                                        |
+consumer and release condition, not a tracked task report. These checks supplement the outcomes and
+host evidence above; neither timing nor a screenshot replaces them.
