@@ -16,10 +16,9 @@ legacy `report` / `reported` remain primary-only. Replies correlate request, Ses
 Presentation and binding. All reports emit `orchbee.panel.metadata` version 1 with `presentationId`: the explicit member ID, or null for the default primary, including unknown or failed submitted outcomes. Text identifies
 the member. Request bounds are checked before admission and no ambiguous outcome is replayed.
 
-The [Agent report target model](windows-panel-agent-reports.md#exact-member-targets) owns shared
-CLI resolution and evidence boundaries. Metadata traces additionally preserve token/source
-isolation, TTL and replay. No new carrier, dependency or persistence migration is required;
-matched cohorts roll out together and roll back with source. Final full acceptance remains deferred.
+The [Agent report target model](windows-panel-agent-reports.md#exact-member-targets) owns shared CLI
+resolution and evidence boundaries. No new carrier, dependency or persistence migration is required;
+matched cohorts roll out together and roll back with source.
 
 ## Commands and lifecycle
 
@@ -62,12 +61,6 @@ the Session gate. Reads expose source records for up to four ordered unique Pane
 Workbench revisions remain separate. Same-cohort deployment is required; old peers reject the
 unknown carrier kind. There is no persistence migration; restarting the Session clears reports.
 
-Protocol/owner tests cover atomic changes, replay and TTL; shared Rust/TypeScript/JSON corpus
-checks bound and malformed inputs; named-pipe tests check exact correlation including binding,
-response loss, deadline and no replay. Parser, receipt, localization and shell grammar checks
-cover the CLI projection. TUI rendering and general events remain separate integration obligations; the query projection below consumes current Server reports. This command alone
-does not establish Desktop support.
-
 ## Query observation model
 
 Panel list/get and Agent Get consume Server metadata and explicit Agent reports through
@@ -106,9 +99,6 @@ report details and messages. The offline catalog lists the current documents and
 Admission caps combined encoded metadata and report rows at the existing 8 MiB CLI output budget.
 After metadata admission, reports consume only the remaining row budget; each batch is validated
 before extending state. The final envelope remains independently bounded. Oversize or inconsistent
-reads fail without partial output. Tests cover both revision fences, exact batches, wrong/missing
-rows and bindings, permissions, transport loss, original shared deadline, closed current schema
-shapes, guarded presentation, global tokens and escaped text. Matched Windows cohort acceptance
-exercises the actual public reports and queries; it is not final TUI or authenticated provider proof.
+reads fail without partial output.
 
 The Windows TUI now consumes a separately revision-fenced report/metadata round for the selected Presentation in each Panel of its active Tab. Custom titles retain precedence; effective metadata, literal tokens and localized Agent status paint in the existing single, split or maximized header. See [Panel report presentation](windows-panel-report-presentation.md) for scope, failure and shutdown rules.

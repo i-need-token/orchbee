@@ -103,14 +103,8 @@ The Server owns canonical membership and launches; the Client owns view observat
 adapter owns exact binding joins, send-once submission, ownership fences, cancellation and cleanup.
 Shared ratios persist in the current version 1 checkpoint and catalog; no dependency is introduced. Mixed releases require a matched private cohort.
 
-Focused tests cover current exports, incompatible-export refusal and template inputs, child/unbound roundtrip, literal launch data, every pre-readiness
-failure boundary, exact binding deltas, stale metadata and response correlation. Controlled Windows
-CLI peers exercise actual process dispatch and receipts, not a real provider or interactive Client.
-Full packaged Windows/TUI, provider and multi-Client acceptance and the complete regression gate
-remain final integration obligations; old v1 acceptance does not prove the changed v1 workflows.
-Headless process cases cover export, topology reads, ratio changes, pair swaps and apply with a
-controlled peer that refuses any Client observation/control request. These reuse existing Server
-transitions; no virtual viewport, new canonical mutation or hidden Client registration is introduced.
+Headless export, topology reads, ratio changes, pair swaps and apply reuse existing Server transitions; no virtual viewport, new canonical mutation or hidden
+Client registration is introduced.
 
 Server shares and persists split ratios. Export records the current nominal ratios; apply uses the same canonical mutation path. Each window retains its own focus, maximized state and control. See the [shared ratio contract](../../orchbee-server/docs/shared-split-ratios.md) for compatibility.
 

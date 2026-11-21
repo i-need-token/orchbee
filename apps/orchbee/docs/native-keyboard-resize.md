@@ -37,8 +37,6 @@ A local adjustment and a remote adjustment never share acknowledgement identity.
 
 ## Correctness and maintenance
 
-The owning implementation tests cover the step and divider choice, one in-flight mutation without backlog, exact completion provenance, inactive-target purity and draw-before-local-success. A raw-byte dispatcher test sends `Ctrl+b` followed by the CSI form of Alt+Right (`ESC [ 1 ; 3 C`) and checks that it yields one resize action and forwards nothing of the chord, while a bare Alt+Right still reaches the Panel.
-
-Maintain the concrete witnesses in `crates/workbench-client/src/workbench_client/ui/control_steps/tests/keyboard.rs`, `crates/workbench-client/src/terminal_input/dispatcher/tests/configured.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
-
-Run `cargo test --locked -p orchbee-workbench-client --lib`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance, which hosts deliver Alt+arrow after the prefix, or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Run `cargo test --locked -p orchbee-workbench-client --lib`. This workflow has no separate TLA
+model. Shared identity, ownership and commit protocols retain their separately registered core
+models.

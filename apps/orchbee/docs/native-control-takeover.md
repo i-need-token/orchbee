@@ -73,20 +73,9 @@ transfer when needed. Terminal processes and viewing attachments survive these h
 
 ## Evidence and staged delivery
 
-State, carrier and UI regressions cover unchanged-owner typing, no repeated activation, fresh
-activation after uncertainty, frame-before-input, receipt monotonicity and peer geometry. Raw
-FocusIn, click and key bytes through the real dispatcher cover a Viewer with stale host focus.
-Server tests cover public/private observation, recent focus, exact reservation and cleanup.
-The Windows process witness in `tests/cli_windows_terminal_viewer_session/focus_control.rs`
-checks transfer, recent-Viewer restoration and shared completion; physical Windows Terminal
-acceptance additionally covers immediate Alt-Tab typing and two tabs of the same Session.
-These are bounded implementation witnesses, not a proof of all interleavings or crash recovery.
-
 The [Server transfer model](../../orchbee-server/docs/terminal-controller-takeover.md) owns the
 shared authority. The retained `ConnectionViewerOwnership` TLA model covers its existing Viewer
-and grant cleanup bounds; activation and MRU behavior use the executable witnesses above.
+and grant cleanup bounds; activation and MRU behavior are outside that model.
 
-GUI adoption is staged under ORC-309, owned by Claude. Its focus/control projection must consume
-the same published ownership and focus order and match self-owner and recent-Viewer behavior.
-Until that work lands, native acceptance does not establish GUI parity. `apps/web` is outside
-this delivery's authorized implementation scope. All four native binaries remain one cohort.
+The GUI focus/control projection must consume the same published ownership and focus order and match
+self-owner and recent-Viewer behavior. All four native binaries remain one cohort.

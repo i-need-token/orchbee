@@ -31,8 +31,6 @@ retire the connection and report unknown; no retry or compensating close occurs.
 preserves the recorded outcome and produces the cancellation exit when required.
 
 The shared creation adapter also serves layout materialization/binding. Matched native CLI/Server
-binaries roll out and roll back together; no durable migration is introduced. Parser/target/receipt
-checks and scoped Windows CLI peers verify the boundary; real-provider and complete TUI acceptance
-remain part of the final Windows regression.
+binaries roll out and roll back together; no durable migration is introduced.
 
 Executable names use the final CLI PATH and retain the resolved absolute path in receipts; see [Executable names](native-terminal-creation.md#executable-names).

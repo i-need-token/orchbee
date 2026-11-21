@@ -97,21 +97,3 @@ token resumes it, while local `Esc` may still cancel. A missing or covered recei
 current draw proof and neither classifies geometry nor discards editor state. Settings retains its
 Paragraph scroll policy and owns its own presentation lifecycle, but takes its text and cursor
 boundary from the same whole-text projection; painting never rewrites the raw draft.
-
-## Correctness evidence
-
-Deterministic unit tests cover five-scalar family emoji, ZWJ and regional-indicator merges,
-combining-mark insertion and deletion, Unicode word deletion over whitespace, punctuation, emoji,
-and mixed Chinese/English, kill chaining and yank, word movement over combining, CJK and emoji
-text, atomic yank rejection, the exact-modifier key map, exact scalar and byte limit boundaries,
-atomic rejection, byte-exact prefill, cursor-at-end, and how each key family replaces, clears or
-ends a selected prefill. The modal decoder table covers the
-legacy byte forms of the shared keys. Projection witnesses cover whole-sequence stripping with raw cursors
-inside the removed span, narrow windows with cursor motion, ordinary Chinese, emoji, and combining
-marks, and zero-width fields. Draft-level tests cover editing after a prefill, navigation, deletion,
-word-backspace, atomic paste, picker inertness, and fault recovery; renderer and session journeys
-witness the drawn window, the placed cursor, and exact raw submission.
-The [Settings renderer witnesses](../crates/workbench-client/src/tui_render/settings/tests.rs) check that the inline field's cursor lands on whole graphemes after control/ANSI removal
-joins combining marks or emoji variation selectors, normal wide glyphs and cursor-at-end.
-The [Settings input trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs) sends literal paste
-and Ctrl+w through the decoder and verifies word deletion without applying or pane forwarding.

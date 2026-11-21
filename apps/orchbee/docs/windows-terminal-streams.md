@@ -144,38 +144,18 @@ pane tracking contract. Unsupported input produces a bounded localized notice. R
 observed console geometry; transient zero geometry keeps the last valid size without resizing.
 An old-size frame cannot authorize new pointer/history coordinates.
 
-The in-process display seam shares frame/history rendering with NDJSON without encoding and
-then parsing that protocol. Console writes use the existing inherited Unicode TUI writer; this
-is not a hard bound on an unresponsive operating-system console. IPC and cleanup keep their
-bounded budgets. Explicit detach succeeds only after confirmed release and mode restoration;
-transport loss never fabricates normal terminal exit. Pixel/graphics and extended
-keyboard-mode residuals remain obligations until their own implementation and Windows evidence.
+The in-process display seam shares frame/history rendering with NDJSON without encoding and then
+parsing that protocol. Console writes use the existing inherited Unicode TUI writer; this is not a
+hard bound on an unresponsive operating-system console. IPC and cleanup keep their bounded budgets.
+Explicit detach succeeds only after confirmed release and mode restoration; transport loss never
+fabricates normal terminal exit.
 
 ## Verification and limits
 
-Deterministic core and scripted Windows transport checks cover exact binding, repeated frames,
-resets, partial output, cancellation, expiry and cleanup. Pipe tests must prove a blocked consumer
-cannot strand the relay. Same-author tests do not establish independent review, TLA execution,
-remote/named Session routing, other platforms or graphics streams. Control evidence must
-cover ordered input, partial acceptance, invalid-record continuation, resize, release/EOF, history
-feedback ordering and cancellation of an in-flight controller exchange.
-
 Cleanup reports `not-attached` before any Viewer attach attempt, `detached` only after its
-acknowledgement, or `session-released` when the socket is dropped without confirmed detach.
-Packaged Windows console witnesses cover bracketed Unicode paste containing the detach prefix,
-raw Ctrl+C delivery, mouse-off entry, busy-controller refusal, takeover fencing, history paging,
-normal detach, timeout restoration, re-acquisition and admission at different console sizes.
-They also exercise shared input in the Workspace TUI. A real Windows child requesting `?1016`
-receives exact SGR cell bytes for control wheel/modifiers and attach press/drag/release injected
-through the console; this proves cell fallback, not exact pixel capture or physical mouse visuals.
-Packaged TUI and attach witnesses retain history RGB colors, bold/italic/underline and wide
-characters; attach also preserves decomposed combining text. TUI history chrome clears underlying
-styles and footer text. Typing restores live output and delivers each input once, and normal
-detachment leaves the child running. These witnesses do not establish complete native TUI glyph
-fidelity or physical visual acceptance. Dynamic host-window resizing, visual mouse
-interaction and authenticated Agent attachment remain separate acceptance obligations.
-Stream timeouts use a stream-specific diagnostic; refusals retain the controller reason and do
-not imply that previously delivered input was undone. Scripted evidence does not replace final
-acceptance against the packaged Windows runtime.
+acknowledgement, or `session-released` when the socket is dropped without confirmed detach. TUI history chrome clears underlying styles and
+footer text. Typing restores live output and delivers each input once, and normal detachment leaves
+the child running. Stream timeouts use a stream-specific diagnostic; refusals retain the controller
+reason and do not imply that previously delivered input was undone.
 
-Direct attach owns a fixed `Ctrl+b q` escape independently of main-TUI key profiles. Extended-key, graphics, pixel-input and Windows visual acceptance remain separate verification obligations.
+Direct attach owns a fixed `Ctrl+b q` escape independently of main-TUI key profiles.

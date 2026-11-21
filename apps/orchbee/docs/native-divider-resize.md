@@ -39,8 +39,11 @@ Ordinary pane mouse tracking, selection, wheel normalization and Host capture le
 
 ## Correctness and maintenance
 
-The owning implementation tests cover hit geometry, two held moves across successful draft frames, canonical source fencing, latest-intent coalescing, interruption, one submission, CAS conflicts and their bounded revision resubmission, a held drag outliving an unlanded release, delayed-publication presentation and publication/draw ordering. Sidebar live width uses the same projection lifecycle under [mouse input](native-mouse-input.md#sidebar-width-input).
+Sidebar live width uses the same projection lifecycle under [mouse
+input](native-mouse-input.md#sidebar-width-input).
 
-Maintain the concrete witnesses in `crates/workbench-client/src/tui_layout/divider/tests.rs`, `crates/workbench-client/src/tui_pointer/tests/divider.rs`, `crates/workbench-client/src/workbench_client/ui/control_steps/tests/divider.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
-
-Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. Named/generated implementation traces establish the bounded ownership and projection claims, not exhaustive interleavings or physical terminal appearance. Real-host acceptance must capture at least two held moves with an intervening rendered frame before a separate release, checking both visible pane boundaries and actual inner-terminal dimensions. Include both axes, nested splits, sidebar width, clamps and cancellation/retirement. Host observations do not establish untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA
+model. Real-host acceptance must capture at least two held moves with an intervening rendered frame
+before a separate release, checking both visible pane boundaries and actual inner-terminal
+dimensions. Include both axes, nested splits, sidebar width, clamps and cancellation/retirement.
+Shared identity, ownership and commit protocols retain their separately registered core models.

@@ -177,20 +177,6 @@ starts afresh, since there is no retry state.
 
 ## Correctness evidence
 
-The owning implementation tests cover exact-episode input isolation, first-draw refusal, admitted
-suspension and resume, stale draw rejection, every case of the shared Agent start rows corpus, the
-cursor held across catalogs, the new-Tab menu's rows, `Esc` order, the offered places and their
-`Tab` cycle, new Worktree's form opening over the picker and `Esc` restoring it through the raw-byte
-route, keyboard and pointer startup against the current draw, lost-worker recovery, the Panel-scoped
-start guard, observed-readiness admission and both locales.
-
-Maintain the concrete witnesses in `crates/workbench-client/src/agent_board/tests.rs`,
-`crates/workbench-client/src/agent_board/picker/tests.rs`,
-`crates/workbench-client/src/workbench_client/ui/tests/agent_board/` and the adjacent state,
-carrier, input and rendering suites. Use controlled completion/clock order and generated trace
-replay where the workflow has multiple outcomes.
-
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA
-model. The evidence covers named/generated implementation traces; it does not establish exhaustive
-interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and
-commit protocols retain their separately registered core models.
+model. Shared identity, ownership and commit protocols retain their separately registered core
+models.

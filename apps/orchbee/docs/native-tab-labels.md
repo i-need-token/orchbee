@@ -135,7 +135,9 @@ cannot overwrite an intervening rename. Close confirmation names a live Tab as t
 otherwise keeps the name captured when it opened. Selection, input
 ownership, geometry and terminal controller rights are independent of naming.
 
-The naming fact is the complete pair `(raw label, automatic mode)`, not only visible text. Creating or renaming can clear automatic mode without changing text. Movement preserves that metadata and derives display from order. Concrete codec, authority, projection and Windows process tests check these obligations; there is no separate label workflow model.
+The naming fact is the complete pair `(raw label, automatic mode)`, not only visible text. Creating
+or renaming can clear automatic mode without changing text. Movement preserves that metadata and
+derives display from order.
 
 ## Compatibility and verification
 
@@ -143,12 +145,6 @@ This is a coordinated experimental OBWP v1 cohort. Rust and TypeScript accept on
 when the new field is present; legacy omission remains fixed. Older strict readers may reject
 the field, so deploy matching binaries. No persistent migration or reinterpretation of existing
 numeric labels occurs. Rolling back an unpersisted test Session requires restarting that Session.
-
-Verification covers legacy and invalid-field codecs; explicit numeric names; create, reorder,
-close and rename; equal-text mode changes and replay; unrelated Tab and Presentation stability;
-cross-context numbering and ambiguous selectors; program naming and automatic-name precedence in
-both locales; strict native projection and actual Windows TUI display with unchanged focus
-identities. Other operating-system runtime behavior is outside the Windows acceptance evidence.
 
 An overflowing compact strip preserves the active token and its group context and, when space permits, paints an ellipsis marker at each hidden edge. Each marker is a glyph action that pages the strip once on release: the trailing marker opens the window at the first token the current window leaves out or shortens, and the leading marker opens the window that ends just before the current one. A paged window starts at that token wherever the current Tab is, without a group prefix. It holds while the current Tab is unchanged or changes through a pointer activation of a Tab painted in it; any other change of the current Tab, such as keyboard navigation or Tab creation, returns the strip to the window around the current Tab. Closing the Tab that opens the window moves its start to the next surviving Tab, then the previous one. Paging is client-local and changes no canonical state. Close tracks remain separate from those markers. A truncated label keeps at least its first three cells before the ellipsis, or the whole of a shorter label; a token that cannot keep that minimum beside its state glyph is not painted as a clipped stub, and the edge marker stands for it.
 

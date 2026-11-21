@@ -22,8 +22,6 @@ On macOS `terminal title set|clear` run as on Windows. The TUI saves its outer t
 
 Matched private cohorts add OBWP kinds 43/44 and roll out together. `orchbee.terminal.title` v1 is a closed public receipt. No persisted migration is introduced. Queue acceptance is not display confirmation. The [Windows title API](https://learn.microsoft.com/en-us/windows/console/setconsoletitle) owns physical host behavior.
 
-Focused checks cover Unicode/control bounds, replay/focus/expiry/capacity traces, independent Rust/TypeScript/JSON conformance, real Windows CLI pipe receipts, cancellation, lifecycle restoration/failure and grammar/help/completion. These checks do not replace final provider, multi-Client, physical terminal or full-regression acceptance.
-
 ## Configured templates
 
 Windows `[appearance] window_title` defaults to `{hostname}: {workspace}`. It supports `{hostname}`, `{workspace}`, `{tab}` (the Tab's name as its strip shows it: a fixed name exactly, else the automatic name of its focused Panel, per [native Tab labels](native-tab-labels.md#canonical-state-and-display)), `{panel}` (manual Panel override), `{terminal_title}` (focused terminal title without activity prefix; a console default title names its program as Tab chrome does), whitespace around token names and `{{`/`}}` literal braces. Missing values render empty. An explicit empty template validly disables automatic writes. Invalid nonempty brace/token syntax, a wrong type, or a value over 4096 UTF-8 bytes defaults only this leaf to `{hostname}: {workspace}` and emits a bounded configuration warning without discarding other settings. The final rendered string removes controls, takes 200 Unicode scalars, then trims; empty rendering uses `Orchbee`.

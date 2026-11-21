@@ -77,11 +77,4 @@ unsupported operation or replays one.
 
 ## Evidence
 
-Parser cases cover exact IDs, missing operands, resource-selector rejection and confirmation
-fences. Rust and TypeScript share the command conformance corpus with JSON Schema; it includes
-request-only lookup, each target kind, denied/unavailable/missing results and closed tombstones.
-Server authority cases cover retained identity and grant checks. A real-Session probe finds a
-Worktree operation by its identity alone and reports an identity no store keeps as `not-recorded`
-with exit 3. Local verification follows the repository affected-host gate.
-
 One-shot Client notices, native notices, settled setup results and the success notice of a hidden Opened Worktree result whose terminal entry finished expire after four seconds on the existing monotonic UI tick. Identical notices coalesce without extending their lifetime. Pending work, unknown outcomes, recovery-required results and persistent configuration warnings remain with their owning workflows; expiry never discards receipts or retries an operation.

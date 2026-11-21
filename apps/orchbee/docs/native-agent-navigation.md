@@ -57,12 +57,7 @@ Agent-focus operations. Existing Agent/Client selection failures keep
 their source ownership. Human output and help are localized; JSON is locale independent.
 
 Verify names, explicit IDs, Panel selectors, caller versus explicit Client routing, live primary
-bindings and rejection of ended/missing/ambiguous/child-only bindings. Trace a single Submit and
-retained Read after a lost reply; exercise partial response cancellation and one total deadline.
-Actual two-TUI Windows evidence must check the selected Panel and unchanged other Client/OS focus,
-with all created Agent processes, Sessions and consoles stopped afterward. Review is by the author;
-TLA execution and independent review are not claimed. Final live focus/acknowledgement acceptance
-remains pending the combined Windows verification; targeted checks alone do not discharge it.
+bindings and rejection of ended/missing/ambiguous/child-only bindings.
 
 The Client must report Ready or Busy; Starting and Unavailable skip Agent reads and report
 `client-not-ready` with its Client ID. Busy admission permits the Client-owned mode-exit preflight
@@ -89,9 +84,7 @@ acknowledgement. No provider input or OS window activation is added.
 Target loss, replacement, an interrupted operation or expiry cannot acknowledge. A refusal before
 navigation is rejected; failure after an applied navigation step is incomplete. The retained
 operation reports existing outcomes, and status reads never repeat the effect. Client control v1
-carries this intent. The matched Client/Server cohort must be updated
-together. Pure identity/acknowledgement and bounded controller/protocol checks precede final live
-Windows acceptance; they do not by themselves prove multi-Client or authenticated-provider behavior.
+carries this intent. The matched Client/Server cohort must be updated together.
 
 A `stale-view` rejection and an Agent read that the Workbench outran, reported as `changed`, both
 prove that nothing happened. The CLI then reads a fresh snapshot and selects the Client and resolves
@@ -122,10 +115,7 @@ Agent. A repeated tick or status read cannot dismiss a newly opened mode. Decode
 paste and active pointer input notify the pending Agent-focus owner before input routing; focus
 metadata, key releases, hover and previously captured packet tails do not interrupt it.
 
-After mode exit, ordinary ordered navigation and post-draw identity/acknowledgement apply. Shared
-admission and pure transition checks cover Busy versus Starting, one-shot dismissal, interruption,
-expiry and failure before effects. Native owner checks cover drafts and history recovery with no
-input; final combined Windows acceptance covers real shell overlays and Server/Client delivery.
+After mode exit, ordinary ordered navigation and post-draw identity/acknowledgement apply.
 
 ## Sidebar display identity
 

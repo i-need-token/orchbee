@@ -75,13 +75,8 @@ and snapshot membership. Windows query composition owns the deadline, signal own
 and result emission. The Workbench-query collector owns shared enrichment and final consistency
 checks. Existing process-query code owns Viewer cleanup and Host decoding.
 
-Grammar/help/completion evidence covers each selector and conflicting option. Scripted Windows
-peers establish explicit/caller paths without Client reads, unique/explicit Client selection,
-ambiguity, invalid caller, stale membership, bounded partial replies, enriched/unavailable
-observations, stable Busy/history reads, unchanged process-query readiness guards, changed Client views (including move-away-and-back), changed snapshots, strict
-current schemas, and absence of mutating controls or input requests. Actual Windows PowerShell 5.1/7 and two ConPTY Clients exercise selection and
-unchanged focus; a partial reply plus Ctrl+C exercises cancellation and peer teardown. These
-checks do not establish atomic snapshot/Client/OS observations or other-platform support.
+Actual Windows PowerShell 5.1/7 and two ConPTY Clients exercise selection and unchanged focus; a
+partial reply plus Ctrl+C exercises cancellation and peer teardown.
 
 The passive Presentation read extends the matched private wire cohort; no dependency, durable state,
 or migration changes. Existing non-Windows
@@ -113,10 +108,8 @@ existing local generation token. Server retains only a bounded operation receipt
 matched cohort rolls out together and rolls back with source; no durable migration is required.
 Client control receipt v1 admits this new intent.
 
-Evidence covers strict contract parsing and reply identity, native child projection without
-primary borrowing, caller child resolution, and controlled Windows CLI request ordering and
-stale-member rejection. Full Windows/provider/multi-Client acceptance remains a final gate.
-The following enrichment uses this same member identity; [Report writes](windows-panel-agent-reports.md#exact-member-targets) select an explicit member separately.
+The following enrichment uses this same member identity; [Report
+writes](windows-panel-agent-reports.md#exact-member-targets) select an explicit member separately.
 
 ## Current member enrichment
 
@@ -142,11 +135,9 @@ canonical change, reattachment or selection change yields no partial result. Thi
 session, the original five-second deadline, and existing signal/viewer cleanup owners. It does not
 claim atomic Host/process/Agent observations, and creates no input or focus effects.
 
-Pure target tests and actual Windows CLI peer traces cover primary, child caller, selected child,
-unbound explicit primary, exact report/metadata association, stale tokens/revisions, failure
-envelopes and invalid-shape rejection. The final provider/multi-Client/full gate remains deferred.
-No new dependency or durable migration is required; the unbound wire alternative is described below. Roll out the updated native CLI
-with its existing matched cohort, and roll back by source. [Report writes](windows-panel-agent-reports.md#exact-member-targets) select an explicit member separately.
+No new dependency or durable migration is required; the unbound wire alternative is described below.
+Roll out the updated native CLI with its existing matched cohort, and roll back by source. [Report
+writes](windows-panel-agent-reports.md#exact-member-targets) select an explicit member separately.
 
 ## Unbound current member
 
@@ -157,11 +148,9 @@ incarnation and viewport shape. Null still means no local member. Only Ready or 
 SelectedWithoutAttachment may export empty identities; a pending Switch target is not an observation.
 The Client checks exact canonical Panel/member membership and absence of binding before answering.
 
-Windows current v1 uses `source: {kind: "client-unbound", selectionGeneration}` with `binding: null`.
-Both member reads must retain the same kind, ID and generation, alongside existing canonical and
-Client view fences. Exact report/metadata/Agent joins retain the empty member, scroll is not-attached,
-and no physical terminal is queried. Client process-info fails with the existing missing-terminal
-result; it never borrows a bound sibling.
-Strict cross-binding vectors, state/UI reads and actual Windows CLI pipe traces cover these rules;
-provider and multi-Client visual acceptance remain final validation obligations. This extends the
-matched private cohort and public current v1/control v1; source rollback needs no data migration.
+Windows current v1 uses `source: {kind: "client-unbound", selectionGeneration}` with `binding:
+null`. Both member reads must retain the same kind, ID and generation, alongside existing canonical
+and Client view fences. Exact report/metadata/Agent joins retain the empty member, scroll is
+not-attached, and no physical terminal is queried. Client process-info fails with the existing
+missing-terminal result; it never borrows a bound sibling. This extends the matched private cohort
+and public current v1/control v1; source rollback needs no data migration.

@@ -19,15 +19,21 @@ successful root frame alone is not a successful notification-card draw.
 
 Client delivery policy is distinct from Server fallback policy. Native custom notifications honor Client delivery policy and omitted-position inheritance. Automatic Agent notifications are specified below; clipboard policy and custom audio remain separate alignment work. Matched private cohorts upgrade/roll back together. No new persisted format, dependency version or unbounded queue is introduced.
 
-Focused evidence covers sanitizer boundaries, independent protocol validation, registry expiry/replay/fanout/backpressure, actual Windows CLI pipes, shutdown, Unicode corner rendering, idle expiry and preservation of input ownership. This does not establish authenticated provider, physical Windows visual/audio or final full-regression acceptance.
-
 ## Configured custom-notification delivery
 
 Windows `[notifications] cli_delivery` selects `off` (default), `orchbee`, `terminal` or `system`. `[notifications] position` selects the default corner using the existing four CLI names. Omitted CLI position follows each receiving Client; explicit position wins. Startup uses the Client's settings. An explicit Session configuration publication applies the canonical bounded notification profile together with keys; malformed publications retain both previous policies. Other Agent/clipboard/sound preferences are outside this custom-notification slice.
 
 Off suppresses visuals, while explicitly requested custom sounds remain independent. With no Client, the Server's off policy returns `disabled`; otherwise it returns `no-foreground-client`. A connected Client using off can still acknowledge transport admission as `shown`. Policy changes discard undrawn pending effects and cards; they do not replay prior messages.
 
-Terminal delivery uses detected Ghostty/iTerm/WezTerm OSC 9 or Kitty OSC 99, with tmux escaping when applicable. Only the TUI lifecycle owner writes, after a complete frame, and never after restoration begins. Unknown backends report a nonfatal localized notice. System delivery owns one hidden, nonactivating Windows notification window/thread, a bounded inbox and a notification-area icon. The existing safe winsafe GUI wrapper supplies window creation/message dispatch; no authored unsafe code or external helper process is used. A 100 ms timer observes shutdown, releases an icon after ten seconds and removes it before window close. Drop cancels and joins. Queue admission is not OS paint acknowledgement; OS policy may suppress balloons. Physical host/visual/audio acceptance remains deferred. Linux and macOS use the same terminal delivery; their system delivery follows the [session routes](tui-platforms.md#linux-and-macos-session-routes).
+Terminal delivery uses detected Ghostty/iTerm/WezTerm OSC 9 or Kitty OSC 99, with tmux escaping when
+applicable. Only the TUI lifecycle owner writes, after a complete frame, and never after restoration
+begins. Unknown backends report a nonfatal localized notice. System delivery owns one hidden,
+nonactivating Windows notification window/thread, a bounded inbox and a notification-area icon. The
+existing safe winsafe GUI wrapper supplies window creation/message dispatch; no authored unsafe code
+or external helper process is used. A 100 ms timer observes shutdown, releases an icon after ten
+seconds and removes it before window close. Drop cancels and joins. Queue admission is not OS paint
+acknowledgement; OS policy may suppress balloons. Linux and macOS use the same terminal delivery;
+their system delivery follows the [session routes](tui-platforms.md#linux-and-macos-session-routes).
 
 ## Automatic physical Agent notifications
 
@@ -144,10 +150,8 @@ real-window evidence first.
 
 ### Correctness claims and evidence
 
-The owning implementation tests cover baseline/replacement silence, exact Client/identity/sequence/kind deduplication, stale candidate rejection, client-local acknowledgement, mute policy, invalid-reload preservation, valid-reload cancellation, no effect after retirement, and the Tab, Panel and binding a raised notification targets. Opening the target reuses the sidebar Agent navigation and its evidence.
-
-Maintain the concrete witnesses in `crates/workbench-client/src/workbench_client/agent_notifications/tests.rs`, `crates/workbench-client/src/workbench_client/agent_notifications/tests/generated.rs`, `crates/workbench-client/src/notifications/tests.rs`, `src/tui_shell/tests/notification_too_small.rs` and the adjacent state, carrier, input and rendering suites. The actual root-frame resize witness verifies hidden-card effect retention and one-time settlement without requesting OS sound. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
-
-Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA
+model. Shared identity, ownership and commit protocols retain their separately registered core
+models.
 
 The file's position key is `notifications.position`, and the Session's bounded notification profile spells it the same way inside its `[notifications]` table; profile publication and rollback require the same cohort.

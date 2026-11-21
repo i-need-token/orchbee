@@ -61,11 +61,3 @@ Unit coverage is fully deterministic: every dependency (viewport sampler, input,
 mode-owner factory, clock, deadline, prompt, presentability) is injected, so waiting,
 cancel, timeout, availability, fault, deadline precedence, zero-report retry, mode
 restoration ordering, and non-replay are exercised without a terminal.
-
-The focused PTY journey covers the real path: a too-small or initially zero-cell spawn shows
-the localized notice; exiting during the wait returns success with terminal modes restored and
-creates no Session processes; resizing to a drawable size continues to the full Ready workbench —
-verified on the frame's real last row — and exits cleanly. A drawable spawn that reports zero
-pixels still reaches Ready, covering the legal pixels-unknown state. The PTY observer is a
-fixed-capacity canvas independent of the initial winsize, and witness resizes beyond that
-capacity are refused.

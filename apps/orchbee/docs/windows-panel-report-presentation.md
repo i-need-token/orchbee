@@ -32,6 +32,8 @@ When metadata displayAgent or an actual reported Agent exists, one state glyph l
 
 ## Verification and delivery
 
-Evidence must cover both revision fences, identity changes, stale epochs, cancellation, missing facts, guarded metadata, full-width/control text, narrow titles and an actual Windows native TUI observing live report changes. Render and process evidence do not authenticate a provider or prove final product parity. Ship a matched cohort; source/cohort revert is rollback. The six-state vocabulary changes the matched cohort and uses the versioned public CLI documents listed in [CLI output](../../../docs/cli/output.md#machine-documents); it requires no durable migration. Complete the affected host gate and real-window status/read combinations before delivery.
+Ship a matched cohort; source/cohort revert is rollback. The six-state vocabulary changes the
+matched cohort and uses the versioned public CLI documents listed in [CLI
+output](../../../docs/cli/output.md#machine-documents); it requires no durable migration.
 
 Selecting a child immediately invalidates the preceding primary observation. The primary custom label or automatic name remains the fallback while the new exact scope loads; a bare Panel's strip selector retains the member counter. Only a complete correlated round can supply the selected member's report, guarded title and tokens; switching during a read cannot publish the old member’s result. Selector arrows use the existing exact member selection owner.

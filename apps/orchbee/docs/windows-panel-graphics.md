@@ -18,8 +18,13 @@ A submitted write with a missing or invalid response returns an explicit unknown
 
 ## Ownership and acceptance
 
-The shared contract and Session owner are documented in [Panel graphics](../../orchbee-server/docs/windows-graphics.md). Layers, complete-frame staging, source fences, budgets and EOF ownership use that existing authority. CLI and TUI consumers are implemented on the same isolated branch, before final composed Windows acceptance; protocol/domain tests and command existence alone do not align R078–R081. Linux runtime additions, TLA and the manual focus-stealing Desktop test remain outside this work.
+The shared contract and Session owner are documented in [Panel
+graphics](../../orchbee-server/docs/windows-graphics.md). Layers, complete-frame staging, source
+fences, budgets and EOF ownership use that existing authority.
 
 ## Current implementation and focused evidence
 
-The four native paths, help, completion, strict inputs, correlated receipts and EOF cleanup are implemented using existing read/navigation grants. Actual Windows CLI named-pipe tests cover fifteen exchange/stream scenarios plus input-before-discovery; the shared owner maintains the three-language graphics contract. Native dictionary v1 contains 120 documents, adding two output schemas and a dedicated graphics failure schema. The native TUI now consumes complete resources through its own logical read lane on the shared carrier, paints a clipped cell raster, and publishes authenticated draw facts; see [Native Panel graphics rendering](native-panel-graphics.md). Private file-frame leases, actual file-header CLI pipes and early external/traversal refusal are implemented; physical pixel transports and final composed/full acceptance remain pending. Focused evidence does not replace that acceptance. Idle input with no partial frame does not consume a frame deadline.
+The native TUI now consumes complete resources through its own logical read lane on the shared
+carrier, paints a clipped cell raster, and publishes authenticated draw facts; see [Native Panel
+graphics rendering](native-panel-graphics.md). Idle input with no partial frame does not consume a
+frame deadline.

@@ -17,10 +17,7 @@ existing carrier. Positive replies must match request, Session, Panel, Presentat
 legacy `report` / `reported` remain primary-only. The CLI always emits `orchbee.panel.agent-report` version 1 with `presentationId`: the requested ID for explicit member selection, or null for the default primary. Known and unknown submitted outcomes retain this member. Localized text identifies the member.
 All phases retain the single five-second deadline, cancellation and no-replay rules below.
 
-Targeted contract and owner traces cover child/primary isolation, wrong owners, unbound members,
-binding changes and source ordering; CLI traces cover exact requests and correlated or unknown
-receipts. Matched private cohorts roll out together, with source rollback and no data migration.
-Full provider, multi-Client and visual acceptance remains part of the final gate.
+Matched private cohorts roll out together, with source rollback and no data migration.
 
 ## Commands
 
@@ -78,13 +75,6 @@ reject these carrier kinds. State is transient and no persistence migration is i
 The native commands consume the real Server owner. The Windows TUI consumes reports and guarded metadata through [Panel report presentation](windows-panel-report-presentation.md). Panel list/get/current and Agent Get now expose source-attributed `reportedAgent` views and
 apply metadata guards using their actual context. Both revisions are fenced together; see the
 [metadata projection](windows-panel-metadata.md#query-observation-model).
-
-Parser tests cover scope, source distinctions, label preservation and complete encoded
-request bounds. Named-pipe fault tests cover pre-submission deadlines, response correlation,
-binding mismatch, loss, malformed replies, late replies and no replay. Receipt tests preserve all
-two dispositions through late cancellation, both locales and the closed JSON schema. Windows
-acceptance uses a matched cohort and isolated Session through these public command paths; it does not
-claim an authenticated provider task or final TUI/full-regression acceptance.
 
 ## Process confirmation through Host reads
 

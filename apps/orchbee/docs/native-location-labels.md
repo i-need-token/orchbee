@@ -59,9 +59,8 @@ on a fixed Workspace stays Unchanged. The editor prefill is the current label, s
 unedited also fixes the name. Tab naming keeps its own [automatic/fixed contract](native-tab-labels.md).
 
 Renaming preserves location identity, terminal bindings, directory associations and live shell
-execution. Another Client observes new labels through explicit refresh. Zero-Workspace Project
-navigation, deletion, reordering Projects or Workspaces, directory rebinding, Panel layouts, remote,
-persistence and packaging are outside this slice. Existing Tab rename remains independent.
+execution. Another Client observes new labels through explicit refresh. Existing Tab rename remains
+independent.
 
 ## State and result contract
 
@@ -100,8 +99,6 @@ and a newly queued action. Cancellation never undoes a committed label.
 
 ## Correctness evidence
 
-The owning implementation tests cover Unicode and byte limits, duplicate labels, Empty and noncurrent targets, origin preservation, exact publication, stale draw and unknown-result non-replay.
-
-Maintain the concrete witnesses in `crates/workbench-client/src/localization/tests/location_labels.rs`, `crates/local-client/src/local_client/tests/workbench/workspace_setup/location_labels.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
-
-Run `cargo test --locked -p orchbee -p orchbee-local-client --all-targets --all-features`. The application and transport witnesses run with their owning crates. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Run `cargo test --locked -p orchbee -p orchbee-local-client --all-targets --all-features`. This
+workflow has no separate TLA model. Shared identity, ownership and commit protocols retain their
+separately registered core models.

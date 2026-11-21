@@ -81,14 +81,11 @@ creation labels, f64 normalization and volatile Client ratios remain explicit na
 contracts. Dynamic positional naming and persistent
 default settings are not claimed by this contract.
 
-Grammar and completion witnesses cover omission, explicit forms, ambiguity, conflicts and bounds.
 Windows named-pipe process traces fault each phase and assert no replay and known-effect retention;
-a stale refusal is submitted again only when the derived label and target are unchanged.
-Both canonical carriers exercise cancellation wake. Independent Rust, TypeScript and JSON Schema
-validators cover optional split identity and mismatched receipts; the TUI rejects identity/slot
-replacement before writing ratios. Two real Windows TUIs check headless/default/explicit focus,
-nested ratios, existing terminal identity and other-Client isolation. A finite phase model records
-ordering; This workflow uses implementation tests. Same-author review is not independent review.
+a stale refusal is submitted again only when the derived label and target are unchanged. Both
+canonical carriers exercise cancellation wake. Two real Windows TUIs check headless/default/explicit
+focus, nested ratios, existing terminal identity and other-Client isolation. Same-author review is
+not independent review.
 
 The additive Client guard requires a matched development cohort; older strict readers may reject
 it. Existing explicit non-Windows creation keeps its former route; new platform runtimes are not
@@ -127,11 +124,10 @@ location into process cwd. It applies only to recognized PowerShell/pwsh launche
 or the exact NoLogo/NoProfile/NoExit switches. Existing terminals and arbitrary startup commands
 receive no retrofit; their observable process cwd may differ from a shell's private location.
 
-Core policy/source tests, actual PowerShell 5.1/7 prompt checks, named-pipe cancellation/fault cuts
-and Windows ConPTY creation traces cover this model. Existing phase ordering remains unchanged
-after directory resolution. This workflow uses implementation tests. Persistent configurable defaults remain separate;
-[automatic positional Tab labels](native-tab-labels.md) preserve raw creation facts. The receipt version requires a matching
-cohort; rollback does not rewrite user profiles or existing terminal processes.
+Existing phase ordering remains unchanged after directory resolution. Persistent configurable
+defaults remain separate; [automatic positional Tab labels](native-tab-labels.md) preserve raw
+creation facts. The receipt version requires a matching cohort; rollback does not rewrite user
+profiles or existing terminal processes.
 
 ## Plugin overlays
 
@@ -164,9 +160,7 @@ steps. It displays effective Settings and copy-mode bindings; invoking copy mode
 diagnostic text through the existing bounded clipboard queue. Its exact pane identity fences queued
 delivery, and leaving the failed selection cancels undispatched copies. Repairing a launch profile
 or selecting a working default lets the user create directly from this page, including when it is
-the only Tab. Close keeps its existing
-confirmation path. The state membership and projection tests own these transitions; real-window
-review covers both locales, narrow wrapping, copying and recovery.
+the only Tab. Close keeps its existing confirmation path.
 
 ## TUI held restores
 
@@ -196,4 +190,5 @@ Lookup uses the first executable in at most 256 absolute UTF-8 directory entries
 
 Creation receipts always include nullable `resolvedLaunch`: `orchbee.creation.result`, `orchbee.workspace.creation`, `orchbee.panel.terminal-create`, and `orchbee.mutation.result` all use version 1. Named-program resolution fills `exec` and `args`; otherwise this member is null. Text reports the resolved program. Resolution is an input fact, not proof of process startup; original submission, failure and cleanup observations remain authoritative.
 
-For example, `orchbee tab create --exec pwsh --arg -NoExit --arg -Command --arg "npm run dev"` resolves PowerShell once and passes the command as one literal argument. PATH lookup is covered for ordering, missing executables, invalid names and relative entries; receipt coverage checks version selection and preservation of unknown outcomes.
+For example, `orchbee tab create --exec pwsh --arg -NoExit --arg -Command --arg "npm run dev"`
+resolves PowerShell once and passes the command as one literal argument.

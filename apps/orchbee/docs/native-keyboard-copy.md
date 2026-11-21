@@ -222,18 +222,6 @@ cursor movement or query retry never needs to repair connection configuration.
 
 ## Correctness evidence
 
-The owning implementation tests cover input packet ownership, admitted geometry, stale query/effect rejection, final movement before release, effect ordering, at-most-once submission and matching success exit.
-
-Maintain the concrete witnesses in `crates/workbench-client/src/terminal_copy_mode/tests.rs`,
-`crates/workbench-client/src/workbench_client/terminal_selection/tests.rs`,
-`crates/workbench-client/src/workbench_client/ui/copy_mode/tests/mouse.rs`, `crates/workbench-client/src/tui_render/copy_mode/tests.rs` and the
-adjacent state, carrier, input and rendering suites. The mouse visibility suite composes the full
-shell at 120×40, 80×24, Compact and Minimal sizes in both locales and native/RGB themes. Controlled
-search completions check visible matching glyphs and a cursor above the footer for primary and
-alternate screens, keyboard/toolbar search and repeat, and translated wide-cell selection/drag.
-A pointer drag from a bottom-row cursor presents a frame after every packet, as the shell does, and
-keeps the footer crop through the press.
-These local crop checks do not exercise query transport. Use controlled completion/clock order and
-generated trace replay where the workflow has multiple outcomes.
-
-Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA
+model. Shared identity, ownership and commit protocols retain their separately registered core
+models.

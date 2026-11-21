@@ -90,12 +90,3 @@ adds no persistent journal or restart recovery guarantee. The schema catalog des
 Panel swap supports the two swap modes, same-Tab
 atomic exchange, successful source focus and no-op behavior. Native public identities, Client
 routing, error envelopes and process-lifetime canonical state remain native contracts.
-
-Independent tree permutation/involution tests check the complete leaf and fixed topology footprint,
-including nested trees, metadata, retained replay and commit refusals. Protocol conformance runs
-through Rust, TypeScript and JSON schema. Carrier cases reject cross-action acknowledgments and
-preserve unknown outcomes. Receipt-state matrices check terminal error/cancellation cuts and known-effect retention. A carrier
-wake after request admission proves cancellation retires an uncertain exchange without replay. Windows process tests
-exercise actual parser, output/schema, ordered phases, lost replies, stale layout/selection, refusal,
-no-op and total deadline; two real TUIs check nested exchange,
-unchanged terminal identities, ratios, the maximized state and source focus without affecting the other Client.

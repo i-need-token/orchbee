@@ -81,9 +81,7 @@ the same preparation cap; failures leave text stdout empty. It is an explicit da
 the [CLI output standard](../../../docs/cli/output.md), not ordinary human text rendering.
 
 Older binaries reject the new flags. Rollback restores the previous executable; there is no stored
-migration. Same-author checks cover grammar, range/Unicode/wrap boundaries, strict row replies,
-output bounds and Windows process/ConPTY behavior. This workflow uses implementation tests; these are executable
-checks and model review, not an unrun model-checking claim.
+migration.
 
 ## Source-selected waits
 
@@ -119,9 +117,6 @@ observations count validated samples that finished a match pass, including visib
 The offline `api schema` catalog publishes this current closed schema.
 
 Waits search text lines, map recent to recent-unwrapped, and permit an absent total deadline.
-Windows
-process checks, controlled clock/cancellation evidence and actual terminal waits must validate the
-source and lifetime rules. This workflow uses implementation tests.
 
 ## ANSI snapshot export
 
@@ -193,14 +188,9 @@ migration is added. Linux, macOS and Windows share the command runtime and wire/
 
 ## ANSI evidence and limits
 
-The shared TS/Zig packed-projection and render-window corpus supplies independently authored wire
-oracles, including malformed headers/sections and sparse delta cases. Rust tests additionally cover
-graphics bounds/references, canonical text encodings, render detail routing and exact pin rejection.
-CLI checks cover grammar, schemas, completion, style transitions, control data, Unicode/wide cells,
-blank padding, wrap edges and output limits. Windows process peers verify the actual lifecycle;
-matched-cohort PowerShell 5.1/7 sessions verify styled Unicode exports, pipes, retained output and
-unchanged TUI focus. These checks must pass before delivery. Review is by the implementation author;
-This workflow uses implementation tests and no independent review or unexecuted model proof is claimed.
+Windows process peers verify the actual lifecycle; matched-cohort PowerShell 5.1/7 sessions verify
+styled Unicode exports, pipes, retained output and unchanged TUI focus. These checks must pass
+before delivery.
 
 Packed OBTF and OBPB geometry preserves unknown cell pixels as `(0, 0)`, matching the Host and
 control geometry contract. Otherwise both dimensions are positive; mixed zero/positive pairs are

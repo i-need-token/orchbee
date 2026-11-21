@@ -10,7 +10,9 @@ with `tui_pointer.rs`, `workbench_client/ui.rs`, `workbench_client/connection/na
 `crates/client-server-protocol`, and the selection/effect contracts in
 `crates/terminal-protocol` and `apps/terminal-host`.
 
-The Terminal Host is the sole authority for selection endpoints and exported text. The native Client owns pointer coordination, visible projection, export assembly and the final external effect. Worker and Server relay exact records without interpreting selection text. Controlled gesture/export tests check publication order, completion and external-effect serialization; these adapter workflows have no separate TLA model.
+The Terminal Host is the sole authority for selection endpoints and exported text. The native Client
+owns pointer coordination, visible projection, export assembly and the final external effect. Worker
+and Server relay exact records without interpreting selection text.
 
 Selection stays volatile and per attachment. Cross-pane selection, clipboard reads, persistent
 screen or selection storage and line selection by triple press are outside this contract.
@@ -43,10 +45,8 @@ still retires that viewer without resubmission.
 
 The native Client also admits pane-program clipboard writes and BEL through the same bounded FIFO.
 It validates the Host envelope, epoch, attachment, and independent stream sequences before
-admission. Program effects may arrive while the pane is starting, before its first text frame.
-Explicit OSC 52 delivery and reloadable clipboard policy remain to be connected. Their requirements
-below describe remaining integration. Native-cohort verification and real Windows Terminal
-acceptance remain required; model checks and relay tests alone do not establish the user outcome.
+admission. Program effects may arrive while the pane is starting, before its first text frame. Their
+requirements below describe remaining integration.
 
 ## Pointer ownership and selection
 
@@ -182,47 +182,10 @@ Selection export and external effects retain these implementation obligations:
 - Rendering and terminal-output writes never overlap.
 - Draining removes undispatched effects; retirement waits for an already dispatched effect to settle.
 
-Controlled export/queue/writer tests and integrated traces in the verification map check these obligations. Bytes, Unicode, geometry, framing, clipboard behavior and rendering remain concrete adapter/system evidence. Unknown dispatch is a terminal non-replay result; no liveness claim assumes OS or outer-terminal confirmation. There is no separate selection-effects TLA model.
-
-## Verification map
-
-| Claim                                  | Lowest effective evidence                                         | Integrated evidence                                                       | Limit                                             |
-| -------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------- |
-| Final movement precedes release        | controlled gesture and coordinator traces                         | live and history rapid-release trace                                      | Named pointer traces                              |
-| Export commits complete Host text only | controlled export and chunk-state tests                           | soft/hard wrap, CJK width, combining text, reverse drag, and history copy | Plain text, 16 MiB maximum                        |
-| Pane effects reach only their viewer   | Worker exact-attachment FIFO and saturation tests                 | Host–Worker–Server–Client record trace                                    | Matching native cohort                            |
-| Selection never costs its viewer       | snapshot supersession, refusal relay and late-cancellation tests  | divider drag after a selecting click through real processes               | Windows host-Session TUI                          |
-| Mouse ownership remains exclusive      | pointer ownership and generation-fence tests                      | `vim mouse=a`, untracked drag, and `Shift` native selection               | Cell-addressed input                              |
-| External effects do not split a frame  | effect-writer state tests and backend byte trace                  | Windows Terminal OSC 52 and BEL observation                               | Host-terminal behavior outside Orchbee is trusted |
-| Win32 copy is the Windows default      | non-null owner, UTF-16, ownership, contention, and teardown tests | selection, Codex/Claude, and Vim clipboard observation                    | Windows only; OSC 52 is explicit                  |
+Unknown dispatch is a terminal non-replay result; no liveness claim assumes OS or outer-terminal
+confirmation. There is no separate selection-effects TLA model.
 
 ## Compatibility and recovery
-
-The maintained deterministic evidence includes
-`accepted_release_and_complete_host_export_reach_the_copy_queue_once`, which runs the real
-WorkbenchClientUi/mailbox command and Host-record intake boundary without changing the shared clipboard,
-and `reverse_drag_uses_absolute_rows_and_highlights_a_wide_glyph_as_one_unit`. Copy-queue tests
-exercise cancellation before dispatch, retirement after dispatch, definite adapter loss, and
-unknown loss without replay. The native hidden-owner test creates and pumps a real Windows window,
-injects the final write, and verifies dispatch and join; it does not prove OS clipboard contents.
-Real Windows Terminal clipboard-content and pointer acceptance remain required.
-
-`selection_replies_cross_the_local_carrier_without_retiring_or_replaying` exercises every selection
-action through the real local IPC codec. `selection_wrong_reply_pairings_retire_without_replay`
-checks that incompatible replies still close that carrier without another request. These transport
-tests relay opaque records; Host-record decoding and OS contents have separate evidence owners.
-
-The Windows target `cli_windows_terminal_viewer_session` runs the CLI, Server, Worker, and Zig
-Host under test with a real TUI Client in a terminal of a second Session while another terminal
-prints. It clicks a pane with a pointer movement that leaves a selection, waits 400 ms, and drags
-the divider, so the Host re-reports that selection and may refuse the export's cancellation or
-later chunk acknowledgements while the pane resizes; no terminal may become unavailable. The same
-target resizes the TUI's window ten times, alternately narrow and wide, while both panes print
-soft-wrapping lines; after every resize the TUI's terminal must still serve a read and the printing
-pane must keep advancing. It runs as its own test target for about forty seconds. Its fixture
-builds the Host from the checkout; a direct Cargo run needs current `orchbee-server` and
-`orchbee-worker` builds first, and the fixture refuses one whose Cargo dep-info lists a source that
-changed after it was linked.
 
 Selection viewer actions and effect routing are additive contracts delivered by one exact native
 Client, Server, Worker, and Host cohort. They create no durable selection or screen-data migration.

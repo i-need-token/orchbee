@@ -36,4 +36,6 @@ Host restart, generation changes, history eviction and gaps beyond the chosen wi
 
 ## Evidence and compatibility
 
-Parser, cursor, wire-decoder and Host reader-batch cases cover exact correlation, unrelated completions, invalid records and non-replay. Windows named-pipe cases cover the existing single paste/Enter receipt path. Same-author implementation tests are the evidence; no independent review or exhaustive schedule proof is claimed. Help, completion adapters, the offline Agent guide and schemas evolve together. Older binaries reject new options; existing sessions need a newly initialized managed PowerShell, zsh or bash for correlated waiting.
+Help, completion adapters, the offline Agent guide and schemas evolve together. Older binaries
+reject new options; existing sessions need a newly initialized managed PowerShell, zsh or bash for
+correlated waiting.

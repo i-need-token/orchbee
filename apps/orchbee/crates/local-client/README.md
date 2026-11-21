@@ -33,9 +33,7 @@ The transport owns cancellation, multiplexing, connection health, queues, and la
 `RetainedCarrier` takes an already-started byte relay's stop flag and join handle; its final owner
 stops and joins that relay. Connection shutdown and logical lane shutdown remain separate operations.
 
-Adjacent private tests retain admission, fragmentation, deadline, typed exchange, cancellation,
-queue, correlation, health, and cleanup evidence. Raw connection constructors and chunk limits stay
-with those tests.
+Raw connection constructors and chunk limits stay with the adjacent private tests.
 
 The `test-support` feature exposes `test_support`: bounded fake Servers and multiplex peers,
 deadline-free test admission, controlled transport clocks, a before-write gate, a response-wait

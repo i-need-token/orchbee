@@ -103,14 +103,6 @@ The catalog exposes the current documents and command paths.
 
 ## Evidence and delivery
 
-Deterministic cases and generated traces cover stale/equal/absent/max sequences, atomic key
-and source limits, delayed expiry, overwrite races, clear without sequence reset, UTF-8
-normalization, closed targets, resource bounds and revision/deadline exhaustion. Shared wire
-fixtures cover both language bindings and frame limits. Admission and correlation checks cover the Server boundary. CLI integration additionally
-requires process checks for changed revisions, cancellation and uncertainty without replay.
-Real Windows acceptance must exercise multi-source writes, reads, TTL, clear, rename/close and unchanged
-topology/Client state. Same-author checks are not independent review; This workflow uses implementation tests.
-
 Ship matching cohort components. Revert the matched code to roll back; no persistent migration
 or user configuration change is required. Never restore transient sequence/TTL state from a
 topology checkpoint.

@@ -11,8 +11,4 @@
 - Detach records actual cleanup provenance. A late flag sample may revise the primary outcome but never rewrite cleanup already observed.
 - Emit at most one final answer; unknown effects do not cause automatic replay.
 
-## Evidence and limits
-
-`src/cli/query/tests/wait.rs` exercises the production settlement decisions. `tests/cli_query.rs` drives a scripted OBCS viewer with real frame/row records, increasing request sequences, stale re-pin, deadline and cleanup outcomes.
-
-Run the owning Cargo tests. These witnesses cover selected completion orders and concrete protocol boundaries; they do not claim exhaustive independent Server/Worker schedules or real-time guarantees. Shared viewer ownership and relay isolation are separately registered Server protocols.
+Shared viewer ownership and relay isolation are separately registered Server protocols.

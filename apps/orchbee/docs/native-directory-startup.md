@@ -29,9 +29,3 @@ Scope validation checks Workspace/context/Tab/Panel/primary presentation identit
 Completion still requires first-frame readiness. Cancellation stops waiting, not Server work already accepted. Both locales report the known Workspace ID or unknown request ID before startup returns failure; `orchbee workspace list` inspects retained state. There is no new startup-specific wire, checkpoint or preference format, and no automatic replay of pending or unknown launch.
 
 Closing the last Workspace in a live Client is deliberate removal, not first entry. It shows the no-Workspace creation entry without recreating a Workspace or terminal. Windows New workspace and the empty state's Create Tab shortcut use the existing explicit Workspace creation owner. Desktop has a separate initialization owner.
-
-## Evidence and limits
-
-`crates/workbench-client/src/startup_directory/tests.rs` covers admission with empty Projects, rejection with an empty Workspace, path/label rules, exact scope and retained evidence in both locales. `crates/workbench-client/src/workbench_client/connection/native/tests/startup_directory.rs` checks one launch before Bootstrap, no implicit terminal open or ProjectCreate, retained known receipts after read failure, and unknown handoff without follow-up or replay.
-
-Use the owning `startup_directory` Rust tests with the matched native dependency build. These tests cover bounded implementation traces; actual terminal appearance and full cohort acceptance belong to the native end-to-end suite. They do not claim exhaustive interleavings or other-platform coverage.

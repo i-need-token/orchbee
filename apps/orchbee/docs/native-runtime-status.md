@@ -163,12 +163,3 @@ timeout (exit 7) and cancellation (exit 130) codes and add the closed detail
 copy instead of the generic query failure: on Windows, a Client below High integrity refused with OS
 error 5 learns that the Session runs as administrator and to run `orchbee server stop` in an
 administrator terminal; any other refusal says the local Session refused this connection.
-
-Evidence: the reply's process order, versions and unknown role or state; Hosts after the Worker, at
-most 256 and without capabilities, and a late Worker read as no Host; the Windows named-pipe request
-with environment refusal, an old Session's rejection, wrong replies, silence, expiry and
-cancellation; Server query with full Session capacity and while stopping without allocating a
-generation; offline Client, help, schema and completion; `status` with no Session failing
-unavailable; and `doctor` with no Session exiting 0 with `session` not-applicable while an
-unreadable configuration file exits 1. Review is performed by the implementation author with
-implementation tests; neither independent review nor unexecuted formal proof is claimed.

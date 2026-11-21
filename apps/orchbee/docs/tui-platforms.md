@@ -179,15 +179,8 @@ installation or SSH implementations.
 
 ## Verification ownership
 
-Pure state, rendering, input, capability refusal and receipt-settlement traces run on every
-supported platform. Real Win32, process and private-cache witnesses stay with their Windows
-adapter. The Client crate has no macOS-wide `dead_code` exemption. Unreachable implementations and
-companions are removed instead of keeping a test-only copy of a retired renderer.
-The Linux startup and peer-publication process witnesses share one bounded Workbench peer helper;
-fixture preparation does not import another scenario's test module.
-Cancellation evidence retains the existing in-flight read/no-retry and joined-retirement witnesses,
-and adds the readiness gap: sticky independent borrowers, borrowed wake faults, failed notification
-closure and exact Windows signal-byte matching. Unix FD witnesses still require a native Unix run.
+The Client crate has no macOS-wide `dead_code` exemption. Unreachable implementations and companions
+are removed instead of keeping a test-only copy of a retired renderer.
 
 Run `cargo check -p orchbee --all-targets --all-features --locked` and
 `cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings` on each native
