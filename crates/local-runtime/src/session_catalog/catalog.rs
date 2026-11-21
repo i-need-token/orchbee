@@ -171,14 +171,14 @@ impl SessionCatalog {
                         stopped_evidence(&checkpoint)?;
                     }
                     Some(ActivationState::Active | ActivationState::Crashed { .. }) => {
-                        let _writer = self.durable.try_writer(scope)?;
+                        let writer = self.durable.try_writer(scope)?;
                         let record = self
                             .durable
                             .read(scope)?
                             .ok_or(io::ErrorKind::InvalidData)?;
                         let processes = &record.processes;
                         let snapshot = ProcessSnapshot::observe(processes);
-                        if snapshot.verdict(processes) != RecoveryVerdict::Gone {
+                        if snapshot.verdict(processes, &writer) != RecoveryVerdict::Gone {
                             return Err(io::ErrorKind::InvalidData.into());
                         }
                     }
@@ -215,7 +215,7 @@ impl SessionCatalog {
         session.require_lock(lifetime, crate::LockKind::SessionLifetime)?;
         let runtime = session.runtime_directory();
         let scope = self.scope_of(runtime)?;
-        let _writer = self.durable.try_writer(scope)?;
+        let writer = self.durable.try_writer(scope)?;
         let Some(mut record) = self.durable.read(scope)? else {
             return Ok(None);
         };
@@ -229,7 +229,7 @@ impl SessionCatalog {
         }
         let processes = &record.processes;
         let snapshot = ProcessSnapshot::observe(processes);
-        if snapshot.verdict(processes) != RecoveryVerdict::Gone {
+        if snapshot.verdict(processes, &writer) != RecoveryVerdict::Gone {
             return Err(io::ErrorKind::InvalidData.into());
         }
         // begin_activation closes the prior generation before publishing the fresh
@@ -687,7 +687,7 @@ impl NamedSessionEntry {
             let Some(directory) = Directory::open(&self.root)? else {
                 return Ok(false);
             };
-            let _writer = directory
+            let writer = directory
                 .existing_writer(scope)?
                 .ok_or(io::ErrorKind::NotFound)?;
             let Some(record) = directory.read(scope)? else {
@@ -700,7 +700,7 @@ impl NamedSessionEntry {
             }
             let processes = &record.processes;
             let snapshot = ProcessSnapshot::observe(processes);
-            if snapshot.verdict(processes) != RecoveryVerdict::Gone {
+            if snapshot.verdict(processes, &writer) != RecoveryVerdict::Gone {
                 return Ok(false);
             }
             no_endpoints(&self.runtime)?;

@@ -1,5 +1,8 @@
 use super::super::*;
 use crate::{
+    DataRoot,
+    durable_sessions::Directory,
+    private_filesystem as permissions,
     process_observation::ProcessSnapshot,
     process_registration::{
         Creator, ProcessIdentity, ProcessRole, RecoveryVerdict, SessionProcesses,
@@ -29,11 +32,8 @@ impl Drop for Fixture {
         if self.root.parent() != Some(std::env::temp_dir().canonicalize().unwrap().as_path()) {
             return;
         }
-        let marker = self.root.join("executed.json");
-        if marker.exists() {
-            fs::remove_file(marker).unwrap();
-        }
-        fs::remove_dir(&self.root).unwrap();
+        // The marker the child wrote and the record lock's Session folder.
+        fs::remove_dir_all(&self.root).unwrap();
     }
 }
 
@@ -48,7 +48,11 @@ fn suspended_child_identity_precedes_execution_and_exit_259_is_gone() {
             .as_nanos()
     ));
     fs::create_dir(&root).unwrap();
+    permissions::protect_new(&mut permissions::open_directory(&root, true).unwrap()).unwrap();
     let mut fixture = Fixture { root, child: None };
+    // A verdict is taken under the record writer lock, as cold recovery takes it.
+    let directory = Directory::create(&DataRoot::at(fixture.root.clone())).unwrap();
+    let writer = directory.try_writer("registration").unwrap();
     let executable = std::env::current_exe().unwrap();
     let marker = fixture.root.join("executed.json");
     let args = [
@@ -69,7 +73,7 @@ fn suspended_child_identity_precedes_execution_and_exit_259_is_gone() {
     processes.identify(ProcessRole::Server, identity).unwrap();
     let snapshot = ProcessSnapshot::observe(&processes);
     assert_eq!(
-        snapshot.verdict(&processes),
+        snapshot.verdict(&processes, &writer),
         RecoveryVerdict::Live(ProcessRole::Server)
     );
     thread::sleep(Duration::from_millis(100));
@@ -87,7 +91,7 @@ fn suspended_child_identity_precedes_execution_and_exit_259_is_gone() {
     assert_eq!(observed, identity);
     assert_eq!(status.code(), Some(259));
     assert_eq!(
-        ProcessSnapshot::observe(&processes).verdict(&processes),
+        ProcessSnapshot::observe(&processes).verdict(&processes, &writer),
         RecoveryVerdict::Gone
     );
 }

@@ -1,7 +1,10 @@
 //! Read-only exact process observations. These handles never carry termination rights.
-use crate::process_registration::{
-    ProcessIdentity, ProcessObservation, ProcessRole, RecoveryVerdict, Registration,
-    SessionProcesses,
+use crate::{
+    durable_sessions::RecordWriter,
+    process_registration::{
+        ProcessIdentity, ProcessObservation, ProcessRole, RecoveryVerdict, Registration,
+        SessionProcesses,
+    },
 };
 use std::io;
 use winsafe::{HPROCESS, co, guard::CloseHandleGuard};
@@ -41,7 +44,13 @@ impl ProcessSnapshot {
         }
         snapshot
     }
-    pub(crate) fn verdict(&self, processes: &SessionProcesses) -> RecoveryVerdict {
+    /// Cold recovery's verdict on the record `processes` was read from under `_writer`, the lock a
+    /// registered child's creator holds across its whole attempt.
+    pub(crate) fn verdict(
+        &self,
+        processes: &SessionProcesses,
+        _writer: &RecordWriter,
+    ) -> RecoveryVerdict {
         processes.status(self.observations)
     }
 }

@@ -14,9 +14,15 @@ vars == <<generation, lifecycle, registration, physical, workers, incarnation, s
 NoChildrenStarted == \A r \in Roles: registration[r] = "not-started"
 
 \* Physical processes survive record transitions and generation changes. "dead"
-\* denotes the exact PID+creation identity gone, even if its PID is reused. Only the
-\* Worker has incarnations: the recorded Server replaces a lost Worker inside one
-\* generation, and every earlier incarnation stays a process of its own.
+\* denotes the exact PID+creation identity gone, even if its PID is reused. "orphan" is a
+\* suspended child whose creation attempt ended before its identity was written: only its
+\* creator held the handle that resumes it, so it never runs. Only the Worker has
+\* incarnations: the recorded Server replaces a lost Worker inside one generation, and every
+\* earlier incarnation stays a process of its own.
+\* `pending` is the role whose creation attempt holds the record writer lock, from before its
+\* Spawning write until its identity write and resume, or its failure cleanup, end the attempt;
+\* the creator's loss ends it too. Cold recovery reads the record under that lock, so it only
+\* ever reads `pending = NoRole`.
 State(r) == IF r = "worker" THEN workers[generation][incarnation]
             ELSE physical[generation][r]
 SetState(r, s) ==
@@ -107,14 +113,34 @@ CleanupChild ==
   /\ UNCHANGED <<generation, lifecycle, registration, incarnation, stop, owner, marker,
                   markerGeneration, unknown, obstructed, phase>>
   /\ action' = "CleanupChild"
+Orphaned(c) == c \in Roles /\ pending = c /\ registration[c] = "spawning" /\ State(c) = "suspended"
+\* A lost creator ends its child's attempt, and an unidentified suspended child becomes an orphan.
 ProcessLoss(r) ==
   /\ State(r) \in Live
-  /\ SetState(r, "dead")
-  /\ pending' = IF pending \in Roles /\ pending # "server" /\ Parent(pending) = r
-                 THEN NoRole ELSE pending
+  /\ LET lost == pending \in Roles /\ pending # "server" /\ Parent(pending) = r
+         orphan == lost /\ Orphaned(pending)
+     IN /\ IF r = "worker"
+           THEN /\ workers' = [workers EXCEPT ![generation][incarnation] = "dead"]
+                /\ physical' = IF orphan THEN [physical EXCEPT ![generation][pending] = "orphan"]
+                               ELSE physical
+           ELSE /\ physical' = [physical EXCEPT ![generation][r] = "dead"]
+                /\ workers' = IF orphan THEN [workers EXCEPT ![generation][incarnation] = "orphan"]
+                              ELSE workers
+        /\ pending' = IF lost THEN NoRole ELSE pending
   /\ UNCHANGED <<generation, lifecycle, registration, incarnation, stop, owner, marker,
                   markerGeneration, unknown, obstructed, phase>>
   /\ action' = "ProcessLoss"
+\* A creator whose cleanup is unconfirmed ends its attempt anyway: an unidentified child becomes an
+\* orphan, and an identified one stays a live exact identity.
+AbandonChild ==
+  /\ pending \in Roles /\ State(pending) = "suspended"
+  /\ IF registration[pending] = "spawning"
+     THEN SetState(pending, "orphan")
+     ELSE UNCHANGED <<physical, workers>>
+  /\ pending' = NoRole
+  /\ UNCHANGED <<generation, lifecycle, registration, incarnation, stop, owner, marker,
+                  markerGeneration, unknown, obstructed, phase>>
+  /\ action' = "AbandonChild"
 \* A stop is admitted by the running Server; it then ends the Host, through its Worker or,
 \* without one, through the Host's own exit request, and completes once nothing runs.
 AdmitStop ==
@@ -139,11 +165,14 @@ CompleteStop ==
   /\ UNCHANGED <<generation, registration, workers, incarnation, stop, pending, owner, marker,
                   markerGeneration, unknown, obstructed, phase>>
   /\ action' = "CompleteStop"
+\* Cold recovery's verdict, read under the record writer lock: no attempt in progress, every
+\* identified role's exact process observed gone, and no observation unknown or obstructed. A
+\* spawning slot names an attempt that ended without an identity, so it decides nothing.
 Proof ==
   /\ ~unknown /\ ~obstructed /\ pending = NoRole
-  /\ \A r \in Roles: registration[r] # "spawning"
-  /\ \A r \in {"server", "host"}: physical[generation][r] \in {"none", "dead"}
-  /\ \A i \in Incarnations: workers[generation][i] \in {"none", "dead"}
+  /\ \A r \in {"server", "host"}: registration[r] = "identified" => physical[generation][r] = "dead"
+  /\ registration["worker"] = "identified" => workers[generation][incarnation] = "dead"
+Settled(s) == s \in {"none", "dead", "orphan"}
 Recover(c) ==
   /\ owner = c /\ phase[c] = "held" /\ lifecycle = "active" /\ Proof
   /\ lifecycle' = "crashed"
@@ -193,7 +222,9 @@ Abort(c) ==
   /\ owner = c /\ phase[c] = "held"
   /\ owner' = Nobody /\ phase' = [phase EXCEPT ![c] = "finished"]
   /\ pending' = IF pending = "server" THEN NoRole ELSE pending
-  /\ UNCHANGED <<generation, lifecycle, registration, physical, workers, incarnation, stop,
+  /\ physical' = IF Orphaned("server")
+                 THEN [physical EXCEPT ![generation]["server"] = "orphan"] ELSE physical
+  /\ UNCHANGED <<generation, lifecycle, registration, workers, incarnation, stop,
                   marker, markerGeneration, unknown, obstructed>>
   /\ action' = "Abort"
 Retry(c) ==
@@ -207,13 +238,14 @@ Next ==
   \/ \E r \in Roles: ReserveChild(r) \/ ProcessLoss(r)
   \/ CommitMarker \/ CreateSuspended \/ PublishIdentity \/ ResumeChild \/ CreationFails
   \/ CleanupChild \/ ClearPreviousMarker \/ PublishCrashMarker \/ BeginGeneration
-  \/ ReplaceWorker \/ AdmitStop \/ StopEndsHost \/ CompleteStop
+  \/ ReplaceWorker \/ AdmitStop \/ StopEndsHost \/ CompleteStop \/ AbandonChild
 Spec == Init /\ [][Next]_vars /\ \A c \in Clients: WF_vars(Abort(c))
+ProcessStates == {"none", "suspended", "running", "dead", "orphan"}
 TypeOK ==
   /\ generation \in Generations /\ lifecycle \in {"active", "crashed", "stopped"}
   /\ registration \in [Roles -> {"not-started", "spawning", "identified"}]
-  /\ physical \in [Generations -> [Roles -> {"none", "suspended", "running", "dead"}]]
-  /\ workers \in [Generations -> [Incarnations -> {"none", "suspended", "running", "dead"}]]
+  /\ physical \in [Generations -> [Roles -> ProcessStates]]
+  /\ workers \in [Generations -> [Incarnations -> ProcessStates]]
   /\ incarnation \in Incarnations /\ stop \in {"none", "admitted"}
   /\ pending \in Roles \cup {NoRole} /\ owner \in Clients \cup {Nobody}
   /\ marker \in {"absent", "active", "crashed"}
@@ -241,4 +273,18 @@ ActivationOwnership == owner # Nobody => phase[owner] = "held"
 ReplacementKeepsHost ==
   [][action' = "ReplaceWorker" => registration'["host"] = registration["host"]]_vars
 AttemptTerminates == \A c \in Clients: phase[c] = "held" ~> phase[c] = "finished"
+\* The verdict never admits a generation that may still run a process: each process it does not
+\* read is never started, gone, or an orphan.
+ProofIsSound == Proof =>
+  /\ \A r \in {"server", "host"}: Settled(physical[generation][r])
+  /\ \A i \in Incarnations: Settled(workers[generation][i])
+\* No registration refuses recovery for good: once no process of the generation may run, no attempt
+\* is in progress and every observation is certain, the verdict admits recovery.
+RecoveryNeverStuck ==
+  (/\ lifecycle = "active" /\ pending = NoRole /\ ~unknown /\ ~obstructed
+   /\ \A r \in {"server", "host"}: Settled(physical[generation][r])
+   /\ \A i \in Incarnations: Settled(workers[generation][i])) => Proof
+OrphansNeverRun == [][\A g \in Generations, r \in {"server", "host"}, i \in Incarnations:
+  /\ physical[g][r] = "orphan" => physical'[g][r] = "orphan"
+  /\ workers[g][i] = "orphan" => workers'[g][i] = "orphan"]_vars
 =============================================================================

@@ -597,9 +597,11 @@ Session, and deletion removes it.
 The pinned-base namespace gate covers default and named activation. A missing runtime with a
 validated stopped record, free checkpoint lock and absent endpoints can be recreated at the same
 route. Stopped records may use any fixed slot or exactly named owned corrupt original. Active
-recovery requires all exact registered identities gone, complete registration, free guards and absent
-endpoints. Recovery publishes Crashed before reconciling its marker and beginning a fresh generation.
-Live/unknown identity, incomplete registration, pending deletion and orphan storage refuse recovery.
+recovery requires all exact registered identities gone, free guards and absent endpoints. A slot
+still reserved decides nothing: recovery reads it under the record writer lock, which its creator
+holds across the whole creation, so its attempt ended without an identity and its child never runs.
+Recovery publishes Crashed before reconciling its marker and beginning a fresh generation.
+Live/unknown identity, pending deletion and orphan storage refuse recovery.
 macOS and Linux register no process identities, so there recovery requires the free activation and
 lifetime guards and a free Host lock, which the Host holds for its whole life; socket files are
 never evidence, and a Stopped record needs only its receipt until those platforms keep checkpoints.

@@ -60,33 +60,47 @@ fn only_the_exact_registered_parent_can_reserve_its_direct_child() {
     processes
         .reserve(ProcessRole::Worker, Creator::Process(identity(1, 10)))
         .unwrap();
-    assert_eq!(
-        processes.status([ProcessObservation::Gone; 3]),
-        RecoveryVerdict::Uncertain(ProcessRole::Worker)
-    );
 }
 
 #[test]
-fn incomplete_creation_is_uncertain_even_when_no_endpoint_or_known_process_remains() {
-    let mut processes = SessionProcesses::default();
-    assert_eq!(
-        processes.status([ProcessObservation::Gone; 3]),
-        RecoveryVerdict::Gone
-    );
-    processes
+fn an_ended_reservation_never_refuses_recovery_and_only_identified_roles_decide() {
+    let server = Creator::Process(identity(1, 10));
+    let mut fresh = SessionProcesses::default();
+    fresh
         .reserve(ProcessRole::Server, Creator::Activator)
         .unwrap();
-    assert_eq!(
-        processes.status([ProcessObservation::Gone; 3]),
-        RecoveryVerdict::Uncertain(ProcessRole::Server)
-    );
-    processes
+    let mut worker = fresh.clone();
+    worker
         .identify(ProcessRole::Server, identity(1, 10))
         .unwrap();
-    assert_eq!(
-        processes.status([ProcessObservation::Gone; 3]),
-        RecoveryVerdict::Gone
-    );
+    worker.reserve(ProcessRole::Worker, server).unwrap();
+    let mut host = worker.clone();
+    host.identify(ProcessRole::Worker, identity(2, 20)).unwrap();
+    host.reserve(ProcessRole::Host, Creator::Process(identity(2, 20)))
+        .unwrap();
+    let mut replacement = enrolled();
+    replacement.reserve_replacement_worker(server).unwrap();
+    for processes in [fresh, worker, host, replacement] {
+        let mut observations = [ProcessObservation::Gone; 3];
+        for (index, role) in ROLES.into_iter().enumerate() {
+            if processes.registration(role) == Registration::Spawning {
+                // No identity names the slot's process, so no observation of it decides.
+                observations[index] = ProcessObservation::Unknown;
+            }
+        }
+        assert_eq!(processes.status(observations), RecoveryVerdict::Gone);
+        for (index, role) in ROLES.into_iter().enumerate() {
+            let Some(identity) = processes.registration(role).identity() else {
+                continue;
+            };
+            let mut live = observations;
+            live[index] = ProcessObservation::Present(identity);
+            assert_eq!(processes.status(live), RecoveryVerdict::Live(role));
+            let mut unknown = observations;
+            unknown[index] = ProcessObservation::Unknown;
+            assert_eq!(processes.status(unknown), RecoveryVerdict::Uncertain(role));
+        }
+    }
 }
 
 #[test]
@@ -212,11 +226,6 @@ fn only_the_recorded_server_returns_a_gone_worker_to_spawning_and_the_host_keeps
     assert_eq!(
         processes.registration(ProcessRole::Host),
         before.registration(ProcessRole::Host)
-    );
-    // A crash before identity publication leaves a state recovery already refuses.
-    assert_eq!(
-        processes.status([ProcessObservation::Gone; 3]),
-        RecoveryVerdict::Uncertain(ProcessRole::Worker)
     );
     let reread: SessionProcesses =
         serde_json::from_value(serde_json::to_value(&processes).unwrap()).unwrap();

@@ -219,12 +219,16 @@ impl SessionProcesses {
         *self.registration_mut(role) = Registration::Identified { identity };
         Ok(())
     }
+    /// Whether the registered processes are gone, judged from `observations` of their exact
+    /// identities. A Spawning slot reads as never started: read under the record writer lock its
+    /// creator held across the whole attempt, it names an attempt that ended before the identity
+    /// write, whose child, if created, was never resumed and never runs. The identified roles,
+    /// among them the slot's creator, decide alone.
     pub(crate) fn status(&self, observations: [ProcessObservation; 3]) -> RecoveryVerdict {
         let mut live = None;
         for (role, observation) in ROLES.into_iter().zip(observations) {
             match (self.registration(role), observation) {
-                (Registration::Spawning, _)
-                | (Registration::Identified { .. }, ProcessObservation::Unknown) => {
+                (Registration::Identified { .. }, ProcessObservation::Unknown) => {
                     return RecoveryVerdict::Uncertain(role);
                 }
                 (Registration::Identified { identity }, ProcessObservation::Present(observed))

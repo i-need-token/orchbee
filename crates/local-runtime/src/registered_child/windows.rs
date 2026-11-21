@@ -129,6 +129,10 @@ fn spawn_reserved_with<T>(
     create: impl FnOnce(&Path, &[&OsStr]) -> io::Result<(RetainedChild, T)>,
 ) -> io::Result<(RetainedChild, T)> {
     let role = reservation.role();
+    // The writer lock stays held until this attempt returns. Cold recovery reads a Spawning slot
+    // under the same lock as an attempt that ended without an identity, so releasing it before the
+    // identity write and resume, or the failure cleanup, would let recovery start a new generation
+    // beside a child this attempt may still resume.
     let (_writer, mut record) = (|| -> io::Result<_> {
         let initial = directory.read(scope)?.ok_or(io::ErrorKind::NotFound)?;
         if initial.lifecycle != Lifecycle::Active {

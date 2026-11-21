@@ -22,27 +22,46 @@ must be idle and all Client, Worker, Host and observation endpoints absent befor
 
 ## Registration transitions
 
-| Transition             | Guard                                                                                       | Publication and effect                                                |
-| ---------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Reserve child          | Active generation; slot NotStarted; exact registered parent, or activation owner for Server | Flush Spawning before CreateProcess                                   |
-| Reserve replacement    | Active generation; exact registered Server; Worker slot registered; Host not Spawning       | Flush Worker Spawning before CreateProcess; Host registration kept    |
-| Create child           | Same reserved generation and writer guard                                                   | Create suspended, detached child without inherited handles            |
-| Identify child         | Exact retained child handle                                                                 | Flush PID and creation FILETIME before execution                      |
-| Release child          | Identity publication succeeded                                                              | Resume its retained initial thread; release writer guard              |
-| Failure or parent loss | Any incomplete phase                                                                        | Preserve uncertain registration; never infer absence from missing PID |
+| Transition             | Guard                                                                                       | Publication and effect                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Reserve child          | Active generation; slot NotStarted; exact registered parent, or activation owner for Server | Flush Spawning before CreateProcess                                                                             |
+| Reserve replacement    | Active generation; exact registered Server; Worker slot registered; Host not Spawning       | Flush Worker Spawning before CreateProcess; Host registration kept                                              |
+| Create child           | Same reserved generation and writer guard                                                   | Create suspended, detached child without inherited handles                                                      |
+| Identify child         | Exact retained child handle                                                                 | Flush PID and creation FILETIME before execution                                                                |
+| Release child          | Identity publication succeeded                                                              | Resume its retained initial thread; release writer guard                                                        |
+| Failure or parent loss | Any incomplete phase                                                                        | Keep the record as last written; the writer guard ends with the attempt; never infer absence from a missing PID |
 
 A successfully created child is never released when identity publication fails. Its creator tries
-to terminate and confirm exit through the exact owned handle. Unconfirmed cleanup remains an
-uncertain generation. This startup cleanup authority does not authorize terminating an orphan or
-a process discovered by PID. Server/Worker effects must not bypass registered creation.
+to terminate and confirm exit through the exact owned handle. This startup cleanup authority does
+not authorize terminating an orphan or a process discovered by PID. Server/Worker effects must not
+bypass registered creation.
+
+A creator still running whose termination stays unconfirmed returns the failure and closes its
+handles without terminating the child; a creator lost before the release loses its handles to the
+kernel. Either way the child is a suspended orphan: it holds no Session role, lock, pipe or
+inherited handle, and it never runs, because only its creator held the handle to the initial thread
+that would resume it. Its slot keeps what the attempt last wrote. An attempt that ended before the
+identity write leaves the slot Spawning, which cold recovery reads as not started under the
+[writer-lock rule](#the-writer-lock-rule), so the orphan blocks no later generation. An attempt that
+ended after it, by its creator's loss or a failed resume or deadline, leaves the orphan's exact
+identity, which recovery observes alive and refuses until the orphan ends.
+
+Orchbee places registered children in no Job of its own: a child inherits its creator's Jobs, apart
+from a Server created outside its activator's Job. A kill-on-close Job ends its processes only when
+its last handle closes, and an orphan's creator holds no handle to a Job it merely runs in, so the
+creator's exit closes none. The launcher's kill-on-close Job ends the Client with the launcher, but
+every process the Client starts leaves it, so an orphaned Server is never in it. An orphan therefore
+lasts until a kill-on-close Job it inherited closes, such as the Win32-OpenSSH connection's Job
+around a Server that could not leave it, until the computer restarts, or until the person ends it.
+Until then it keeps its program file in use, so that file cannot be replaced or deleted.
 
 A replacement Worker reuses the generation's Worker slot. Only the recorded Server reserves it, and
 only after it has proved the recorded Worker gone through the handle it created that Worker with,
 or knows a failed replacement left no process; the record holds no such proof, so the Server
 carries it. The adopted Host keeps its identity, and a Host still Spawning refuses the reservation.
 The record therefore admits a Spawning Host only under an identified Worker, and an identified Host
-under any registered Worker. A record written while a replacement is Spawning reads as Uncertain,
-the same as any incomplete creation; a reader that predates the rule refuses it as malformed.
+under any registered Worker. Cold recovery reads a replacement still Spawning like any other
+Spawning slot; a reader that predates the rule refuses it as malformed.
 [`SessionCrashRecovery`](../formal/tla/SessionCrashRecovery.tla) checks the replacement: its
 `replacement` configuration gives one generation two Worker incarnations, and `SingleOwner` and
 `OnlyCurrentWorkerRuns` hold only while a replacement waits for its predecessor's proven exit. An
@@ -50,13 +69,15 @@ admitted stop starts no replacement, and a stopped Session runs no Worker or Hos
 
 ## Cold recovery transitions
 
-| Catalog and observed facts                                                                                                         | Result                                                                                 |
-| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Active; no Spawning; all identified identities gone; all guards and endpoint/storage checks pass                                   | Publish Crashed for the old activation; reconcile its marker; begin a fresh generation |
-| Crashed with matching old marker, or marker absent after runtime loss                                                              | Resume the same guarded reconciliation before a fresh generation                       |
-| Any exact identity alive, identity query unknown, Spawning, unsafe storage, conflicting receipt after creation or endpoint present | Refuse and retain data                                                                 |
-| Malformed or unsupported record                                                                                                    | Refuse as InvalidData; retain bytes                                                    |
-| Valid Stopped with current checkpoint evidence                                                                                     | Existing clean-stop restart path; next activation writes version 1                     |
+| Catalog and observed facts                                                                                                   | Result                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Active; all identified identities gone, a Spawning slot counting as not started; all guards and endpoint/storage checks pass | Publish Crashed for the old activation; reconcile its marker; begin a fresh generation |
+| Crashed with matching old marker, or marker absent after runtime loss                                                        | Resume the same guarded reconciliation before a fresh generation                       |
+| Any exact identity alive, identity query unknown, unsafe storage, conflicting receipt after creation or endpoint present     | Refuse and retain data                                                                 |
+| Malformed or unsupported record                                                                                              | Refuse as InvalidData; retain bytes                                                    |
+| Valid Stopped with current checkpoint evidence                                                                               | Existing clean-stop restart path; next activation writes version 1                     |
+
+A Spawning slot counts as not started only under the [writer-lock rule](#the-writer-lock-rule).
 
 Recovery never terminates old processes, fabricates a clean-stop receipt, deletes checkpoint data,
 or resumes an Agent into a still-owned terminal. A live orphan Host remains protected and requires
@@ -84,6 +105,21 @@ is reserved or identified, a conflicting prior receipt is refused. Recovery firs
 for the unstarted generation, truncates and flushes the old receipt, then writes its own crash marker.
 An interruption leaves either the complete prior receipt or an empty/matching-prefix crash marker;
 the same guarded reconciliation can retry without inventing a clean-stop result.
+
+## The writer-lock rule
+
+Cold recovery reads a Spawning slot as not started by one rule that every later change must keep. A
+registered child's creator holds the record writer lock from before its Spawning write until after
+its identity write and resume, or its failure cleanup; only the attempt's return or its creator's
+loss releases it. Every cold-recovery verdict is taken under that same lock:
+`SessionCatalog::prepare_activation`, `SessionCatalog::recover_inactive` and
+`NamedSessionEntry::cold_recoverable` each read the record and observe its identities while holding
+it, and `ProcessSnapshot::verdict` takes the held lock as an argument. A verdict therefore sees a
+Spawning slot only once its attempt has ended without an identity, whose child, if one was created,
+was never resumed and never runs; the identified roles, among them the slot's creator, decide alone.
+A reader without the lock, such as the running Server's Host presence above, cannot tell an attempt
+in progress from an ended one and never reads Spawning as absent. A change that releases the lock
+anywhere inside that window makes reading Spawning as not started unsound.
 
 ## Format and durability
 
@@ -113,20 +149,26 @@ or migrates; identity replacement belongs to a recovery workflow that owns the o
 
 ## Correctness evidence
 
-| Claim                                                                 | Evidence                                                                                            |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Child execution follows identity publication                          | Windows suspended-child trace and registration transition tests                                     |
-| Incomplete registration and unknown identity never authorize recovery | Parser/policy tests and SessionCrashRecovery safety checks                                          |
-| Old live owner cannot coexist with a newly recovered owner            | TLA+ bounded two-Client/two-generation model and contended Windows activation traces                |
-| PID reuse does not grant termination authority                        | Pure identity comparison and native identity observation; recovery exposes no termination operation |
-| Recovery interruption preserves generation and checkpoint             | Publication-boundary tests and isolated process-loss restart traces                                 |
-| Default and named Sessions share policy                               | Native Windows integration cases for both routes                                                    |
-| A record refuses only the Session it names                            | Windows catalog regression cases for unreadable and other-runtime records; letter-case is untested  |
+| Claim                                                            | Evidence                                                                                            |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Child execution follows identity publication                     | Windows suspended-child trace and registration transition tests                                     |
+| Live or unknown identity never authorizes recovery               | Parser/policy tests and SessionCrashRecovery `ProofIsSound`                                         |
+| An attempt that ended without an identity never refuses recovery | Policy tests, the native failed-start regression and SessionCrashRecovery `RecoveryNeverStuck`      |
+| Old live owner cannot coexist with a newly recovered owner       | TLA+ bounded two-Client/two-generation model and contended Windows activation traces                |
+| PID reuse does not grant termination authority                   | Pure identity comparison and native identity observation; recovery exposes no termination operation |
+| Recovery interruption preserves generation and checkpoint        | Publication-boundary tests and isolated process-loss restart traces                                 |
+| Default and named Sessions share policy                          | Native Windows integration cases for both routes                                                    |
+| A record refuses only the Session it names                       | Windows catalog regression cases for unreadable and other-runtime records; letter-case is untested  |
 
 The abstract model retains physical processes across generation changes instead of forgetting old
 owners. Suspended creation, identity publication and resume are separate actions; parent loss can
-occur between them. Process-query denial and endpoint obstruction reject recovery. The model has
-one current exact-registry state space; unsupported records are rejected before entering it.
+occur between them. A creation attempt holds the writer lock as `pending` until it ends; its
+creator's loss or an unconfirmed cleanup ends it and turns an unidentified suspended child into an
+orphan that never runs (`OrphansNeverRun`). Recovery decides only with no attempt pending:
+`ProofIsSound` checks that it never admits a generation that may still run a process, and
+`RecoveryNeverStuck` that it admits every Active generation that can run none once no observation
+is unknown or obstructed. Process-query denial and endpoint obstruction reject recovery. The model
+has one current exact-registry state space; unsupported records are rejected before entering it.
 
 Its finite bounds and OS/process adapter assumptions do not prove arbitrary kernel behavior or
 Host adoption. Actual Windows reboot and human Windows Terminal acceptance are separate evidence.

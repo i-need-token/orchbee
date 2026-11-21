@@ -89,11 +89,11 @@ impl super::CliText {
         match (self.locale, path) {
             (Locale::EnUs, CommandPath::SessionList) => crate::cli_text::HelpDetails::new(
                 "orchbee session list [--format text|json]",
-                "Read local named sessions plus default without starting or creating them.\nAt most 256 entries, default first then names in order ignoring letter case, within one 5-second deadline.\nStates: running, stopping, stopped, absent, starting, deleting, recoverable, recovery-required.\nRecoverable is a guarded observation of complete registration and all exact owners gone; later startup checks again.\nUncertain state is not reported as stopped. Inventory is the data root's session folders.\nJSON emits orchbee.session.list v1.",
+                "Read local named sessions plus default without starting or creating them.\nAt most 256 entries, default first then names in order ignoring letter case, within one 5-second deadline.\nStates: running, stopping, stopped, absent, starting, deleting, recoverable, recovery-required.\nRecoverable is a guarded observation that all exact owners are gone; later startup checks again.\nUncertain state is not reported as stopped. Inventory is the data root's session folders.\nJSON emits orchbee.session.list v1.",
             ),
             (Locale::ZhCn, CommandPath::SessionList) => crate::cli_text::HelpDetails::new(
                 "orchbee session list [--format text|json]",
-                "只读列出本地命名会话及 default，不启动或创建会话。最多 256 条，default 在前，随后按名称排序且不区分大小写，共用 5 秒期限。状态：running、stopping、stopped、absent、starting、deleting、recoverable、recovery-required。\nRecoverable 是当次受门保护的观察：登记完整且全部确切所有者消失；稍后启动仍重新检查。不确定状态不会报告为已停止。清单来自数据根目录中的会话文件夹。\nJSON 输出 orchbee.session.list v1。",
+                "只读列出本地命名会话及 default，不启动或创建会话。最多 256 条，default 在前，随后按名称排序且不区分大小写，共用 5 秒期限。状态：running、stopping、stopped、absent、starting、deleting、recoverable、recovery-required。\nRecoverable 是当次受门保护的观察：全部确切所有者消失；稍后启动仍重新检查。不确定状态不会报告为已停止。清单来自数据根目录中的会话文件夹。\nJSON 输出 orchbee.session.list v1。",
             ),
             (Locale::EnUs, CommandPath::SessionAttach) => crate::cli_text::HelpDetails::new(
                 "orchbee session attach <name> [--mouse on|off]",

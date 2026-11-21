@@ -3,7 +3,7 @@ use crate::{
     ActivationState, RetainedSessionRecord as Retained, SessionCatalog as Catalog, SessionName,
     SessionStore,
     durable_sessions::{Directory, Lifecycle},
-    process_registration::{Creator, ProcessIdentity, ProcessRole},
+    process_registration::{Creator, ProcessIdentity, ProcessRole, Registration},
 };
 use std::io;
 
@@ -201,8 +201,105 @@ fn interrupted_new_generation_recovers_only_while_every_child_is_not_started() {
 }
 
 #[test]
-fn incomplete_unknown_and_exact_live_registration_refuse_without_publication() {
-    for case in ["spawning", "unknown", "live", "host-live"] {
+fn a_server_that_cannot_be_created_leaves_a_reservation_the_next_start_recovers() {
+    let base = Fixture::new();
+    let local = Fixture::new();
+    let (catalog, session, scope) = setup(&base, &local, "failed-start");
+    let directory = directory(&local);
+    let (activation, lifetime) = guards(&session);
+    assert!(
+        catalog
+            .spawn_server(
+                &session,
+                &activation,
+                &base.0.join("missing-server.exe"),
+                &[],
+                Instant::now() + Duration::from_secs(5),
+            )
+            .is_err()
+    );
+    assert_eq!(
+        directory
+            .read(&scope)
+            .unwrap()
+            .unwrap()
+            .processes
+            .registration(ProcessRole::Server),
+        Registration::Spawning
+    );
+    assert_eq!(
+        catalog
+            .recover_inactive(&session, &activation, &lifetime)
+            .unwrap(),
+        Some([1; 16])
+    );
+    catalog.begin_activation(&session, [2; 16]).unwrap();
+    assert!(
+        directory
+            .read(&scope)
+            .unwrap()
+            .unwrap()
+            .processes
+            .is_unstarted()
+    );
+}
+
+#[test]
+fn a_child_slot_an_ended_attempt_left_spawning_never_blocks_recovery() {
+    // Every identified process of the generation is gone.
+    let server = ProcessIdentity::new(u32::MAX - 7, 1).unwrap();
+    let worker = ProcessIdentity::new(u32::MAX - 11, 2).unwrap();
+    let host = ProcessIdentity::new(u32::MAX - 15, 3).unwrap();
+    for case in ["spawning-worker", "spawning-host", "spawning-replacement"] {
+        let base = Fixture::new();
+        let local = Fixture::new();
+        let (catalog, session, scope) = setup(&base, &local, case);
+        let directory = directory(&local);
+        let mut record = directory.read(&scope).unwrap().unwrap();
+        {
+            let processes = &mut record.processes;
+            processes
+                .reserve(ProcessRole::Server, Creator::Activator)
+                .unwrap();
+            processes.identify(ProcessRole::Server, server).unwrap();
+            processes
+                .reserve(ProcessRole::Worker, Creator::Process(server))
+                .unwrap();
+            if case != "spawning-worker" {
+                processes.identify(ProcessRole::Worker, worker).unwrap();
+                processes
+                    .reserve(ProcessRole::Host, Creator::Process(worker))
+                    .unwrap();
+            }
+            if case == "spawning-replacement" {
+                processes.identify(ProcessRole::Host, host).unwrap();
+                processes
+                    .reserve_replacement_worker(Creator::Process(server))
+                    .unwrap();
+            }
+        }
+        directory.publish(&scope, &record).unwrap();
+        let (activation, lifetime) = guards(&session);
+        assert_eq!(
+            catalog
+                .recover_inactive(&session, &activation, &lifetime)
+                .unwrap(),
+            Some([1; 16]),
+            "{case}"
+        );
+        assert_eq!(
+            session.activation_state().unwrap(),
+            ActivationState::Crashed {
+                activation_id: [1; 16]
+            },
+            "{case}"
+        );
+    }
+}
+
+#[test]
+fn unknown_and_exact_live_registration_refuse_without_publication() {
+    for case in ["unknown", "live", "host-live"] {
         let base = Fixture::new();
         let local = Fixture::new();
         let (catalog, session, scope) = setup(&base, &local, "refused");
@@ -213,30 +310,27 @@ fn incomplete_unknown_and_exact_live_registration_refuse_without_publication() {
             processes
                 .reserve(ProcessRole::Server, Creator::Activator)
                 .unwrap();
-            if case != "spawning" {
-                let server = if case == "live" {
-                    crate::process_observation::current_identity().unwrap()
-                } else {
-                    ProcessIdentity::new(if case == "unknown" { 4 } else { u32::MAX - 7 }, 1)
-                        .unwrap()
-                };
-                processes.identify(ProcessRole::Server, server).unwrap();
-                if case == "host-live" {
-                    let worker = ProcessIdentity::new(u32::MAX - 11, 2).unwrap();
-                    processes
-                        .reserve(ProcessRole::Worker, Creator::Process(server))
-                        .unwrap();
-                    processes.identify(ProcessRole::Worker, worker).unwrap();
-                    processes
-                        .reserve(ProcessRole::Host, Creator::Process(worker))
-                        .unwrap();
-                    processes
-                        .identify(
-                            ProcessRole::Host,
-                            crate::process_observation::current_identity().unwrap(),
-                        )
-                        .unwrap();
-                }
+            let server = if case == "live" {
+                crate::process_observation::current_identity().unwrap()
+            } else {
+                ProcessIdentity::new(if case == "unknown" { 4 } else { u32::MAX - 7 }, 1).unwrap()
+            };
+            processes.identify(ProcessRole::Server, server).unwrap();
+            if case == "host-live" {
+                let worker = ProcessIdentity::new(u32::MAX - 11, 2).unwrap();
+                processes
+                    .reserve(ProcessRole::Worker, Creator::Process(server))
+                    .unwrap();
+                processes.identify(ProcessRole::Worker, worker).unwrap();
+                processes
+                    .reserve(ProcessRole::Host, Creator::Process(worker))
+                    .unwrap();
+                processes
+                    .identify(
+                        ProcessRole::Host,
+                        crate::process_observation::current_identity().unwrap(),
+                    )
+                    .unwrap();
             }
         }
         directory.publish(&scope, &record).unwrap();

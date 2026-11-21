@@ -455,7 +455,7 @@ Completed removals are not rolled back; a pending deletion remains resumable. Th
 result reports whether the Deleting record remains, including cancellation after cleanup completed.
 
 List emits `orchbee.session.list` v1. `recoverable` means
-a guarded observation found complete current registration, all exact identities gone and idle resources;
+a guarded observation found every exact identity of the current registration gone and idle resources;
 it carries `running=false` and `pid=null`, and does not promise a later start. Delete retains
 `orchbee.session.delete` v1. The embedded schema catalog is v1.
 
@@ -463,9 +463,10 @@ The Session record in `sessions/<name>/session.json` preserves default/named ide
 stopped receipts.
 With the same admitted runtime base, `session list` still discovers a stopped session after its
 runtime leaf is removed; `session attach`/`server start` recreates its route and restores the checkpoint.
-`server start` and TUI startup automatically recover a complete, proved-dead current Active generation,
-including after runtime-leaf loss, while preserving the last checkpoint. The first stage refuses
-live Host, unknown or incomplete identity and unreadable records without deleting data. No old process
+`server start` and TUI startup automatically recover a proved-dead current Active generation,
+including after runtime-leaf loss, while preserving the last checkpoint; a start that failed before
+it recorded its process blocks nothing. The first stage refuses live Host, unknown identity and
+unreadable records without deleting data. No old process
 is terminated and no clean-stop receipt is invented. Run `orchbee doctor` with the same
 `--session` selection to inspect a refusal, or `orchbee --session recovery-work server start` to use another
 name. Records left by an earlier derivation refuse only the Session they name; diagnosis lists them

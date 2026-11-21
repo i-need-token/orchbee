@@ -646,7 +646,8 @@
 				"ReplaceWorker",
 				"AdmitStop",
 				"StopEndsHost",
-				"CompleteStop"
+				"CompleteStop",
+				"AbandonChild"
 			],
 			"variants": [
 				{ "name": "recovery", "constants": { "MaxGeneration": 2, "MaxIncarnation": 1 } },
