@@ -56,7 +56,8 @@ pub(super) struct Owners {
     pub(super) worker_executable: std::path::PathBuf,
     /// The Worker `query` lists: the serving one, or none.
     pub(super) serving: local_client_service::ServingWorker,
-    pub(super) ingress: AgentObservationEndpoint,
+    /// The Agent observation endpoint; none on Windows, which binds none.
+    pub(super) ingress: Option<AgentObservationEndpoint>,
     pub(super) terminals: Arc<LocalTerminalService>,
     pub(super) agents: Arc<AgentService>,
     /// The checkpoint this Session keeps; none where the platform keeps none.
@@ -418,7 +419,7 @@ fn settle(
         kept.remove_bindings();
     }
     shutdown.phase(attempt, StopPhase::Ingress);
-    owners.ingress.stop_before(deadline).map_err(|error| {
+    stop_ingress(owners, deadline).map_err(|error| {
         let mut error = failure(StopPhase::Ingress, error);
         error.disposed = disposed;
         error
@@ -613,6 +614,14 @@ fn leave(
 #[cfg(unix)]
 const LEAVE_BUDGET: Duration = Duration::from_secs(5);
 
+/// Stops the Agent observation endpoint where the Session bound one.
+fn stop_ingress(owners: &mut Owners, deadline: Instant) -> io::Result<()> {
+    owners
+        .ingress
+        .as_mut()
+        .map_or(Ok(()), |ingress| ingress.stop_before(deadline))
+}
+
 /// Stops every Server background job that could start new work through the Worker. Hooks submit
 /// Worker jobs, so dispatch stops before any Worker owner; admitted hook jobs end with the Worker.
 fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()> {
@@ -756,7 +765,7 @@ fn settle_for_exit(
             error.kind()
         );
     }
-    owners.ingress.stop_before(deadline)?;
+    stop_ingress(owners, deadline)?;
     // A Host left without a terminal ends once its broker is gone; waiting for it lets the next
     // activation recover the Session at once instead of finding a live process.
     if owners.terminals.terminal_count() == 0 {
@@ -841,7 +850,7 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
         owners
             .terminals
             .finish_process_observer_after_worker_exit(&owners.handle)?;
-        owners.ingress.stop_before(deadline)?;
+        stop_ingress(&mut owners, deadline)?;
         Ok(())
     })();
     if cleanup.is_ok() && owners.carrier.join().is_err() {

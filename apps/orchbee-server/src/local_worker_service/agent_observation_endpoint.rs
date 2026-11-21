@@ -92,6 +92,16 @@ fn unlink_if_identity_matches(path: &Path, bound_identity: Option<BoundIdentity>
     }
 }
 
+/// Binds a managed Session's endpoint where the platform keeps the Agent observation channel. Windows
+/// withdrew it, so a Session there creates no pipe and answers `None`; the writer crate's README
+/// records why and what would bring it back, and the Windows listener below stays compiled for that.
+pub(crate) fn bind_for_session(runtime_directory: &Path) -> io::Result<Option<BoundEndpoint>> {
+    if cfg!(windows) {
+        return Ok(None);
+    }
+    bind(runtime_directory).map(Some)
+}
+
 /// Binds the observation socket under the caller's existing private
 /// contract (the caller holds the Session lifetime lock — the only thing
 /// that makes the same-euid-socket reclaim below sound).
@@ -106,7 +116,7 @@ fn unlink_if_identity_matches(path: &Path, bound_identity: Option<BoundIdentity>
 /// just-bound path is left and the error surfaces loudly; the next
 /// bind's pre-gate reclaims a leftover own socket.
 #[cfg(unix)]
-pub(crate) fn bind(runtime_directory: &Path) -> io::Result<BoundEndpoint> {
+fn bind(runtime_directory: &Path) -> io::Result<BoundEndpoint> {
     let path = orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(
         runtime_directory,
     );
@@ -194,7 +204,7 @@ impl Drop for BoundEndpoint {
 
 impl AgentObservationEndpoint {
     /// The bound pathname — informational.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn path(&self) -> &Path {
         &self.path
     }
@@ -618,7 +628,7 @@ mod tests;
 #[cfg(windows)]
 fn unlink_if_identity_matches(_path: &Path, _bound_identity: Option<BoundIdentity>) {}
 #[cfg(windows)]
-pub(crate) fn bind(runtime_directory: &Path) -> io::Result<BoundEndpoint> {
+fn bind(runtime_directory: &Path) -> io::Result<BoundEndpoint> {
     let path = orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(
         runtime_directory,
     );

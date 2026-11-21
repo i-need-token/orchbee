@@ -224,7 +224,8 @@ pub use workflow::step_deadline;
 /// Native admission precedes startup effects. Every path drops the Client before returning,
 /// so the caller may then finalize its process-wide signal source without a live lane.
 /// Failures preserve reservation and delivery facts in the returned Report; input is never replayed.
-/// The Client is local, so this environment's own Capsule evidence decides the canonical head start.
+/// The Client is local, so this machine's observation channel and this environment's own Capsule
+/// evidence decide the canonical head start.
 pub fn run_on_client(
     request: Request,
     started: Instant,
@@ -247,9 +248,7 @@ pub fn run_on_client(
         snapshot,
         panel,
         None,
-        workflow::observation_delay(
-            orchbee_local_runtime::agent_integration_may_have_been_enabled(),
-        ),
+        workflow::observation_delay(workflow::local_hook_may_report()),
     )
 }
 

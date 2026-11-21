@@ -283,15 +283,16 @@ history rule and the typed-run identity work as they do for managed PowerShell.
    The Server rechecks and atomically binds the name while removing the reservation.
 6. Observation also confirms, whichever comes first: while no canonical candidate exists, the
    Server's published run names the requested provider and the Panel's published Agent state for
-   the reserved Terminal generation is idle or blocked and names the same provider. It waits
-   3000 ms after submission when no integration was ever enabled, meaning this environment's
-   Capsule folder and release's legacy folder are absent; otherwise, and for a remote origin
-   whose integrations this Client cannot see, it waits 10000 ms, so an enabled hook can bind the
-   name first. Observation binds no name: the workflow releases the reservation and reports the
-   Agent started. The CLI keeps its blocked-start rule and refuses a blocked state as
-   `agent-blocked`; the TUI accepts it. Session resume needs a hook session or a session the
-   published run's own process names: Claude Code's run table entry, else the conversation id
-   bound on its command line, such as a [launch-time id](#launch-time-conversation-ids)
+   the reserved Terminal generation is idle or blocked and names the same provider. Locally it
+   waits 3000 ms after submission: Windows withdrew the
+   [Agent observation channel](../../../crates/agent-integration-writer/README.md#windows-observation-channel-withdrawn),
+   so no local hook can bind the name. For a remote origin, whose integrations this Client
+   cannot see, it waits 10000 ms, so a hook there can bind the name first. Observation binds no
+   name: the workflow releases the reservation and reports the Agent started. The CLI keeps its
+   blocked-start rule and refuses a blocked state as `agent-blocked`; the TUI accepts it.
+   Session resume on Windows needs a session the published run's own process names: Claude
+   Code's run table entry, else the conversation id bound on its command line, such as a
+   [launch-time id](#launch-time-conversation-ids)
    ([Agent session resume](../../orchbee-server/docs/agent-session-resume.md#process-source)).
 
 The default total deadline is 30000 ms, with 3001–300000 admitted. Each I/O step is bounded

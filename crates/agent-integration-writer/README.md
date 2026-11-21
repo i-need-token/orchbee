@@ -5,6 +5,52 @@ filesystem and process effects, using the cohort-admitted observation-adapter ca
 retained mutation outcomes. Values and report vocabularies come from the
 [Agent integration contract](../agent-integration/README.md); this crate never defines them.
 
+## Windows observation channel withdrawn
+
+On Windows the Agent observation channel is withdrawn: the Server binds no observation pipe, and
+the Worker never puts `ORCHBEE_AGENT_OBSERVATION_SOCKET` into an Agent's environment. Unix keeps the
+channel, whose socket sits in the Session's private runtime directory. The two effects are gated
+where they happen, the Server's `bind_for_session` and the Worker's `launch_overlay`, and no setting
+turns the channel back on. The Windows listener and the ingress behind it, the adapters' Windows
+transport and this crate's Windows hook launchers stay in place, unused, for a revival.
+
+**Why.** Every adapter opens the pipe through `node:net`, which sets no security quality of
+service, so the pipe's server receives the person's token at impersonation level, and Node has no
+option that limits an open to identification. While a Server holds the name, that server is the
+Server itself; after a Server ends while its Agents keep running, or for an Agent that outlives its
+Session, any process can take the name and receive the token, and one holding
+`SeImpersonatePrivilege`, as service accounts do, can act as the person with it. The name follows
+from the profile path and shows in pipe enumeration. A corrected adapter would be new Capsule
+payload, and it cannot reach the copies already installed without rewriting each Agent's
+configuration: a running copy sits in the Capsule version folder its Agent entry names, or in the
+copy its provider made, and only an enable job moves either, which no command or Settings control
+starts in this release. Withdrawing the channel reaches everyone through an ordinary update and
+writes into no Agent's configuration.
+
+**What earlier enablers lose on Windows.** People who enabled an integration in an earlier version
+keep its entries, but nothing its adapter sends reaches Orchbee:
+
+- [Agent session resume](../../apps/orchbee-server/docs/agent-session-resume.md#process-source)
+  keeps only its process sources, Claude Code's own run table and a conversation id on the Agent's
+  own command line, so an Agent whose session only its hook named comes back as a plain shell after
+  a restart.
+- Agent rows, needs-attention and turn results come from screen detection alone, as they do for
+  everyone who never enabled an integration.
+
+**What a revival needs.** Both must hold: an adapter client that opens the pipe at identification
+level, as every Rust and native client of [`orchbee-local-ipc`](../local-ipc/README.md) does, and a
+way to deliver that client that writes into no Agent's configuration. A revival must also close a
+second defect: the adapter accepts any server's acknowledgement, so it cannot tell a real Server
+from a stand-in holding the name, and a stand-in receives every sanitized observation.
+
+**Known limits.** A terminal opened before the update keeps the variable in its shell's environment
+until it closes, and an Agent started there still opens that name at every hook event. No Server
+holds the name any more, so the open fails at once and the adapter stays silent, but a process that
+takes the name before such a terminal closes still receives the token. `uninstall` still disables every
+integration this environment may have enabled. The Capsule's own README still describes the Windows
+transport, because every byte of the Capsule except `capsule.json` is payload and stays as
+installed; this section supersedes it.
+
 ## Ownership
 
 - One invocation runs under one cooperative 40-second budget. Callers pass a

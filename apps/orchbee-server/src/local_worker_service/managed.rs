@@ -88,13 +88,16 @@ pub(super) fn run(
     // The observation endpoint binds and starts before the Worker socket
     // or any emitter can exist; a bind/start failure fails the whole Session
     // start loudly under the held lifetime lock rather than publishing a
-    // ready Session without its observation channel.
-    let bound = super::agent_observation_endpoint::bind(runtime)?;
+    // ready Session without its observation channel. Windows withdrew that
+    // channel, so a Session there binds none and starts without it.
+    let bound = super::agent_observation_endpoint::bind_for_session(runtime)?;
     // The bound endpoint is fully functional on any runtime path; only the
     // ingress's stored overlay copy is a String, which cannot carry
     // non-UTF-8 bytes — a non-UTF-8 base therefore stores no path, the same
     // degradation the Worker applies to its own env overlay derivation.
-    let socket_path = bound.path().to_str().map(str::to_owned);
+    let socket_path = bound
+        .as_ref()
+        .and_then(|bound| bound.path().to_str().map(str::to_owned));
     let agents = Arc::new(AgentService::open_observing(
         AgentPolicy {
             read: true,
@@ -102,7 +105,7 @@ pub(super) fn run(
         },
         socket_path,
     )?);
-    let endpoint = bound.start(Arc::clone(&agents));
+    let endpoint = bound.map(|bound| bound.start(Arc::clone(&agents)));
     let listener = UnixListener::bind(session.worker_socket_path())?;
     #[cfg(unix)]
     std::fs::set_permissions(

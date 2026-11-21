@@ -204,8 +204,8 @@ record outlives its process, so every Windows start failure from registration on
 third failed start leaves no further one. Uncertain handed-off outcomes are never replayed. Later operations use the
 same serialized loop and replay cache.
 
-Every Launch on this managed path also propagates the local Agent observation channel through the
-existing Terminal Protocol `environmentOverlay`. For each admitted Launch the launch adapter derives
+On Unix, every Launch on this managed path also propagates the local Agent observation channel
+through the existing Terminal Protocol `environmentOverlay`. For each admitted Launch the launch adapter derives
 the Session's Agent observation socket, `<endpoint-id>-agent.sock` in the socket folder, from the
 verified `--runtime-directory` runtime directory through the shared runtime crate and admits the candidate only when `lstat` proves an existing socket owned by this
 Worker's effective user. An admitted socket sets
@@ -214,7 +214,10 @@ overlay bounds; a missing, non-socket, foreign-owned, or non-UTF-8 candidate emi
 never fails the launch. The gate re-evaluates on every Launch instead of caching admission. The
 explicit-endpoint path carries no Session runtime directory and has no observation overlay — remote and
 non-managed launches gain no observation channel, and no CNP field or Server-private import is
-introduced for it.
+introduced for it. Windows withdrew the channel, so its launches never set the variable, even when a
+pipe of that name exists: the Server binds none, so only another process could hold it. The
+[writer crate's README](../../crates/agent-integration-writer/README.md#windows-observation-channel-withdrawn)
+records the decision.
 
 The child reaper only waits for exit; it never kills Host. Host retains terminals after the
 Server/Worker connection closes, for a replacement Worker to adopt; a replacement Host is never

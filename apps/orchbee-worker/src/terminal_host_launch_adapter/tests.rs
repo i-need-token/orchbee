@@ -497,6 +497,19 @@ fn launch_and_response_values_are_revalidated_at_the_host_protocol_boundary() ->
     Ok(())
 }
 
+/// The one value `name` has in `request`'s overlay, which never publishes a name twice.
+fn overlay_value<'a>(request: &'a CreateTerminal, name: &str) -> Option<&'a str> {
+    let values: Vec<_> = request
+        .environment_overlay
+        .iter()
+        .filter(|entry| entry.name == name)
+        .map(|entry| entry.value.as_str())
+        .collect();
+    assert!(values.len() <= 1, "{name} is published once");
+    values.first().copied()
+}
+
+#[cfg(unix)]
 #[test]
 fn admitted_session_observation_socket_sets_the_overlay_variable() -> TestResult {
     let directory = ObservationSessionDirectory::new()?;
@@ -510,35 +523,42 @@ fn admitted_session_observation_socket_sets_the_overlay_variable() -> TestResult
         Some(directory.path()),
     )?;
 
-    let overlay = |name: &str| {
-        let values: Vec<_> = request
-            .environment_overlay
-            .iter()
-            .filter(|entry| entry.name == name)
-            .map(|entry| entry.value.as_str())
-            .collect();
-        assert!(values.len() <= 1, "{name} is published once");
-        values.first().copied()
-    };
     assert_eq!(
-        overlay(OBSERVATION_SOCKET_ENV),
+        overlay_value(&request, OBSERVATION_SOCKET_ENV),
         Some(endpoint.to_str().expect("UTF-8 fixture"))
     );
-    if cfg!(windows) {
-        // Child CLIs route to the owned Session and carry this build's environment tag.
-        assert_eq!(
-            overlay("ORCHBEE_RUNTIME_BASE"),
-            directory.path().parent().and_then(Path::to_str)
-        );
-        assert_eq!(
-            overlay("ORCHBEE_RUNTIME_SCOPE"),
-            directory.path().file_name().and_then(|name| name.to_str())
-        );
-        assert_eq!(
-            overlay(orchbee_local_runtime::ENVIRONMENT_VARIABLE),
-            Some(orchbee_local_runtime::environment_stem())
-        );
-    }
+    Ok(())
+}
+
+/// Windows withdrew the Agent observation channel. A pipe at the observation name, which only
+/// another process can hold now, never reaches an Agent's environment, while child CLIs still route
+/// to the owned Session.
+#[cfg(windows)]
+#[test]
+fn a_pipe_at_the_observation_name_never_reaches_the_overlay() -> TestResult {
+    let directory = ObservationSessionDirectory::new()?;
+    let _stand_in = UnixListener::bind(directory.observation_endpoint())?;
+    let dispatch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
+
+    let request = map_launch_dispatch(
+        &dispatch,
+        resolved_facts("/home/worker")?,
+        Some(directory.path()),
+    )?;
+
+    assert_eq!(overlay_value(&request, OBSERVATION_SOCKET_ENV), None);
+    assert_eq!(
+        overlay_value(&request, "ORCHBEE_RUNTIME_BASE"),
+        directory.path().parent().and_then(Path::to_str)
+    );
+    assert_eq!(
+        overlay_value(&request, "ORCHBEE_RUNTIME_SCOPE"),
+        directory.path().file_name().and_then(|name| name.to_str())
+    );
+    assert_eq!(
+        overlay_value(&request, orchbee_local_runtime::ENVIRONMENT_VARIABLE),
+        Some(orchbee_local_runtime::environment_stem())
+    );
     Ok(())
 }
 

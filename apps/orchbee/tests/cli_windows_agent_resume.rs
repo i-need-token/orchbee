@@ -1,31 +1,25 @@
-//! Agent session resume across real managed restarts for every provider in the resume table: the
-//! CLI, Server, Worker and Zig Host under test with the pinned ConPTY, and a default Session whose
-//! default program is cmd. Each table row has its own Workspace and work directory, where every
-//! provider command is an npm-style `.cmd` shim to a Node script at a path process identity
-//! recognises as that provider: a package entry, or an alias-named script, under the provider's
-//! install root where the alias is shared. No native stub binary exists.
+//! Agent session resume across real managed restarts through the sources Windows keeps: the CLI,
+//! Server, Worker and Zig Host under test, and a default Session whose default program is cmd.
+//! Each row has its own Workspace and work directory, where every provider command is an npm-style
+//! `.cmd` shim to a Node script at a path process identity recognises as that provider: a package
+//! entry, or an alias-named script, under the provider's install root where the alias is shared.
+//! No native stub binary exists.
 //!
-//! A stub takes a fresh session id in its provider's shape, or the id its resume arguments carry,
-//! and reports that session the way the provider's adapter does: a command-hook payload through
-//! the shipped `forward-hook.mjs`, or the shipped module driven as the provider drives it (Kilo
-//! plugin events with one child session, an OpenCode 2.x TUI showing a child session of its root
-//! beside another Panel's root, Cline's plugin setup and a run, Pi and OMP extension events). A
-//! row whose provider stays silent after a resume reports nothing then. A second Claude Code row
-//! has no hook: only Claude Code's own run table entry names its session, which the witness writes
-//! for each of its runs with that process's exact creation time, while the hooked Claude Code
-//! row's entry names another session that its hook session must outrank. Two more rows have no
-//! hook and no run table, so only the Agent's own command line names the session: a Grok started
-//! the way an Agent start types it, with a fresh `--session-id`, and a hand-typed `codex resume`
-//! with a leading option. MiMo Code has no hook at all, so its only row is a hand-typed
-//! `mimo --session <id>`, named the same way. Every run records its
-//! arguments, directory and session in the fixture root and stays alive like an interactive Agent
-//! until it reads `q`. Every wait reads the Agent list, as a Client showing it does: a hook report
-//! joins its Panel only when a Client's Agent read drains it within 10 s.
+//! Windows withdrew the Agent observation channel, so no hook names a session here; the writer
+//! crate's README records why. A stub takes a fresh session id in its provider's shape, or the id
+//! its start or resume arguments carry, and only the Agent's own process names it. The Claude Code
+//! row's session is named by Claude Code's own run table entry, which the witness writes for each
+//! of its runs with that process's exact creation time. The other rows are named only by the
+//! Agent's own command line: a Grok started the way an Agent start types it, with a fresh
+//! `--session-id`, a hand-typed `codex resume` with a leading option, and a hand-typed
+//! `mimo --session <id>`. Every run records its arguments, directory and session in the fixture
+//! root and stays alive like an interactive Agent until it reads `q`. Every wait reads the Agent
+//! list, as a Client showing it does.
 //!
 //! The table restates the Server's argument rule as typed text, so the screen and the recorded
 //! arguments are the only oracle; nothing imports Server internals. The flow captures every row,
-//! resumes each once after a restart with its exact cmd line, captures again, which for silent rows
-//! is the delivered reference carried forward, and resumes each again. One silent row's Agent then
+//! resumes each once after a restart with its exact cmd line, captures again, from the delivered
+//! reference carried forward with the run it started, and resumes each again. One row's Agent then
 //! exits, so its reference drops, and a last restart with the preference off types nothing. A Panel
 //! whose directory was deleted, or that a Client typed into first, receives nothing; the deleted one
 //! stays held in its place and keeps its reference until the preference is off.
@@ -38,9 +32,9 @@
 //! where a real provider may be installed. cmd resolves a command from its current directory
 //! first, a resume is typed only in the retained directory, and every work directory holds every
 //! provider's shim, so the line always reaches a stub. PowerShell resolves only through `PATH`, so
-//! it is never this witness's shell. The hook's correlation reaches the Host as a private APC, which
-//! only the pinned ConPTY carries, so the witness needs `ORCHBEE_TEST_CONPTY_DIR` naming a
-//! manifest-verified bundle and runs only when asked for.
+//! it is never this witness's shell. cmd's prompt marks pass the system ConHost, so the witness
+//! runs under it, or under the product's ConPTY when `ORCHBEE_TEST_CONPTY_DIR` names a verified
+//! bundle, and only when asked for.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -53,7 +47,7 @@ use session::{Control, Fixture, system_program};
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Command,
     thread,
     time::{Duration, Instant},
@@ -72,8 +66,8 @@ const COLUMNS: u16 = 200;
 const LINES: u16 = 30;
 /// The launch profile that makes cmd the default program before any terminal starts.
 const CMD_PROFILE: &str = "cmd";
-/// The silent row whose Agent exits before the last capture.
-const EXITING: &str = "cursor";
+/// The row whose Agent exits before the last capture.
+const EXITING: &str = "mimo";
 
 /// One resume table row as its stub plays it.
 struct Row {
@@ -85,22 +79,8 @@ struct Row {
     program: &'static str,
     /// The stub script under the row's stub root, at a path identity recognises.
     entry: &'static str,
-    /// A sibling script the entry runs as `node --expose-gc <relay> …`, which then holds the stub.
-    relay: Option<&'static str>,
-    /// A JavaScript expression giving a fresh id in the provider's shape.
-    fresh: &'static str,
-    /// The typed resume arguments, `{id}` standing for the id.
+    /// The typed resume arguments, `{id}` standing for the session id.
     resume: &'static [&'static str],
-    /// The session key the adapter reports and the checkpoint retains, `{id}` standing for the id.
-    key: &'static str,
-    /// A JavaScript `async (session, id, resumed)` function reporting the session as the
-    /// provider's adapter does.
-    report: &'static str,
-    /// Whether a resumed run reports again; unknown is false, the stricter path.
-    reports_on_resume: bool,
-    /// Whether the session reaches the Server as a hook session; otherwise only Claude Code's own
-    /// run table or the Agent's own command line names it.
-    hooked: bool,
     /// How the first run is typed.
     start: Start,
 }
@@ -108,8 +88,9 @@ struct Row {
 /// How a row's first run is typed after its program.
 #[derive(Clone, Copy)]
 enum Start {
-    /// Bare: the stub takes a fresh id.
-    Bare,
+    /// Bare: the stub takes a fresh id, which this JavaScript expression gives in the provider's
+    /// shape.
+    Fresh(&'static str),
     /// These tokens, `{id}` standing for this fixed id, which the stub takes as its session.
     With(&'static [&'static str], &'static str),
 }
@@ -118,7 +99,7 @@ impl Row {
     /// The tokens typed after the program for the first run.
     fn start_tokens(&self) -> Vec<String> {
         match self.start {
-            Start::Bare => Vec::new(),
+            Start::Fresh(_) => Vec::new(),
             Start::With(pattern, id) => pattern
                 .iter()
                 .map(|token| token.replace("{id}", id))
@@ -135,368 +116,32 @@ impl Row {
     }
 }
 
-const UUID: &str = "crypto.randomUUID()";
-const OPENCODE_ID: &str = "`ses_${hex(12)}${alnum(14)}`";
-/// The session a run table entry names beside a hook session, which the hook session outranks.
-const DECOY: &str = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
-
-/// The resume table: every resumable provider, with Letta's two forms, Claude Code once more
-/// without hooks, and Grok and Codex once more without hooks, named only by their command lines,
-/// as hookless MiMo Code always is.
-const TABLE: [Row; 24] = [
-    Row {
-        label: "claude-code",
-        provider: "claude-code",
-        program: "claude",
-        entry: "node_modules/@anthropic-ai/claude-code/cli.js",
-        relay: None,
-        fresh: UUID,
-        resume: &["--resume={id}"],
-        key: "{id}",
-        report: "async (session, _id, resumed) => hook('claude-code', { session_id: session, \
-                 hook_event_name: 'SessionStart', source: resumed ? 'resume' : 'startup', \
-                 cwd: process.cwd() })",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
+/// The rows: Claude Code named by its own run table, and Grok, Codex and MiMo Code named only by
+/// their own command lines.
+const TABLE: [Row; 4] = [
     Row {
         label: "claude-run-table",
         provider: "claude-code",
         program: "claude",
         entry: "node_modules/@anthropic-ai/claude-code/cli.js",
-        relay: None,
-        fresh: UUID,
         resume: &["--resume={id}"],
-        key: "{id}",
         // Each run's entry, which Claude Code writes for itself, is written by the witness.
-        report: "async () => {}",
-        reports_on_resume: true,
-        hooked: false,
-        start: Start::Bare,
-    },
-    Row {
-        label: "codex",
-        provider: "codex",
-        program: "codex",
-        entry: "node_modules/@openai/codex/bin/codex.js",
-        relay: None,
-        fresh: UUID,
-        resume: &["resume", "{id}"],
-        key: "{id}",
-        report: "async (session, _id, resumed) => hook('codex', { session_id: session, \
-                 hook_event_name: 'SessionStart', source: resumed ? 'resume' : 'startup', \
-                 cwd: process.cwd() })",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "grok",
-        provider: "grok",
-        program: "grok",
-        entry: "grok.js",
-        relay: None,
-        fresh: UUID,
-        resume: &["--resume={id}"],
-        key: "{id}",
-        report: "async (session) => hook('grok', { sessionId: session, hookEventName: 'SessionStart' })",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "opencode",
-        provider: "opencode",
-        program: "opencode",
-        entry: "opencode.js",
-        relay: None,
-        fresh: OPENCODE_ID,
-        resume: &["--session={id}"],
-        key: "{id}",
-        report: "async (session) => {
-            const child = `ses_${hex(12)}${alnum(14)}`;
-            const other = `ses_${hex(12)}${alnum(14)}`;
-            const sessions = new Map([[session, { id: session }], [child, { id: child, parentID: session }], [other, { id: other }]]);
-            await openCodeClient('opencode/orchbee-agent-observation.mjs', {
-                ui: { router: { current: () => ({ type: 'session', sessionID: child }) } },
-                data: { session: { get: (id) => sessions.get(id), root: (id) => sessions.get(id)?.parentID ?? id, status: () => 'idle' } },
-            });
-        }",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "kilo",
-        provider: "kilo",
-        program: "kilo",
-        entry: "node_modules/@kilocode/cli/kilo.js",
-        relay: None,
-        fresh: OPENCODE_ID,
-        resume: &["--session={id}"],
-        key: "{id}",
-        report: "async (session) => {
-            const hooks = await openCodePlugin('kilo/orchbee-agent-observation.mjs');
-            await hooks.event({ event: { type: 'session.created', properties: { info: { id: session } } } });
-            await hooks.event({ event: { type: 'session.created', properties: { info: { id: `ses_${hex(12)}${alnum(14)}`, parentID: session } } } });
-        }",
-        reports_on_resume: false,
-        hooked: true,
-        start: Start::Bare,
+        start: Start::Fresh("crypto.randomUUID()"),
     },
     Row {
         label: "mimo",
         provider: "mimo",
         program: "mimo",
         entry: "node_modules/@mimo-ai/cli/mimo.js",
-        relay: None,
-        fresh: OPENCODE_ID,
         resume: &["--session={id}"],
-        key: "{id}",
-        report: "async () => {}",
-        reports_on_resume: false,
-        hooked: false,
         start: Start::With(&["--session", "{id}"], "ses_0123456789abCdEfGhIjKlMnOp"),
-    },
-    Row {
-        label: "cursor",
-        provider: "cursor",
-        program: "cursor-agent",
-        entry: "cursor-agent.js",
-        relay: None,
-        fresh: UUID,
-        resume: &["--resume={id}"],
-        key: "{id}",
-        report: "async (session) => hook('cursor', { hook_event_name: 'sessionStart', conversation_id: session })",
-        reports_on_resume: false,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "qodercli",
-        provider: "qodercli",
-        program: "qodercli",
-        entry: "qodercli.js",
-        relay: None,
-        fresh: UUID,
-        resume: &["--resume={id}"],
-        key: "{id}",
-        report: "async (session) => hook('qodercli', { hook_event_name: 'SessionStart', session_id: session })",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "antigravity",
-        provider: "antigravity",
-        program: "agy",
-        entry: "agy.js",
-        relay: None,
-        fresh: UUID,
-        resume: &["--conversation", "{id}"],
-        key: "{id}",
-        report: "async (session) => hook('antigravity-cli', { hook_event_name: 'PreInvocation', conversationId: session })",
-        reports_on_resume: false,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "droid",
-        provider: "droid",
-        program: "droid",
-        entry: "droid.js",
-        relay: None,
-        fresh: UUID,
-        resume: &["--resume={id}"],
-        key: "{id}",
-        report: "async (session) => hook('droid', { hook_event_name: 'SessionStart', session_id: session })",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "kimi",
-        provider: "kimi",
-        program: "kimi",
-        entry: "node_modules/@moonshot-ai/kimi-code/dist/main.mjs",
-        relay: None,
-        fresh: "`session_${crypto.randomUUID()}`",
-        resume: &["--session={id}"],
-        key: "{id}",
-        report: "async (session) => hook('kimi', { hook_event_name: 'SessionStart', session_id: session })",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "letta-conversation",
-        provider: "letta",
-        program: "letta",
-        entry: "node_modules/@letta-ai/letta-code/letta.js",
-        relay: None,
-        fresh: "`conv-${crypto.randomUUID()}`",
-        resume: &["--conversation", "{id}"],
-        key: "{id}",
-        report: "async (session, _id, resumed) => hook('letta', { event_type: 'SessionStart', \
-                 is_new_session: !resumed, conversation_id: session })",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "letta-default",
-        provider: "letta",
-        program: "letta",
-        entry: "node_modules/@letta-ai/letta-code/letta.js",
-        relay: None,
-        fresh: "`agent-${crypto.randomUUID()}`",
-        resume: &["--conversation", "default", "--agent", "{id}"],
-        key: "default:{id}",
-        report: "async (_session, id, resumed) => hook('letta', { event_type: 'SessionStart', \
-                 is_new_session: !resumed, conversation_id: 'default', agent_id: id })",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "devin",
-        provider: "devin",
-        program: "devin",
-        entry: "devin.js",
-        relay: None,
-        fresh: "`devin-${hex(32)}`",
-        resume: &["--resume", "{id}"],
-        key: "{id}",
-        report: "async (session) => hook('devin', { hook_event_name: 'SessionStart', session_id: session })",
-        reports_on_resume: false,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "hermes",
-        provider: "hermes",
-        program: "hermes",
-        entry: "hermes-agent/hermes.js",
-        relay: None,
-        fresh: "(() => { const t = new Date().toISOString().replace(/[-:]/g, ''); \
-                return `${t.slice(0, 8)}_${t.slice(9, 15)}_${hex(8)}`; })()",
-        resume: &["--resume", "{id}"],
-        key: "{id}",
-        report: "async (session) => hook('hermes', { event: 'on_session_start', platform: 'cli', session_id: session })",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "pi",
-        provider: "pi",
-        program: "pi",
-        entry: "node_modules/@earendil-works/pi-coding-agent/dist/cli.js",
-        relay: None,
-        fresh: UUID,
-        resume: &["--session", "{id}"],
-        key: "{id}",
-        report: "async (session) => {
-            const handlers = new Map();
-            await (await bundle('pi/orchbee-agent-observation.cjs')).default({ on: (name, handler) => handlers.set(name, handler) });
-            handlers.get('session_start')({}, { sessionManager: { getSessionId: () => session } });
-        }",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "omp",
-        provider: "omp",
-        program: "omp",
-        entry: "omp.js",
-        relay: None,
-        fresh: UUID,
-        resume: &["--resume", "{id}"],
-        key: "{id}",
-        report: "async (session) => {
-            const handlers = new Map();
-            await (await bundle('omp/orchbee-agent-observation.cjs')).default({ on: (name, handler) => handlers.set(name, handler) });
-            handlers.get('session_start')({}, { sessionManager: { getSessionId: () => session } });
-        }",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "gemini",
-        provider: "gemini",
-        program: "gemini",
-        entry: "node_modules/@google/gemini-cli/dist/index.js",
-        relay: None,
-        fresh: UUID,
-        resume: &["--resume={id}"],
-        key: "{id}",
-        report: "async (session) => hook('gemini', { hook_event_name: 'SessionStart', session_id: session })",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "github-copilot",
-        provider: "github-copilot",
-        program: "copilot",
-        entry: "node_modules/@github/copilot/index.js",
-        relay: None,
-        fresh: UUID,
-        resume: &["--resume={id}"],
-        key: "{id}",
-        report: "async (session) => hook('github-copilot', { hook_event_name: 'SessionStart', session_id: session })",
-        reports_on_resume: false,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "qwen-code",
-        provider: "qwen-code",
-        program: "qwen",
-        entry: "node_modules/@qwen-code/qwen-code/cli-entry.js",
-        relay: Some("cli.js"),
-        fresh: UUID,
-        resume: &["--resume={id}"],
-        key: "{id}",
-        report: "async (session, _id, resumed) => hook('qwen-code', { hook_event_name: 'SessionStart', \
-                 session_id: session, source: resumed ? 'resume' : 'startup' })",
-        reports_on_resume: true,
-        hooked: true,
-        start: Start::Bare,
-    },
-    Row {
-        label: "cline",
-        provider: "cline",
-        program: "cline",
-        entry: "cline.js",
-        relay: None,
-        fresh: "`${Date.now()}_${pick('0123456789abcdefghijklmnopqrstuvwxyz', 5)}`",
-        resume: &["--id", "{id}"],
-        key: "{id}",
-        report: "async (session) => {
-            const { plugin } = await bundle('cline/orchbee-agent-observation.js');
-            plugin.setup({}, { session: { sessionId: session } });
-            plugin.hooks.onEvent({ type: 'run-started', snapshot: { conversationId: `conv_${hex(8)}`, runId: `run_${hex(8)}` } });
-        }",
-        reports_on_resume: false,
-        hooked: true,
-        start: Start::Bare,
     },
     Row {
         label: "grok-launch",
         provider: "grok",
         program: "grok",
         entry: "grok.js",
-        relay: None,
-        fresh: UUID,
         resume: &["--resume={id}"],
-        key: "{id}",
-        report: "async () => {}",
-        reports_on_resume: true,
-        hooked: false,
         start: Start::With(
             &["--session-id", "{id}"],
             "5f0c3e2a-8b1d-4c6e-9a7f-2d4b6e8c0a13",
@@ -507,13 +152,7 @@ const TABLE: [Row; 24] = [
         provider: "codex",
         program: "codex",
         entry: "node_modules/@openai/codex/bin/codex.js",
-        relay: None,
-        fresh: UUID,
         resume: &["resume", "{id}"],
-        key: "{id}",
-        report: "async () => {}",
-        reports_on_resume: true,
-        hooked: false,
         start: Start::With(
             &["--search", "resume", "{id}"],
             "8d2e4f60-1a3b-4c5d-8e7f-9a0b1c2d3e4f",
@@ -522,49 +161,14 @@ const TABLE: [Row; 24] = [
 ];
 
 /// A fresh run takes a new id, or the fixed one its start tokens carry, and a resumed one keeps its
-/// own. A command hook runs as the provider
-/// runs one: a child with the payload on standard input, inheriting the environment and console. A
-/// module adapter runs in the stub's own process, as in the provider's. An OpenCode-family module's
-/// plugin definition, which the installed bootstrap default-exports, must pass both loader
-/// generations: OpenCode 2.x decodes it as a plain object with a string id and a setup function,
-/// then awaits setup; OpenCode 1.3.4+ and Kilo admit it as a server plugin and report through the
-/// hooks its server returns. OpenCode 2.x also loads the client definition twice: as a server
-/// plugin, whose setup observes nothing, and as a TUI plugin, whose setup reads the TUI's route and
-/// session data and reports the displayed root. Written as one async function with dynamic
-/// imports, so the same source runs as CommonJS and as a module.
+/// own. Written as one async function with dynamic imports, so the same source runs as CommonJS
+/// and as a module.
 const STUB: &str = r"
 (async () => {
-  const { spawn } = await import('node:child_process');
   const crypto = await import('node:crypto');
   const { appendFileSync } = await import('node:fs');
-  const path = await import('node:path');
-  const { pathToFileURL } = await import('node:url');
   const argv = process.argv.slice(2);
-  const bundle = (relative) => import(pathToFileURL(path.join(BUNDLE, relative)).href);
-  const openCodePlugin = async (relative) => {
-    const definition = (await bundle(relative)).orchbeeAgentObservationPlugin;
-    if (typeof definition !== 'object' || definition === null || Array.isArray(definition) || typeof definition.id !== 'string' || typeof definition.setup !== 'function') throw new Error('OpenCode 2.x rejects the module');
-    await definition.setup({ id: definition.id, options: {}, event: { subscribe: () => ({ async *[Symbol.asyncIterator]() {} }) } });
-    if (typeof definition.server !== 'function' || definition.tui !== undefined) throw new Error('OpenCode 1.x rejects the module');
-    return definition.server({}, undefined);
-  };
-  const openCodeClient = async (relative, tui) => {
-    const definition = (await bundle(relative)).orchbeeAgentObservationClientPlugin;
-    if (typeof definition !== 'object' || definition === null || Array.isArray(definition) || typeof definition.id !== 'string' || typeof definition.setup !== 'function') throw new Error('OpenCode 2.x rejects the client module');
-    if (await definition.setup({ id: definition.id, options: {}, event: { subscribe: () => ({ async *[Symbol.asyncIterator]() {} }) } }) !== undefined) throw new Error('the client observes from the server');
-    if (typeof await definition.setup({ options: {}, ...tui }) !== 'function') throw new Error('the client ignores the TUI');
-  };
-  const hook = (adapter, payload) => new Promise((resolve) => {
-    const child = spawn(process.execPath, [path.join(BUNDLE, 'scripts', 'forward-hook.mjs'), adapter], { stdio: ['pipe', 'ignore', 'ignore'] });
-    child.on('error', resolve);
-    child.on('exit', resolve);
-    child.stdin.end(JSON.stringify(payload));
-  });
-  const pick = (alphabet, length) => Array.from(crypto.randomBytes(length), (byte) => alphabet[byte % alphabet.length]).join('');
-  const hex = (length) => pick('0123456789abcdef', length);
-  const alnum = (length) => pick('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', length);
   const fresh = () => (/*FRESH*/);
-  const report = /*REPORT*/;
   const matched = (patterns) => {
     if (argv.length !== patterns.length) return null;
     let id = null;
@@ -580,26 +184,11 @@ const STUB: &str = r"
     }
     return id;
   };
-  const resumed = matched(RESUME);
-  const id = resumed ?? (START.length === 0 ? (argv.length === 0 ? fresh() : null) : matched(START));
-  const session = id === null ? null : KEY.replace('{id}', id);
-  const reported = session !== null && (resumed === null || REPORTS_ON_RESUME);
-  if (reported) await report(session, id, resumed !== null);
-  appendFileSync(CALLS, JSON.stringify({ label: LABEL, script: process.argv[1], pid: process.pid, argv, cwd: process.cwd(), id, session, reported }) + '\n');
+  const id = matched(RESUME) ?? (START.length === 0 ? (argv.length === 0 ? fresh() : null) : matched(START));
+  appendFileSync(CALLS, JSON.stringify({ label: LABEL, script: process.argv[1], pid: process.pid, argv, cwd: process.cwd(), id }) + '\n');
   process.stdout.write(`${LABEL} stub running\n`);
   process.stdin.on('data', (data) => { if (String(data).trim() === 'q') process.exit(0); });
   setInterval(() => {}, 1 << 30);
-})();
-";
-
-/// Qwen's package entry relaunches its CLI under the same runtime with `--expose-gc`.
-const RELAY: &str = r"
-(async () => {
-  const { spawn } = await import('node:child_process');
-  const path = await import('node:path');
-  const target = path.join(path.dirname(process.argv[1]), RELAY);
-  const child = spawn(process.execPath, ['--expose-gc', target, ...process.argv.slice(2)], { stdio: 'inherit' });
-  child.on('exit', (code) => process.exit(code ?? 1));
 })();
 ";
 
@@ -609,7 +198,6 @@ struct Instance {
     label: &'static str,
     panel: String,
     id: String,
-    session: String,
 }
 
 impl Instance {
@@ -627,23 +215,21 @@ impl Instance {
     }
 
     fn retained(&self) -> (String, String) {
-        (self.row.provider.to_owned(), self.session.clone())
+        (self.row.provider.to_owned(), self.id.clone())
     }
 }
 
 /// What the Agent list must show for a Panel before a capture.
 #[derive(Clone, Copy)]
 enum Listed {
-    /// Seen through its hook and in its terminal's processes.
-    Both,
-    /// Seen only in its terminal's processes, with no hook report.
+    /// Seen in its terminal's processes as its row's provider.
     Process,
     /// Not seen in its terminal's processes.
     Gone,
 }
 
 #[test]
-#[ignore = "requires ORCHBEE_TEST_CONPTY_DIR: only the pinned ConPTY carries the hook's correlation; run explicitly"]
+#[ignore = "drives real Session restarts with stub Agents for about a minute; run explicitly"]
 fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a_moved_or_touched_one()
  {
     let labels: Vec<&'static str> = TABLE
@@ -662,22 +248,8 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
         unreachable!()
     };
     let resumable: Vec<&Instance> = rows.iter().collect();
-    witness.write_run_table(rows);
-    witness.until_listed(
-        &instances
-            .iter()
-            .map(|i| {
-                (
-                    i,
-                    if i.row.hooked {
-                        Listed::Both
-                    } else {
-                        Listed::Process
-                    },
-                )
-            })
-            .collect::<Vec<_>>(),
-    );
+    witness.write_run_table(&instances);
+    witness.until_listed(&listed(&instances, None));
 
     witness.stop();
     assert_eq!(
@@ -721,9 +293,9 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
     touching.release();
     viewing.release();
 
-    // A row that reports again is captured from its report; a silent row is captured from the
-    // delivered reference bound to the run it started. Resuming again keeps working.
-    witness.until_listed(&listed_after_resume(rows, None));
+    // Each row is captured again from the delivered reference bound to the run it started.
+    // Resuming again keeps working.
+    witness.until_listed(&listed(rows, None));
     witness.stop();
     assert_eq!(witness.retained(), sorted(rows.iter().chain([gone])));
     witness.start_session();
@@ -735,14 +307,13 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
     witness.assert_runs(&[gone, touched], 0);
     viewing.release();
 
-    // A silent Agent that exits takes its carried reference with it.
+    // An Agent that exits takes its carried reference with it.
     let exiting = rows
         .iter()
         .find(|instance| instance.label == EXITING)
         .unwrap();
-    assert!(!exiting.row.reports_on_resume);
     witness.send(&witness.terminals()[&exiting.panel], "q");
-    witness.until_listed(&listed_after_resume(rows, Some(exiting)));
+    witness.until_listed(&listed(rows, Some(exiting)));
     witness.stop();
     assert_eq!(
         witness.retained(),
@@ -783,18 +354,13 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
     witness.start_session();
 }
 
-/// After a resume, a row reporting through its hook is seen through it and its processes; a silent
-/// or hookless row only in its processes; `exited` in neither.
-fn listed_after_resume<'a>(
-    rows: &'a [Instance],
-    exited: Option<&Instance>,
-) -> Vec<(&'a Instance, Listed)> {
-    rows.iter()
+/// Each of `instances` is seen in its terminal's processes, `exited` in none.
+fn listed<'a>(instances: &'a [Instance], exited: Option<&Instance>) -> Vec<(&'a Instance, Listed)> {
+    instances
+        .iter()
         .map(|instance| {
             let listed = if exited.is_some_and(|exited| exited.label == instance.label) {
                 Listed::Gone
-            } else if instance.row.hooked && instance.row.reports_on_resume {
-                Listed::Both
             } else {
                 Listed::Process
             };
@@ -812,11 +378,6 @@ struct Witness {
 
 impl Witness {
     fn new(prefix: &'static str, labels: &[&'static str]) -> Self {
-        assert!(
-            std::env::var_os("ORCHBEE_TEST_CONPTY_DIR").is_some(),
-            "set ORCHBEE_TEST_CONPTY_DIR to a ConPTY bundle verified against \
-             apps/terminal-host/windows-conpty.json"
-        );
         // With this registry value cmd skips its current directory and could reach a real
         // provider on the registry `PATH` a restored terminal receives.
         for key in [
@@ -874,42 +435,25 @@ impl Witness {
     /// provider command: to that directory's own stub for its command, else to the first Panel's
     /// stub with that command.
     fn place_stubs(&self, labels: &[&'static str]) {
-        let bundle = self.stage_bundle();
-        let bundle = bundle.as_str();
         let literal = |value: &str| serde_json::to_string(value).unwrap();
         let mut entries: Vec<(&'static str, &'static str, PathBuf)> = Vec::new();
         for &label in labels {
             let row = Self::row(label);
             let entry = PathBuf::from(self.directory(&format!("stubs/{label}"))).join(row.entry);
             fs::create_dir_all(entry.parent().unwrap()).unwrap();
+            let (start, fresh) = match row.start {
+                Start::Fresh(fresh) => (&[][..], fresh),
+                Start::With(pattern, _) => (pattern, "null"),
+            };
             let stub = format!(
-                "const LABEL = {};\nconst CALLS = {};\nconst BUNDLE = {};\nconst RESUME = {};\n\
-                 const START = {};\nconst KEY = {};\nconst REPORTS_ON_RESUME = {};\n{}",
+                "const LABEL = {};\nconst CALLS = {};\nconst RESUME = {};\nconst START = {};\n{}",
                 literal(label),
                 literal(&self.directory("calls.jsonl")),
-                literal(bundle),
                 serde_json::to_string(row.resume).unwrap(),
-                serde_json::to_string(&match row.start {
-                    Start::Bare => &[][..],
-                    Start::With(pattern, _) => pattern,
-                })
-                .unwrap(),
-                literal(row.key),
-                row.reports_on_resume,
-                STUB.replace("/*FRESH*/", row.fresh)
-                    .replace("/*REPORT*/", row.report),
+                serde_json::to_string(start).unwrap(),
+                STUB.replace("/*FRESH*/", fresh),
             );
-            match row.relay {
-                Some(relay) => {
-                    fs::write(entry.with_file_name(relay), stub).unwrap();
-                    fs::write(
-                        &entry,
-                        format!("const RELAY = {};\n{RELAY}", literal(relay)),
-                    )
-                    .unwrap();
-                }
-                None => fs::write(&entry, stub).unwrap(),
-            }
+            fs::write(&entry, stub).unwrap();
             entries.push((label, row.program, entry));
         }
         for &(label, _, _) in &entries {
@@ -936,46 +480,11 @@ impl Witness {
         }
     }
 
-    /// Copies the observation bundle into the fixture with the owner record that publishing adds,
-    /// naming this build's environment. A hook reports only to the environment that installed its
-    /// Capsule, and the checkout's bundle carries no record, so it would belong to release and stay
-    /// silent in this cohort's terminals.
-    fn stage_bundle(&self) -> String {
-        let source = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../crates/agent-integration-writer/agent-observation-adapters/bundle");
-        let target = self.directory("bundle");
-        let mut pending = vec![(source, PathBuf::from(&target))];
-        while let Some((from, to)) = pending.pop() {
-            fs::create_dir_all(&to).unwrap();
-            for entry in
-                fs::read_dir(&from).unwrap_or_else(|error| panic!("{}: {error}", from.display()))
-            {
-                let entry = entry.unwrap();
-                let destination = to.join(entry.file_name());
-                if entry.file_type().unwrap().is_dir() {
-                    pending.push((entry.path(), destination));
-                } else {
-                    fs::copy(entry.path(), destination).unwrap();
-                }
-            }
-        }
-        fs::write(
-            PathBuf::from(&target).join(r"scripts\environment.json"),
-            serde_json::to_vec(&json!({
-                "environment": orchbee_local_runtime::environment_stem(),
-                "version": 1,
-            }))
-            .unwrap(),
-        )
-        .unwrap();
-        target
-    }
-
-    /// A Panel's row: the gone Panel plays Claude Code and the touched one Codex.
+    /// A Panel's row: the gone and touched Panels each play the Claude Code row, whose bare start
+    /// gives each its own session.
     fn row(label: &str) -> &'static Row {
         let label = match label {
-            "gone" => "claude-code",
-            "touched" => "codex",
+            "gone" | "touched" => "claude-run-table",
             label => label,
         };
         TABLE.iter().find(|row| row.label == label).unwrap()
@@ -1101,7 +610,6 @@ impl Witness {
                     calls.iter().find(|call| {
                         call["label"] == *label
                             && call["argv"] == json!(row.start_tokens())
-                            && call["reported"] == true
                             && self.same_directory(&call["cwd"], &format!("work/{label}"))
                     })
                 })
@@ -1117,7 +625,6 @@ impl Witness {
                             label,
                             panel: panel.clone(),
                             id: call["id"].as_str().unwrap().to_owned(),
-                            session: call["session"].as_str().unwrap().to_owned(),
                         }
                     })
                     .collect();
@@ -1151,7 +658,6 @@ impl Witness {
             let missing: Vec<&str> = expected
                 .iter()
                 .filter(|(instance, listed)| match listed {
-                    Listed::Both => !seen(instance, true, Some("both")),
                     Listed::Process => !seen(instance, true, Some("terminal")),
                     Listed::Gone => seen(instance, false, None),
                 })
@@ -1213,16 +719,15 @@ impl Witness {
         }
     }
 
-    /// Writes Claude Code's run table entry, as Claude Code 2.1.322 writes it for itself, for the
-    /// newest run of each Claude Code row, under the Server's home: the hookless row's entry names
-    /// its own session, and the hooked row's names `DECOY`, which its hook session outranks. The
-    /// stubs cannot read their own creation time, and a reader started inside a Panel would
-    /// disturb its processes, so the witness writes each entry from outside.
-    fn write_run_table(&self, rows: &[Instance]) {
+    /// Writes Claude Code's run table entry, as Claude Code 2.1.322 writes it for itself, naming the
+    /// session of the newest run of each Claude Code Panel among `instances`, under the Server's
+    /// home. The stubs cannot read their own creation time, and a reader started inside a Panel
+    /// would disturb its processes, so the witness writes each entry from outside.
+    fn write_run_table(&self, instances: &[Instance]) {
         let calls = self.calls();
         let table = PathBuf::from(self.directory("home/.claude/sessions"));
         fs::create_dir_all(&table).unwrap();
-        for instance in rows
+        for instance in instances
             .iter()
             .filter(|instance| instance.row.program == "claude")
         {
@@ -1232,14 +737,9 @@ impl Witness {
                 .find(|call| call["label"] == instance.label)
                 .unwrap();
             let pid = call["pid"].as_u64().unwrap();
-            let session = if instance.row.hooked {
-                DECOY
-            } else {
-                call["session"].as_str().unwrap()
-            };
             let entry = json!({
                 "pid": pid,
-                "sessionId": session,
+                "sessionId": call["id"],
                 "cwd": call["cwd"],
                 "startedAt": 0,
                 "procStart": process_start(pid),
@@ -1252,10 +752,8 @@ impl Witness {
         }
     }
 
-    /// Reads the Agent list once, as a Client showing it does. Hook reports join their Panel only
-    /// when a Client's Agent read drains the Worker's correlation hints, and an unjoined report
-    /// expires after 10 s, so every wait reads it. A read refused because the list changed under
-    /// it has still drained.
+    /// Reads the Agent list once, as a Client showing it does, so every wait runs under a viewing
+    /// Client. A read refused because the list changed under it still counts.
     fn view_agents(&self) {
         self.fixture.run(&["agent", "list"]);
     }
@@ -1270,8 +768,7 @@ impl Witness {
     }
 
     /// Each Panel's stub ran once as its row starts and then exactly `resumes` times with its own
-    /// resume arguments, each resume in its own directory and its own session, reporting only where
-    /// its provider does.
+    /// resume arguments, each resume in its own directory and its own session.
     fn assert_runs(&self, instances: &[&Instance], resumes: usize) {
         let calls = self.calls();
         for instance in instances {
@@ -1299,12 +796,7 @@ impl Witness {
                     "{} resumed outside its directory: {call}",
                     instance.label
                 );
-                assert_eq!(call["session"], instance.session.as_str(), "{call}");
-                assert_eq!(
-                    call["reported"], instance.row.reports_on_resume,
-                    "{}: {call}",
-                    instance.label
-                );
+                assert_eq!(call["id"], instance.id.as_str(), "{call}");
             }
         }
     }
@@ -1431,16 +923,13 @@ impl Witness {
                 continue;
             }
             for instance in instances {
-                for id in [&instance.id, &instance.session] {
-                    assert!(
-                        !bytes
-                            .windows(id.len())
-                            .any(|window| window == id.as_bytes()),
-                        "{}: a session id is in {}",
-                        instance.label,
-                        path.display()
-                    );
-                }
+                let id = instance.id.as_bytes();
+                assert!(
+                    !bytes.windows(id.len()).any(|window| window == id),
+                    "{}: a session id is in {}",
+                    instance.label,
+                    path.display()
+                );
             }
         }
     }

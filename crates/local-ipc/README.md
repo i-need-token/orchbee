@@ -5,6 +5,17 @@ adapts local named pipes to bounded reads, writes, cancellation, and readiness w
 changing OBLC, OBWP, OBAP, OBCS, OBCN, or Terminal Host framing. It does not launch
 processes, select a runtime, own protocol state, or grant terminal authority.
 
+## Agent observation channel withdrawn
+
+Windows withdrew the Agent observation channel: its Node adapters open through `node:net`, which
+sets no security quality of service, so the identification limit below never covered them, and a
+corrected adapter could not reach installed copies without rewriting Agent configuration. People
+who enabled an integration earlier lose its hook-reported resume and status on Windows. Bringing the
+channel back needs an adapter client that opens at identification level and a way to deliver it
+that writes into no Agent configuration. The
+[writer crate's README](../agent-integration-writer/README.md#windows-observation-channel-withdrawn)
+records the decision, what earlier enablers lose, and the second defect a revival must close.
+
 ## Windows transport refinement
 
 The user-authorized Windows native delivery retains the existing process and protocol
@@ -67,7 +78,8 @@ server that squats the endpoint's name receives a thread token at identification
 the client's token user, as the Terminal Host's same-user check does, but it cannot impersonate the
 client. Anonymous would stop that token query, so identification is the lowest level that keeps
 every server check working. The Node observation adapter opens through `node:net`, which sets no
-SQOS flag, so this guarantee does not cover it yet. `interprocess`'s built-in connect offers no SQOS
+SQOS flag, which is why Windows [withdrew its channel](#agent-observation-channel-withdrawn).
+`interprocess`'s built-in connect offers no SQOS
 flag parameter and its `PipeStream::try_from(OwnedHandle)` reopens the pipe via `ReOpenFile`
 (opening a second client connection whenever the listener already holds its next idle instance), so
 `open_identified` opens with `std`'s `OpenOptions` and

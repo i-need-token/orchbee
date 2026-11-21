@@ -4,6 +4,8 @@ This record owns the Windows refinement of the Agent integration writer. In this
 
 Orchbee reads or writes provider configuration for these entries only on uninstall's disable path, so the provider-state rules below describe that engine and its evidence.
 
+Windows also withdrew the Agent observation channel: the Server binds no observation pipe and no Agent receives `ORCHBEE_AGENT_OBSERVATION_SOCKET`, so an adapter an earlier version installed returns at every hook event without output and reports nothing. The [writer crate's README](../../../crates/agent-integration-writer/README.md#windows-observation-channel-withdrawn) records why and what a revival needs. The transport, correlation and delivery facts below describe the engine as it stood; no witness drives the Windows channel end to end any more.
+
 ## Model and boundaries
 
 | Field          | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |

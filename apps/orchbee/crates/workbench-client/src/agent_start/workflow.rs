@@ -71,9 +71,7 @@ pub(super) fn run_on_origin(
     });
     // A remote origin's integrations live on its host, where this Client's Capsule evidence says
     // nothing, so the canonical Session keeps its head start there.
-    let observe_after = observation_delay(
-        !origin.is_local() || orchbee_local_runtime::agent_integration_may_have_been_enabled(),
-    );
+    let observe_after = observation_delay(!origin.is_local() || local_hook_may_report());
     match settle_cancellation(admitted, wake) {
         Ok((client, snapshot)) => run_admitted(
             &request,
@@ -100,6 +98,13 @@ pub fn step_deadline(deadline: Instant) -> Result<Instant, Failure> {
         return Err(Failure::Start(StartFailure::Deadline));
     }
     Ok(deadline.min(now + READ_BUDGET))
+}
+
+/// Whether a hook on this machine may report a start's canonical Session: an integration may have
+/// been enabled here, and the platform keeps the Agent observation channel. Windows withdrew it, so
+/// no start there waits for a hook.
+pub(super) fn local_hook_may_report() -> bool {
+    cfg!(not(windows)) && orchbee_local_runtime::agent_integration_may_have_been_enabled()
 }
 
 /// How long after submission observation may confirm a start without a canonical Session: the

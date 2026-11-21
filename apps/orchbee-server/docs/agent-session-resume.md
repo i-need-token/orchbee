@@ -7,9 +7,11 @@ one-shot notice when a resume is given up, carry-forward of a delivered referenc
 the conversation id bound on the Agent process's own command line.
 
 Since the user-facing Agent integration was removed, a hook candidate comes only from an
-integration a user enabled in an earlier version. Every other user resumes only through those two
-process sources: Claude Code on Windows, and an Agent started with its conversation id on its
-command line, such as `codex resume <id>`. The setting's description says so.
+integration a user enabled in an earlier version, and never on Windows, which withdrew the
+[Agent observation channel](../../../crates/agent-integration-writer/README.md#windows-observation-channel-withdrawn).
+Everyone else resumes only through those two process sources: Claude Code on Windows, and an
+Agent started with its conversation id on its command line, such as `codex resume <id>`. The
+setting's description says so.
 
 ## Outcome and scope
 
@@ -656,49 +658,35 @@ wiring, the run table read outside the locks, carry-forward's record, bind and p
 refusal retry and the give-up's commit are not claimed by unit tests.
 
 `apps/orchbee/tests/cli_windows_agent_resume.rs` witnesses them across real stops and restarts in
-one Session, with one Panel per [table](#rows) row: every provider, Letta's conversation and
-default forms, Claude Code once more without hooks, and two more hookless rows named only by their
-command lines, a Grok started with `--session-id <id>` as an Agent start types it and a hand-typed
-`codex --search resume <id>`, 24 rows. MiMo Code's row is hookless too: a hand-typed
-`mimo --session <id>` names its session only on its command line. Each row's stub is a Node script at a path process identity recognises as
-that provider, and it reports its session as the provider's adapter does: a command-hook payload
-through the shipped hook script, or the shipped OpenCode, Kilo, Cline, Pi or OMP module driven as
-its provider drives it. The Kilo stub first admits the module's plugin definition, the one the
-installed bootstrap default-exports, as the OpenCode 2.2.5 loader does: a plain object with a
-string id and a setup function whose setup resolves. It then admits it as OpenCode 1.3.4+ and Kilo
-do and reports through the hooks its `server` returns. The OpenCode stub plays a 2.2.5 TUI: it
-admits the client definition the same way as a server plugin whose setup observes nothing, then
-sets it up with a TUI context, typed as the 2.2.5 TUI plugin API types it, whose route shows a
-child session of the stub's root beside another root, and the client reports that root. A row the
-table marks as
-re-reporting only "on first prompt" or "on first run", "probably no" or "unknown" stays silent after
-a resume. The hookless Claude Code row reports nothing: the witness writes, from outside the
-Panel, a Claude Code 2.1.322 run table entry for each of its runs, carrying the run's creation time
-as `Get-Process` reads it, and writes one for each hooked Claude Code run naming another session.
-Per row, the witness proves:
+one Session through the process sources, since Windows withdrew the
+[Agent observation channel](../../../crates/agent-integration-writer/README.md#windows-observation-channel-withdrawn)
+and no hook reports there. It has one Panel per row: Claude Code named by its run table, and three
+rows named only by their command lines, a Grok started with `--session-id <id>` as an Agent start
+types it, a hand-typed `codex --search resume <id>` and a hand-typed `mimo --session <id>`. Each
+row's stub is a Node script at a path process identity recognises as that provider, and reports
+nothing. The witness writes, from outside the Panel, a Claude Code 2.1.322 run table entry for each
+Claude Code run, carrying the run's creation time as `Get-Process` reads it. Per row, the witness
+proves:
 
-- capture of the fresh session without ambiguity, with Kilo's child session and the OpenCode
-  TUI's displayed child session and other root present; the hookless Claude Code row's from its run
-  table entry alone, the hooked one's from its hook session over its entry, and the hookless Grok,
-  Codex and MiMo Code rows' from their command lines alone;
+- capture of the fresh session without ambiguity, the Claude Code row's from its run table entry
+  alone and the Grok, Codex and MiMo Code rows' from their command lines alone;
 - after a restart, the exact cmd line on screen and the exact recorded argument tokens, Claude
-  Code's `--resume=<id>` and Letta's split `default:<agent>` key included, in the retained
-  directory;
+  Code's `--resume=<id>` included, in the retained directory;
 - exactly one delivery per Panel per Server lifetime, across two restarts;
-- capture after a resume: from the report where the provider re-reports, and from the carried
-  reference bound to its run where it stays silent, which then survives the second restart;
-- a silent Agent that exits drops its carried reference from the next checkpoint;
+- capture after a resume from the carried reference bound to its run, which then survives the
+  second restart;
+- an Agent that exits drops its carried reference from the next checkpoint;
 - with the setting off at startup, nothing is typed and the next capture writes no row.
 
 It also keeps the earlier cases: a missing directory restores a plain shell in home, Client input
 during the settle refutes the delivery, every run is a stub under the fixture root, and no session
 id appears in any file the runtime writes other than checkpoint frames.
 
-Waits read the Agent list as a Client showing it does, because a hook report joins its Panel only
-when a Client's Agent read drains it within 10 seconds. The witness runs only on request, with the
-pinned ConPTY that carries the hook's correlation, in about 90 seconds. Its shell is cmd: a
-restored terminal's `PATH` comes from the registry, where the user's real provider may sit, and
-only cmd resolves a command from its current directory first, where every provider's stub sits.
+Waits read the Agent list as a Client showing it does. The witness runs only on request, under the
+system ConHost, which carries cmd's prompt marks, or under the product's ConPTY when
+`ORCHBEE_TEST_CONPTY_DIR` names a verified bundle. Its shell is cmd: a restored terminal's `PATH`
+comes from the registry, where the user's real provider may sit, and only cmd resolves a command
+from its current directory first, where every provider's stub sits.
 
 Every delivery it sees passes the Host's prompt gate at cmd's marked prompt.
 
@@ -711,6 +699,10 @@ It does not prove:
   manual runs with stub providers in a scratch home;
 - a refused send's retry, a give-up or its notice, which no CLI read can provoke or observe; they
   rest on the decision tables and the end batch's real-window checks;
+- the capture rule's hook candidates and every row only a hook names, Letta's forms, Kilo's and
+  the OpenCode TUI's child sessions and a hook session over a run table entry included: no
+  end-to-end witness drives a hook since Windows withdrew the channel, so they rest on the
+  decision tables;
 - any real provider: that its hook key is the id it resumes, that it parses the typed form, or
   where it looks up a session. Same-id and directory evidence rests on the table's sources, and
   where that is documentation only (Cursor, Droid, Devin, Copilot, Antigravity and MiMo Code's help
@@ -723,9 +715,8 @@ It does not prove:
   `/clear` or `/resume`. The format and the native build's equality with the Host's sample were
   read from one 2.1.322 run;
 - that a real OpenCode 2.x loads both plugins without a plugin error, or that its TUI context
-  behaves as the 2.2.5 TUI plugin API types it: the stub follows those sources, and a real 2.2.5
-  run is still pending;
-- native provider images, which identity classifies by pure rule in its matrix, nor Hermes's
-  Python plugin, whose payload a Node stub sends through the same hook script;
+  behaves as the 2.2.5 TUI plugin API types it: the adapter follows those sources, and a real
+  2.2.5 run is still pending;
+- native provider images, which identity classifies by pure rule in its matrix;
 - the Server's diagnostic lines, which go to standard error rather than to a file the witness can
   read.

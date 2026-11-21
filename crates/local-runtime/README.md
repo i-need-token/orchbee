@@ -309,7 +309,9 @@ another crate places.
 `agent_integration_may_have_been_enabled` answers `false` only when this environment's Capsule
 folder does not exist, which proves that no provider entry names this environment; an unresolved root or unreadable folder answers `true`. It runs no provider command
 and reads no provider configuration, so implicit callers use it to skip integration inspection
-and to give an enabled integration's Session a head start over observed Agent startup.
+and, where the platform keeps the Agent observation channel, to give an enabled integration's
+Session a head start over observed Agent startup. Windows withdrew that channel, so a start there
+never waits for it.
 
 Only the top level holds what a person reads, edits, or keeps. Every writer that creates a folder
 inside the root also writes `internal/version.json` when it is absent, so a root that holds anything

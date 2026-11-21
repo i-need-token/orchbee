@@ -232,7 +232,14 @@ fn launch_overlay(
     launch: &orchbee_capability_node_protocol::AuthorizedTerminalLaunch,
     session_runtime: Option<&Path>,
 ) -> Result<Vec<EnvironmentOverlayEntry>, HostLaunchAdapterError> {
-    let mut overlay = observation_overlay(session_runtime);
+    // Windows withdrew the Agent observation channel and its Server binds no pipe, so an Agent
+    // there never learns the observation name, even when a pipe of that name exists: only another
+    // process could hold it. The writer crate's README records the decision.
+    let mut overlay = if cfg!(windows) {
+        Vec::new()
+    } else {
+        observation_overlay(session_runtime)
+    };
     if let Some(runtime) = session_runtime {
         let base = runtime
             .parent()
@@ -482,6 +489,7 @@ const fn protocol_geometry(
 #[cfg(test)]
 mod tests;
 
+/// The Windows derivation, unused while `launch_overlay` keeps the channel withdrawn there.
 #[cfg(windows)]
 fn observation_overlay(session_runtime: Option<&Path>) -> Vec<EnvironmentOverlayEntry> {
     let Some(runtime) = session_runtime else {
