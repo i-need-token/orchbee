@@ -21,6 +21,7 @@ use orchbee_workbench_protocol::PresentationLaunchProgram;
 
 use crate::agent::native_observation::CarrierIdentity;
 use crate::agent_service::{AgentPolicy, AgentService, DrainExpectation};
+use crate::local_client_service::tests::agent_harness;
 use crate::worker_obcn_carrier::{
     ExchangeWait, WorkerOperationResult, WorkerRequestError, WorkerWireExit, create_worker_carrier,
 };
@@ -721,7 +722,7 @@ fn test_identity(worker_id: WorkerId, generation: NonZeroU64) -> CarrierIdentity
 /// legitimately mutates leaf bindings/effects inside the same guard before
 /// cloning the snapshot. `Ok(Ok(Some))` = exact identity live + runtime
 /// alive; `Ok(Err(CarrierMismatch))` = absent or different identity;
-/// `Ok(Ok(None))` = disposed runtime; `Err` = poisoned cell.
+/// `Ok(Ok(None))` = disposed runtime; `Err` = fold fault.
 fn leaf_holds(agents: &AgentService, identity: CarrierIdentity) -> bool {
     matches!(
         agents.native_fenced_final_snapshot(
@@ -739,7 +740,7 @@ fn leaf_holds(agents: &AgentService, identity: CarrierIdentity) -> bool {
 /// Same mutating-probe contract as `leaf_holds`, under the `NoCarrier`
 /// expectation: `Ok(Ok(Some))` = leaf holds no carrier + runtime alive;
 /// `Ok(Err(CarrierAppeared))` = a carrier is still admitted; `Ok(Ok(None))`
-/// = disposed runtime; `Err` = poisoned cell.
+/// = disposed runtime; `Err` = fold fault.
 fn leaf_empty(agents: &AgentService) -> bool {
     matches!(
         agents.native_fenced_final_snapshot(
@@ -834,43 +835,6 @@ fn native_leaf_refusal_leaves_no_live_carrier() {
     assert!(leaf_holds(
         &agents,
         test_identity(SECOND_WORKER, replacement_generation)
-    ));
-    drop(replacement_owner);
-}
-
-#[test]
-fn native_fold_poison_leaves_no_live_carrier() {
-    let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
-    let agents = open_agents();
-    let generation = admit_first_worker(&registry, FIRST_WORKER);
-    let identity = test_identity(FIRST_WORKER, generation);
-    // A committed leaf mutation followed by a fold fault permanently poisons
-    // the cell — every later fold reports fold-unavailability.
-    let _ = agents.native_poison_after_mutation_for_test(identity, Instant::now());
-    assert!(agents.cell_poisoned_for_test());
-
-    assert!(register_with_agents(&registry, FIRST_WORKER, generation, &agents).is_none());
-    assert!(
-        registry
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .request_handle()
-            .is_none()
-    );
-    // The pending admission stays owned by the existing caller: cancellation
-    // frees it, and the plain registration path — which never touches the
-    // leaf — readmits the replacement normally even with the service cell
-    // permanently poisoned.
-    {
-        let mut registry_guard = registry.lock().unwrap_or_else(|error| error.into_inner());
-        assert!(registry_guard.cancel_pending_admission(generation));
-    }
-    let replacement_generation = admit_first_worker(&registry, SECOND_WORKER);
-    let replacement_owner =
-        register_first_carrier(&registry, SECOND_WORKER, replacement_generation);
-    assert!(matches!(
-        drain_carrier_kind(&registry),
-        AgentDrainCarrier::Live(_)
     ));
     drop(replacement_owner);
 }
@@ -1003,20 +967,28 @@ fn dead_service_still_allows_registry_retirement() {
 }
 
 #[test]
-fn poisoned_service_still_allows_registry_retirement() {
+fn faulted_service_still_allows_registry_retirement() {
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let agents = open_agents();
     let generation = admit_first_worker(&registry, FIRST_WORKER);
     let identity = test_identity(FIRST_WORKER, generation);
     let owner = register_with_agents(&registry, FIRST_WORKER, generation, &agents)
         .unwrap_or_else(|| panic!("carrier was not registered"));
-    let _ = agents.native_poison_after_mutation_for_test(identity, Instant::now());
-    assert!(agents.cell_poisoned_for_test());
+    assert!(
+        agents
+            .fault_after_dispatch_for_test(&agent_harness::session_observed("s.fault", 1.0))
+            .is_err()
+    );
+    // The rebuilt cell keeps the registered carrier, so the leaf and the
+    // registry still agree.
+    assert!(leaf_holds(&agents, identity));
 
     drop(owner);
     let registry_guard = registry.lock().unwrap_or_else(|error| error.into_inner());
     assert!(generation_is_retired(&registry_guard, generation));
     assert!(registry_guard.request_handle().is_none());
+    drop(registry_guard);
+    assert!(leaf_empty(&agents));
 }
 
 #[test]

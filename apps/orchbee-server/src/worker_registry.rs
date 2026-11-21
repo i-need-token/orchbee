@@ -127,9 +127,9 @@ impl Drop for WorkerGenerationRegistration {
         if let Ok(mut registry) = registry.lock() {
             // The exact leaf identity retires while the registry guard is
             // still held — a replacement can never be exposed between leaf
-            // retirement and slot release. A poisoned AgentService cell is
-            // reported inside `native_retire_carrier`'s typed result; it
-            // cannot block registry retirement.
+            // retirement and slot release. A faulted retirement fold is
+            // reported inside `native_retire_carrier`'s typed result, and its
+            // rebuild forgets the carrier; it cannot block registry retirement.
             if let Some(leaf) = self.leaf.take()
                 && let Some(agents) = leaf.agents.upgrade()
             {
@@ -279,9 +279,10 @@ impl WorkerRegistry {
                         identity,
                         agents: weak_agents,
                     }),
-                    // Contract refusal (carrier already active) or fold
-                    // unavailability (poisoned cell) fail the registration
-                    // closed: no Live record is published without its leaf.
+                    // Contract refusal (carrier already active) or a fault
+                    // in the admission fold, whose rebuild keeps no carrier,
+                    // fail the registration closed: no Live record is
+                    // published without its leaf.
                     Ok(Err(_)) | Err(_) => return None,
                 }
             }

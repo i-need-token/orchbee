@@ -3,7 +3,7 @@
 //! typed duplicate/conflict, expiry sweeps, held caps, the typed
 //! payload bound, and complete-snapshot reconcile atomicity. The
 //! same-runtime bridge coverage (held -> bound -> replay -> dispatch ->
-//! canonical read, and the shared poison boundary) lives in
+//! canonical read, and recovery after a fold fault) lives in
 //! `agent_service/tests.rs` where the real `AgentService` exists.
 
 use std::num::NonZeroU64;

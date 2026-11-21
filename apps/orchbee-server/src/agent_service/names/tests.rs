@@ -316,18 +316,6 @@ fn preparation_is_not_a_stale_liveness_authority_and_faults_never_fabricate_empt
             request_id: request_id(),
         },
     ));
-    let poisoned = seeded(&[session_observed("a", 1.0)]).unwrap();
-    assert!(
-        poisoned
-            .poison_state_after_mutation_for_test(&session_ended("a", 1.0, 2.0))
-            .is_err()
-    );
-    unavailable(execute(
-        &poisoned,
-        AgentNamesRequest::NamesList {
-            request_id: request_id(),
-        },
-    ));
 }
 
 #[test]

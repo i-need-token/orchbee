@@ -307,7 +307,7 @@ fn advance_ack_write(
 /// now + POLL_LIVENESS_CAP)`. The cap makes the poll finite even with
 /// zero connections and zero timers — the only way a settlement timer
 /// created by a different caller (a native Instant seam sharing the
-/// cell mutex) is ever observed. A poisoned `next_deadline` fold
+/// cell mutex) is ever observed. A faulted `next_deadline` fold
 /// surfaces `Err` here and simply contributes no deadline — the loop
 /// keeps serving (connection handling decides each connection's own
 /// honest close).
@@ -385,8 +385,8 @@ fn conn_step(conn: &mut Conn, ready: PollFlags, agents: &AgentService) -> bool {
                             None => true,
                         }
                     }
-                    // Fold unavailability (poisoned cell) closes this
-                    // connection honestly; the loop itself keeps serving.
+                    // A faulted admission fold closes this connection
+                    // honestly; the loop itself keeps serving.
                     Err(_) => true,
                 },
                 Ok(n) => {

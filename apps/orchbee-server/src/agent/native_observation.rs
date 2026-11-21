@@ -189,8 +189,15 @@ impl NativeObservation {
     }
 
     pub(crate) fn new() -> Self {
+        Self::rebuilt(None)
+    }
+
+    /// The leaf a recovering owner starts from: no held hints and no bindings, only the registry's
+    /// carrier at its committed watermark, so the prefix the Worker was already acknowledged for
+    /// never reads as a hole.
+    pub(crate) fn rebuilt(carrier: Option<(CarrierIdentity, u64)>) -> Self {
         Self {
-            carrier: None,
+            carrier,
             records: Vec::new(),
             held_bytes: 0,
             bindings: Vec::new(),

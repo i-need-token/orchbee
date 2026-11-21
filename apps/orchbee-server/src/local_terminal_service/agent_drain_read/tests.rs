@@ -958,28 +958,6 @@ fn an_incomplete_page_forces_a_second_exchange_before_serving() {
     owner_thread.join().unwrap();
 }
 
-/// A poisoned AgentState cell maps the final fold fault to the existing
-/// typed `RuntimeUnavailable` wire arm.
-#[test]
-fn poisoned_agent_state_reports_unavailable() {
-    let service = LocalTerminalService::new(registry());
-    let agents = AgentService::open(AgentPolicy {
-        read: true,
-        manage: true,
-    })
-    .unwrap();
-    assert!(
-        agents
-            .native_poison_after_mutation_for_test(carrier(NonZeroU64::MIN), Instant::now())
-            .is_err()
-    );
-    let result = list_via_pump(&service, &agents, Instant::now() + WINDOW, 1).unwrap();
-    assert_eq!(
-        unavailable(result),
-        AgentUnavailableReason::RuntimeUnavailable
-    );
-}
-
 /// A disposed runtime reports `Ok(Ok(None))` at the final fold — the pump
 /// maps it to Unavailable like the existing snapshot path.
 #[test]

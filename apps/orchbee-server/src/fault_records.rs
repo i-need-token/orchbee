@@ -1,10 +1,11 @@
 //! Records the Server's contained and uncontained faults in the daily diagnostic log: a listener
 //! that drops one candidate and keeps serving, a Worker request that failed alone or a Worker reply
 //! dropped while its connection kept serving, a Client stream closed while its connection kept
-//! serving, a Worker connection that ended, a thread that panicked and a lock left poisoned. A
-//! record holds static tokens, counts and flags only, never a panic message, request or terminal
-//! content, a path, or an error's text. Records that repeat at one site are written at most once a
-//! minute, and the next record from that site counts the ones left out.
+//! serving, a Worker connection that ended, an Agent change refused where it arrived, the Agent
+//! state rebuilt after a fault, a thread that panicked and a lock left poisoned. A record holds
+//! static tokens, counts and flags only, never a panic message, request or terminal content, a
+//! path, or an error's text. Records that repeat at one site, or from one owner that paces its
+//! own, are written at most once a minute, and the next such record counts the ones left out.
 
 use std::{
     io,
@@ -37,6 +38,8 @@ const WORKER_REQUEST_FAILED: &str = "worker-request-failed";
 const WORKER_REPLY_DROPPED: &str = "worker-reply-dropped";
 const CLIENT_STREAM_FAILED: &str = "client-stream-failed";
 const WORKER_CONNECTION_ENDED: &str = "worker-connection-ended";
+const AGENT_CHANGE_REFUSED: &str = "agent-change-refused";
+const AGENT_STATE_RECOVERED: &str = "agent-state-recovered";
 const PANICKED: &str = "panicked";
 const STATE_POISONED: &str = "state-poisoned";
 
@@ -357,6 +360,65 @@ pub(crate) fn worker_connection_ended(end: &WorkerConnectionEnd) {
     write(level, WORKER_CONNECTION_ENDED, &fields);
 }
 
+/// The record pacing of one owner that keeps its own rather than share the site table: at most one
+/// record a minute, the next one counting those left out.
+#[derive(Debug, Default)]
+pub(crate) struct RecordInterval {
+    written: Option<Instant>,
+    suppressed: u64,
+}
+
+impl RecordInterval {
+    /// Whether a record standing for `occurrences` may be written now, and how many occurrences it
+    /// leaves out: those suppressed since the last record and all but the first of these.
+    fn admit(&mut self, now: Instant, occurrences: u64) -> Option<u64> {
+        if self
+            .written
+            .is_some_and(|written| now.saturating_duration_since(written) < RECORD_INTERVAL)
+        {
+            self.suppressed = self.suppressed.saturating_add(occurrences);
+            return None;
+        }
+        self.written = Some(now);
+        Some(std::mem::take(&mut self.suppressed).saturating_add(occurrences.saturating_sub(1)))
+    }
+}
+
+/// Records Agent changes the canonical model refused as invalid where they arrived: the transition
+/// kind of the first and how many were left out. At most one record a minute per `interval`.
+pub(crate) fn agent_change_refused(
+    interval: &mut RecordInterval,
+    transition: &'static str,
+    refusals: u64,
+) {
+    if let Some(suppressed) = interval.admit(Instant::now(), refusals) {
+        write(
+            LogLevel::Warning,
+            AGENT_CHANGE_REFUSED,
+            &[
+                ("transition", LogValue::Token(transition)),
+                ("suppressed", LogValue::Count(suppressed)),
+            ],
+        );
+    }
+}
+
+/// Records the Agent state rebuilt after a fault: the revision it resumed at and whether it kept the
+/// Worker carrier. At most one record a minute per `interval`.
+pub(crate) fn agent_state_recovered(interval: &mut RecordInterval, revision: u64, carrier: bool) {
+    if let Some(suppressed) = interval.admit(Instant::now(), 1) {
+        write(
+            LogLevel::Error,
+            AGENT_STATE_RECOVERED,
+            &[
+                ("revision", LogValue::Count(revision)),
+                ("carrier", LogValue::Flag(carrier)),
+                ("suppressed", LogValue::Count(suppressed)),
+            ],
+        );
+    }
+}
+
 static PANIC_HOOK: Once = Once::new();
 
 /// Installs, once per process, a panic hook that records the panic's thread and source site before
@@ -438,18 +500,14 @@ fn intern(text: &str) -> &'static str {
 pub(crate) enum GuardedLock {
     /// The Session coordinator: the Workbench authority and terminal coordination.
     Coordinator,
-    /// The canonical Agent state's fold cell.
-    AgentFold,
 }
 
 static COORDINATOR_POISONED: AtomicBool = AtomicBool::new(false);
-static AGENT_FOLD_POISONED: AtomicBool = AtomicBool::new(false);
 
 /// Records the first observation of `lock` poisoned; later observations write nothing.
 pub(crate) fn state_poisoned(lock: GuardedLock) {
     let (observed, token) = match lock {
         GuardedLock::Coordinator => (&COORDINATOR_POISONED, "coordinator"),
-        GuardedLock::AgentFold => (&AGENT_FOLD_POISONED, "agent-fold"),
     };
     if !observed.swap(true, Ordering::AcqRel) {
         write(

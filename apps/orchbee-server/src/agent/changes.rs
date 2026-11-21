@@ -76,25 +76,22 @@ impl std::fmt::Display for AgentChangeReadError {
 
 impl std::error::Error for AgentChangeReadError {}
 
+/// The journal record of an applied transition; `None` when the applied
+/// snapshot lacks the event's target Session, which the runtime refuses.
 pub fn create_agent_runtime_change(
     snapshot: &AgentRuntimeSnapshot,
     event: &AgentObservationEvent,
-) -> AgentRuntimeChange {
-    let Some(session_id) = event_session_id(event) else {
-        panic!("An applied Agent transition must carry a Session identity.");
-    };
-    let Some(session) = snapshot
+) -> Option<AgentRuntimeChange> {
+    let session_id = event_session_id(event)?;
+    let session = snapshot
         .sessions
         .iter()
-        .find(|candidate| candidate.session_id.as_str() == session_id)
-    else {
-        panic!("An applied Agent transition must retain its target Session.");
-    };
-    AgentRuntimeChange {
+        .find(|candidate| candidate.session_id.as_str() == session_id)?;
+    Some(AgentRuntimeChange {
         revision: snapshot.revision,
         session: project_change_session(session),
         transition: event.transition_kind(),
-    }
+    })
 }
 
 fn event_session_id(event: &AgentObservationEvent) -> Option<&str> {
@@ -106,8 +103,9 @@ fn event_session_id(event: &AgentObservationEvent) -> Option<&str> {
     }
 }
 
-/// Append while enforcing revision contiguity and the retention bound; the
-/// TypeScript throws on a non-contiguous append, so this panics identically.
+/// Append while enforcing revision contiguity and the retention bound. A
+/// non-contiguous append is a broken store, not a refusable input: it panics,
+/// as the TypeScript throws, and the service rebuilds the state.
 pub fn append_agent_runtime_change(
     changes: &mut Vec<AgentRuntimeChange>,
     change: AgentRuntimeChange,

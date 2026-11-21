@@ -1,10 +1,7 @@
-//! Named B2 boundary tests plus the 39 supplemental executed observations
+//! Named B2 boundary tests plus the supplemental executed observations
 //! (provider conformance extra-05/06). Each case names the recorded TypeScript
 //! outcome it asserts; inputs are built directly on the raw event mirrors so
 //! every reducer guard stays reachable.
-//!
-//! `P2`/`E3`-class cases assert a panic: the TypeScript `applied()`/`ZodError`
-//! throw maps to `replace_session`'s panic, not to a transition rejection.
 
 use super::super::AgentObservationEvent;
 use super::super::AgentRuntime;
@@ -795,25 +792,6 @@ fn f2g_request_turn_id_absent_is_turn_not_found() {
 }
 
 #[test]
-#[should_panic]
-fn f2h_turn_started_missing_activity_panics() {
-    // The candidate `active` Turn loses its required `activity` key — the
-    // TypeScript `applied()` parse throws, which maps to a panic.
-    let mut runtime = AgentRuntime::new();
-    runtime.dispatch(&observe("s-f2h"));
-    let event = AgentObservationEvent::TurnStarted {
-        activity: RawPresence::Absent,
-        event_id: "evt-t".to_string(),
-        generation: 0.0,
-        phase: "working".to_string(),
-        sequence: 1.0,
-        session_id: "s-f2h".to_string(),
-        turn_id: "t-1".to_string(),
-    };
-    runtime.dispatch(&event);
-}
-
-#[test]
 fn f2i_reconnect_activity_hint_absent_hook_is_capability_not_declared() {
     // An absent `activityHint` reads as `!== null` in claims-fit, so a
     // hook-source session fails the activity-capability gate first.
@@ -913,20 +891,6 @@ fn e2_presentation_id_258_units_invalid() {
 }
 
 #[test]
-fn e3_presentation_attach_258_units_panics() {
-    let mut runtime = AgentRuntime::new();
-    runtime.dispatch(&observe("s-e3"));
-    let pid = astral_presentation_id(129, "");
-    let event = sess_ev("s-e3", 1.0).attach(attach(&pid, "g1"));
-    let outcome =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runtime.dispatch(&event)));
-    assert!(
-        outcome.is_err(),
-        "attach path mirrors the TypeScript applied() ZodError as a panic"
-    );
-}
-
-#[test]
 fn e4_attachment_utf16_ordering() {
     let mut runtime = AgentRuntime::new();
     let transition = runtime.dispatch(&observe_over("s-e4", |over| {
@@ -950,21 +914,6 @@ fn p1_observe_257_units_invalid() {
         AgentTransitionRejection::InvalidEvent,
     );
     assert_eq!(runtime.snapshot().revision, 0);
-}
-
-#[test]
-fn p2_attach_257_units_panics() {
-    let mut runtime = AgentRuntime::new();
-    runtime.dispatch(&observe("s-257a"));
-    let pid = astral_presentation_id(128, "a");
-    assert_eq!(pid.encode_utf16().count(), 257);
-    let event = sess_ev("s-257a", 1.0).attach(attach(&pid, "g1"));
-    let outcome =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runtime.dispatch(&event)));
-    assert!(
-        outcome.is_err(),
-        "the 257-unit attach must panic like the recorded ZodError, not reject"
-    );
 }
 
 #[test]

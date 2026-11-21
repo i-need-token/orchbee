@@ -602,195 +602,14 @@ fn reports_runtime_unavailable_after_disposal() {
     );
 }
 
-/// Failure-boundary witness on the real `with_state` helper: a fold panic
-/// after a committed real mutation poisons the one canonical cell
-/// permanently. The panic is contained inside the caller's held outer
-/// guards, every later read reports `RuntimeUnavailable`, every write
-/// seam returns `Err` (never `Ok(false)` or an empty overlay), and
-/// shutdown stays an idempotent no-op — the cell is never unpoisoned and
-/// the pre-fault mutation is never observable.
-#[test]
-fn a_panicked_fold_permanently_poisons_the_single_state_cell() {
-    let service = AgentService::open_hook_fixture(
-        AgentPolicy {
-            read: true,
-            manage: true,
-        },
-        "fixture.sock",
-    )
-    .unwrap();
-    let presentation_id = "aa".repeat(16);
-    let creation_id = "01".repeat(16);
-    service
-        .hook_environment_overlay(presentation_id.clone(), creation_id.clone())
-        .unwrap();
-    let hint = serde_json::json!({
-        "correlationId": "correlation-0000000000000001",
-        "eventId": "event-0000000000000001",
-        "kind": "correlation",
-        "version": 1,
-    })
-    .to_string();
-    service
-        .observe_hook_signal(&hint, creation_id, presentation_id.clone(), 0.0)
-        .unwrap();
-    let envelope = serde_json::json!({
-        "adapterId": "codex",
-        "correlations": [{
-            "correlationId": "correlation-0000000000000001",
-            "visibility": "hidden",
-        }],
-        "eventId": "event-0000000000000001",
-        "observation": {
-            "activity": null,
-            "agentKey": null,
-            "event": "session-started",
-            "operationKey": null,
-            "sessionKey": "session-1",
-            "turnKey": null,
-            "version": 1,
-        },
-        "version": 1,
-    })
-    .to_string();
-    assert!(matches!(
-        service.admit_hook_envelope(envelope.as_bytes(), 0.0),
-        Ok(true)
-    ));
-
-    // The real bridge read BEFORE the fault: the minted session is found.
-    let AgentReadResult::Get { result, .. } = service
-        .execute(get_request(1, "desktop:agent:session:2"))
-        .unwrap()
-    else {
-        panic!("expected a get result");
-    };
-    assert!(matches!(result.outcome, AgentGetOutcome::Found { .. }));
-
-    // Inject the fault through the real helper while the caller holds two
-    // dummy outer guards: the contained panic must leave both healthy.
-    let outer_registry = Mutex::new(());
-    let outer_coordinator = Mutex::new(());
-    let registry_guard = outer_registry.lock().unwrap();
-    let coordinator_guard = outer_coordinator.lock().unwrap();
-    let outcome = service
-        .poison_state_after_mutation_for_test(&agent_harness::session_observed("s.fault", 7.0));
-    assert!(matches!(outcome, Err(AgentFoldUnavailable)));
-    assert!(!outer_registry.is_poisoned());
-    assert!(!outer_coordinator.is_poisoned());
-    drop(coordinator_guard);
-    drop(registry_guard);
-
-    // The cell is permanently poisoned; the dispatch that committed
-    // before the panic is never observable — a Get for it reports
-    // Unavailable, not Found.
-    assert!(service.cell_poisoned_for_test());
-    let AgentReadResult::List { result, .. } =
-        service.execute(list_request(2, false, 50, None)).unwrap()
-    else {
-        panic!("expected a list result");
-    };
-    assert_eq!(
-        result.outcome,
-        AgentListOutcome::Unavailable {
-            reason: AgentUnavailableReason::RuntimeUnavailable,
-        }
-    );
-    let AgentReadResult::Get { result, .. } = service.execute(get_request(3, "s.fault")).unwrap()
-    else {
-        panic!("expected a get result");
-    };
-    assert_eq!(
-        result.outcome,
-        AgentGetOutcome::Unavailable {
-            reason: AgentUnavailableReason::RuntimeUnavailable,
-        }
-    );
-    let AgentReadResult::Explain { result, .. } =
-        service.execute(explain_request(4, "s.fault")).unwrap()
-    else {
-        panic!("expected an explain result");
-    };
-    assert_eq!(
-        result.outcome,
-        AgentExplainOutcome::Unavailable {
-            reason: AgentUnavailableReason::RuntimeUnavailable,
-        }
-    );
-
-    // Every write seam reports Err — unavailability is never confused
-    // with a rejected payload or an empty overlay.
-    assert!(
-        service
-            .admit_hook_envelope(envelope.as_bytes(), 1.0)
-            .is_err()
-    );
-    assert!(
-        service
-            .observe_hook_signal(&hint, "02".repeat(16), presentation_id.clone(), 1.0)
-            .is_err()
-    );
-    assert!(
-        service
-            .hook_environment_overlay("bb".repeat(16), "03".repeat(16))
-            .is_err()
-    );
-    assert!(service.retire_hook_presentation(&presentation_id).is_err());
-    assert!(service.advance_hook_settlement(10.0, 1.0).is_err());
-    assert!(
-        service
-            .seed(&agent_harness::session_observed("s.more", 8.0))
-            .is_err()
-    );
-
-    // Shutdown is a documented no-op on the poisoned cell — idempotent,
-    // and it never unpoisons: reads stay Unavailable afterwards.
-    service.shutdown();
-    service.shutdown();
-    assert!(service.cell_poisoned_for_test());
-    let AgentReadResult::Get { result, .. } = service
-        .execute(get_request(5, "desktop:agent:session:2"))
-        .unwrap()
-    else {
-        panic!("expected a get result");
-    };
-    assert_eq!(
-        result.outcome,
-        AgentGetOutcome::Unavailable {
-            reason: AgentUnavailableReason::RuntimeUnavailable,
-        }
-    );
-}
-
-/// A healthy-cell shutdown is idempotent and does NOT poison the cell —
-/// disposal is the clean `Ok(None)` arm, distinct from fold poison.
-#[test]
-fn shutdown_is_idempotent_without_poisoning_a_healthy_cell() {
-    let service = agent_harness::seeded(&[agent_harness::session_observed("s.a", 1.0)]).unwrap();
-    service.shutdown();
-    service.shutdown();
-    assert!(!service.cell_poisoned_for_test());
-    let AgentReadResult::List { result, .. } =
-        service.execute(list_request(1, false, 50, None)).unwrap()
-    else {
-        panic!("expected a list result");
-    };
-    assert_eq!(
-        result.outcome,
-        AgentListOutcome::Unavailable {
-            reason: AgentUnavailableReason::RuntimeUnavailable,
-        }
-    );
-}
-
 // ---------------------------------------------------------------------------
 // Staged native observation leaf — real-service bridge coverage.
 //
 // These drive the `native_*` seams through the same `with_state` cell
 // the read path clones: held hints replay into the canonical runtime on
 // binding commit, carrier retire consumes RetirePresentation effects
-// atomically, expiry at late binding never replays, and a fault inside
-// the combined leaf+effect fold poisons the whole cell. The pure-leaf
+// atomically, expiry at late binding never replays, and a fold fault
+// rebuilds the cell around the committed carrier. The pure-leaf
 // classification coverage lives in `agent/native_observation/tests.rs`.
 
 mod native_leaf {
@@ -1184,48 +1003,6 @@ mod native_leaf {
         assert_eq!(service.native_held_count().unwrap(), 0);
     }
 
-    /// T8 — the shared poison boundary: a panic inside the combined
-    /// leaf+effect fold poisons the whole cell; every subsequent seam —
-    /// leaf, translator, and the canonical read path — reports the same
-    /// unavailability.
-    #[test]
-    fn combined_fold_fault_poisons_the_whole_cell() {
-        let service = AgentService::open(AgentPolicy {
-            read: true,
-            manage: true,
-        })
-        .unwrap();
-        let t0 = Instant::now();
-        let carrier = carrier_id(1, 1);
-
-        let fault = service.native_poison_after_mutation_for_test(carrier, t0);
-        assert!(fault.is_err());
-        assert!(service.cell_poisoned_for_test());
-
-        assert!(service.native_admit_carrier(carrier, t0).is_err());
-        assert!(
-            service
-                .native_apply_event(event(carrier, 1, host(1), hint_json(1, 1)), t0)
-                .is_err()
-        );
-        assert!(service.native_held_count().is_err());
-        assert!(service.admit_hook_envelope(&envelope(1, 1), 0.0).is_err());
-        // The canonical read path maps the poisoned fold to the
-        // existing RuntimeUnavailable wire arm — the same
-        // unavailability axis as the seam Errs.
-        let AgentReadResult::List { result, .. } =
-            service.execute(list_request(2, false, 50, None)).unwrap()
-        else {
-            panic!("expected a list result");
-        };
-        assert_eq!(
-            result.outcome,
-            AgentListOutcome::Unavailable {
-                reason: AgentUnavailableReason::RuntimeUnavailable,
-            }
-        );
-    }
-
     /// U1 — deterministic schedule value through the production-shaped
     /// Instant seams (delivery report-44): a PARTIAL match — two
     /// correlations, one live hint — is the only envelope shape that
@@ -1587,7 +1364,6 @@ mod native_leaf {
             // The service is unharmed: the legacy path still serves.
             let (items, ..) = listed(service.execute(list_request(10, false, 50, None)).unwrap());
             assert_eq!(items, vec!["sess.a".to_owned()]);
-            assert!(!service.cell_poisoned_for_test());
         }
 
         /// Ambiguous complete facts are rejected atomically INSIDE the
@@ -1850,62 +1626,6 @@ mod native_leaf {
                 result.outcome,
                 AgentListOutcome::Rejected {
                     reason: AgentListRejectionReason::CursorStale,
-                }
-            );
-        }
-
-        /// The real poison boundary through the new path: a panicked
-        /// combined leaf+effect fold permanently poisons the cell, the
-        /// provider's helper call surfaces the fold `Err`, and the
-        /// executor maps it to `RuntimeUnavailable` — the same axis as
-        /// the legacy read.
-        #[test]
-        fn poisoned_cell_surfaces_unavailable_through_the_prepared_path() {
-            let service = AgentService::open(AgentPolicy {
-                read: true,
-                manage: true,
-            })
-            .unwrap();
-            let t0 = Instant::now();
-            let carrier = carrier_id(1, 1);
-            assert!(
-                service
-                    .native_poison_after_mutation_for_test(carrier, t0)
-                    .is_err()
-            );
-            assert!(service.cell_poisoned_for_test());
-
-            let provider =
-                || match service.native_reconcile_and_snapshot(Vec::new(), Instant::now()) {
-                    Ok(Ok(Some(snapshot))) => Ok(snapshot),
-                    _ => Err(PreparedUnavailable),
-                };
-            let AgentReadResult::List {
-                request_id: echoed,
-                result,
-            } = service
-                .execute_prepared_for_test(list_request(1, false, 50, None), provider)
-                .unwrap()
-            else {
-                panic!("expected a list result");
-            };
-            assert_eq!(echoed, request_id(1));
-            assert_eq!(
-                result.outcome,
-                AgentListOutcome::Unavailable {
-                    reason: AgentUnavailableReason::RuntimeUnavailable,
-                }
-            );
-
-            let AgentReadResult::List { result, .. } =
-                service.execute(list_request(2, false, 50, None)).unwrap()
-            else {
-                panic!("expected a list result");
-            };
-            assert_eq!(
-                result.outcome,
-                AgentListOutcome::Unavailable {
-                    reason: AgentUnavailableReason::RuntimeUnavailable,
                 }
             );
         }
@@ -2209,12 +1929,10 @@ mod native_leaf {
             ));
         }
 
-        /// E8 — two distinct refusal axes stay separate: an ambiguous
-        /// facts snapshot is Rejected atomically with the leaf
-        /// untouched, while a fold panic poisons the whole cell —
-        /// permanently and for every seam.
+        /// E8 — an ambiguous facts snapshot is Rejected atomically with
+        /// the leaf untouched, so a valid final still serves afterwards.
         #[test]
-        fn atomic_rejection_and_fold_poison_are_distinct_axes() {
+        fn ambiguous_final_facts_are_rejected_atomically() {
             let service = AgentService::open(AgentPolicy {
                 read: true,
                 manage: true,
@@ -2244,18 +1962,200 @@ mod native_leaf {
             // Leaf untouched: a valid final still serves afterwards.
             let snapshot = fenced(&service, carrier, 0).unwrap().unwrap();
             assert!(snapshot.is_some());
+        }
+    }
 
-            // A fold panic poisons the whole cell — both new seams and
-            // the pre-existing ones report the same unavailability.
-            let fault = service.native_poison_after_mutation_for_test(carrier, t0);
-            assert!(fault.is_err());
-            assert!(
-                service
-                    .native_apply_drain_page(carrier, &reply(0, Vec::new()), t0)
-                    .is_err()
+    /// Faults at the Agent cell: an invalid candidate is refused where it
+    /// arrives, and a panic inside a fold costs only its own call.
+    mod fold_recovery {
+        use orchbee_agent_observation_protocol::{
+            AgentChangesCursor, AgentChangesOutcome, AgentChangesRequest, AgentChangesResult,
+        };
+        use orchbee_capability_node_protocol::{AgentDrainEntry, AgentDrainReply};
+        use orchbee_local_runtime::{LogField, LogValue};
+
+        use super::*;
+        use crate::agent::{AgentTransition, AgentTransitionRejection};
+        use crate::agent_service::{DrainExpectation, DrainPageOutcome};
+        use crate::fault_records::capture;
+
+        fn fields_of(records: &[capture::Record], event: &str) -> Vec<Vec<LogField>> {
+            records
+                .iter()
+                .filter(|record| record.event == event)
+                .map(|record| record.fields.clone())
+                .collect()
+        }
+
+        fn gap_page(low: u64, high: u64) -> AgentDrainReply {
+            let entries = vec![AgentDrainEntry::Gap {
+                low: NonZeroU64::new(low).unwrap(),
+                high,
+            }];
+            AgentDrainReply::new(NonZeroU64::new(1).unwrap(), 0, high, entries).unwrap()
+        }
+
+        fn changes(
+            service: &AgentService,
+            cursor: Option<AgentChangesCursor>,
+        ) -> AgentChangesOutcome {
+            let request = AgentChangesRequest::Read {
+                request_id: request_id(40),
+                cursor,
+                limit: AgentSafeInteger::new(50),
+            };
+            let AgentChangesResult::Read { result, .. } = service
+                .execute_changes_prepared(request, || match service.snapshot() {
+                    Ok(Some(snapshot)) => Ok(snapshot),
+                    Ok(None) | Err(_) => Err(PreparedUnavailable),
+                })
+                .unwrap();
+            result.outcome
+        }
+
+        /// A change whose candidate fails the canonical check is refused
+        /// `invalid-event` where it arrives: the snapshot and revision stay,
+        /// the same change made valid still applies, and the refusals write
+        /// one `agent-change-refused` record a minute.
+        #[test]
+        fn an_invalid_candidate_is_refused_with_state_unchanged() {
+            let service =
+                agent_harness::seeded(&[agent_harness::session_observed("s.a", 1.0)]).unwrap();
+            // An activity the model does not define fails the active-Turn check.
+            let invalid = agent_harness::turn_started("s.a", "t.1", "unknown-activity", 1.0, 2.0);
+
+            let (refused, records) = capture::records(|| service.seed(&invalid).unwrap());
+            let AgentTransition::Rejected { reason, snapshot } = refused else {
+                panic!("expected a refusal");
+            };
+            assert_eq!(reason, AgentTransitionRejection::InvalidEvent);
+            assert_eq!(snapshot.revision, 1);
+            assert_eq!(
+                fields_of(&records, "agent-change-refused"),
+                [vec![
+                    ("transition", LogValue::Token("turn-started")),
+                    ("suppressed", LogValue::Count(0)),
+                ]]
             );
-            assert!(fenced(&service, carrier, 0).is_err());
-            assert!(service.native_held_count().is_err());
+
+            let (refused, records) = capture::records(|| service.seed(&invalid).unwrap());
+            assert!(matches!(refused, AgentTransition::Rejected { .. }));
+            assert!(fields_of(&records, "agent-change-refused").is_empty());
+
+            let valid = agent_harness::turn_started("s.a", "t.1", "thinking", 1.0, 2.0);
+            let AgentTransition::Applied { snapshot, .. } = service.seed(&valid).unwrap() else {
+                panic!("expected the valid change to apply");
+            };
+            assert_eq!(snapshot.revision, 2);
+        }
+
+        /// A panic inside a fold costs only its own call: the next request is
+        /// served from a state rebuilt one revision past the last committed
+        /// one, earlier cursors read stale or reset, the carrier keeps its
+        /// committed watermark, and a second panic — in a carrier retirement —
+        /// recovers the same way without bringing that carrier back.
+        #[test]
+        fn a_panicked_fold_is_rebuilt_and_the_next_request_is_served() {
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
+            let t0 = Instant::now();
+            let carrier = carrier_id(1, 1);
+            service.native_admit_carrier(carrier, t0).unwrap().unwrap();
+            assert_eq!(
+                service
+                    .native_apply_drain_page(carrier, &gap_page(1, 3), t0)
+                    .unwrap()
+                    .unwrap(),
+                DrainPageOutcome::Applied { w: 3 }
+            );
+            for session in ["s.a", "s.b"] {
+                service
+                    .seed(&agent_harness::session_observed(session, 1.0))
+                    .unwrap();
+            }
+            let (_, list_cursor, revision) =
+                listed(service.execute(list_request(1, false, 1, None)).unwrap());
+            assert_eq!(revision, 2);
+            let AgentChangesOutcome::Current {
+                cursor: change_cursor,
+                ..
+            } = changes(&service, None)
+            else {
+                panic!("expected a change checkpoint");
+            };
+
+            // The panic stays inside the caller's own guard.
+            let outer = Mutex::new(());
+            let guard = outer.lock().unwrap();
+            let (fault, records) = capture::records(|| {
+                service
+                    .fault_after_dispatch_for_test(&agent_harness::session_observed("s.fault", 1.0))
+            });
+            assert!(matches!(fault, Err(AgentFoldUnavailable)));
+            drop(guard);
+            assert!(!outer.is_poisoned());
+            assert_eq!(
+                fields_of(&records, "agent-state-recovered"),
+                [vec![
+                    ("revision", LogValue::Count(3)),
+                    ("carrier", LogValue::Flag(true)),
+                    ("suppressed", LogValue::Count(0)),
+                ]]
+            );
+
+            // Served at once, without the earlier Sessions or the faulted change.
+            let (items, _, revision) =
+                listed(service.execute(list_request(2, false, 50, None)).unwrap());
+            assert!(items.is_empty());
+            assert_eq!(revision, 3);
+            let AgentReadResult::List { result, .. } = service
+                .execute(list_request(3, false, 1, list_cursor))
+                .unwrap()
+            else {
+                panic!("expected a list result");
+            };
+            assert_eq!(
+                result.outcome,
+                AgentListOutcome::Rejected {
+                    reason: AgentListRejectionReason::CursorStale,
+                }
+            );
+            assert!(matches!(
+                changes(&service, Some(change_cursor)),
+                AgentChangesOutcome::ResetRequired { revision, .. } if revision.value() == 3
+            ));
+            // The kept watermark still connects the next sequence.
+            assert_eq!(
+                service
+                    .native_apply_drain_page(carrier, &gap_page(4, 4), t0)
+                    .unwrap()
+                    .unwrap(),
+                DrainPageOutcome::Applied { w: 4 }
+            );
+            assert!(matches!(
+                service.seed(&agent_harness::session_observed("s.c", 1.0)),
+                Ok(AgentTransition::Applied { .. })
+            ));
+
+            // A second fault, in a retirement, recovers alike and keeps no carrier.
+            let (fault, records) =
+                capture::records(|| service.native_retire_with_fault_for_test(carrier, t0));
+            assert!(matches!(fault, Err(AgentFoldUnavailable)));
+            assert!(fields_of(&records, "agent-state-recovered").is_empty());
+            let snapshot = service
+                .native_fenced_final_snapshot(DrainExpectation::NoCarrier, Vec::new(), t0)
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            assert_eq!(snapshot.revision, 5);
+            assert!(snapshot.sessions.is_empty());
+            service
+                .native_admit_carrier(carrier_id(2, 1), t0)
+                .unwrap()
+                .unwrap();
         }
     }
 }

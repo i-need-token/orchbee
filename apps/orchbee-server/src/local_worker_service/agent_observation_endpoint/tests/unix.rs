@@ -43,7 +43,6 @@ use super::ACK;
 use crate::{
     agent::native_observation::{Binding, CarrierIdentity, NativeClass, NativeEvent},
     agent_service::{AgentPolicy, AgentService},
-    local_client_service::tests::agent_harness,
 };
 
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -485,32 +484,6 @@ fn disposed_runtime_closes_without_ack() {
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
     let mut client = connect_send(endpoint.path(), &envelope(&[1], 1, "visible"));
     assert!(read_ack(&mut client).is_empty());
-}
-
-/// C4 — the one-rule fold-Err policy: a poisoned cell closes each
-/// connection honestly (admit Err -> destroy, zero bytes) while the
-/// ENDPOINT ITSELF keeps serving — a second fresh connection must
-/// still be accepted-then-closed, never refused at connect. A
-/// `?`-propagating implementation fails the second half by refusing
-/// the connect outright.
-#[test]
-fn poisoned_cell_keeps_serving_honest_closes() {
-    let dir = tmp_dir("poisoned");
-    let service = Arc::new(
-        AgentService::open(AgentPolicy {
-            read: true,
-            manage: true,
-        })
-        .unwrap(),
-    );
-    service
-        .poison_state_after_mutation_for_test(&agent_harness::session_observed("s.fault", 7.0))
-        .unwrap_err();
-    let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
-    let mut first = connect_send(endpoint.path(), &envelope(&[1], 1, "visible"));
-    assert!(read_ack(&mut first).is_empty());
-    let mut second = connect_send(endpoint.path(), &envelope(&[2], 2, "visible"));
-    assert!(read_ack(&mut second).is_empty());
 }
 
 /// C7 — identity-gated teardown: a same-euid replacement at the bound

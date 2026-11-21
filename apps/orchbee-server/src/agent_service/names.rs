@@ -386,7 +386,7 @@ impl AgentService {
     }
 
     pub(crate) fn observe_terminal_name(&self, fact: &TerminalNameFact) {
-        // Poison/disposal is permanently unavailable to every names consumer, never stale success.
+        // Nothing to report: a faulted fold's rebuild clears every name, as disposal already has.
         let _ = self.with_state(|state| state.names.observe_terminal_owner(fact));
     }
 }

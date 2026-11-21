@@ -8,7 +8,9 @@
 //! authorized preparation fold, releases every guard, then projects and maps.
 //! Runtime disposal is the single unavailability authority — shutdown
 //! disposes the runtime under the same lock so surviving connections
-//! observe `runtime-unavailable` rather than fabricated state.
+//! observe `runtime-unavailable` rather than fabricated state. A fold that
+//! panics costs only its own call: the cell is rebuilt from the facts earlier
+//! folds committed before anything reads it again.
 
 mod changes;
 mod cursor;
@@ -26,7 +28,7 @@ mod tests;
 
 use std::fmt::{self, Display, Formatter};
 use std::io;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 use orchbee_agent_observation_protocol::{
     AgentExplainOutcome, AgentExplainOutcomeEnvelope, AgentGetOutcome, AgentGetOutcomeEnvelope,
@@ -45,6 +47,7 @@ use crate::agent::AgentModelError;
 use crate::agent::native_observation::{
     Binding, CarrierIdentity, NativeEvent, NativeObservation, NativeObservationEffect,
 };
+use crate::fault_records::{self, RecordInterval};
 
 /// One validated domain fact lifted from a typed drain page. Private on
 /// purpose: the only construction route is `drain_facts`, so an
@@ -137,6 +140,13 @@ fn drain_facts(
         .collect()
 }
 
+/// The sequence range one drain page covers, from its first entry's start to its last entry's
+/// end; `None` for an empty page.
+fn page_range(reply: &AgentDrainReply) -> Option<(u64, u64)> {
+    let entries = reply.entries();
+    Some((entries.first()?.start(), entries.last()?.end()))
+}
+
 /// Canonical 32-lowercase-hex rendering of a 16-byte identity — the
 /// join/projection string form for `HostCreationId` (join's
 /// `generation`) and other CNP identities at the translator seam.
@@ -174,11 +184,11 @@ impl Display for AgentReadFault {
 
 impl std::error::Error for AgentReadFault {}
 
-/// The one canonical read/write cell behind the service leaf mutex: the
+/// The one canonical read/write state inside the service's leaf mutex: the
 /// single `AgentRuntime` plus the hook-observation translator state.
 /// The translator never owns a runtime — it receives `&mut runtime` per
 /// call — so reads, dispatches, and (later) held-hint replay all share
-/// this cell. `AgentState` never acquires registry or coordinator locks;
+/// this state. `AgentState` never acquires registry or coordinator locks;
 /// callers pass already-fenced facts in.
 pub(crate) struct AgentState {
     runtime: AgentRuntime,
@@ -210,13 +220,13 @@ impl AgentState {
         );
     }
 
-    /// Opens the cell with a genuine empty canonical runtime. The
+    /// Opens the state with a genuine empty canonical runtime. The
     /// translator receives the observation socket path at construction —
     /// `None` when the owning session has no managed endpoint, and also when
     /// the bound endpoint's path has no UTF-8 overlay representation while
     /// the endpoint itself remains bound — so the path is immutable before
     /// the cell is ever shared.
-    fn open(socket_path: Option<String>) -> Self {
+    fn open(socket_path: Option<String>, clock_origin: Instant) -> Self {
         Self {
             runtime: AgentRuntime::new(),
             ingress: crate::agent::AgentHookObservationIngress::new(
@@ -225,7 +235,24 @@ impl AgentState {
             ),
             native: NativeObservation::new(),
             names: names::Names::default(),
-            clock_origin: Instant::now(),
+            clock_origin,
+        }
+    }
+
+    /// The state a recovering cell starts from: only `committed`'s facts, with the same socket
+    /// path and clock origin. Sessions, the journal, join state, held hints, bindings and names
+    /// start empty.
+    fn rebuilt(committed: &Committed, socket_path: Option<String>, clock_origin: Instant) -> Self {
+        Self {
+            runtime: AgentRuntime::rebuilt(committed.revision, committed.disposed),
+            ingress: crate::agent::AgentHookObservationIngress::rebuilt(
+                socket_path,
+                crate::agent::JoinOptions::default(),
+                committed.identifiers,
+            ),
+            native: NativeObservation::rebuilt(committed.carrier),
+            names: names::Names::default(),
+            clock_origin,
         }
     }
 
@@ -234,7 +261,7 @@ impl AgentState {
     /// outlive the fold that produced them. Raw payloads are moved, not
     /// cloned. `now` is the caller's monotonic instant converted to the
     /// translator's f64 milliseconds since the service-owned origin;
-    /// earlier-than-origin saturates to 0.0 (never a poison fault).
+    /// earlier-than-origin saturates to 0.0 (never a fold fault).
     fn apply_native_effects(&mut self, effects: Vec<NativeObservationEffect>, now: Instant) {
         let AgentState {
             runtime,
@@ -284,10 +311,118 @@ impl AgentState {
     }
 }
 
-/// The one canonical cell is poisoned by a panicked fold. It is never
-/// unpoisoned and never observed again: reads map this to the existing
-/// `RuntimeUnavailable` wire arm and write seams surface `Err(..)` so
-/// unavailability is never confused with a rejected payload.
+/// The facts a rebuilt cell keeps: copied out after every fold that returns and adjusted before a
+/// fold runs, never read from a state a panic left behind.
+#[derive(Clone, Copy)]
+struct Committed {
+    /// A rebuild continues one past it, so no cursor or baseline from before stays current.
+    revision: u64,
+    /// Disposal stays the single unavailability authority across a rebuild.
+    disposed: bool,
+    /// The registry's carrier and its watermark: the Worker trims the prefix it was acknowledged
+    /// for, so a rebuilt watermark at zero would read every later page as a hole.
+    carrier: Option<(CarrierIdentity, u64)>,
+    /// The translator's minted identifiers, so no `desktop:agent:*:N` identity repeats.
+    identifiers: u64,
+}
+
+impl Committed {
+    fn of(state: &AgentState) -> Self {
+        Self {
+            revision: state.runtime.snapshot().revision,
+            disposed: state.runtime.is_disposed(),
+            carrier: state.native.current_carrier(),
+            identifiers: state.ingress.allocated_identifiers(),
+        }
+    }
+
+    fn prepare(&mut self, on_fault: OnFault) {
+        match on_fault {
+            OnFault::Keep => {}
+            OnFault::Dispose => self.disposed = true,
+            OnFault::Forget(carrier) => {
+                if self.carrier.is_some_and(|(current, _w)| current == carrier) {
+                    self.carrier = None;
+                }
+            }
+            // The leaf's gap rule: a range starting within `w + 1` and reaching past `w` moves the
+            // watermark to its end.
+            OnFault::Skip { carrier, low, high } => {
+                if let Some((current, w)) = &mut self.carrier
+                    && *current == carrier
+                    && high > *w
+                    && low <= *w + 1
+                {
+                    *w = high;
+                }
+            }
+        }
+    }
+}
+
+/// What a fold's own fault leaves of the committed facts a rebuild starts from. It is applied
+/// before the fold runs; a fold that returns replaces the facts with its own.
+#[derive(Clone, Copy)]
+enum OnFault {
+    Keep,
+    /// A shutdown disposes the rebuilt runtime, so a fault never brings back a live runtime after
+    /// its owner stopped serving.
+    Dispose,
+    /// A retirement forgets its carrier, so a fault never brings back a carrier the registry has
+    /// released and every later Worker could not be admitted.
+    Forget(CarrierIdentity),
+    /// A drain page counts as lost, as a Worker gap over the same range would, so a page whose fold
+    /// faults is never offered to the rebuilt state again.
+    Skip {
+        carrier: CarrierIdentity,
+        low: u64,
+        high: u64,
+    },
+}
+
+/// The service's one locked cell: the Agent state, the facts a rebuild keeps, what a rebuild needs
+/// beyond them, and the cell's own record pacing, which outlives every rebuild.
+struct AgentCell {
+    state: AgentState,
+    committed: Committed,
+    socket_path: Option<String>,
+    clock_origin: Instant,
+    refusals: RecordInterval,
+    recoveries: RecordInterval,
+}
+
+impl AgentCell {
+    fn open(socket_path: Option<String>) -> Self {
+        let clock_origin = Instant::now();
+        let state = AgentState::open(socket_path.clone(), clock_origin);
+        Self {
+            committed: Committed::of(&state),
+            state,
+            socket_path,
+            clock_origin,
+            refusals: RecordInterval::default(),
+            recoveries: RecordInterval::default(),
+        }
+    }
+
+    /// Replaces the state with one rebuilt from the committed facts and records the recovery.
+    fn rebuild(&mut self) {
+        self.state =
+            AgentState::rebuilt(&self.committed, self.socket_path.clone(), self.clock_origin);
+        let carrier = self.committed.carrier.is_some();
+        self.committed = Committed::of(&self.state);
+        fault_records::agent_state_recovered(
+            &mut self.recoveries,
+            self.committed.revision,
+            carrier,
+        );
+    }
+}
+
+/// A fold that panicked. Only its own call is unavailable: the cell is rebuilt
+/// before any later call reads it. Reads map this to the existing
+/// `RuntimeUnavailable` wire arm and write seams surface `Err(..)` so a fault
+/// is never confused with a rejected payload.
 #[derive(Debug)]
 pub(crate) struct AgentFoldUnavailable;
 
@@ -304,7 +439,7 @@ pub(crate) struct AgentService {
     changes: orchbee_server::SessionChangeSource,
     cursors: AgentCursorAuthority,
     policy: AgentPolicy,
-    state: Mutex<AgentState>,
+    cell: Mutex<AgentCell>,
 }
 
 impl AgentService {
@@ -326,52 +461,87 @@ impl AgentService {
             changes: orchbee_server::SessionChangeSource::default(),
             cursors: AgentCursorAuthority::open()?,
             policy,
-            state: Mutex::new(AgentState::open(socket_path)),
+            cell: Mutex::new(AgentCell::open(socket_path)),
         })
     }
 
-    /// The single boundary every `AgentState` access runs through. The
-    /// mutex guard is created and dropped inside `catch_unwind`: a panic
-    /// unwinds through the guard drop, permanently poisons the cell, and
-    /// surfaces as `AgentFoldUnavailable` without crossing the caller's
-    /// outer guards. The cell is never unpoisoned — no `into_inner` or
-    /// `clear_poison` exists; the first poisoned acquisition writes one
-    /// `state-poisoned` record. `f` performs CPU work on the state only:
-    /// no outer guards, no socket/ACK/timer I/O. `AssertUnwindSafe` is
-    /// sound because a panicked state stays unreachable behind the
-    /// permanently poisoned mutex, so no partial mutation is observable.
+    /// The fold boundary for every access that keeps the committed facts.
     fn with_state<R>(
         &self,
         f: impl FnOnce(&mut AgentState) -> R,
     ) -> Result<R, AgentFoldUnavailable> {
+        self.fold(OnFault::Keep, f)
+    }
+
+    /// The single boundary every `AgentState` access runs through. `f` performs CPU work on the
+    /// state only: no outer guards, no socket/ACK/timer I/O. A fold that returns copies out the
+    /// committed facts and writes the cell's paced `agent-change-refused` record for any change
+    /// the runtime refused as invalid.
+    ///
+    /// A panic anywhere in the fold is caught here, inside the caller's outer guards, and costs only
+    /// this call: it returns `AgentFoldUnavailable`, and the cell is rebuilt from the committed
+    /// facts — adjusted by `on_fault` before `f` ran — before anything reads it again: right after
+    /// the catch, or by whichever caller first finds the lock poisoned, so a second fault recovers
+    /// the same way. `AssertUnwindSafe` is sound because the state a panic leaves is never read
+    /// again; only the committed facts, written between folds, outlive it.
+    fn fold<R>(
+        &self,
+        on_fault: OnFault,
+        f: impl FnOnce(&mut AgentState) -> R,
+    ) -> Result<R, AgentFoldUnavailable> {
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut state = self.state.lock().map_err(|_| {
-                crate::fault_records::state_poisoned(crate::fault_records::GuardedLock::AgentFold);
-                AgentFoldUnavailable
-            })?;
+            let (mut guard, rebuilt) = self.lock_cell();
+            let cell = &mut *guard;
+            cell.committed.prepare(on_fault);
+            let state = &mut cell.state;
             let previous = (
                 state.runtime.snapshot().revision,
                 state.runtime.is_disposed(),
             );
             state.reconcile_launch_names(Instant::now());
-            let result = f(&mut state);
+            let result = f(state);
             state.reconcile_launch_names(Instant::now());
             let AgentState { runtime, names, .. } = &mut *state;
             names.reconcile(runtime);
-            let changed = previous
-                != (
-                    state.runtime.snapshot().revision,
-                    state.runtime.is_disposed(),
-                );
-            Ok((result, changed))
-        }))
-        .unwrap_or(Err(AgentFoldUnavailable));
-        outcome.map(|(result, changed)| {
-            if changed {
-                self.changes.notify();
+            if let Some((transition, refusals)) = state.runtime.take_refused() {
+                fault_records::agent_change_refused(&mut cell.refusals, transition, refusals);
             }
-            result
-        })
+            cell.committed = Committed::of(state);
+            let changed = rebuilt || previous != (cell.committed.revision, cell.committed.disposed);
+            (result, changed)
+        }));
+        match outcome {
+            Ok((result, changed)) => {
+                if changed {
+                    self.changes.notify();
+                }
+                Ok(result)
+            }
+            Err(_) => {
+                // Unwinding dropped the guard and poisoned the lock: rebuild now so change
+                // watchers learn of it at once. A rebuild that panics leaves the lock poisoned
+                // for the next caller to rebuild.
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    drop(self.lock_cell());
+                }));
+                self.changes.notify();
+                Err(AgentFoldUnavailable)
+            }
+        }
+    }
+
+    /// Locks the cell. A lock that a panicked fold left poisoned is rebuilt from the committed
+    /// facts first, so no caller ever reads the state that panic left; `true` reports the rebuild.
+    fn lock_cell(&self) -> (MutexGuard<'_, AgentCell>, bool) {
+        match self.cell.lock() {
+            Ok(cell) => (cell, false),
+            Err(poisoned) => {
+                let mut cell = poisoned.into_inner();
+                cell.rebuild();
+                self.cell.clear_poison();
+                (cell, true)
+            }
+        }
     }
 
     pub(crate) fn watch_changes(
@@ -383,12 +553,10 @@ impl AgentService {
 
     /// Disposes the canonical runtime under the same lock the read path
     /// holds. Runtime disposal is the single unavailability authority —
-    /// surviving connections observe `runtime-unavailable` afterwards.
-    /// Idempotent: on a poisoned cell this is a documented no-op (the
-    /// closed state stays unreadable and drops at teardown); it never
-    /// unpoisons.
+    /// surviving connections observe `runtime-unavailable` afterwards, and a
+    /// rebuild keeps it, also one after a fault in this fold. Idempotent.
     pub(crate) fn shutdown(&self) {
-        let _ = self.with_state(|state| state.runtime.dispose());
+        let _ = self.fold(OnFault::Dispose, |state| state.runtime.dispose());
     }
 
     /// The one request executor every read entry shares. Order is
@@ -399,8 +567,8 @@ impl AgentService {
     /// correlated `RuntimeUnavailable` arm — never propagated into the
     /// session loop, never an `AgentReadFault`. `AssertUnwindSafe` is
     /// sound because the consumed provider holds no cell guard while it
-    /// runs — any state it touches passes through `with_state`'s own
-    /// permanent-poison boundary — so a panic can only forfeit this
+    /// runs — any state it touches passes through the fold boundary, which
+    /// rebuilds the cell after a fault — so a panic can only forfeit this
     /// request's evidence, not corrupt shared state.
     pub(crate) fn execute_prepared(
         &self,
@@ -492,7 +660,7 @@ impl AgentService {
 
     /// Clones one consistent canonical snapshot under the lock;
     /// `Ok(None)` only when the owning runtime is genuinely disposed and
-    /// `Err` when the cell is poisoned. Reads map both to the existing
+    /// `Err` when this fold faulted. Reads map both to the existing
     /// `RuntimeUnavailable` wire arm.
     #[cfg(test)]
     fn snapshot(&self) -> Result<Option<AgentRuntimeSnapshot>, AgentFoldUnavailable> {
@@ -747,7 +915,7 @@ impl AgentService {
     /// coverage for every scheduling producer inside the fold — then the
     /// translator admission decides the ACK: `Ok(Some)` names the accepted
     /// envelope's generation, and `Ok(None)` covers both a rejection and a
-    /// clean-disposed runtime; only mutex poison/panic surfaces `Err`.
+    /// clean-disposed runtime; only a fold fault surfaces `Err`.
     pub(crate) fn admit_envelope(
         &self,
         body: &[u8],
@@ -804,11 +972,10 @@ impl AgentService {
     }
 
     /// Test-only fault injector: dispatches one real canonical event
-    /// through the same `with_state` boundary and then panics, proving a
-    /// mutation that committed before the fault is never observable and
-    /// the panic never escapes the caller.
+    /// through the fold boundary and then panics, so the mutation made
+    /// before the fault must never be observable.
     #[cfg(test)]
-    pub(crate) fn poison_state_after_mutation_for_test(
+    pub(crate) fn fault_after_dispatch_for_test(
         &self,
         event: &crate::agent::AgentObservationEvent,
     ) -> Result<(), AgentFoldUnavailable> {
@@ -816,13 +983,6 @@ impl AgentService {
             state.runtime.dispatch(event);
             panic!("injected fold fault");
         })
-    }
-
-    /// Test-only observability of the cell's poison flag — the outer
-    /// mutex health witness for the failure-boundary tests.
-    #[cfg(test)]
-    pub(crate) fn cell_poisoned_for_test(&self) -> bool {
-        self.state.is_poisoned()
     }
 
     /// The native leaf's registry admission fact (
@@ -840,15 +1000,31 @@ impl AgentService {
     /// The native leaf's registry retirement fact (
     /// Worker-connection close consumer). Owned `RetirePresentation`
     /// effects are applied to the join inside the same fold, so a join
-    /// fence can never remain live after its carrier is gone.
+    /// fence can never remain live after its carrier is gone — nor after
+    /// a fault in this fold, whose rebuild forgets the carrier.
     pub(crate) fn native_retire_carrier(
         &self,
         carrier: CarrierIdentity,
         now: Instant,
     ) -> Result<(), AgentFoldUnavailable> {
-        self.with_state(|state| {
+        self.fold(OnFault::Forget(carrier), |state| {
             let effects = state.native.retire_carrier(&carrier, now);
             state.apply_native_effects(effects, now);
+        })
+    }
+
+    /// Test-only fault injector for the retirement fold: the leaf retires
+    /// `carrier` and its effects apply, then the fold panics.
+    #[cfg(test)]
+    pub(crate) fn native_retire_with_fault_for_test(
+        &self,
+        carrier: CarrierIdentity,
+        now: Instant,
+    ) -> Result<(), AgentFoldUnavailable> {
+        self.fold(OnFault::Forget(carrier), |state| {
+            let effects = state.native.retire_carrier(&carrier, now);
+            state.apply_native_effects(effects, now);
+            panic!("injected fold fault");
         })
     }
 
@@ -878,7 +1054,7 @@ impl AgentService {
     /// snapshot clone. Never composed as `native_reconcile_bindings()`
     /// + `snapshot()` — two folds would reopen the mutation-interleave
     ///   window where a stale reconcile could regress bindings and still
-    ///   be returned as fresh. `Err` is permanent fold unavailability;
+    ///   be returned as fresh. `Err` is this fold's fault;
     ///   `Ok(Err(..))` is the leaf's atomic whole-snapshot rejection
     ///   (bindings and translator untouched); `Ok(Ok(None))` is a
     ///   disposed runtime; `Ok(Ok(Some))` is the post-reconcile truth.
@@ -920,7 +1096,8 @@ impl AgentService {
     /// or replacement needs this same guard and can only run before or
     /// after the fold, never inside it. The inner `Err` refuses a page
     /// whose domain facts cannot be built — before any fold, with zero
-    /// mutation; the outer `Err` is fold unavailability.
+    /// mutation; the outer `Err` is this fold's fault, after which the
+    /// rebuilt leaf treats the page as a gap rather than read it again.
     pub(crate) fn native_apply_drain_page(
         &self,
         req_carrier: CarrierIdentity,
@@ -931,7 +1108,12 @@ impl AgentService {
             Ok(facts) => facts,
             Err(error) => return Ok(Err(error)),
         };
-        self.with_state(|state| {
+        let on_fault = page_range(reply).map_or(OnFault::Keep, |(low, high)| OnFault::Skip {
+            carrier: req_carrier,
+            low,
+            high,
+        });
+        self.fold(on_fault, |state| {
             let Some((current, _w)) = state.native.current_carrier() else {
                 return Ok(DrainPageOutcome::CarrierMismatch);
             };
@@ -1000,22 +1182,6 @@ impl AgentService {
                 .map_err(FinalFence::Rejected)?;
             state.apply_native_effects(effects, now);
             Ok(Some(state.runtime.snapshot().clone()))
-        })
-    }
-
-    /// Test-only fault injector for the COMBINED leaf+effect fold: a
-    /// native mutation commits, effects are consumed, then the panic
-    /// poisons the whole cell — proving the shared boundary treats a
-    /// leaf-path fault exactly like a runtime-path fault.
-    #[cfg(test)]
-    pub(crate) fn native_poison_after_mutation_for_test(
-        &self,
-        carrier: CarrierIdentity,
-        now: Instant,
-    ) -> Result<(), AgentFoldUnavailable> {
-        self.with_state(|state| {
-            let _ = state.native.admit_carrier(carrier, now);
-            panic!("injected fold fault");
         })
     }
 }

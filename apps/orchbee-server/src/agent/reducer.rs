@@ -1,10 +1,10 @@
 //! `transition_agent_runtime` — the canonical pure reducer.
 //!
 //! Every transition builds a raw candidate session, then validates it at the
-//! same point the TypeScript source parses schemas: `session-observed` and
-//! `observation-reconnected` map a failed candidate check to `invalid-event`,
-//! while every other path lets the failure surface as a panic inside
-//! `applied()`, mirroring the thrown `ZodError`.
+//! same point the TypeScript source parses schemas. A candidate that fails the
+//! session or runtime check is refused `invalid-event` on every path, so no
+//! input reaches a panic or leaves an invalid snapshot; the TypeScript
+//! `applied()` throw has no Rust counterpart.
 
 use super::AgentObservationEvent;
 use super::events::AgentSemanticEvent;
@@ -63,13 +63,6 @@ pub enum AgentTransition {
         snapshot: Arc<AgentRuntimeSnapshot>,
     },
     Rejected {
-        #[cfg_attr(
-            not(test),
-            expect(
-                dead_code,
-                reason = "shared reducer result validated by cross-language conformance"
-            )
-        )]
         reason: AgentTransitionRejection,
         #[cfg_attr(
             not(test),
@@ -828,10 +821,11 @@ fn replace_session(
     candidate: RawSessionSnapshot,
     semantic_events: Vec<AgentSemanticEvent>,
 ) -> AgentTransition {
-    // Mirrors the TypeScript `applied()` schema parse: a candidate that cannot
-    // satisfy the canonical invariants is a reachable throw, not a rejection.
-    let session = AgentSessionSnapshot::try_from_raw(candidate)
-        .unwrap_or_else(|error| panic!("Agent session invariant violation: {error}"));
+    // Where the TypeScript `applied()` schema parse would throw, the candidate
+    // is refused and the snapshot stays.
+    let Ok(session) = AgentSessionSnapshot::try_from_raw(candidate) else {
+        return rejected(snapshot, AgentTransitionRejection::InvalidEvent);
+    };
     let mut sessions = snapshot.sessions.clone();
     sessions[index] = session;
     applied(snapshot, sessions, semantic_events)
@@ -853,9 +847,9 @@ fn applied(
         revision: previous.revision + 1,
         sessions,
     };
-    snapshot
-        .validate_runtime()
-        .unwrap_or_else(|error| panic!("Agent runtime invariant violation: {error}"));
+    if snapshot.validate_runtime().is_err() {
+        return rejected(previous, AgentTransitionRejection::InvalidEvent);
+    }
     AgentTransition::Applied {
         semantic_events,
         snapshot: Arc::new(snapshot),

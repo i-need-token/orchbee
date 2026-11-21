@@ -180,10 +180,4 @@ fn changes_preparation_runs_outside_cell_and_returns_coherent_latest_journal() {
     assert!(
         matches!(result.outcome, Outcome::Changes { runtime_revision, has_more: false, .. } if runtime_revision.value() == 1)
     );
-    let poisoned: Result<(), _> = service.with_state(|_| panic!("poison"));
-    assert!(poisoned.is_err());
-    let AgentChangesResult::Read { result, .. } = service
-        .execute_changes_prepared(request(None, 50), || Ok(AgentRuntimeSnapshot::create()))
-        .unwrap();
-    assert_eq!(result.outcome, unavailable());
 }

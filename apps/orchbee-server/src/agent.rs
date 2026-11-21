@@ -44,6 +44,8 @@ pub(crate) use events::AgentObservationEvent;
 pub(crate) use model::RawAttachment;
 pub(crate) use model::{RawAttentionRequest, RawExecutionLocation, RawObservation, RawPresence};
 pub(crate) use reducer::AgentTransition;
+#[cfg(test)]
+pub(crate) use reducer::AgentTransitionRejection;
 
 // The translator and its join options back the `AgentState` cell's
 // production entry seams (endpoint admission, tick, deadline, native

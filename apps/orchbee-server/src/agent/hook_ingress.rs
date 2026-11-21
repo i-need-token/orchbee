@@ -132,8 +132,14 @@ impl AgentHookObservationIngress {
     /// `AgentRuntime` cell mutably into every runtime-touching method so
     /// reads and dispatches share a single store.
     pub fn new(socket_path: Option<String>, join_options: JoinOptions) -> Self {
+        Self::rebuilt(socket_path, join_options, 0)
+    }
+
+    /// The translator a recovering owner starts from: no sessions, join state or timers, with
+    /// identifier allocation continuing after `allocated`, so no minted identity repeats.
+    pub fn rebuilt(socket_path: Option<String>, join_options: JoinOptions, allocated: u64) -> Self {
         Self {
-            allocate_identifier: 0,
+            allocate_identifier: allocated,
             join: AgentObservationJoinStateMachine::new(join_options),
             sessions: SeqMap::new(),
             settlement_queue: SettlementQueue::default(),
@@ -141,6 +147,11 @@ impl AgentHookObservationIngress {
             #[cfg(test)]
             trace: DispatchTrace::default(),
         }
+    }
+
+    /// How many identifiers this translator has minted, for a rebuild to continue after.
+    pub fn allocated_identifiers(&self) -> u64 {
+        self.allocate_identifier
     }
 
     fn allocate(&mut self) -> String {
