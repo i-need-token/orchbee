@@ -988,6 +988,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::Tui,
         CommandPath::WorkspaceSetDirectory,
         CommandPath::WorkspaceClose,
+        CommandPath::WorkspaceSetMachine,
         CommandPath::WorkspaceCreate,
         CommandPath::WorkspaceGet,
         CommandPath::WorkspaceList,
@@ -1055,6 +1056,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     ];
     let verbs = [
         "set-project",
+        "set-machine",
         "dissolve",
         "close-all",
         "invoke",

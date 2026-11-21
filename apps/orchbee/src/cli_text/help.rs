@@ -359,6 +359,10 @@ impl super::CliText {
                 "Close a workspace and its terminals.",
                 "关闭工作区及其终端。",
             ),
+            HelpTopic::Command(CommandPath::WorkspaceSetMachine) => (
+                "Move a workspace to another machine.",
+                "把工作区移到另一台机器。",
+            ),
             HelpTopic::Command(CommandPath::TabList) => ("List terminal tabs.", "列出终端标签页。"),
             HelpTopic::Command(CommandPath::TabGet) => {
                 ("Show one terminal tab.", "查看一个终端标签页。")

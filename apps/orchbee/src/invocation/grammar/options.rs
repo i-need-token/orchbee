@@ -8,7 +8,11 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[CommandPath::WorkspaceClose, CommandPath::TabClose],
+        commands: &[
+            CommandPath::WorkspaceClose,
+            CommandPath::WorkspaceSetMachine,
+            CommandPath::TabClose,
+        ],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
@@ -1217,6 +1221,22 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
+        spelling: "--to",
+        values: &[],
+        closed_values: false,
+        string_rule: None,
+        commands: &[CommandPath::WorkspaceSetMachine],
+        role: OptionRole::Business,
+        value: Some("filter"),
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, value, _| {
+            options.to = Some(value);
+            Ok(())
+        },
+    },
+    OptionSpec {
         spelling: "--direction",
         values: super::CARDINAL_DIRECTIONS,
         closed_values: true,
@@ -1409,6 +1429,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::ServerStop,
             CommandPath::ProjectCloseAll,
             CommandPath::WorkspaceClose,
+            CommandPath::WorkspaceSetMachine,
             CommandPath::TabClose,
             CommandPath::PanelClose,
             CommandPath::WorktreeRemove,

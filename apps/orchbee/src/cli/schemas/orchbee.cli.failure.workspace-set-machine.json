@@ -1,0 +1,117 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.workspace-set-machine",
+	"title": "Workspace machine change failure",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.workspace-set-machine"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"required": ["kind", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"ambiguous",
+						"cancelled",
+						"check-failed",
+						"denied",
+						"incompatible",
+						"internal-failure",
+						"invalid-identifier",
+						"invalid-usage",
+						"not-found",
+						"outcome-unknown",
+						"output-too-large",
+						"protocol-invalid",
+						"rejected",
+						"service-unavailable",
+						"connection-capacity",
+						"timeout",
+						"transport-loss"
+					]
+				},
+				"details": {
+					"type": "object",
+					"required": ["stage", "reason", "machine", "state", "step", "created"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"enum": ["machine", "source", "project", "create", "close"]
+						},
+						"reason": {
+							"enum": [
+								"configuration",
+								"invalid-catalog",
+								"storage",
+								"busy",
+								"not-found",
+								"ambiguous-machine",
+								"capacity",
+								"revision-exhausted",
+								"same-machine",
+								"not-connected",
+								"worktree",
+								"project-not-shareable",
+								"target-too-old",
+								"step-failed",
+								"cancelled"
+							]
+						},
+						"machine": {
+							"description": "The machine the stage concerns: local, a saved machine's ID, or the selector typed when no saved machine matched it.",
+							"anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+						},
+						"state": {
+							"description": "With not-connected: the machine's state, or unknown when the machine hub could not say.",
+							"anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+						},
+						"step": {
+							"description": "The failure kind and reason of the command the change ran on one machine, in that command's own vocabulary.",
+							"anyOf": [
+								{
+									"type": "object",
+									"required": ["kind", "reason"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"anyOf": [{ "type": "string" }, { "type": "null" }]
+										},
+										"reason": {
+											"anyOf": [{ "type": "string" }, { "type": "null" }]
+										}
+									}
+								},
+								{ "type": "null" }
+							]
+						},
+						"created": {
+							"description": "The Workspace the change already created on the machine it goes to.",
+							"anyOf": [
+								{
+									"type": "object",
+									"required": ["workspaceId"],
+									"additionalProperties": false,
+									"properties": {
+										"workspaceId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										}
+									}
+								},
+								{ "type": "null" }
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

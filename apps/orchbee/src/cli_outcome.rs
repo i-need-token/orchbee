@@ -57,6 +57,31 @@ impl FailureKind {
         }
     }
 
+    /// The kind a failure document names, as [`Self::as_str`] spells it; `None` for any other word.
+    pub(crate) fn parse(token: &str) -> Option<Self> {
+        [
+            Self::Ambiguous,
+            Self::Cancelled,
+            Self::CheckFailed,
+            Self::Denied,
+            Self::Incompatible,
+            Self::InternalFailure,
+            Self::InvalidIdentifier,
+            Self::InvalidUsage,
+            Self::NotFound,
+            Self::OutcomeUnknown,
+            Self::OutputTooLarge,
+            Self::ProtocolInvalid,
+            Self::Rejected,
+            Self::ServiceUnavailable,
+            Self::ConnectionCapacity,
+            Self::Timeout,
+            Self::TransportLoss,
+        ]
+        .into_iter()
+        .find(|kind| kind.as_str() == token)
+    }
+
     pub(crate) const fn exit_code(self) -> u8 {
         match self {
             Self::InvalidUsage | Self::InvalidIdentifier => 2,

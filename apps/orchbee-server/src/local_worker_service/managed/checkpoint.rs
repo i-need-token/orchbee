@@ -302,6 +302,9 @@ fn upgraded(
     store: &mut SessionStore,
     checkpoint: WorkbenchCheckpoint,
 ) -> WorkbenchCheckpoint {
+    if !checkpoint.upgrade_needed() {
+        return checkpoint;
+    }
     let mut seed = [0; 16];
     if getrandom::fill(&mut seed).is_err() {
         failed("seed", None);

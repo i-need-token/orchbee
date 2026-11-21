@@ -105,6 +105,7 @@ impl super::CliText {
             CommandPath::WorkspaceMove => &[Argument::Workspace],
             CommandPath::WorkspaceSetDirectory => &[Argument::Workspace],
             CommandPath::WorkspaceClose => &[Argument::Workspace],
+            CommandPath::WorkspaceSetMachine => &[Argument::Workspace],
             CommandPath::TabList => &[],
             CommandPath::TabGet => &[Argument::Tab],
             CommandPath::TabCreate => &[],

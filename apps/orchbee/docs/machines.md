@@ -302,6 +302,20 @@ ended the wait; raw `ssh` text never reaches it. The command never retries a sen
 An older build's far end is never sent anything by this command. An older near side's routed
 `server stop` reaches a far end of this build as a routed command line, which it refuses.
 
+## Changing a Workspace's machine
+
+`orchbee [--machine <machine>] workspace set-machine <workspace> --to <machine> (--confirm | --dry-run)` moves a Workspace by creating it on the machine `--to` names and then closing it where it ran. `--machine` names the machine that holds the Workspace and never routes this command, as with the [remote Session stop](#remote-session-stop): the command runs on this computer and asks each machine in turn with ordinary commands, a [routed command](#command-routing-contract) for a saved machine and a child of the same executable in the same Session for this computer. No new request crosses machines, so each machine answers under its own grammar and rules, and a far end of an older build answers with its own refusals.
+
+Both machines are resolved by the [`<id|label>` rule](#catalog-and-transitions) before anything is asked, and the same machine twice is refused. A saved machine the hub reads as neither `online` nor `needs-login` is refused as not connected, naming its state, or `unknown` when no hub answers: the change never connects a machine, since connecting is the person's choice. A machine that needs a login asks as a routed command does, and the change goes on once someone logs in.
+
+The machine that holds the Workspace answers `workspace get` and `api snapshot`. A Workspace in a linked worktree is refused, since the worktree's checkout stays with its repository there. A Project travels as its identity: the other machine runs `project create --id`, which changes nothing when its Session has that Project already, so Workspaces moved one by one land in one Project there. A Project whose identity its own Session could not make shareable is refused, and so is a machine whose CLI or Session does not take `--id`, before anything is created.
+
+Orchbee moves no files. The new Workspace asks for the same folder relative to home, written `~/…`, which the other machine resolves against its own home; the home of the machine that held the Workspace is this computer's home, or the home a saved machine reports with its free disk. A folder outside that home, an unknown home, or a folder the other machine refuses before creating anything leaves the new Workspace in home, with one Tab and one shell. An automatic name is left to the other machine only in the same folder, where it follows that folder as before; in home the Workspace keeps its name.
+
+The old Workspace closes, ending its terminals and what runs in them, only after the new one was created. A close that fails, or an interrupt after the creation, leaves both and names the new one, so a failure never leaves the person with neither. An interrupt before a step that changes something stops the change there. `--dry-run` changes nothing and lists the terminals the change would end; it wins over `--confirm`, as for `workspace close`.
+
+The result document `orchbee.workspace.set-machine` names both machines, the folder relative to home and the new Workspace. The failure document `orchbee.cli.failure.workspace-set-machine` names the `stage`, its `reason`, the machine concerned, the failed step's own failure kind and reason, and a Workspace already created. A step that failed passes its exit status on, so the exit code says what that step met; otherwise the exit code follows the kind.
+
 ## Link helper
 
 `orchbee --machine-link-v1`, with no other argument, is the remote end of the

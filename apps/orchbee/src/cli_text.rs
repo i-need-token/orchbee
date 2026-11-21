@@ -108,6 +108,8 @@ mod agent_manifests;
 mod agent_projection;
 mod configured_commands;
 mod events;
+mod machine_change;
+pub(crate) use machine_change::{ChangeLine, Place};
 mod machines;
 pub(crate) use machines::{MachineQuestion, RememberedLine};
 mod notification;

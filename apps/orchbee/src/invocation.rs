@@ -28,6 +28,8 @@ mod send_key;
 pub(crate) use layouts::LayoutDestination;
 pub(crate) use layouts::{LayoutApplyCommand, LayoutExportCommand};
 pub(crate) use named_sessions::NamedSessionCommand;
+mod machine_change;
+pub(crate) use machine_change::SetMachine;
 pub(crate) mod machine_routing;
 mod machines;
 pub(crate) use machines::MachineCommand;
@@ -699,6 +701,8 @@ pub(crate) enum Request {
     MachineRoute(machine_routing::Route),
     /// `--machine <selector> server stop`: confirmed here, then asked of the machine hub.
     MachineStop(machine_routing::RemoteStop),
+    /// `workspace set-machine`: runs here and asks each machine in turn; never routed.
+    WorkspaceSetMachine(SetMachine),
     MachineHub,
     MachineHubState,
     MachineHubHold,
@@ -981,6 +985,8 @@ struct Options {
 
     label: Option<String>,
     id: Option<String>,
+    /// `workspace set-machine --to <machine>`.
+    to: Option<String>,
     direction: Option<String>,
     order: Option<String>,
     terminal: Option<String>,

@@ -9,8 +9,8 @@ use super::{
     agent_after_revision_option, agent_limit_option, agent_selector, agent_until_option,
     agent_wait_timeout_option, business_options, check_scope, client_control, close_wait,
     configured_commands, confirm_option_required, creation, diagnostics, events, grammar,
-    label_option, layouts, machines, missing_command, missing_required, mutation, named_sessions,
-    operation, pane_graphics, panel_agent, panel_metadata, panel_move_destination,
+    label_option, layouts, machine_change, machines, missing_command, missing_required, mutation,
+    named_sessions, operation, pane_graphics, panel_agent, panel_metadata, panel_move_destination,
     panel_relocation, panel_terminal_creation, parse_send_key, path_option, plugins,
     profile_name_option, profile_selector, project_id_option, query, reject_extras,
     reject_extras_scope, reject_filters, required, required_launch_option, resolve_help_path,
@@ -407,6 +407,7 @@ pub(super) fn resolve_words(
                 options,
             ))
         }
+        ["workspace", "set-machine", value] => machine_change::parse(value, options, envelope),
         ["workspace", "set-project", value] => {
             let context = UsageContext::Path("workspace set-project");
             check_scope(options, context, envelope)?;
@@ -1285,6 +1286,16 @@ pub(super) fn resolve_words(
         )),
         ["workspace", "close", _, extra, ..] => Err(unexpected_argument(
             UsageContext::Path("workspace close"),
+            extra,
+            envelope,
+        )),
+        ["workspace", "set-machine"] => Err(missing_required(
+            UsageContext::Path("workspace set-machine"),
+            "<workspace>",
+            envelope,
+        )),
+        ["workspace", "set-machine", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("workspace set-machine"),
             extra,
             envelope,
         )),

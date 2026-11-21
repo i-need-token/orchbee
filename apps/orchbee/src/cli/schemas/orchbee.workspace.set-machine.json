@@ -1,0 +1,108 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.workspace.set-machine",
+	"title": "Workspace machine change result",
+	"type": "object",
+	"required": ["schema", "version", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.workspace.set-machine"
+		},
+		"version": {
+			"const": 1
+		},
+		"result": {
+			"type": "object",
+			"required": ["dryRun", "workspace", "from", "to", "folder", "created", "terminals"],
+			"additionalProperties": false,
+			"properties": {
+				"dryRun": {
+					"type": "boolean"
+				},
+				"workspace": {
+					"type": "object",
+					"required": ["workspaceId", "label", "projectId"],
+					"additionalProperties": false,
+					"properties": {
+						"workspaceId": {
+							"$ref": "#/$defs/id"
+						},
+						"label": {
+							"type": "string",
+							"minLength": 1
+						},
+						"projectId": {
+							"anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+						}
+					}
+				},
+				"from": {
+					"$ref": "#/$defs/machine"
+				},
+				"to": {
+					"$ref": "#/$defs/machine"
+				},
+				"folder": {
+					"description": "The Workspace's folder on the machine it goes to, relative to home: in a dry run the one asked for first (the same folder relative to home, or home); after a change the one it started in, which is home when that folder does not exist there.",
+					"type": "string",
+					"pattern": "^~(/.+)?$"
+				},
+				"created": {
+					"anyOf": [
+						{
+							"type": "object",
+							"required": ["workspaceId", "path"],
+							"additionalProperties": false,
+							"properties": {
+								"workspaceId": {
+									"$ref": "#/$defs/id"
+								},
+								"path": {
+									"type": "string",
+									"minLength": 1
+								}
+							}
+						},
+						{ "type": "null" }
+					]
+				},
+				"terminals": {
+					"description": "In a dry run, the terminals the change would end, as the result.terminals items of orchbee.terminal.list; otherwise null.",
+					"anyOf": [{ "type": "array", "items": { "type": "object" } }, { "type": "null" }]
+				}
+			},
+			"if": {
+				"properties": { "dryRun": { "const": true } }
+			},
+			"then": {
+				"properties": { "created": { "type": "null" }, "terminals": { "type": "array" } }
+			},
+			"else": {
+				"properties": { "created": { "type": "object" }, "terminals": { "type": "null" } }
+			}
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"machine": {
+			"type": "object",
+			"required": ["local", "id", "label"],
+			"additionalProperties": false,
+			"properties": {
+				"local": {
+					"type": "boolean"
+				},
+				"id": {
+					"anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+				},
+				"label": {
+					"anyOf": [{ "type": "string", "minLength": 1, "maxLength": 128 }, { "type": "null" }]
+				}
+			}
+		}
+	}
+}

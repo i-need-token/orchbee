@@ -50,6 +50,21 @@ impl super::CliText {
                 "Machine name; default: the target's host name.",
                 "机器名称；默认使用目标的主机名。",
             ),
+            (CommandPath::WorkspaceSetMachine, "--to") => (
+                "<machine>",
+                "Where the workspace goes: a saved machine's ID or exact name, or local for this computer.",
+                "工作区要移到的机器：已保存机器的 ID 或完整名称，或用 local 表示这台电脑。",
+            ),
+            (CommandPath::WorkspaceSetMachine, "--confirm") => (
+                "",
+                "Move the workspace, closing it where it ran and ending its terminals.",
+                "移动工作区：在原来的机器上关闭它，并结束其中的终端。",
+            ),
+            (CommandPath::WorkspaceSetMachine, "--dry-run") => (
+                "",
+                "List the terminals the move would end, and change nothing.",
+                "列出这次移动将结束的终端，不做任何更改。",
+            ),
             (CommandPath::MachineRemove, "--confirm") => (
                 "",
                 "Confirm stopping the remote Session with --stop-session. The Windows and macOS release builds refuse it and ask a person to type the remote Session's name instead.",

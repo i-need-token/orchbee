@@ -163,7 +163,7 @@ fn select<'a>(catalog: &'a Catalog, selector: &str) -> Result<&'a Profile, Error
 /// Why a routed command failed: its closed reason, the failure kind it has while nothing was
 /// submitted, and the key of its standard-error message. [`reported_kind`] then applies the remote
 /// outcome, and the exit code follows from the reported kind alone.
-type Refusal = (&'static str, FailureKind, &'static str);
+pub(super) type Refusal = (&'static str, FailureKind, &'static str);
 /// The local input could not be acquired, or the packet carrying it is over the request bound.
 const INPUT_SOURCE: Refusal = ("input-source", FailureKind::Rejected, "input-source");
 /// The far side's reply names no completed command.
@@ -172,7 +172,7 @@ const REMOTE_REJECTED: Refusal = (
     FailureKind::ProtocolInvalid,
     "remote-rejected-or-interrupted",
 );
-fn mapped(error: Error) -> Refusal {
+pub(super) fn mapped(error: Error) -> Refusal {
     (error.code(), kind(error), error.message())
 }
 /// The failure kind of a machine error that ends a routed command before anything was submitted.
@@ -314,6 +314,28 @@ pub(crate) fn run(route: Route, locale: Locale) -> Output {
     // Preserve a completed remote receipt even if cancellation arrives afterwards.
     output.finalization = Some(context.signals.into_finalization());
     output
+}
+/// One routed step of a command that runs here and asks several machines in turn, such as
+/// `workspace set-machine`: the remote CLI's own output, or the routed failure in `format`. The
+/// shared `context` lets one interrupt end every step.
+pub(super) fn ask(
+    machine: &str,
+    arguments: Vec<String>,
+    format: OutputFormat,
+    locale: Locale,
+    context: &mut Context,
+) -> Output {
+    let route = Route {
+        selector: machine.to_owned(),
+        arguments,
+        format,
+        input: None,
+    };
+    let mut outcome = Outcome::NotSubmitted;
+    match execute(&route, locale, context, &mut outcome) {
+        Ok(output) => output,
+        Err(refusal) => failed(refusal, outcome, format, locale),
+    }
 }
 fn execute(
     route: &Route,

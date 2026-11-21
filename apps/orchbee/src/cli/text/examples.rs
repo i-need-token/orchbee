@@ -90,6 +90,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::WorkspaceMove => &["work", "--insert-index", "0"],
         CommandPath::WorkspaceSetDirectory => &["work", "--path", "C:/src/project"],
         CommandPath::WorkspaceClose => &["work", "--confirm"],
+        CommandPath::WorkspaceSetMachine => &["work", "--to", "remote", "--dry-run"],
         CommandPath::TabList => &["--workspace", "work"],
         CommandPath::TabGet => &["main"],
         CommandPath::TabCreate => &["--workspace", "work", "--label", "main"],

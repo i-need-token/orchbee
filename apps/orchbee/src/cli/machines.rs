@@ -2,6 +2,7 @@
 use crate::cli_text::CliText;
 pub(crate) mod askpass;
 mod capacity;
+pub(crate) mod change;
 mod connect;
 pub(crate) mod hub;
 pub(crate) mod link;

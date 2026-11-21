@@ -189,6 +189,14 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.cli.failure.workspace-move.json"),
     ),
     (
+        "orchbee.workspace.set-machine",
+        include_str!("../../cli/schemas/orchbee.workspace.set-machine.json"),
+    ),
+    (
+        "orchbee.cli.failure.workspace-set-machine",
+        include_str!("../../cli/schemas/orchbee.cli.failure.workspace-set-machine.json"),
+    ),
+    (
         "orchbee.session.list",
         include_str!("../../cli/schemas/orchbee.session.list.json"),
     ),

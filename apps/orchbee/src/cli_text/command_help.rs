@@ -299,6 +299,7 @@ impl super::CliText {
             (_, CommandPath::MachineDisable) => self.cli_machine_help(path),
             (_, CommandPath::MachineConnect) => self.cli_machine_help(path),
             (_, CommandPath::MachineDisconnect) => self.cli_machine_help(path),
+            (_, CommandPath::WorkspaceSetMachine) => self.cli_set_machine_help(),
             (Locale::EnUs, CommandPath::ChannelShow) => crate::cli_text::HelpDetails::new(
                 "orchbee channel show [--format text|json]",
                 "Read the Windows update.channel preference (stable or preview). Defaults to stable.\nValidates the complete config; a missing explicit ORCHBEE_CONFIG_FILE fails.\nDoes not write files, connect to a session, download, or change the installation.",

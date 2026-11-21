@@ -88,6 +88,7 @@
 						"orchbee.cli.failure.tab-move",
 						"orchbee.cli.failure.workbench-query",
 						"orchbee.cli.failure.workspace-move",
+						"orchbee.cli.failure.workspace-set-machine",
 						"orchbee.cli.failure.worktree",
 						"orchbee.client.control",
 						"orchbee.client.view",
@@ -164,6 +165,7 @@
 						"orchbee.workspace.list",
 						"orchbee.workspace.metadata",
 						"orchbee.workspace.move",
+						"orchbee.workspace.set-machine",
 						"orchbee.worktree.list",
 						"orchbee.worktree.operation",
 						"orchbee.worktree.query"
@@ -213,6 +215,7 @@
 				"orchbee.cli.failure.tab-move",
 				"orchbee.cli.failure.workbench-query",
 				"orchbee.cli.failure.workspace-move",
+				"orchbee.cli.failure.workspace-set-machine",
 				"orchbee.cli.failure.worktree",
 				"orchbee.client.control",
 				"orchbee.client.view",
@@ -289,6 +292,7 @@
 				"orchbee.workspace.list",
 				"orchbee.workspace.metadata",
 				"orchbee.workspace.move",
+				"orchbee.workspace.set-machine",
 				"orchbee.worktree.list",
 				"orchbee.worktree.operation",
 				"orchbee.worktree.query"

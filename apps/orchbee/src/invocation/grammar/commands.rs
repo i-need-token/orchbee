@@ -86,6 +86,7 @@ commands! {
     WorkspaceMove => ["workspace", "move"], 1, Operand, Portable, true, true, false;
     WorkspaceSetDirectory => ["workspace", "set-directory"], 1, Operand, Portable, true, true, false;
     WorkspaceClose => ["workspace", "close"], 1, Operand, Portable, true, true, false;
+    WorkspaceSetMachine => ["workspace", "set-machine"], 1, Operand, WindowsAndMacos, true, true, false;
     TabList => ["tab", "list"], 0, Operand, Portable, true, true, false;
     TabGet => ["tab", "get"], 1, Operand, Portable, true, true, false;
     TabCreate => ["tab", "create"], 0, Operand, Portable, true, true, true;

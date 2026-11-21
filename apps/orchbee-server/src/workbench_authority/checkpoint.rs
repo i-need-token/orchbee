@@ -339,6 +339,12 @@ impl WorkbenchCheckpoint {
 }
 
 impl WorkbenchCheckpoint {
+    /// Whether this checkpoint was written by an older version, which [`Self::upgrade`] steps up.
+    #[must_use]
+    pub fn upgrade_needed(&self) -> bool {
+        self.checkpoint.version != VERSION
+    }
+
     /// The checkpoint step from version 1 to 2: a checkpoint whose Project identities came from the
     /// Session's counter gives every Project a random one, which the Project order and each member
     /// Workspace follow, and comes back with the payload to publish. `None` for a current one. The

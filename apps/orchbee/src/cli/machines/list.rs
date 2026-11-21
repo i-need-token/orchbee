@@ -45,7 +45,7 @@ pub(super) struct Listed {
 }
 
 /// What the hub serving the data root reported.
-enum Hub {
+pub(super) enum Hub {
     /// No hub serves the data root.
     Absent,
     /// A hub serves it and could not be read.
@@ -57,13 +57,10 @@ enum Hub {
     },
 }
 
-/// Lists this computer and every machine of `store`'s catalog into `report`.
-pub(super) fn list(
-    catalog: Catalog,
-    context: &mut Context,
-    report: &mut Report,
-) -> Result<(), Error> {
-    let hub = match connect::watch_present(context) {
+/// Reads every Machine's state and what this computer and each `online` Machine have free from the
+/// hub serving the data root now, within the command's deadline. Only an interrupt is an error.
+pub(super) fn read(context: &mut Context) -> Result<Hub, Error> {
+    match connect::watch_present(context) {
         Ok(Some(client)) => {
             let observed = connect::wait(context, {
                 let client = Arc::clone(&client);
@@ -71,15 +68,24 @@ pub(super) fn list(
             });
             connect::close(client);
             match observed {
-                Ok(hub) => hub,
-                Err(Error::Cancelled) => return Err(Error::Cancelled),
-                Err(_) => Hub::Unreadable,
+                Ok(hub) => Ok(hub),
+                Err(Error::Cancelled) => Err(Error::Cancelled),
+                Err(_) => Ok(Hub::Unreadable),
             }
         }
-        Ok(None) => Hub::Absent,
-        Err(Error::Cancelled) => return Err(Error::Cancelled),
-        Err(_) => Hub::Unreadable,
-    };
+        Ok(None) => Ok(Hub::Absent),
+        Err(Error::Cancelled) => Err(Error::Cancelled),
+        Err(_) => Ok(Hub::Unreadable),
+    }
+}
+
+/// Lists this computer and every machine of `store`'s catalog into `report`.
+pub(super) fn list(
+    catalog: Catalog,
+    context: &mut Context,
+    report: &mut Report,
+) -> Result<(), Error> {
+    let hub = read(context)?;
     let here = match &hub {
         Hub::Read { capacities, .. } => capacities.get(&None).cloned(),
         Hub::Absent | Hub::Unreadable => None,
