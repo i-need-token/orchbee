@@ -10,7 +10,7 @@ use super::state::{End, Shared, State};
 use orchbee_connection_handshake::{
     AcceptorLoad, AcceptorMessage, CANDIDATE_DEADLINE, CAPACITY, ConnectionKind, Decision,
     DrainResult, ExitResult, Extensions, ProcessRole, ProcessState, RejectionReason, RequestKind,
-    read_initiator_message,
+    Unsupported, read_initiator_message,
 };
 use orchbee_machine_protocol::{Connection, Frame, FrameDecoder, FrameKind, PathText, Token, link};
 use std::{
@@ -164,6 +164,14 @@ fn admit(mut input: File, output: &mut File, started: Instant) -> Admission {
         }
         Decision::Serve(RequestKind::Exit) => {
             answer(output, &AcceptorMessage::ExitResult(ExitResult::default()));
+            Admission::Done(ENDED)
+        }
+        Decision::Serve(kind @ RequestKind::Handover { .. }) => {
+            let reply = Unsupported {
+                request: kind.into(),
+                extensions: Extensions::new(),
+            };
+            answer(output, &AcceptorMessage::Unsupported(reply));
             Admission::Done(ENDED)
         }
     }

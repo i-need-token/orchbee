@@ -25,6 +25,7 @@ answer, derive the build's environment name, or localize a rejection.
 | `AcceptorProfile::decide`                                                        | Run the ordered checks on a decoded frame and return `Accept`, `Serve`, `Unsupported`, or `Reject`.                                                                                   |
 | `AcceptorProfile::reject`                                                        | Build a rejection with the acceptor's facts, for `malformed` after a decode or read failure and for `timeout`.                                                                        |
 | `conclude_offer`, `conclude_request`                                             | Check the reply to an offer or a control request; the caller closes on every failure.                                                                                                 |
+| `RequestKind::Handover`, `HandoverResult`, `HandoverTicket`                      | The `handover` control request, which only a Server serves, and its reply; a decoded result carries a reason exactly when it is a refusal.                                            |
 | `ConnectionKind`, `FrameFormat`, `Delivery`                                      | The registry mirror: names, supported generations, `declared_capabilities`, and `ConnectionKind::development_fingerprint`. `capabilities` lists the declared names this build offers. |
 | `FrameFormat::STREAMED`                                                          | The terminal stream formats every Session process carries, which a Server's query lists.                                                                                              |
 | `KEEPER`, `HANDOVER`                                                             | The `worker-host` capabilities before a Worker may attach a Keeper and move terminals. The registry declares them; no build offers them before its Worker uses them.                  |
@@ -43,8 +44,8 @@ answer, derive the build's environment name, or localize a rejection.
 
 Decoding rejects every rule of the contract: duplicate members, nesting deeper than 32, integer
 members spelled with a fraction, exponent, or minus sign, `null` members, unknown members, and
-unordered capability or connection lists. `reason`, `role`, and `state` decode unknown names as
-`Unknown`. An initiator frame of an unknown type with a valid `environment` decodes as
+unordered capability or connection lists. `reason`, `role`, `state`, and `step` decode unknown names
+as `Unknown`. An initiator frame of an unknown type with a valid `environment` decodes as
 `UnknownRequest`.
 
 ## Development fingerprint

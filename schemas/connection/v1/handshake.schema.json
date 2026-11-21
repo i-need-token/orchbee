@@ -6,12 +6,14 @@
 	"oneOf": [
 		{ "$ref": "#/$defs/offer" },
 		{ "$ref": "#/$defs/request" },
+		{ "$ref": "#/$defs/handover" },
 		{ "$ref": "#/$defs/unknownRequest" },
 		{ "$ref": "#/$defs/answer" },
 		{ "$ref": "#/$defs/rejection" },
 		{ "$ref": "#/$defs/queryResult" },
 		{ "$ref": "#/$defs/drainResult" },
 		{ "$ref": "#/$defs/exitResult" },
+		{ "$ref": "#/$defs/handoverResult" },
 		{ "$ref": "#/$defs/unsupported" }
 	],
 	"$defs": {
@@ -96,6 +98,22 @@
 				"extensions": { "$ref": "#/$defs/extensions" }
 			}
 		},
+		"handover": {
+			"description": "One step of a Server restart for the successor the ticket names; an acceptor that does not serve it answers unsupported.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "environment", "step", "ticket"],
+			"properties": {
+				"type": { "const": "handover" },
+				"environment": { "$ref": "#/$defs/name" },
+				"step": {
+					"description": "prepare, commit, or abort; a receiver reads any other name as unknown.",
+					"$ref": "#/$defs/name"
+				},
+				"ticket": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
 		"unknownRequest": {
 			"description": "A request type the receiver does not know. Only type and environment are read; other members belong to the newer contract.",
 			"type": "object",
@@ -111,11 +129,13 @@
 									"query",
 									"drain",
 									"exit",
+									"handover",
 									"answer",
 									"rejection",
 									"query-result",
 									"drain-result",
 									"exit-result",
+									"handover-result",
 									"unsupported"
 								]
 							}
@@ -266,6 +286,26 @@
 				"type": { "const": "exit-result" },
 				"extensions": { "$ref": "#/$defs/extensions" }
 			}
+		},
+		"handoverResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "state"],
+			"properties": {
+				"type": { "const": "handover-result" },
+				"state": {
+					"description": "prepared, committed, aborted, or refused; a receiver reads any other name as unknown.",
+					"$ref": "#/$defs/name"
+				},
+				"reason": {
+					"description": "busy, background-programs, worker-unavailable, not-recorded, or unknown-step; a receiver reads any other name as unknown.",
+					"$ref": "#/$defs/name"
+				},
+				"extensions": { "$ref": "#/$defs/extensions" }
+			},
+			"if": { "required": ["state"], "properties": { "state": { "const": "refused" } } },
+			"then": { "required": ["reason"] },
+			"else": { "not": { "required": ["reason"] } }
 		},
 		"unsupported": {
 			"type": "object",

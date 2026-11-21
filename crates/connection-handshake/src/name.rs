@@ -81,6 +81,17 @@ wire_name!(
     RequestName
 );
 
+impl RequestName {
+    /// The name of a request type this build knows, whose wire `type` follows the grammar.
+    pub(crate) fn known(text: &'static str) -> Self {
+        debug_assert!(
+            is_name(text),
+            "a known request type follows the name grammar"
+        );
+        Self(text.to_owned())
+    }
+}
+
 /// The release environment's name.
 pub const RELEASE_ENVIRONMENT: &str = "orchbee";
 

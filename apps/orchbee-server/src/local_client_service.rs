@@ -437,6 +437,11 @@ fn handle_candidate_control(
             }
             return;
         }
+        // This Server does not hand its Session to a successor, so it answers as an older one does.
+        Decision::Serve(kind @ RequestKind::Handover { .. }) => {
+            send_unsupported(&mut stream, kind);
+            return;
+        }
     };
 
     let message = match read_message(&mut stream) {
@@ -628,7 +633,7 @@ fn report_connection_end(
     );
 }
 
-/// A Server without a lifecycle owner serves neither `drain` nor `exit`.
+/// Without a lifecycle owner, `drain` and `exit` are unsupported; no Server serves `handover`.
 fn send_unsupported(stream: &mut UnixStream, kind: RequestKind) {
     if let Ok(request) = RequestName::new(kind.as_str()) {
         let reply = Unsupported {

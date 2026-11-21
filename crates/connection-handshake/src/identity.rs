@@ -1,6 +1,7 @@
 //! Version and build identity a peer reports: the product version, the source commit and cohort
-//! identity, and the environment with its development fingerprint. These serve status, the
-//! environment check, and fingerprint comparison; no generation decision reads them.
+//! identity, the environment with its development fingerprint, and the ticket of one Server
+//! restart. These serve status, the environment check, fingerprint comparison, and the handover
+//! ticket check; no generation decision reads them.
 
 use std::fmt;
 
@@ -150,6 +151,12 @@ hex_identity!(
     /// A development protocol fingerprint, 64 lowercase hex digits on the wire.
     Fingerprint,
     32
+);
+hex_identity!(
+    /// The 32-hex ticket of one Server restart: the successor entry of the Session record holds
+    /// it, and every `handover` step names it.
+    HandoverTicket,
+    16
 );
 
 /// Build identity for diagnostics; both members are optional and only exact pairs compare it.

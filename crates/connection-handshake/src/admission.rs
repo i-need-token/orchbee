@@ -4,8 +4,8 @@
 
 use crate::{
     AcceptorMessage, Answer, Build, BuildEnvironment, CapabilitySet, ConnectionKind, DrainResult,
-    EnvironmentName, ExitResult, Extensions, GenerationRange, InitiatorMessage, Offer,
-    ProcessState, ProductVersion, QueryResult, Rejection, RejectionReason, RequestKind,
+    EnvironmentName, ExitResult, Extensions, GenerationRange, HandoverResult, InitiatorMessage,
+    Offer, ProcessState, ProductVersion, QueryResult, Rejection, RejectionReason, RequestKind,
     Unsupported,
 };
 
@@ -238,6 +238,8 @@ pub enum RequestReply {
     Drain(DrainResult),
     /// The reply to `exit`.
     Exit(ExitResult),
+    /// The reply to `handover`.
+    Handover(HandoverResult),
 }
 
 /// Why a control request did not produce its reply.
@@ -268,6 +270,9 @@ pub fn conclude_request(
             Ok(RequestReply::Drain(result))
         }
         (RequestKind::Exit, AcceptorMessage::ExitResult(result)) => Ok(RequestReply::Exit(result)),
+        (RequestKind::Handover { .. }, AcceptorMessage::HandoverResult(result)) => {
+            Ok(RequestReply::Handover(result))
+        }
         (_, AcceptorMessage::Rejection(rejection)) => Err(RequestFailure::Rejected(rejection)),
         (_, AcceptorMessage::Unsupported(reply)) => Err(RequestFailure::Unsupported(reply)),
         _ => Err(RequestFailure::UnexpectedReply),

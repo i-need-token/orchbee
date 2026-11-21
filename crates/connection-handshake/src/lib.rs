@@ -30,11 +30,13 @@ pub use error::{DecodeError, EncodeError, InvalidValue, ReadError};
 pub use extensions::Extensions;
 pub use generation::{CapabilitySet, Generation, GenerationRange, MAXIMUM_CAPABILITIES};
 pub use identity::{
-    Build, BuildEnvironment, CohortIdentity, Fingerprint, ProductVersion, SourceCommit,
+    Build, BuildEnvironment, CohortIdentity, Fingerprint, HandoverTicket, ProductVersion,
+    SourceCommit,
 };
 pub use message::{
-    AcceptorMessage, Answer, ControlRequest, DrainResult, ExitResult, InitiatorMessage, Offer,
-    Rejection, RejectionReason, RequestKind, UnknownRequest, Unsupported,
+    AcceptorMessage, Answer, ControlRequest, DrainResult, ExitResult, HandoverOutcome,
+    HandoverRefusal, HandoverResult, HandoverStep, InitiatorMessage, Offer, Rejection,
+    RejectionReason, RequestKind, UnknownRequest, Unsupported,
 };
 pub use name::{CapabilityName, ContractName, EnvironmentName, RELEASE_ENVIRONMENT, RequestName};
 pub use process::{ProcessRole, ProcessState};

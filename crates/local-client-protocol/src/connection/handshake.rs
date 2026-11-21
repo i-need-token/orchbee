@@ -57,7 +57,7 @@ pub(super) fn query(
         Err(RequestFailure::Rejected(rejection)) => {
             Err(ConnectClientError::Refused(Box::new(rejection)))
         }
-        Ok(RequestReply::Drain(_) | RequestReply::Exit(_))
+        Ok(RequestReply::Drain(_) | RequestReply::Exit(_) | RequestReply::Handover(_))
         | Err(RequestFailure::Unsupported(_) | RequestFailure::UnexpectedReply) => {
             Err(ConnectClientError::UnexpectedResponse)
         }
@@ -93,7 +93,7 @@ pub(super) fn exit_reply(
         Err(RequestFailure::Rejected(rejection)) => {
             Err(ConnectClientError::Refused(Box::new(rejection)))
         }
-        Ok(RequestReply::Query(_) | RequestReply::Drain(_))
+        Ok(RequestReply::Query(_) | RequestReply::Drain(_) | RequestReply::Handover(_))
         | Err(RequestFailure::UnexpectedReply) => Err(ConnectClientError::UnexpectedResponse),
     }
 }

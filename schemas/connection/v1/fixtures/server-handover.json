@@ -1,0 +1,74 @@
+{
+	"cases": [
+		{
+			"name": "handover-prepare",
+			"direction": "initiator",
+			"payload": "{\"type\":\"handover\",\"environment\":\"orchbee\",\"step\":\"prepare\",\"ticket\":\"0123456789abcdef0123456789abcdef\"}"
+		},
+		{
+			"name": "handover-commit-development",
+			"direction": "initiator",
+			"payload": "{\"type\":\"handover\",\"environment\":\"ob-dev-0123456789abcdef\",\"step\":\"commit\",\"ticket\":\"fedcba9876543210fedcba9876543210\"}"
+		},
+		{
+			"name": "handover-abort-extensions",
+			"direction": "initiator",
+			"payload": "{\"type\":\"handover\",\"environment\":\"orchbee\",\"step\":\"abort\",\"ticket\":\"00000000000000000000000000000000\",\"extensions\":{\"later\":true}}"
+		},
+		{
+			"name": "handover-unknown-step",
+			"direction": "initiator",
+			"payload": "{\"type\":\"handover\",\"environment\":\"orchbee\",\"step\":\"rewind\",\"ticket\":\"0123456789abcdef0123456789abcdef\"}"
+		},
+		{
+			"name": "handover-result-prepared",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"prepared\"}"
+		},
+		{
+			"name": "handover-result-committed",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"committed\"}"
+		},
+		{
+			"name": "handover-result-aborted-extensions",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"aborted\",\"extensions\":{\"later\":1}}"
+		},
+		{
+			"name": "handover-result-refused-busy",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"refused\",\"reason\":\"busy\"}"
+		},
+		{
+			"name": "handover-result-refused-background-programs",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"refused\",\"reason\":\"background-programs\"}"
+		},
+		{
+			"name": "handover-result-refused-worker-unavailable",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"refused\",\"reason\":\"worker-unavailable\"}"
+		},
+		{
+			"name": "handover-result-refused-not-recorded",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"refused\",\"reason\":\"not-recorded\"}"
+		},
+		{
+			"name": "handover-result-refused-unknown-step",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"refused\",\"reason\":\"unknown-step\"}"
+		},
+		{
+			"name": "handover-result-refused-unknown-reason",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"refused\",\"reason\":\"lease-lost\"}"
+		},
+		{
+			"name": "handover-result-unknown-state",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"deferred\"}"
+		}
+	]
+}

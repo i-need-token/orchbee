@@ -28,6 +28,10 @@ const HOST_HANDOVER: &str =
     include_str!("../../../schemas/connection/v1/fixtures/host-handover.json");
 const DISPATCH_PROGRESS: &str =
     include_str!("../../../schemas/connection/v1/fixtures/dispatch-progress.json");
+const SERVER_HANDOVER: &str =
+    include_str!("../../../schemas/connection/v1/fixtures/server-handover.json");
+const SERVER_HANDOVER_INVALID: &str =
+    include_str!("../../../schemas/connection/v1/fixtures/server-handover-invalid.json");
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -76,7 +80,13 @@ enum ReaderOutcome {
 fn valid_and_boundary_payloads_satisfy_the_schema_and_round_trip_in_their_direction() -> TestResult
 {
     let schema = support::schema()?;
-    for source in [VALID, BOUNDARY, HOST_HANDOVER, DISPATCH_PROGRESS] {
+    for source in [
+        VALID,
+        BOUNDARY,
+        HOST_HANDOVER,
+        DISPATCH_PROGRESS,
+        SERVER_HANDOVER,
+    ] {
         let fixtures: Cases<AcceptedCase> = serde_json::from_str(source)?;
         assert!(!fixtures.cases.is_empty());
         for case in fixtures.cases {
@@ -129,59 +139,61 @@ fn the_keeper_role_decodes_as_itself() -> TestResult {
 #[test]
 fn every_invalid_case_is_refused_by_its_first_layer() -> TestResult {
     let schema = support::schema()?;
-    let fixtures: Cases<RefusedCase> = serde_json::from_str(INVALID)?;
-    assert!(!fixtures.cases.is_empty());
-    for case in fixtures.cases {
-        let name = &case.name;
-        match (case.layer, case.payload, case.frame_hex, case.reader) {
-            (Layer::Frame, None, Some(frame_hex), Some(expected)) => {
-                let frame = support::from_hex(&frame_hex)?;
-                assert!(
-                    support::decode(case.direction, &frame).is_err(),
-                    "{name} must be refused as a complete frame"
-                );
-                let mut stream = Cursor::new(frame.as_slice());
-                let outcome = match support::read(case.direction, &mut stream) {
-                    Ok(_) => {
-                        let read = usize::try_from(stream.position())?;
-                        assert!(
-                            read < frame.len(),
-                            "{name} must leave bytes after the frame"
-                        );
-                        ReaderOutcome::Message
-                    }
-                    Err(ReadError::Closed) => ReaderOutcome::Closed,
-                    Err(ReadError::ForeignProtocol) => ReaderOutcome::Foreign,
-                    Err(ReadError::Malformed(_)) => ReaderOutcome::Malformed,
-                    Err(ReadError::Io(error)) => return Err(error.into()),
-                };
-                assert_eq!(outcome, expected, "{name} must end the stream reader so");
-            }
-            (layer, Some(payload), None, None) if layer != Layer::Frame => {
-                let expected = if layer == Layer::Encoding {
-                    DecodeError::Encoding
-                } else {
-                    DecodeError::Message
-                };
-                assert_eq!(
-                    support::decode(case.direction, &support::frame(payload.as_bytes())?).err(),
-                    Some(expected),
-                    "{name} must be refused by the {layer:?} layer"
-                );
-                if layer != Layer::Encoding {
-                    let value: Value = serde_json::from_str(&payload)?;
-                    assert_eq!(
-                        schema.is_valid(&value),
-                        layer == Layer::Decoder,
-                        "{name}: only schema-layer cases fail the schema"
+    for source in [INVALID, SERVER_HANDOVER_INVALID] {
+        let fixtures: Cases<RefusedCase> = serde_json::from_str(source)?;
+        assert!(!fixtures.cases.is_empty());
+        for case in fixtures.cases {
+            let name = &case.name;
+            match (case.layer, case.payload, case.frame_hex, case.reader) {
+                (Layer::Frame, None, Some(frame_hex), Some(expected)) => {
+                    let frame = support::from_hex(&frame_hex)?;
+                    assert!(
+                        support::decode(case.direction, &frame).is_err(),
+                        "{name} must be refused as a complete frame"
                     );
+                    let mut stream = Cursor::new(frame.as_slice());
+                    let outcome = match support::read(case.direction, &mut stream) {
+                        Ok(_) => {
+                            let read = usize::try_from(stream.position())?;
+                            assert!(
+                                read < frame.len(),
+                                "{name} must leave bytes after the frame"
+                            );
+                            ReaderOutcome::Message
+                        }
+                        Err(ReadError::Closed) => ReaderOutcome::Closed,
+                        Err(ReadError::ForeignProtocol) => ReaderOutcome::Foreign,
+                        Err(ReadError::Malformed(_)) => ReaderOutcome::Malformed,
+                        Err(ReadError::Io(error)) => return Err(error.into()),
+                    };
+                    assert_eq!(outcome, expected, "{name} must end the stream reader so");
                 }
-            }
-            _ => {
-                return Err(format!(
+                (layer, Some(payload), None, None) if layer != Layer::Frame => {
+                    let expected = if layer == Layer::Encoding {
+                        DecodeError::Encoding
+                    } else {
+                        DecodeError::Message
+                    };
+                    assert_eq!(
+                        support::decode(case.direction, &support::frame(payload.as_bytes())?).err(),
+                        Some(expected),
+                        "{name} must be refused by the {layer:?} layer"
+                    );
+                    if layer != Layer::Encoding {
+                        let value: Value = serde_json::from_str(&payload)?;
+                        assert_eq!(
+                            schema.is_valid(&value),
+                            layer == Layer::Decoder,
+                            "{name}: only schema-layer cases fail the schema"
+                        );
+                    }
+                }
+                _ => {
+                    return Err(format!(
                     "{name}: a frame case holds frameHex and reader, a payload case holds payload"
                 )
                 .into());
+                }
             }
         }
     }

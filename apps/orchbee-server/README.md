@@ -100,19 +100,19 @@ CLI behavior and evidence; the [local Client protocol](../../crates/local-client
 owns the exchange.
 
 `drain` and `exit` are checked like `query` and served only by the managed Windows lifecycle owner;
-any other Server answers both `unsupported`. `drain` is repeatable and answers `drain-result` with
-the state. It refuses new Clients and new intents, while records already admitted run to their
-result and existing connections keep their reads. Each application record is either a read, which
-observes the Session or keeps the requester's own observation going (queries, snapshots,
-subscriptions and their continuations, viewer attachment, demand and acknowledgements, heartbeats,
-and reading an admitted operation's result), or an intent, which asks the Session to change shared
-state, a terminal, an Agent, or user storage; every request variant states its effect in
-`application_connection/effect.rs`. A refused intent never takes effect. On a multiplexed
-connection its stream closes with `stopping` and every other stream continues. A direct connection
-has no per-record refusal, so it ends at the refused intent, as it does at any record after a
-Session stop; its Client reports the connection lost. With no new intent, the Worker receives no
-new work, so no separate Worker message drains it. A Session stop or an `exit` refuses reads too.
-`exit` closes admission, waits for admitted records, stops the Server's
+any other Server answers both `unsupported`. Every Server answers `handover` `unsupported`. `drain`
+is repeatable and answers `drain-result` with the state. It refuses new Clients and new intents,
+while records already admitted run to their result and existing connections keep their reads. Each
+application record is either a read, which observes the Session or keeps the requester's own
+observation going (queries, snapshots, subscriptions and their continuations, viewer attachment,
+demand and acknowledgements, heartbeats, and reading an admitted operation's result), or an intent,
+which asks the Session to change shared state, a terminal, an Agent, or user storage; every request
+variant states its effect in `application_connection/effect.rs`. A refused intent never takes
+effect. On a multiplexed connection its stream closes with `stopping` and every other stream
+continues. A direct connection has no per-record refusal, so it ends at the refused intent, as it
+does at any record after a Session stop; its Client reports the connection lost. With no new intent,
+the Worker receives no new work, so no separate Worker message drains it. A Session stop or an
+`exit` refuses reads too. `exit` closes admission, waits for admitted records, stops the Server's
 background jobs, publishes the final checkpoint, and sends the Worker a Keep shutdown that releases
 its Host connection without inventory, containment or disposal, then waits for the Worker to exit.
 With no terminal left, the Server also waits up to three seconds for the Host to end on its own.

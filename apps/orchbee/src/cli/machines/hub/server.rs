@@ -20,7 +20,7 @@ use super::{
 use orchbee_connection_handshake::{
     AcceptorLoad, AcceptorMessage, AcceptorProfile, CANDIDATE_DEADLINE, ConnectionKind, Decision,
     DrainResult, ExitResult, Extensions, InitiatorMessage, ProcessRole, ProcessState, ReadError,
-    RejectionReason, RequestKind, read_initiator_message,
+    RejectionReason, RequestKind, Unsupported, read_initiator_message,
 };
 use orchbee_local_runtime::{
     DataRoot, HeldLock, LogRole, create_private_directory, install_diagnostic_log, log_panicked,
@@ -430,6 +430,10 @@ fn control(
             })
         }
         RequestKind::Exit => AcceptorMessage::ExitResult(ExitResult::default()),
+        RequestKind::Handover { .. } => AcceptorMessage::Unsupported(Unsupported {
+            request: kind.into(),
+            extensions: Extensions::new(),
+        }),
     }
 }
 

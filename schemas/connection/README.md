@@ -72,18 +72,20 @@ decoders only.
 
 ## Messages
 
-| `type`         | Sender    | Members besides `type` and optional `extensions`                                                            |
-| -------------- | --------- | ----------------------------------------------------------------------------------------------------------- |
-| `offer`        | Initiator | `connection` (name), `generations`, `capabilities`, `productVersion`, `build`, `environment`, `fingerprint` |
-| `query`        | Initiator | `environment`                                                                                               |
-| `drain`        | Initiator | `environment`                                                                                               |
-| `exit`         | Initiator | `environment`                                                                                               |
-| `answer`       | Acceptor  | `generation`, `capabilities`, `productVersion`, `build`                                                     |
-| `rejection`    | Acceptor  | `reason` (name), and the acceptor's `generations`, `productVersion`, and `environment`                      |
-| `query-result` | Acceptor  | `processes`, and `restartKeepsTerminals` (boolean) exactly when the first process's `role` is `server`      |
-| `drain-result` | Acceptor  | `state`                                                                                                     |
-| `exit-result`  | Acceptor  | None                                                                                                        |
-| `unsupported`  | Acceptor  | `request` (name), the requested type                                                                        |
+| `type`            | Sender    | Members besides `type` and optional `extensions`                                                            |
+| ----------------- | --------- | ----------------------------------------------------------------------------------------------------------- |
+| `offer`           | Initiator | `connection` (name), `generations`, `capabilities`, `productVersion`, `build`, `environment`, `fingerprint` |
+| `query`           | Initiator | `environment`                                                                                               |
+| `drain`           | Initiator | `environment`                                                                                               |
+| `exit`            | Initiator | `environment`                                                                                               |
+| `handover`        | Initiator | `environment`, `step` (name), and `ticket` (32 lowercase hexadecimal digits)                                |
+| `answer`          | Acceptor  | `generation`, `capabilities`, `productVersion`, `build`                                                     |
+| `rejection`       | Acceptor  | `reason` (name), and the acceptor's `generations`, `productVersion`, and `environment`                      |
+| `query-result`    | Acceptor  | `processes`, and `restartKeepsTerminals` (boolean) exactly when the first process's `role` is `server`      |
+| `drain-result`    | Acceptor  | `state`                                                                                                     |
+| `exit-result`     | Acceptor  | None                                                                                                        |
+| `handover-result` | Acceptor  | `state` (name), and `reason` (name) exactly when `state` is `refused`                                       |
+| `unsupported`     | Acceptor  | `request` (name), the requested type                                                                        |
 
 - An initiator frame whose `type` is a name that is no known message type is a control request of
   an unknown type. It must carry a valid `environment`; its other members are not read.
@@ -94,6 +96,12 @@ decoders only.
   `initiator-too-new`, `fingerprint-mismatch`, `capacity`, `stopping`, and `timeout`. Roles are
   `server`, `worker`, `terminal-host`, `machine-hub`, `machine-link`, and `keeper`. States are
   `ready`, `draining`, and `stopping`.
+- `handover` is the only control request with members besides `environment`. Only a Server may serve
+  it, for a restart that keeps terminals; any other acceptor, and a Server that cannot hand its
+  Session over, answers `unsupported`. `step` is `prepare`, `commit`, or `abort`. The result's
+  `state` is `prepared`, `committed`, `aborted`, or `refused`, and its `reason` is `busy`,
+  `background-programs`, `worker-unavailable`, `not-recorded`, or `unknown-step`. All three grow
+  like `reason`.
 - `processes` lists 1 to 258 entries: the answering process first, then for a Server its Worker
   and up to 256 connected Hosts. Each entry has exactly `role`, `productVersion`, `build`,
   `environment`, `pid` (integer from 1 to 4,294,967,295), `state`, `terminals` (integer from 0 to
@@ -221,14 +229,16 @@ hexadecimal SHA-256, and LF.
 Payload fixtures hold `payload`, the exact JSON text; frame fixtures hold `frameHex`, the complete
 bytes. `direction` names the sender, `initiator` or `acceptor`.
 
-| File                                                           | Claim                                                                                                                                                                                                                                                                                                         |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`valid.json`](v1/fixtures/valid.json)                         | Each decodes in its direction, re-encodes to an equal message, and satisfies the schema                                                                                                                                                                                                                       |
-| [`boundary.json`](v1/fixtures/boundary.json)                   | Each value at its limit decodes and satisfies the schema                                                                                                                                                                                                                                                      |
-| [`invalid.json`](v1/fixtures/invalid.json)                     | Each fails to decode in its direction. `layer` names the first layer that refuses it: `frame`, `encoding`, `schema` (the schema also refuses it), or `decoder`. Frame cases add `reader`: `closed`, `foreign`, `malformed`, or `message` when a stream reader returns the frame and leaves the trailing bytes |
-| [`host-handover.json`](v1/fixtures/host-handover.json)         | Valid cases of the `keeper` connection and the `keeper` role, held to the claim of `valid.json`                                                                                                                                                                                                               |
-| [`dispatch-progress.json`](v1/fixtures/dispatch-progress.json) | Valid cases of a Host's query result with `dispatch-progress`, held to the claim of `valid.json`                                                                                                                                                                                                              |
-| [`admission.json`](v1/fixtures/admission.json)                 | `cases` give an acceptor, its load, a frame, and the decision; `replies` and `requestReplies` give the initiator's verdict on a reply                                                                                                                                                                         |
+| File                                                                       | Claim                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`valid.json`](v1/fixtures/valid.json)                                     | Each decodes in its direction, re-encodes to an equal message, and satisfies the schema                                                                                                                                                                                                                       |
+| [`boundary.json`](v1/fixtures/boundary.json)                               | Each value at its limit decodes and satisfies the schema                                                                                                                                                                                                                                                      |
+| [`invalid.json`](v1/fixtures/invalid.json)                                 | Each fails to decode in its direction. `layer` names the first layer that refuses it: `frame`, `encoding`, `schema` (the schema also refuses it), or `decoder`. Frame cases add `reader`: `closed`, `foreign`, `malformed`, or `message` when a stream reader returns the frame and leaves the trailing bytes |
+| [`host-handover.json`](v1/fixtures/host-handover.json)                     | Valid cases of the `keeper` connection and the `keeper` role, held to the claim of `valid.json`                                                                                                                                                                                                               |
+| [`dispatch-progress.json`](v1/fixtures/dispatch-progress.json)             | Valid cases of a Host's query result with `dispatch-progress`, held to the claim of `valid.json`                                                                                                                                                                                                              |
+| [`server-handover.json`](v1/fixtures/server-handover.json)                 | Valid cases of `handover` and `handover-result`, held to the claim of `valid.json`                                                                                                                                                                                                                            |
+| [`server-handover-invalid.json`](v1/fixtures/server-handover-invalid.json) | Refused cases of `handover` and `handover-result`, held to the claim of `invalid.json`                                                                                                                                                                                                                        |
+| [`admission.json`](v1/fixtures/admission.json)                             | `cases` give an acceptor, its load, a frame, and the decision; `replies` and `requestReplies` give the initiator's verdict on a reply                                                                                                                                                                         |
 
 Collection bounds too large for a fixture file — 258 processes and a 1,048,576-byte payload — are
 checked by the bindings' own tests. The Rust binding's

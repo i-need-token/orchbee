@@ -14,9 +14,13 @@ use serde_json::{Map, Value};
 use crate::{
     AcceptorMessage, Answer, Build, BuildEnvironment, CapabilitySet, ConnectionEntry, ContractName,
     ControlRequest, DecodeError, DrainResult, EncodeError, EnvironmentName, ExitResult, Extensions,
-    Fingerprint, Generation, GenerationRange, InitiatorMessage, Offer, ProcessEntry, ProcessRole,
-    ProcessState, ProductVersion, QueryResult, ReadError, Rejection, RejectionReason, RequestName,
-    UnknownRequest, Unsupported, identity::present, message::MessageType, name::is_name,
+    Fingerprint, Generation, GenerationRange, HandoverOutcome, HandoverRefusal, HandoverResult,
+    HandoverStep, HandoverTicket, InitiatorMessage, Offer, ProcessEntry, ProcessRole, ProcessState,
+    ProductVersion, QueryResult, ReadError, Rejection, RejectionReason, RequestKind, RequestName,
+    UnknownRequest, Unsupported,
+    identity::present,
+    message::{HandoverState, MessageType},
+    name::is_name,
     strict_json,
 };
 
@@ -38,11 +42,20 @@ pub const CANDIDATE_DEADLINE: Duration = Duration::from_secs(2);
 pub fn encode_initiator_frame(message: &InitiatorMessage) -> Result<Vec<u8>, EncodeError> {
     match message {
         InitiatorMessage::Offer(offer) => frame(&WireOffer::from(offer)),
-        InitiatorMessage::Request(request) => frame(&WireRequest {
-            kind: request.kind.as_str().to_owned(),
-            environment: request.environment.clone(),
-            extensions: request.extensions.clone(),
-        }),
+        InitiatorMessage::Request(request) => match request.kind {
+            RequestKind::Handover { step, ticket } => frame(&WireHandover {
+                kind: MessageType::Handover.as_str().to_owned(),
+                environment: request.environment.clone(),
+                step,
+                ticket,
+                extensions: request.extensions.clone(),
+            }),
+            kind => frame(&WireRequest {
+                kind: kind.as_str().to_owned(),
+                environment: request.environment.clone(),
+                extensions: request.extensions.clone(),
+            }),
+        },
         InitiatorMessage::UnknownRequest(request) => frame(&WireRequest {
             kind: request.request().as_str().to_owned(),
             environment: request.environment().clone(),
@@ -70,6 +83,7 @@ pub fn encode_acceptor_frame(message: &AcceptorMessage) -> Result<Vec<u8>, Encod
             kind: MessageType::ExitResult.as_str().to_owned(),
             extensions: result.extensions.clone(),
         }),
+        AcceptorMessage::HandoverResult(result) => frame(&WireHandoverResult::from(result)),
         AcceptorMessage::Unsupported(reply) => frame(&WireUnsupported {
             kind: MessageType::Unsupported.as_str().to_owned(),
             request: reply.request.clone(),
@@ -213,6 +227,17 @@ fn decode_initiator_payload(payload: &[u8]) -> Result<InitiatorMessage, DecodeEr
                 extensions: request.extensions,
             }))
         }
+        Some(MessageType::Handover) => {
+            let request = typed::<WireHandover>(object)?;
+            Ok(InitiatorMessage::Request(ControlRequest {
+                kind: RequestKind::Handover {
+                    step: request.step,
+                    ticket: request.ticket,
+                },
+                environment: request.environment,
+                extensions: request.extensions,
+            }))
+        }
         Some(_) => Err(DecodeError::Message),
         None => {
             let request = RequestName::new(name).map_err(|_| DecodeError::Message)?;
@@ -255,7 +280,12 @@ fn decode_acceptor_payload(payload: &[u8]) -> Result<AcceptorMessage, DecodeErro
                 extensions: reply.extensions,
             }))
         }
-        MessageType::Offer | MessageType::Request(_) => Err(DecodeError::Message),
+        MessageType::HandoverResult => typed::<WireHandoverResult>(object)?
+            .try_into()
+            .map(AcceptorMessage::HandoverResult),
+        MessageType::Offer | MessageType::Request(_) | MessageType::Handover => {
+            Err(DecodeError::Message)
+        }
     }
 }
 
@@ -332,6 +362,18 @@ struct WireRequest {
     #[serde(rename = "type")]
     kind: String,
     environment: EnvironmentName,
+    #[serde(default, skip_serializing_if = "Extensions::is_empty")]
+    extensions: Extensions,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WireHandover {
+    #[serde(rename = "type")]
+    kind: String,
+    environment: EnvironmentName,
+    step: HandoverStep,
+    ticket: HandoverTicket,
     #[serde(default, skip_serializing_if = "Extensions::is_empty")]
     extensions: Extensions,
 }
@@ -544,4 +586,57 @@ struct WireUnsupported {
     request: RequestName,
     #[serde(default, skip_serializing_if = "Extensions::is_empty")]
     extensions: Extensions,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WireHandoverResult {
+    #[serde(rename = "type")]
+    kind: String,
+    state: HandoverState,
+    #[serde(
+        default,
+        deserialize_with = "present",
+        skip_serializing_if = "Option::is_none"
+    )]
+    reason: Option<HandoverRefusal>,
+    #[serde(default, skip_serializing_if = "Extensions::is_empty")]
+    extensions: Extensions,
+}
+
+impl From<&HandoverResult> for WireHandoverResult {
+    fn from(result: &HandoverResult) -> Self {
+        let (state, reason) = match result.outcome {
+            HandoverOutcome::Prepared => (HandoverState::Prepared, None),
+            HandoverOutcome::Committed => (HandoverState::Committed, None),
+            HandoverOutcome::Aborted => (HandoverState::Aborted, None),
+            HandoverOutcome::Refused(reason) => (HandoverState::Refused, Some(reason)),
+            HandoverOutcome::Unknown => (HandoverState::Unknown, None),
+        };
+        Self {
+            kind: MessageType::HandoverResult.as_str().to_owned(),
+            state,
+            reason,
+            extensions: result.extensions.clone(),
+        }
+    }
+}
+
+impl TryFrom<WireHandoverResult> for HandoverResult {
+    type Error = DecodeError;
+
+    fn try_from(result: WireHandoverResult) -> Result<Self, Self::Error> {
+        let outcome = match (result.state, result.reason) {
+            (HandoverState::Prepared, None) => HandoverOutcome::Prepared,
+            (HandoverState::Committed, None) => HandoverOutcome::Committed,
+            (HandoverState::Aborted, None) => HandoverOutcome::Aborted,
+            (HandoverState::Refused, Some(reason)) => HandoverOutcome::Refused(reason),
+            (HandoverState::Unknown, None) => HandoverOutcome::Unknown,
+            _ => return Err(DecodeError::Message),
+        };
+        Ok(Self {
+            outcome,
+            extensions: result.extensions,
+        })
+    }
 }

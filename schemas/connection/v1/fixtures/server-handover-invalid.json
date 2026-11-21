@@ -1,0 +1,70 @@
+{
+	"cases": [
+		{
+			"name": "handover-uppercase-ticket",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"handover\",\"environment\":\"orchbee\",\"step\":\"prepare\",\"ticket\":\"0123456789ABCDEF0123456789abcdef\"}"
+		},
+		{
+			"name": "handover-short-ticket",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"handover\",\"environment\":\"orchbee\",\"step\":\"prepare\",\"ticket\":\"0123456789abcdef0123456789abcde\"}"
+		},
+		{
+			"name": "handover-without-step",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"handover\",\"environment\":\"orchbee\",\"ticket\":\"0123456789abcdef0123456789abcdef\"}"
+		},
+		{
+			"name": "handover-without-ticket",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"handover\",\"environment\":\"orchbee\",\"step\":\"prepare\"}"
+		},
+		{
+			"name": "handover-step-out-of-grammar",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"handover\",\"environment\":\"orchbee\",\"step\":\"Prepare\",\"ticket\":\"0123456789abcdef0123456789abcdef\"}"
+		},
+		{
+			"name": "handover-unknown-member",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"handover\",\"environment\":\"orchbee\",\"step\":\"prepare\",\"ticket\":\"0123456789abcdef0123456789abcdef\",\"lease\":30}"
+		},
+		{
+			"name": "handover-result-refused-without-reason",
+			"direction": "acceptor",
+			"layer": "schema",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"refused\"}"
+		},
+		{
+			"name": "handover-result-reason-without-refusal",
+			"direction": "acceptor",
+			"layer": "schema",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"prepared\",\"reason\":\"busy\"}"
+		},
+		{
+			"name": "handover-result-null-reason",
+			"direction": "acceptor",
+			"layer": "schema",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"refused\",\"reason\":null}"
+		},
+		{
+			"name": "handover-from-acceptor",
+			"direction": "acceptor",
+			"layer": "decoder",
+			"payload": "{\"type\":\"handover\",\"environment\":\"orchbee\",\"step\":\"prepare\",\"ticket\":\"0123456789abcdef0123456789abcdef\"}"
+		},
+		{
+			"name": "handover-result-from-initiator",
+			"direction": "initiator",
+			"layer": "decoder",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"prepared\"}"
+		}
+	]
+}
