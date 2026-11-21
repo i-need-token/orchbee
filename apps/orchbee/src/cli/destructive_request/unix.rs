@@ -69,7 +69,11 @@ pub(super) fn prompt(text: &str) -> Typed {
         }
     }
     match signals.finish() {
-        Ok(Finish::Cancelled { finalization }) => Err(Box::new(finalization)),
+        Ok(Finish::Cancelled { finalization }) => {
+            // The interrupt left the cursor on the prompt's line; the failure starts a new one.
+            let _ = io::stderr().write_all(b"\n");
+            Err(Box::new(finalization))
+        }
         Ok(Finish::Clear) => Ok(line),
         Err(_) => Ok(String::new()),
     }
