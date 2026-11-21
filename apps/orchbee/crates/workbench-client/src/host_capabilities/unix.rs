@@ -43,6 +43,8 @@ pub(crate) struct Facts {
     pub(crate) window_title: bool,
     /// The outer terminal prints a query it cannot parse, so it receives no capability probe.
     pub(crate) query_echo: bool,
+    /// The outer terminal keeps no title stack, so the pop on exit cannot restore its title.
+    pub(crate) title_stack_ignored: bool,
 }
 
 /// The facts of this session, detected on first use and fixed for the process lifetime.
@@ -146,6 +148,10 @@ impl Facts {
         // where other terminals ignore what they cannot parse (observed with Terminal 2.14 on
         // macOS 14). A multiplexer or host pane in between answers the queries itself.
         let query_echo = program.as_deref() == Some("Apple_Terminal") && !nested_host(&set);
+        // Ghostty ignores `CSI 22;0 t` and `CSI 23;0 t`; it treats an empty title as one never set.
+        let title_stack_ignored = (program.as_deref() == Some("ghostty")
+            || term.as_deref() == Some("xterm-ghostty"))
+            && !nested_host(&set);
         Self {
             clipboard,
             browser,
@@ -153,6 +159,7 @@ impl Facts {
             terminal_notifications,
             window_title,
             query_echo,
+            title_stack_ignored,
         }
     }
 }

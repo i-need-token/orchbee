@@ -148,6 +148,11 @@ available in this session; the Windows wording and admission do not change.
 | Window title        | OSC 0, after saving the terminal's own title with `CSI 22;0 t`; restored with `CSI 23;0 t` on exit. Not on the Linux virtual console or a dumb terminal                                        | The title notice                                                      |
 | System notification | The outer terminal's notification sequence when terminal delivery can frame one, which also reaches a remote login's own desktop; else `osascript` or `notify-send` in a local desktop session | The notification notice; card presentation follows the delivery rules |
 
+Ghostty (`TERM_PROGRAM=ghostty` or `TERM=xterm-ghostty`) keeps no title stack and ignores both
+title-stack sequences. After the pop it also gets an empty OSC 0 title, which it treats as a title
+never set, so its own title returns; other terminals get only the pop. The empty title does not
+apply under `TMUX`, `ZELLIJ`, `STY`, `HERDR_ENV` or `ORCHBEE_TERMINAL_ID`.
+
 OSC 52 is admitted only for an outer terminal that applies an application's clipboard write
 under its default settings: Ghostty, kitty, WezTerm, foot, Alacritty or Windows Terminal, named by
 `TERM_PROGRAM`, `KITTY_WINDOW_ID`, `ALACRITTY_WINDOW_ID`, `WT_SESSION` or `TERM`, with no

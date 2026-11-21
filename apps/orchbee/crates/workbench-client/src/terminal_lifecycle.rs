@@ -1270,7 +1270,11 @@ impl TerminalModes for InheritedTerminalModes {
     }
     #[cfg(unix)]
     fn restore_window_title(&self) -> io::Result<()> {
-        host_sequences::restore_window_title(&self.terminal, &self.title_saved)
+        host_sequences::restore_window_title(
+            &self.terminal,
+            &self.title_saved,
+            crate::host_capabilities::unix::facts().title_stack_ignored,
+        )
     }
     #[cfg(unix)]
     fn write_clipboard(&self, text: &str) -> io::Result<()> {

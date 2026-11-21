@@ -25,16 +25,21 @@ pub(super) fn set_window_title(
     output.flush()
 }
 
-/// Restores the title saved before the first change; nothing was saved when no title was set.
+/// Restores the title saved before the first change; nothing was saved when no title was set. A
+/// terminal that keeps no title stack then gets an empty title, which hands the title back to it.
 pub(super) fn restore_window_title(
     terminal: &InheritedTerminal,
     saved: &AtomicBool,
+    stack_ignored: bool,
 ) -> io::Result<()> {
     if !saved.load(Ordering::Acquire) {
         return Ok(());
     }
     let mut output = terminal.output()?;
     output.write_all(TITLE_POP)?;
+    if stack_ignored {
+        output.write_all(TITLE_EMPTY)?;
+    }
     output.flush()?;
     saved.store(false, Ordering::Release);
     Ok(())
@@ -48,6 +53,7 @@ pub(super) fn write_clipboard(terminal: &InheritedTerminal, text: &str) -> io::R
 
 const TITLE_PUSH: &[u8] = b"\x1b[22;0t";
 const TITLE_POP: &[u8] = b"\x1b[23;0t";
+const TITLE_EMPTY: &[u8] = b"\x1b]0;\x1b\\";
 
 fn window_title(title: &str, push: bool) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(title.len() + 16);
