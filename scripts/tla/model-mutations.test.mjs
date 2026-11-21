@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
 
-import { inventoryPath, repositoryRoot } from './model-inventory.mjs';
+import { applyConfigConstants, inventoryPath, repositoryRoot } from './model-inventory.mjs';
 import { provisionJar } from './toolchain.mjs';
 import { runChild } from './test-support/child-process.mjs';
 
@@ -203,6 +203,33 @@ const cases = [
 		/Invariant (?:SingleOwner|OnlyCurrentWorkerRuns|IdentityBeforeExecution) is violated/u,
 	],
 	[
+		'session-crash-recovery',
+		'a successor commits without the successor entry naming it',
+		'  /\\ successor = "reserved"\n',
+		'',
+		/Invariant (?:SingleOwner|ServingIsRecorded) is violated/u,
+		'module',
+		'handover',
+	],
+	[
+		'session-crash-recovery',
+		'a released Server takes the Session back after the record named its successor',
+		'  /\\ oldGeneration = generation\n',
+		'',
+		/Invariant (?:SingleOwner|ServingIsRecorded) is violated/u,
+		'module',
+		'handover',
+	],
+	[
+		'session-crash-recovery',
+		'cold adoption starts beside a Server or Worker not proven gone',
+		'  /\\ ServerWorkerGone\n',
+		'',
+		/Invariant (?:SingleOwner|OnlyCurrentWorkerRuns|IdentityBeforeExecution|ServingIsRecorded) is violated/u,
+		'module',
+		'handover',
+	],
+	[
 		'local-session-startup',
 		'a replacement Worker starts a Host for the Launch authorized to the Worker it replaced',
 		'\n  /\\ dispatchWorker = incarnation\n',
@@ -315,9 +342,12 @@ const cases = [
 ];
 
 describe('protocol mutation counterexamples', { concurrency: 3 }, () => {
-	for (const [id, fault, before, after, counterexample, target = 'module'] of cases) {
+	for (const [id, fault, before, after, counterexample, target = 'module', variantName] of cases) {
 		test(`${id}: ${fault}`, async (t) => {
 			const model = inventory.models.find((entry) => entry.id === id);
+			// A named variant runs the mutation on that gate configuration, which supplies its control.
+			const variant = model.variants?.find((entry) => entry.name === variantName);
+			assert.equal(variant === undefined, variantName === undefined, `${id}: unknown variant`);
 			const source = (await readFile(path.join(repositoryRoot, model[target]), 'utf8')).replaceAll(
 				'\r\n',
 				'\n',
@@ -333,11 +363,15 @@ describe('protocol mutation counterexamples', { concurrency: 3 }, () => {
 					? source.replace(before, after)
 					: await readFile(path.join(repositoryRoot, model.module)),
 			);
-			await writeFile(
-				path.join(directory, config),
+			const configuration =
 				target === 'config'
 					? source.replace(before, after)
-					: await readFile(path.join(repositoryRoot, model.config)),
+					: await readFile(path.join(repositoryRoot, model.config), 'utf8');
+			await writeFile(
+				path.join(directory, config),
+				variant === undefined
+					? configuration
+					: applyConfigConstants(configuration, variant.constants),
 			);
 			const result = await runChild(
 				process.env.ORCHBEE_TLA_JAVA ?? 'java',

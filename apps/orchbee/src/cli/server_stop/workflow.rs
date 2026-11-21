@@ -264,8 +264,9 @@ pub(super) fn observe_session(
 /// Ends a Session whose Server refused this build's offer, being too old, another development
 /// build, or already draining, through the control requests every handshake build answers. `exit`
 /// ends only the Server and its Worker and never a terminal, and before P1 nothing else from here
-/// can end one; so only a Session with no terminal ends here, and its next start recovers it as an
-/// unclean end. Any other Session is left to the build that started it.
+/// can end one; so only a Session with no terminal ends here, and its next start recovers it,
+/// counting no crash when that Server recorded its `exit`. Any other Session is left to the build
+/// that started it.
 fn end_by_exit(
     session: &Rendezvous,
     answer: &mut Answer,

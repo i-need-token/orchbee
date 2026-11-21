@@ -733,11 +733,28 @@
 				"AdmitStop",
 				"StopEndsHost",
 				"CompleteStop",
-				"AbandonChild"
+				"AbandonChild",
+				"ReserveSuccessor",
+				"PrepareHandover",
+				"CommitSuccessor",
+				"ClearSuccessor",
+				"RetiredExit",
+				"AdoptCold",
+				"ExitRecorded"
 			],
 			"variants": [
-				{ "name": "recovery", "constants": { "MaxGeneration": 2, "MaxIncarnation": 1 } },
-				{ "name": "replacement", "constants": { "MaxGeneration": 1, "MaxIncarnation": 2 } }
+				{
+					"name": "recovery",
+					"constants": { "MaxGeneration": 2, "MaxIncarnation": 1, "Handover": false }
+				},
+				{
+					"name": "replacement",
+					"constants": { "MaxGeneration": 1, "MaxIncarnation": 2, "Handover": false }
+				},
+				{
+					"name": "handover",
+					"constants": { "MaxGeneration": 2, "MaxIncarnation": 1, "Handover": true }
+				}
 			]
 		},
 		{

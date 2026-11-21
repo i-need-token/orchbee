@@ -206,8 +206,8 @@ impl SessionCatalog {
     }
 
     /// Proved-dead recovery uses the same namespace and exact runtime guards as new activation.
-    /// Answers the activation identifier of the generation it proved dead, or `None` when the
-    /// Session has no record or stopped.
+    /// Answers the activation identifier of the generation it proved dead, which counts as a crash,
+    /// or `None` when the Session has no record, stopped, or recorded the `exit` that ended it.
     pub fn recover_inactive(
         &self,
         session: &Rendezvous,
@@ -261,7 +261,7 @@ impl SessionCatalog {
             retry,
             allow_previous_receipt,
         )?;
-        Ok(Some(activation_id))
+        Ok((!record.exited()).then_some(activation_id))
     }
 
     /// One new generation is published before its runtime marker or Server can exist.

@@ -675,3 +675,41 @@ fn incompatible_records_are_listed_unreadable_and_only_explicit_guarded_deletion
         }
     }
 }
+
+#[test]
+fn a_recorded_exit_recovers_without_counting_a_crash() {
+    let base = Fixture::new();
+    let local = Fixture::new();
+    let (name, session, owner) = start(&base, &local, "exited", 1);
+    owner.record_exit(deadline()).unwrap();
+    let directory = Directory::open(&local.root()).unwrap().unwrap();
+    assert!(directory.read(name.as_str()).unwrap().unwrap().exited());
+    let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
+    let LockAttempt::Acquired(activation) = session.try_acquire_activation_lock().unwrap() else {
+        panic!("activation")
+    };
+    let LockAttempt::Acquired(lifetime) = session.try_acquire_session_lifetime_lock().unwrap()
+    else {
+        panic!("lifetime")
+    };
+    // The exited generation recovers, again on a repeated pass, but answers nothing to count.
+    for _ in 0..2 {
+        assert_eq!(
+            catalog
+                .recover_inactive(&session, &activation, &lifetime)
+                .unwrap(),
+            None
+        );
+    }
+    catalog.begin_activation(&session, [2; 16]).unwrap();
+    session.commit_activation().unwrap();
+    // The ended generation's owner cannot mark the next one, whose crash counts again.
+    assert!(owner.record_exit(deadline()).is_err());
+    assert!(!directory.read(name.as_str()).unwrap().unwrap().exited());
+    assert_eq!(
+        catalog
+            .recover_inactive(&session, &activation, &lifetime)
+            .unwrap(),
+        Some([2; 16])
+    );
+}

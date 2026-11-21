@@ -206,8 +206,9 @@ also names the release that superseded it and that release's date, which start i
 ## Control requests
 
 From the first automatic-update release, every version sends and answers three requests with
-unchanged meaning. They belong to the permanent handshake layer and need no common generation, so a
-newer side can always inspect and stop an older one.
+unchanged meaning, and from P1b a fourth, `handover`, which an older Server answers `unsupported`.
+They belong to the permanent handshake layer and need no common generation, so a newer side can
+always inspect and stop an older one.
 
 - A request is the only `OBHS` frame its connection sends, in place of an offer, and carries the
   requester's `environment`. The acceptor checks user and environment as for an offer, replies once,
@@ -223,11 +224,12 @@ newer side can always inspect and stop an older one.
 - Request types, reply members, and their meanings freeze with `OBHS`; later facts go into
   `extensions`.
 
-| Request | Reply                       | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `query` | `query-result`              | Changes nothing. `processes` lists the answering process first, then for a Server its Worker and up to 256 connected Hosts. Each entry has `role` (`server`, `worker`, or `terminal-host`, read as `unknown` otherwise), `productVersion`, `build`, `environment`, `pid`, `state` (`ready`, `draining`, or `stopping`, read as `unknown` otherwise), `terminals`, and `connections`: each connection or delivery kind the process takes part in, with its `generations`, plus `capabilities` in the answering process's entry. A Server adds `restartKeepsTerminals`, false until P1. |
-| `drain` | `drain-result` with `state` | Idempotent; stops accepting new work while existing work continues. A drained Server rejects offers with `stopping`, accepts no new intents, finishes in-flight operations, and drains its Worker. A drained Host accepts no new terminals and exits after its last terminal closes.                                                                                                                                                                                                                                                                                                  |
-| `exit`  | `exit-result`               | Settles in-flight work, replies, and ends the process. A Server ends itself and its Worker and never asks a Host to end or a terminal to be disposed; until P1 records the Session for this case, the next activation treats it as an unclean end. A Host ends its terminals, so it receives `exit` only after the person confirms ending them.                                                                                                                                                                                                                                       |
+| Request    | Reply                                                                                             | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `query`    | `query-result`                                                                                    | Changes nothing. `processes` lists the answering process first, then for a Server its Worker and up to 256 connected Hosts. Each entry has `role` (`server`, `worker`, or `terminal-host`, read as `unknown` otherwise), `productVersion`, `build`, `environment`, `pid`, `state` (`ready`, `draining`, or `stopping`, read as `unknown` otherwise), `terminals`, and `connections`: each connection or delivery kind the process takes part in, with its `generations`, plus `capabilities` in the answering process's entry. A Server adds `restartKeepsTerminals`, true once it answers `handover`; from then its `extensions` list each connected Client's version and `client-server` range and the count of running background programs. |
+| `drain`    | `drain-result` with `state`                                                                       | Idempotent; stops accepting new work while existing work continues. A drained Server rejects offers with `stopping`, accepts no new intents, finishes in-flight operations, and drains its Worker. A drained Host accepts no new terminals and exits after its last terminal closes.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `exit`     | `exit-result`                                                                                     | Settles in-flight work, replies, and ends the process. A Server ends itself and its Worker and never asks a Host to end or a terminal to be disposed; once its Worker is gone it records the generation as `exited` in the Session record, so the next activation counts no crash. A Host ends its terminals, so it receives `exit` only after the person confirms ending them.                                                                                                                                                                                                                                                                                                                                                                |
+| `handover` | `handover-result` with `state` (`prepared`, `committed`, `aborted`, or `refused` with a `reason`) | Server only. Carries `step` (`prepare`, `commit`, or `abort`) and the ticket of the successor recorded in the Session record. `prepare` releases the Session store and the Worker as [Server and Worker restart](#server-and-worker-restart) describes and starts a thirty-second lease; `abort`, the lease, or the successor's end takes them back; `commit` ends the Server once the Session record names its successor. An unknown step or a ticket that is not recorded is `refused`.                                                                                                                                                                                                                                                      |
 
 ## Message evolution
 
@@ -387,9 +389,9 @@ active version's manifest, so every evaluator reaches the same tier:
   raises that shared tier to at least `recommended`, because only Restart Session moves new
   terminals to a newer Host; the Host itself is never restarted for `recommended`, since under the
   new Worker it drains.
-- Restart Session in TUI and Desktop, and the planned `session restart` command, replace only
-  Server and Worker through [Server and Worker restart](#server-and-worker-restart); terminals and
-  Agents continue.
+- Restart Session in TUI and Desktop, and the `server restart` command, replace only Server and
+  Worker through [Server and Worker restart](#server-and-worker-restart); terminals and Agents
+  continue.
 - The only confirmation is a Host replacement. It names the effect, such as "These 3 terminals
   restart; supported Agents resume", lists the terminals, and defaults to No; declining keeps the
   older Host running and the tier visible. From H4 of [Host handover](host-handover.md#phases) it
@@ -416,54 +418,61 @@ active version's manifest, so every evaluator reaches the same tier:
 
 ## Server and Worker restart
 
-Decided 2026-11-15 with [automatic updates](automatic-updates.md#make-before-break): a restart
-never ends the old Server and Worker before the new pair has adopted every running Host and
-accepted the Clients. Terminal processes keep running, and Hosts keep their output and screens. The
-newer side decides here too: the Client that asks for the restart starts the active version's
-Server and Worker on a private standby endpoint, and that Server runs these steps.
+Decided 2026-11-15 with [automatic updates](automatic-updates.md#make-before-break), and in detail
+on 2026-11-20: a restart never ends the old Server and Worker before the new pair has taken the
+Session store and every running Host. Terminal processes keep running, and Hosts keep their output
+and screens. The newer side decides here too: the Client that asks for the restart starts the
+active version's `orchbee`, which reserves a successor in the Session record and starts the active
+version's Server; that Server runs these steps.
 
-1. **Check.** It queries the old Server, whose answer adds each connected Client's generation range
-   in `extensions` from P1b on, and each Host, and compares them with its own ranges and
-   capabilities. It reads every Session record through the opener that writes nothing. A failure
+1. **Check.** It queries the old Server, whose answer must report `restartKeepsTerminals`, no
+   running background program, and in `extensions` each connected Client's version and generation
+   range, and it queries each Host. It compares them with its own ranges, reads every Session
+   record through the opener that writes nothing, and starts its Worker, which waits. A failure
    ends the attempt with nothing changed.
-2. **Drain.** It sends `drain`. The old Server admits no new intents, finishes in-flight operations,
-   drains its Worker, and records Workbench state and terminal bindings durably, not only in the
-   Workbench checkpoint: in the transactional store the
-   [topology proposal](native-runtime-topology.md#accepted-production-lifecycle-direction)
-   accepted, or a reviewed equivalent.
-3. **Hand over.** Each resource with a single owner passes from the old pair to the new one, one at
-   a time, and the old pair can take it back until the commit: every Host's Worker session, which
-   the new Worker takes through [Host adoption](#host-adoption) against the recorded bindings, then
-   the Session endpoint with its lifetime lock and the Session store's writer lock. Clients
-   reconnect and renegotiate without user action.
-4. **Commit.** Once every Host is adopted and the Clients are back, it sends `exit` to the old
-   Server, which ends with its Worker; Hosts keep running.
+2. **Prepare.** It sends `handover` with `prepare`. The old Server holds new intents, shows
+   Reconnecting through the terminal-runtime read, settles in-flight operations, records the
+   Workbench and the [binding record](#host-adoption) exactly, releases the Session store, and ends
+   its Worker with the Keep shutdown, which frees every Host's Worker session. It sends no `drain`:
+   a drained Server cannot reopen.
+3. **Take.** The new Server opens the store, and its Worker takes each Host through
+   [Host adoption](#host-adoption) against the recorded bindings.
+4. **Commit.** The new Server publishes the Session record that names it and its Worker, in one
+   atomic write under the record's writer lock. It then sends `handover` with `commit`; the old
+   Server sees itself replaced in the record and exits. Hosts keep running.
+5. **Open.** The new Server takes the Session lifetime lock and binds the Session endpoints.
+   Clients reconnect and renegotiate without user action.
 
-- Any failure before the commit, expected or not, returns each resource to the old pair, whose
-  Worker adopts back any Host it released, and the update waits for the idle move. Server and
-  Worker never run different versions.
-- A Host holds one Worker session at a time, so its hand-over leaves it without a Worker for a
-  moment: its program keeps running, its output waits in the Host, and Clients show Reconnecting. A
-  Host capability for a standby Worker session would close that gap. P1b's decision run decides on
-  it; any Host capability ships as early as possible, because a Host started before it never gains
-  it.
-- The [Windows Server handoff](../../apps/orchbee-worker/docs/windows-server-handoff.md) already
-  passes the Server role to a standby between identical builds in two phases and restores the
-  original owner after a failure before commit. P1b extends that pattern to a new Worker and to
-  another version.
+- Until the commit the old Server takes back what it released: it retakes the store, replaces its
+  Worker as after a [Worker loss](#host-adoption), and lifts the hold, when the new Server asks
+  with `abort`, when the new pair ends, or when thirty seconds pass. Both sides decide under the
+  record's writer lock, so a lost or late message changes nothing: the old Server removes the
+  successor before it takes anything back, and the new Server commits only while the successor is
+  still recorded. The update then waits for the idle move. Server and Worker never run different
+  versions.
+- The Session lifetime lock and the endpoints move only after the commit and are never handed back.
+- A Host holds one Worker session at a time, so the hand-over leaves it without a Worker for a
+  moment: its program keeps running, its output waits in the Host, and Clients show Reconnecting.
+  The Host gains no standby Worker session: Clients must reconnect to the new Server in any case,
+  `query` already compares a Host with the new Worker, and a running Host could never gain it.
+- The [Windows Server handoff](../../apps/orchbee-worker/docs/windows-server-handoff.md) keeps the
+  Worker and works between identical builds; this restart does not use it.
 - An old Client that cannot join the new Server switches itself to the active version, as a click
-  does.
+  does. A connected Client too old to reconnect by itself fails the check.
 - Input during the gap is neither queued nor replayed; Clients show that input is unavailable.
 - Until B1 of [Host handover](host-handover.md#background-programs-the-worker-runs), the old Worker's
   ordinary stop would cancel the configured `shell` commands, plugin jobs, and plugin hooks it runs.
   The check therefore asks the old Server, whose own Worker answers the idle move's read-only query,
-  and waits while one runs; the drain closes admission and asks again, and a nonzero count ends the
-  attempt with nothing changed. From B1 they run in the Host and need no check.
+  and waits while one runs; `prepare` holds admission and asks again, and a nonzero count refuses
+  it with nothing changed. From B1 they run in the Host and need no check.
 - No [Host handover](host-handover.md#how-a-terminal-moves) runs during a restart.
-- A Session running a release before P1b cannot take part and waits for the idle move.
-- After the commit, a new version that keeps failing falls back inside the bound of
-  [automatic updates](automatic-updates.md#falling-back-after-a-failed-move). Any later activation
-  completes an interrupted restart, because a new Worker always adopts running Hosts.
+- A Session whose Server does not report `restartKeepsTerminals` cannot take part and waits for the
+  idle move.
+- After the commit nothing goes back to the old pair. A new pair that fails is brought back by the
+  next activation, which adopts the running Host from the binding record, and a new version that
+  keeps failing falls back inside the bound of
+  [automatic updates](automatic-updates.md#falling-back-after-a-failed-move); the previous version
+  adopts the same way.
 
 ## Host adoption
 
@@ -697,11 +706,15 @@ Quit All… in its place; no notice on return; quarantined terminals left uncoun
 ends a Host by force; and the count in the CLI prompt.
 
 P1b reuses the adopt mode, `AdoptHost` and the kernel import, quarantine, rebinding, the
-`terminal-runtime` read and its copy, the diagnostics, and the stop without a Worker. It adds the
-check, the standby Server, each hand-over with its way back, the durable binding record that
-supplies bindings in place of the Server's memory, the record rules for a second Server, a newer
-Worker adopting an older Host inside the `worker-host` window, and the old Worker adopting back a
-Host it released. `drain` and `exit` are built.
+`terminal-runtime` read and its copy, the diagnostics, the replacement itself as the old Server's
+way back, and the stop without a Worker. It adds the binding record, which supplies bindings in
+place of the Server's memory: one file in the Session folder under the store's writer lock, with
+the Session Worker id, each Host's identity and epoch, and per terminal the fields of an
+`AdoptHost` binding and its Presentation; the checkpoint saver writes it, and every final capture
+writes it exactly. It adds an activation that adopts a running Host when Server and Worker are
+gone, the successor entry in the Session record, the `handover` request, and a newer Worker
+adopting an older Host inside the `worker-host` window. `drain` and `exit` are built; `exit` now
+records its end, so the next activation counts no crash.
 
 ## Host lifetime
 
@@ -710,9 +723,10 @@ Host it released. `drain` and `exit` are built.
   to the newest Host.
 - Each Host has its own endpoint, Host epoch, inventory, and registration in the Session runtime
   directory. One Worker brokers Hosts of several versions at once.
-- A Worker starts Hosts only from its own installation, and every new terminal goes to that Host.
-  It sends `drain` to each older Host it adopts, which then accepts no new terminals and exits after
-  its last terminal closes or, from H4, moves.
+- A Worker starts Hosts only from its own installation, and every new terminal goes to that Host. It
+  sends `drain` to an older Host it adopted once that Host holds no terminal, because a drained Host
+  refuses every later Worker; until then the older Host only receives no new terminals. From H4 its
+  terminals move instead.
 - From H2, the Session's [Keeper](host-handover.md#the-keeper) holds what keeps each terminal's
   programs alive, so a Host that crashes or hangs costs its screens, not its programs.
 - A Host outlives Server and Worker exit, and the next Worker adopts it as in
@@ -885,7 +899,7 @@ persisted file its version, migration owner, backups, and failure behavior (ORCL
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------ |
 | P0. Handshake                      | `OBHS`, the generation registry, control requests, and evolution rules on every negotiated connection; exact pairs on build identity; frame-format and Agent hook generations; saved machines on the handshake; signed release manifest version 2 with floors; the environment check on every platform; development fingerprints; the pre-release generation rule in Data boundaries; Glossary and product copy for cohort | ORC-382 slice 1, shipped            | Before the first public release                                                |
 | P1a. Host adoption (ORC-296)       | [Host adoption](#host-adoption) with Worker-loss recovery: replacement inside a restart cap, a confirmed stop that ends a stranded Host, and Client reconnect states                                                                                                                                                                                                                                                       | P0 and the Windows Host check below | Starts now, beside slice 1 of [automatic updates](automatic-updates.md#phases) |
-| P1b. Upgrade without terminal loss | Restart decision and display; Server and Worker restart by make before break: the check, the standby Server, each hand-over with its way back, and the durable binding record; required Host replacement; status output; the Update click moves the Session                                                                                                                                                                | P1a and a durable binding record    | Right after P1a, before the first public release                               |
+| P1b. Upgrade without terminal loss | Restart decision and display; Server and Worker restart by make before break: the binding record, adoption at activation, the check, the successor Server, the hand-over with its way back; required Host replacement; status output; the Update click moves the Session                                                                                                                                                   | P1a                                 | Right after P1a, before the first public release                               |
 | P1c. Host rollover                 | [Host lifetime](#host-lifetime): one Worker brokers several Hosts, new terminals start on the newest, and older Hosts drain                                                                                                                                                                                                                                                                                                | P1b                                 | Right after P1b                                                                |
 | P2. Release gate                   | The [release gate](automatic-updates.md#the-release-gate) and the other [cross-version tests](#cross-version-tests)                                                                                                                                                                                                                                                                                                        | Automatic updates' slice 1          | From the release after slice 1; P1b adds its restart checks                    |
 | Host handover                      | [Host handover](host-handover.md#phases), H0–H5 and B1, which replace P3 and P4: prototypes, the Keeper, recovery after a Host crash or hang, moves across versions and in updates, macOS, and the Worker's background programs in the Host                                                                                                                                                                                | H0 none; H3 P1c; H4 P2; B1 P1b      | H0 now; on by default from H4                                                  |
@@ -902,11 +916,12 @@ restarts a Worker, that `status server` keeps listing a lost Worker as ready, an
 Host keeps the ended Worker's process id as its parent. P1a's own trace must confirm what that check
 did not: the Host keeps reading a program's output with no Worker attached, releases the lost
 Worker's session at once, keeps its Host epoch, and accepts a new Worker's offer; `ListTerminals`
-then lists each terminal with its identity, and an attach restores its screen and scrollback;
-ending a Worker that stopped reading releases a Host blocked writing to it; and `exit` with no
-Worker attached ends the Host and every terminal's process tree. P1 also closes two current gaps: a Worker cannot adopt a running Host
-([Worker](../../apps/orchbee-worker/README.md#managed-linux-lazy-host-startup)), and Server has no
-transactional binding record.
+then lists each terminal with its identity, and an attach restores its screen and scrollback; ending
+a Worker that stopped reading releases a Host blocked writing to it; and `exit` with no Worker
+attached ends the Host and every terminal's process tree. P1 also closes two current gaps: a Worker
+cannot adopt a running Host
+([Worker](../../apps/orchbee-worker/README.md#managed-linux-lazy-host-startup)), and Server keeps no
+binding record.
 
 ## Acceptance
 

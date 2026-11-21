@@ -662,8 +662,9 @@ const EXIT_TERMINALS: ShutdownTerminals = ShutdownTerminals::Dispose;
 /// the Host, or, once that Worker exited, the Server ends its Host, and a Session that keeps a
 /// checkpoint relaunches them on its next start. In-flight
 /// records and background jobs settle and the final checkpoint is published first; a settling
-/// failure is reported and the process still ends. No receipt is published, so until P1 records
-/// this end the next activation recovers the Session as an unclean end.
+/// failure is reported and the process still ends. No receipt is published: once the Worker is
+/// gone the Session record names this generation as exited, so the next activation recovers the
+/// Session without counting a crash.
 fn exit(
     mut owners: Owners,
     mut clients: local_client_service::ManagedClients,
@@ -747,6 +748,13 @@ fn settle_for_exit(
         owners
             .terminals
             .finish_process_observer_after_worker_exit(&owners.handle)?;
+    }
+    // A failed write leaves the next activation to count this end as a crash, as before.
+    if let Err(error) = owners.session_record.record_exit(deadline) {
+        eprintln!(
+            "orchbee-server diagnostic component=lifecycle operation=exit stage=record cause=io:{:?}",
+            error.kind()
+        );
     }
     owners.ingress.stop_before(deadline)?;
     // A Host left without a terminal ends once its broker is gone; waiting for it lets the next

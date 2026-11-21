@@ -120,6 +120,7 @@ borrows from.
 | 20  | The copy in [the Update control](#the-update-control) as proposed                                                                                                                                           | Short words that say what keeps running, the same in both Clients                                                         | Chosen                                                                                           |
 | 21  | A window installed by a release before the window self-update reaches the new layout only through that release's Setup or a moment when no window runs; its release notes say so, and nothing more is built | One Setup run per old window costs less than a migration tool                                                             | Chosen                                                                                           |
 | 22  | Before the idle move, the Server asks its Worker how many plugin jobs and configured commands still run, through a same-version read-only query; any failure of the query keeps the Session                 | A configured command runs in the Worker with no terminal, so nothing else shows it, and the move must never end a program | Chosen                                                                                           |
+| 23  | Server and Worker restart commits by one Session record write; the old Server takes back the store and replaces its Worker on any earlier failure; the Host gains no standby Worker session                 | The fewest parts that keep the old pair serving after any failed step; decision run of 2026-11-20                         | Chosen                                                                                           |
 
 Nothing waits on the owner; each Chosen row stays open to a veto.
 
@@ -183,13 +184,14 @@ Every release proves the window before Publish.
   of the window, and the oldest release inside the window. The window holds the releases published
   in the last 90 days, from slice 1 on. Picks that coincide count once, so the set never exceeds
   four however many releases the window holds, and a window of four or fewer tests every release.
-- Each path runs on a fresh Windows runner. It installs the older release from its published
-  archive into a scratch store, starts its Session, and opens a terminal running a probe that
-  prints a numbered line every 100 ms. The older release's own automatic helper installs the new
-  release from the gate feed, and the new Client joins the running Session and shows the probe's
-  output. The probe then ends, and the idle move brings the Session up on the new version with its
-  layout unchanged. From P1b the probe keeps running instead, and a click restarts the Session: the
-  new pair adopts the probe's Host, and the layout survives.
+- Each path runs on a fresh Windows runner. It installs the older release from its published archive
+  into a scratch store, starts its Session, and opens a terminal running a probe that prints a
+  numbered line every 100 ms. The older release's own automatic helper installs the new release from
+  the gate feed, and the new Client joins the running Session and shows the probe's output. The
+  probe then ends, and the idle move brings the Session up on the new version with its layout
+  unchanged. From P1b the probe keeps running instead, and a click restarts the Session: the new
+  pair adopts the probe's Host, and the layout survives. One path instead ends the older Server with
+  `exit` and starts the new Client, which adopts the probe's Host at activation.
 - Each path checks that the probe kept its process id, that its numbers have no gap, and that the
   new Client joined.
 - From H4 of [Host handover](host-handover.md#phases), a path whose new release changes the Host also
@@ -210,16 +212,17 @@ Every release proves the window before Publish.
 
 An update can stall but never interrupt.
 
-- A Session restart never ends the old Server and Worker before the new pair has adopted every
-  running Host and accepted the Clients;
+- A Session restart never ends the old Server and Worker before the new pair has taken the Session
+  store and adopted every running Host; Clients reconnect right after;
   [Server and Worker restart](versioning-and-upgrade.md#server-and-worker-restart) gives the steps.
 - Preconditions come first: the new version shares a generation with every running Host and every
   connected Client, and it reads every Session record. Until B1 of
-  [Host handover](host-handover.md#background-programs-the-worker-runs), the old Worker must also run
-  no configured `shell` command, plugin job, or plugin hook, and the drain checks again, so the
+  [Host handover](host-handover.md#background-programs-the-worker-runs), the old Worker must also
+  run no configured `shell` command, plugin job, or plugin hook, and `prepare` checks again, so the
   restart waits while one runs.
 - Any failure, expected or not, leaves or puts back the old pair, and the update waits for the idle
-  move. A Session running a release before P1b, which cannot take part, always waits for it.
+  move. A Session whose Server cannot be handed over, as in every release before P1b's hand-over,
+  always waits for it.
 - Before P1b, a new Client that cannot join keeps the Client the person has: the click checks the
   join first, and a launcher whose new Client fails to start or to join starts the previous version
   again, at the same place.
@@ -321,6 +324,7 @@ it is a few minutes into a move to 0.5.0, and then after that version's fallback
 | Damaged version                  | The activator of the moved version, when its own cohort check finds a file changed or missing, before any generation exists                     | A Session start and failure of a fresh generation            |
 | Server crash                     | Any activator whose crash recovery proves the generation dead                                                                                   | A Session failure of that generation                         |
 | Worker crash                     | The Server, when its Worker exits outside a stop                                                                                                | A Session failure of the Server's generation                 |
+| Takeover failure                 | The `orchbee` that asked for the restart, when the new pair fails after the old Server answered `prepared`                                      | A Session failure of the generation reserved for the restart |
 | Client fails to start or to join | Either launcher, as it classifies the outcome, through the previous version's helper below; on macOS without a launcher, the TUI itself         | A Client failure of the version it started                   |
 
 - A recorder writes only the store its own executable runs from, so a process outside a store
@@ -336,7 +340,9 @@ it is a few minutes into a move to 0.5.0, and then after that version's fallback
   changed or missing can start no Server from them, so each such start counts as a generation that
   started and failed, and a store file damaged after an install falls back like a crash. A
   deadline or a refused open during that check counts nothing.
-- A failed adoption counts from P1b, which adds the fallback after a restart.
+- From P1b a restart reserves its generation as a Session start does. A restart that fails its
+  check, or that the old Server refuses, counts nothing. After the commit, a crash of the new pair
+  counts as any Server crash does.
 - `--record-client-failure-v1 <version>` is a hidden helper mode whose grammar never changes, left
   out of help, completion, and the Agent guide like the other helper modes. It records one Client
   failure of `<version>` in the store it runs from, counted only while `<version>` is the entry of

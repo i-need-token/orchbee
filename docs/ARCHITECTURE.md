@@ -56,11 +56,14 @@ flowchart TB
 ## Data boundaries
 
 Each wire protocol, persisted format, and machine-readable document retains only its current
-contract. Integer versions stay at `1`; the five OBTP version domains stay at generation 1, encoded
-`1.0.0`. Shape changes update that current contract directly, without historical versions,
-compatibility readers, or migrations. Strict parsing rejects files with other shapes; where it does
-not protect version reuse, replace the magic or schema identifier instead of retaining an older
-contract.
+contract. A version number moves only when a reader must refuse the new shape rather than misread
+it, as the Server-Worker codec (`2`) and the signed release manifest (`schemaVersion: 2`) did; the
+public update feed stays frozen at `schemaVersion: 1`, and a breaking change takes a new feed path.
+The five OBTP version domains stay at generation 1, encoded `1.0.0`, and connections settle
+compatibility one connection at a time in the handshake below. Shape changes update that current
+contract directly, without historical versions, compatibility readers, or migrations. Strict
+parsing rejects files with other shapes; where it does not protect version reuse, replace the magic
+or schema identifier instead of retaining an older contract.
 
 Connections open with the `OBHS` handshake of
 [`crates/connection-handshake`](../crates/connection-handshake/README.md) and

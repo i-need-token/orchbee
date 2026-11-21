@@ -1,12 +1,12 @@
 //! What activation records for the fallback after a failed move: the start of each generation it
 //! publishes, just before its Server starts, and that generation's failure when its Server cannot
-//! start, ends before its endpoint appears, or is later proved dead by crash recovery. A Server
-//! still running at the deadline counts nothing, and neither does a generation that never started
-//! its Server, since its start was never recorded. One exception comes before any generation: a
-//! version whose own files fail the cohort check as damaged can start no Server at all, so the
-//! activation records a fresh generation's start and its failure at once. Each record is written
-//! synchronously on its path, within the recorder's 2 s lock bound and only while a move counts;
-//! the recorder owns every other rule.
+//! start, ends before its endpoint appears, or is later proved dead by crash recovery without
+//! having recorded an `exit`. A Server still running at the deadline counts nothing, and neither
+//! does a generation that never started its Server, since its start was never recorded. One
+//! exception comes before any generation: a version whose own files fail the cohort check as
+//! damaged can start no Server at all, so the activation records a fresh generation's start and
+//! its failure at once. Each record is written synchronously on its path, within the recorder's 2 s
+//! lock bound and only while a move counts; the recorder owns every other rule.
 use orchbee_local_runtime::{FallbackEvent, FallbackRecorder, activation_text};
 use std::io;
 

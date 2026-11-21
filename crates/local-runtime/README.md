@@ -415,13 +415,15 @@ or restores, `inspect_records` does not list it, and a reader that cannot use it
 ([Session checkpoint store](#session-checkpoint-store)).
 
 Each store keeps an `extensions` object it reads as opaque and writes back unchanged, so a later
-release adds an optional field there without a migration. A record migrates only in a process that
-writes it: the plugin registry when a writer changes it, and
-`session.json` when it is published, which outside the Server happens only after proving no Server
-of the Session runs. Workbench Client owns the machine and TUI position records, kept
-through `VersionedFile`, with the same rules. `inspect_records` reads every versioned
-record of a root, or one Session's, creating nothing, and reports the unusable ones; `config check`
-lists them and the TUI shows the first when it starts, since the Server reads the records it holds.
+release adds an optional field there without a migration. `session.json` reads one member itself:
+`exited`, the activation identifier that `RetainedSessionRecord::record_exit` writes for a Server
+`exit` once its Worker is gone; a fresh generation starts without it. A record migrates only in a
+process that writes it: the plugin registry when a writer changes it, and `session.json` when it is
+published, which outside the Server happens only after proving no Server of the Session runs.
+Workbench Client owns the machine and TUI position records, kept through `VersionedFile`, with the
+same rules. `inspect_records` reads every versioned record of a root, or one Session's, creating
+nothing, and reports the unusable ones; `config check` lists them and the TUI shows the first when
+it starts, since the Server reads the records it holds.
 
 `report_record_notice` logs a record a process cannot use, once per record and problem, and answers
 whether this was the first time, so the process shows one of the two localized messages once;
@@ -1509,11 +1511,11 @@ longer counts.
   record. The observers that use them belong to their processes: the activator records each
   generation's start just before it starts the Server and its failure when the Server cannot start
   or ends before its endpoint, and a generation `SessionCatalog::recover_inactive` proves dead,
-  whose identifier it answers; when its own cohort check finds a file changed or missing, so that
-  no Server can start from the version, it records a fresh generation's start and failure at once;
-  the Server records a Worker that exits outside a stop, reading its
-  own generation with `RetainedSessionRecord::current_activation_id`; the TUI records its start on
-  a background thread it waits for before it exits; and the
+  whose identifier it answers unless the record names that generation `exited`; when its own
+  cohort check finds a file changed or missing, so that no Server can start from the version, it
+  records a fresh generation's start and failure at once; the Server records a Worker that exits
+  outside a stop, reading its own generation with `RetainedSessionRecord::current_activation_id`;
+  the TUI records its start on a background thread it waits for before it exits; and the
   [Client-failure helper](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation)
   records a Client failure. Only the TUI start uses a thread; each other record is written on its
   failing path, within the 2 s lock bound and only while a move counts.

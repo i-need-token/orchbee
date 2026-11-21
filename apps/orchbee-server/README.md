@@ -116,10 +116,12 @@ its Host connection without inventory, containment or disposal, then waits for t
 With no terminal left, the Server also waits up to three seconds for the Host to end on its own.
 `exit-result` is written before the process ends, within a 30-second settlement budget; a settling
 failure is reported and the process still ends. The Host and every terminal keep running. `exit`
-publishes no Stopped record or receipt, so until P1 records this end the next activation treats the
-Session as an unclean end: it recovers once every recorded process is gone, and refuses while the
-Host still runs. A queued Session stop goes before a pending `exit`; either one ending the process
-first answers waiting `exit` requesters.
+publishes no Stopped record or receipt. Once its Worker is gone it writes the generation's
+activation identifier to `extensions.exited` in `session.json`, so the next activation recovers the
+Session without counting a crash or a fallback failure; a write that fails, or an `exit` that ends
+before its Worker does, leaves that end counted as a crash. Recovery still needs every recorded
+process gone and refuses while the Host runs. A queued Session stop goes before a pending `exit`;
+either one ending the process first answers waiting `exit` requesters.
 
 ## Durable Windows session lifecycle
 

@@ -11,11 +11,14 @@ use std::{
     fs::{self, File, TryLockError},
     io::{self, Read, Write},
     path::{Path, PathBuf},
-    time::Instant,
+    thread,
+    time::{Duration, Instant},
 };
 
 const MAXIMUM_BYTES: usize = 8192;
 const MAXIMUM_SESSIONS: usize = 256;
+/// The `extensions` member an `exit` writes: the activation identifier of the generation it ended.
+const EXITED: &str = "exited";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "kebab-case", deny_unknown_fields)]
@@ -54,6 +57,14 @@ impl Record {
             && self.runtime == other.runtime
             && self.version == other.version
             && self.activation_id == other.activation_id
+    }
+    /// Whether an `exit` ended this generation: `extensions.exited` names its activation.
+    pub(crate) fn exited(&self) -> bool {
+        let recorded = self
+            .extensions
+            .get(EXITED)
+            .and_then(|value| serde_json::from_value::<[u8; 16]>(value.clone()).ok());
+        recorded.is_some() && recorded == self.activation_id
     }
     /// A record for the Session `name` whose runtime folder is `runtime`, the admitted canonical
     /// folder named by the Session.
@@ -609,6 +620,32 @@ impl RetainedSessionRecord {
             return Err(io::ErrorKind::InvalidData.into());
         }
         current.lifecycle = Lifecycle::Stopped { request_id };
+        self.directory.publish(&self.scope, &current)
+    }
+    /// Records that an `exit` ended the retained generation, after its Worker is gone, so the next
+    /// activation recovers it without counting a crash. Waits for the record's writer until
+    /// `deadline`; a record that no longer names the generation refuses.
+    pub fn record_exit(&self, deadline: Instant) -> io::Result<()> {
+        let _writer = loop {
+            match self.directory.try_writer(&self.scope) {
+                Err(error)
+                    if error.kind() == io::ErrorKind::WouldBlock && Instant::now() < deadline =>
+                {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                writer => break writer?,
+            }
+        };
+        let mut current = self
+            .directory
+            .read(&self.scope)?
+            .ok_or(io::ErrorKind::NotFound)?;
+        if !current.same_active_generation(&self.active) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        let activation_id = current.activation_id.ok_or(io::ErrorKind::InvalidData)?;
+        let value = serde_json::to_value(activation_id).map_err(io::Error::other)?;
+        current.extensions.insert(EXITED.to_owned(), value);
         self.directory.publish(&self.scope, &current)
     }
 }
