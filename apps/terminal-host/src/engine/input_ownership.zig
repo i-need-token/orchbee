@@ -379,42 +379,20 @@ pub const Ledger = struct {
 
         var encoded: std.ArrayList(u8) = .empty;
         defer encoded.deinit(allocator);
-        var key_buffer: [max_key_encoded_bytes]u8 = undefined;
-        for (attachment.keys.items) |key| {
-            const release = try input_encoding.encodeKey(
-                &key_buffer,
-                terminal,
-                key.key,
-                key.release(),
-            );
-            try appendRepairBytes(&encoded, allocator, release);
-        }
-
-        var pressed_buttons = attachment.mouseButtons();
-        if (attachment.mouse_sample) |sample| {
-            var mouse_buffer: [max_mouse_encoded_bytes]u8 = undefined;
-            for (attachment.mouse_order[0..attachment.mouse_order_len]) |button| {
-                attachment_ownership.setMouseButton(&pressed_buttons, button, false);
-                var release = sample;
-                release.action = .{ .release = button };
-                release.pressed_buttons = pressed_buttons;
-                const bytes = try input_encoding.encodeMouse(
-                    &mouse_buffer,
-                    terminal,
-                    cell_pixel_width,
-                    cell_pixel_height,
-                    release,
-                );
-                try appendRepairBytes(&encoded, allocator, bytes);
-            }
-        }
+        try attachment.appendHeldReleases(
+            &encoded,
+            allocator,
+            terminal,
+            cell_pixel_width,
+            cell_pixel_height,
+        );
 
         if (attachment.focused and self.focused_count == 1 and
             input_encoding.reportsFocus(terminal))
         {
             var focus_buffer: [max_focus_encoded_bytes]u8 = undefined;
             const focus_out = try input_encoding.encodeFocus(&focus_buffer, false);
-            try appendRepairBytes(&encoded, allocator, focus_out);
+            try attachment_ownership.appendRepairBytes(&encoded, allocator, focus_out);
         }
 
         const bytes = if (encoded.items.len == 0)
@@ -489,14 +467,3 @@ pub const Ledger = struct {
         self.repair_charge.entries = self.repair_charge.entries - previous_entries + next_entries;
     }
 };
-
-fn appendRepairBytes(
-    encoded: *std.ArrayList(u8),
-    allocator: std.mem.Allocator,
-    bytes: []const u8,
-) !void {
-    if (bytes.len > input_queue.client_capacity_bytes -| encoded.items.len) {
-        return error.InputLimitExceeded;
-    }
-    try encoded.appendSlice(allocator, bytes);
-}

@@ -3,6 +3,7 @@ const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
 const terminal_input = @import("terminal-input");
 const input_encoding = @import("input_encoding.zig");
+const input_queue = @import("input_queue.zig");
 
 const max_key_encoded_bytes = input_encoding.max_key_bytes;
 const max_mouse_encoded_bytes = input_encoding.max_mouse_bytes;
@@ -82,6 +83,47 @@ pub const AttachmentState = struct {
 
     pub fn repairEntries(self: *const AttachmentState) usize {
         return @intFromBool(self.keys.items.len != 0 or self.mouse_order_len != 0);
+    }
+
+    /// Appends the release of every key and mouse button this attachment
+    /// still holds, in the order a repair writes them.
+    pub fn appendHeldReleases(
+        self: *const AttachmentState,
+        encoded: *std.ArrayList(u8),
+        allocator: std.mem.Allocator,
+        terminal: *ghostty_vt.Terminal,
+        cell_pixel_width: u16,
+        cell_pixel_height: u16,
+    ) !void {
+        var key_buffer: [max_key_encoded_bytes]u8 = undefined;
+        for (self.keys.items) |key| {
+            const release = try input_encoding.encodeKey(
+                &key_buffer,
+                terminal,
+                key.key,
+                key.release(),
+            );
+            try appendRepairBytes(encoded, allocator, release);
+        }
+
+        var pressed_buttons = self.mouseButtons();
+        if (self.mouse_sample) |sample| {
+            var mouse_buffer: [max_mouse_encoded_bytes]u8 = undefined;
+            for (self.mouse_order[0..self.mouse_order_len]) |button| {
+                setMouseButton(&pressed_buttons, button, false);
+                var release = sample;
+                release.action = .{ .release = button };
+                release.pressed_buttons = pressed_buttons;
+                const bytes = try input_encoding.encodeMouse(
+                    &mouse_buffer,
+                    terminal,
+                    cell_pixel_width,
+                    cell_pixel_height,
+                    release,
+                );
+                try appendRepairBytes(encoded, allocator, bytes);
+            }
+        }
     }
 
     pub fn resetHeldState(self: *AttachmentState, allocator: std.mem.Allocator) void {
@@ -178,4 +220,16 @@ pub fn setMouseButton(
         .ten => buttons.ten = pressed,
         .eleven => buttons.eleven = pressed,
     }
+}
+
+/// Appends repair bytes while the whole repair still fits one client's queue.
+pub fn appendRepairBytes(
+    encoded: *std.ArrayList(u8),
+    allocator: std.mem.Allocator,
+    bytes: []const u8,
+) !void {
+    if (bytes.len > input_queue.client_capacity_bytes -| encoded.items.len) {
+        return error.InputLimitExceeded;
+    }
+    try encoded.appendSlice(allocator, bytes);
 }
