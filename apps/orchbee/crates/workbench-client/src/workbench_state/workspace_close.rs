@@ -1,8 +1,8 @@
 //! Confirm and retain one Workspace Close or explicit Project close-all. Membership owns removal.
 use super::recovery_fence::RecoveryFence;
 use super::{
-    ClientContextTabs, ClientNotice, ClientPhase, OperationDeadlines, PaneKey,
-    PendingRefreshFlight, WorkbenchClientState, context_removal::ContextRemovalPermit,
+    ClientContextTabs, ClientPhase, OperationDeadlines, PaneKey, PendingRefreshFlight,
+    WorkbenchClientNotice, WorkbenchClientState, context_removal::ContextRemovalPermit,
 };
 use crate::exchange_values::workbench::WorkbenchWorkspaceCloseAccepted;
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
@@ -646,7 +646,7 @@ impl WorkbenchClientState {
     }
     pub(crate) fn open_workspace_close(&mut self) -> Option<WorkspaceCloseToken> {
         let ClientContextLocation::Workspace { workspace_id, .. } = self.cache.location() else {
-            self.set_notice(ClientNotice::WorkspaceCloseUnavailable);
+            self.set_notice(WorkbenchClientNotice::WorkspaceCloseUnavailable);
             return None;
         };
         self.open_workspace_close_at(&workspace_id.clone())
@@ -662,7 +662,7 @@ impl WorkbenchClientState {
             .navigation
             .workspace(workspace_id)
         else {
-            self.set_notice(ClientNotice::WorkspaceCloseUnavailable);
+            self.set_notice(WorkbenchClientNotice::WorkspaceCloseUnavailable);
             return None;
         };
         self.open_workspace_scope_close_confirmation(
@@ -684,7 +684,7 @@ impl WorkbenchClientState {
             .iter()
             .find(|project| &project.project_id == project_id)
         else {
-            self.set_notice(ClientNotice::WorkspaceCloseUnavailable);
+            self.set_notice(WorkbenchClientNotice::WorkspaceCloseUnavailable);
             return None;
         };
         let target = WorkspaceCloseTarget::Project {
@@ -703,7 +703,7 @@ impl WorkbenchClientState {
                 .workspace_id()
                 .is_some_and(|workspace| self.can_confirm_guarded_workspace_close(workspace))
         {
-            self.set_notice(ClientNotice::LocalBusy);
+            self.set_notice(WorkbenchClientNotice::LocalBusy);
             return None;
         }
         let next = self.workspace_close.next_token.checked_add(1)?;
@@ -761,7 +761,7 @@ impl WorkbenchClientState {
         let settlement = prompt.presentation.geometry_blocked();
         if settlement == GeometrySettlement::Refused {
             self.cancel_workspace_close();
-            self.set_notice(ClientNotice::DialogRefused);
+            self.set_notice(WorkbenchClientNotice::DialogRefused);
         }
         Some(settlement)
     }
@@ -773,7 +773,7 @@ impl WorkbenchClientState {
         };
         if prompt.desired != self.desired || !self.workspace_close_quiet() {
             self.cancel_workspace_close();
-            self.set_notice(ClientNotice::ConfirmationCancelled);
+            self.set_notice(WorkbenchClientNotice::ConfirmationCancelled);
             return true;
         }
         if prompt.baseline == self.cache && prompt.target.matches_snapshot(&prompt.baseline) {
@@ -790,7 +790,7 @@ impl WorkbenchClientState {
             return false;
         }
         self.cancel_workspace_close();
-        self.set_notice(ClientNotice::WorkspaceChanged);
+        self.set_notice(WorkbenchClientNotice::WorkspaceChanged);
         true
     }
     pub(crate) fn plan_workspace_close(

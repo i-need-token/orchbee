@@ -6,6 +6,7 @@ use crate::client_view::{
     CopyModeKey, CopySearchCommand, KeyCode, KeyEvent, KeyKind, Modifiers, copy_mode_key,
     copy_search_command,
 };
+use crate::localization::WorkbenchClientNotice;
 use crate::terminal_content::{ContentSource, TerminalScreen};
 use crate::terminal_copy::TerminalTextPoint;
 use crate::terminal_copy_mode::{
@@ -20,7 +21,7 @@ use crate::terminal_viewport::{TerminalViewport, ViewportNav, ViewportStep};
 use crate::workbench_client::copy_episode::{EntryOrigin, PendingQuery};
 use crate::workbench_client::mailbox::{AdmissionError, CommandMailbox, QueuedCommand, Tagged};
 use crate::workbench_client::terminal_selection;
-use crate::workbench_state::{CarrierFailure, ClientNotice, PaneRef};
+use crate::workbench_state::{CarrierFailure, PaneRef};
 use orchbee_terminal_protocol::TerminalTextRow;
 use std::{num::NonZeroU64, sync::Arc};
 mod pointer;
@@ -61,7 +62,7 @@ impl WorkbenchClientUi {
                 != Some(&key)
         {
             self.cancel_copy_mode();
-            self.copy_notice(ClientNotice::CopyModeInvalidated);
+            self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
             return true;
         }
         let Some(index) = self
@@ -70,7 +71,7 @@ impl WorkbenchClientUi {
             .position(|projection| projection.key == key)
         else {
             self.cancel_copy_mode();
-            self.copy_notice(ClientNotice::CopyModeInvalidated);
+            self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
             return true;
         };
         if self.viewport_admission_blocked(&key) {
@@ -80,14 +81,14 @@ impl WorkbenchClientUi {
         if entry.needs_viewport_enter() {
             let Some(source) = self.admitted_copy_source(&key) else {
                 self.cancel_copy_mode();
-                self.copy_notice(ClientNotice::CopyModeInvalidated);
+                self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
                 return true;
             };
             if !entry_source_matches(entry.fence(), &source)
                 || self.projections[index].viewport.is_some()
             {
                 self.cancel_copy_mode();
-                self.copy_notice(ClientNotice::CopyModeInvalidated);
+                self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
                 return true;
             }
             let Some((attachment, epoch, columns, rows)) =
@@ -101,7 +102,7 @@ impl WorkbenchClientUi {
                 })
             else {
                 self.cancel_copy_mode();
-                self.copy_notice(ClientNotice::CopyModeInvalidated);
+                self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
                 return true;
             };
             let first_read_sequence = self.projections[index].read_watermark.saturating_add(1);
@@ -147,31 +148,31 @@ impl WorkbenchClientUi {
                 return false;
             }
             self.cancel_copy_mode();
-            self.copy_notice(ClientNotice::CopyModeInvalidated);
+            self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
             return true;
         };
         if !entry_source_matches(entry.fence(), &source) || !self.copy_entry_selection_settled(&key)
         {
             if self.copy_entry_selection_settled(&key) {
                 self.cancel_copy_mode();
-                self.copy_notice(ClientNotice::CopyModeInvalidated);
+                self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
                 return true;
             }
             return false;
         }
         let Some(surface) = surface(&source) else {
             self.cancel_copy_mode();
-            self.copy_notice(ClientNotice::CopyModeInvalidated);
+            self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
             return true;
         };
         let Some(cursor) = self.copy_initial_cursor(&source, surface) else {
             self.cancel_copy_mode();
-            self.copy_notice(ClientNotice::CopyModeInvalidated);
+            self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
             return true;
         };
         if !self.copy_mode.activate(source, surface, cursor) {
             self.cancel_copy_mode();
-            self.copy_notice(ClientNotice::CopyModeInvalidated);
+            self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
             return true;
         }
         true
@@ -223,7 +224,7 @@ impl WorkbenchClientUi {
             if let Some(key) = self.state.as_ref().and_then(|state| state.focus_pane_ref())
                 && !self.effects.enqueue_diagnostic(key, text)
             {
-                self.copy_notice(ClientNotice::CopyFailed);
+                self.copy_notice(WorkbenchClientNotice::CopyFailed);
             }
             return ClientActionDisposition::DismissNavigator;
         }
@@ -231,21 +232,21 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::DismissNavigator;
         }
         if self.retirement_failure.is_some() || self.modal_owns_input() {
-            self.copy_notice(ClientNotice::CopyModeUnavailable);
+            self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
-            self.copy_notice(ClientNotice::CopyModeUnavailable);
+            self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         };
         let Some(key) = self.state.as_ref().and_then(|state| state.focus_pane_ref()) else {
-            self.copy_notice(ClientNotice::CopyModeUnavailable);
+            self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         };
         if self.state.as_ref().is_none_or(|state| {
             state.ready().is_none() || state.close_suppresses_attachment(key.pane().anchor())
         }) {
-            self.copy_notice(ClientNotice::CopyModeUnavailable);
+            self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         }
         let Some(index) = self
@@ -253,20 +254,20 @@ impl WorkbenchClientUi {
             .iter()
             .position(|projection| projection.key == key)
         else {
-            self.copy_notice(ClientNotice::CopyModeUnavailable);
+            self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         };
         if self.projections[index].status != ClientProjectionStatus::FrameAvailable {
-            self.copy_notice(ClientNotice::CopyModeUnavailable);
+            self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         }
         let (alternate_screen, columns, rows) = {
             let Some(frame) = self.projections[index].value.frame() else {
-                self.copy_notice(ClientNotice::CopyModeUnavailable);
+                self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
                 return ClientActionDisposition::KeepNavigator;
             };
             if frame.geometry.columns == 0 || frame.geometry.rows == 0 || frame.rows.is_empty() {
-                self.copy_notice(ClientNotice::CopyModeUnavailable);
+                self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
                 return ClientActionDisposition::KeepNavigator;
             }
             (
@@ -277,16 +278,16 @@ impl WorkbenchClientUi {
         };
 
         if alternate_screen && self.projections[index].viewport.is_some() {
-            self.copy_notice(ClientNotice::CopyModeUnavailable);
+            self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         }
 
         let Some(source) = self.admitted_copy_source(&key) else {
-            self.copy_notice(ClientNotice::CopyModeUnavailable);
+            self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         };
         let Some(entry_surface) = surface(&source) else {
-            self.copy_notice(ClientNotice::CopyModeUnavailable);
+            self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         };
         if entry_surface.screen
@@ -298,7 +299,7 @@ impl WorkbenchClientUi {
             || entry_surface.columns != columns
             || entry_surface.row_count != rows
         {
-            self.copy_notice(ClientNotice::CopyModeUnavailable);
+            self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         }
         let needs_viewport_enter = !alternate_screen && self.projections[index].viewport.is_none();
@@ -316,7 +317,7 @@ impl WorkbenchClientUi {
             .begin_entering(key, source, needs_viewport_enter, origin)
             .is_none()
         {
-            self.copy_notice(ClientNotice::CopyModeUnavailable);
+            self.copy_notice(WorkbenchClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         }
         self.copy_query.cancel();
@@ -350,7 +351,7 @@ impl WorkbenchClientUi {
                     copy_search_command(*event),
                     Some(CopySearchCommand::Submit | CopySearchCommand::Reverse)
                 ) {
-                    self.copy_notice(ClientNotice::CopyModeBusy);
+                    self.copy_notice(WorkbenchClientNotice::CopyModeBusy);
                 } else {
                     self.capture_copy_search_key(event);
                 }
@@ -361,7 +362,7 @@ impl WorkbenchClientUi {
             {
                 self.leave_copy_mode();
             } else if event.kind != KeyKind::Release {
-                self.copy_notice(ClientNotice::CopyModeBusy);
+                self.copy_notice(WorkbenchClientNotice::CopyModeBusy);
             }
             return true;
         }
@@ -390,7 +391,7 @@ impl WorkbenchClientUi {
                 .capabilities
                 .supports(crate::tui_capabilities::Capability::Clipboard)
         {
-            self.copy_notice(ClientNotice::Unsupported(
+            self.copy_notice(WorkbenchClientNotice::Unsupported(
                 crate::tui_capabilities::Capability::Clipboard,
             ));
             return;
@@ -422,7 +423,7 @@ impl WorkbenchClientUi {
                 // Without an earlier search there is no match to repeat; the generic invalid
                 // refusal would otherwise ask the user to start a selection before copying.
                 if matches!(repeated, Err(Refusal::Invalid)) {
-                    self.copy_notice(ClientNotice::CopyModeNoMatch);
+                    self.copy_notice(WorkbenchClientNotice::CopyModeNoMatch);
                     self.drive_copy_effects();
                     return;
                 }
@@ -467,7 +468,7 @@ impl WorkbenchClientUi {
                 .and_then(|mode| mode.view().search)
                 .is_none()
         {
-            self.copy_notice(ClientNotice::CopyModeBusy);
+            self.copy_notice(WorkbenchClientNotice::CopyModeBusy);
             return true;
         }
         if self
@@ -544,7 +545,7 @@ impl WorkbenchClientUi {
             if let Some(Err(failure)) = cleanup_result {
                 self.settle_selection_failure(failure);
             } else if missing_owned_surface {
-                self.copy_notice(ClientNotice::CopyModeInvalidated);
+                self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
             }
             self.admit_selections(&mailbox);
             if let Some(viewport) = self
@@ -579,12 +580,12 @@ impl WorkbenchClientUi {
                 != Some(&key)
         {
             self.cancel_copy_mode();
-            self.copy_notice(ClientNotice::CopyModeInvalidated);
+            self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
             return true;
         }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             self.cancel_copy_mode();
-            self.copy_notice(ClientNotice::CopyModeInvalidated);
+            self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
             return true;
         };
         let mut changed = self.continue_copy_entry(&mailbox);
@@ -605,13 +606,13 @@ impl WorkbenchClientUi {
                 return changed;
             }
             self.cancel_copy_mode();
-            self.copy_notice(ClientNotice::CopyModeInvalidated);
+            self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
             return true;
         };
         changed |= self.copy_mode.set_surface_pending(false);
         let Some(next_surface) = surface(&source) else {
             self.cancel_copy_mode();
-            self.copy_notice(ClientNotice::CopyModeInvalidated);
+            self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
             return true;
         };
         let previous = self.copy_mode.source().cloned();
@@ -659,7 +660,7 @@ impl WorkbenchClientUi {
             };
             if result.is_err() {
                 self.cancel_copy_mode();
-                self.copy_notice(ClientNotice::CopyModeInvalidated);
+                self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
                 return true;
             }
             self.copy_mode.set_source(source);
@@ -681,14 +682,14 @@ impl WorkbenchClientUi {
             }
         });
         if failed {
-            self.copy_notice(ClientNotice::CopyFailed);
+            self.copy_notice(WorkbenchClientNotice::CopyFailed);
         }
     }
 
     pub(super) fn copy_selection_evicted(&mut self, key: &PaneRef) {
         if self.copy_mode.key() == Some(key) {
             self.cancel_copy_mode();
-            self.copy_notice(ClientNotice::CopyModeInvalidated);
+            self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
         }
     }
 
@@ -754,18 +755,20 @@ impl WorkbenchClientUi {
                     mode.clipboard_not_delivered(export);
                 }
                 self.copy_notice(if outcome == Outcome::Unsupported {
-                    ClientNotice::Unsupported(crate::tui_capabilities::Capability::Clipboard)
+                    WorkbenchClientNotice::Unsupported(
+                        crate::tui_capabilities::Capability::Clipboard,
+                    )
                 } else if outcome == Outcome::Unknown {
-                    ClientNotice::CopyUnknown
+                    WorkbenchClientNotice::CopyUnknown
                 } else {
-                    ClientNotice::CopyFailed
+                    WorkbenchClientNotice::CopyFailed
                 });
             }
             Outcome::Cancelled => {
                 if let Some(mode) = self.copy_mode.mode_mut() {
                     mode.clipboard_not_delivered(export);
                 }
-                self.copy_notice(ClientNotice::CopyFailed);
+                self.copy_notice(WorkbenchClientNotice::CopyFailed);
             }
         }
         true
@@ -963,7 +966,7 @@ impl WorkbenchClientUi {
                 Effect::Navigate(navigation) => {
                     if !self.apply_copy_navigation(&mailbox, navigation) {
                         self.cancel_copy_mode();
-                        self.copy_notice(ClientNotice::CopyModeInvalidated);
+                        self.copy_notice(WorkbenchClientNotice::CopyModeInvalidated);
                     }
                     break;
                 }
@@ -981,7 +984,7 @@ impl WorkbenchClientUi {
                                 let _ = mode.selection_settled(false);
                             }
                         }
-                        self.copy_notice(ClientNotice::CopyFailed);
+                        self.copy_notice(WorkbenchClientNotice::CopyFailed);
                     }
                     break;
                 }
@@ -1034,7 +1037,7 @@ impl WorkbenchClientUi {
             return;
         };
         let Some(source) = self.admitted_copy_source(&key) else {
-            self.fail_copy_query(identity.query, ClientNotice::CopyModeQueryFailed);
+            self.fail_copy_query(identity.query, WorkbenchClientNotice::CopyModeQueryFailed);
             return;
         };
         let pending = PendingQuery {
@@ -1051,13 +1054,13 @@ impl WorkbenchClientUi {
                 self.copy_mode.set_pending_query(pending);
             }
             QueryAdmission::Busy => {
-                self.fail_copy_query(identity.query, ClientNotice::CopyModeBusy)
+                self.fail_copy_query(identity.query, WorkbenchClientNotice::CopyModeBusy)
             }
             QueryAdmission::Unavailable => {
-                self.fail_copy_query(identity.query, ClientNotice::CopyModeQueryFailed)
+                self.fail_copy_query(identity.query, WorkbenchClientNotice::CopyModeQueryFailed)
             }
             QueryAdmission::LimitExceeded => {
-                self.fail_copy_query(identity.query, ClientNotice::CopyModeQueryFailed)
+                self.fail_copy_query(identity.query, WorkbenchClientNotice::CopyModeQueryFailed)
             }
         }
     }
@@ -1078,7 +1081,10 @@ impl WorkbenchClientUi {
             || current.as_ref() != Some(&pending.source)
             || self.copy_mode.id() != Some(outcome.identity.episode)
         {
-            self.fail_copy_query(outcome.identity.query, ClientNotice::CopyModeQueryFailed);
+            self.fail_copy_query(
+                outcome.identity.query,
+                WorkbenchClientNotice::CopyModeQueryFailed,
+            );
             return true;
         }
         match (outcome.result, pending.search) {
@@ -1090,7 +1096,7 @@ impl WorkbenchClientUi {
                     if let Some(mode) = self.copy_mode.mode_mut() {
                         mode.query_failed(outcome.identity.query);
                     }
-                    self.copy_notice(ClientNotice::CopyModeQueryFailed);
+                    self.copy_notice(WorkbenchClientNotice::CopyModeQueryFailed);
                 }
             }
             (Ok(QueryValue::Search(result)), Some(query)) => {
@@ -1099,27 +1105,32 @@ impl WorkbenchClientUi {
                         .ok()
                 }) {
                     Some(true) => {}
-                    Some(false) => self.copy_notice(ClientNotice::CopyModeNoMatch),
+                    Some(false) => self.copy_notice(WorkbenchClientNotice::CopyModeNoMatch),
                     None => {
                         if let Some(mode) = self.copy_mode.mode_mut() {
                             mode.query_failed(outcome.identity.query);
                         }
-                        self.copy_notice(ClientNotice::CopyModeQueryFailed);
+                        self.copy_notice(WorkbenchClientNotice::CopyModeQueryFailed);
                     }
                 }
             }
             (Err(failure), _) => {
                 self.fail_copy_query(outcome.identity.query, query_failure_notice(failure));
             }
-            (Ok(_), _) => {
-                self.fail_copy_query(outcome.identity.query, ClientNotice::CopyModeQueryFailed)
-            }
+            (Ok(_), _) => self.fail_copy_query(
+                outcome.identity.query,
+                WorkbenchClientNotice::CopyModeQueryFailed,
+            ),
         }
         self.drive_copy_effects();
         true
     }
 
-    fn fail_copy_query(&mut self, query: crate::terminal_copy_mode::QueryId, notice: ClientNotice) {
+    fn fail_copy_query(
+        &mut self,
+        query: crate::terminal_copy_mode::QueryId,
+        notice: WorkbenchClientNotice,
+    ) {
         if self
             .copy_mode
             .mode_mut()
@@ -1193,7 +1204,7 @@ impl WorkbenchClientUi {
             if let Some(mode) = self.copy_mode.mode_mut() {
                 mode.export_failed(false);
             }
-            self.copy_notice(ClientNotice::CopyModeNoSelection);
+            self.copy_notice(WorkbenchClientNotice::CopyModeNoSelection);
             return true;
         }
         false
@@ -1363,14 +1374,14 @@ impl WorkbenchClientUi {
     fn settle_copy_refusal(&mut self, refusal: Option<Refusal>) {
         let Some(refusal) = refusal else { return };
         self.copy_notice(match refusal {
-            Refusal::Busy => ClientNotice::CopyModeBusy,
-            Refusal::Limit => ClientNotice::CopyModeSearchLimit,
-            Refusal::Invalid => ClientNotice::CopyModeNoSelection,
-            Refusal::IdentityExhausted => ClientNotice::CopyModeUnavailable,
+            Refusal::Busy => WorkbenchClientNotice::CopyModeBusy,
+            Refusal::Limit => WorkbenchClientNotice::CopyModeSearchLimit,
+            Refusal::Invalid => WorkbenchClientNotice::CopyModeNoSelection,
+            Refusal::IdentityExhausted => WorkbenchClientNotice::CopyModeUnavailable,
         });
     }
 
-    fn copy_notice(&mut self, notice: ClientNotice) {
+    fn copy_notice(&mut self, notice: WorkbenchClientNotice) {
         if let Some(state) = self.state.as_mut() {
             state.set_notice(notice);
         }
@@ -1423,10 +1434,10 @@ fn copy_viewport_nav(surface: Surface, navigation: Navigation) -> Option<Viewpor
     })
 }
 
-const fn query_failure_notice(_failure: QueryFailure) -> ClientNotice {
+const fn query_failure_notice(_failure: QueryFailure) -> WorkbenchClientNotice {
     // Query limits describe the bounded retained snapshot, not the user's
     // <=512-scalar draft. Only synchronous draft admission uses SearchLimit.
-    ClientNotice::CopyModeQueryFailed
+    WorkbenchClientNotice::CopyModeQueryFailed
 }
 
 #[cfg(test)]

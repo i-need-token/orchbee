@@ -113,7 +113,7 @@ fn a_startup_record_notice_stays_readable_through_startup_until_a_client_action(
     ui.state
         .as_mut()
         .unwrap()
-        .set_notice(ClientNotice::HistoryUnavailable);
+        .set_notice(WorkbenchClientNotice::HistoryUnavailable);
     assert_eq!(
         ui.view().notice(),
         Some(super::super::WorkbenchClientNotice::RecordUnusable(

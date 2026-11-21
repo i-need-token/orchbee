@@ -10,7 +10,7 @@ use super::{
     PaneKey, WorkbenchLabel, WorkbenchRequestId, WorkbenchRevision, WorkbenchTabCloseStatus,
     WorkbenchTabId,
 };
-use crate::workbench_state::{ClientNotice, ClientPhase, PaneRef, WorkbenchClientState};
+use crate::workbench_state::{ClientPhase, PaneRef, WorkbenchClientNotice, WorkbenchClientState};
 use orchbee_workbench_protocol::{
     Snapshot, Tab, TabSetCloseAction, TabSetCloseCondition, TabSetCloseFailure, TabSetCloseMember,
     TabSetCloseOutcome, TabSetCloseRejection, TabSetCloseStatus, TerminalPresentationId,
@@ -861,7 +861,7 @@ impl WorkbenchClientState {
                         || !self.close_set_members_unchanged(&set.capture)))
             {
                 self.close.drop_set();
-                self.set_notice(ClientNotice::CloseRequestNotApplied);
+                self.set_notice(WorkbenchClientNotice::CloseRequestNotApplied);
                 return true;
             }
             return false;
@@ -938,7 +938,7 @@ impl WorkbenchClientState {
             ) => **armed = fresh,
             _ => {
                 self.close.cancel_confirmation();
-                self.set_notice(ClientNotice::ConfirmationCancelled);
+                self.set_notice(WorkbenchClientNotice::ConfirmationCancelled);
             }
         }
     }

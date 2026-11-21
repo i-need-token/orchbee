@@ -1,32 +1,34 @@
 //! Localized Start Agent picker and start notice labels.
 
 use super::Locale;
-use crate::workbench_state::{AgentStartNotice, AgentStartRefusal};
 
-/// Text-only start outcome a status notice reports; a successful start reports nothing.
+/// What the status line says about an Agent start. A start that succeeds says nothing; the
+/// Agent's own row shows it opening.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AgentStartStatus {
     Failed,
     NotFound(&'static str),
     Exited(&'static str),
+    /// The new shell takes no start command, so the named product's Agent was not started.
     UnsupportedShell(&'static str),
     Refused(AgentStartRefusal),
     Unknown,
+    /// The Panel stopped being an idle prompt before the command was sent, so the Agent opens
+    /// in a new Tab instead.
     PanelBusy,
 }
 
-impl From<AgentStartNotice> for AgentStartStatus {
-    fn from(notice: AgentStartNotice) -> Self {
-        match notice {
-            AgentStartNotice::Failed => Self::Failed,
-            AgentStartNotice::NotFound(product) => Self::NotFound(product),
-            AgentStartNotice::Exited(product) => Self::Exited(product),
-            AgentStartNotice::UnsupportedShell(product) => Self::UnsupportedShell(product),
-            AgentStartNotice::Refused(refusal) => Self::Refused(refusal),
-            AgentStartNotice::Unknown => Self::Unknown,
-            AgentStartNotice::PanelBusy => Self::PanelBusy,
-        }
-    }
+/// Why a start typed nothing because the shell's prompt could not be confirmed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AgentStartRefusal {
+    /// The shell is busy or not at an empty prompt, or the terminal runs no shell.
+    NotAtPrompt,
+    /// The terminal has not shown a marked prompt.
+    Unmarked,
+    /// The Session cannot confirm a prompt.
+    SessionTooOld,
+    /// The terminal was started by an Orchbee that cannot confirm a prompt.
+    TerminalTooOld,
 }
 
 /// The Start Agent picker's and start notices' localized copy.

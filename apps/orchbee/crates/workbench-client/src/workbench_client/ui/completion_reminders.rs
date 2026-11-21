@@ -1,9 +1,9 @@
 //! Join a validated frame fact to its live pane; rendering never observes clocks or consumes events.
 use super::{ClientProjectionStatus, WorkbenchClientUi, WorkbenchClientView};
+use crate::localization::WorkbenchClientNotice;
 use crate::terminal_text::{sanitize_terminal_text, truncate_display};
 use crate::workbench_client::completion_reminders::Reminder;
 use crate::workbench_client::terminal_effects::Payload;
-use crate::workbench_state::ClientNotice;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 impl WorkbenchClientView<'_> {
@@ -87,7 +87,7 @@ impl WorkbenchClientUi {
                 )
                 && let Some(state) = &mut self.state
             {
-                state.set_notice(ClientNotice::BellFailed);
+                state.set_notice(WorkbenchClientNotice::BellFailed);
             }
         }
         changed

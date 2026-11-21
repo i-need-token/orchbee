@@ -5,7 +5,7 @@
 //! catalog row itself, which lists it under not found in the Start Agent picker.
 
 use super::{WorkbenchClientUi, presentation_facts};
-use crate::workbench_state::{AgentStartNotice, AgentStartRefusal};
+use crate::localization::{AgentStartRefusal, AgentStartStatus};
 use orchbee_workbench_protocol::{AgentStartFailureReason, Snapshot};
 
 /// The start facts this Client already decided on.
@@ -38,16 +38,16 @@ impl AgentStartFailureNotices {
 
 /// The start notice a fact's reason names for `product`. A shell whose prompt was never confirmed
 /// or whose Host predates the prompt gate reads like the typed start's own refusals.
-const fn notice(reason: AgentStartFailureReason, product: &'static str) -> AgentStartNotice {
+const fn notice(reason: AgentStartFailureReason, product: &'static str) -> AgentStartStatus {
     match reason {
-        AgentStartFailureReason::NotFound => AgentStartNotice::NotFound(product),
-        AgentStartFailureReason::Exited => AgentStartNotice::Exited(product),
-        AgentStartFailureReason::UnsupportedShell => AgentStartNotice::UnsupportedShell(product),
+        AgentStartFailureReason::NotFound => AgentStartStatus::NotFound(product),
+        AgentStartFailureReason::Exited => AgentStartStatus::Exited(product),
+        AgentStartFailureReason::UnsupportedShell => AgentStartStatus::UnsupportedShell(product),
         AgentStartFailureReason::PromptUnconfirmed => {
-            AgentStartNotice::Refused(AgentStartRefusal::NotAtPrompt)
+            AgentStartStatus::Refused(AgentStartRefusal::NotAtPrompt)
         }
         AgentStartFailureReason::TerminalTooOld => {
-            AgentStartNotice::Refused(AgentStartRefusal::TerminalTooOld)
+            AgentStartStatus::Refused(AgentStartRefusal::TerminalTooOld)
         }
     }
 }

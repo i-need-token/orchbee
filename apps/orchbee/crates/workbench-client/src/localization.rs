@@ -53,7 +53,7 @@ mod copy_mode;
 pub(crate) use copy_mode::{CopyHintLabel, CopyModeStatus};
 mod agent_board;
 mod panel_reports;
-pub(crate) use agent_board::AgentStartStatus;
+pub(crate) use agent_board::{AgentStartRefusal, AgentStartStatus};
 #[cfg(any(unix, windows))]
 mod location_labels;
 pub(crate) use location_labels::{LocationLabelStatus, LocationLabelTarget};

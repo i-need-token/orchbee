@@ -3,7 +3,7 @@
 //! drives viewport entry, history reads, and the loss notice.
 
 use super::history_positions::Choice;
-use super::{ClientNotice, ClientProjectionStatus, WorkbenchClientUi};
+use super::{ClientProjectionStatus, WorkbenchClientNotice, WorkbenchClientUi};
 
 impl WorkbenchClientUi {
     /// Capture committed reading choices before navigation and after a successful draw.
@@ -129,7 +129,7 @@ impl WorkbenchClientUi {
                 self.history_positions.bank.set(source, Choice::Live);
                 self.history_positions.mark_examined(key);
                 if let Some(state) = self.state.as_mut() {
-                    state.set_notice(ClientNotice::HistoryPositionLost);
+                    state.set_notice(WorkbenchClientNotice::HistoryPositionLost);
                 }
                 changed = true;
                 continue;

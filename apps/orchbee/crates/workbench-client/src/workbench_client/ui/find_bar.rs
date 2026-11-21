@@ -7,6 +7,7 @@
 
 use super::{ClientProjectionStatus, WorkbenchClientUi};
 use crate::client_view::{ClientActionDisposition, KeyCode, KeyEvent, KeyKind, Modifiers};
+use crate::localization::WorkbenchClientNotice;
 use crate::terminal_content::{ContentSource, TerminalScreen};
 use crate::terminal_copy::{TerminalTextPoint, TerminalTextRange};
 use crate::terminal_copy_mode::SearchEdit;
@@ -19,7 +20,7 @@ use crate::terminal_find::{FindBar, FindControl, FindOutcome, FindRead, FindStep
 use crate::terminal_text::line_editor::LineKey;
 use crate::terminal_viewport::ViewportNav;
 use crate::workbench_client::copy_episode::{EntryOrigin, PendingQuery};
-use crate::workbench_state::{ClientNotice, PaneRef};
+use crate::workbench_state::PaneRef;
 use std::{sync::Arc, time::Duration};
 
 /// While a read runs, the bar checks for its outcome at this pace.
@@ -54,7 +55,7 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::DismissNavigator;
         }
         if self.modal_owns_input() {
-            self.find_notice(ClientNotice::FindUnavailable);
+            self.find_notice(WorkbenchClientNotice::FindUnavailable);
             return ClientActionDisposition::KeepNavigator;
         }
         let Some(key) = self
@@ -63,7 +64,7 @@ impl WorkbenchClientUi {
             .and_then(|state| state.focus_pane_ref())
             .filter(|key| self.find_pane_ready(key))
         else {
-            self.find_notice(ClientNotice::FindUnavailable);
+            self.find_notice(WorkbenchClientNotice::FindUnavailable);
             return ClientActionDisposition::KeepNavigator;
         };
         let fits = self
@@ -75,12 +76,12 @@ impl WorkbenchClientUi {
                 geometry.columns() >= MINIMUM_COLUMNS && geometry.rows() >= MINIMUM_ROWS
             });
         if !fits {
-            self.find_notice(ClientNotice::PanelTooSmall);
+            self.find_notice(WorkbenchClientNotice::PanelTooSmall);
             return ClientActionDisposition::KeepNavigator;
         }
         let now = self.clock.now();
         if self.copy_mode.begin_find(key, now).is_none() {
-            self.find_notice(ClientNotice::FindUnavailable);
+            self.find_notice(WorkbenchClientNotice::FindUnavailable);
             return ClientActionDisposition::KeepNavigator;
         }
         self.copy_query.cancel();
@@ -225,7 +226,7 @@ impl WorkbenchClientUi {
     pub(super) fn capture_find_paste(&mut self, text: Option<&str>) {
         match text {
             Some(text) => self.edit_find(SearchEdit::Insert(text)),
-            None => self.find_notice(ClientNotice::CopyModeSearchLimit),
+            None => self.find_notice(WorkbenchClientNotice::CopyModeSearchLimit),
         }
     }
 
@@ -237,7 +238,7 @@ impl WorkbenchClientUi {
         match bar.edit(edit, now) {
             Ok(true) => self.supersede_find_read(),
             Ok(false) => {}
-            Err(_) => self.find_notice(ClientNotice::CopyModeSearchLimit),
+            Err(_) => self.find_notice(WorkbenchClientNotice::CopyModeSearchLimit),
         }
     }
 
@@ -260,7 +261,7 @@ impl WorkbenchClientUi {
             Ok(FindStep::Moved) => self.reveal_find_match(),
             Ok(FindStep::Read(read)) => self.admit_find_read(read),
             Ok(FindStep::None) => {}
-            Err(_) => self.find_notice(ClientNotice::FindFailed),
+            Err(_) => self.find_notice(WorkbenchClientNotice::FindFailed),
         }
     }
 
@@ -359,7 +360,7 @@ impl WorkbenchClientUi {
             }
             Ok(None) => false,
             Err(_) => {
-                self.find_notice(ClientNotice::FindFailed);
+                self.find_notice(WorkbenchClientNotice::FindFailed);
                 true
             }
         }
@@ -461,8 +462,8 @@ impl WorkbenchClientUi {
 
     fn find_outcome_notice(&mut self) {
         match self.copy_mode.find().map(FindBar::outcome) {
-            Some(FindOutcome::Stopped) => self.find_notice(ClientNotice::FindStopped),
-            Some(FindOutcome::Failed) => self.find_notice(ClientNotice::FindFailed),
+            Some(FindOutcome::Stopped) => self.find_notice(WorkbenchClientNotice::FindStopped),
+            Some(FindOutcome::Failed) => self.find_notice(WorkbenchClientNotice::FindFailed),
             _ => {}
         }
     }
@@ -522,7 +523,7 @@ impl WorkbenchClientUi {
         }
     }
 
-    fn find_notice(&mut self, notice: ClientNotice) {
+    fn find_notice(&mut self, notice: WorkbenchClientNotice) {
         if let Some(state) = self.state.as_mut() {
             state.set_notice(notice);
         }

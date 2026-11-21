@@ -266,7 +266,7 @@ impl WorkbenchClientState {
         let settlement = draft.presentation.geometry_blocked();
         if settlement == GeometrySettlement::Refused {
             self.rename.draft = None;
-            self.set_notice(super::ClientNotice::DialogRefused);
+            self.set_notice(super::WorkbenchClientNotice::DialogRefused);
         }
         Some(settlement)
     }

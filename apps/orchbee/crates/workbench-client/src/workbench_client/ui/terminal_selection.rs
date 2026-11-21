@@ -1,11 +1,12 @@
 //! Selection admission and record intake for the installed pane incarnation.
 use super::{ClientProjectionStatus, ViewportSurface, WorkbenchClientUi};
+use crate::localization::WorkbenchClientNotice;
 use crate::workbench_client::input::{PaneAdmission, PointerSelectionIntent};
 use crate::workbench_client::mailbox::{AdmissionError, CommandMailbox, QueuedCommand, Tagged};
 use crate::workbench_client::terminal_selection::{
     self as selection, Command, Driver, Event, Failure, Reply,
 };
-use crate::workbench_state::{CarrierFailure, ClientNotice, PaneRef};
+use crate::workbench_state::{CarrierFailure, PaneRef};
 use orchbee_client_server_protocol::{TerminalViewerOutcome, ViewerUnavailableReason};
 use std::{num::NonZeroU64, sync::Arc};
 
@@ -192,7 +193,7 @@ impl WorkbenchClientUi {
 
     fn copy_refused(&mut self) {
         if let Some(state) = self.state.as_mut() {
-            state.set_notice(ClientNotice::CopyFailed);
+            state.set_notice(WorkbenchClientNotice::CopyFailed);
         }
     }
 
@@ -423,7 +424,7 @@ impl WorkbenchClientUi {
         };
         if evicted {
             if let Some(state) = self.state.as_mut() {
-                state.set_notice(ClientNotice::SelectionEvicted);
+                state.set_notice(WorkbenchClientNotice::SelectionEvicted);
             }
             {
                 let key = self.projections[index].key.clone();
@@ -440,7 +441,7 @@ impl WorkbenchClientUi {
             Failure::Rejected => {
                 self.copy_selection_failed();
                 if let Some(state) = self.state.as_mut() {
-                    state.set_notice(ClientNotice::CopyFailed);
+                    state.set_notice(WorkbenchClientNotice::CopyFailed);
                 }
             }
         }
@@ -460,7 +461,7 @@ impl WorkbenchClientUi {
             };
             let Some(frame) = projection.value.frame() else {
                 if let Some(state) = self.state.as_mut() {
-                    state.set_notice(ClientNotice::CopyFailed);
+                    state.set_notice(WorkbenchClientNotice::CopyFailed);
                 }
                 continue;
             };
@@ -475,7 +476,7 @@ impl WorkbenchClientUi {
                 self.copy_export_ready(&key, generation, export, text)
             };
             if !accepted && let Some(state) = self.state.as_mut() {
-                state.set_notice(ClientNotice::CopyFailed);
+                state.set_notice(WorkbenchClientNotice::CopyFailed);
             }
         }
         self.reconcile_effects();

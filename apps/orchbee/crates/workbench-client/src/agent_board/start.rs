@@ -13,7 +13,7 @@ use std::time::Instant;
 use orchbee_agent_observation_protocol::AgentProviderId;
 use orchbee_workbench_protocol::{WorkbenchAgentCatalog, WorkbenchPanelId};
 
-use crate::workbench_state::{AgentStartNotice, AgentStartRefusal};
+use crate::localization::{AgentStartRefusal, AgentStartStatus};
 
 pub(crate) mod jobs;
 
@@ -55,14 +55,14 @@ impl Phase {
 
     /// The outcome's status notice; a start that succeeded or was cancelled by teardown says
     /// nothing.
-    const fn notice(self) -> Option<AgentStartNotice> {
+    const fn notice(self) -> Option<AgentStartStatus> {
         Some(match self {
             Self::Starting | Self::WaitingInput | Self::Started | Self::Cancelled => return None,
-            Self::Failed => AgentStartNotice::Failed,
-            Self::NotFound(product) => AgentStartNotice::NotFound(product),
-            Self::Exited(product) => AgentStartNotice::Exited(product),
-            Self::Refused(refusal) => AgentStartNotice::Refused(refusal),
-            Self::Unknown => AgentStartNotice::Unknown,
+            Self::Failed => AgentStartStatus::Failed,
+            Self::NotFound(product) => AgentStartStatus::NotFound(product),
+            Self::Exited(product) => AgentStartStatus::Exited(product),
+            Self::Refused(refusal) => AgentStartStatus::Refused(refusal),
+            Self::Unknown => AgentStartStatus::Unknown,
         })
     }
 }
@@ -129,7 +129,7 @@ pub(crate) struct State {
     /// At most one operation per Panel.
     operations: Vec<Operation>,
     /// The latest notice a job settled, for the composition's status line.
-    notice: Option<AgentStartNotice>,
+    notice: Option<AgentStartStatus>,
     /// Starts that must move to a new Tab, oldest first.
     fallbacks: Vec<&'static str>,
     #[cfg(test)]
@@ -210,11 +210,11 @@ impl State {
     }
 
     /// The latest notice a job settled since the last call.
-    pub(crate) fn take_notice(&mut self) -> Option<AgentStartNotice> {
+    pub(crate) fn take_notice(&mut self) -> Option<AgentStartStatus> {
         self.notice.take()
     }
 
-    pub(crate) fn set_notice(&mut self, notice: AgentStartNotice) {
+    pub(crate) fn set_notice(&mut self, notice: AgentStartStatus) {
         self.notice = Some(notice);
     }
 
@@ -318,7 +318,7 @@ impl State {
         let provider = operation.provider;
         if place_after(operation.fallback, phase) == Some(StartPlace::NewTab) {
             self.fallbacks.push(provider);
-            self.notice = Some(AgentStartNotice::PanelBusy);
+            self.notice = Some(AgentStartStatus::PanelBusy);
             return true;
         }
         if let Phase::NotFound(_) = phase {

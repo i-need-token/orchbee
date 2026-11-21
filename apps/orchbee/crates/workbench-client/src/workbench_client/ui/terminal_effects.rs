@@ -1,8 +1,8 @@
 //! Pane effect intake and post-flush dispatch through one lifecycle-owned FIFO.
 use super::{ClientProjectionStatus, WorkbenchClientUi};
+use crate::localization::WorkbenchClientNotice;
 use crate::terminal_input::ModeRequest;
 use crate::workbench_client::terminal_effects::{Kind, Outcome, Payload, Scope};
-use crate::workbench_state::ClientNotice;
 use std::io;
 
 impl WorkbenchClientUi {
@@ -20,9 +20,9 @@ impl WorkbenchClientUi {
         ) && let Some(state) = self.state.as_mut()
         {
             state.set_notice(if bell {
-                ClientNotice::BellFailed
+                WorkbenchClientNotice::BellFailed
             } else {
-                ClientNotice::CopyFailed
+                WorkbenchClientNotice::CopyFailed
             });
         }
         Ok(true)
@@ -188,13 +188,13 @@ impl WorkbenchClientUi {
         let outcome = completion.outcome;
         let notice = match (kind, outcome) {
             (_, Outcome::Delivered | Outcome::Cancelled) => None,
-            (_, Outcome::Unsupported) => Some(ClientNotice::Unsupported(
+            (_, Outcome::Unsupported) => Some(WorkbenchClientNotice::Unsupported(
                 crate::tui_capabilities::Capability::Clipboard,
             )),
-            (Kind::Clipboard, Outcome::Failed) => Some(ClientNotice::CopyFailed),
-            (Kind::Clipboard, Outcome::Unknown) => Some(ClientNotice::CopyUnknown),
-            (Kind::Bell, Outcome::Failed) => Some(ClientNotice::BellFailed),
-            (Kind::Bell, Outcome::Unknown) => Some(ClientNotice::BellUnknown),
+            (Kind::Clipboard, Outcome::Failed) => Some(WorkbenchClientNotice::CopyFailed),
+            (Kind::Clipboard, Outcome::Unknown) => Some(WorkbenchClientNotice::CopyUnknown),
+            (Kind::Bell, Outcome::Failed) => Some(WorkbenchClientNotice::BellFailed),
+            (Kind::Bell, Outcome::Unknown) => Some(WorkbenchClientNotice::BellUnknown),
         };
         if let Some(notice) = notice
             && let Some(state) = self.state.as_mut()

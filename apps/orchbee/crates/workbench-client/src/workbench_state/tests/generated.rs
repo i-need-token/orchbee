@@ -2809,7 +2809,7 @@ fn apply_panel_result(
         | PanelSettleClass::RejectedStale
         | PanelSettleClass::Denied
         | PanelSettleClass::Unavailable => {
-            if trace.workbench_client.notice() != Some(ClientNotice::PanelNotApplied)
+            if trace.workbench_client.notice() != Some(WorkbenchClientNotice::PanelNotApplied)
                 || trace.workbench_client.pending_panel().is_some()
             {
                 return Err("not-applied settlement");
@@ -2922,7 +2922,7 @@ fn install_panel_membership(
         {
             return Err("membership dropped the committed fact");
         }
-    } else if trace.workbench_client.notice() != Some(ClientNotice::PanelNotApplied) {
+    } else if trace.workbench_client.notice() != Some(WorkbenchClientNotice::PanelNotApplied) {
         return Err("membership retain notice");
     }
     let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;
@@ -3684,7 +3684,7 @@ fn anchor_membership_gates() -> Result<(), &'static str> {
     let (consumed, candidate) = session
         .retain_prepared_panel_membership(prepared)
         .map_err(|_| "membership retain")?;
-    if consumed != operation || session.notice() != Some(ClientNotice::PanelNotApplied) {
+    if consumed != operation || session.notice() != Some(WorkbenchClientNotice::PanelNotApplied) {
         return Err("membership retain facts");
     }
     let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;

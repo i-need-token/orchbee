@@ -112,7 +112,6 @@ cycle apps/orchbee/crates/workbench-client lib localization -> machine_picker
 cycle apps/orchbee/crates/workbench-client lib localization -> machine_status
 cycle apps/orchbee/crates/workbench-client lib localization -> release_update
 cycle apps/orchbee/crates/workbench-client lib localization -> terminal_title
-cycle apps/orchbee/crates/workbench-client lib localization -> workbench_state
 cycle apps/orchbee/crates/workbench-client lib localization::agent_board -> localization::shell
 cycle apps/orchbee/crates/workbench-client lib localization::shell -> localization::agent_board
 cycle apps/orchbee/crates/workbench-client lib machine_agents -> machine_discovery
@@ -302,7 +301,6 @@ upward apps/orchbee/crates/workbench-client lib client_actions -> machine_picker
 upward apps/orchbee/crates/workbench-client lib client_view -> tui_hit_map in client_view::tab_list 4
 upward apps/orchbee/crates/workbench-client lib localization -> client_view in localization::startup 1
 upward apps/orchbee/crates/workbench-client lib localization -> machine_picker in localization::machine_manage 29
-upward apps/orchbee/crates/workbench-client lib localization -> workbench_state in localization::agent_board 17
 upward apps/orchbee/crates/workbench-client lib machine_discovery::overview -> machines in machine_discovery::overview 1
 upward apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery in machine_picker 1
 upward apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery in machine_picker::forget 3

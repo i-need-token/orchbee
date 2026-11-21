@@ -34,12 +34,11 @@ use super::mailbox::{
     SwitchMarker, Tagged, UiReply, ViewportOutcome, WorkerEvent,
 };
 use crate::workbench_state::{
-    AttachmentKey, CarrierFailure, ClientNotice, ClientPhaseKind, ClientTabView as StateTabView,
-    ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
-    CreateTerminalProvenance, FrameIdentity, NavigatorRefreshStatus, OperationDeadlines, PaneKey,
-    PaneRef, PanelRequestKind, PendingCreateCommit, PendingPanelCommit, RefreshDecision,
-    SelectionPlan, SetupEventDisposition, WorkbenchClientState,
-    WorkbenchClientView as ClientStateView,
+    AttachmentKey, CarrierFailure, ClientPhaseKind, ClientTabView as StateTabView, ControllerMode,
+    CreateOperation, CreateOperationKey, CreateProjectionDecision, CreateTerminalProvenance,
+    FrameIdentity, NavigatorRefreshStatus, OperationDeadlines, PaneKey, PaneRef, PanelRequestKind,
+    PendingCreateCommit, PendingPanelCommit, RefreshDecision, SelectionPlan, SetupEventDisposition,
+    WorkbenchClientState, WorkbenchClientView as ClientStateView,
 };
 use crate::{
     client_view::{ClientAction, ClientActionDisposition, PanelDirection},
@@ -313,11 +312,11 @@ pub(crate) fn live_tab_label<'a>(
 
 /// The Client notice that shows a viewport core's notice; returning to the latest output shows
 /// itself and says nothing.
-const fn client_notice(notice: ViewportNotice) -> Option<ClientNotice> {
+const fn client_notice(notice: ViewportNotice) -> Option<WorkbenchClientNotice> {
     match notice {
         ViewportNotice::Recovering => None,
-        ViewportNotice::Unavailable => Some(ClientNotice::HistoryUnavailable),
-        ViewportNotice::PositionLost => Some(ClientNotice::HistoryPositionLost),
+        ViewportNotice::Unavailable => Some(WorkbenchClientNotice::HistoryUnavailable),
+        ViewportNotice::PositionLost => Some(WorkbenchClientNotice::HistoryPositionLost),
     }
 }
 
@@ -838,64 +837,7 @@ impl<'a> WorkbenchClientView<'a> {
         if self.command_notice.is_some() {
             return self.command_notice;
         }
-        self.state.as_ref()?.notice().map(|notice| match notice {
-            ClientNotice::LocalBusy => WorkbenchClientNotice::LocalBusy,
-            ClientNotice::NoTabAtPosition(position) => {
-                WorkbenchClientNotice::NoTabAtPosition(position)
-            }
-            ClientNotice::CreateNotCreated => WorkbenchClientNotice::CreateNotCreated,
-            ClientNotice::CreateOrderConflict => WorkbenchClientNotice::CreateOrderConflict,
-            ClientNotice::LaunchRequestTooLarge => WorkbenchClientNotice::LaunchRequestTooLarge,
-            ClientNotice::TerminalLimitReached => WorkbenchClientNotice::TerminalLimitReached,
-            ClientNotice::DuplicatePending => WorkbenchClientNotice::DuplicatePending,
-            ClientNotice::DuplicateNotStarted => WorkbenchClientNotice::DuplicateNotStarted,
-            ClientNotice::DuplicateOutcomeUnknown => WorkbenchClientNotice::DuplicateOutcomeUnknown,
-            ClientNotice::ChangeOutcomeUnknown => WorkbenchClientNotice::ChangeOutcomeUnknown,
-            ClientNotice::PanelNotApplied => WorkbenchClientNotice::PanelNotApplied,
-            ClientNotice::RenameNotRenamed => WorkbenchClientNotice::RenameNotRenamed,
-            ClientNotice::CloseRequestNotApplied => WorkbenchClientNotice::CloseRequestNotApplied,
-            ClientNotice::WorkspaceCloseUnavailable => {
-                WorkbenchClientNotice::WorkspaceCloseUnavailable
-            }
-            ClientNotice::WorkspaceChanged => WorkbenchClientNotice::WorkspaceChanged,
-            ClientNotice::AgentUnavailable => WorkbenchClientNotice::AgentUnavailable,
-            ClientNotice::NoWorkspace => WorkbenchClientNotice::NoWorkspace,
-            ClientNotice::WorkspaceNotReady => WorkbenchClientNotice::WorkspaceNotReady,
-            ClientNotice::ConfirmationCancelled => WorkbenchClientNotice::ConfirmationCancelled,
-            ClientNotice::DraftCancelled => WorkbenchClientNotice::DraftCancelled,
-            ClientNotice::DialogRefused => WorkbenchClientNotice::DialogRefused,
-            ClientNotice::ModalOwnsInput => WorkbenchClientNotice::ModalOwnsInput,
-            ClientNotice::AgentStart(phase) => WorkbenchClientNotice::AgentStart(phase.into()),
-            ClientNotice::HistoryUnavailable => WorkbenchClientNotice::HistoryUnavailable,
-            ClientNotice::HistoryPositionLost => WorkbenchClientNotice::HistoryPositionLost,
-            ClientNotice::CopyModeUnavailable => WorkbenchClientNotice::CopyModeUnavailable,
-            ClientNotice::CopyModeBusy => WorkbenchClientNotice::CopyModeBusy,
-            ClientNotice::CopyModeInvalidated => WorkbenchClientNotice::CopyModeInvalidated,
-            ClientNotice::CopyModeQueryFailed => WorkbenchClientNotice::CopyModeQueryFailed,
-            ClientNotice::CopyModeNoMatch => WorkbenchClientNotice::CopyModeNoMatch,
-            ClientNotice::CopyModeSearchLimit => WorkbenchClientNotice::CopyModeSearchLimit,
-            ClientNotice::CopyModeNoSelection => WorkbenchClientNotice::CopyModeNoSelection,
-            ClientNotice::FindUnavailable => WorkbenchClientNotice::FindUnavailable,
-            ClientNotice::PanelTooSmall => WorkbenchClientNotice::PanelTooSmall,
-            ClientNotice::FindStopped => WorkbenchClientNotice::FindStopped,
-            ClientNotice::FindFailed => WorkbenchClientNotice::FindFailed,
-            ClientNotice::SelectionEvicted => WorkbenchClientNotice::SelectionEvicted,
-            ClientNotice::Unsupported(capability) => WorkbenchClientNotice::Unsupported(capability),
-            ClientNotice::CopyFailed => WorkbenchClientNotice::CopyFailed,
-            ClientNotice::CopyUnknown => WorkbenchClientNotice::CopyUnknown,
-            ClientNotice::BellFailed => WorkbenchClientNotice::BellFailed,
-            ClientNotice::BellUnknown => WorkbenchClientNotice::BellUnknown,
-            ClientNotice::PositionChanged => WorkbenchClientNotice::PositionChanged,
-            ClientNotice::PositionChangedEmpty => WorkbenchClientNotice::PositionChangedEmpty,
-            ClientNotice::PositionLocationChanged => WorkbenchClientNotice::PositionLocationChanged,
-            ClientNotice::PositionLocationChangedEmpty => {
-                WorkbenchClientNotice::PositionLocationChangedEmpty
-            }
-            ClientNotice::PositionUnavailable => WorkbenchClientNotice::PositionUnavailable,
-            ClientNotice::RecordUnusable(record, problem) => {
-                WorkbenchClientNotice::RecordUnusable(record, problem)
-            }
-        })
+        self.state.as_ref()?.notice()
     }
 
     /// Only the matching notice may use this retained operation context.
@@ -1568,7 +1510,7 @@ enum ActionBuildError {
 
 pub(super) struct WorkbenchClientUi {
     capabilities: crate::tui_capabilities::Capabilities,
-    notice_timer: crate::transient_notice::NoticeTimer<ClientNotice>,
+    notice_timer: crate::transient_notice::NoticeTimer<WorkbenchClientNotice>,
     setup_notice_timer: crate::transient_notice::NoticeTimer<SetupStatus>,
     /// Keyed by the Closed operation's generation; the receipt outlives the notice.
     workspace_closed_timer: crate::transient_notice::NoticeTimer<u64>,
@@ -2859,7 +2801,7 @@ impl WorkbenchClientUi {
     fn history_unavailable(&mut self, mailbox: &Arc<CommandMailbox>) -> ClientActionDisposition {
         if let Some(state) = self.state.as_mut() {
             mailbox.apply_local_for(state, |state| {
-                state.set_notice(ClientNotice::HistoryUnavailable);
+                state.set_notice(WorkbenchClientNotice::HistoryUnavailable);
             });
         }
         ClientActionDisposition::KeepNavigator
@@ -3311,7 +3253,7 @@ impl WorkbenchClientUi {
                 super::ClientContextLocation::NoWorkspace
             )
         {
-            state.set_notice(ClientNotice::NoWorkspace);
+            state.set_notice(WorkbenchClientNotice::NoWorkspace);
             return ClientActionDisposition::KeepNavigator;
         }
         if let Some(captured) = captured {
@@ -3561,7 +3503,7 @@ impl WorkbenchClientUi {
         if self.view().no_current_workspace() {
             if placement.is_some() {
                 if let Some(state) = self.state.as_mut() {
-                    state.set_notice(ClientNotice::NoWorkspace);
+                    state.set_notice(WorkbenchClientNotice::NoWorkspace);
                 }
                 return ClientActionDisposition::KeepNavigator;
             }
@@ -3576,7 +3518,7 @@ impl WorkbenchClientUi {
             && orchbee_workbench_protocol::validate_tab_creation(context, placement.as_ref())
                 == Err(orchbee_workbench_protocol::WorkbenchRejectionReason::TabMoveOrderConflict)
         {
-            state.set_notice(ClientNotice::CreateOrderConflict);
+            state.set_notice(WorkbenchClientNotice::CreateOrderConflict);
             return ClientActionDisposition::KeepNavigator;
         }
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
@@ -5269,21 +5211,21 @@ impl WorkbenchClientUi {
     }
 }
 
-const fn create_precommit_notice(outcome: &CreatePrecommitOutcome) -> ClientNotice {
+const fn create_precommit_notice(outcome: &CreatePrecommitOutcome) -> WorkbenchClientNotice {
     match outcome {
         CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Rejected {
             reason: orchbee_workbench_protocol::WorkbenchRejectionReason::LaunchRequestTooLarge,
             ..
-        }) => ClientNotice::LaunchRequestTooLarge,
+        }) => WorkbenchClientNotice::LaunchRequestTooLarge,
         CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Rejected {
             reason: orchbee_workbench_protocol::WorkbenchRejectionReason::TabMoveOrderConflict,
             ..
-        }) => ClientNotice::CreateOrderConflict,
+        }) => WorkbenchClientNotice::CreateOrderConflict,
         CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Unavailable {
             reason:
                 orchbee_workbench_protocol::WorkbenchCommandUnavailableReason::TerminalLimitReached,
-        }) => ClientNotice::TerminalLimitReached,
-        CreatePrecommitOutcome::OutcomeUnknown => ClientNotice::ChangeOutcomeUnknown,
+        }) => WorkbenchClientNotice::TerminalLimitReached,
+        CreatePrecommitOutcome::OutcomeUnknown => WorkbenchClientNotice::ChangeOutcomeUnknown,
         CreatePrecommitOutcome::NotSubmitted
         | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Rejected { .. })
         | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Denied)
@@ -5291,7 +5233,7 @@ const fn create_precommit_notice(outcome: &CreatePrecommitOutcome) -> ClientNoti
         | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::ProfileUnavailable)
         | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::ProfileAmbiguous {
             ..
-        }) => ClientNotice::CreateNotCreated,
+        }) => WorkbenchClientNotice::CreateNotCreated,
     }
 }
 
@@ -5535,7 +5477,7 @@ fn finish_action<Value>(
     match result {
         Ok(_) | Err(AdmissionError::Build(ActionBuildError::NoOp)) => state.clear_notice(),
         Err(AdmissionError::Build(ActionBuildError::OutOfRange(position))) => {
-            state.set_notice(ClientNotice::NoTabAtPosition(*position));
+            state.set_notice(WorkbenchClientNotice::NoTabAtPosition(*position));
         }
         Err(
             AdmissionError::BootstrapPending
@@ -5543,7 +5485,7 @@ fn finish_action<Value>(
             | AdmissionError::Full
             | AdmissionError::StaleAttachment
             | AdmissionError::Build(ActionBuildError::Busy),
-        ) => state.set_notice(ClientNotice::LocalBusy),
+        ) => state.set_notice(WorkbenchClientNotice::LocalBusy),
         Err(AdmissionError::Closed(_))
         | Err(AdmissionError::AttachmentGenerationExhausted)
         | Err(AdmissionError::RefreshGenerationExhausted)

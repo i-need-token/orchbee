@@ -7,7 +7,9 @@ use super::{
     CloseStateError, CloseTarget,
 };
 use crate::exchange_values::workbench::{WorkbenchTabCloseAccepted, WorkbenchTabClosePrecommit};
-use crate::workbench_state::{AttachmentKey, ClientNotice, ClientPhase, WorkbenchClientState};
+use crate::workbench_state::{
+    AttachmentKey, ClientPhase, WorkbenchClientNotice, WorkbenchClientState,
+};
 use orchbee_workbench_protocol::{
     TabSetCloseAction, TabSetCloseCondition, TabSetCloseOutcome, WorkbenchRejectionReason,
     WorkbenchRequestId, WorkbenchTabCloseReadOutcome, WorkbenchTabId,
@@ -700,9 +702,9 @@ impl WorkbenchClientState {
         let tab_set_ambiguous = matches!(result, CloseResult::Ambiguous)
             && matches!(operation.kind(), CloseOperationKind::TabSet(_));
         if tab_set_ambiguous {
-            self.notice = Some(ClientNotice::ChangeOutcomeUnknown);
+            self.notice = Some(WorkbenchClientNotice::ChangeOutcomeUnknown);
         } else if refused_start {
-            self.notice = Some(ClientNotice::CloseRequestNotApplied);
+            self.notice = Some(WorkbenchClientNotice::CloseRequestNotApplied);
         }
         if matches!(
             result,

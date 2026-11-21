@@ -161,7 +161,7 @@ impl super::WorkbenchClientState {
         }
         match result {
             RenamePreparation::NotSubmitted | RenamePreparation::Precommit(_) => {
-                self.notice = Some(super::ClientNotice::RenameNotRenamed)
+                self.notice = Some(super::WorkbenchClientNotice::RenameNotRenamed)
             }
             RenamePreparation::Unchanged => self.notice = None,
             RenamePreparation::Committed {
@@ -175,7 +175,7 @@ impl super::WorkbenchClientState {
                 self.notice = None;
             }
             RenamePreparation::OutcomeUnknown => {
-                self.notice = Some(super::ClientNotice::ChangeOutcomeUnknown);
+                self.notice = Some(super::WorkbenchClientNotice::ChangeOutcomeUnknown);
                 self.owe_publication_read();
             }
             RenamePreparation::Divergent { known } => {

@@ -263,12 +263,14 @@ impl PreparedMembershipInstall<'_> {
             .filter(|committed| committed.operation.preserves_selection())
         {
             self.state.notice = match committed.provenance {
-                CreateTerminalProvenance::Pending => Some(super::ClientNotice::DuplicatePending),
+                CreateTerminalProvenance::Pending => {
+                    Some(super::WorkbenchClientNotice::DuplicatePending)
+                }
                 CreateTerminalProvenance::Failed(_) | CreateTerminalProvenance::Unavailable(_) => {
-                    Some(super::ClientNotice::DuplicateNotStarted)
+                    Some(super::WorkbenchClientNotice::DuplicateNotStarted)
                 }
                 CreateTerminalProvenance::OutcomeUnknown => {
-                    Some(super::ClientNotice::DuplicateOutcomeUnknown)
+                    Some(super::WorkbenchClientNotice::DuplicateOutcomeUnknown)
                 }
                 _ => None,
             };

@@ -1048,7 +1048,7 @@ fn definite_panel_denial_releases_admission_without_inventing_a_commit() {
     assert_eq!(state.ready(), viewer.as_ref());
     assert!(state.pending_panel().is_none());
     assert!(state.retained_panel_for_test().is_none());
-    assert_eq!(state.notice, Some(ClientNotice::PanelNotApplied));
+    assert_eq!(state.notice, Some(WorkbenchClientNotice::PanelNotApplied));
     assert!(state.invariant_holds());
 }
 
@@ -1072,7 +1072,7 @@ fn definite_precommit_refusals_release_admission_for_every_reason_class() {
             PanelDecision::Continue
         );
         assert!(state.pending_panel().is_none());
-        assert_eq!(state.notice, Some(ClientNotice::PanelNotApplied));
+        assert_eq!(state.notice, Some(WorkbenchClientNotice::PanelNotApplied));
         assert!(state.invariant_holds());
     }
 }
@@ -1096,7 +1096,10 @@ fn unknown_panel_outcome_keeps_the_session_and_owes_a_layout_read() {
         assert_eq!(state.ready(), viewer.as_ref());
         assert!(state.pending_panel().is_none());
         assert!(state.retained_panel_for_test().is_none());
-        assert_eq!(state.notice, Some(ClientNotice::ChangeOutcomeUnknown));
+        assert_eq!(
+            state.notice,
+            Some(WorkbenchClientNotice::ChangeOutcomeUnknown)
+        );
         assert!(state.publication_debt_pending());
         assert!(state.invariant_holds());
     }
@@ -1395,7 +1398,7 @@ fn superseding_snapshot_missing_the_selected_leaf_repairs_through_paired_members
         .retain_prepared_panel_membership(prepared)
         .expect("the leaf-loss truth enters the paired membership path");
     assert_eq!(&admitted, &operation);
-    assert_eq!(state.notice, Some(ClientNotice::PanelNotApplied));
+    assert_eq!(state.notice, Some(WorkbenchClientNotice::PanelNotApplied));
     let cleanup = state
         .stage_panel_membership_cleanup(operation.request_id(), candidate, deadlines())
         .expect("attached leaf-loss membership stages cleanup");
@@ -1544,7 +1547,7 @@ fn tab_unavailable_with_a_surviving_leaf_truth_merges_the_superseding_projection
     );
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(3));
     assert_eq!(state.cache().tabs()[0].tab_label().as_str(), "peer renamed");
-    assert_eq!(state.notice, Some(ClientNotice::PanelNotApplied));
+    assert_eq!(state.notice, Some(WorkbenchClientNotice::PanelNotApplied));
     assert_eq!(state.phase_kind(), ClientPhaseKind::Ready);
     assert!(state.pending_panel().is_none());
     assert!(state.invariant_holds());
@@ -2158,7 +2161,7 @@ fn stale_baseline_move_receives_reachable_revision_mismatch_refusal() {
         state.apply_prepared_panel(prepared),
         PanelDecision::Continue
     );
-    assert_eq!(state.notice, Some(ClientNotice::PanelNotApplied));
+    assert_eq!(state.notice, Some(WorkbenchClientNotice::PanelNotApplied));
     assert_eq!(state.phase_kind(), ClientPhaseKind::Ready);
     assert!(state.pending_panel().is_none());
     assert_eq!(state.cache(), &cache);
@@ -2228,7 +2231,7 @@ fn tab_unavailable_sub_arms_cover_only_defensive_tiers() {
         state.apply_prepared_panel(prepared),
         PanelDecision::Continue
     );
-    assert_eq!(state.notice, Some(ClientNotice::PanelNotApplied));
+    assert_eq!(state.notice, Some(WorkbenchClientNotice::PanelNotApplied));
     assert_eq!(state.phase_kind(), ClientPhaseKind::Ready);
     assert!(state.pending_panel().is_none());
     assert_eq!(state.cache(), &cache);
@@ -2257,7 +2260,7 @@ fn tab_unavailable_sub_arms_cover_only_defensive_tiers() {
         state.apply_prepared_panel(prepared),
         PanelDecision::Continue
     );
-    assert_eq!(state.notice, Some(ClientNotice::PanelNotApplied));
+    assert_eq!(state.notice, Some(WorkbenchClientNotice::PanelNotApplied));
     assert_eq!(state.cache(), &cache);
     assert!(state.invariant_holds());
 
@@ -2336,7 +2339,7 @@ fn tab_unavailable_sub_arms_cover_only_defensive_tiers() {
         state.apply_prepared_panel(prepared),
         PanelDecision::Continue
     );
-    assert_eq!(state.notice, Some(ClientNotice::PanelNotApplied));
+    assert_eq!(state.notice, Some(WorkbenchClientNotice::PanelNotApplied));
     assert_eq!(state.cache(), &cache);
     assert!(state.invariant_holds());
 }
@@ -2447,7 +2450,7 @@ fn stale_membership_result_is_refused_by_the_second_line_of_defence() {
         state.retain_prepared_panel_membership(stale),
         Err(CarrierFailure::Protocol)
     ));
-    assert_eq!(state.notice, Some(ClientNotice::PanelNotApplied));
+    assert_eq!(state.notice, Some(WorkbenchClientNotice::PanelNotApplied));
     assert!(state.pending_membership.is_none());
     // The known committed fact survives both the release and the forged re-present.
     assert_eq!(state.retained_panel_for_test(), Some(&known));
@@ -2774,7 +2777,10 @@ fn drifted_panel_close_confirmation_settles_as_cancelled_with_notice() {
 
     assert!(state.settle_stale_close_confirmations());
     assert!(state.view().panel_close_confirmation().is_none());
-    assert_eq!(state.notice, Some(ClientNotice::ConfirmationCancelled));
+    assert_eq!(
+        state.notice,
+        Some(WorkbenchClientNotice::ConfirmationCancelled)
+    );
     assert!(!state.settle_stale_close_confirmations());
     assert!(state.invariant_holds());
 }
@@ -2800,7 +2806,10 @@ fn last_leaf_nature_change_stales_the_armed_panel_close() {
 
     assert!(state.settle_stale_close_confirmations());
     assert!(state.view().panel_close_confirmation().is_none());
-    assert_eq!(state.notice, Some(ClientNotice::ConfirmationCancelled));
+    assert_eq!(
+        state.notice,
+        Some(WorkbenchClientNotice::ConfirmationCancelled)
+    );
     assert!(state.invariant_holds());
 }
 
@@ -2815,7 +2824,7 @@ fn first_unpresentable_panel_close_draw_is_refused() {
         Some(GeometrySettlement::Refused)
     );
     assert!(state.view().panel_close_confirmation().is_none());
-    assert_eq!(state.notice, Some(ClientNotice::DialogRefused));
+    assert_eq!(state.notice, Some(WorkbenchClientNotice::DialogRefused));
     assert_eq!(state.settle_panel_close_not_presented(), None);
     assert!(state.invariant_holds());
 }

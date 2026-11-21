@@ -245,13 +245,13 @@ fn mailbox_retirement_interrupts_the_bound_ui_waiter() {
 
 #[test]
 fn one_shot_notices_expire_without_discarding_unknown_outcomes() {
-    use crate::workbench_state::ClientNotice;
+    use crate::localization::WorkbenchClientNotice;
     use std::sync::atomic::Ordering;
     let (mut ui, _mailbox, _clock, elapsed) = ready::ready_ui();
     ui.state
         .as_mut()
         .unwrap()
-        .set_notice(ClientNotice::HistoryUnavailable);
+        .set_notice(WorkbenchClientNotice::HistoryUnavailable);
     assert!(!ui.expire_status_notices());
     elapsed.store(4000, Ordering::SeqCst);
     assert!(ui.expire_status_notices());
@@ -259,7 +259,7 @@ fn one_shot_notices_expire_without_discarding_unknown_outcomes() {
     ui.state
         .as_mut()
         .unwrap()
-        .set_notice(ClientNotice::DuplicateOutcomeUnknown);
+        .set_notice(WorkbenchClientNotice::DuplicateOutcomeUnknown);
     assert!(!ui.expire_status_notices());
     elapsed.store(12000, Ordering::SeqCst);
     assert!(!ui.expire_status_notices());

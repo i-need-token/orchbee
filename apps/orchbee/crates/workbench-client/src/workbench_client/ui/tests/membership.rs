@@ -2,11 +2,11 @@ pub(in crate::workbench_client) use super::super::test_support::snapshot;
 use super::super::test_support::snapshot_terminal;
 use super::super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
+use crate::localization::WorkbenchClientNotice;
 use crate::workbench_client::mailbox::{EventDeadline, SwitchMarker};
 use crate::workbench_projection::ClientContextLocation;
 use crate::workbench_state::{
-    CleanupContinuation, ClientNotice, ControllerMode, FrameIdentity, PaneKey, SelectedTab,
-    SetupEventDisposition,
+    CleanupContinuation, ControllerMode, FrameIdentity, PaneKey, SelectedTab, SetupEventDisposition,
 };
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -593,7 +593,7 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_initial_wor
     assert_eq!(ui.create_tab(), ClientActionDisposition::KeepNavigator);
     assert_eq!(
         ui.state.as_ref().unwrap().notice(),
-        Some(ClientNotice::LocalBusy)
+        Some(WorkbenchClientNotice::LocalBusy)
     );
     assert!(mailbox.try_recv().unwrap().is_none());
     assert!(!ui.retirement_requested());

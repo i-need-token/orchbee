@@ -3,8 +3,8 @@
 //! the places a picked start runs in.
 
 use super::{
-    Arc, CarrierFailure, ClientAction, ClientActionDisposition, ClientNotice, OperationDeadlines,
-    WorkbenchClientUi, build_switch_for_panel, finish_action,
+    Arc, CarrierFailure, ClientAction, ClientActionDisposition, OperationDeadlines,
+    WorkbenchClientNotice, WorkbenchClientUi, build_switch_for_panel, finish_action,
 };
 #[cfg(test)]
 use crate::agent_board::AgentBoardInputContext;
@@ -63,7 +63,7 @@ impl WorkbenchClientUi {
         }
         if self.modal_owns_input() {
             if let Some(state) = self.state.as_mut() {
-                state.set_notice(ClientNotice::ModalOwnsInput);
+                state.set_notice(WorkbenchClientNotice::ModalOwnsInput);
             }
             return ClientActionDisposition::KeepNavigator;
         }
@@ -241,7 +241,7 @@ impl WorkbenchClientUi {
     pub(super) fn start_in_new_tab(&mut self, provider: &'static str) {
         if self.view().no_current_workspace() {
             if let Some(state) = self.state.as_mut() {
-                state.set_notice(ClientNotice::NoWorkspace);
+                state.set_notice(WorkbenchClientNotice::NoWorkspace);
             }
             return;
         }
@@ -385,7 +385,7 @@ impl WorkbenchClientUi {
         if let Some(notice) = self.board.start_state().take_notice()
             && let Some(state) = self.state.as_mut()
         {
-            state.set_notice(ClientNotice::AgentStart(notice));
+            state.set_notice(WorkbenchClientNotice::AgentStart(notice));
         }
         changed
     }

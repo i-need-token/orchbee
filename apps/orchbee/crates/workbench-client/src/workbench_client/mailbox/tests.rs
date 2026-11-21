@@ -1,7 +1,8 @@
 use super::*;
 use crate::client_view::ClientAction;
+use crate::localization::WorkbenchClientNotice;
 use crate::workbench_projection::project_preferred_workspace;
-use crate::workbench_state::{ClientNotice, ClientPhaseKind, SelectionPlan, WorkbenchClientState};
+use crate::workbench_state::{ClientPhaseKind, SelectionPlan, WorkbenchClientState};
 use orchbee_client_server_protocol::{ControllerId, ViewerId};
 use orchbee_workbench_protocol::{
     Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SessionId, Snapshot,
@@ -2163,7 +2164,7 @@ fn same_geometry_observation_retries_after_full_fifo_without_clearing_precommit_
     assert!(workbench_client.restore_precommit(&operation_key, Some(geometry(80))));
     assert_eq!(
         workbench_client.notice(),
-        Some(ClientNotice::CreateNotCreated)
+        Some(WorkbenchClientNotice::CreateNotCreated)
     );
 
     let mailbox = mailbox_for_desired(desired.clone(), 5);
@@ -2189,7 +2190,7 @@ fn same_geometry_observation_retries_after_full_fifo_without_clearing_precommit_
     assert_eq!(workbench_client.last_admitted_geometry_t(&desired), None);
     assert_eq!(
         workbench_client.notice(),
-        Some(ClientNotice::CreateNotCreated)
+        Some(WorkbenchClientNotice::CreateNotCreated)
     );
 
     let first = mailbox.try_recv().unwrap().unwrap();
@@ -2226,7 +2227,7 @@ fn same_geometry_observation_retries_after_full_fifo_without_clearing_precommit_
     );
     assert_eq!(
         workbench_client.notice(),
-        Some(ClientNotice::CreateNotCreated)
+        Some(WorkbenchClientNotice::CreateNotCreated)
     );
 }
 
@@ -2234,7 +2235,7 @@ fn same_geometry_observation_retries_after_full_fifo_without_clearing_precommit_
 fn completed_client_action_updates_notice_inside_the_admission_lock_on_success_and_refusal() {
     let base = Instant::now();
     let mut workbench_client = ready_state(1);
-    workbench_client.set_notice(ClientNotice::CreateNotCreated);
+    workbench_client.set_notice(WorkbenchClientNotice::CreateNotCreated);
     let desired = workbench_client.desired().unwrap().clone();
     let mailbox = mailbox_for_desired(desired.clone(), 5);
     for index in 0..COMMAND_CAPACITY {
@@ -2253,13 +2254,16 @@ fn completed_client_action_updates_notice_inside_the_admission_lock_on_success_a
             },
             |workbench_client, result| {
                 assert!(matches!(result, Err(AdmissionError::Full)));
-                workbench_client.set_notice(ClientNotice::LocalBusy);
+                workbench_client.set_notice(WorkbenchClientNotice::LocalBusy);
             },
         ),
         Err(AdmissionError::Full)
     ));
     assert!(!build_ran.load(Ordering::SeqCst));
-    assert_eq!(workbench_client.notice(), Some(ClientNotice::LocalBusy));
+    assert_eq!(
+        workbench_client.notice(),
+        Some(WorkbenchClientNotice::LocalBusy)
+    );
 
     let first = mailbox.try_recv().unwrap().unwrap();
     mailbox.finish_lease(first).unwrap();
@@ -2277,7 +2281,7 @@ fn completed_client_action_updates_notice_inside_the_admission_lock_on_success_a
                 if result.is_ok() {
                     workbench_client.clear_notice();
                 } else {
-                    workbench_client.set_notice(ClientNotice::LocalBusy);
+                    workbench_client.set_notice(WorkbenchClientNotice::LocalBusy);
                 }
             },
         )
@@ -2286,7 +2290,7 @@ fn completed_client_action_updates_notice_inside_the_admission_lock_on_success_a
     assert_eq!(workbench_client.notice(), None);
     assert_eq!(admitted.reserved_generation(), 2);
 
-    workbench_client.set_notice(ClientNotice::CreateNotCreated);
+    workbench_client.set_notice(WorkbenchClientNotice::CreateNotCreated);
     mailbox.apply_local_for(&mut workbench_client, WorkbenchClientState::clear_notice);
     assert_eq!(workbench_client.notice(), None);
 }

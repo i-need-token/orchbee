@@ -948,14 +948,20 @@ fn precommit_reentry_uses_a_distinct_operation_and_preserves_notice_until_client
     state.observe_geometry(geometry(90));
     assert!(state.restore_precommit(&first_key, Some(geometry(80))));
     assert_eq!(state.phase_kind(), ClientPhaseKind::Ready);
-    assert_eq!(state.notice(), Some(ClientNotice::CreateNotCreated));
+    assert_eq!(
+        state.notice(),
+        Some(WorkbenchClientNotice::CreateNotCreated)
+    );
     assert_eq!(state.latest_geometry(), geometry(90));
 
     let second = create_operation(&state, 3, 21, "2");
     assert_ne!(first_key, *second.key());
     assert!(state.begin_create(second));
     assert_eq!(state.phase_kind(), ClientPhaseKind::Creating);
-    assert_eq!(state.notice(), Some(ClientNotice::CreateNotCreated));
+    assert_eq!(
+        state.notice(),
+        Some(WorkbenchClientNotice::CreateNotCreated)
+    );
     state.clear_notice();
     assert_eq!(state.notice(), None);
     assert!(state.invariant_holds());

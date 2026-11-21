@@ -1,7 +1,7 @@
 //! Worktree interaction drives one retained operation and reuses native source and membership owners.
 use super::{
-    ClientActionDisposition, ClientNotice, CommandMailbox, ModalPresentation, OperationDeadlines,
-    WorkbenchClientUi, WorkbenchClientView,
+    ClientActionDisposition, CommandMailbox, ModalPresentation, OperationDeadlines,
+    WorkbenchClientNotice, WorkbenchClientUi, WorkbenchClientView,
 };
 use crate::workbench_client::worktree_lane::{Action, ConfiguredRoot, Exchange, Job, Lane, Reply};
 use crate::workbench_state::worktree_launch::addressed::SidebarDiscovery;
@@ -254,7 +254,7 @@ impl WorkbenchClientUi {
             || self.popup.captured()
         {
             if let Some(state) = self.state.as_mut() {
-                state.set_notice(ClientNotice::ModalOwnsInput);
+                state.set_notice(WorkbenchClientNotice::ModalOwnsInput);
             }
             return ClientActionDisposition::KeepNavigator;
         }
@@ -312,7 +312,7 @@ impl WorkbenchClientUi {
             ClientActionDisposition::DismissNavigator
         } else {
             if !self.worktrees.launcher.visible() {
-                state.set_notice(ClientNotice::LocalBusy);
+                state.set_notice(WorkbenchClientNotice::LocalBusy);
             }
             ClientActionDisposition::KeepNavigator
         }

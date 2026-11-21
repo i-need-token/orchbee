@@ -40,6 +40,9 @@ pub(crate) enum DisplayProvenance {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum WorkbenchClientNotice {
     Unsupported(crate::host_capabilities::Capability),
+    /// A record this Session's stores cannot use: saved by a newer version, or not updated from
+    /// an earlier one. Its store works without it. The state lasts, so its notice is persistent:
+    /// it stays until the next Client action, and no transient notice replaces it.
     RecordUnusable(
         orchbee_local_runtime::VersionedRecord,
         orchbee_local_runtime::RecordProblem,
@@ -51,12 +54,14 @@ pub(crate) enum WorkbenchClientNotice {
     CreateNotCreated,
     CreateOrderConflict,
     LaunchRequestTooLarge,
-    /// A create the Session refused at its terminal limit.
+    /// The Session refused a create because it retains its bound of terminals; closing some
+    /// lets a new one start.
     TerminalLimitReached,
     DuplicatePending,
     DuplicateNotStarted,
     DuplicateOutcomeUnknown,
-    /// A structural change ran on the Server and its outcome is unknown.
+    /// A Tab create or rename, or a Panel split, move or close, ran on the Server and its
+    /// outcome is unknown. The layout is read again; the notice stays until the next keypress.
     ChangeOutcomeUnknown,
     PanelNotApplied,
     RenameNotRenamed,
@@ -72,16 +77,26 @@ pub(crate) enum WorkbenchClientNotice {
     TerminalActionUnknown,
     CloseRequestNotApplied,
     WorkspaceCloseUnavailable,
+    /// A conditional Workspace Close reply no longer matched its target; nothing was closed.
     WorkspaceChanged,
+    /// The Agent a notification announced is gone, rebound, or outside the attached Session;
+    /// nothing moved.
     AgentUnavailable,
     NoWorkspace,
+    /// The current Workspace has no settled view to start a Worktree action from.
     WorkspaceNotReady,
     ConfirmationCancelled,
     DraftCancelled,
+    /// A dialog could not be drawn when it was requested; nothing ran.
     DialogRefused,
+    /// A modal surface or armed confirmation owns the input layer — the
+    /// Start Agent picker refused to open rather than fight for capture.
     ModalOwnsInput,
     AgentStart(super::super::AgentStartStatus),
+    /// Retained history could not be entered (demand refused or reset);
+    /// the pane stayed Live.
     HistoryUnavailable,
+    /// The previous reading position could not be reproduced after navigation.
     HistoryPositionLost,
     CopyModeUnavailable,
     CopyModeBusy,
@@ -90,9 +105,14 @@ pub(crate) enum WorkbenchClientNotice {
     CopyModeNoMatch,
     CopyModeSearchLimit,
     CopyModeNoSelection,
+    /// The Find bar could not open: the focused Panel has no connected terminal frame.
     FindUnavailable,
+    /// The Find bar could not open: the focused Panel is narrower than 20 columns or shorter
+    /// than 2 rows.
     PanelTooSmall,
+    /// A Find search reached its time limit.
     FindStopped,
+    /// A Find search could not read the retained output.
     FindFailed,
     SelectionEvicted,
     CopyFailed,

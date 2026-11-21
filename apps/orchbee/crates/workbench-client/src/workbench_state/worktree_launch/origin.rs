@@ -5,7 +5,7 @@ use crate::workbench_projection::{
     ClientContextLocation, ClientContextTabs, ClientMemberTarget, ClientTerminalBinding,
 };
 use crate::workbench_state::{
-    ClientNotice, ClientPhaseKind, OperationDeadlines, PaneRef, WorkbenchClientState,
+    ClientPhaseKind, OperationDeadlines, PaneRef, WorkbenchClientNotice, WorkbenchClientState,
 };
 use orchbee_client_server_protocol::Geometry;
 use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorktreeSource, same_directory_spelling};
@@ -89,16 +89,16 @@ impl Preparation {
 impl WorkbenchClientState {
     /// Why W and O cannot start from this Client state, such as a Workspace whose
     /// terminal is unavailable while its close waits on a failed removal.
-    pub(crate) fn worktree_refusal(&self) -> Option<ClientNotice> {
+    pub(crate) fn worktree_refusal(&self) -> Option<WorkbenchClientNotice> {
         if !matches!(
             self.phase_kind(),
             ClientPhaseKind::Ready | ClientPhaseKind::Empty
         ) {
-            return Some(ClientNotice::WorkspaceNotReady);
+            return Some(WorkbenchClientNotice::WorkspaceNotReady);
         }
         // A background publication read is not a refusal; the request waits for it.
         (self.mutation_blocks_structure() || self.own_refresh_pending())
-            .then_some(ClientNotice::LocalBusy)
+            .then_some(WorkbenchClientNotice::LocalBusy)
     }
     pub(crate) fn worktree_origin(&self) -> Option<Origin> {
         if self.worktree_refusal().is_some() {

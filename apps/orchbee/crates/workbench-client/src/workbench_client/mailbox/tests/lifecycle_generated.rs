@@ -13,11 +13,12 @@ use crate::local_client::workbench::panel_split::WorkbenchPanelSplitCommit;
 use crate::local_client::workbench::{
     WorkbenchTabCreateCommit, WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest,
 };
+use crate::localization::WorkbenchClientNotice;
 use crate::terminal_projection::TerminalProjection;
 use crate::workbench_projection::project_preferred_workspace;
 use crate::workbench_state::{
-    AttachTarget, AttachmentKey, CarrierFailure, CleanupContinuation, ClientNotice,
-    ClientPhaseKind, ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
+    AttachTarget, AttachmentKey, CarrierFailure, CleanupContinuation, ClientPhaseKind,
+    ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
     CreateTerminalProvenance, FrameIdentity, MembershipCleanup, MembershipInstallDecision,
     MembershipResultKey, NavigatorRefreshStatus, OperationDeadlines, PaneRef, PanelCommit,
     PanelDecision, PanelIntent, PanelOperation, PanelPrecommit, PanelRequestKind, PanelResult,
@@ -1005,7 +1006,7 @@ impl Trace {
             "definite precommit did not restore Ready",
         )?;
         require(
-            self.workbench_client.notice() == Some(ClientNotice::CreateNotCreated),
+            self.workbench_client.notice() == Some(WorkbenchClientNotice::CreateNotCreated),
             "definite precommit notice missing",
         )?;
         self.first_operation = Some(operation);
@@ -2585,7 +2586,7 @@ impl Trace {
             | OutcomeClass::Denied
             | OutcomeClass::Unavailable => {
                 require(
-                    self.workbench_client.notice() == Some(ClientNotice::PanelNotApplied),
+                    self.workbench_client.notice() == Some(WorkbenchClientNotice::PanelNotApplied),
                     "non-committed Panel lost its PanelNotApplied notice",
                 )?;
                 require(

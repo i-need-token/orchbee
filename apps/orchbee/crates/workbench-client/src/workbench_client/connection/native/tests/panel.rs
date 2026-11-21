@@ -5,10 +5,11 @@ use super::{
     },
     setup::*,
 };
+use crate::localization::WorkbenchClientNotice;
 use crate::workbench_client::mailbox::WorkerEvent;
 use crate::workbench_state::{
-    CarrierFailure, ClientNotice, ClientPhaseKind, ControllerMode, PaneRef, PanelDecision,
-    PanelIntent, PanelOperation, PanelRequestKind, PanelResult, RefreshDecision,
+    CarrierFailure, ClientPhaseKind, ControllerMode, PaneRef, PanelDecision, PanelIntent,
+    PanelOperation, PanelRequestKind, PanelResult, RefreshDecision,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControllerId, Geometry, ServerMessage, SessionId as ObcsSessionId,
@@ -465,7 +466,7 @@ fn panel_precommit_rejection_is_a_definite_not_applied_notice() -> TestResult {
     ));
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), ClientPhaseKind::Ready);
-    assert_eq!(state.notice(), Some(ClientNotice::PanelNotApplied));
+    assert_eq!(state.notice(), Some(WorkbenchClientNotice::PanelNotApplied));
     assert!(state.pending_panel().is_none());
     harness.finish()
 }
@@ -628,7 +629,7 @@ fn move_rejected_tab_unavailable_reads_a_snapshot_before_settling() -> TestResul
                 UiEvent::Panel(PanelDecision::Continue)
             ));
             let state = harness.ui.state();
-            assert_eq!(state.notice(), Some(ClientNotice::PanelNotApplied));
+            assert_eq!(state.notice(), Some(WorkbenchClientNotice::PanelNotApplied));
             assert_eq!(state.cache().revision(), WorkbenchRevision::new(3));
             assert_eq!(state.phase_kind(), ClientPhaseKind::Ready);
             assert!(state.selected_has_viewer());
@@ -1763,7 +1764,7 @@ fn refused_move_whose_superseding_snapshot_drops_the_tab_repairs_membership_to_s
     );
     assert_eq!(
         state.notice(),
-        Some(ClientNotice::PanelNotApplied),
+        Some(WorkbenchClientNotice::PanelNotApplied),
         "the refused settlement surfaces the not-applied notice"
     );
     assert!(state.invariant_holds());
@@ -2141,7 +2142,7 @@ fn refused_move_rejected_panel_unavailable_settles_without_a_read() -> TestResul
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(1));
     assert_eq!(
         state.notice(),
-        Some(ClientNotice::PanelNotApplied),
+        Some(WorkbenchClientNotice::PanelNotApplied),
         "the refused settlement surfaces the not-applied notice"
     );
     assert!(

@@ -1,7 +1,8 @@
 use super::setup::*;
+use crate::localization::WorkbenchClientNotice;
 use crate::workbench_client::mailbox::{QueuedCommand, Tagged};
 use crate::workbench_state::{
-    CarrierFailure, ClientNotice, ClientPhaseKind, ControllerMode, CreateProjectionDecision,
+    CarrierFailure, ClientPhaseKind, ControllerMode, CreateProjectionDecision,
     CreateTerminalProvenance, NavigatorRefreshStatus, PendingRefreshStage, RefreshDecision,
 };
 use orchbee_client_server_protocol::{
@@ -660,7 +661,7 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
     );
     assert_eq!(
         harness.ui.state().notice(),
-        Some(ClientNotice::CreateNotCreated)
+        Some(WorkbenchClientNotice::CreateNotCreated)
     );
 
     harness.finish()

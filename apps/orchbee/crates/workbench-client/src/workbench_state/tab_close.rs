@@ -2,7 +2,7 @@
 //! Workspace closure. It follows each close the Server continues by itself to its end, without
 //! deciding physical disposal or implicitly replaying an unknown close.
 
-use super::{AttachmentKey, ClientNotice, PaneKey};
+use super::{AttachmentKey, PaneKey, WorkbenchClientNotice};
 use crate::exchange_values::workbench::{
     WorkbenchTabCloseAccepted, panel_close::WorkbenchPanelCloseAccepted,
 };
@@ -1184,12 +1184,12 @@ impl super::WorkbenchClientState {
         let mut settled = false;
         if self.close_confirmation_stale() {
             self.close.cancel_confirmation();
-            self.set_notice(ClientNotice::ConfirmationCancelled);
+            self.set_notice(WorkbenchClientNotice::ConfirmationCancelled);
             settled = true;
         }
         if self.armed_panel_close_stale() {
             self.cancel_panel_close_confirmation();
-            self.set_notice(ClientNotice::ConfirmationCancelled);
+            self.set_notice(WorkbenchClientNotice::ConfirmationCancelled);
             settled = true;
         }
         settled
@@ -1204,7 +1204,7 @@ impl super::WorkbenchClientState {
         let settlement = confirmation.presentation.geometry_blocked();
         if settlement == GeometrySettlement::Refused {
             self.close.cancel_confirmation();
-            self.set_notice(ClientNotice::DialogRefused);
+            self.set_notice(WorkbenchClientNotice::DialogRefused);
         }
         Some(settlement)
     }

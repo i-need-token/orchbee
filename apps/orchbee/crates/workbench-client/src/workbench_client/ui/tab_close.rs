@@ -551,7 +551,7 @@ impl WorkbenchClientUi {
         if let Some(state) = self.state.as_mut()
             && state.reports_close_busy_notice()
         {
-            state.set_notice(crate::workbench_state::ClientNotice::LocalBusy);
+            state.set_notice(crate::localization::WorkbenchClientNotice::LocalBusy);
         }
     }
 
@@ -667,8 +667,9 @@ impl WorkbenchClientUi {
                 if current_ids.as_ref() != Some(expected_ids) {
                     if from_hold {
                         if let Some(state) = self.state.as_mut() {
-                            state
-                                .set_notice(crate::workbench_state::ClientNotice::WorkspaceChanged);
+                            state.set_notice(
+                                crate::localization::WorkbenchClientNotice::WorkspaceChanged,
+                            );
                         }
                         return CloseRequestOutcome::Refused;
                     }

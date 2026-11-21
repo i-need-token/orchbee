@@ -7,7 +7,7 @@ use super::{
     menu_agents, status,
 };
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
-use crate::workbench_state::AgentStartRefusal;
+use crate::localization::AgentStartRefusal;
 
 fn panel(value: u128) -> WorkbenchPanelId {
     WorkbenchPanelId::parse(&format!("{value:032x}")).unwrap()

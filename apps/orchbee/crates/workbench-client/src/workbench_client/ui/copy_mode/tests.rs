@@ -924,7 +924,7 @@ fn motion_and_valid_search_read_limits_report_query_failure_not_draft_limit() {
     ] {
         assert_eq!(
             query_failure_notice(failure),
-            ClientNotice::CopyModeQueryFailed
+            WorkbenchClientNotice::CopyModeQueryFailed
         );
     }
 }

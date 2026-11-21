@@ -1,6 +1,6 @@
 //! Sidebar Delete retains exact source evidence and asks the Server for conditional admission.
 use super::{
-    ClientContextTabs, ClientNotice, ClientPhase, Instant, OperationDeadlines, PaneKey,
+    ClientContextTabs, ClientPhase, Instant, OperationDeadlines, PaneKey, WorkbenchClientNotice,
     WorkbenchClientState, WorkbenchRequestId, WorkbenchWorkspaceId, WorkspaceCloseEvidence,
     WorkspaceCloseOperation, WorkspaceCloseResult, WorkspaceCloseTarget,
 };
@@ -231,6 +231,6 @@ impl WorkbenchClientState {
             self.workspace_close.evidence = None;
             self.workspace_close.live_settled = false;
         }
-        self.set_notice(ClientNotice::WorkspaceChanged);
+        self.set_notice(WorkbenchClientNotice::WorkspaceChanged);
     }
 }

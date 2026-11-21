@@ -147,7 +147,7 @@ impl WorkbenchClientUi {
         target: &crate::machine_agents::Target,
     ) -> crate::client_view::notifications::TargetOpening {
         use crate::client_view::notifications::TargetOpening;
-        use crate::workbench_state::ClientNotice;
+        use crate::localization::WorkbenchClientNotice;
 
         match self.navigate_agent(target) {
             Admission::Current | Admission::Admitted => {
@@ -164,13 +164,13 @@ impl WorkbenchClientUi {
             }
             Admission::Busy => {
                 if let Some(state) = self.state.as_mut() {
-                    state.set_notice(ClientNotice::LocalBusy);
+                    state.set_notice(WorkbenchClientNotice::LocalBusy);
                 }
                 TargetOpening::Busy
             }
             Admission::Unavailable => {
                 if let Some(state) = self.state.as_mut() {
-                    state.set_notice(ClientNotice::AgentUnavailable);
+                    state.set_notice(WorkbenchClientNotice::AgentUnavailable);
                 }
                 TargetOpening::Unavailable
             }

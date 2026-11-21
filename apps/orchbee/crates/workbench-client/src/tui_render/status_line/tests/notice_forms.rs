@@ -16,7 +16,7 @@ use crate::tui_theme::Theme;
 /// Every Workbench notice, with the widest value of each count. The exhaustive match at the end
 /// fails to compile for a new variant until this list names it.
 fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
-    use crate::workbench_state::AgentStartRefusal as Refusal;
+    use crate::localization::AgentStartRefusal as Refusal;
     use AgentStartStatus as Start;
     use SettingsNotice as Settings;
     use WorkbenchClientNotice as N;

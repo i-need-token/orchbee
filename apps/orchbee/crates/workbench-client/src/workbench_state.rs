@@ -24,6 +24,8 @@ mod context_removal;
 mod context_selection;
 pub(crate) mod control_takeover;
 mod field_window;
+// The notices this state reports are declared with their words.
+use crate::localization::{AgentStartRefusal, AgentStartStatus, WorkbenchClientNotice};
 pub(crate) use crate::terminal_text::line_editor;
 mod tab_groups;
 pub(crate) use tab_groups::TabSelectionChange;
@@ -198,35 +200,6 @@ pub(crate) enum AgentStartPhase {
     Refused(AgentStartRefusal),
     Unknown,
     Cancelled,
-}
-
-/// What the status line says about an Agent start. A start that succeeds says nothing; the
-/// Agent's own row shows it opening.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AgentStartNotice {
-    NotFound(&'static str),
-    Exited(&'static str),
-    /// The new shell takes no start command, so the named product's Agent was not started.
-    UnsupportedShell(&'static str),
-    Failed,
-    Refused(AgentStartRefusal),
-    Unknown,
-    /// The Panel stopped being an idle prompt before the command was sent, so the Agent opens
-    /// in a new Tab instead.
-    PanelBusy,
-}
-
-/// Why a start typed nothing because the shell's prompt could not be confirmed.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AgentStartRefusal {
-    /// The shell is busy or not at an empty prompt, or the terminal runs no shell.
-    NotAtPrompt,
-    /// The terminal has not shown a marked prompt.
-    Unmarked,
-    /// The Session cannot confirm a prompt.
-    SessionTooOld,
-    /// The terminal was started by an Orchbee that cannot confirm a prompt.
-    TerminalTooOld,
 }
 
 /// One queued poll's admission serial and the exact pane incarnation it was issued for.
@@ -707,84 +680,7 @@ pub(crate) enum ClientPhaseKind {
     Retired,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ClientNotice {
-    Unsupported(crate::tui_capabilities::Capability),
-    /// A record this Session's stores cannot use: saved by a newer version, or not updated from
-    /// an earlier one. Its store works without it. The state lasts, so its notice is persistent:
-    /// it stays until the next Client action, and no transient notice replaces it.
-    RecordUnusable(
-        orchbee_local_runtime::VersionedRecord,
-        orchbee_local_runtime::RecordProblem,
-    ),
-    LocalBusy,
-    NoTabAtPosition(u8),
-    CreateNotCreated,
-    CreateOrderConflict,
-    LaunchRequestTooLarge,
-    /// The Session refused a create because it retains its bound of terminals; closing some
-    /// lets a new one start.
-    TerminalLimitReached,
-    DuplicatePending,
-    DuplicateNotStarted,
-    DuplicateOutcomeUnknown,
-    /// A Tab create or rename, or a Panel split, move or close, ran on the Server and its
-    /// outcome is unknown. The layout is read again; the notice stays until the next keypress.
-    ChangeOutcomeUnknown,
-    RenameNotRenamed,
-    CloseRequestNotApplied,
-    WorkspaceCloseUnavailable,
-    /// A conditional Workspace Close reply no longer matched its target; nothing was closed.
-    WorkspaceChanged,
-    /// The Agent a notification announced is gone, rebound, or outside the attached Session;
-    /// nothing moved.
-    AgentUnavailable,
-    NoWorkspace,
-    /// The current Workspace has no settled view to start a Worktree action from.
-    WorkspaceNotReady,
-    PanelNotApplied,
-    ConfirmationCancelled,
-    DraftCancelled,
-    /// A dialog could not be drawn when it was requested; nothing ran.
-    DialogRefused,
-    /// A modal surface or armed confirmation owns the input layer — the
-    /// Start Agent picker refused to open rather than fight for capture.
-    ModalOwnsInput,
-    AgentStart(AgentStartNotice),
-    /// Retained history could not be entered (demand refused or reset);
-    /// the pane stayed Live.
-    HistoryUnavailable,
-    /// The previous reading position could not be reproduced after navigation.
-    HistoryPositionLost,
-    CopyModeUnavailable,
-    CopyModeBusy,
-    CopyModeInvalidated,
-    CopyModeQueryFailed,
-    CopyModeNoMatch,
-    CopyModeSearchLimit,
-    CopyModeNoSelection,
-    /// The Find bar could not open: the focused Panel has no connected terminal frame.
-    FindUnavailable,
-    /// The Find bar could not open: the focused Panel is narrower than 20 columns or shorter
-    /// than 2 rows.
-    PanelTooSmall,
-    /// A Find search reached its time limit.
-    FindStopped,
-    /// A Find search could not read the retained output.
-    FindFailed,
-    SelectionEvicted,
-    CopyFailed,
-    CopyUnknown,
-    BellFailed,
-    BellUnknown,
-    PositionChanged,
-    PositionChangedEmpty,
-    PositionLocationChanged,
-    PositionLocationChangedEmpty,
-    PositionUnavailable,
-}
-
-impl ClientNotice {
+impl WorkbenchClientNotice {
     pub(crate) const fn transient(self) -> bool {
         !matches!(
             self,
@@ -794,7 +690,7 @@ impl ClientNotice {
                 | Self::CopyUnknown
                 | Self::BellUnknown
                 | Self::RecordUnusable(..)
-                | Self::AgentStart(AgentStartNotice::Unknown)
+                | Self::AgentStart(AgentStartStatus::Unknown)
         )
     }
 }
@@ -1382,7 +1278,7 @@ pub(crate) struct WorkbenchClientState {
     next_incarnation: u32,
     reconcile_deadlines: Option<OperationDeadlines>,
     latest_geometry: Geometry,
-    notice: Option<ClientNotice>,
+    notice: Option<WorkbenchClientNotice>,
     pending_refresh: Option<PendingRefreshFlight>,
     publication_debt: PublicationDebt,
     refresh_status: Option<NavigatorRefreshStatus>,
@@ -1757,7 +1653,7 @@ impl WorkbenchClientState {
             .and_then(|record| record.last_accepted_geometry())
     }
 
-    pub(crate) const fn notice(&self) -> Option<ClientNotice> {
+    pub(crate) const fn notice(&self) -> Option<WorkbenchClientNotice> {
         self.notice
     }
 
@@ -1934,9 +1830,11 @@ impl WorkbenchClientState {
         self.notice = None;
     }
 
-    pub(crate) fn set_notice(&mut self, notice: ClientNotice) {
+    pub(crate) fn set_notice(&mut self, notice: WorkbenchClientNotice) {
         self.dismiss_close_set_summary();
-        if notice.transient() && matches!(self.notice, Some(ClientNotice::RecordUnusable(..))) {
+        if notice.transient()
+            && matches!(self.notice, Some(WorkbenchClientNotice::RecordUnusable(..)))
+        {
             return;
         }
         self.notice = Some(notice);
@@ -1944,7 +1842,7 @@ impl WorkbenchClientState {
 
     /// A Client action is the key event that ends the persistent record notice.
     pub(crate) fn dismiss_record_notice(&mut self) {
-        if matches!(self.notice, Some(ClientNotice::RecordUnusable(..))) {
+        if matches!(self.notice, Some(WorkbenchClientNotice::RecordUnusable(..))) {
             self.notice = None;
         }
     }
@@ -1957,11 +1855,11 @@ impl WorkbenchClientState {
         if matches!(
             self.notice,
             Some(
-                ClientNotice::ChangeOutcomeUnknown
-                    | ClientNotice::DuplicateOutcomeUnknown
-                    | ClientNotice::CopyUnknown
-                    | ClientNotice::BellUnknown
-                    | ClientNotice::AgentStart(AgentStartNotice::Unknown)
+                WorkbenchClientNotice::ChangeOutcomeUnknown
+                    | WorkbenchClientNotice::DuplicateOutcomeUnknown
+                    | WorkbenchClientNotice::CopyUnknown
+                    | WorkbenchClientNotice::BellUnknown
+                    | WorkbenchClientNotice::AgentStart(AgentStartStatus::Unknown)
             )
         ) {
             self.notice = None;
@@ -2957,7 +2855,7 @@ impl WorkbenchClientState {
             } else {
                 ClientPhase::SelectedWithoutAttachment(selected.clone())
             };
-            self.notice = Some(ClientNotice::CreateNotCreated);
+            self.notice = Some(WorkbenchClientNotice::CreateNotCreated);
             return true;
         }
         let Some(old_ready) = barrier.anchor.ready().cloned() else {
@@ -2969,7 +2867,7 @@ impl WorkbenchClientState {
                 return false;
             }
             self.phase = ClientPhase::Empty;
-            self.notice = Some(ClientNotice::CreateNotCreated);
+            self.notice = Some(WorkbenchClientNotice::CreateNotCreated);
             return true;
         };
         let pane = old_ready.selected.key.clone();
@@ -2995,7 +2893,7 @@ impl WorkbenchClientState {
             }
         }
         self.phase = ClientPhase::Ready(old_ready);
-        self.notice = Some(ClientNotice::CreateNotCreated);
+        self.notice = Some(WorkbenchClientNotice::CreateNotCreated);
         true
     }
 
@@ -4631,7 +4529,7 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.launch_descriptions.get(member.presentation_id())
     }
 
-    pub(crate) const fn notice(&self) -> Option<ClientNotice> {
+    pub(crate) const fn notice(&self) -> Option<WorkbenchClientNotice> {
         self.state.notice
     }
 

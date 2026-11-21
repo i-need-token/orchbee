@@ -20,11 +20,12 @@
 use super::WorkbenchClientUi;
 use super::worktree_launch::WorktreeMode;
 use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey, PanelDirection};
+use crate::localization::WorkbenchClientNotice;
 use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
 use crate::workbench_state::workspace_close::{WorkspaceCloseToken, WorkspaceDeleteRequest};
 use crate::workbench_state::{
-    ClientNotice, CloseConfirmationToken, MAXIMUM_CLOSE_RECORDS, PanelCloseConfirmationToken,
-    PanelRequestKind, WorkbenchClientState,
+    CloseConfirmationToken, MAXIMUM_CLOSE_RECORDS, PanelCloseConfirmationToken, PanelRequestKind,
+    WorkbenchClientState,
 };
 use orchbee_workbench_protocol::{
     WorkbenchPanelId, WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchWorkspaceId,
@@ -446,7 +447,7 @@ impl WorkbenchClientUi {
                 return ClientActionDisposition::DismissNavigator;
             }
             if let Some(state) = self.state.as_mut() {
-                state.set_notice(ClientNotice::LocalBusy);
+                state.set_notice(WorkbenchClientNotice::LocalBusy);
             }
             return ClientActionDisposition::KeepNavigator;
         }
@@ -542,7 +543,7 @@ impl WorkbenchClientUi {
                     if close.is_none_or(|close| self.close_confirmation_armed(close))
                         && let Some(state) = self.state.as_mut()
                     {
-                        state.set_notice(ClientNotice::LocalBusy);
+                        state.set_notice(WorkbenchClientNotice::LocalBusy);
                     }
                     changed = true;
                 }
@@ -572,7 +573,7 @@ impl WorkbenchClientUi {
                             // The switch the key aimed at landed elsewhere or not at all, or the
                             // user pressed on a frame the Client could not resolve meanwhile; the
                             // Workspace shown now is not certainly the one the key named.
-                            state.set_notice(ClientNotice::WorkspaceChanged);
+                            state.set_notice(WorkbenchClientNotice::WorkspaceChanged);
                         }
                         changed = true;
                     }

@@ -24,7 +24,7 @@ use crate::{
     agent_start::{Failure, Progress, Report, Request, ReservationState, StartFailure, Verdict},
     background_thread::BackgroundThread,
     local_client::{LocalClientOrigin, LocalOperationClock},
-    workbench_state::AgentStartRefusal,
+    localization::AgentStartRefusal,
 };
 use orchbee_client_server_protocol::SendPromptState;
 

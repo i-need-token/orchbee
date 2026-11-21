@@ -465,7 +465,10 @@ fn unknown_rename_settles_without_fence_owes_publication_and_clears_on_key() {
         .unwrap();
     assert!(state.pending_rename().is_none());
     assert_eq!(state.rename_receipts_for_test(), (None, None, None));
-    assert_eq!(state.notice, Some(ClientNotice::ChangeOutcomeUnknown));
+    assert_eq!(
+        state.notice,
+        Some(WorkbenchClientNotice::ChangeOutcomeUnknown)
+    );
     assert!(!state.notice.unwrap().transient());
     assert!(state.publication_debt_pending());
     assert!(state.open_rename_draft().is_some());

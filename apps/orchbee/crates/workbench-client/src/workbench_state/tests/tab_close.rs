@@ -3,9 +3,9 @@ use crate::client_view::PanelDirection;
 use crate::local_client::workbench::WorkbenchTabCloseAccepted;
 use crate::tui_presentation::GeometrySettlement;
 use crate::workbench_state::{
-    AttachmentKey, CarrierFailure, ClientNotice, CloseIntent, CloseOperation, CloseResult,
-    CloseSelection, CloseState, CloseStateError, CloseStatusKind, CloseTarget, PendingCloseResult,
-    WorkbenchClientState,
+    AttachmentKey, CarrierFailure, CloseIntent, CloseOperation, CloseResult, CloseSelection,
+    CloseState, CloseStateError, CloseStatusKind, CloseTarget, PendingCloseResult,
+    WorkbenchClientNotice, WorkbenchClientState,
 };
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding, TerminalId,
@@ -642,7 +642,10 @@ fn drifted_close_confirmation_settles_as_cancelled_with_notice() {
 
     assert!(state.settle_stale_close_confirmations());
     assert!(state.view().close_confirmation().is_none());
-    assert_eq!(state.notice, Some(ClientNotice::ConfirmationCancelled));
+    assert_eq!(
+        state.notice,
+        Some(WorkbenchClientNotice::ConfirmationCancelled)
+    );
     assert!(!state.settle_stale_close_confirmations());
     assert!(state.invariant_holds());
 }
@@ -658,7 +661,7 @@ fn first_unpresentable_close_draw_is_refused() {
         Some(GeometrySettlement::Refused)
     );
     assert!(state.view().close_confirmation().is_none());
-    assert_eq!(state.notice, Some(ClientNotice::DialogRefused));
+    assert_eq!(state.notice, Some(WorkbenchClientNotice::DialogRefused));
     assert_eq!(state.settle_close_confirmation_not_presented(), None);
     assert!(state.invariant_holds());
 }

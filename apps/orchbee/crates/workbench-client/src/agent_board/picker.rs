@@ -15,9 +15,9 @@ use super::session_agents::SessionAgents;
 use super::start::StartPlace;
 use super::{AgentBoard, AgentBoardControl, AgentBoardControlTarget};
 use crate::client_view::{Binding, KeyCode, KeyEvent, KeyKind, Modifiers};
+use crate::localization::AgentStartStatus;
 use crate::session_capabilities::SessionAction;
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
-use crate::workbench_state::AgentStartNotice;
 
 mod place;
 pub(crate) use place::Places;
@@ -740,7 +740,7 @@ impl AgentBoard {
                 // A host or Session that cannot start Agents says why in the status row; any
                 // other refusal says it here.
                 if self.start.startable() {
-                    self.start.set_notice(AgentStartNotice::Failed);
+                    self.start.set_notice(AgentStartStatus::Failed);
                 }
                 PickerOutcome::Handled
             }

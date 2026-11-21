@@ -3,8 +3,8 @@
 //! canonical topology locally, or substitute a new target after submission.
 
 use super::{
-    AttachTarget, AttachmentKey, CarrierFailure, ClientNotice, ClientPhase, MembershipCleanup,
-    PaneKey, PreparedMembershipCandidate, WorkbenchClientState,
+    AttachTarget, AttachmentKey, CarrierFailure, ClientPhase, MembershipCleanup, PaneKey,
+    PreparedMembershipCandidate, WorkbenchClientNotice, WorkbenchClientState,
 };
 use crate::workbench_projection::{
     ClientContextTabs, ClientProjectionDivergence, ClientTab, MovedPanelExpectation,
@@ -791,12 +791,14 @@ impl WorkbenchClientState {
             _ => None,
         };
         match prepared.result {
-            PreparedPanelResult::NotApplied => self.notice = Some(ClientNotice::PanelNotApplied),
+            PreparedPanelResult::NotApplied => {
+                self.notice = Some(WorkbenchClientNotice::PanelNotApplied)
+            }
             PreparedPanelResult::LaunchRequestTooLarge => {
-                self.notice = Some(ClientNotice::LaunchRequestTooLarge)
+                self.notice = Some(WorkbenchClientNotice::LaunchRequestTooLarge)
             }
             PreparedPanelResult::TerminalLimitReached => {
-                self.notice = Some(ClientNotice::TerminalLimitReached)
+                self.notice = Some(WorkbenchClientNotice::TerminalLimitReached)
             }
             PreparedPanelResult::Unchanged | PreparedPanelResult::ConfirmationRequired => {
                 self.notice = None;
@@ -804,7 +806,7 @@ impl WorkbenchClientState {
             // The layout this Client holds may be stale: the publication drain reads the Session's
             // layout again and installs whatever the request left, as it would a peer's change.
             PreparedPanelResult::OutcomeUnknown => {
-                self.notice = Some(ClientNotice::ChangeOutcomeUnknown);
+                self.notice = Some(WorkbenchClientNotice::ChangeOutcomeUnknown);
                 self.owe_publication_read();
             }
             PreparedPanelResult::CloseAccepted(_) => {
@@ -816,7 +818,7 @@ impl WorkbenchClientState {
                     self.retire(CarrierFailure::AuthorityDivergence);
                     return PanelDecision::Retire;
                 }
-                self.notice = Some(ClientNotice::PanelNotApplied);
+                self.notice = Some(WorkbenchClientNotice::PanelNotApplied);
             }
             PreparedPanelResult::Membership { pending, .. } => {
                 // Membership must use the common paired installation/cleanup consumer.
@@ -885,7 +887,7 @@ impl WorkbenchClientState {
             self.settled_panel = Some(pending);
             None
         } else {
-            Some(ClientNotice::PanelNotApplied)
+            Some(WorkbenchClientNotice::PanelNotApplied)
         };
         Ok((prepared.operation, *candidate))
     }
@@ -899,7 +901,7 @@ impl WorkbenchClientState {
                     .settled_panel
                     .as_ref()
                     .is_some_and(|pending| pending.operation() == operation)
-                    || self.notice == Some(ClientNotice::PanelNotApplied))
+                    || self.notice == Some(WorkbenchClientNotice::PanelNotApplied))
         })
     }
 

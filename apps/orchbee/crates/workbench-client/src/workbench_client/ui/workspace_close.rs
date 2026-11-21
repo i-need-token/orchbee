@@ -5,6 +5,7 @@
 use super::held_intent::HeldIntent;
 use super::{ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 use crate::client_view::{ClientActionDisposition, ClientKey};
+use crate::localization::WorkbenchClientNotice;
 use crate::workbench_client::mailbox::{AdmissionError, CommandMailbox, UiWaitKey};
 #[cfg(test)]
 pub(crate) use crate::workbench_state::workspace_close::WorkspaceCloseStatus;
@@ -16,9 +17,7 @@ use crate::workbench_state::workspace_close::{
 pub(crate) use crate::workbench_state::workspace_close::{
     WorkspaceCloseConfirmationView, WorkspaceCloseStatusView,
 };
-use crate::workbench_state::{
-    CarrierFailure, ClientNotice, OperationDeadlines, WorkbenchClientState,
-};
+use crate::workbench_state::{CarrierFailure, OperationDeadlines, WorkbenchClientState};
 use orchbee_workbench_protocol::{
     WorkbenchProjectId, WorkbenchSnapshotOutcome, WorkbenchWorkspaceId,
 };
@@ -50,7 +49,7 @@ impl WorkbenchClientUi {
         };
         // A held or retried request meets the newer projection its wait installed.
         let Some(request) = request.rebased(state) else {
-            state.set_notice(ClientNotice::WorkspaceChanged);
+            state.set_notice(WorkbenchClientNotice::WorkspaceChanged);
             return ClientActionDisposition::KeepNavigator;
         };
         if state.background_refresh_only() {
@@ -65,7 +64,7 @@ impl WorkbenchClientUi {
             ClientActionDisposition::DismissNavigator
         } else {
             // A refused admission sends nothing; say so instead of dropping the request.
-            state.set_notice(ClientNotice::LocalBusy);
+            state.set_notice(WorkbenchClientNotice::LocalBusy);
             ClientActionDisposition::KeepNavigator
         }
     }
@@ -108,9 +107,9 @@ impl WorkbenchClientUi {
             }
             if let Some(state) = self.state.as_mut() {
                 let notice = if state.close_scope_available() {
-                    ClientNotice::WorkspaceCloseUnavailable
+                    WorkbenchClientNotice::WorkspaceCloseUnavailable
                 } else {
-                    ClientNotice::LocalBusy
+                    WorkbenchClientNotice::LocalBusy
                 };
                 state.set_notice(notice);
             }
@@ -156,13 +155,13 @@ impl WorkbenchClientUi {
                 return ClientActionDisposition::DismissNavigator;
             }
             if let Some(state) = self.state.as_mut() {
-                state.set_notice(ClientNotice::WorkspaceChanged);
+                state.set_notice(WorkbenchClientNotice::WorkspaceChanged);
             }
             return ClientActionDisposition::KeepNavigator;
         }
         if self.take_destination_uncertainty() {
             if let Some(state) = self.state.as_mut() {
-                state.set_notice(ClientNotice::WorkspaceChanged);
+                state.set_notice(WorkbenchClientNotice::WorkspaceChanged);
             }
             return ClientActionDisposition::KeepNavigator;
         }
@@ -245,7 +244,7 @@ impl WorkbenchClientUi {
                 .workspace_close_confirmation()
                 .is_some_and(|prompt| prompt.token() == token)
         {
-            state.set_notice(ClientNotice::LocalBusy);
+            state.set_notice(WorkbenchClientNotice::LocalBusy);
         }
     }
     /// A pointer gesture must still name this exact confirmation at release time.

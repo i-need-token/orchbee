@@ -4,11 +4,12 @@
 
 use super::{WorkbenchClientUi, WorkbenchClientView};
 use crate::client_view::ClientActionDisposition;
+use crate::localization::WorkbenchClientNotice;
 use crate::workbench_client::mailbox::{
     CommandMailbox, MutationResult, RefreshSettlement, UiReply, UiWaitKey,
 };
 use crate::workbench_state::control_takeover::{TakeoverEvidence, TakeoverStatus};
-use crate::workbench_state::{CarrierFailure, ClientNotice, OperationDeadlines, RefreshDecision};
+use crate::workbench_state::{CarrierFailure, OperationDeadlines, RefreshDecision};
 use orchbee_client_server_protocol::RequestId;
 use std::sync::Arc;
 
@@ -292,7 +293,7 @@ impl WorkbenchClientUi {
             self.focus_control.pending = None;
             ClientActionDisposition::DismissNavigator
         } else {
-            state.set_notice(ClientNotice::LocalBusy);
+            state.set_notice(WorkbenchClientNotice::LocalBusy);
             ClientActionDisposition::KeepNavigator
         }
     }

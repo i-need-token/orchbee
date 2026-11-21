@@ -539,7 +539,7 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
                 }
                 "action" => state.dismiss_close_set_summary(),
                 _ => {
-                    state.set_notice(ClientNotice::CloseRequestNotApplied);
+                    state.set_notice(WorkbenchClientNotice::CloseRequestNotApplied);
                     let shown = screen(&state, locale);
                     assert!(
                         shown.contains(&locale.native_notice(
@@ -842,7 +842,10 @@ fn a_start_lost_to_a_revision_race_goes_again_while_its_members_stand() {
     advance(&mut state, 6, None);
     assert!(!state.close_set_resend_due(now));
     assert!(state.settle_close_set(now));
-    assert_eq!(state.notice(), Some(ClientNotice::CloseRequestNotApplied));
+    assert_eq!(
+        state.notice(),
+        Some(WorkbenchClientNotice::CloseRequestNotApplied)
+    );
     assert!(state.close_set_status().is_none());
 
     // A member changed meanwhile.
@@ -852,7 +855,10 @@ fn a_start_lost_to_a_revision_race_goes_again_while_its_members_stand() {
     advance(&mut state, 2, Some(2));
     assert!(!state.close_set_resend_due(now));
     assert!(state.settle_close_set(now));
-    assert_eq!(state.notice(), Some(ClientNotice::CloseRequestNotApplied));
+    assert_eq!(
+        state.notice(),
+        Some(WorkbenchClientNotice::CloseRequestNotApplied)
+    );
 
     // Any other refusal.
     let mut state = ready(3);
@@ -866,7 +872,10 @@ fn a_start_lost_to_a_revision_race_goes_again_while_its_members_stand() {
             reason: TabSetCloseRejection::TabUnavailable,
         }),
     );
-    assert_eq!(state.notice(), Some(ClientNotice::CloseRequestNotApplied));
+    assert_eq!(
+        state.notice(),
+        Some(WorkbenchClientNotice::CloseRequestNotApplied)
+    );
     assert!(state.close_set_status().is_none());
     assert!(!state.close_set_resend_due(now));
     assert!(members.iter().all(|tab| !state.view().tab_leaving(tab)));
@@ -1091,7 +1100,10 @@ fn lost_tab_set_start_and_read_persist_until_keypress_and_owe_publication() {
     state
         .settle_close_exchange(&close, &CloseResult::Ambiguous)
         .unwrap();
-    assert_eq!(state.notice, Some(ClientNotice::ChangeOutcomeUnknown));
+    assert_eq!(
+        state.notice,
+        Some(WorkbenchClientNotice::ChangeOutcomeUnknown)
+    );
     assert!(!state.notice.unwrap().transient());
     assert!(state.publication_debt_pending());
     assert!(

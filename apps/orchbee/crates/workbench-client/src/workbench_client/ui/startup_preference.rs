@@ -1,5 +1,5 @@
 //! Painted position proofs feed only the owning Client's startup preference.
-use super::{ClientNotice, DisplayPhase, PaneRef, WorkbenchClientUi, WorkbenchClientView};
+use super::{DisplayPhase, PaneRef, WorkbenchClientNotice, WorkbenchClientUi, WorkbenchClientView};
 use crate::startup_preference::{Draw, Position};
 
 impl WorkbenchClientView<'_> {
@@ -67,10 +67,10 @@ impl WorkbenchClientUi {
         if let Some(state) = self.state.as_mut() {
             let moved = saved.is_none_or(|saved| &saved.location != state.cache().location());
             state.set_notice(match (moved, state.cache().tabs().is_empty()) {
-                (false, false) => ClientNotice::PositionChanged,
-                (false, true) => ClientNotice::PositionChangedEmpty,
-                (true, false) => ClientNotice::PositionLocationChanged,
-                (true, true) => ClientNotice::PositionLocationChangedEmpty,
+                (false, false) => WorkbenchClientNotice::PositionChanged,
+                (false, true) => WorkbenchClientNotice::PositionChangedEmpty,
+                (true, false) => WorkbenchClientNotice::PositionLocationChanged,
+                (true, true) => WorkbenchClientNotice::PositionLocationChangedEmpty,
             });
         }
     }
@@ -82,18 +82,18 @@ impl WorkbenchClientUi {
         problem: orchbee_local_runtime::RecordProblem,
     ) {
         if let Some(state) = self.state.as_mut() {
-            state.set_notice(ClientNotice::RecordUnusable(record, problem));
+            state.set_notice(WorkbenchClientNotice::RecordUnusable(record, problem));
         }
     }
 
     pub(in crate::workbench_client) fn report_position_notice(&mut self, changed: bool) {
         if let Some(state) = self.state.as_mut() {
             state.set_notice(if changed && state.cache().tabs().is_empty() {
-                ClientNotice::PositionChangedEmpty
+                WorkbenchClientNotice::PositionChangedEmpty
             } else if changed {
-                ClientNotice::PositionChanged
+                WorkbenchClientNotice::PositionChanged
             } else {
-                ClientNotice::PositionUnavailable
+                WorkbenchClientNotice::PositionUnavailable
             });
         }
     }
