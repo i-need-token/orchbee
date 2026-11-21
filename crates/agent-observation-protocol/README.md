@@ -128,7 +128,11 @@ reuse it rather than keeping their own tables.
   as `2.0.14`; such an image there is Claude's native image. Claude's entry also lists the roots
   where its updater leaves a running image renamed to `<name>.exe.old.<digits>`, under
   `node_modules/@anthropic-ai/claude-code` and its `.claude-code-*` staging directory; such an image
-  keeps the provider's identity while it runs. Version ranges enter an entry only after a real
+  keeps the provider's identity while it runs. Grok's entry lists its installer's version root,
+  `.grok/downloads`, where each release is an image named by the unique alias and a release
+  suffix, such as `grok-macos-aarch64` or `grok-1.2.3`; the `grok` and `agent` commands in
+  `.grok/bin` are links to it, and the system reports the image a link resolves to, so such an
+  image there is Grok's native image. The name alone, outside that root, proves nothing. Version ranges enter an entry only after a real
   corpus verifies them; until then every entry is best effort.
 - Classifier: `classify_agent_process` takes the actual image and decoded arguments and returns
   `AgentProcessRecognition`: not an Agent, interactive or noninteractive with an
@@ -170,7 +174,7 @@ reuse it rather than keeping their own tables.
 - Runtime entries: the runtime skips its own listed options before the script, including the
   value-less `--expose-gc` that Qwen's `cli-entry.js` passes when it re-executes `cli.js`. Both Qwen
   files are package entries, so the outer `cli-entry.js` run anchors a Qwen sample.
-- `AGENT_PROVIDER_REGISTRY_VERSION` is 12. It changes whenever an entry's recognition meaning
+- `AGENT_PROVIDER_REGISTRY_VERSION` is 13. It changes whenever an entry's recognition meaning
   changes: a provider, alias, install root, version root, renamed image root, package entry or
   grammar option joining or leaving the registry.
 - Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,

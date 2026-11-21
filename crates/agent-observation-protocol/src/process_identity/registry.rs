@@ -6,7 +6,7 @@ use super::mode::{AgentModeGrammar, grammar};
 use crate::AgentReportProvider;
 
 /// Registry data version; it changes whenever an entry's recognition meaning changes.
-pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 12;
+pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 13;
 
 /// How much a bare process name proves about its provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -62,8 +62,10 @@ pub struct AgentProviderEntry {
     pub aliases: &'static [AgentAlias],
     /// Install roots that prove shared and generic aliases.
     pub install_roots: &'static [AgentInstallRoot],
-    /// Directories where a native installer keeps each release as an image named only by its
-    /// version, such as `2.0.14`; such an image inside one is this provider's native image.
+    /// Directories where a native installer keeps each release as an image named by its version,
+    /// such as `2.0.14`, or by one of this provider's unique aliases and a release suffix, such as
+    /// `grok-1.2.3` or `grok-macos-aarch64`; such an image inside one is this provider's native
+    /// image. A command link to it keeps the alias, but the system reports the image it resolves to.
     pub version_roots: &'static [AgentInstallRoot],
     /// Directories where an updater renames a running native image to `<name>.old.<digits>`; such
     /// an image inside one whose name before the suffix is this provider's unique alias is still
@@ -234,8 +236,10 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 36] = {
                 &grammar::DEFAULT,
             )
         },
+        // The installer links `~/.grok/bin/grok` and `agent` to a release image in `downloads`.
         AgentProviderEntry {
             install_roots: &[AgentInstallRoot(&[".grok", "bin"])],
+            version_roots: &[AgentInstallRoot(&[".grok", "downloads"])],
             ..entry(
                 P::Grok,
                 &[unique("grok"), generic("agent")],

@@ -295,20 +295,31 @@ fn retitled_runtime(
     })
 }
 
-/// The provider whose native installer keeps each release as a file named by its version, when
-/// the image is such a file inside one of its version roots.
+/// The provider whose native installer keeps each release as a file named by its version, or by
+/// one of its unique aliases and a release suffix, when the image is such a file inside one of its
+/// version roots. The directory proves the provider; the name alone never does.
 fn versioned_image(image: &str) -> Option<AgentReportProvider> {
     let name = basename_with_suffix(image);
-    let versioned = name.starts_with(|c: char| c.is_ascii_digit())
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'));
-    if !versioned {
-        return None;
-    }
+    let release = |suffix: &str| {
+        suffix.starts_with(|c: char| c.is_ascii_alphanumeric())
+            && suffix
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '+'))
+    };
+    let versioned = name.starts_with(|c: char| c.is_ascii_digit()) && release(&name);
     AGENT_PROVIDER_REGISTRY
         .iter()
-        .find(|entry| entry.version_roots.iter().any(|root| root.contains(image)))
+        .find(|entry| {
+            let named = versioned
+                || entry.aliases.iter().any(|alias| {
+                    alias.class == AgentAliasClass::Unique
+                        && name
+                            .strip_prefix(alias.name)
+                            .and_then(|rest| rest.strip_prefix('-'))
+                            .is_some_and(release)
+                });
+            named && entry.version_roots.iter().any(|root| root.contains(image))
+        })
         .map(|entry| entry.provider)
 }
 

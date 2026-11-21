@@ -1385,7 +1385,7 @@ fn posix_launch_shapes_name_providers_as_windows_shapes_do() {
     const CLAUDE_RELEASE: &str = "/Users/u/.local/share/claude/versions/2.0.14";
     const PYTHON: &str = "/Library/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python";
     let unreadable = |provider| unresolved(Some(provider), U::CommandLineUnreadable);
-    let rows: [(&str, &str, Option<&[&str]>, AgentProcessRecognition); 22] = [
+    let rows: [(&str, &str, Option<&[&str]>, AgentProcessRecognition); 26] = [
         // A shebang run through a package manager's bin link: the link path is the script.
         (
             "node bin link",
@@ -1503,6 +1503,31 @@ fn posix_launch_shapes_name_providers_as_windows_shapes_do() {
             "versioned release",
             "/Users/u/.local/share/claude/versions/helper",
             Some(&["claude"]),
+            NOT,
+        ),
+        // A command link to a release named by the provider's alias reports the release's name.
+        (
+            "alias-named release",
+            "/Users/u/.grok/downloads/grok-macos-aarch64",
+            Some(&["grok"]),
+            interactive(P::Grok, S::NativeImage),
+        ),
+        (
+            "alias-named release",
+            "/home/u/.grok/downloads/grok-1.0.92-linux-x86_64",
+            Some(&["/home/u/.grok/bin/agent"]),
+            interactive(P::Grok, S::NativeImage),
+        ),
+        (
+            "alias-named release",
+            "/Users/u/Downloads/grok-macos-aarch64",
+            Some(&["grok"]),
+            NOT,
+        ),
+        (
+            "alias-named release",
+            "/Users/u/.grok/downloads/codex-1.0.0",
+            Some(&["codex"]),
             NOT,
         ),
     ];
