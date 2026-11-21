@@ -16,38 +16,36 @@ registry, fixed OBTP transport envelope, and the `Hello`, `HelloAccepted`, `Prot
 and observations for kinds 12 through 19, attachment controls for kinds 20 through 25, the raw
 `WriteInput`/`InputAccepted` exchange for kinds 30 and 31, and the `ResizeTerminal`/
 `ResizeAccepted` control exchange for kinds 32 and 33, plus the semantic `KeyInput`, `TextInput`,
-`MouseInput`, `FocusInput`, `PasteInput`, and `PasteAutoInput` requests for kinds 34 through 39. `schemas/terminal` owns the wire reference, constant registry and canonical fixtures. The unshipped
-[`orchbee-worker`](../../apps/orchbee-worker/README.md) application consumes the Rust envelope, connection, launch/lifecycle, attachment, projection-demand,
-and feedback codecs for its actual Host broker. Worker owns socket authentication, handshake state,
-connection liveness, and viewer relay behavior. The binding includes kind-11 `CreateTerminal` and
-kind-12 `TerminalCreated` launch controls. Its `inspect_terminal_frame_route` reads only the OBTF
-routing prefix: exact framing/version, kind/base-revision relationship, nonzero Host/attachment
-identity, sequence, generation, and revision. It does not validate presentation fields, tables,
-cells, or extensions; Client projection decoding remains a separate boundary. Existing TypeScript
-and real Ghostty fixtures verify this zero-copy route inspection. Beyond route inspection, the
-binding decodes bounded OBRW text-detail row windows into `TerminalTextRowWindow`; a legal
-render window completes full header validation, then fails closed as outside the text-only API.
-The binding also covers the
+`MouseInput`, `FocusInput`, `PasteInput`, and `PasteAutoInput` requests for kinds 34 through 39.
+`schemas/terminal` owns the wire reference, constant registry and canonical fixtures. The unshipped
+[`orchbee-worker`](../../apps/orchbee-worker/README.md) application consumes the Rust envelope,
+connection, launch/lifecycle, attachment, projection-demand, and feedback codecs for its actual Host
+broker. Worker owns socket authentication, handshake state, connection liveness, and viewer relay
+behavior. The binding includes kind-11 `CreateTerminal` and kind-12 `TerminalCreated` launch
+controls. Its `inspect_terminal_frame_route` reads only the OBTF routing prefix: exact
+framing/version, kind/base-revision relationship, nonzero Host/attachment identity, sequence,
+generation, and revision. It does not validate presentation fields, tables, cells, or extensions;
+Client projection decoding remains a separate boundary. Beyond route inspection, the binding decodes
+bounded OBRW text-detail row windows into `TerminalTextRowWindow`; a legal render window completes
+full header validation, then fails closed as outside the text-only API. The binding also covers the
 bidirectional `FrameApplied` and `NeedSnapshot` projection-feedback controls for kinds 43 and 44,
 the projection-demand request, acceptance, and blocked event for kinds 47 through 49, and the
 history-demand, change, and observation controls for kinds 51 through 54. Its row-access control
 binding covers the kind-45 `ReadRows` request and both directions of kind-50 `RowsApplied`; binary
-kind-46 `RowsSnapshot` is decoded through the separate text and render APIs. It also covers the event-only
-`TerminalBell`, `TerminalClipboardWriteRequest`, `TerminalMetadataChanged`, and
+kind-46 `RowsSnapshot` is decoded through the separate text and render APIs. It also covers the
+event-only `TerminalBell`, `TerminalClipboardWriteRequest`, `TerminalMetadataChanged`, and
 `TerminalApplicationSignal` representations for kinds 55 through 58; every audible, clipboard,
 metadata, application-signal, and notification effect remains outside the binding. The Rust crate
 also covers the four `SelectionGesture` requests, four `SelectionCommand` requests, and both legal
 roles of all three `SelectionChanged` states for kinds 60 through 62. Its selection-export control
-binding covers kinds 63, 64, 66, 67, and 68 in every legal direction, and its raw binding covers
-the exact kind-65 `SelectionExportChunk` header, route metadata, and opaque bounded body. The Rust
-crate also covers both terminal-default and retained-terminal configuration exchanges for kinds 70
-through 73. It does not implement handshake state, inventory pagination or reconciliation,
-terminal creation or launch,
-attachment, lifecycle, input, resize, projection-feedback, projection-demand, history, row capture
-or anchor, terminal-effect delivery, gesture interpretation, selection state or export behavior,
-export-chunk sequencing or acknowledgement behavior, queue state or effects, semantic-input
-terminal encoding, terminal-default or configuration mutation and persistence, terminal output,
-IPC, or Worker behavior.
+binding covers kinds 63, 64, 66, 67, and 68 in every legal direction, and its raw binding covers the
+exact kind-65 `SelectionExportChunk` header, route metadata, and opaque bounded body. The Rust crate
+also covers both terminal-default and retained-terminal configuration exchanges for kinds 70 through 73. It does not implement handshake state, inventory pagination or reconciliation, terminal creation
+or launch, attachment, lifecycle, input, resize, projection-feedback, projection-demand, history,
+row capture or anchor, terminal-effect delivery, gesture interpretation, selection state or export
+behavior, export-chunk sequencing or acknowledgement behavior, queue state or effects,
+semantic-input terminal encoding, terminal-default or configuration mutation and persistence,
+terminal output, IPC, or Worker behavior.
 
 ## Application screen control
 
@@ -75,13 +73,12 @@ the existing wire meaning of removed progress. Duplicate records, wrong lengths,
 tags, noncanonical percentages and forbidden combinations reject the whole frame before publication.
 This is a current sample, with no inference about provider identity or work completion.
 
-This is a text-table decoder, not a full graphics/extension decoder or a Client state machine.
-Other optional extension contents are skipped without interpretation or retention; every required
+This is a text-table decoder, not a full graphics/extension decoder or a Client state machine. Other
+optional extension contents are skipped without interpretation or retention; every required
 extension still rejects. It never executes VT, activates hyperlinks, performs clipboard effects,
-applies deltas, sends feedback, or renders. Existing TypeScript and real Ghostty fixtures plus the
-owner's malformed-frame corpus and byte-boundary tests maintain conformance. The native TUI owns
-atomic snapshot/delta application, retained-memory admission, escape-safe cell rendering and exact
-feedback after a successful draw. Worker and Server continue to use only route inspection.
+applies deltas, sends feedback, or renders. The native TUI owns atomic snapshot/delta application,
+retained-memory admission, escape-safe cell rendering and exact feedback after a successful draw.
+Worker and Server continue to use only route inspection.
 
 ## Rust text row-window binding
 
@@ -98,12 +95,9 @@ indexes, prompt classes, wrap relationships, identity-ASCII markers with empty m
 and explicit mapping fields; byte-order-mark code points are preserved and display width is
 never inferred from text.
 
-This is a text-detail decoder, not a render decoder, a history restoration path, or a client
-state machine. It never parses render payloads, applies rows to a terminal, restores history
-demand, or selects text. The shared malformed row-window corpus, packed projection
-conformance cases, the canonical row-window fixture, and strict-prefix truncation plus
-UTF-8/mapping boundary tests maintain conformance with the TypeScript owner and Zig
-validator.
+This is a text-detail decoder, not a render decoder, a history restoration path, or a client state
+machine. It never parses render payloads, applies rows to a terminal, restores history demand, or
+selects text.
 
 ## Public API
 
