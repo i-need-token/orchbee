@@ -137,7 +137,7 @@ Release the old attachment before installing a replacement. A rejected or unavai
 draw, and, when the closed Panel was focused, the selection, and starts the retained follow of the
 close: of its Panel, or for a Tab's last Panel of its Tab; the cached canonical tree and revision wait for publication. Expiry and controlled completion settle or retire pending work. Stale inputs preserve the stage, correlation, commit, attachment, selection and cached revision. The state, mailbox, connection and projection suites exercise these requirements against production code.
 
-These operation-specific traces do not claim exhaustive TLC progress. The retained pane collection core below checks the shared identity and cleanup protocol separately.
+The retained pane collection core below checks the shared identity and cleanup protocol separately.
 
 ## Pane membership collection
 
@@ -258,9 +258,6 @@ the behavior above.
 A Panel without a running terminal, an ended terminal, a held restore and a failed launch show what
 they showed before. An ended or refused stream counts as serving and opens again after two seconds;
 the capability is checked again every two seconds, because a reconnect may reach another Server.
-`viewer_recovery::tests::reconnecting_drops_typed_keys_and_serving_reattaches_at_once` is the rule
-evidence, and `reconnecting_and_given_up_name_their_state_in_each_locale` renders both states in
-both locales, writing each screen when `ORCHBEE_TUI_CAPTURE_DIR` names a directory.
 
 The maximized state is a Client-local per-Tab flag, and it belongs to the leaf it draws: the focus in the selected
 Tab, the remembered Panel in a background Tab. Focus moving inside the Tab carries the maximized state along.
@@ -271,21 +268,11 @@ a plugin overlay still restores the maximized state of its return Panel.
 
 ## Source correspondence
 
-| Runtime owner                                   | Evidence obligation                                                                                                      |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `workbench_state/panel.rs` and membership state | Admission exclusion, exact result correlation, retained commits, stale-input preservation, legal superseding-leaf repair |
-| `workbench_client/mailbox/panel.rs`             | FIFO handoff, at most one submission and honest unknown outcomes                                                         |
-| `workbench_client/connection/native/panel.rs`   | Concrete result validation, typed attach failures and bounded cleanup                                                    |
-| `workbench_projection`                          | Exact-next and later-publication validation, selection and Empty installation                                            |
-| `workbench_state/tests.rs` and generated tests  | Pane incarnation fencing, replacement and wrong-pane negative controls                                                   |
-
 `PaneIncarnationFencing` abstracts only the final identity/cleanup boundary. Concrete geometry, payloads, operation receipts and complete panel lifecycle composition stay in these implementation suites.
 
 ## Finite model evidence
 
 `PaneIncarnationFencing.tla/.cfg` checks two logical panes, at most two incarnations per pane, two selection anchors, one queued command and one execution flight. Each bound is the smallest that keeps its failure reachable: the second pane gives cross-pane tags and a navigation target, the second incarnation gives replacement and late cleanup, and the second anchor gives re-anchored tags. Only frame commands occupy the queue: `Start` and `Complete` never branch on a command's kind, so queued input would cross the same fences as a frame command with the same tag, and queuing it too would multiply every pipeline state by the navigation state without reaching a new failure. `Admit` still checks typed input against focus and pending navigation in every reachable state. `Mint`/`Depart`/`Cleanup` map to membership replacement and retirement; `Admit`/`Start`/`Complete` preserve the captured pane, incarnation and anchor; `Draw` consumes only a current frame; `Intend`/`Land`/`Abandon` map to a requested navigation that moves focus only when it lands. Cleanup, start, completion and landing use weak fairness. The model checks current frames/effects, successor preservation under late cleanup, input admission only after a pending navigation settles, and eventual settlement of departing membership and pending navigation.
-
-`workbench_state/tests/generated.rs` exercises `ReincarnationFence` against production reducers. `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` and `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` in `state/tests.rs` cover wrong-incarnation and wrong-pane effects. Mailbox, connection and workbench-projection tests own panel-operation results, receipt correlation, membership repair, draw acknowledgements and failure handling. Those detailed compositions are implementation-test claims, not exhaustive TLC claims.
 
 The maintained mutation controls remove the completion identity guard, which must fail `FramesAreCurrent` or `EffectsUseCurrentIncarnation`, and the pending-navigation input guard, which must fail `InputFollowsSettledNavigation`. Run `node scripts/tla/run-models.mjs --models native-client-pane-membership` and the owning Cargo tests.
 
@@ -320,18 +307,17 @@ viewer polling remains authoritative for whether readable output is still availa
 CLI frame readers consume settlement without invalidating pixels or emitting a projection-blocked
 stream reset; their existing output schemas stay unchanged.
 
-Settlement describes every ended terminal that keeps its Panel. An interactive Shell that exits
-with code 0 does not keep it: Server closes that Panel, or its Tab when the Panel is the sole leaf,
+Settlement describes every ended terminal that keeps its Panel. An interactive Shell that exits with
+code 0 does not keep it: Server closes that Panel, or its Tab when the Panel is the sole leaf,
 through the [canonical Close](../../orchbee-server/docs/terminal-tab-close.md#normal-shell-exit),
-including when a later viewer attachment first observes the exit. Clients remove the member
-through the existing peer-Close path; the last Tab leaves the Workspace's ordinary empty state.
-Until the member is removed, the Client holds the pane's closing presentation for at most one
-second (`workbench_client/normal_exit_hold.rs`): exit code 0 of a Panel's only Presentation keeps
-its final pixels and label, and the status line raises no automatic exit, view-only, connection or
-viewer-loss cue. The hold changes no attachment, input, selection or membership and ends when the
-pane leaves membership. A pane still present at the bound, such as a non-interactive program that
-Server keeps, shows its ordinary settlement; explicitly invoked status and notices still appear.
-Tests cover the hold's eligibility, bound, release on departure, and the redraw a release owes.
+including when a later viewer attachment first observes the exit. Clients remove the member through
+the existing peer-Close path; the last Tab leaves the Workspace's ordinary empty state. Until the
+member is removed, the Client holds the pane's closing presentation for at most one second
+(`workbench_client/normal_exit_hold.rs`): exit code 0 of a Panel's only Presentation keeps its final
+pixels and label, and the status line raises no automatic exit, view-only, connection or viewer-loss
+cue. The hold changes no attachment, input, selection or membership and ends when the pane leaves
+membership. A pane still present at the bound, such as a non-interactive program that Server keeps,
+shows its ordinary settlement; explicitly invoked status and notices still appear.
 
 An exit arriving during setup or an admitted Create also downgrades the retained selection and
 clears its controller geometry. Precommit refusal therefore cannot restore a controlling selection
@@ -343,6 +329,4 @@ Client again preserves ended output. Host rejects controller attachment to a set
 Client keeps the read-only viewer. A definite initial viewer refusal instead parks a stable
 navigation view and starts the ordinary command loop. It never creates a replacement terminal or
 deletes history. Transport, protocol, unknown-outcome and cleanup failures retain their existing
-boundaries. Projection/state tests cover exact-target settlement and selection restoration;
-real-window review covers exit 0, nonzero exit, ordinary input, child return, reentry and narrow
-status presentation.
+boundaries.

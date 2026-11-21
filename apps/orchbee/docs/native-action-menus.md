@@ -55,9 +55,7 @@ GUI Clients take these compositions: the sidebar's Project and Workspace row men
 The presentation decision consumes the root target, retained parent chain, exact menu token,
 viewport, locale, theme and owner-derived unavailable reasons. It changes no action identity,
 selection, capture or execution boundary. A refused frame publishes no row or control authority;
-successful context frames expose only their actual content, controls and surface. The render
-witnesses in `crates/workbench-client/src/tui_render/action_menu/tests.rs` compare context and global composition, both locales and
-shipped theme families, and the width/height boundaries with and without a reserved reason.
+successful context frames expose only their actual content, controls and surface.
 
 A Tab menu holds Rename and Pin or Unpin, then Add to group ▸ and, while a target Tab is grouped,
 Remove from group, then the red close rows: Close and, when it would close something, Close N other
@@ -113,42 +111,39 @@ count, and an empty result set shows a localized no-results state.
 
 Keys that work only inside a mode also have rows, so a search finds every key the Client takes.
 These key rows answer a search only: the unsearched menu lists what it can run, and a key row
-appears once a query matches it. Each row names its mode before the key's own words, as in
-Copy mode · Search, and shows the key; the plain prefix keys (Tab 1..9, sending the prefix to the
-terminal and cancelling the prefix) name only themselves. Search also matches each key row on
-help, and on its mode's word. A key row is always disabled, because it works in keyboard copy
-mode, while the sidebar has the keyboard, or only as a key; it shows no reason, and choosing one
-changes nothing. A copy key that needs the clipboard, and the sidebar's search key without sidebar
-search, are hidden as their keys are.
-The new-Tab submenu retains quick default creation and also lists the confirmed device launch
-profiles, including System default. Each saved choice names its profile and creates one Tab with
-that profile's literal executable and arguments; it never changes the shared default. System shell
-uses the native system-shell resolver only after the current origin establishes a direct local
-Session, independently of the configured default profile. A remote or unknown origin refuses
-that one-time system-shell choice; ordinary quick default creation still resolves on the executing
-Worker. Custom choices retain their literal paths and arguments. The chosen
-name appears in the creation notice. Removed, changed, invalid or unsupported choices refuse with
-a Settings recovery notice, without falling back or creating a replacement. Profile choices in an
-empty compatibility slot require selecting or creating a Workspace first. Esc and the existing
-parent-return, scrolling, narrow-layout and draw-authority rules apply unchanged. The local adapter
-matches Desktop's saved-profile semantics; command catalog IDs and CLI `--profile` retain their
-separate existing catalog authority. Profile resolution, immutable-default and menu/render witnesses
-live in `crates/workbench-client/src/workbench_client/ui/launch_profiles/tests.rs` and the adjacent menu suites.
-Close Workspace…, Remove Worktree…, Close panel… and Tab Close intents declare `ActionTone::Destructive`;
-the shared metadata and action/row controls resolve that label through `accent-destructive`.
-The Tab Close confirmation uses the same intent tone. Cancel, metadata edits, Project Ungroup,
-Tab group Ungroup and color choices remain ordinary; a red palette choice is a value, not destructive intent.
-These labels are not error statuses. Disabled rows use `text-disabled` and
-acquire no pointer state; enabled intent retains the row's independent focus, provisional, hover and held-press cues. The theme
-owner supplies all shipped and reduced-color values and any required native contrast pair.
-Ctrl+click toggles a Tab's selection mark, and the global menu selects all Tabs or keeps only the
-current one; Shift gestures stay with the host terminal, so range selection has no native gesture.
-Tab actions configure the captured selected set when their target belongs to it.
-[Typed row scope and saved color](#tab-scope-and-current-values)
-make the affected set explicit without changing the underlying operation.
-Selection or selected-member changes revoke the menu proof; background metadata actions keep
-the current terminal attached. Moving the current Tab uses GUI group boundaries, including collapsed neighbors.
-Metadata actions preserve the current terminal; a submenu retains its exact addressed Tab.
+appears once a query matches it. Each row names its mode before the key's own words, as in Copy mode
+· Search, and shows the key; the plain prefix keys (Tab 1..9, sending the prefix to the terminal and
+cancelling the prefix) name only themselves. Search also matches each key row on help, and on its
+mode's word. A key row is always disabled, because it works in keyboard copy mode, while the sidebar
+has the keyboard, or only as a key; it shows no reason, and choosing one changes nothing. A copy key
+that needs the clipboard, and the sidebar's search key without sidebar search, are hidden as their
+keys are. The new-Tab submenu retains quick default creation and also lists the confirmed device
+launch profiles, including System default. Each saved choice names its profile and creates one Tab
+with that profile's literal executable and arguments; it never changes the shared default. System
+shell uses the native system-shell resolver only after the current origin establishes a direct local
+Session, independently of the configured default profile. A remote or unknown origin refuses that
+one-time system-shell choice; ordinary quick default creation still resolves on the executing
+Worker. Custom choices retain their literal paths and arguments. The chosen name appears in the
+creation notice. Removed, changed, invalid or unsupported choices refuse with a Settings recovery
+notice, without falling back or creating a replacement. Profile choices in an empty compatibility
+slot require selecting or creating a Workspace first. Esc and the existing parent-return, scrolling,
+narrow-layout and draw-authority rules apply unchanged. The local adapter matches Desktop's
+saved-profile semantics; command catalog IDs and CLI `--profile` retain their separate existing
+catalog authority. Close Workspace…, Remove Worktree…, Close panel… and Tab Close intents declare
+`ActionTone::Destructive`; the shared metadata and action/row controls resolve that label through
+`accent-destructive`. The Tab Close confirmation uses the same intent tone. Cancel, metadata edits,
+Project Ungroup, Tab group Ungroup and color choices remain ordinary; a red palette choice is a
+value, not destructive intent. These labels are not error statuses. Disabled rows use
+`text-disabled` and acquire no pointer state; enabled intent retains the row's independent focus,
+provisional, hover and held-press cues. The theme owner supplies all shipped and reduced-color
+values and any required native contrast pair. Ctrl+click toggles a Tab's selection mark, and the
+global menu selects all Tabs or keeps only the current one; Shift gestures stay with the host
+terminal, so range selection has no native gesture. Tab actions configure the captured selected set
+when their target belongs to it. [Typed row scope and saved color](#tab-scope-and-current-values)
+make the affected set explicit without changing the underlying operation. Selection or
+selected-member changes revoke the menu proof; background metadata actions keep the current terminal
+attached. Moving the current Tab uses GUI group boundaries, including collapsed neighbors. Metadata
+actions preserve the current terminal; a submenu retains its exact addressed Tab.
 
 Recurring menu and prefix actions share one native metadata projection: a stable action identity,
 category and reviewed semantic search aliases. Dynamic group color, group index and parameterized
@@ -456,13 +451,8 @@ Changed scope or checked facts revoke the old row proof without resetting the ca
 renewing an action deadline. The parent still requires a fresh successful draw after return.
 
 The GUI's group editor already paints checked color radios and palette previews. Its radio keys
-apply a value immediately; native menu navigation remains provisional until activation. Both
-use canonical group color and the existing update owner; this is not a second shared color model.
-The implementation oracles cover exact cross-group selected/unselected scopes, pinned relative
-Close, zero-target filtering, scope/checked proof invalidation, saved-color cancellation and
-committed reopen. Render assertions cover both locales, narrow/wide cell geometry, independent
-checked/candidate/palette tracks, cascaded child placement and destructive row/button
-adoption. They do not establish executed-test results or physical host appearance.
+apply a value immediately; native menu navigation remains provisional until activation. Both use
+canonical group color and the existing update owner; this is not a second shared color model.
 
 ## Model and ownership
 
@@ -615,32 +605,8 @@ closes the episode under the existing rules.
 
 ## Correctness and verification
 
-The owning implementation tests cover shared menu identity, opaque configured-command IDs,
-effective binding discovery, hidden unsupported actions, draw authority, packet tails, generated
-event replay, cancellation, source/target/focus drift, exact draft capture, at-most-once handoff,
-known-commit retention and execution deadlines independent of browsing time. Candidate-hover
-witnesses cover successive pre-paint motions, keyboard continuation, disabled and unpainted rows,
-source and token refusal, viewport retention, pointer leave, and no implicit action. Rest witnesses
-cover the open delay and restarted return grace, parent-row return targets beside the opening row,
-and that a rest opens only a cascaded submenu row and never the global new-Tab submenu. A
-click witness in `crates/workbench-client/src/terminal_input/dispatcher/tests/action_menu/mouse_controls.rs`
-covers an availability refresh between press and release, painted or not: an unchanged row
-activates once, and a disabled, moved or replaced row does not.
-
-Global-menu witnesses assert the Tab, Panel, Workspace and Session section boundaries, directional
-split and move actions, both localized labels, current effective shortcuts, parity with keyboard
-`ClientAction` dispatch, and the localized focused-panel-required reason when no pane is focused.
-Search witnesses cover effective-shortcut and localized-alias matching, nested new-Tab child hits,
-filtered identity and availability, grapheme Backspace, Ctrl+u clearing, query bounds and localized
-no-results presentation.
-
-Maintain the concrete witnesses in `crates/workbench-client/src/action_menu/tests.rs`, `crates/workbench-client/src/workbench_client/ui/action_menus/tests.rs`, `crates/workbench-client/src/terminal_input/dispatcher/tests/action_menu.rs`, `crates/workbench-client/src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
-
-`crates/workbench-client/src/workbench_client/ui/action_menus/sidebar/tests.rs` covers asynchronous token replacement,
-cancelled episodes and keyboard cascade navigation. `crates/workbench-client/src/tui_render/action_menu/tests/placement.rs`
-covers press and row anchoring, cascade sides, the painted parent and the hidden candidate;
-`crates/workbench-client/src/tui_render/action_menu/tests/sidebar.rs` covers complete duplicate/truncated Project suffixes in both locales.
-
-Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA
+model. Shared identity, ownership and commit protocols retain their separately registered core
+models.
 
 An anchored sidebar menu retains the full covered row rectangle for placement while suppressing its underlying input targets.

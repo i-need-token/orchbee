@@ -20,18 +20,7 @@ or I/O, and no layout value is cached across frames.
 ## Reusable controls and modal composition
 
 This application keeps reusable terminal controls and recurring composition private to the
-application until a real cross-package consumer exists. The repository-wide
-[TUI component standard](../../../docs/tui/components.md) defines the required contract; this
-section records the currently implemented reuse points and their evidence. A surface is conformant
-only where its adoption tests exercise the shared implementation.
-
-| Responsibility                     | Canonical source and semantic types                                                                                                                                                                                                                                                                                                                                                                         | Behavior and adoption evidence                                                                                                                                                                                                                                                                                                                                                      |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Actions and fixed icon actions     | [`controls.rs`](../crates/workbench-client/src/tui_render/controls.rs), [`action.rs`](../crates/workbench-client/src/tui_render/controls/action.rs), and [`icon.rs`](../crates/workbench-client/src/tui_render/controls/icon.rs); `ActionSpec`, `IconActionSpec`, `InteractionState`, `Availability`, and `PointerPresentation`; `frame_close_rect` and `render_frame_icon_action` for frame-borne controls | [`controls/tests.rs`](../crates/workbench-client/src/tui_render/controls/tests.rs), [`icon/tests.rs`](../crates/workbench-client/src/tui_render/controls/icon/tests.rs), and adopted Settings and modal renderer tests                                                                                                                                                              |
-| Structured key hints               | [`hint.rs`](../crates/workbench-client/src/tui_render/controls/hint.rs); `KeyHint`, `measure_key_hints`, and `render_key_hints` for persistent chrome; `measure_overlay_hints` and `render_overlay_hints` for overlay footers                                                                                                                                                                               | [`hint/tests.rs`](../crates/workbench-client/src/tui_render/controls/hint/tests.rs) plus [`settings/tests.rs`](../crates/workbench-client/src/tui_render/settings/tests.rs), [`workspace_setup/tests.rs`](../crates/workbench-client/src/tui_render/workspace_setup/tests.rs), and [`worktree_launch/tests.rs`](../crates/workbench-client/src/tui_render/worktree_launch/tests.rs) |
-| Overlay query slot                 | [`query.rs`](../crates/workbench-client/src/tui_render/controls/query.rs); `QueryField`, `render_query_field`, and `render_divider`                                                                                                                                                                                                                                                                         | [`settings/tests.rs`](../crates/workbench-client/src/tui_render/settings/tests.rs) and [`machine_picker/tests/agents.rs`](../crates/workbench-client/src/machine_picker/tests/agents.rs)                                                                                                                                                                                            |
-| Full-row interaction composition   | [`row.rs`](../crates/workbench-client/src/tui_render/controls/row.rs); `RowTracks`, `RowContentBand`, and `RowFocusCue`                                                                                                                                                                                                                                                                                     | [`controls/tests.rs`](../crates/workbench-client/src/tui_render/controls/tests.rs) plus the Settings, Workspace setup, and Worktree renderer tests linked above                                                                                                                                                                                                                     |
-| Recurring native modal composition | [`modal.rs`](../crates/workbench-client/src/tui_render/modal.rs); `ModalLayout`, `SingleModalLayout`, and `ModalAction`                                                                                                                                                                                                                                                                                     | [`modal/tests.rs`](../crates/workbench-client/src/tui_render/modal/tests.rs), feature renderer tests, and the real [modal pointer round trip](../crates/workbench-client/src/workbench_client/ui/tests/modal_pointer_roundtrip.rs)                                                                                                                                                  |
+application until a real cross-package consumer exists.
 
 The modal composition owns pure geometry, frame-local key labels and cursor placement, shared
 action and close painting, and exact pointer projection and publication. Each feature renderer owns
@@ -65,12 +54,9 @@ recovery may widen it up to 88 columns. Each sentence starts on its own line and
 two lines. Small windows follow [dialogs in small
 windows](../../../docs/tui/layout.md#dialogs-in-small-windows): the margin goes first, then width
 and height degrade separately, and a dialog below its minimum is refused with a status notice.
-`paint_dialog` paints the frame, title, `[x]`, rows and footer and records every hit target;
-owners paint field values with `paint_field`, which uses the `surface-field` band where the theme
-has one and brackets otherwise. Settings remains a wide reference surface.
-The [modal witnesses](../crates/workbench-client/src/tui_render/modal/tests.rs) cover centering, class width, small-window degradation and field bands, while the
-[composed popup witness](../crates/workbench-client/src/workbench_client/ui/tests/modal_pointer_roundtrip.rs) covers the
-Project-name flow, localized hierarchy, field cursor, fault/disabled treatment and suspended targets.
+`paint_dialog` paints the frame, title, `[x]`, rows and footer and records every hit target; owners
+paint field values with `paint_field`, which uses the `surface-field` band where the theme has one
+and brackets otherwise. Settings remains a wide reference surface.
 
 All modal geometry, including complete hints, actions, fields, and the fixed three-cell close action,
 must be admitted before `start_modal`, frame mutation, cursor placement, or hit publication. A refused
@@ -450,12 +436,6 @@ cancellation lifecycle. The keyboard routes remain: configured New Tab (default 
 Workspace creation (`Ctrl+b a`), quick Workspace (`Ctrl+b Shift+N`) and the global/Project
 menus. These controls own no new business state, terminal identity or persistence.
 
-Render and hit-region cases cover both locales and default/RGB themes, empty and populated
-lists, every viewport tier and long labels. Pointer traces cover complete clicks and invalidation;
-WorkbenchClientUi tests check stale context/snapshot refusal and delegation to the original command/draft
-owners. These deterministic tests and composed buffer previews do not establish physical-host
-palette or font behavior.
-
 ## Sidebar Agent discovery
 
 The unified sidebar joins the existing eligible Agent projection to exact owners.
@@ -524,11 +504,8 @@ renames a Tab. Global actions remain on `Ctrl+b Space` and machine selection on
 `Ctrl+b Shift+M`. Hidden sidebars publish no sidebar hits. All entry points retain existing
 admission and capture ownership.
 
-Rendering consumes trusted picker rows, the shared window, geometry and binding
-registry. It performs no observation or backend command. Render and input tests
-cover both locales, themes, configured rows, tree connectors, picker/Settings entry
-points and the Full/Compact/Minimal/Mobile/TooSmall matrix. Host interaction requires
-separate native evidence.
+Rendering consumes trusted picker rows, the shared window, geometry and binding registry. It
+performs no observation or backend command.
 
 ### Withheld search
 
@@ -628,17 +605,6 @@ a child Workspace. Mouse and keyboard disclosure share Picker transitions; navig
 keys apply only during explicit sidebar input ownership. GUI correspondence covers hierarchy and identity semantics,
 without claiming pixel or backend equivalence.
 
-| Claim                                     | Executable evidence and limits                                                                                                                                                                                                                   |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Exact grouping and no implicit activation | Deterministic Picker cases cover Machine/Session/Context joins, duplicate labels, Recents grouping and folding, preserved legacy content, multiple default-expanded lists, retained collapse preferences and exact Tab/Panel activation.         |
-| Valid focus and scroll                    | Bounded generated navigation traces cover topology and grouping changes; focused cases cover regroup/dissolve, removed ancestors, Agent-parent movement, current-Agent reveal and manual-scroll disclosure. No unbounded proof is claimed.       |
-| Shared geometry and input authority       | Render, pointer and dispatcher cases cover configured heights/gaps, both locales/themes, wide glyphs, folded status lines and current evidence, revealed Project controls, stale hits, wheel cancellation and disclosure without focus transfer. |
-
-These synchronous presentation transitions add no asynchronous effect or terminal
-acknowledgement. Existing sidebar-input, menu and pointer owners and their deterministic
-tests retain independent completion, capture and cancellation ordering. New tree projection
-and disclosure semantics require the deterministic evidence above in addition to those focused checks.
-
 ## Sidebar width and restoration model
 
 `tui_layout::SidebarWidth` admits 24 through 60 columns, defaulting to 30. This is an
@@ -669,15 +635,6 @@ changes leave the underlying terminal geometry unchanged. Graphics use the exist
 cover and rejected-draft repaint lifecycle. Only the actual one-column border uses
 the focus accent foreground; neighboring cells render normally at their new geometry. Press, motion, release and
 cancellation never add width values or drag instructions to the status area or an overlay.
-
-The pure width model covers admitted bounds, half-host clamping, offset viewports,
-absolute motion, no-op preference retention and 120 → 60 → 50 → 120 restoration.
-Picker cases cover compare-and-set rejection, focus preservation and collapsed active
-Workspace entry without disclosure. Sidebar renders cover widths 24/30/60, both
-locales, tier degradation and exact border hits. Shared input evidence under the
-native mouse-input authority owns capture, stale draws, cancellation, matching release,
-two held moves across rendered frames, graphics cleanup and terminal-geometry agreement; pure geometry alone does not prove
-those effects. The existing bounded hierarchy traces remain the hierarchy authority.
 
 ## Sidebar toggle and Help
 
@@ -761,17 +718,6 @@ build's stem carries the digest of the checkout that built it, so a staged cohor
 checkout never names this one. The marker hides with the sidebar, and the touch Settings row
 places it the same way, ending Settings' target, which otherwise reaches R-7, one cell before it. The GUI sidebar footer shows
 the same marker after Settings, before Update while it shows.
-
-The [sidebar chrome renders](../crates/workbench-client/src/tui_render/sidebar_chrome/tests.rs)
-cover the marker's drop order and Update's role, tooltip, drop order and clearance from its
-neighbours in 3- to 40-column regions in both locales under Terminal colors, Orchbee Dark and
-Orchbee Light, Update's touch targets, and 120x40, 80x24 and
-60x12 at widths 24, 30 and 60 in both locales with native, RGB and
-simplified glyphs, the hidden strip toggle and the drop order in 3- to 24-column regions. The
-[dispatcher trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/sidebar_width.rs)
-clicks the painted controls: hide, show at the retained width, and Help; the
-[Update trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/action_menu/update.rs)
-clicks Update's target through each switch outcome.
 
 ## Mobile sidebar list
 
@@ -1020,44 +966,19 @@ keeping the last valid geometry below that floor is the environment slice's conc
 
 ## Correctness evidence
 
-`cargo test -p orchbee` covers: the tier boundary matrix including the width/height lower-of-two
-rule and the width-only Mobile rule, content reaching the last row beneath the status chip, the strip, sidebar presentation per
-tier, overlay clamping, centering, and refusal, pane division geometry and the shared divider, plus
-TestBackend renders at 120x40, 80x24, 60x12, 50x10, 15x4 and mixed-axis geometries in `en-US` and
-`zh-CN` proving the status chip is never covered, the too-small notice is localized, and active/long-label tab tokens stay visible through
-display-width truncation.
-
 Whole-screen review follows `docs/tui/verification.md`: the current Workspace remains marked
-independently of keyboard focus, ordinary sidebars expose only Settings and Help at the bottom, complete lists show no
-scrollbar, a single pane fills its panel, and split/maximized views share their frame and border titles. Review the default theme together with
-both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/maximized.
-`workbench_client/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer
-occlusion, a status chip hiding only a cursor it covers, the first content row directly below the Tab strip, stable geometry and exact restoration in both
-locales and native/RGB themes. The [empty-workspace witnesses](../crates/workbench-client/src/workbench_client/ui/tests/quick_workspace.rs)
-check blank content, retained creation, Search and Settings targets, and absence of the Actions button across tiers.
-The [layout query witnesses](../crates/workbench-client/src/workbench_client/ui/client_layout/tests.rs) pin bare, maximized
-and split content geometry. The [report witnesses](../crates/workbench-client/src/workbench_client/ui/tests/panel_reports.rs)
-retain exact-scope reports in each leaf; the
-[Presentation witnesses](../crates/workbench-client/src/workbench_client/ui/presentations/tests.rs) check the relocated arrows,
-inert count and keyboard/pointer selection.
-The same viewport/chrome witnesses inject correlated terminal-exit records and check persistent
-status and its fix in the floating chip, retained first-row content, unchanged geometry and hidden
-ended cursors. Localized copy
-checks cover maximum exit/signal values, unknown results and runtime failure in both languages.
-These outcomes remain acceptance constraints for later feature changes.
+independently of keyboard focus, ordinary sidebars expose only Settings and Help at the bottom,
+complete lists show no scrollbar, a single pane fills its panel, and split/maximized views share
+their frame and border titles. Review the default theme together with both named RGB themes, empty
+and populated sidebars, navigation, hidden sidebar and split/maximized.
 
 The package-private [completed-frame observer](../tests/support/tui_observer.rs) is shared by the
 Linux PTY process tests and the [portable observer test family](../tests/tui_observer.rs). Run
 `cargo test -p orchbee --test integration --locked tui_observer::` when changing its frame grammar.
-It checks completed versus partial or stale draws at the backend's synchronized-update flush boundary,
-exact top-row locations and a single current Tab token, ordered
-Tab and Navigator tracks, complete modal borders and close controls, and bracketed editor windows.
 This completed-frame claim is limited to healthy renderer output in the controlled Linux fixtures:
 terminal restoration can emit the same synchronized-update end, so the observer does not establish
-output-failure atomicity or restoration success. Compact-token predicates use fixture labels that
-cannot themselves be parsed as another compact token; ambiguous labels fail closed, and this grammar
-does not claim support for every valid `WorkbenchLabel`. Keep the observer and both consumers aligned
-with the owning renderers; portable predicate tests do not establish Linux PTY execution or physical
+output-failure atomicity or restoration success. Keep the observer and both consumers aligned with
+the owning renderers; portable predicate tests do not establish Linux PTY execution or physical
 terminal appearance.
 
 ## Tab metadata annotations

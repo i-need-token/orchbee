@@ -81,27 +81,30 @@ History uses the same generation/geometry-fenced installed window the painter ca
 Pending recovery or missing data never fabricates a bottom position.
 
 This read may execute while the Client is Busy, including history browsing, without relaxing
-navigation or mutation admission. Starting/unavailable views cannot produce viewport success.
-Exact view revision, one pending operation and canonical membership checks remain required.
-The UI takes no attachment, input, resize, navigation, history-read, acknowledgement or paint
-effect. A batch retains at most 12 KiB; the Server reserves that amount before admission.
-Existing frame kinds and 16 KiB request / 64 KiB result limits remain unchanged. Rust,
-TypeScript and schema/corpus bindings agree; the additive contract requires matched cohorts.
-State is volatile; rollback has no durable migration. Focused evidence covers bounds, wrong
-membership/route, pending/recovery states, Busy read versus mutation admission, and real
-Windows two-Client history observations without focus or viewport changes.
+navigation or mutation admission. Starting/unavailable views cannot produce viewport success. Exact
+view revision, one pending operation and canonical membership checks remain required. The UI takes
+no attachment, input, resize, navigation, history-read, acknowledgement or paint effect. A batch
+retains at most 12 KiB; the Server reserves that amount before admission. Existing frame kinds and
+16 KiB request / 64 KiB result limits remain unchanged. Rust, TypeScript and schema/corpus bindings
+agree; the additive contract requires matched cohorts. State is volatile; rollback has no durable
+migration.
 
 ## Model and evidence
 
-The Server registry deterministically owns admitted generation, Client samples, monotonic time, queued/delivered commands and completed observations. The authenticated carrier is an adapter. TUI owns ordered semantic steps, the connection lane owns transport/joining, and CLI owns selection, one submission per operation identity, the bounded stale-view retry and bounded waiting. No owner writes another’s private state. Controlled/generated registry and controller tests cover these workflows without a separate TLA model; duration, capacity and serialization are concrete implementation checks.
+The Server registry deterministically owns admitted generation, Client samples, monotonic time,
+queued/delivered commands and completed observations. The authenticated carrier is an adapter. TUI
+owns ordered semantic steps, the connection lane owns transport/joining, and CLI owns selection, one
+submission per operation identity, the bounded stale-view retry and bounded waiting. No owner writes
+another’s private state.
 
-Evidence must cover owner isolation, two Clients, stale/frozen UI, revision changes, no delivery replay, duplicate/conflicting identities, capacity/expiry, partial execution, human-input interference, disconnect and shutdown. Generated stateful traces retain reduced counterexamples. Shared Rust/TypeScript/schema fixtures and frame limits establish bounded contract agreement. Controlled Windows ConPTY traces must show CLI selection reaching the intended Client and successful drawing, with the other Client unchanged. Same-author checks do not imply independent review.
+Same-author checks do not imply independent review.
 
 ### Targeted maximize toggle
 
 `ToggleZoom` is an exact target intent. The UI captures the target Tab's prior maximized state once after activating that Tab, then preserves that decision across Panel focus and subsequent ticks. `ZoomToggled` carries `previouslyZoomed` and a successfully drawn observation with the inverse maximized value. It cannot acknowledge a plain `Zoom` intent. Single-panel targets report `ZoomUnchanged`; they do not claim a toggle occurred. Interrupted navigation remains incomplete, and status reads never execute another toggle.
 
-Layout reads use the same one-delivery lane but complete with `layout-read` without a draw acknowledgement. Dedicated frame kinds 27/28 carry their larger bounded payloads. Registry tests check read purity, pending/result memory reservations and exact payload accounting.
+Layout reads use the same one-delivery lane but complete with `layout-read` without a draw
+acknowledgement. Dedicated frame kinds 27/28 carry their larger bounded payloads.
 
 ### Directional Panel focus
 
@@ -113,7 +116,11 @@ No neighbor completes as `direction-unchanged`, carrying the source `layoutRevis
 
 A found neighbor is captured once as an exact destination Panel. Existing ordered selection and draw acknowledgement execute that fixed destination, preserving the original directional intent in the receipt. Further ticks, viewport changes, status reads and replay never perform another directional step. `direction-focused` carries the destination Panel and observed view; that destination differs from the source and matches the requested context, Tab and minimum revision. A found neighbor already focused still produces this outcome after a draw. The maximized state is preserved. Local interruption and membership loss use existing rejected/incomplete semantics; no OS window activation is performed.
 
-Both new completion variants use ordinary bounded frames 25/26. Rust, TypeScript and JSON Schema reject unknown variants and fields; semantic validators reject a directional result for a different intent, a source-as-destination, a mismatched view and a stale source revision. The Server retains the original operation and never resolves geometry itself. Maintained controller and registry witnesses cover no-neighbor purity, fixed destination, draw ordering, interruption and receipt replay. Windows ConPTY evidence covers exact Client isolation and inactive-source behavior. No-neighbor behavior preserves the current selection; cell chrome and authenticated Client routing remain owned by Orchbee.
+Both new completion variants use ordinary bounded frames 25/26. Rust, TypeScript and JSON Schema
+reject unknown variants and fields; semantic validators reject a directional result for a different
+intent, a source-as-destination, a mismatched view and a stale source revision. The Server retains
+the original operation and never resolves geometry itself. No-neighbor behavior preserves the
+current selection; cell chrome and authenticated Client routing remain owned by Orchbee.
 
 `panel resize [panel] --direction left|right|up|down [--amount <number>]` adjusts one eligible split border, preserving focus and the maximized state. `layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` sets an exact binary split path. Both route to one Windows TUI and retain a `layout-adjusted` receipt. Selected changes wait for a draw; inactive changes store without navigation. Finite ratios clamp to 0.1–0.9, and finite resize amounts normalize to an absolute magnitude at most 0.5 (default 0.05). Server commits ratios into shared Workbench state and checkpoint v1; all Clients project them at their own viewport sizes. Client focus, maximized state and control remain local. See the [layout contract](windows-client-layout.md).
 
@@ -151,10 +158,6 @@ acknowledgement, terminal attachment or input effect occurs. Selected results in
 results never invent focused or active fields. Cancellation closes the connection
 and exits130; unavailable or changed observations retain typed failures.
 
-Tests cover bounds and duplicate IDs, reply correlation, invalid membership and
-revisions, empty/inactive/reordered/removed selections, independent Clients,
-headless compatibility, grammar, schemas and bilingual output. Real Windows
-acceptance must compare both Clients and canonical state before and after reads.
 Agent summaries, Panel process/title and Client scroll use their separate observation owners;
 Workspace worktree and reported metadata remain dependent joins.
 
@@ -193,9 +196,7 @@ A decoded human input intent or deadline expiry before the completion draw preve
 retained rejected/incomplete outcomes still describe any navigation already performed. Agent focus
 keeps its exact subject/member/physical-frame validation. No OS activation or terminal input occurs.
 
-Workspace/Tab navigation while a modal surface is open remains a separate obligation. Targeted controller and
-attention tests cover outer focus loss, same-target navigation, current-version scope, directional
-resolution/no-neighbor, human input, deadline and replay; full Windows acceptance remains final.
+Workspace/Tab navigation while a modal surface is open remains a separate obligation.
 
 ## Panel focus mode exit
 
@@ -215,9 +216,7 @@ human input or expiry interrupts the request; retained incomplete outcomes repor
 or navigation effect. History buffers and submitted operations are never discarded to manufacture readiness.
 
 Workspace/Tab focus does not acquire Panel mode dismissal. No wire fields, public schemas, OS
-activation, terminal input or persistent state are added. Focused controller, canonical-preflight,
-Server admission and Windows lane shutdown tests cover these boundaries; full Windows acceptance
-remains part of final regression.
+activation, terminal input or persistent state are added.
 
 ## Plugin overlay handoff
 

@@ -241,24 +241,6 @@ physical Git association. See [CLI workflows](cli-workflows.md).
 
 ## Correctness and verification
 
-Maintain the state, carrier, input, rendering and integration witnesses for one-step launch,
-ungrouped and Project-targeted creation, atomic new-Project membership, noncurrent moves,
-dissolution, unchanged terminal bindings and selection, late completion and non-replay recovery.
-The owning suites include `state/workspace_setup`, `state/tests/workspace_setup`,
-`connection/native/tests/quick_workspace` and `terminal_input/dispatcher/tests/workspace_setup`.
-`ui/tests/workspace_setup/responsive` controls preparation, launch, focus, refusal and recovery order;
-`tui_render/workspace_sidebar/tests/creation` checks exact-identity observer handoff. These local
-implementation traces do not provide exhaustive TLC assurance.
-`ui/tests/workspace_setup/sidebar` covers immediate reorder, UI wakeup and refusal/commit settlement;
-`machine_spaces/tests/navigation_projection` covers stale observations, newer deletion and exact
-metadata identity. `machine_picker/tests/spaces/anchoring` covers mutation, resize and provisional-slot
-scroll anchors. These deterministic cases do not establish physical paint latency.
-Those sidebar traces include append-position and scroll-window stability with multiple Workspaces;
-`ui/tests/quick_workspace` covers formless quick submission plus the explicit directory review, its
-folder rows and selection fill, cancellation and exact edited-path submission;
-`state/tests/quick_workspace` covers the `~` spelling of listed folders.
-
-Run `cargo test --locked -p orchbee --all-targets --all-features` and the applicable root gate.
-This workflow has no separate TLA model. Implementation traces and process tests do not replace
-real-terminal mouse/keyboard, viewport, first-frame and interaction review. Shared commit and
-ownership protocols retain their separately registered models.
+Run `cargo test --locked -p orchbee --all-targets --all-features` and the applicable root gate. This
+workflow has no separate TLA model. Shared commit and ownership protocols retain their separately
+registered models.

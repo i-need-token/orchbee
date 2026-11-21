@@ -232,25 +232,15 @@ change, and the automatic label it moves, keeps an open menu and starts its disc
 keep a success only while its checkout contains the new directory, and otherwise stay disabled until
 Git answers. A row chosen meanwhile waits for the new answer and runs only against it. A later menu
 starts from the last success for the same source under the same rule, or omits the Worktree rows
-after Git refused that exact directory, and a sidebar row that already
-shows a branch for the directory it stands in opens its menu with New Worktree… enabled, under the
-same wait for the first answer. A launch form already open reports the
-source change at Start. Sidebar preparation uses
-the existing background Worktree lane's own authenticated Session: it reads the Server's answer after
-a scope snapshot and checks the scope again after Git. It attaches no Viewer and never borrows the
+after Git refused that exact directory, and a sidebar row that already shows a branch for the
+directory it stands in opens its menu with New Worktree… enabled, under the same wait for the first
+answer. A launch form already open reports the source change at Start. Sidebar preparation uses the
+existing background Worktree lane's own authenticated Session: it reads the Server's answer after a
+scope snapshot and checks the scope again after Git. It attaches no Viewer and never borrows the
 interactive Viewer or its controller. Every failure path retires that auxiliary Session within the
-original bounded budget and cleanup reserve. Discovery and creation must
-revalidate the addressed proof, and the chosen source/directory appears in the existing launch form
-before effect. The pure source model tests cover empty/noncurrent/multiple-repository grouping,
-first terminal versus child/later terminal, answered versus refused reads and source drift. Git
-classification, the Server's directory sampling and real menu interaction require their separate
-integration evidence. `cli_windows_worktree_menu` runs the CLI, Server, Worker and Zig Host under
-test against a real repository with a TUI Client driven by pointer: from an ungrouped Workspace's
-row menu, Open Worktree ▸ opens a linked checkout into a new Project with the Workspace, and New
-Worktree… then joins that Project. It also covers a first terminal in a subdirectory, a directory the
-shell only reports, a directory change under the open menu with its rows staying enabled, a checkout another Workspace holds, a
-Workspace that walked into the checkout beside one that walked out of it, a folder outside Git whose
-open menu omits the Worktree rows once Git refuses it, and a checkout every Workspace left. A direct Cargo run needs the Server and Worker built first.
+original bounded budget and cleanup reserve. Discovery and creation must revalidate the addressed
+proof, and the chosen source/directory appears in the existing launch form before effect. A direct
+Cargo run needs the Server and Worker built first.
 
 ## Entry and failure
 
@@ -297,23 +287,8 @@ has the [existing retention limit](windows-worktrees.md#retained-continuation).
 
 ## Correctness and verification
 
-Maintain witnesses for default one-step creation, the picker's prefilled create and its Agent
-start, checkout selection, current-group attachment,
-closed/closing source refusal, cancellation, exact draw authority, ambiguous handoff, known partial
-facts, Start/Read separation, target replacement and bounded Viewer release. Removal witnesses cover
-exact linked targets, no automatic submission, full bilingual confirmation, dirty failure, cancelled
-recovery, fenced Resume/Read separation, stale attempts, no focus stealing after hidden completion,
-cause-specific failure copy with held-close guidance, drawn Abandon, release of results whose
-Workspace is gone and bounded Pending re-reads.
-
-Owning suites include `state/worktree_launch/tests.rs`,
-`connection/native/worktree_launch/tests.rs`, `ui/tests/worktree_launch.rs` and adjacent
-state, transport, input and rendering suites. `state/worktree_launch/tests/removal.rs` owns the
-Remove transitions, `worktree_lane/tests.rs` owns exact Resume exchanges and `ui/tests/worktree_launch.rs`
-owns composed confirmation and recovery rendering. Run
-`cargo test --locked -p orchbee --all-targets --all-features` and the applicable root gate.
-This workflow has no separate TLA model. Named implementation traces do not establish exhaustive
-interleavings or physical terminal usability; real mouse/keyboard experience is separate evidence.
-Shared ownership and commit protocols retain their registered models.
+Run `cargo test --locked -p orchbee --all-targets --all-features` and the applicable root gate. This
+workflow has no separate TLA model. Shared ownership and commit protocols retain their registered
+models.
 
 On Windows, native Worktree forms render checkout paths with backslash separators; macOS shows the reported POSIX path unchanged. This is a display projection only; selection and operations retain the exact canonical path.

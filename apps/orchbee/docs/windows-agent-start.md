@@ -161,14 +161,15 @@ The fixed Windows launch names for canonical `cursor`, `qodercli` and `minimax-c
 `command-code`, never as its package's `cmd` command, which names the system command processor.
 Historical and sibling names remain recognition aliases; startup does not fall back to them.
 
-OpenClaw opens its interactive session through a subcommand rather than its bare command:
-`openclaw chat`. The closed provider table in `agent_provider::launch_arguments()` holds that fixed
-word, never caller text; the short argument-free form appends it after the command, and caller
-arguments follow it in the literal wrapper. Process recognition requires the same subcommand: its bare command stays unclassified. An absent current executable follows the existing startup failure workflow.
+OpenClaw opens its interactive session through a subcommand rather than its bare command: `openclaw
+chat`. The closed provider table in `agent_provider::launch_arguments()` holds that fixed word,
+never caller text; the short argument-free form appends it after the command, and caller arguments
+follow it in the literal wrapper. Process recognition requires the same subcommand: its bare command
+stays unclassified. An absent current executable follows the existing startup failure workflow.
 Name-based process recognition alone is heuristic: an observed start also needs the Server's
-published run and published Agent state. Owned Windows subprocess tests exercise both canonical selections with literal arguments;
-they do not establish authenticated provider readiness. References: [Cursor installation](https://cursor.com/docs/cli/installation)
-and [Qoder installation](https://docs.qoder.com/cli/installation).
+published run and published Agent state. References: [Cursor
+installation](https://cursor.com/docs/cli/installation) and [Qoder
+installation](https://docs.qoder.com/cli/installation).
 
 ### Launch-time conversation ids
 
@@ -432,18 +433,7 @@ JSON fields. Workbench consumes typed reservation, delivery and failure facts di
 The Server's [canonical model](../../orchbee-server/docs/agent-canonical-model.md) owns reservation
 state, and the shared OBAP protocol owns wire validation.
 
-Host envelope and process payload validation is covered in
-`crates/workbench-client/src/agent_runtime/startup/processes/tests.rs`. `src/cli/agent_start/tests.rs` drives the existing
-receipt matrix through the production domain-to-CLI conversion; Workbench recovery precedence
-and the Panel-scoped guard remain covered in `crates/workbench-client/src/agent_board/start/jobs/tests.rs`. The existing tests also
-exercise real Windows exe/ps1/cmd argument boundaries, parser and completion scope, competing
-reservations, exact expiry, stale bindings, canonical readiness, interrupted delivery and lost
-replies. `crates/workbench-client/src/agent_start/command/tests.rs` covers launch-time ids for
-the five providers in both launch forms: exactly one valid fresh id, none where the caller chose a
-conversation or the provider takes none, and a budget that leaves room for it. Windows CLI
-named-pipe tests retain receipts and prove no automatic replay.
-Real Session/Worker/Host validation checks the combined runtime separately. TLA model execution
-is not required for this Windows slice.
+Real Session/Worker/Host validation checks the combined runtime separately.
 
 ## Inspecting completed startup
 

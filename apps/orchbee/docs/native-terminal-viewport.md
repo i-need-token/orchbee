@@ -56,13 +56,9 @@ cropped panes use that fallback instead of untransformed host graphics. Exact-si
 their complete ordinary live content area.
 
 Primary-screen wheel-up or the history binding enters the existing manual-history core; a clipped
-current screen is eligible even without older scrollback. History holds its committed reading
-anchor while output continues, and Esc explicitly returns to cursor-following live content. The
-local crop does not create a new shared viewport or claim that clipped alternate-screen history
-is available. `terminal_live_view/tests`, `tui_render/terminal_cells/tests`,
-`terminal_content/source/tests` and `ui/tests/viewport/chrome` cover crop bounds, clear/resize,
-source coordinates and the prompt beneath composed read-only chrome. Host font acceptance remains
-real-window evidence.
+current screen is eligible even without older scrollback. History holds its committed reading anchor
+while output continues, and Esc explicitly returns to cursor-following live content. The local crop
+does not create a new shared viewport or claim that clipped alternate-screen history is available.
 
 ## Automatic Agent tail presentation
 
@@ -85,15 +81,10 @@ unchanged start row.
 
 Automatic tail owns a retained-row lease but does not consume ordinary terminal keys or display
 manual-history chrome. Explicit scrolling, copy mode or admitted selection transfers the core to
-manual history. Active selection and export fence automatic navigation. Disabling the preference
-or losing eligibility recovers through the existing demand owner. No PTY resize or history deletion
-occurs. The core model covers demand/read/ack/recovery; target admission and cursor/copy coordinates
-are implementation obligations covered by focused tail and painter tests.
-An automatic lease transferred to manual history retains its active projection demand; the manual
-surface and input owner still use the committed history window. The executor's `tests/viewport.rs`
-checks entry demand selection and partial-entry reset; `ui/terminal_tail/tests.rs` checks fresh
-text/colors before and after a replacement crop, both locales/themes, retained rows over a newer
-frame while its read is pending, and stale-window exclusion.
+manual history. Active selection and export fence automatic navigation. Disabling the preference or
+losing eligibility recovers through the existing demand owner. No PTY resize or history deletion
+occurs. An automatic lease transferred to manual history retains its active projection demand; the
+manual surface and input owner still use the committed history window.
 
 ## State machine
 
@@ -323,12 +314,6 @@ restoration behind it still validates fresh facts and witness rows, and a refusa
 through ordinary recovery. Input forwarded before restoration begins records Live and drops the
 image, the same choice typing makes in history.
 
-The core's traces check fresh totals, content refusal before paint/ACK and the commit boundary.
-`ui/history_positions/tests.rs` checks projection replacement, the bookmark image in place of the
-live tail, typing before restoration, context-bank handoff, explicit Live, canonical pruning and
-terminal/geometry refusal. These are implementation witnesses; the bounded
-coordination model continues to own the existing demand/read/ACK protocol.
-
 ## Direct sidebar switching
 
 Windows sidebar Agent activation is immediate navigation intent, shared by a valid primary release
@@ -376,36 +361,24 @@ Automatic Tab titles keep the title last shown for the same canonical binding wh
 waits for a frame, by the [background title rule](native-tab-labels.md#background-terminal-titles).
 A fresh live title, including a cleared title, takes precedence.
 
-The controlled witnesses are `machine_picker/tests/sidebar.rs`,
-`terminal_input/dispatcher/tests/action_menu/sidebar_prefix.rs`,
-`tui_shell/machines/tests/direct_navigation.rs`, `ui/direct_navigation/tests.rs` and
-`state/tests/context_selection.rs`; `connection/native/tests/presentations.rs` checks unexpected
-Host cleanup before any poll or control. They cover packet ownership, no implicit picker, exact child
-landing, latest intent, cancellation, failure, stale results and physical replacement. The viewport
-witness uses the shared shell/pane geometry projection. These are implementation traces, not
-exhaustive TLC assurance or physical paint timing. Real-host acceptance samples same-tab,
-cross-tab and cross-workspace clicks frame by frame for transient navigation and wrong-target content.
-
 ## Rendering
 
 A validated render window uses the same styled-cell painter as live output, bounded by the pane
 content geometry. Colors use the window's captured defaults, never the TUI theme or a newer live
 frame. The captured grid owns each cell's one- or two-column footprint, including regional
-indicators that a Unicode width table measures differently. The painter preserves the complete
-safe cell string and supplies that footprint to Ratatui's diff. The output backend explicitly
-positions the next write after supplementary scalars and multi-scalar symbols instead of
-assuming the host advanced by the table's width. Blank replacement of a wide cell clears its
-captured footprint; ordinary ASCII runs remain contiguous. `tui_render/terminal_cells/tests` and
-`tui_backend/tests` protect these boundaries; physical glyph readability and resize/takeover/clear
-acceptance still require matched real-host evidence, without generalizing to every emoji.
-Style attributes and wide/spacer cells retain live-painter behavior; controls are sanitized
-and a clipped wide cell paints blank. History never shows a cursor. Graphics resources are fully
-validated at decode but not displayed; this does not complete graphics history. Old-generation or old-column data never paints: the surface accessor re-validates the
-installed window's generation and columns against current facts on every draw. `Entering` keeps
-the last verified live frame under its loading indicator; `Viewing` without a current window clears
-to that indicator; `Recovering` clears to a recovering indicator. A retained window paints no
-chrome over its rows, so the last row remains retained content. `Esc` returns to live output. The
-indicator rectangle resets underlying cells before painting its semantic style, so child colors and
+indicators that a Unicode width table measures differently. The painter preserves the complete safe
+cell string and supplies that footprint to Ratatui's diff. The output backend explicitly positions
+the next write after supplementary scalars and multi-scalar symbols instead of assuming the host
+advanced by the table's width. Blank replacement of a wide cell clears its captured footprint;
+ordinary ASCII runs remain contiguous. Style attributes and wide/spacer cells retain live-painter
+behavior; controls are sanitized and a clipped wide cell paints blank. History never shows a cursor.
+Graphics resources are fully validated at decode but not displayed; this does not complete graphics
+history. Old-generation or old-column data never paints: the surface accessor re-validates the
+installed window's generation and columns against current facts on every draw. `Entering` keeps the
+last verified live frame under its loading indicator; `Viewing` without a current window clears to
+that indicator; `Recovering` clears to a recovering indicator. A retained window paints no chrome
+over its rows, so the last row remains retained content. `Esc` returns to live output. The indicator
+rectangle resets underlying cells before painting its semantic style, so child colors and
 hidden/reversed attributes cannot leak into chrome. A wide glyph crossing the indicator's left edge
 is blanked rather than painting half a glyph across the label.
 
@@ -451,11 +424,6 @@ Home, End and Esc.
 The scrollbar uses a right-side track, grab offset and bounded scrolling.
 Its read/ACK authority and cancellation remain owned by Orchbee.
 
-Evidence: `terminal_scrollbar/tests` covers integer bounds; `tui_pointer/tests/scrollbar` covers
-gesture/cancellation and every mouse-tracking mode; `ui/tests/viewport/scrollbar` covers composed
-theme/locale rendering, native admission, decoded focus-loss/keyboard traces, output growth and
-recovery. The retained viewport core checks only the coordination properties in the verification section; scrollbar geometry and gestures remain implementation evidence.
-
 ## Invariants
 
 - `OneReadFlight`: at most one admitted read in flight; host pending is never double-occupied.
@@ -469,7 +437,6 @@ recovery. The retained viewport core checks only the coordination properties in 
   reads use that previously accepted anchor.
 - `NoReadWhileAck`: no read while an acknowledgement is pending or in flight.
 - `SurfaceCurrent`: painted rows always match the current generation and column count.
-  Drawing evidence lives in the product tests.
 - `RecoverBeforeInput`: every input newly admitted to the wire is already covered — the pane
   was in `Recovering`, or a `Recover` was admitted ahead of it. Asserted on the admission
   edge; an already-executed recovery needs no re-witness.

@@ -15,10 +15,10 @@ background Tab keeps the current Tab, Panel, Presentation, terminal binding and 
 
 ## Actual host capability comparison
 
-This comparison concerns the admitted Workbench composition, not everything exported by the
-reusable Tab Strip. The GUI owners are `WorkbenchTabBar`, `useWorkbench`,
-`getWorkbenchTabCreationAvailability`, `WorkbenchProjectWorkspaceRuntime` and `TabModel`.
-Native entries refer to the shared TUI on all supported platforms. This is a capability slice, not complete GUI/TUI parity.
+This comparison concerns the admitted Workbench composition, not everything exported by the reusable
+Tab Strip. The GUI owners are `WorkbenchTabBar`, `useWorkbench`,
+`getWorkbenchTabCreationAvailability`, `WorkbenchProjectWorkspaceRuntime` and `TabModel`. Native
+entries refer to the shared TUI on all supported platforms.
 
 | Core operation                                      | Admitted GUI path                                                                                                                                                                                                  | Native coverage and remaining gap                                                                                                                                                                                                   |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -38,12 +38,11 @@ Native entries refer to the shared TUI on all supported platforms. This is a cap
 | Move one Tab across a group boundary                | GUI model updates arrangement and grouping together                                                                                                                                                                | The global menu moves the current Tab left/right/first/last with GUI grouping semantics; collapsed neighbors are skipped using a local view hint. Legacy direction/index shortcuts retain their original ordering semantics.        |
 | Move to another window                              | The GUI offers none; the Tab strip has no window-transfer row, Action or callback                                                                                                                                  | Not an admitted current-host parity claim. No native menu row or window-transfer operation.                                                                                                                                         |
 
-Orientation, hover cards and vertical-strip preferences are host presentation choices. The native
-menus now cover the admitted creation, duplication, grouping and close operations above. Close
-deliberately removes only the vacated source group when it becomes empty, preserving unrelated
-empty groups; GUI `TabModel.closeTabs` prunes all empty groups. The
-[Close owner boundary](native-tab-close-sets.md#group-cleanup-boundary) records this intentional
-exception. Host presentation differences remain explicit limits.
+Orientation, hover cards and vertical-strip preferences are host presentation choices. Close
+deliberately removes only the vacated source group when it becomes empty, preserving unrelated empty
+groups; GUI `TabModel.closeTabs` prunes all empty groups. The [Close owner
+boundary](native-tab-close-sets.md#group-cleanup-boundary) records this intentional exception. Host
+presentation differences remain explicit limits.
 
 ## Shared authority and receipts
 
@@ -141,12 +140,9 @@ dragging preserves the current terminal; the GUI may activate a dragged member o
 Headers carry no member count or brackets: the chip, the band and adjacency mark membership. A collapsed header retains name, color and disclosure, takes the current surface while
 it hides the active Tab, and carries its members' most urgent Agent state and unread dot.
 
-The pure configuration corpus compares ten drag outcomes with GUI `TabModel.moveTabsByDrag`.
 The Rust selection/boundary matrix checks pinned prefix, contiguous groups and preserved terminal
-data. `tui_pointer::tabs::tests` covers release-only writes and cancellation traces;
-`ui::tab_groups::tests::interaction` covers exact-source admission, canonical receipt installation,
-distinct menu scopes and fresh paint after submenu back. The existing setup transaction owns
-stale/unknown outcomes; no drag-specific retry, ledger, persistence or distributed protocol is added.
+data. The existing setup transaction owns stale/unknown outcomes; no drag-specific retry, ledger,
+persistence or distributed protocol is added.
 
 ## Terminal creation and duplication
 
@@ -227,8 +223,6 @@ goes on and its copies appear on the next refresh.
 
 ## Compatibility and verification
 
-The owning implementation tests cover group membership, pinned ordering and duplicate source identity; the Server's tests witness ordered, once-only copying of several sources and its stops.
-
-Maintain the concrete witnesses in `crates/workbench-client/src/workbench_state/tab_groups.rs`, `crates/workbench-client/src/tui_pointer/tests/tab_groups.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
-
-Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA
+model. Shared identity, ownership and commit protocols retain their separately registered core
+models.

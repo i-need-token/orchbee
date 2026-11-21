@@ -101,19 +101,15 @@ close before the answer. Keys typed meanwhile go where they would without a clos
 another Tab queues them in order behind its exchange, its status reads and its reconciliation, so
 typing into the focused pane loses nothing; a close of the focused pane's own Tab, or a set Start
 naming it, refuses them with the input-unavailable notice, as it does through the rest of that
-close. A Panel close queues them
-behind its exchange: an accepted close ends the pane before they arrive, and `confirmation-required`
-delivers them to the terminal before the prompt draws. When another close exchange, active set,
-refresh, recovery fence, leaving selection, or landing switch holds the Client within its hold
-bound, a close initiation holds in bounded per-target FIFO order (and revalidates a menu set against
-its click-time Tab set) instead of opening a surprise confirmation or dropping later clicks, and a
-Tab `[x]` or close still opens while only a single Panel of that Tab has a close running. Otherwise,
-if the Client cannot send the conditional close at once (for instance, a ReadOnly session or an
-unblocked refusal), the confirmation presents instead. Harnesses that script every Server exchange build the UI with `confirming_every_close`. The [real
-process witness](../tests/cli_windows_idle_close.rs) drives a real PowerShell through each route,
-under the system ConHost by default and the product's ConPTY with `ORCHBEE_TEST_CONPTY_DIR`, and the
-[route witness](../crates/workbench-client/src/workbench_client/ui/tests/idle_close.rs) covers which
-closes ask the Server and which present at once.
+close. A Panel close queues them behind its exchange: an accepted close ends the pane before they
+arrive, and `confirmation-required` delivers them to the terminal before the prompt draws. When
+another close exchange, active set, refresh, recovery fence, leaving selection, or landing switch
+holds the Client within its hold bound, a close initiation holds in bounded per-target FIFO order
+(and revalidates a menu set against its click-time Tab set) instead of opening a surprise
+confirmation or dropping later clicks, and a Tab `[x]` or close still opens while only a single
+Panel of that Tab has a close running. Otherwise, if the Client cannot send the conditional close at
+once (for instance, a ReadOnly session or an unblocked refusal), the confirmation presents instead.
+Harnesses that script every Server exchange build the UI with `confirming_every_close`.
 
 ## Close status
 
@@ -248,12 +244,6 @@ selection/collapse state, persistence path or local synthetic removal.
 
 ## Evidence and limits
 
-The owning implementation tests cover frozen ordered close sets, first-draw refusal, admitted
-suspension and restoration, cancellation, the set's acceptance, selection, revision races, and
-stopped and lost sets. `workbench_state/tests/tab_close.rs` covers the follow across a generation
-that rises by itself and the sentence of a close that finally fails. `workbench_client/ui/tests/close_impact.rs` covers
-the ended, mixed and unobserved close-impact counts and a settlement under an open prompt.
-
-Maintain the concrete witnesses in `crates/workbench-client/src/workbench_state/tests/tab_close/set.rs`, `crates/workbench-client/src/workbench_client/mailbox/tests/tab_close.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
-
-Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA
+model. Shared identity, ownership and commit protocols retain their separately registered core
+models.

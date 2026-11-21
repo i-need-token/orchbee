@@ -67,8 +67,6 @@ The navigator suppresses pane cursor/focus chrome and presents localized column,
 activation hints. Esc and Enter survive compact degradation before optional headings or revision
 text. Geometry that cannot present a row and exit instruction closes with the existing refusal.
 
-Navigator core, dispatcher and shell tests cover capture, complete-row paint, one-shot transfer, release ownership and mouse-mask restoration. Those concrete input-ownership traces replace a separate sidebar TLA model.
-
 ## State and transition contract
 
 The inputs are a validated Workbench snapshot, an explicit local direction, current Session state,
@@ -121,11 +119,6 @@ Tab retains existing membership fallback to another Tab or Empty. The prepared c
 the same Panel identity for state installation and mailbox publication. Explicit creation, membership repair and Close keep their existing selection
 rules. Restart discards this per-location history; Windows preserves only the last displayed
 position as described below. Cohort rollback requires no checkpoint migration.
-
-Deterministic traces cover remembered nonfirst members, reorder by identity, removal to the Panel at its place, first or Empty,
-explicit override, superseded/refused switches, stale retained membership, independent Clients and
-known nonattachable Create provenance. Windows process evidence exercises two live ConPTY Clients
-through CLI Tab/Workspace/Panel focus and checks unchanged peer selection and OS foreground. These are named implementation traces, not exhaustive context-selection model checks.
 
 ## Last Panel
 
@@ -194,21 +187,19 @@ launch, dispose, change checkpoint data or move another live Client. An existing
 with an absent saved member is an exact restoration without a warning. A fallback to Empty
 reports that destination instead of claiming that a surviving member was opened.
 
-This contract separates durable advice, Client-local selection, pending draw proof and asynchronous storage publication. Exact membership and pane incarnation guard publication; restart resolves current membership before bootstrap. Failure preserves terminal state. Codec/resolution, private-cache and carrier tests cover stale/covered/failed draws, independent Clients, coalescing and atomic publication. Windows ConPTY detach/reopen and removed-member traces connect those cases to the carrier. These named implementation traces do not prove exhaustive interleavings or physical Windows Terminal appearance.
+This contract separates durable advice, Client-local selection, pending draw proof and asynchronous
+storage publication. Exact membership and pane incarnation guard publication; restart resolves
+current membership before bootstrap. Failure preserves terminal state.
 
 ## Correctness evidence
 
-The owning implementation tests cover selection memory, exact Workspace/Tab/Panel identity, cancellation, stale completion, cleanup-before-install, first-frame admission, startup preference and navigator input ownership.
+Removal landing on an empty canonical Workspace must release the old pane and controller authority
+before installation. Fresh peer-added membership requires a fresh attachment; visibility alone never
+grants input or recovers a live process.
 
-Compatibility navigation traces cover peer removal/addition while either canonical or legacy
-content is selected, cycling from a hidden empty compatibility slot, and right-clicking noncurrent
-legacy content without changing canonical focus. Removal landing on an empty canonical Workspace
-must release the old pane and controller authority before installation. Fresh peer-added membership
-requires a fresh attachment; visibility alone never grants input or recovers a live process.
-
-Maintain the concrete witnesses in `crates/workbench-client/src/workbench_state/context_selection.rs`, `crates/workbench-client/src/workbench_client/mailbox/tests/context_selection.rs`, `crates/workbench-client/src/workbench_client/connection/native/tests/context_selection.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
-
-Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA
+model. Shared identity, ownership and commit protocols retain their separately registered core
+models.
 
 The selected pane-membership model still abstracts departure, cleanup and anchor advancement;
 an empty Workspace landing creates no pane. The control-takeover and viewport models retain their

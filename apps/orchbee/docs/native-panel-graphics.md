@@ -40,7 +40,10 @@ The existing input decoder owns complete cell reports and graphics APC replies b
 
 Only a timely cell reply to the sole pending query is admitted. Its positive unsigned 16-bit dimensions must produce exact, representable window pixel totals for the queried cell geometry. A geometry change invalidates measured pixels immediately. Since the legacy cell response has no correlation ID, another cell query cannot be issued while the previous response is outstanding, even after timeout; its late response settles that debt and is discarded before a later query is admitted. Known or settled measurements can be re-queried on the next geometry change. The Kitty reply must match the one issued ID and deadline without a placement ID; an unrelated ID cannot establish support. Query support is an internal fact until a physical renderer actually uses it. Cell-raster observations may publish real measured cell pixels, but continue to publish cell-raster transport and pixelMouse false.
 
-The shell passes a measurement only to its exact cell geometry and the active native surface. It applies the same physical pixels to retained pane geometry and popup geometry; a newly selected Machine receives current host facts before its next draw. No filesystem resource, background thread, additional console reader or new dependency is introduced. Focused acceptance must witness timely, late, absent, wrong-ID, malformed and split replies, ordinary keys interleaved with replies, literal paste, modal capture, geometry invalidation and the actual lifecycle writer. Physical image placement and pixel mouse remain separate obligations.
+The shell passes a measurement only to its exact cell geometry and the active native surface. It
+applies the same physical pixels to retained pane geometry and popup geometry; a newly selected
+Machine receives current host facts before its next draw. No filesystem resource, background thread,
+additional console reader or new dependency is introduced.
 
 ## Physical Kitty surface
 
@@ -52,13 +55,17 @@ Only one chunked image transfer is open at a time. Each ordinary frame sends at 
 
 The backend emits upload, placement and deletion commands inside its existing synchronized update, before its one flush. Image IDs are positive, never reused during the owned alternate-screen session and exclude the probe ID; allocation is bounded and exhaustion selects fallback. The fresh alternate screen and sole admitted output writer fence the namespace. Only registered image IDs are deleted. The restoration lease records allocation before output and retains deletion obligations until a successful flush. On normal exit, output failure, panic or signal, restoration first terminates any partial graphics control string and deletes its registered images, then ends synchronized output and restores the remaining modes. Cleanup uses the admitted lifecycle writer, attempts later restoration steps after failure, and never reopens the TTY or leaves a graphics writer after the restoration fence.
 
-Acceptance includes protocol reconstruction across chunk boundaries, current-source/geometry/overlay retirement, complete-frame publication under an advancing producer, wrong/late/failed upload and placement replies, output failure and cleanup retry, and an actual native shell draw with a simulated responding host. A simulated host does not establish visual compatibility with a real Windows emulator; that composed acceptance remains required.
-
 ## Facts and acceptance
 
 An additive bounded graphics observation is submitted by the existing Client control connection after its normal synchronized view. The Server checks authenticated generation-derived Client ID, heartbeat, Workbench revision, canonical target/binding and installed revision bounds. Foreign connections cannot replace another Client's facts. Info uses fresh matching observations, reports cell-raster or admitted physical Kitty capability from the actual draw path and pixelMouse false, and publishes cell pixels only from the current bounded host measurement. Partial surface lists cannot claim an absent Pane is hidden. Stale, disconnected or mismatched observations do not claim visibility or successful drawing.
 
-The fallback does not claim negotiated Kitty/Sixel or pixel mouse support. Managed private producer file leases and complete file-frame CLI inputs are implemented by the [Session graphics owner](../../orchbee-server/docs/windows-graphics.md). The physical Kitty path is integrated with bounded probing, uploads, placements and restoration; pixel mouse is not advertised. Focused evidence covers actual native renderer output, alpha/z/clipping, complete chunk/resource fences and Client ownership. Real composed graphics workflows in Windows and macOS outer terminals and final full regression remain required before alignment. macOS runs the same probe, renderers and restoration as Windows; no TLA, Linux runtime or manual focus-stealing Desktop test is run.
+The fallback does not claim negotiated Kitty/Sixel or pixel mouse support. Managed private producer
+file leases and complete file-frame CLI inputs are implemented by the [Session graphics
+owner](../../orchbee-server/docs/windows-graphics.md). The physical Kitty path is integrated with
+bounded probing, uploads, placements and restoration; pixel mouse is not advertised. Real composed
+graphics workflows in Windows and macOS outer terminals and final full regression remain required
+before alignment. macOS runs the same probe, renderers and restoration as Windows; no TLA, Linux
+runtime or manual focus-stealing Desktop test is run.
 
 ## Program-printed Kitty images
 
@@ -116,10 +123,3 @@ Kitty get the cell raster; clipped views, which have no local camera transform f
 placements, get the raster crop; covering surfaces hide images instead of compositing over them,
 because an outer terminal cannot clip a Kitty placement to a TUI overlay; and reading stand-ins
 show text only.
-
-Terminal Host generates the Kitty fixture sequence (a resource snapshot, the placement-only delta
-after a scroll, and the empty snapshot after deletion) from a real direct transmission.
-The Client's acceptance test feeds that sequence through the projection and the actual shell
-renderer: a capable simulated host receives upload, placement and delete commands, and an incapable
-host receives cell raster and no graphics bytes. Real-window confirmation in a Kitty-capable outer
-terminal, in Windows Terminal and in iTerm2 and Terminal.app remains required.

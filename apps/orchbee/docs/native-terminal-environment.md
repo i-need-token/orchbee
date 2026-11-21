@@ -38,18 +38,13 @@ same console input buffer between them; the canonical Client reader enforces tha
 the process.
 
 UTF-16 text is assembled before UTF-8 encoding. A high surrogate stays pending across read
-boundaries and character-free key records, including modifier and IME/process-key records;
-ConPTY's character-bearing Alt releases use the same assembly path as zero-virtual-key text.
-The completed pair emits one scalar with its repeat count, never two replacement characters.
-An unpaired low surrogate, a high surrogate followed by another text/key boundary, or mismatched
-repeat/modifier metadata refuses the read with `InvalidData` through the existing localized
-interface-failure path; malformed input cannot become a saved label or shell payload. An idle
-poll does not complete or replace a pending high surrogate. A literal user-supplied U+FFFD remains
-ordinary text. `windows_console_input/records/tests/unicode.rs` covers native record splits,
-character-free interleaving and bounded UTF-8 repeat tails; `workbench_client/ui/tests/input_provenance.rs`
-and `workbench_state/tests/location_labels.rs` cover exact rename requests, grapheme editing,
-cancel and location-label publication. These controlled implementation witnesses do not provide
-exhaustive TLC assurance or establish real-window glyph rendering.
+boundaries and character-free key records, including modifier and IME/process-key records; ConPTY's
+character-bearing Alt releases use the same assembly path as zero-virtual-key text. The completed
+pair emits one scalar with its repeat count, never two replacement characters. An unpaired low
+surrogate, a high surrogate followed by another text/key boundary, or mismatched repeat/modifier
+metadata refuses the read with `InvalidData` through the existing localized interface-failure path;
+malformed input cannot become a saved label or shell payload. An idle poll does not complete or
+replace a pending high surrogate. A literal user-supplied U+FFFD remains ordinary text.
 
 Raw mode keeps `ENABLE_VIRTUAL_TERMINAL_INPUT` enabled and disables cooked processing. Turning VT
 input off lets ConPTY discard paste delimiters; interpreting its zero-key-code ESC through a
@@ -93,13 +88,7 @@ combined `PATH` each admit at most 256 KiB. The final projected map admits at mo
 1 MiB of stored WTF-8 names, values, and entry separators. One projection admits 65,536 combined
 expandable-value visits and token resolutions. `PATH` deduplication scans at most 4,096 input
 segments, counting empty and duplicate segments. The real reader and pure projection return typed
-failures rather than truncating or continuing unbounded work. Deterministic tests cover these
-boundaries, name matching, expansion dependencies,
-User `%PATH%` phase semantics, unresolved names, cycles, unnamed values, missing and unreadable
-scopes, `PATH` order and deduplication, inherited admission, launch priority and separate-launch
-refresh. A controlled native Windows witness must additionally keep the Session alive, change a
-reversible User `PATH` entry, and prove only a subsequently created terminal resolves the new command
-before restoring that entry.
+failures rather than truncating or continuing unbounded work.
 
 ## VT command output
 
@@ -235,15 +224,13 @@ Input batches retain their receive timestamp for bounded host replies; session w
 and dispatch cannot turn an already-received reply into a timeout.
 
 An action menu with already armed capture additionally owns a scoped `MenuMotion` request when
-global any-motion is not admitted. It writes `1002h`, then `1003h`, retaining `1006`: a host ignoring
-`1003` keeps the button fallback, and actual motion reports are required before feedback appears.
-This request neither changes the one-shot probe result nor assumes physical delivery. Menu exit
-restores `1003l`, then `1002h`; an independently admitted global upgrade supersedes the menu request
-and remains active on exit. Keyboard opening while capture is released performs no mode write.
-Mode effects complete before the dispatcher publishes this local report admission; a failed write
-is fatal and never retried, and lifecycle teardown clears every owned mode. The existing native
-ConPTY witness covers the request, semantic motion through the inherited reader, return to silent
-button-only motion, global admission and full restoration; physical terminal review remains separate.
+global any-motion is not admitted. It writes `1002h`, then `1003h`, retaining `1006`: a host
+ignoring `1003` keeps the button fallback, and actual motion reports are required before feedback
+appears. This request neither changes the one-shot probe result nor assumes physical delivery. Menu
+exit restores `1003l`, then `1002h`; an independently admitted global upgrade supersedes the menu
+request and remains active on exit. Keyboard opening while capture is released performs no mode
+write. Mode effects complete before the dispatcher publishes this local report admission; a failed
+write is fatal and never retried, and lifecycle teardown clears every owned mode.
 
 The tracking level and encoding share one `ModeLease`, armed at startup unless `tui --mouse off`
 declined it. A pending restoration obligation is registered before every native or VT mutation.
@@ -378,13 +365,6 @@ samples, and valid clocks/counts. A cap, exhausted identity/count, unfinished sp
 serialization error cannot establish complete latency distributions. A decoder no-op or a frame's
 latest input batch is not a feedback acknowledgement. Retain failure and timeout observations when
 comparing runs; measure enabled/disabled perturbation with the same cohort and scenario.
-
-The adjacent measurement tests cover disabled clock/storage absence, cap and incomplete accounting,
-packet/frame correlation through the actual loop, writer short/error/vectored/default-method seams,
-the real buffer/restoration fence, and restoration-before-serialization with primary-error
-preservation. Non-TUI process evidence must also prove that the new environment input has no path
-side effects outside TUI execution. These are instrumentation claims; they do not establish a
-response budget or a different writer/scheduler architecture.
 
 ## Outer title restoration
 

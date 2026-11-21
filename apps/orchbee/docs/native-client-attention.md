@@ -37,7 +37,10 @@ A background read lane drains retained changes and obtains a coherent session li
 
 When outer focus is unknown, a complete valid paint may acknowledge until the host reports loss. This is not an operating-system foreground guarantee; supported focus reporting supplies the stronger distinction. A focus event alone does not acknowledge. Pane identity, current presentation binding and exact observation versions are checked again after drawing; siblings hidden by maximization do not count as viewed panes. Only the focused Panel and its selected presentation may acknowledge, independently in each Client; visible split siblings stay unread. Query consumers must distinguish unavailable observation from seen or unseen.
 
-The renderer returns bounded concrete paint proofs; a receipt for an earlier snapshot cannot acknowledge a newer event. Acknowledgement may request one follow-up redraw to remove the unseen indicator, without starting an unbounded redraw loop. Evidence covers two independent Clients, rapid intervening transitions, metadata-only changes, resets, focus loss, stale receipts, hidden/overlaid panes and reader shutdown. The Client query below exposes this observation without acknowledging it.
+The renderer returns bounded concrete paint proofs; a receipt for an earlier snapshot cannot
+acknowledge a newer event. Acknowledgement may request one follow-up redraw to remove the unseen
+indicator, without starting an unbounded redraw loop. The Client query below exposes this
+observation without acknowledging it.
 
 Explicit `agent focus` has a separate command effect: after validated navigation and draw it marks
 the focused Panel's selected presentation versions seen, including
@@ -97,17 +100,15 @@ stale Client evidence leaves seen unknown. The state projection always retains t
 Physical Get, attention, wait and prompt consumers share this join; input and focus remain separate
 effects. Wait/prompt conditions consume state evidence independently of acknowledgement; done keeps its existing completed-outcome alias, while succeeded and failed select explicit outcomes.
 
-Targeted correctness checks cover deterministic baseline/change/replacement/quiet-update traces,
-two independent in-memory Clients, stale and mismatched paint proofs, coherent batch bounds and
-ordered protocol correlation. Two live Windows Clients and process/paint/query integration remain
-part of the final combined acceptance. These bounded witnesses do not establish authenticated-provider, OS foreground, full visual
-or unbounded correctness.
-
 The existing connection-scoped ClientView lane routes `agent-attention` reads to one explicit, caller-derived or uniquely discovered Client. An intent names 1–100 unique Agent session IDs. `attention-read` completes immediately from one coherent Client snapshot, without navigation, input, focus changes or acknowledgement. Reads may complete while an overlay makes the Client busy; one-delivery, freshness, exact view revision, deadline and receipt-capacity rules still apply.
 
 The snapshot carries the canonical changes cursor and revision, nullable outer-focus observation, and entries in request order. Each entry has either a current generation, observation sequence, semantic-change revision and seen flag, or a null state when absent. An unreadable Client observation returns `projection-unavailable`. A query is an observation at its recorded revision, not a promise that the Agent cannot subsequently change. CLI consumers authenticate the returned cursor through the live changes service before exposing seen/unseen; canonical detail joins additionally require matching generation and sequence. Foreign-boot cursors and inconsistent joins never manufacture an acknowledgement.
 
-Workbench protocol consumes bounded Agent protocol identity, cursor and safe-integer DTOs, with no runtime dependency. Attention submissions and completions use bounded 64 KiB request kind 29; result kind 26 already has that bound. Server receipt storage reserves attention payload capacity and validates exact request/result session correspondence before publication. A retained receipt does not refresh itself or repeat a read. Shared Rust, TypeScript and schema checks cover shape, bounds, duplicates, ordering, revision and attribution; Windows process and two-Client witnesses cover routing and actual paint acknowledgement.
+Workbench protocol consumes bounded Agent protocol identity, cursor and safe-integer DTOs, with no
+runtime dependency. Attention submissions and completions use bounded 64 KiB request kind 29; result
+kind 26 already has that bound. Server receipt storage reserves attention payload capacity and
+validates exact request/result session correspondence before publication. A retained receipt does
+not refresh itself or repeat a read.
 
 ## Joining canonical Agent reads
 
@@ -118,7 +119,11 @@ Windows `agent get <target> --client <id>` joins one exact Client observation wi
 
 The separate Client status maps idle to idle, succeeded to done, and failed/canceled/interrupted to error, independently of seen or missing acknowledgement. Working, blocked, unknown, ended and stale/disconnected freshness use canonical facts. Focus means the matching primary Panel selected in a Ready Client view, with no known outer focus loss; null outer focus retains the documented compatibility fallback and does not prove OS foreground. Busy reads remain allowed but do not claim focused content. No read acknowledges, navigates or sends input.
 
-The CLI results owner holds this projection; Agent Client view composition owns reads and version joining. Windows `agent wait --client <id>` reuses this projection in v1: idle/done depend on canonical state evidence, including retained changes, and never on Client seen. Canonical historical events do not prove past Client acknowledgements. Get already includes process and submission preflight information; managed interaction readiness remains separately owed. Evidence covers exact Client/operation correlation, generation and sequence lag, missing entries, foreign boot, current revision, independent focus and seen, and original deadline/cancellation cleanup.
+The CLI results owner holds this projection; Agent Client view composition owns reads and version
+joining. Windows `agent wait --client <id>` reuses this projection in v1: idle/done depend on
+canonical state evidence, including retained changes, and never on Client seen. Canonical historical
+events do not prove past Client acknowledgements. Get already includes process and submission
+preflight information; managed interaction readiness remains separately owed.
 
 Windows `agent prompt --wait --client <id>` also consumes this current projection after its canonical activity gate. It preflights the exact Client before input, retains the send receipt when later observation fails, and emits v1 with the selected Client. See the [CLI query contract](native-cli-query.md) for deadlines, sampling and no-resubmission rules.
 
@@ -168,12 +173,3 @@ Unread acknowledgement remains per Client and per exact painted version. A focus
 candidate omits its unread marker while rendering, so completion does not introduce a one-frame
 dot. This visual projection does not change `seen`: only successful draw receipts acknowledge it.
 Hidden, covered, history and unfocused panes retain unread attention.
-
-Authority tests cover Working/Unknown/Idle, late readers, accepted input without provider sequence
-changes and replacement fencing. Colored-cell render and Windows process witnesses cover actual
-Working/Done distinctions, late Clients and clearing completion across Clients.
-
-GUI projection adoption is staged in ORC-309, owned by Claude. The shared Rust/TypeScript contract
-already exposes completion; GUI must render that fact and retain independent focused-pane unread
-acknowledgement. Native evidence does not establish GUI parity; this limitation ends when GUI
-consumes the same binding-qualified fact and passes its corresponding interaction checks.

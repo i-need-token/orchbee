@@ -269,31 +269,10 @@ keeps the closing Workspace current until publication, an accepted or Closed clo
 so Closed appears beside the closing Workspace still drawn as current only after the original cutoff
 or a lost Client Connection, where the pane keeps the complete status.
 
-State, carrier and UI tests cover single Workspace scope including ungrouped membership, explicit
-Project member capture and empty Projects, exact drawn confirmation, token-bound mouse controls, packet-tail capture, source
-drift, admission/read/publication loss, monotone evidence, canonical repair and preserved focus.
-Background-close witnesses cover cancellation and publication from current and sibling Workspace origins,
-retained pane/terminal binding and attachment identity, and no origin cleanup or reattachment. Missing
-or replaced target Contexts are rejected before submission even at the same revision; origin or stale
-target receipts cannot overwrite valid admission evidence. An accepted close hides its rows from navigation, and a failed observation restores them. The
-regression witnesses are `accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it`,
-`accepted_current_close_marks_the_neighbour_and_lands_on_it` and
-`closing_the_only_shown_workspace_announces_closed_with_its_landing_not_before`; the Panel close
-witness is `accepted_panel_close_hides_the_leaf_and_moves_focus_to_the_survivor`. The carrier witness
-`accepted_current_close_lands_on_the_neighbour_before_settlement_and_is_never_resubmitted` drives a
-framed exchange: the neighbour is installed before settlement, an immediate second `Ctrl+b Shift+D` is
-refused, only status reads follow admission, and a later failure returns the row without moving the
-selection. The carrier matrix
-`workspace_close_carrier_single_scope_and_every_failure_boundary_preserve_truth_without_replay`
-checks the landing and the read that follows admission as rules, and retained admission at every
-failure cut. The framed peer asserts that ordinary Close never sends group Start and that neither
-path replays mutations.
+Missing or replaced target Contexts are rejected before submission even at the same revision; origin
+or stale target receipts cannot overwrite valid admission evidence. An accepted close hides its rows
+from navigation, and a failed observation restores them.
 
-Maintain witnesses in `crates/workbench-client/src/workbench_state/tests/workspace_close.rs`,
-`crates/workbench-client/src/workbench_client/connection/native/tests/workspace_close.rs`,
-`crates/workbench-client/src/workbench_client/ui/tests/workspace_close.rs` and the local-client Close adapter suites.
-Render evidence covers both locales, terminal-native and RGB themes, Standard, Compact, Minimal and
-refused geometries. The applicable repository gate remains authoritative; focused development uses
-`cargo test --locked -p orchbee --bin orchbee workspace_close` and the Project close-all carrier test.
-These controlled implementation traces do not establish exhaustive interleavings, physical terminal
-appearance or untested platforms. Shared identity and commit protocols retain their registered models.
+The applicable repository gate remains authoritative; focused development uses `cargo test --locked
+-p orchbee --bin orchbee workspace_close` and the Project close-all carrier test. Shared identity
+and commit protocols retain their registered models.

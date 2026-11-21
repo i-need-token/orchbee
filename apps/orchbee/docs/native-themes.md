@@ -126,33 +126,29 @@ ownership, never `status-error`. Named themes take the catalog's destructive acc
 terminal-native uses ANSI red. Disabled content resolves to `text-disabled` before action tone; it
 cannot acquire hover or pressed styling. Enabled destructive wording keeps its accent separately
 from surrounding focus, navigation, current, hover and pressed tracks. At rest, terminal-native
-destructive wording is ANSI red directly on the host default background without a backing fill:
-a destructive menu row reads as red text, and a destructive confirmation button in a filled block
-is a reverse band of that red with the host background as its label. Reference contrast for ANSI red on the host default is about 3.2:1 in
-Campbell and VS Code Dark+ and 3.3:1 to 3.5:1 in One Half Light; the band's label pair is the same, so it sits at that reference
-rather than the 4.5:1 floor. Every named theme keeps the
-destructive key hint in `text-secondary`. On named truecolor and 256-color `surface-selection`, the
-theme resolver supplies pre-adjusted semantic hues (action, destructive, focus, link, and status
-roles) directly on `surface-selection` without giving `accent-destructive` a separate black/white
-background box, while fixed traffic-light Agent glyphs (`#febc2e`, `#28c840`, `#ff5f57`) keep
-their values and relative contrast rule. Where reduced-color or native interaction uses reverse
-video, or quantization drops a fill below 3:1, the theme resolver removes reversal from the
-destructive content band and supplies its own contrasting backing pair. Components neither construct
-colors nor add warning bold, underline or blink. Monochrome retains the localized Delete verb and
-ordinary markers. Nominal palette tests cover the unpaired terminal-native rest state and the
-overlay, hover, pressed and selection surfaces across shipped themes and truecolor/ANSI-256/ANSI-16
-levels; customized host palette appearance still requires real-window review.
+destructive wording is ANSI red directly on the host default background without a backing fill: a
+destructive menu row reads as red text, and a destructive confirmation button in a filled block is a
+reverse band of that red with the host background as its label. Reference contrast for ANSI red on
+the host default is about 3.2:1 in Campbell and VS Code Dark+ and 3.3:1 to 3.5:1 in One Half Light;
+the band's label pair is the same, so it sits at that reference rather than the 4.5:1 floor. Every
+named theme keeps the destructive key hint in `text-secondary`. On named truecolor and 256-color
+`surface-selection`, the theme resolver supplies pre-adjusted semantic hues (action, destructive,
+focus, link, and status roles) directly on `surface-selection` without giving `accent-destructive` a
+separate black/white background box, while fixed traffic-light Agent glyphs (`#febc2e`, `#28c840`,
+`#ff5f57`) keep their values and relative contrast rule. Where reduced-color or native interaction
+uses reverse video, or quantization drops a fill below 3:1, the theme resolver removes reversal from
+the destructive content band and supplies its own contrasting backing pair. Components neither
+construct colors nor add warning bold, underline or blink. Monochrome retains the localized Delete
+verb and ordinary markers.
 
-Named-theme supporting text, hint labels and pending status are the resolver's secondary text,
-which stays below primary text on the canvas, chrome, overlay and inactive surfaces, and
-`status-pending` pairs with `text-selection` (without `DIM`) on `surface-selection` like secondary
-text. Muted text is the quietest step toward chrome that still clears 4.5:1 across canvas, chrome,
-overlay and their 5% subtle overlays, and it rises to secondary text on every fill. Disabled text
-stays quieter than primary text without faint intensity at truecolor and 256 colors. Secondary
-text is not dimmed to create priority at the expense of its surface readability. The catalog's
-contrast floors cover shared and derived surfaces; its [README](../../../crates/color-themes/README.md)
-records them. Real-window light/dark, en-US/zh-CN and 80x24/120x40 review supplies perceptual
-evidence.
+Named-theme supporting text, hint labels and pending status are the resolver's secondary text, which
+stays below primary text on the canvas, chrome, overlay and inactive surfaces, and `status-pending`
+pairs with `text-selection` (without `DIM`) on `surface-selection` like secondary text. Muted text
+is the quietest step toward chrome that still clears 4.5:1 across canvas, chrome, overlay and their
+5% subtle overlays, and it rises to secondary text on every fill. Disabled text stays quieter than
+primary text without faint intensity at truecolor and 256 colors. Secondary text is not dimmed to
+create priority at the expense of its surface readability. The catalog's contrast floors cover
+shared and derived surfaces; its [README](../../../crates/color-themes/README.md) records them.
 
 ## Outer-terminal background
 
@@ -303,21 +299,7 @@ The ordered Settings lane observes the Server's pushed settings snapshots in rev
 
 ## Correctness and evidence
 
-| Claim                                                        | Evidence                                                                                                          | Bounds                                                                                                                |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Complete role mapping and capability precedence              | Pure palette/resolver cases, quantized buffers, all consumer render cases                                         | Every shipped theme and terminal-native, canonical palette, sampled environment; program colors excluded              |
-| Source resolution and the truecolor gate                     | Resolution matrix over appearance, reported host polarity, color level and source; Settings availability cases    | Pure decisions and Settings state; physical host detection is separate                                                |
-| Shared Orchbee interaction palette remains aligned           | Conformance tests in both Clients against the shared theme colors, with exact shared-input verification edges     | The shared colors cover Orchbee action, hover, press and Agent states; other themes keep the catalog resolver's roles |
-| Agent state colors never follow the theme                    | Agent glyph styles compared under every shipped theme and Terminal colors                                         | Truecolor; quantization maps the fixed values per level                                                               |
-| Sidebar rows have one surface and distinct current ancestors | Workspace/Agent hover, press, navigation, collapse and supporting-line regression cases                           | Native, Light/Dark, ANSI-16 and monochrome; both locales; real-window acceptance remains separate                     |
-| Host-default launch colors follow explicit app appearance    | Shared resolver decisions, frozen settings snapshots and Worker launch-adapter profile cases                      | New terminal defaults and OSC query inputs; retained query state and Client previews remain separate                  |
-| Default markers follow the theme; explicit cells stay exact  | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases                                   | Native Reset and Orchbee Light/Dark; monochrome, 16/256 colors and truecolor; physical host appearance is separate    |
-| Cursor contrast follows the displayed cell and input owner   | Contrast cases, native renderer/backend byte traces, movement, wide cells, visibility, recovery and failed writes | Theme/Host/Custom defaults; unknown colors invert displayed defaults; real-window screenshots remain separate         |
-| Confirmed shared publication preserves complete appearance   | Server/Client publication traces and shared contract corpus                                                       | Shared settings lane and edit traces; physical display capability remains separate                                    |
-| Startup and shared reload reach the real Client              | Isolated Windows ConPTY and root verification                                                                     | Native Windows process/byte evidence; physical emulator appearance is separate                                        |
-
-Run `cargo test --locked -p orchbee --all-targets --all-features`
-and the affected `pnpm verify` root gate. Named themes, Terminal colors and System appearance are current behavior;
-physical host appearance and untested platforms require their own execution evidence.
+Run `cargo test --locked -p orchbee --all-targets --all-features` and the affected `pnpm verify`
+root gate.
 
 Monochrome selection surfaces explicitly pair terminal-default foreground and background with reverse video, keeping mixed label and marker roles on one displayed band.

@@ -98,7 +98,11 @@ Wheel belongs only to the painted list under the pointer; headings, buttons, fra
 
 Released capture deliberately returns mouse input to the host. The existing keyboard capture toggle remains the restoration path; local controls cannot reclaim mouse events the host does not send.
 
-An already-read packet resolves pending input frames before idle decoder timeouts. Rendering or native-state work taking longer than the 50 ms wait must not turn a split mouse report into a lone Escape plus printable coordinates, either in the terminal or in a native form. Only a poll without input expires these waits; an actual idle lone Escape still cancels or forwards through its existing owner. Shell-loop and modal/dispatcher traces cover ready SGR/X10 fragments across a busy frame and retain the idle-Escape witnesses.
+An already-read packet resolves pending input frames before idle decoder timeouts. Rendering or
+native-state work taking longer than the 50 ms wait must not turn a split mouse report into a lone
+Escape plus printable coordinates, either in the terminal or in a native form. Only a poll without
+input expires these waits; an actual idle lone Escape still cancels or forwards through its existing
+owner.
 
 ## Sidebar navigation input boundary
 
@@ -117,16 +121,9 @@ retires Picker navigation before dispatcher reconciliation captures pending
 fragments. Actual compact-sidebar dismissal retires it in the same local
 transition for ordinary backdrop button presses. Backdrop wheel is inert.
 
-Dispatch reconciles the final pointer report before returning for paint, even
-when no following byte exists. An ordinary backdrop button press retires before
-PublishFrame; an outside wheel leaves navigation active. The trace covers the
-decision packet boundary, retained tails and fresh input after publication.
-
-The shell regression traces call this real synchronization boundary for resize
-and backdrop Press followed by Enter or split CSI, asserting no Selection and no
-terminal bytes until a successful new frame releases later input. This is the
-production refinement of the model's RetireSidebar event; a test that manually
-observes a hidden Picker before synchronization does not establish that ordering.
+Dispatch reconciles the final pointer report before returning for paint, even when no following byte
+exists. An ordinary backdrop button press retires before PublishFrame; an outside wheel leaves
+navigation active.
 
 | Event / input                               | Guard and observable result                                                                                                                                                                                                              |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -145,21 +142,6 @@ menu's identity validation; opening a menu does not first focus or activate its
 row. Disclosure, row and menu hit rectangles are disjoint. Other machines cannot
 open a menu by silently switching the current endpoint. Menu command availability
 and full source-proof revalidation remain with the existing native menu owner.
-
-The deterministic evidence belongs to the existing pointer and dispatcher suites:
-same labels with different identities, removed or replaced rows, foreign machine
-or Session, undrawn targets, keyboard versus pointer menu admission, capture priority,
-mode exit and split decision packets. These traces assert Picker requests, menu
-targets, terminal bytes and returned input ownership. Host images establish
-presentation only; controlled input traces do not claim physical mouse coverage.
-
-| Abstract event                                       | Production refinement and deterministic evidence                                                                                                                                                     |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| EnterSidebar / SidebarKey                            | Explicit prefix action and Picker key dispatch; the `sidebar_mode_owns_only_explicit_navigation_and_fences_exit_packets` trace contrasts captured input with unchanged terminal input.               |
-| OpenMenu / CloseMenu                                 | Shared painted-target resolver and existing menu capture/settlement; keyboard and row-menu trace preserves Picker focus and returns the paste lease.                                                 |
-| RetireSidebar / CoveringCapture / EndCoveringCapture | Picker leaves navigation, dispatcher reconciles competing owners and marks pending decoder fragments captured; the exit trace includes a split key, external hide, repaint and later terminal bytes. |
-| PublishFrame / PacketBoundary                        | Successful hit-map publication clears retirement capture; synchronization clears packet capture only after that publication.                                                                         |
-| BeginFragment / FinishFragment                       | Existing key/paste decoder carries packet provenance across reads; a fragment born under capture cannot become terminal input after retirement.                                                      |
 
 ## Sidebar width input
 
@@ -188,27 +170,16 @@ the currently hidden sidebar and no covering input owner is active. It invokes
 the existing sidebar visibility toggle, as does the visible sidebar's own toggle.
 Minimal and TooSmall layouts do not paint an unusable toggle.
 
-The existing pointer/dispatcher traces cover exact painted-source admission,
-absolute preview and release, cancellation, stale preference, released mouse
-capture with keyboard resize, packet fragments and fresh-frame release. Shell
-composition traces cover preview graphics and terminal-geometry agreement;
-geometry vectors and both-locale width rendering remain with the layout owner.
+The actual shell layout callback returns whether synchronization observed an external host or
+sidebar-owner change. Owned draft projections also synchronize terminal sizes, but do not report
+themselves as external changes. After a handled Press or Motion, the dispatcher immediately
+invalidates the old map and gesture on that result, including same-tier width changes and
+height-only changes inside one read. No cached viewport class substitutes for that observation.
 
-The actual shell layout callback returns whether synchronization observed an
-external host or sidebar-owner change. Owned draft projections also synchronize
-terminal sizes, but do not report themselves as external changes. After a handled
-Press or Motion, the dispatcher immediately invalidates
-the old map and gesture on that result, including same-tier width changes and
-height-only changes inside one read. No cached viewport class substitutes for
-that observation. Real shell traces drive this boundary before a same-packet
-release, then require a fresh draw and new press to admit another drag.
-
-Ending a width draft also retires its map even when Escape, Shift or an
-unchanged release leaves the preference intact: its status hint covered the
-canonical Menu control. The existing redraw fence captures the ending decision
-and fragments until a successful canonical frame; same-packet presses cannot
-activate those hidden controls. A preview-paint trace checks rejected Menu
-presses before that draw and admission after it, without changing Picker focus.
+Ending a width draft also retires its map even when Escape, Shift or an unchanged release leaves the
+preference intact: its status hint covered the canonical Menu control. The existing redraw fence
+captures the ending decision and fragments until a successful canonical frame; same-packet presses
+cannot activate those hidden controls.
 
 ## Capture policy
 
@@ -485,17 +456,16 @@ again before effect handoff. A mismatch has no effect.
 Each temporary viewer must acknowledge its one detach before another read or an external effect.
 An uncertain detach is not retried: the lane drops that connection and refuses the click.
 
-Resolution reads render detail for the clicked row first, preserving OSC 8 metadata and applying
-the shared wide-tail-to-head rule. Without an explicit hyperlink it uses the same bounded
-lowercase `http://`/`https://` resolver as the shared link domain, including verified soft-wrap
-context outside the visible viewport. One private, joined lane admits at most one click; a busy
-lane reports refusal without queueing or retrying. Ordered enabled Windows plugin link handlers
-have priority. A matching handler is revalidated immediately before its single submission. A
-started, failed, or unknown handler outcome is final for that click. Only a definite no-handler
-result may open a lowercase HTTP(S) URL through the Windows shell, once. Shell failure is visible
-and is never replayed. Shutdown interrupts owned waits and joins the lane; it does not claim to
-cancel an accepted plugin action or a browser process owned by Windows. Ctrl-hover decoration is
-not part of this button-event capture slice.
+Resolution reads render detail for the clicked row first, preserving OSC 8 metadata and applying the
+shared wide-tail-to-head rule. Without an explicit hyperlink it uses the same bounded lowercase
+`http://`/`https://` resolver as the shared link domain, including verified soft-wrap context
+outside the visible viewport. One private, joined lane admits at most one click; a busy lane reports
+refusal without queueing or retrying. Ordered enabled Windows plugin link handlers have priority. A
+matching handler is revalidated immediately before its single submission. A started, failed, or
+unknown handler outcome is final for that click. Only a definite no-handler result may open a
+lowercase HTTP(S) URL through the Windows shell, once. Shell failure is visible and is never
+replayed. Shutdown interrupts owned waits and joins the lane; it does not claim to cancel an
+accepted plugin action or a browser process owned by Windows.
 
 ### Link workflow and correctness
 
@@ -520,21 +490,19 @@ are external effects.
 
 ## Wheel fallback
 
-Over an alternate-screen pane whose program reports no tracking and enables DEC 1007, wheel notches encode as cursor
-arrow presses — three per notch, in the pane's application-cursor form (`ESC O A` vs `ESC [ A`).
-A per-pane stream bounds the burst: a reversal clears the old direction's queued remainder and
-admits the first new notch, including when both directions arrive in one input packet;
+Over an alternate-screen pane whose program reports no tracking and enables DEC 1007, wheel notches
+encode as cursor arrow presses — three per notch, in the pane's application-cursor form (`ESC O A`
+vs `ESC [ A`). A per-pane stream bounds the burst: a reversal clears the old direction's queued
+remainder and admits the first new notch, including when both directions arrive in one input packet;
 each flush emits at most one viewport of arrows, and a tick that finds the queue empty closes the
 stream so the next notch starts fresh. Each flush rechecks eligibility against the newest frame;
-disabling DEC 1007, leaving the alternate screen, enabling tracking or entering history discards
-the queued arrows. With DEC 1007 off, alternate-screen wheel events send no application input.
-Regression witnesses cover immediate reversal, reversal with a multi-viewport backlog, the new
-direction's application-cursor encoding, bounded draining and no resumption of the retired tail.
-Over untracked primary-screen content, an upward notch enters retained history three rows before
-the tail; subsequent notches move three rows locally. Downward scrolling at the live tail, empty
-history and unavailable frames have no effect or notice. Wheel never changes focus or scrolls
-from the title/border; Shift stays host-owned, including in history. Entry, coalescing and recovery
-use the [retained viewport](native-terminal-viewport.md) owner.
+disabling DEC 1007, leaving the alternate screen, enabling tracking or entering history discards the
+queued arrows. With DEC 1007 off, alternate-screen wheel events send no application input. Over
+untracked primary-screen content, an upward notch enters retained history three rows before the
+tail; subsequent notches move three rows locally. Downward scrolling at the live tail, empty history
+and unavailable frames have no effect or notice. Wheel never changes focus or scrolls from the
+title/border; Shift stays host-owned, including in history. Entry, coalescing and recovery use the
+[retained viewport](native-terminal-viewport.md) owner.
 
 ## Pointer tooltips
 
@@ -628,29 +596,6 @@ owners and no thread or timer of its own.
 | `invocation.rs`, `cli/`                                                                                  | `tui --mouse off\|on` admission, help text, and three-shell completion                                                                                                                                                            |
 | `crates/terminal-protocol`                                                                               | `TerminalInteraction` trusted Rust API exposing tracking/format/geometry/cursor-mode facts of the verified frame                                                                                                                  |
 
-## Verification
-
-The Unix PTY suites below track the shared contract; they are not Windows execution evidence.
-Windows cell fallback is covered by the encoder, pointer and attach regressions and the packaged
-control/attach byte witnesses described in [terminal streams](windows-terminal-streams.md).
-
-| Surface                   | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Decode                    | `terminal_events/mouse/tests` SGR/X10 tables — press/release/motion/wheel/modifiers, cross-chunk atomicity, malformed rejection without key fallthrough; `terminal_events/decoder/tests` — valid SGR/X10 items, X10 split feeds, timeout drain, ESC/C1 abort, malformed bodies, over-bound runs, and interleave with keys/paste — all malformed mouse-shaped bytes as `Ignored`                                                     |
-| Encode and ownership      | `route_pane_pointer` fresh-event matrix plus `encode_pane_report` rows for every tracking × format cell, captured cleanup, release finals, dedup, clamping, legacy bound, and SGR cell fallback                                                                                                                                                                                                                                     |
-| Hit map                   | `tui_pointer/tests` layer order, edge/outside cells, overlay capture and backdrop dismiss — including an outside press on the uncovered tab strip and pane that never selects or forwards — stale-map drop                                                                                                                                                                                                                          |
-| Interaction projection    | `tui_pointer/tests/interaction` covers hover enter/repeat/leave, disabled and specialized targets, press/release, permanent leave cancellation, repaint continuity, changed fingerprint/occlusion, transport loss, child precedence, and one bounded stationary-position follow-up                                                                                                                                                  |
-| Generic adopters          | Renderer/dispatcher tests cover Settings, menus, sidebars, the Start Agent picker, Navigator, Machine Picker, Presentation, Tab creation and global chrome: exact sources/geometry, disabled consumption, stale refusal, hover isolation from committed selection, menu candidate movement, release cancellation and no retarget                                                                                                    |
-| Pointer tooltips          | `tui_pointer/tooltip/tests` cover the rest from real motion only, a consumed rest, admission loss, adjacent opening, press quieting, publication close and retarget, transport loss, and a pane title offered over its divider or dead frame but not under chrome; `tui_render/tooltip/tests` cover placement and text; `terminal_input/dispatcher/tests` prove a key closes the tooltip and still reaches its owner                |
-| Gesture and pending focus | `tui_pointer/tests` press/release ordering, queue bound and overflow cancel, timeout, orphan, read-only, target-moved refusal, settled-without-frame wait, and fact-gated admission                                                                                                                                                                                                                                                 |
-| Dispatcher port writes    | `terminal_input/dispatcher/tests` — malformed SGR/X10 and aborted/timed-out mouse runs produce zero forwarded bytes while ordinary keys, paste, and unrelated unknown CSI pass through in order; continuous button-free motion cannot starve an expired Escape and only an all-unchanged-motion packet skips repaint                                                                                                                |
-| Wheel stream              | `tui_pointer/tests` three-per-notch, per-pass viewport cap, reversal clearing, stream close on drain                                                                                                                                                                                                                                                                                                                                |
-| Capture lifecycle         | `terminal_lifecycle/tests` lease pairing and restoration; dispatcher `Ctrl+b m` toggle test; status indicator                                                                                                                                                                                                                                                                                                                       |
-| Link click                | Recording pointer ports cover exact modifiers, same-cell release, cancellation, prior gesture owners and busy admission; the shared OSC 8 wide-cell and wrapped HTTP(S) resolvers retain their CLI integration fixtures; route tests use a recording browser port for priority, accepted ambiguity, definite no-handler fallback and one effect; controlled Windows integration covers the fresh viewer and native plugin transport |
-| CLI                       | `invocation/tests` `tui --mouse` value admission, bare/other-family refusal, `--format` refusal; `cli/completion` scripts                                                                                                                                                                                                                                                                                                           |
-| Controlled Windows Host   | `apps/terminal-host` `test-conpty-orchbee-pointer` launches the Orchbee child through pinned ConPTY/Ghostty and exercises the actual inherited Reader, reply decoder, one-shot mode admission, menu motion without a capability reply, return to button policy, semantic hover distinction and mode restoration; it does not establish physical pointer/font/palette behavior                                                       |
-| Real PTY (Legacy seam)    | `tui_shell/tests/connected::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes` — recorded pane-local SGR bytes, pane-local translation, read-only drop, SGR cell fallback, wheel→arrows, capture toggle, mode restoration                                                                                                                                                                                    |
-
 ## Right button
 
 The right button belongs to the Client in every Panel. A fresh unmodified right press over a drawn pane opens its [action menu](native-action-menus.md); a right press the menu does not take is ignored before focus or passthrough, so the program never receives it, even in a tracking terminal. Shift stays host-owned. An admitted gesture captures its button and exact Pane incarnation: another button cannot inject a press or release it, and a generic legacy release maps to its owner. Menu opening and cancellation preserve focus and capture their matching release.
@@ -660,5 +605,3 @@ The right button belongs to the Client in every Panel. A fresh unmodified right 
 When the session is Ready or selected without attachment, Panels with multiple Presentations show `[<] [position/count] [>]` at the end of the top strip for a bare single Panel, or at the end of the leaf's border title line in split and maximized views. The control reserves twelve cells for Tabs or the leaf title before admission. Narrow strips and titles omit the selector; titles retain their label/count fallback and a bare Panel's strip keeps an inert position. The selector appears only while the Panel has a child terminal. Each arrow has a three-cell hit region. The count and spaces add no target of their own. Strip selectors are disjoint from Tabs, creation and Actions; title-line arrows take precedence over the divider beneath them and never cover terminal content. Bare terminal content begins directly below the top strip. No extra title row or host mouse mode is introduced.
 
 An unmodified left press arms the exact painted destination Presentation; only its matching release selects it. Buttons wrap in canonical member order. Previous/Next Presentation has no default key. A bound target contains the current `PaneRef` and destination Presentation ID. An empty target contains its structural Pane key and exact selected Presentation ID; the fresh probe must still identify that member as unbound. Empty Panel body presses only focus and never start a terminal gesture. The fresh probe must retain the exact incarnation or unbound selection under the current desired anchor; the UI then resolves Panel/member within the active Tab before submitting the existing Switch transaction. Removed/replaced members, old anchors, modal input, capturing overlays and released mouse capture cannot redirect the gesture. Read-only terminal mode does not prohibit Client-local navigation; selection never forwards terminal bytes or bypasses binding-only child attachment. A successful click invalidates the old hit map until redraw.
-
-Evidence covers button edges, inactive count/spacing, disjoint split rectangles, single/split/maximized rendering, narrow and Minimal degradation, modified/non-left reports, capture/overlay/modal guards, stale incarnation/anchor, removed members and actual UI admission to the exact child Switch. Composed TestBackend captures establish cell composition; physical host palette, font, pointer hardware, latency, and multi-Client visual behavior require their own native evidence.

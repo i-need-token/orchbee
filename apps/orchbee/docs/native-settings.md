@@ -283,24 +283,10 @@ restart, process launch or synthetic completion event is caused by appearance pr
 
 ## Correctness and evidence
 
-The [editor cases](../crates/workbench-client/src/native_settings/tests.rs) cover the complete
-shared metadata with one place for every setting, legacy carriage return, one edit per change with
-only its row pending while navigation stays free, refusal and confirmation of an edit with an outside
-change in flight, one restore per changed row (including both launch-profile keys), the narrow
-column steps, one edit for a theme line's slot and appearance, and the unusable-file line. The
-[page render cases](../crates/workbench-client/src/tui_render/settings/tests.rs) cover one column
-below 56 columns and two above, always-visible descriptions in both locales, every description
-fitting its row in a dialog 100 columns wide, every changed row showing its restore action and its whole
-description there, and refusal below the page minimum. The
-[dispatcher Settings cases](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs)
-apply every key of one input packet in order. The
-[whole-frame cases](../src/tui_shell/tests/settings.rs) drive the real Shell drawing boundary with an existing native terminal, both locales, 120x40 and 50x20, and
-truecolor/256/16/monochrome capability. They compare a previewed candidate on the page's status row,
-the shell's unchanged confirmed state, an outside change shown at once on the open page, and covering
-Client capture. These deterministic witnesses do not establish clipboard, notification, sound or
-physical emulator delivery. The configuration watcher cases also retain confirmed shared appearance
-and pointer-release state while updating live bindings, their hints and both sidebar profiles
-together.
+They compare a previewed candidate on the page's status row, the shell's unchanged confirmed state,
+an outside change shown at once on the open page, and covering Client capture. The configuration
+watcher cases also retain confirmed shared appearance and pointer-release state while updating live
+bindings, their hints and both sidebar profiles together.
 
 `SettingsCommitPublication.tla/.cfg` bounds two Clients that each edit their own key through
 the Server and one external editor that ignores the lock, changing values or breaking the syntax
@@ -327,12 +313,7 @@ Checked properties:
 | `FileEventuallyPublished`       | Once writes stop, the snapshot shows the file's values or its syntax error. |
 
 The negative control removes the content recheck from `Replace` and must produce an
-`OtherKeysPreserved` counterexample. TOML bytes and comments, the cross-process lock, unreadable
-files, live-policy apply failure, absent-file defaults and filesystem primitives remain
-obligations of the editor, snapshot and Server configuration tests. GUI/TUI editor tests,
-field-focused correction, launch capture, terminal
-presentation and input tests cover the Client boundaries. Actual bidirectional GUI/TUI edits,
-reopen, reset, errors and visible effects remain acceptance requirements.
+`OtherKeysPreserved` counterexample.
 
 Run `node scripts/tla/run-models.mjs --models native-settings-save` and the owning
 Cargo/TypeScript checks. The affected root gate remains required.

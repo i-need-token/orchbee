@@ -51,8 +51,6 @@ Create and Open accept mutually exclusive `--focus` and `--no-focus` (default). 
 
 Semantic selection is context, Tab, Panel and maximized-state identity; derived panel counts and ordinary revision refreshes are not navigation changes. Focus shares the invocation deadline and bounded exchanges. Explicit focus uses `orchbee.worktree.operation` v1 with a separate `postOpen` receipt: Client ID, stage, focus receipt, failure, and completed/incomplete outcome. Canonical success survives focus failure, which produces a nonzero exit. This is not an atomic Git/UI transaction. Server work survives CLI disconnection; focus is invocation-owned and is not resumed by `operation resume`.
 
-Deterministic source/guard cases, grammar conflicts, versioned schemas and scripted Windows IPC traces cover precedence, missing cwd, ambiguous/stale selection, changed views, post-submit uncertainty and partial outcomes. Disposable real Windows Git queries cover the unchanged Worker boundary. Full two-TUI acceptance is separate; bounded same-author checks do not prove every live race.
-
 ## Retained continuation
 
 | State or event     | Admission and next step                                                                              | Retained truth                                                                         |
@@ -95,13 +93,22 @@ The result reports the main repository root, common directory, source checkout, 
 | Source or Worker changes            | Do not reuse the old observation              | Explicit failure                                |
 | Timeout, cancellation or disconnect | Worker retains physical cleanup ownership     | No mutation and no inferred success             |
 
-Strict request/result and binary-frame checks, shared Rust/TypeScript fixtures, source subdirectory/linked-checkout cases, denied trust, source/Worker changes and real Windows CLI reads provide evidence. Legacy listing remains covered independently.
-
 ## Verification
 
-Maintained tests cover strict grammar and confirmation, caller identity versus cwd, partial outcomes and escaped diagnostics, operation/exchange correlation, no replay after EOF, authorization and capacity, detached reuse, dirty refusal before Close, failed removal with retained layout, verified default-shell recreation, known/unknown launch results, explicit retry and manual Close, and cancellation before Session shutdown. Real disposable Windows Git fixtures cover source subdirectories, main-checkout opening, branch reuse, force removal, branch preservation and a successful hook changing the selected branch. `cli_windows_worktree_removal` runs the CLI, Server, Worker and Zig Host under test against a real repository: removals fail on a directory held without delete sharing and stay held beyond the 30-second Close attempt budget while another Workspace prints and opens and closes tabs, then a locked resume reports `io`, an unlocked resume removes the checkout, `operation resume` of the held Close is refused and explicit Close finishes without Git. `operation status` finds a Worktree operation by its identity alone and answers an identity that no store keeps with exit 3. The tab closes supply the Session close-maintenance turns a held Close meets in real use; terminal output alone runs none. It runs as its own test target for about a minute of real time; the root test gate prepares the Host, Server and Worker it starts, while a direct Cargo run needs `pnpm --filter @orchbee/terminal-host build` and those binaries first. Rust and TypeScript consume the same Worktree conformance corpus; JSON Schema covers structural validation and bindings enforce byte bounds and cross-field relationships. These are same-author tests and review; they do not claim independent review or TLA execution.
+`operation status` finds a Worktree operation by its identity alone and answers an identity that no
+store keeps with exit 3.
 
-The Windows path adapter is a bounded pure transformation over explicit environment and current-directory inputs. A resolved relative or tilde operand is normalized lexically, as Windows does: `.` is dropped, `..` removes one earlier component but never the drive root, and no trailing separator remains; absolute literals are kept verbatim. Text output shows Git-reported paths with native separators, and a probe-stage Git failure says the directory is not a Git repository or Git does not trust its owner. Common-path vectors cover relative joining, tilde separators and home precedence; malformed contexts are rejected. Tests cover unused environment/cwd isolation, UTF-8 and 4096-byte bounds, ambiguous roots, no filesystem probing, and redacted resolution errors before configuration or runtime access. Pure parsing retains all four explicit path slots; injected capabilities verify target-before-source resolution and unchanged selection, identity, geometry and wait policy. `cli_windows_machine_routing` checks raw routed operands, grammar-before-context, machine-selection and relay admission. `cli_windows_worktree_context` checks complete typed Create/Open intents and List source under separately supplied final-process home and cwd. Actual Windows Git query/create/open exercises relative and tilde operands. This is bounded behavior evidence, not a claim about every Windows filesystem alias.
+The Windows path adapter is a bounded pure transformation over explicit environment and
+current-directory inputs. A resolved relative or tilde operand is normalized lexically, as Windows
+does: `.` is dropped, `..` removes one earlier component but never the drive root, and no trailing
+separator remains; absolute literals are kept verbatim. Text output shows Git-reported paths with
+native separators, and a probe-stage Git failure says the directory is not a Git repository or Git
+does not trust its owner. Pure parsing retains all four explicit path slots; injected capabilities
+verify target-before-source resolution and unchanged selection, identity, geometry and wait policy.
+`cli_windows_machine_routing` checks raw routed operands, grammar-before-context, machine-selection
+and relay admission. `cli_windows_worktree_context` checks complete typed Create/Open intents and
+List source under separately supplied final-process home and cwd. Actual Windows Git
+query/create/open exercises relative and tilde operands.
 
 ## Project close-all
 
@@ -120,5 +127,3 @@ orchbee operation resume <operation-id> --generation <1..64> --confirm [--detach
 Start/Resume use one total budget (default 120000 ms, allowed 1–3600000); status is a five-second read. CLI submits one mutation and then only reads, checking the same attempt and captured child identities. Detach, timeout and Ctrl+C stop waiting while Server continuation remains responsible for accepted work. Resume is explicit and only available for a known eligible failure. Records survive CLI disconnection, not Server restart.
 
 `orchbee.project.close-all` v1 separates retained Server truth from nullable wait disposition. Pending/Closed exits 0, known refusal/failure 3, unavailable/Worker loss/Session stopping 4, unknown 8, inconsistent/internal observation 1, and interrupted waiting transport/timeout/cancellation 5/7/130 with the last reply preserved. It is distinct from the ordinary Workspace close status that `operation status <close-request-id>` reads in `orchbee.operation.close` v1. Offline help, completion and `--skill` declare both forms; retired `workspace close --group` is rejected.
-
-Grammar, exact-effect process tests, empty-membership and partial/unknown schema tests cover the CLI contract. Server and real-terminal acceptance own captured membership execution, physical terminal cleanup and preservation of Git paths/branches. These bounded tests do not claim an atomic Git/UI transaction or exhaustive races.
