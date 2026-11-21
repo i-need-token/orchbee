@@ -2,15 +2,15 @@
 
 ## Placement
 
-| Artifact or decision            | Contract                                                                                                                                                                             |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Runnable or deployable entry    | Put it in `apps/*`; both end-user products and development applications use this location.                                                                                           |
-| Imported reusable capability    | Put JavaScript and TypeScript libraries in `packages/*`; put reusable Rust libraries in `crates/*`.                                                                                  |
-| Application-internal Rust seam  | Put an admitted private library in `apps/<app>/crates/<seam>` under [Rust](RUST.md#placement-and-workspace-ownership); it has no independent application lifecycle.                  |
-| Repository automation           | Put it in `scripts/*` when it has no independent application lifecycle.                                                                                                              |
-| Product/development distinction | Keep one `apps/*` root; express the distinction through workspace identity, package privacy, `project.json` responsibility and non-goals, and release configuration when one exists. |
-| Product application name        | Name its user-facing surface or runtime role, not an internal process such as `main` or `renderer`.                                                                                  |
-| Headless long-running entry     | Create it only for a concrete lifecycle and consumer; an architecture diagram is insufficient.                                                                                       |
+| Artifact or decision            | Contract                                                                                                                                                                           |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runnable or deployable entry    | Put it in `apps/*`; both end-user products and development applications use this location.                                                                                         |
+| Imported reusable capability    | Put JavaScript and TypeScript libraries in `packages/*`; put reusable Rust libraries in `crates/*`.                                                                                |
+| Application-internal Rust seam  | Put an admitted private library in `apps/<app>/crates/<seam>` under [Rust](RUST.md#placement-and-workspace-ownership); it has no independent application lifecycle.                |
+| Repository automation           | Put it in `scripts/*` when it has no independent application lifecycle.                                                                                                            |
+| Product/development distinction | Keep one `apps/*` root; express the distinction through workspace identity, package privacy, the README's responsibility and non-goals, and release configuration when one exists. |
+| Product application name        | Name its user-facing surface or runtime role, not an internal process such as `main` or `renderer`.                                                                                |
+| Headless long-running entry     | Create it only for a concrete lifecycle and consumer; an architecture diagram is insufficient.                                                                                     |
 
 ## Required application shape
 
@@ -18,7 +18,6 @@ Every direct application workspace contains:
 
 | Path                            | Responsibility                                                                                |
 | ------------------------------- | --------------------------------------------------------------------------------------------- |
-| `project.json`                  | Runtime, stability, responsibility, and non-goals for every application                       |
 | `package.json`                  | Identity, commands, and dependencies for a pnpm-managed application or Zig lifecycle bridge   |
 | `Cargo.toml`                    | Rust application identity, targets, and dependencies; it is an explicit root-workspace member |
 | `tsconfig.json`                 | Type-checking contract when the application contains TypeScript source                        |
@@ -80,7 +79,7 @@ A product application is part of an Orchbee user-facing runtime or distribution.
 Development applications:
 
 - set `private` to `true` in npm metadata or `publish = false` in Cargo metadata;
-- state their development-only role and product non-goals in `project.json`;
+- state their development-only role and product non-goals in their README or owning standard;
 - expose focused build validation for tracked source and include their host tests in the local verification gate;
 - stay out of product packaging and release outputs;
 - do not become a location for reusable runtime code.

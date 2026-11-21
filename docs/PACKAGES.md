@@ -7,7 +7,7 @@
 - Place frontend product UI and platform adapters according to [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md).
 - Treat every runtime package under `packages/*` as a library package. Library packages use Rslib and expose built artifacts. Production consumers use those artifacts; repository applications may compile declared public source entries during development according to the workspace-development contract.
 - Set `"private": true` on workspace-only libraries. A package intended for npm publication omits `private` and must include a version, `"publishConfig": { "access": "public" }`, a package README, license metadata once the project license is selected, and a `files` allowlist.
-- Declare every package's responsibility, non-goals, runtime, and stability in its schema-backed `project.json` according to [`docs/PROJECTS.md`](PROJECTS.md).
+- State every package's responsibility and non-goals in its README, under [package documents](DOCUMENTATION.md#package-documents).
 
 Repository-only scripts, Cargo crates, application entry points, and the product's npm carriers ([Versioning](#versioning)) are not npm library packages and do not belong under `packages/*`.
 
@@ -54,7 +54,6 @@ Every library package contains these files:
 | `rslib.config.ts` | ESM, CJS, declarations, and runtime target                                                             |
 | `tsconfig.json`   | Package type-checking contract                                                                         |
 | `README.md`       | Consumer-facing installation and public API                                                            |
-| `project.json`    | Machine-readable scope and responsibility                                                              |
 
 Tests remain next to their source area according to [`docs/TESTING.md`](TESTING.md#source-and-test-paths). Generated build output belongs in `dist/` and is never committed.
 
@@ -200,7 +199,7 @@ Before merging a package change:
 3. Build the package and its workspace dependencies with `pnpm --filter <package-name>... build`.
 4. Run `pnpm --filter <package-name> typecheck`, `pnpm --filter <package-name> test`, and `pnpm --filter <package-name> test:exports`.
 5. Run `pnpm verify` from the repository root.
-6. Update `project.json`, the package README, package-local references, and affected repository standards in the same change.
+6. Update the package README and affected repository standards when the change alters something they state.
 
 ## External references
 

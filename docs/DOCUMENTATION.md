@@ -9,7 +9,6 @@
 | Behavior, parameters, limits, defaults, exit codes, and fields                     | The code, help text, or schema that declares them                            |
 | AI-agent project map, hard rules, and standard links                               | `CLAUDE.md`                                                                  |
 | Repository-wide standards and cross-workspace architecture                         | `docs/UPPER-KEBAB-CASE.md` or `docs/<engineering-domain>/kebab-case.md`      |
-| Workspace identity, responsibility, runtime, stability, and non-goals              | The owning workspace's `project.json`                                        |
 | Product interactions, screen composition, named components, and business decisions | The owning application or package                                            |
 
 - Prefer omission: create or retain documentation only when it has a recurring consumer, clear authority, and verification path.

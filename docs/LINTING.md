@@ -13,7 +13,6 @@
 | `pnpm lint:styles`           | Validate the token registry and authored frontend styling contract                                                                                |
 | `pnpm lint:storage`          | Validate browser-storage access, ownership, key shape, and versioning                                                                             |
 | `pnpm lint:dependencies`     | Run Knip over the complete graph and then the strict production graph, after checking that the packages are built                                 |
-| `pnpm lint:projects`         | Validate every schema-backed workspace project contract                                                                                           |
 | `pnpm lint:fix`              | Apply safe oxlint fixes; remaining diagnostics require code changes                                                                               |
 | `pnpm typecheck`             | Run TypeScript diagnostics that syntax-aware lint does not replace                                                                                |
 | `pnpm test:lint-rules`       | Test the `orchbee/*` rules and the documentation contract                                                                                         |

@@ -184,7 +184,7 @@ results remain unchanged.
 | Task                      | Contract                                                                                                                                                        |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `format:check`            | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                   |
-| `lint`                    | Code, Rust workspace and Clippy, style, storage, architecture, dependency, project-contract, export, and manifest rules pass.                                   |
+| `lint`                    | Code, Rust workspace and Clippy, style, storage, architecture, dependency, export, and manifest rules pass.                                                     |
 | `test:tla:inventory`      | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree; every trigger matches a tracked file. |
 | `build`, `build:packages` | Shared library workspaces produce the artifacts consumed by lint, type checking, tests and export checks.                                                       |
 | `build:full`              | Explicitly build every buildable pnpm and Cargo workspace for the host with its pinned toolchain and dependencies.                                              |

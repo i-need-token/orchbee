@@ -4,7 +4,7 @@ Orchbee's private package for reusable visual primitives, including shadcn/ui co
 
 ## Scope
 
-This package owns reusable visual primitives and their accessibility-preserving Base UI composition. It does not own themes, design tokens, sessions, agents, terminal panes, routing, remote state, or platform-specific effects. The machine-readable scope contract lives in [`project.json`](project.json).
+This package owns reusable visual primitives and their accessibility-preserving Base UI composition. It does not own themes, design tokens, sessions, agents, terminal panes, routing, remote state, or platform-specific effects.
 
 ## Use
 

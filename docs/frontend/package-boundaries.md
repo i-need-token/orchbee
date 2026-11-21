@@ -18,8 +18,7 @@ A frontend package must:
 
 - own one named capability with a reviewable contract and concrete consumer;
 - run its tests without importing application source or a speculative sibling package;
-- declare responsibility, non-goals, runtime, and stability in `project.json` under [`docs/PROJECTS.md`](../PROJECTS.md);
-- use distributed `project.json` files as the workspace registry instead of duplicating a package catalog here; and
+- state its responsibility and non-goals in its README instead of in a package catalog here; and
 - follow [`docs/PACKAGES.md`](../PACKAGES.md) for naming, exports, builds, dependencies, compatibility, and verification.
 
 Name a package after the capability callers consume, never a framework, transport, or technical bucket. Forbidden bucket names include `components`, `hooks`, `store`, `types`, `utils`, `common`, `shared`, and `helpers`.
@@ -88,6 +87,6 @@ Use Zustand only for shared client UI state inside the browser workspace that ow
 
 ## Boundary changes
 
-Update affected `project.json` contracts, exports, READMEs, package references, tests, and consumers in the same change; remove the old path and authority. Do not describe an uncreated workspace or implementation sequence as current architecture.
+Update affected exports, tests, consumers, and the responsibility each README states in the same change; remove the old path and authority. Do not describe an uncreated workspace or implementation sequence as current architecture.
 
 Run the package checks in [`docs/PACKAGES.md`](../PACKAGES.md#verification-and-review) after changing a package boundary.

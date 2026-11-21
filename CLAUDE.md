@@ -29,7 +29,6 @@
 - **Applications**: `docs/APPLICATIONS.md` — runnable workspace placement, shape, and lifecycle
 - **Module Boundaries**: `docs/MODULE-BOUNDARIES.md` — semantic module design, source-tree visibility, entry points, composition, and cycles
 - **Packages**: `docs/PACKAGES.md` — package naming, exports, builds, dependencies, and versioning
-- **Projects**: `docs/PROJECTS.md` — machine-readable workspace scope and responsibility contracts
 - **Code Style**: `docs/CODESTYLE.md` — comments, naming, file structure conventions
 - **Documentation**: `docs/DOCUMENTATION.md` — read before adding, moving, or restructuring docs or changing documented engineering contracts
 - **Repository Hygiene**: `docs/REPOSITORY-HYGIENE.md` — tracked-file admission, temporary artifacts, generated files, and pre-handoff review
@@ -80,7 +79,7 @@ crates/         # Reusable Rust libraries admitted for real cross-crate consumer
 packages/       # Shared JavaScript and TypeScript libraries, guides, and local references
 docs/           # Repository-wide standards and cross-workspace architecture contracts
 proposals/      # Future design under review; never current authority
-schemas/        # Machine-readable repository contract schemas
+schemas/        # Machine-readable contracts shared between processes and languages
 ```
 
 ## Tech Stack

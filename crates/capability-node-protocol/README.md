@@ -676,7 +676,6 @@ cargo test -p orchbee-capability-node-protocol --all-targets --all-features --lo
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
 cargo test --locked -p orchbee-worker --all-targets --all-features
 pnpm test:tla:inventory
-pnpm lint:projects
 ```
 
 ## Managed Worker shutdown

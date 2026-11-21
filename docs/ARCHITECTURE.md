@@ -49,8 +49,7 @@ flowchart TB
 
 ## Project registry
 
-- Every workspace declares its domain, responsibility, non-goals, runtime, and stability in a schema-backed `project.json`.
-- [`docs/PROJECTS.md`](PROJECTS.md) owns the contract; `pnpm lint:projects` verifies it.
+- Every workspace states what it is responsible for and what it never does in its own README, under [package documents](DOCUMENTATION.md#package-documents).
 - Do not maintain a project catalog in this overview.
 
 ## Data boundaries
