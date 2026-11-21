@@ -268,7 +268,19 @@ impl Drop for Fixture {
 }
 
 fn remove_fixture_directory(path: &Path, prefix: &str) {
-    let result = (|| {
+    if let Err(diagnostic) = release_fixture_directory(path, prefix) {
+        if thread::panicking() {
+            use std::io::Write;
+            let _ = writeln!(std::io::stderr().lock(), "{diagnostic}");
+        } else {
+            panic!("{diagnostic}");
+        }
+    }
+}
+
+/// Removes a fixture's own temporary directory, or says why it stays.
+fn release_fixture_directory(path: &Path, prefix: &str) -> Result<(), String> {
+    (|| {
         let target = path.canonicalize()?;
         if !target.starts_with(std::env::temp_dir().canonicalize()?)
             || !target
@@ -281,19 +293,13 @@ fn remove_fixture_directory(path: &Path, prefix: &str) {
             ));
         }
         fs::remove_dir_all(target)
-    })();
-    if let Err(error) = result {
-        let diagnostic = format!(
+    })()
+    .map_err(|error| {
+        format!(
             "fixture owner could not release {} after peer/command cleanup attempts: {error}; the test runner retains cleanup responsibility",
             path.display()
-        );
-        if thread::panicking() {
-            use std::io::Write;
-            let _ = writeln!(std::io::stderr().lock(), "{diagnostic}");
-        } else {
-            panic!("{diagnostic}");
-        }
-    }
+        )
+    })
 }
 
 pub(super) fn peer(

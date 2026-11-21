@@ -25,14 +25,18 @@ thread_local! {
         static LIVE: Mutex<Weak<Cohort>> = Mutex::new(Weak::new());
         let mut live = LIVE.lock().unwrap();
         live.upgrade().unwrap_or_else(|| {
-            let cohort = Arc::new(Cohort::private());
+            let cohort = Arc::new(Cohort::create(true));
             *live = Arc::downgrade(&cohort);
             cohort
         })
     };
 }
 
-pub(super) struct Cohort(PathBuf);
+pub(super) struct Cohort {
+    root: PathBuf,
+    /// Whether a thread-local owner may release it.
+    shared: bool,
+}
 
 impl Cohort {
     pub(super) fn shared() -> Arc<Self> {
@@ -40,6 +44,10 @@ impl Cohort {
     }
 
     pub(super) fn private() -> Self {
+        Self::create(false)
+    }
+
+    fn create(shared: bool) -> Self {
         let mut nonce = [0; 16];
         getrandom::fill(&mut nonce).unwrap();
         let root = std::env::temp_dir().join(format!(
@@ -47,13 +55,13 @@ impl Cohort {
             u128::from_le_bytes(nonce)
         ));
         fs::create_dir(&root).unwrap();
-        let cohort = Self(root);
+        let cohort = Self { root, shared };
         // Native cohort admission requires private regular files with one link.
         fs::copy(env!("CARGO_BIN_EXE_orchbee"), cohort.executable()).unwrap();
         for (_, artifact) in &ARTIFACTS[1..] {
-            fs::write(cohort.0.join(artifact.file_name()), UNUSED_ARTIFACT).unwrap();
+            fs::write(cohort.root.join(artifact.file_name()), UNUSED_ARTIFACT).unwrap();
         }
-        fs::write(cohort.0.join("cohort.json"), manifest()).unwrap();
+        fs::write(cohort.root.join("cohort.json"), manifest()).unwrap();
         cohort
     }
 
@@ -62,17 +70,37 @@ impl Cohort {
         reason = "Only cohort admission and relay suites inspect artifact paths."
     )]
     pub(super) fn directory(&self) -> &Path {
-        &self.0
+        &self.root
     }
 
     pub(super) fn executable(&self) -> PathBuf {
-        self.0.join(CohortArtifact::Client.file_name())
+        self.root.join(CohortArtifact::Client.file_name())
     }
 }
 
 impl Drop for Cohort {
+    /// A private cohort is released by its test, which fails when the folder stays. The shared
+    /// one is released by a thread-local destructor, where a panic ends the whole test process
+    /// and every test still to run. A file of the folder can stay open for a moment after the
+    /// last command exits (its image, or a scanner reading the copied executable), so that
+    /// removal is retried for two seconds, and a folder that still stays is reported.
     fn drop(&mut self) {
-        super::remove_fixture_directory(&self.0, "orchbee-cli-cohort-");
+        const PREFIX: &str = "orchbee-cli-cohort-";
+        if !self.shared {
+            return super::remove_fixture_directory(&self.root, PREFIX);
+        }
+        let mut released = super::release_fixture_directory(&self.root, PREFIX);
+        for _ in 0..20 {
+            if released.is_ok() {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            released = super::release_fixture_directory(&self.root, PREFIX);
+        }
+        if let Err(diagnostic) = released {
+            use std::io::Write;
+            let _ = writeln!(std::io::stderr().lock(), "{diagnostic}");
+        }
     }
 }
 
