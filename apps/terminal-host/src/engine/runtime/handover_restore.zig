@@ -157,12 +157,23 @@ pub fn start(prepared: *Prepared, program: Program, spawner: anytype) !void {
             };
             self.move = .held;
             creation.adoptTestingHooks(self, spawner);
+            noteArrival(self);
             creation.startGatedWorkers(self, spawner) catch |err| {
                 prepared.release(true);
                 return err;
             };
         },
     }
+}
+
+/// The move is a person's input on the arrival screen for the screen gate. The record keeps the
+/// generation and revision a sender names a frame by, so every key decided before the move names a
+/// first-seen revision at or before this one and is refused however late it arrives, and the quiet
+/// time runs from here. The old Host's input record does not travel: each person's input there came
+/// before its quiesce, at or before this revision. Read on the runtime's final clock, before any
+/// worker runs.
+fn noteArrival(self: *state.State) void {
+    self.screen_gate_input.notePerson(self.revision.load(.monotonic), clock.monotonicTimeNanoseconds(self));
 }
 
 /// A settled terminal's runtime: no process and no worker, with its outcome already reached.
@@ -234,6 +245,7 @@ pub fn restoreStandIn(
         return err;
     };
     creation.adoptTestingHooks(prepared.runtime, spawner);
+    noteArrival(prepared.runtime);
     creation.startWorkers(prepared.runtime, checked.process_launch, spawner) catch |err| {
         prepared.abandon();
         return err;

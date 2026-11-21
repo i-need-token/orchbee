@@ -1,6 +1,7 @@
 //! Exact export and import of one terminal within one Host (TH-030): prototype 2's corpus and a
 //! busy shell restore identical state, and a corpus cut at every byte exports only where every
-//! parser is at ground and, imported and fed the rest, ends identical to its source.
+//! parser is at ground and, imported and fed the rest, ends identical to its source. A restored
+//! terminal's screen gate refuses every key decided before the move.
 const harness = @import("runtime_harness.zig");
 const fixture = @import("handover_fixture.zig");
 const screen_text = @import("screen_text.zig");
@@ -16,6 +17,7 @@ const allocator = fixture.allocator;
 
 const capture_limit_bytes = 512 * 1024;
 const output_timeout_ns = 60 * std.time.ns_per_s;
+const screen_gate_quiet_ns = harness.protocol.Limits.screen_gate_quiet_milliseconds * std.time.ns_per_ms;
 
 /// Prototype 2's corpus (proposals/platform/host-handover.md, "Prototype 2 result"), with the
 /// sequences the Host's own scanners and effects keep beside Ghostty's state.
@@ -345,4 +347,85 @@ test "a failed handover import is discarded and creates nothing" {
         }
     }
     try std.testing.expect(attempts > 0);
+}
+
+const agent: harness.protocol.ProcessIdentity = .{ .pid = 4242, .creation_time = 77 };
+
+/// Scripted reads, an Agent among the terminal's processes, and a clock the test moves.
+const GatedOutput = struct {
+    output: ScriptedOutput = .{},
+    now: std.atomic.Value(u64) = .init(1000 * std.time.ns_per_s),
+
+    fn hooks(self: *GatedOutput) harness.RuntimeTestingHooks {
+        var result = self.output.hooks();
+        result.has_process = hasProcess;
+        result.monotonic_time_nanoseconds = monotonicTime;
+        return result;
+    }
+
+    fn hasProcess(_: *anyopaque, identity: harness.protocol.ProcessIdentity) anyerror!bool {
+        return identity.pid == agent.pid and identity.creation_time == agent.creation_time;
+    }
+
+    fn monotonicTime(context: *anyopaque) u64 {
+        const output: *ScriptedOutput = @ptrCast(@alignCast(context));
+        const self: *GatedOutput = @fieldParentPtr("output", output);
+        return self.now.load(.monotonic);
+    }
+};
+
+/// Enter for the Agent, on the terminal's current frame, for a prompt first seen at `first`.
+fn gatedKey(runtime: *TerminalRuntime, first: u64) harness.protocol.ScreenGatedKeyInput {
+    const runtime_state = harness.runtimeState(runtime);
+    return .{ .key = .{
+        .key = .enter,
+        .process = agent,
+        .generation = runtime_state.generation,
+        .revision = runtime_state.revision.load(.acquire),
+        .first_revision = first,
+    } };
+}
+
+/// The bytes the gate typed for `input`.
+fn typeGated(runtime: *TerminalRuntime, input: harness.protocol.ScreenGatedKeyInput) ![]const u8 {
+    var prepared = try runtime.prepareScreenGatedKeyInput(input, std.math.maxInt(usize));
+    defer prepared.deinit();
+    const bytes = try allocator.dupe(u8, prepared.bytes orelse "");
+    errdefer allocator.free(bytes);
+    _ = try prepared.commit();
+    return bytes;
+}
+
+test "screen gate: a moved terminal types no key decided before the move and answers a prompt first seen after it" {
+    var stand_in: fixture.StandIn = try .init();
+    defer stand_in.deinit();
+    var source_output: ScriptedOutput = .{};
+    const source = try fixture.createScripted(&source_output, &stand_in, 80, 24);
+    defer source.destroy();
+    source_output.commit("Do you want to proceed?\r\n> 1. Yes");
+    // Decided on the old Host, on the frame where the prompt first showed.
+    const decided = gatedKey(source, harness.runtimeState(source).revision.load(.acquire));
+    const record = try fixture.exportParked(source);
+    defer allocator.free(record);
+
+    var gated: GatedOutput = .{};
+    var spawner: harness.HookedThreadSpawner = .{ .hooks = gated.hooks() };
+    const restored = try subject.testing.importHandoverUsingSpawner(allocator, record, stand_in.launch(80, 24), &spawner);
+    gated.output.runtime = restored.runtime;
+    var imported: fixture.Imported = .{ .runtime = restored.runtime, .facts = restored.facts };
+    defer imported.deinit();
+
+    // The move keeps the frame the key names, and a key decided on that screen after the move is
+    // the same request: the prompt was first seen before the arrival either way.
+    try std.testing.expectEqualDeep(decided, gatedKey(imported.runtime, decided.key.first_revision));
+    try std.testing.expectError(error.ScreenPersonInput, typeGated(imported.runtime, decided));
+
+    // A prompt first seen after the arrival waits out the quiet time from the arrival.
+    gated.output.commit("\r\nDo you want to proceed?\r\n> 1. Yes");
+    const first_seen = harness.runtimeState(imported.runtime).revision.load(.acquire);
+    try std.testing.expectError(error.ScreenPersonRecent, typeGated(imported.runtime, gatedKey(imported.runtime, first_seen)));
+    _ = gated.now.fetchAdd(screen_gate_quiet_ns, .monotonic);
+    const typed = try typeGated(imported.runtime, gatedKey(imported.runtime, first_seen));
+    defer allocator.free(typed);
+    try std.testing.expectEqualSlices(u8, "\r", typed);
 }

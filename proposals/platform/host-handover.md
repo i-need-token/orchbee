@@ -997,6 +997,20 @@ restarts the reader, and a mark left unanswered counts as made.
   in that answer or an earlier one, it completes the claim instead and answers `claimed`.
 - Rule: a Host keeps at most one import of a holding and refuses a second `RestoreTerminal` of it
   as `moving`.
+- Rule: no screen-gated key crosses a move. A gated key is input, so from step 2 of the quiesce it
+  fails `terminal-quiesced` like any other. The record keeps the generation and the content
+  revision that a sender names a frame by, so the restore starts the terminal with a person's input
+  recorded on its arrival revision, at its own clock's time. Every key decided before the move
+  names a first-seen revision at or before that screen, and rule 6 of
+  [screen-gated input](../../apps/terminal-host/docs/runtime-model.md#screen-gated-input) refuses it
+  however late it arrives, a retried one included; a prompt first seen after the arrival is answered once
+  the quiet time since the arrival has passed, so no automatic key follows a person's last input on
+  the old Host by less than the quiet time. The old Host's input record does not travel: each of its
+  entries came before the quiesce, at or before the arrival revision, so the arrival record refuses
+  at least every key the old one did. A prompt already on screen when its terminal moved is left to
+  the person. Chosen over starting a new generation, which would change the frame identity the move
+  keeps for every Client and still leave the new Host not knowing whether a person typed just before
+  the move.
 - H1 takes the rule for requests that name a terminal still in creation from the asynchronous
   start, now the runtime model's
   [creation pipeline](../../apps/terminal-host/docs/runtime-model.md#terminal-creation-pipeline).

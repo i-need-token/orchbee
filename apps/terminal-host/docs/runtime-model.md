@@ -732,7 +732,9 @@ resumed reader reads on. The import decodes and checks the whole record, its pag
 before it builds a runtime or starts a worker, so a refused record creates nothing. It then
 restores the snapshot, applies the Host's own limits, replays held input through the input
 ledger's rules under fresh attachment ids, and starts the terminal's workers. Deadlines and ages
-travel as remaining durations and count again from the import's clock. The `handover` requests
+travel as remaining durations and count again from the import's clock. The screen gate's input
+record does not travel: the restored terminal starts it on its arrival revision, as
+[screen-gated input](#screen-gated-input) describes. The `handover` requests
 export and import as [moves between Hosts](#moves-between-hosts) describes: there an import adopts
 the console the Keeper holds once its duplicates pass their checks, while a test's import starts the
 launch its caller passes at the record's geometry.
@@ -2824,9 +2826,14 @@ a gated key records only where it was typed. The cleanup of an attachment that g
 Host's own bookkeeping, and every send ends with one, a refused gated key included: it writes the
 record only when it releases a key or a mouse button the attachment still held, and the focus
 report it may carry never does. A runtime that this Host launched starts with no
-person's input. Any other runtime starts with one on every revision and no time, which refuses
-every gated key until a person acts there: the Host cannot know what was typed before it held the
-terminal.
+person's input. A runtime restored from a handover record starts with one on its arrival
+revision, read on the runtime's clock when the restore starts the terminal, before any worker
+runs. The move keeps the generation and the revision, so a key decided before the move names a
+first-seen revision at or before the arrival screen, and rule 6 refuses it however late it
+arrives; a prompt first seen after the arrival is answered once the quiet time since the arrival
+has passed. The old Host's record does not travel: every person's input there came before its
+quiesce and at or before the arrival revision, so the arrival record refuses at least every key
+the old record refused.
 
 Preparation samples the terminal's processes before it takes a lock, because a sample is too
 slow to hold the terminal mutex for; a failed sample refuses like a missing process. It then
@@ -2844,8 +2851,8 @@ input and queues nothing, which makes rule 6 refuse every key whose first-seen r
 before the screen the hold arrived on.
 
 `zig build test-screen-gate` runs the decision table for every rule at preparation and at
-publication through the real queue, and the wire refusals with the platform's real process
-sample.
+publication through the real queue, the wire refusals with the platform's real process sample,
+and the arrival record through a real export and import.
 
 ## Correlated shell observation and row origin
 

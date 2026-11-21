@@ -163,10 +163,13 @@ moves to a newer Host only by the product's own update path.
 
 **Host handover.** The gate identifies a frame by generation and revision, and a terminal that
 moves to another Host keeps both. A key decided before the move must not match the moved
-terminal. The [Host handover](../../schemas/terminal/references/protocol.md#host-handover) design
-therefore has to start a restored terminal with a person-input record at its arrival revision, or
-with a new generation. Until it does, a terminal built from a handover record starts with an
-unknown record and refuses every screen-gated key until a person has typed there.
+terminal, so the [Host handover](../../schemas/terminal/references/protocol.md#host-handover)
+starts a restored terminal with a person's input recorded on its arrival revision, at the time of
+its restore, as a hold there would. Every key decided before the move names a first-seen revision
+at or before that screen, and rule 6 refuses it however late it arrives; a prompt first seen after
+the arrival is answered once the quiet time since the arrival has passed. A prompt already on
+screen when its terminal moved is left to the person, and the Server shows the same reason it
+shows after a person's input, since the refusal is the same.
 
 Three limits remain, and no observer outside the Agent can remove them:
 

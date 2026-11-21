@@ -346,23 +346,6 @@ test "screen gate: publication repeats the rules against output and input after 
     }
 }
 
-test "screen gate: a runtime that does not know who typed refuses until a person acts" {
-    var fixture: Fixture = .{};
-    try fixture.init();
-    defer fixture.deinit();
-    // What a runtime built from a handover record starts with.
-    runtimeState(fixture.runtime).screen_gate_input = .{};
-    fixture.after(60 * second);
-    try fixture.expectRefused(error.ScreenPersonInput, fixture.freshKey());
-    try fixture.output("\r\nDo you want to proceed?\r\n> 1. Yes");
-    try fixture.expectRefused(error.ScreenPersonInput, fixture.freshKey());
-
-    try fixture.personTypes("y");
-    try fixture.output("\r\nDo you want to proceed?\r\n> 1. Yes");
-    fixture.after(quiet);
-    try fixture.expectTyped(fixture.freshKey());
-}
-
 fn waitForEmptyQueue(runtime: *TerminalRuntime) !void {
     var attempts: usize = 0;
     while (inputQueueSnapshot(runtime).entry_count != 0) : (attempts += 1) {

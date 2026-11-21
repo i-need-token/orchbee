@@ -37,8 +37,9 @@ pub const PersonInput = struct {
 /// pointer motion without a button, a screen-gated key, and the cleanup of an
 /// attachment that held no key or button. input_mutex protects this.
 pub const InputRecord = struct {
-    /// A runtime that does not know its history, such as one built from a
-    /// handover record, starts as if a person had acted on every screen.
+    /// Until its runtime starts a terminal, a record refuses every key, as if a
+    /// person had acted on every screen. A launched terminal starts as
+    /// `launched`, a restored one with a person's input on its arrival screen.
     person: ?PersonInput = .{ .revision = std.math.maxInt(u64), .at_nanoseconds = null },
     /// The revision the last screen-gated key was typed on.
     typed_revision: ?u64 = null,

@@ -464,9 +464,11 @@ input, so after one refusal they refuse every later key for the same prompt. A H
 `screen-gated-send` lists `screen-gated-input` too, because the older name stays true of it and
 `worker-host` changes only by addition. No Worker offers the older name or sends a key under it.
 
-A terminal the Host did not launch itself, such as one restored from a
-[Host handover](#host-handover), starts with a person's input recorded on every revision, so the
-Host refuses gated keys there until a person acts in it.
+A terminal restored from a [Host handover](#host-handover) keeps its generation and revision and
+starts with a person's input recorded on its arrival revision, at the time of its restore. Every
+key decided before the move therefore names a first-seen revision at or before that screen, and
+rule 6 refuses it however late it arrives, a key retried after `terminal-quiesced` included; a
+prompt first seen after the arrival is answered once the quiet time since the arrival has passed.
 
 ## Host handover
 
