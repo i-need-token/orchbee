@@ -12,7 +12,7 @@
 | `pnpm lint:rust-modules`        | Report Rust module cycles and upward references against owner layer contracts, and fail on any beyond the record of existing ones                 |
 | `pnpm lint:styles`              | Validate the token registry and authored frontend styling contract                                                                                |
 | `pnpm lint:storage`             | Validate browser-storage access, ownership, key shape, and versioning                                                                             |
-| `pnpm lint:dependencies`        | Run complete and strict Knip analysis, then assess explicitly retained development consumers                                                      |
+| `pnpm lint:dependencies`        | Run Knip over the complete graph and then the strict production graph, after checking that the packages are built                                 |
 | `pnpm lint:projects`            | Validate every schema-backed workspace project contract                                                                                           |
 | `pnpm lint:experience`          | Validate experience-component schemas, ownership, paths, and relations                                                                            |
 | `pnpm lint:fix`                 | Apply safe oxlint fixes; remaining diagnostics require code changes                                                                               |
@@ -34,7 +34,7 @@
 | Docs and config     | Every rule documented as enforced must be enabled in `.oxlintrc.json`; `pnpm test:lint-rules` verifies both docs-to-config and config-to-doc coverage.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Standards structure | `pnpm test:lint-rules` enforces admitted paths under `docs/`, existing concrete `apps/<name>` and `packages/<name>` references, local Markdown links, and the [Chinese Markdown allowlist](DOCUMENTATION.md#language).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Severity            | Errors fail `pnpm lint`; routine lint output omits non-blocking warnings to keep automated feedback concise. Run `pnpm lint:code:warnings` when reviewing warnings in affected package files.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Dependencies        | The dependency command preserves complete and strict Knip analysis and raw results. Unregistered unused files, exports or types and every dependency, resolution, duplicate-export or stale-catalog error fail. Exact development retentions follow [Retained development consumers](#retained-development-consumers).                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Dependencies        | `pnpm lint:dependencies` runs Knip directly with its own report, first over the complete graph and then with `--strict`. Every unused file, export or type and every dependency, resolution, duplicate-export, stale-catalog, configuration-hint or tag-hint finding fails; there is no list of accepted findings. Remove the dead code or give it a real consumer. `knip.config.mjs` changes only to describe a real entry point or project file, never to hide a finding.                                                                                                                                                                                                                                                                                                      |
 | Knip scope          | Every runnable script, build configuration, test suite and public package entry must be discovered through package manifests, tool plugins or `knip.config.mjs#workspaces`. Add only missing actual entry points; redundant entries and stale configuration hints fail. Shared fixtures are project files reached through test consumers, never artificial entry points. Production-only test-helper exclusions retain complete-graph analysis; `pnpm test:dependency-scope` verifies reachability, orphan rejection and strict dependency isolation. Private packages enable `includeEntryExports`, so entry exports also need consumers; fabricated entries or test-only facades must not hide dead APIs.                                                                      |
 | Type awareness      | Type-aware oxlint rules remain inactive until package review adds `oxlint-tsgolint`; lint does not detect floating promises or unsafe third-party `any` propagation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Rust                | `pnpm lint:rust` verifies the exact toolchain and locked Cargo metadata, requires shared third-party dependencies to inherit with `workspace = true`, and rejects third-party declarations without `default-features = false` directly or by inheritance, including unused workspace declarations. It then runs workspace Clippy with every target and feature, and again over default-feature library and binary targets, with enabled warnings denied. [`docs/RUST.md`](RUST.md#lint-policy-and-enforcement) defines the remaining review boundary.                                                                                                                                                                                                                            |
@@ -55,8 +55,7 @@ shared. Keep an exclusion only in modes where it suppresses a real tool diagnost
 exclusions instead of suppressing hints.
 
 Knip does not discover `.mjs` configuration automatically. Every invocation must pass
-`--config knip.config.mjs`, including direct CLI diagnostics and isolated fixtures. The gate
-binds this path, its reviewed source fingerprint and the reported configuration path together.
+`--config knip.config.mjs`, including direct CLI diagnostics and isolated fixtures.
 The dependency-scope fixture imports the same callback and projects the shared graph fields;
 it removes only tool exclusions unsupported by its synthetic payload.
 
@@ -84,46 +83,11 @@ witnesses reject unconsumed private entries, test-only entry consumers in strict
 helpers, production modules consumed only by tests or Stories, and borrowed runtime dependencies.
 These fixtures verify graph policy, not the repository's current dependency results.
 
-## Retained development consumers
-
-`pnpm lint:dependencies` invokes `node scripts/dependency-retentions.mjs`. It runs the installed
-Knip CLI with `--config knip.config.mjs` over the complete graph and then with `--strict`,
-using `--reporter json` and a second
-evidence reporter configured by `scripts/dependency-retentions-reporter.config.mjs`. These reporting
-options do not change the analysis scope or private-entry flags.
-The evidence envelope includes the actual report categories, counters, configuration and tag hints;
-Knip's built-in JSON reporter alone does not include those hints.
-
-Knip follows workspace package entries to their built `dist` files, so run the command after
-`pnpm build:packages`, as `pnpm verify` does. In an unbuilt checkout, the entry exports of every
-unbuilt package appear unused; that result is a missing precondition, not a dead API.
-
-The complete run must finish with raw exit zero and no diagnostics. A nonzero complete run fails
-before strict execution. Strict raw exit zero is accepted only with no retention records. Strict
-raw exit one may receive a separate aggregate acceptance only when every diagnostic exactly equals
-an approved package-owned `(kind, file, name)` record and every record still has its diagnostic.
-Only individual `files`, `exports` and `types` records are eligible. Dependencies, unresolved
-imports, other categories, unknown fields, duplicates, hints, changed configuration, parse errors,
-process errors, signals and timeouts fail. Counts, globs, ignores and artificial entries never grant
-acceptance. Raw stdout, stderr and exit/signal/error results remain separate from the aggregate result
-in the printed external log directory, including when the aggregate accepts a raw strict exit one.
-A run whose complete and strict raw exits are both zero removes that directory, since nothing in it
-needs review.
-
-Each package owns its admitted purpose, real development consumers, next integration owner and
-removal conditions in `dependency-retentions.json` and its README. Consumer file presence is
-insufficient: reviewed full source fingerprints bind actual render/call/assertion use, import/export
-links and discovery/resolution configuration. The gate checks those fingerprints before and after
-analysis; missing or changed inputs fail. Refreshing a digest requires an explicit reviewed change
-with renewed semantic/graph evidence, never an automatic baseline update. These checks preserve an
-already reviewed use; they do not establish new semantics or replace build, typecheck, Story,
-behavior and export verification. Existing dependency-scope negative witnesses remain mandatory.
-
-Add a real production consumer or withdraw a purpose and remove its records in the same change.
-A vanished diagnostic, including strict exit zero with remaining records, fails as stale retention.
-Remove an exhausted record/file and its explicit gate registration. Retentions do not authorize a
-new public entry, dependency or product migration. The invoking task owns the raw logs and removes
-them after the last diagnosis, review or recovery consumer finishes.
+Knip follows workspace package entries to their built `dist` files. In an unbuilt checkout the entry
+exports of every unbuilt package appear unused, so `scripts/lint-dependencies.mjs` first checks that
+each buildable package under `packages/` has a `dist` folder and otherwise asks for
+`pnpm build:packages`. It cannot detect a `dist` that is older than the source: rebuild after
+changing a package's exports.
 
 ## Rust module record
 

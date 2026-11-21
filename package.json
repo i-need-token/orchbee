@@ -26,7 +26,7 @@
 		"lint:rust-modules": "node scripts/rust-module-graph.mjs",
 		"lint:styles": "node scripts/check-style-contract.mjs",
 		"lint:storage": "node scripts/storage-contract.mjs",
-		"lint:dependencies": "node scripts/dependency-retentions.mjs",
+		"lint:dependencies": "node scripts/lint-dependencies.mjs",
 		"lint:projects": "node scripts/check-project-contracts.mjs",
 		"lint:experience": "node scripts/experience-catalog.mjs check",
 		"lint:fix": "oxlint --fix .",

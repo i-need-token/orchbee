@@ -141,11 +141,9 @@ stages remain ordered and fail fast, while explicitly grouped independent checks
 with the same workspace scope, compiler flags, and manual-test exclusions. A group drains every
 member before reporting in declaration order and stopping on its first declared failing member.
 The generic wrapper judges each command by its process result, never parsed log text.
-The dependency command owns the explicit aggregate acceptance policy in
-[Linting](LINTING.md#retained-development-consumers): it preserves the complete and strict raw
-results and labels an accepted strict exit one separately. This is a check policy, not output
-presentation. Its Knip children have a 180-second deadline; process errors, signals and timeouts
-always fail. Its separately retained stdout/stderr evidence remains available in verbose mode too.
+The dependency command prints Knip's own report under
+[Linting](LINTING.md#dependency-graph-boundaries). Its Knip children have a 180-second deadline;
+process errors, signals and timeouts always fail.
 
 - Each check reports its start, result, and duration from launch to its own process/stdio close,
   excluding time waiting for other group members or formatting summaries. Recognized test totals and bounded warning
