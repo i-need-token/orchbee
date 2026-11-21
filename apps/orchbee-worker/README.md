@@ -1280,7 +1280,8 @@ nor an empty Job member list proves all descendant process handles have signaled
 The existing `process-wrap` 10.0.1 `std`, `job-object`, `creation-flags` features and
 `windows` 0.62.2 Threading bindings are shared with the native Client. The reviewed
 [dependency correction](../../third-party/process-wrap/README.md) fixes completion
-notification interpretation without adding authored unsafe or new dependency versions.
+notification interpretation and resumes each suspended command from a snapshot of its own
+process, without adding authored unsafe or new dependency versions.
 The Client's [dependency review](../orchbee/docs/windows-agent-integrations.md)
 still governs the existing bindings. Native tests use already pinned `winsafe`
 0.0.29 `kernel` as a Windows-only development dependency: retain a live descendant

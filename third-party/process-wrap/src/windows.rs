@@ -10,11 +10,14 @@ use std::{
 use tracing::{debug, instrument};
 use windows::{
 	Win32::{
-		Foundation::{CloseHandle, ERROR_NO_MORE_FILES, HANDLE, INVALID_HANDLE_VALUE},
+		Foundation::{
+			CloseHandle, ERROR_NO_MORE_ITEMS, ERROR_SUCCESS, HANDLE, INVALID_HANDLE_VALUE,
+		},
 		System::{
-			Diagnostics::ToolHelp::{
-				CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First,
-				Thread32Next,
+			Diagnostics::ProcessSnapshotting::{
+				HPSS, HPSSWALK, PSS_CAPTURE_THREADS, PSS_THREAD_ENTRY, PSS_WALK_THREADS,
+				PssCaptureSnapshot, PssFreeSnapshot, PssWalkMarkerCreate, PssWalkMarkerFree,
+				PssWalkSnapshot,
 			},
 			IO::{CreateIoCompletionPort, GetQueuedCompletionStatus, OVERLAPPED},
 			JobObjects::{
@@ -25,8 +28,9 @@ use windows::{
 				SetInformationJobObject, TerminateJobObject,
 			},
 			Threading::{
-				CREATE_SUSPENDED, GetProcessId, INFINITE, OpenThread, PROCESS_CREATION_FLAGS,
-				ResumeThread, THREAD_SUSPEND_RESUME,
+				CREATE_SUSPENDED, GetCurrentProcess, GetProcessId, GetProcessIdOfThread, INFINITE,
+				OpenThread, PROCESS_CREATION_FLAGS, ResumeThread, THREAD_QUERY_LIMITED_INFORMATION,
+				THREAD_SUSPEND_RESUME,
 			},
 		},
 	},
@@ -220,60 +224,118 @@ pub(crate) fn make_job_object_with_breakaway(
 	})
 }
 
-/// Resume all threads in the process (ie resume the process).
+/// A snapshot of one process that [`resume_threads`] captured; dropping it frees the snapshot.
+struct ProcessSnapshot(HPSS);
+
+impl Drop for ProcessSnapshot {
+	fn drop(&mut self) {
+		// SAFETY: `PssCaptureSnapshot` captured this snapshot in the current process, and only this
+		// owner frees it.
+		unsafe { PssFreeSnapshot(GetCurrentProcess(), self.0) };
+	}
+}
+
+/// A walk marker over a [`ProcessSnapshot`]; dropping it frees the marker.
+struct SnapshotWalk(HPSSWALK);
+
+impl Drop for SnapshotWalk {
+	fn drop(&mut self) {
+		// SAFETY: `PssWalkMarkerCreate` created this marker, and only this owner frees it.
+		unsafe { PssWalkMarkerFree(self.0) };
+	}
+}
+
+/// Initialized storage for one `PSS_THREAD_ENTRY`, aligned as that entry, which a snapshot walk
+/// fills as bytes.
+#[repr(C)]
+struct ThreadEntryBytes {
+	_alignment: [PSS_THREAD_ENTRY; 0],
+	bytes: [u8; size_of::<PSS_THREAD_ENTRY>()],
+}
+
+/// The result of a process snapshot function, which returns a Win32 error code.
+fn snapshot_result(code: u32) -> Result<()> {
+	if code == ERROR_SUCCESS.0 {
+		Ok(())
+	} else {
+		Err(Error::from_raw_os_error(code as i32))
+	}
+}
+
+/// Resume the threads of a process created suspended, which until then has only its main thread.
 ///
-/// This is a pretty terrible hack, but it's either this or we
-/// re-implement all of Rust's std::process just to get access!
+/// The threads come from a snapshot of that process alone (`PssCaptureSnapshot` with
+/// `PSS_CAPTURE_THREADS`). Upstream walked a snapshot of every thread on the system instead, which
+/// took tens of milliseconds per process on a busy machine. The standard library keeps the main
+/// thread handle that process creation returns, but exposes it only on nightly.
 #[cfg_attr(feature = "tracing", instrument(level = "debug"))]
 pub(crate) fn resume_threads(child_process: HANDLE) -> Result<()> {
-	#[inline]
-	unsafe fn inner(pid: u32, tool_handle: HANDLE) -> Result<()> {
-		let mut entry = THREADENTRY32 {
-			dwSize: std::mem::size_of::<THREADENTRY32>()
-				.try_into()
-				.expect("THREADENTRY32 is guaranteed to fit in a DWORD"),
-			..Default::default()
-		};
-		unsafe { Thread32First(tool_handle, &mut entry) }.map_err(Error::other)?;
-
-		let mut resumed = false;
-		loop {
-			if entry.th32OwnerProcessID == pid {
-				let thread_handle = OwnedHandle(unsafe {
-					OpenThread(THREAD_SUSPEND_RESUME, false, entry.th32ThreadID)
-				}?);
-				let previous_count = unsafe { ResumeThread(thread_handle.0) };
-				if previous_count == u32::MAX {
-					return Err(Error::last_os_error());
-				}
-				if previous_count > 0 {
-					resumed = true;
-				}
-			}
-
-			match unsafe { Thread32Next(tool_handle, &mut entry) } {
-				Ok(()) => {}
-				Err(error) if error.code() == HRESULT::from_win32(ERROR_NO_MORE_FILES.0) => {
-					break;
-				}
-				Err(error) => return Err(Error::other(error)),
-			}
-		}
-
-		if resumed {
-			Ok(())
-		} else {
-			Err(Error::other("no thread belonging to the child was found"))
-		}
-	}
-
+	// SAFETY: the caller passes the handle of a process it created and keeps open.
 	let child_id = unsafe { GetProcessId(child_process) };
 	if child_id == 0 {
 		return Err(Error::last_os_error());
 	}
 
-	let tool_handle = OwnedHandle(unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) }?);
-	unsafe { inner(child_id, tool_handle.0) }
+	let mut snapshot = HPSS::default();
+	// SAFETY: `child_process` is open, as above, and `snapshot` is writable for the call.
+	snapshot_result(unsafe {
+		PssCaptureSnapshot(child_process, PSS_CAPTURE_THREADS, None, &mut snapshot)
+	})?;
+	let snapshot = ProcessSnapshot(snapshot);
+
+	let mut walk = HPSSWALK::default();
+	// SAFETY: without an allocator the marker uses the process heap; `walk` is writable.
+	snapshot_result(unsafe { PssWalkMarkerCreate(None, &mut walk) })?;
+	let walk = SnapshotWalk(walk);
+
+	let mut resumed = false;
+	loop {
+		let mut entry = ThreadEntryBytes {
+			_alignment: [],
+			bytes: [0; size_of::<PSS_THREAD_ENTRY>()],
+		};
+		// SAFETY: the snapshot and the marker are live, and `bytes` is writable and holds exactly
+		// one entry.
+		let status = unsafe {
+			PssWalkSnapshot(snapshot.0, PSS_WALK_THREADS, walk.0, Some(&mut entry.bytes))
+		};
+		if status == ERROR_NO_MORE_ITEMS.0 {
+			break;
+		}
+		snapshot_result(status)?;
+		// SAFETY: the walk filled `bytes` with one entry, the storage is aligned for it, and each
+		// field of the entry, an integer or a raw pointer, is valid for any bit pattern.
+		let entry = unsafe { entry.bytes.as_ptr().cast::<PSS_THREAD_ENTRY>().read() };
+
+		// SAFETY: opening a thread by its ID has no precondition; failure returns an error.
+		let thread = OwnedHandle(unsafe {
+			OpenThread(
+				THREAD_SUSPEND_RESUME | THREAD_QUERY_LIMITED_INFORMATION,
+				false,
+				entry.ThreadId,
+			)
+		}?);
+		// A thread ID is reused only after its thread ends. The child's process ID stays reserved
+		// while the caller keeps its handle open, so a thread that reports it is the child's.
+		// SAFETY: `thread` is open with `THREAD_QUERY_LIMITED_INFORMATION`.
+		if unsafe { GetProcessIdOfThread(thread.0) } != child_id {
+			continue;
+		}
+		// SAFETY: `thread` is open with `THREAD_SUSPEND_RESUME`.
+		let previous_count = unsafe { ResumeThread(thread.0) };
+		if previous_count == u32::MAX {
+			return Err(Error::last_os_error());
+		}
+		if previous_count > 0 {
+			resumed = true;
+		}
+	}
+
+	if resumed {
+		Ok(())
+	} else {
+		Err(Error::other("no thread belonging to the child was found"))
+	}
 }
 
 /// Terminate a job object without waiting for the processes to exit.
