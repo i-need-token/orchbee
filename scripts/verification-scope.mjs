@@ -5,6 +5,9 @@ import path from 'node:path';
 const packageName = /^(?:@[a-z\d._-]+\/)?[a-z\d][a-z\d._-]*$/u;
 const pnpmManifestName = /(?:^|\/)(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/u;
 const cargoManifestName = /(?:^|\/)(?:Cargo\.toml|Cargo\.lock)$/u;
+const workspaceRoot =
+	/^(?:(?:apps|packages|crates)\/[a-z\d-]+|apps\/[a-z\d-]+\/crates\/[a-z\d-]+)$/u;
+const vendoredRoot = /^third-party\/[a-z\d-]+$/u;
 
 // Runtime/process inputs not represented by package managers. The root verification owner
 // maintains these edges with their consumers; a new foreign input needs a positive control.
@@ -228,16 +231,28 @@ export function readCargoVerificationGraph(root) {
 			'--quiet',
 		]),
 	);
+	const ownerRoot = (entry) =>
+		path.relative(root, path.dirname(entry.manifest_path)).replaceAll('\\', '/');
 	const members = metadata.packages.filter((entry) =>
 		metadata.workspace_members.includes(entry.id),
 	);
-	const byPath = new Map(
-		members.map((entry) => [path.resolve(path.dirname(entry.manifest_path)), entry]),
+	// A path package that Cargo resolves from third-party/ for a member stays outside the workspace
+	// and has no suite of its own, but it owns its directory: consumer closure carries a change
+	// there to every member that resolves it.
+	const vendored = metadata.packages.filter(
+		(entry) =>
+			entry.source === null &&
+			!metadata.workspace_members.includes(entry.id) &&
+			ownerRoot(entry).startsWith('third-party/'),
 	);
-	const byId = new Map(members.map((entry) => [entry.id, entry]));
+	const owners = [...members, ...vendored];
+	const byPath = new Map(
+		owners.map((entry) => [path.resolve(path.dirname(entry.manifest_path)), entry]),
+	);
+	const byId = new Map(owners.map((entry) => [entry.id, entry]));
 	const resolved = new Map((metadata.resolve?.nodes ?? []).map((entry) => [entry.id, entry.deps]));
-	for (const entry of members) {
-		const owner = path.relative(root, path.dirname(entry.manifest_path)).replaceAll('\\', '/');
+	for (const entry of owners) {
+		const owner = ownerRoot(entry);
 		for (const dependency of entry.dependencies) {
 			if (dependency.path !== undefined && !byPath.has(path.resolve(dependency.path)))
 				throw new Error(`Unmapped local Cargo dependency ${entry.name}: ${dependency.path}`);
@@ -251,17 +266,19 @@ export function readCargoVerificationGraph(root) {
 			if (!node) throw new Error(`Missing resolved Cargo dependency node ${id}`);
 			for (const dependency of node) {
 				const target = byId.get(dependency.pkg);
-				if (target)
-					dependencies.add(
-						path.relative(root, path.dirname(target.manifest_path)).replaceAll('\\', '/'),
-					);
+				if (target) dependencies.add(ownerRoot(target));
 				else visit(dependency.pkg);
 			}
 		}
 		// Follow actual package IDs through patched declarations and nonmember dependencies;
-		// each workspace boundary owns the next step of consumer closure.
+		// each owner boundary owns the next step of consumer closure.
 		visit(entry.id);
-		graph.push({ root: owner, name: entry.name, kind: 'cargo', dependencies: [...dependencies] });
+		graph.push({
+			root: owner,
+			name: entry.name,
+			kind: vendored.includes(entry) ? 'vendored' : 'cargo',
+			dependencies: [...dependencies],
+		});
 	}
 	return graph;
 }
@@ -274,10 +291,8 @@ function validateGraph(graph) {
 	for (const entry of graph) {
 		if (
 			!packageName.test(entry.name) ||
-			!/^(?:(?:apps|packages|crates)\/[a-z\d-]+|apps\/[a-z\d-]+\/crates\/[a-z\d-]+)$/u.test(
-				entry.root,
-			) ||
-			!['pnpm', 'cargo'].includes(entry.kind) ||
+			!(entry.kind === 'vendored' ? vendoredRoot : workspaceRoot).test(entry.root) ||
+			!['pnpm', 'cargo', 'vendored'].includes(entry.kind) ||
 			!Array.isArray(entry.dependencies) ||
 			entry.dependencies.some((dependency) => !roots.has(dependency))
 		)
@@ -410,9 +425,10 @@ export function selectVerificationScope(graph, paths) {
 					.map((entry) => entry.name)
 					.toSorted(),
 			),
+			// A vendored owner has no suite to leave unexecuted.
 			unaffected: Object.freeze(
 				graph
-					.filter((entry) => !selected.has(entry.root))
+					.filter((entry) => entry.kind !== 'vendored' && !selected.has(entry.root))
 					.map((entry) => entry.root)
 					.toSorted(),
 			),

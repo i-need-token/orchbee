@@ -69,7 +69,10 @@ The plan contains the affected owner and transitive consumer closure across norm
 optional, peer, build and target-specific local dependencies. Reviewed foreign edges also cover
 native process cohorts, shared protocol fixtures and Storybook discovery. A test witness, a suite
 that runs another owner's built artifact while its own artifact is unchanged, joins the plan after
-closure without selecting its consumers.
+closure without selecting its consumers. A vendored Cargo package, a path package under
+`third-party/` that Cargo resolves for a member while the workspace excludes it, owns its directory
+without a suite of its own: a change there selects the members that resolve it and their closure,
+and it is never listed as unaffected. Other paths under `third-party/` remain unknown.
 Changes to those relationships must update the resolver and its positive controls in the same change.
 Missing or ambiguous owners fail conservatively. The command reports selected and unaffected suites
 separately from executed results; an unaffected suite is unexecuted, never a pass or a cache hit.

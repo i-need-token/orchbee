@@ -52,6 +52,10 @@ test('unknown/global paths and unsupported graphs select all rather than omit ev
 			index === 0 ? { ...entry, dependencies: ['packages/missing'] } : entry,
 		),
 		graph.map((entry, index) => (index === 0 ? { ...entry, name: '...*' } : entry)),
+		[
+			...graph,
+			{ root: 'third-party/nested/crate', name: 'nested', kind: 'vendored', dependencies: [] },
+		],
 	])
 		assert.equal(selectVerificationScope(invalid, []).all, true);
 });
@@ -237,6 +241,36 @@ test('real workspace selection retains foreign fixture, resource, process and di
 			'@orchbee/storybook',
 		),
 	);
+});
+
+test('a vendored Cargo package selects the members that resolve it rather than every suite', () => {
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	for (const changed of [
+		'third-party/process-wrap/src/windows.rs',
+		'third-party/process-wrap/README.md',
+	]) {
+		const selected = selectVerificationScope(actual, [changed]);
+		assert.equal(selected.all, false, selected.reasons.join('\n'));
+		for (const name of [
+			'orchbee',
+			'orchbee-agent-integration-writer',
+			'orchbee-launcher',
+			'orchbee-local-runtime',
+			'orchbee-server',
+			'orchbee-workbench-client',
+			'orchbee-worker',
+		])
+			assert.ok(selected.cargo.includes(name), `${changed} must select ${name}`);
+		assert.ok(!selected.cargo.includes('orchbee-terminal-protocol'), changed);
+	}
+	// The vendored owner has no suite of its own, so it is never reported as unexecuted.
+	assert.ok(
+		!selectVerificationScope(actual, ['packages/ui/src/component.ts']).unaffected.includes(
+			'third-party/process-wrap',
+		),
+	);
+	for (const changed of ['third-party/README.md', 'third-party/unvendored/src/lib.rs'])
+		assert.equal(selectVerificationScope(actual, [changed]).all, true, changed);
 });
 
 test('shared PowerShell startup assets select the Host and its native process consumers', () => {
