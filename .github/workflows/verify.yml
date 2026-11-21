@@ -247,3 +247,36 @@ jobs:
 
       - name: Check native Terminal Host formatting
         run: pnpm --filter @orchbee/terminal-host format:check
+
+  # GitHub cancels a macOS job that no runner took within 15 minutes and reports the run as failed,
+  # although no check ran. When that is the only thing not green, the run ends cancelled instead, so
+  # a failed run always names a check that failed. A real failure or a job that ran out of time
+  # leaves the run as it is.
+  macos-runner-shortage:
+    name: Report a missing macOS runner
+    needs: [verify, rust-windows, rust-macos, terminal-host-native]
+    if: ${{ !cancelled() && needs.rust-macos.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: End the run as cancelled when only an unassigned macOS job is not green
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" \
+              --jq "[.jobs[] | select(.status == \"completed\") | select($1)] | length"
+          }
+          unassigned='(.conclusion == "cancelled" and (.steps | length) == 0 and (.name | startswith("Rust native (macos-15")))'
+          without_runner="$(count "$unassigned")"
+          not_green="$(count "(.conclusion != \"success\" and .conclusion != \"skipped\") and ($unassigned | not)")"
+          echo "macOS jobs without a runner: $without_runner; other jobs not green: $not_green"
+          if [ "$without_runner" -eq 0 ] || [ "$not_green" -ne 0 ]; then
+            exit 0
+          fi
+          echo "::notice title=No macOS runner::GitHub assigned no runner to $without_runner macOS job(s), so nothing ran there. Every other job passed; this run ends cancelled, not failed."
+          gh run cancel "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY"
+          # The cancellation ends this job; a run that GitHub does not cancel stays as it was.
+          sleep 120

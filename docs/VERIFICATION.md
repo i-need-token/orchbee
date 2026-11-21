@@ -300,8 +300,10 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   account's scarcest, so the Terminal Host tests (about 8 minutes) share the shortest part's job
   (about 7 minutes) instead of taking a fourth runner; that job still ends before the slowest
   Windows part (26 to 33 minutes; measured on `main`, 2026-11-16). A red macOS job counts like any
-  other. No Verify job runs on an Intel Mac runner; Intel macOS is left to the release workflow's
-  `macos-x86_64` row.
+  other. GitHub cancels a macOS job that no runner took within 15 minutes and reports the run as
+  failed although nothing ran; when every other job passed, the `macos-runner-shortage` job ends
+  that run as cancelled instead. No Verify job runs on an Intel Mac runner; Intel macOS is left to
+  the release workflow's `macos-x86_64` row.
 - Every job that builds the Terminal Host, here and in the release workflow, first runs the local
   action `.github/actions/zig-packages`. It restores Zig's package archives from the Actions cache,
   keyed on the runner's OS and architecture, the Terminal Host's `build.zig.zon` and `build.zig`,
