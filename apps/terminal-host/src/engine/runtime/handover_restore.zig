@@ -48,7 +48,8 @@ pub const Prepared = struct {
         self.release(false);
     }
 
-    fn release(self: *Prepared, adopted: bool) void {
+    /// `adopted` is comptime, since only `start`, on a Host that moves terminals, adopts a console.
+    fn release(self: *Prepared, comptime adopted: bool) void {
         const runtime = self.runtime;
         const allocator = runtime.allocator;
         creation.cleanupFailedThreadStartup(runtime);
