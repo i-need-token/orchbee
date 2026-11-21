@@ -18,8 +18,7 @@ This package owns one projected terminal surface:
 It never receives or parses PTY output, loads a VT engine, or exposes `write(ptyBytes)`. Terminal Host owns the PTY, Ghostty VT state, terminal modes, retained history, selection endpoints, and mode-dependent input encoding. The application owns transport, terminal inventory, product topology, clipboard effects, external navigation, and localized product UI.
 
 Cross-owner runtime authority remains in the Terminal Host contract and the owning application and
-protocol guides. This guide retains the source-neutral behavior and stable compatibility-evidence
-index without overriding those owners.
+protocol guides.
 
 Packed metadata carries only the latest optional command-completion sequence, duration, completion
 timestamp, and normalized exit code decoded from the Host frame. This package neither interprets
@@ -35,8 +34,8 @@ recovery.
 
 Input repair keeps native composition lifetime separate from local commit eligibility. An active
 composition may be eligible, or it may be cancelled while the browser still owes a terminal
-`compositionend`. Reset, textarea blur, window blur, hidden-document transition, and disposal
-clear the textarea and renderer preedit immediately, revoke commit eligibility, and clear key,
+`compositionend`. Reset, textarea blur, window blur, hidden-document transition, and disposal clear
+the textarea and renderer preedit immediately, revoke commit eligibility, and clear key,
 composition, `beforeinput`, `input`, paste, and mouse correlation records. A committed DOM `input`
 event is a fallback for browsers and IMEs that do not provide a usable `beforeinput` payload; its
 textarea value is consumed once and then cleared. Late composition updates and either late
@@ -44,27 +43,26 @@ textarea value is consumed once and then cleared. Late composition updates and e
 settles the cancelled native work. A new `compositionstart` supersedes cancelled work even when its
 old `compositionend` never arrives. Refocus, a non-composing key, or standalone non-composition
 `beforeinput` also restores local progress without waiting for that end. In an uncancelled
-composition, `beforeinput`, `input`, and `compositionend` in either browser order commit the text
-at most once, and the state transition is complete before the synchronous command-port send.
-The macOS `keyCode=229` path defers interim independent `beforeinput` text until the native textarea
-value settles, preserving IME-produced punctuation instead of publishing the physical ASCII key.
-Printable punctuation and digit keydowns with no modifier other than optional Shift also yield to
-the native textarea so third-party macOS input methods can publish their exact Unicode result. Shift
-letters and Space remain on the physical-key path; every Control, Meta, or Alt chord preserves its
-existing shortcut or physical-key behavior outside native-text settlement. The adapter never maps
-punctuation itself. If no native value arrives within 30 milliseconds, the
-`KeyboardEvent.key` text is sent as a deterministic committed-text fallback; this fallback does not
-preserve physical key identity, including for Shift-produced punctuation. Native settlement
-participates in the same ordered input dispatcher: an intervening key, paste, or pointer input seals
-the current native batch before that later input is admitted, so deferred digits and punctuation
-cannot move past subsequent physical keys. The same short-lived settlement marker handles browser
-event orders where the native `input` arrives before `keydown`. The bounded native-settlement model
-compares the actual textarea value with its captured baseline across two requests, two repair-epoch
-advances, and two value transitions, including a changed-then-restored ABA order. An independent
-beforeinput observed during that window is suppressed and receives no separate later publication;
-the current timer owns the sole native, fallback, or no-op outcome. A cancelled timer identity and
-epoch are inert after repair and re-admission. Empty or over-byte-limit sealed values and concrete
-keyboard-admission partitions remain deterministic adapter evidence.
+composition, `beforeinput`, `input`, and `compositionend` in either browser order commit the text at
+most once, and the state transition is complete before the synchronous command-port send. The macOS
+`keyCode=229` path defers interim independent `beforeinput` text until the native textarea value
+settles, preserving IME-produced punctuation instead of publishing the physical ASCII key. Printable
+punctuation and digit keydowns with no modifier other than optional Shift also yield to the native
+textarea so third-party macOS input methods can publish their exact Unicode result. Shift letters
+and Space remain on the physical-key path; every Control, Meta, or Alt chord preserves its existing
+shortcut or physical-key behavior outside native-text settlement. The adapter never maps punctuation
+itself. If no native value arrives within 30 milliseconds, the `KeyboardEvent.key` text is sent as a
+deterministic committed-text fallback; this fallback does not preserve physical key identity,
+including for Shift-produced punctuation. Native settlement participates in the same ordered input
+dispatcher: an intervening key, paste, or pointer input seals the current native batch before that
+later input is admitted, so deferred digits and punctuation cannot move past subsequent physical
+keys. The same short-lived settlement marker handles browser event orders where the native `input`
+arrives before `keydown`. The bounded native-settlement model compares the actual textarea value
+with its captured baseline across two requests, two repair-epoch advances, and two value
+transitions, including a changed-then-restored ABA order. An independent beforeinput observed during
+that window is suppressed and receives no separate later publication; the current timer owns the
+sole native, fallback, or no-op outcome. A cancelled timer identity and epoch are inert after repair
+and re-admission.
 
 On macOS, the projected terminal also consumes a source-neutral Option-as-Alt mode: `off`, `left`,
 `right`, or `both`. It tracks the physical Option side from `AltLeft` and `AltRight`, resolves one
@@ -114,9 +112,7 @@ Ordinary admitted input remains FIFO within one dispatcher generation, including
 is pending. Lifecycle repair closes admission and invalidates that generation before snapshotting
 cleanup, so reset, blur, visibility loss, and disposal do not wait for a paste review that may never
 settle. Queued commands and late review resolutions or rejections from an invalidated generation are
-observed but inert. A newly opened generation progresses independently after repair. Its finite
-queue abstraction covers one representative retained item plus focus-in before key; arbitrary queue
-depth and queued text payloads remain OrderedInputDispatcher and ProjectedTerminal test evidence.
+observed but inert. A newly opened generation progresses independently after repair.
 
 Paste inspection retains the original text before replacing unsafe C0/C1 controls with spaces, and
 detects an embedded bracketed-paste terminator in that original text. Multiline text without
@@ -206,14 +202,6 @@ transition, so a selection established between its press and release remains vis
 lifecycle and pointer-gesture repair, rejected or aborted paste review, and local history navigation
 preserve the current history and selection surface.
 
-`terminal-parity/IN-07-pre-input` drives a real buttonless `PointerEvent` through the headed Canvas
-surface while retained history and a Host selection are active. It requires one application motion
-report, no return-to-bottom or selection-clear command, and a preserved readable selection. The
-same trace then creates an assistive-technology-origin Range over that Host selection before it
-synthesizes window focus loss and collapses the Range; no Host selection-clear command is published
-and the readable Host selection remains active. Owner-local regressions check both repairs while
-retaining the existing button-press transition requirement.
-
 Cleanup releases only published ownership: a queued release cannot hide a Host-visible press, while
 a queued or failed press cannot produce an orphan release. Blur and visibility loss release
 published keys and mouse buttons once in press order, then publish focus-out only when this session
@@ -221,19 +209,16 @@ published focus-in. Disposal closes admission permanently and follows the same o
 focus-out when already unfocused. Each disposal cleanup command is attempted once; a synchronous
 failure is reported and retained as known ownership, but teardown cannot retry after its DOM and
 listeners are removed. Reset itself requires no focus-out and retains focus. If reset invalidates a
-queued or failed focus-in, its replacement generation attempts focus reconciliation before later
-key or mouse publication; a synchronous reconciliation failure remains retryable by the next input.
-A projected terminal treats its hidden textarea, accessibility descendants, and application-owned
+queued or failed focus-in, its replacement generation attempts focus reconciliation before later key
+or mouse publication; a synchronous reconciliation failure remains retryable by the next input. A
+projected terminal treats its hidden textarea, accessibility descendants, and application-owned
 controls mounted under the same root as one focus boundary. Movement within that boundary neither
 repairs input nor repeats focus reporting; leaving it releases published key and mouse ownership
 before one focus-out, while entering through a non-textarea descendant publishes the matching
 focus-in. The application decides when to call `focus()`; an open surface synchronizes its local
 padding, scrollbar, hidden-input anchor, and current resize proposal before moving native focus to
-the hidden textarea. Opening the package surface does not claim initial product focus.
-Desktop and pen pointer activation focuses the hidden textarea on pointer down. TerminalInputRepair
-proves key-before-mouse-before-focus cleanup for one representative key and one representative mouse
-button; plural identity completeness and within-class press order remain deterministic
-ProjectedTerminal evidence.
+the hidden textarea. Opening the package surface does not claim initial product focus. Desktop and
+pen pointer activation focuses the hidden textarea on pointer down.
 
 ### Mobile touch and native-input model
 
@@ -250,22 +235,19 @@ ProjectedTerminal evidence.
 
 Every raw, key, committed-text, paste, application-mouse, focus, and repair command carries the
 current positive attachment capability revision. Direct construction defaults to the initial
-revision `1`, while Desktop bootstraps forward the Host-returned revision.
-`applyInputCapability` accepts only the exact attachment and terminal identity, an exact replay, or
-the next monotonic revision with a changed input value. A stale revision is inert; an identity
-mismatch, same-revision conflict, skipped revision, or changed revision with unchanged authority
-fails closed to read-only. Downgrade invalidates the dispatcher generation and immediately clears
-composition, native text settlement, paste review, held key/mouse/focus ownership, and pointer
-capture without sending client-side releases that duplicate the Host repair. Upgrade removes the
-native read-only guard but restores no prior input or queued work; the next admitted input is
-stamped only with the new revision. A surface that holds document focus at that moment makes a new
-focus claim, because the Host replays none across an upgrade.
-If the projected client disappears before this cleanup completes, Terminal Host releases only that
-attachment's accepted key, application-mouse, and focus ownership before revoking its capability;
-another attachment is unaffected. The formal input-repair model owns valid next-revision
-replacements, including a downgrade re-entered from an active send. Malformed, stale, replayed,
-conflicting, skipped, or non-advancing updates and the committed-versus-local admission split remain
-deterministic ProjectedTerminal evidence.
+revision `1`, while Desktop bootstraps forward the Host-returned revision. `applyInputCapability`
+accepts only the exact attachment and terminal identity, an exact replay, or the next monotonic
+revision with a changed input value. A stale revision is inert; an identity mismatch, same-revision
+conflict, skipped revision, or changed revision with unchanged authority fails closed to read-only.
+Downgrade invalidates the dispatcher generation and immediately clears composition, native text
+settlement, paste review, held key/mouse/focus ownership, and pointer capture without sending
+client-side releases that duplicate the Host repair. Upgrade removes the native read-only guard but
+restores no prior input or queued work; the next admitted input is stamped only with the new
+revision. A surface that holds document focus at that moment makes a new focus claim, because the
+Host replays none across an upgrade. If the projected client disappears before this cleanup
+completes, Terminal Host releases only that attachment's accepted key, application-mouse, and focus
+ownership before revoking its capability; another attachment is unaffected. The formal input-repair
+model owns valid next-revision replacements, including a downgrade re-entered from an active send.
 
 `injectInput(...)` is the narrow bridge for a trusted, application-owned live input surface. It
 accepts either committed text or one physical key tap together with the exact opaque revision
@@ -292,13 +274,6 @@ source revision are maintained as strictly parsed, data-driven replay input in
 Host bell effects arrive through `ProjectedTerminal.onBell` as attachment-scoped monotonic events.
 The package suppresses stale or duplicate sequences but performs no sound or visual effect; the
 embedding Desktop or Browser application owns that policy.
-
-The headed `terminal-parity/PR-11-bell` witness composes three real Canvas 2D projected surfaces
-with distinct attachment identities and one shared Workbench bell coordinator. It proves one effect
-for a duplicate sequence, acceptance of distinct interleaved sequences, suppression after an
-attachment reconnect, and independent sound/notification failure boundaries. The controlled
-fixture does not claim native audio output, operating-system notification delivery, WebGPU, or
-cross-browser behavior.
 
 ## Install
 
@@ -516,8 +491,7 @@ below a valid retained-history viewport.
 | Resize is rejected, the attachment is not the resize owner, or the anchor is invalid       | Do not adopt the proposal; retain the last readable window or enter the existing bottom-recovery path.               |
 
 This changes neither PTY resize ownership nor the row-flight state machine, protocol, overscan
-bound, or invalid-anchor recovery. Deterministic projected-terminal and Terminal Host tests cover
-the resize-event/row-window trace and the near-tail clamp.
+bound, or invalid-anchor recovery.
 
 Once a viewport read, exact buffer read, or asynchronous link effect installs its local
 correlation, command publication is part of that operation's settlement boundary. A synchronous
@@ -568,10 +542,7 @@ live-Agent eligibility, changing screen or generation, resizing, or disposing re
 bottom-following state. Accessibility rows, links, search, selection, the scrollbar, and hidden
 input geometry all consume the same visible window.
 
-The Host-projected row window owns the visible-tail policy. Deterministic policy tests cover every content signal and no-op boundary;
-projected-terminal tests cover exact-window admission, composition while a newer read is outstanding,
-answers for older and newer frames, stale-revision failure, cursor remapping, failure fallback,
-runtime disablement, alternate-screen and application-mouse exclusion, and transfer to manual history.
+The Host-projected row window owns the visible-tail policy.
 
 Primary-screen viewport progress and wheel presentation follow these rules: a valid pinned
 primary-screen viewport continues accepting history motion while output advances, and each admitted
@@ -598,9 +569,7 @@ the existing query generation before scheduling work, adopting a Worker, activat
 publishing completion. Cancellation revokes that generation and detaches its timers, row-read
 controller, progress waiter, and Worker before calling abort listeners, so an older cleanup cannot
 clear a newly admitted query. A Worker returned after its factory retires the query is terminated
-without receiving search input. [Search controller tests](src/search/__tests__/projected-search-controller.unit.test.ts)
-exercise notification, activation, factory, and abort-listener reentry with a controlled clock and
-Worker; these local traces do not add a protocol or an exhaustive model-checking claim.
+without receiving search input.
 
 Previous- and next-prompt navigation follows the bounded [behavior contract](docs/prompt-navigation.md). It scans Host-authored OSC 133 row classes from the current visible top through the general-buffer lane, nearest first, and commits only while the primary screen, pinned snapshot, selected visible or same-intent revision-lag repair anchor, and local history intent remain current. Each invocation admits at most 16 MiB of encoded row windows. Missing marks, alternate-screen use, bounds, source exhaustion, replacement, cancellation, and stale or unavailable reads leave the viewport unchanged. The package does not inject shell integration or infer prompts from terminal text.
 
@@ -892,35 +861,9 @@ starts a fresh interval. The unfocused presentation remains a non-blinking hollo
 
 This presentation observes committed Host coordinates rather than keyboard intent: input that does
 not move the cursor has no effect, while a cursor move caused by terminal output has the same reset
-behavior. It never rewrites Host metadata or introduces a second cursor coordinate. Deterministic
-renderer tests control the timer and cover hidden-to-moving visibility plus the first idle toggle;
-Host/profile cursor-mode evidence remains separate.
+behavior. It never rewrites Host metadata or introduces a second cursor coordinate.
 
-### Cursor-default and mounted-start evidence
-
-Deterministic Canvas and WebGPU owner tests prove that committed cursor metadata selects the
-corresponding cursor geometry and blink scheduler. Host runtime evidence covers application Reset
-and an explicit non-default profile. The real-PTY `terminal-parity/SU-13-cursor-defaults` witness,
-which observed the explicit block/non-blinking default, a blinking-bar DECSCUSR override, and RIS
-restoration through the production surface, retired with the Desktop Electron suite.
-
-`measureMountedTerminalGeometry(...)` loads the selected font and applies the same grid and physical
-cell rules as the first projected resize. Host owner tests cover the Host side of deferred start.
-The Desktop owner tests of the start sequence and the POSIX-only
-`terminal-parity/SU-16-startup-geometry` witness, which matched the child PTY's first size and the
-sole first client frame to the mounted grid, retired with Desktop's Main-owned runtime.
-
-### Live input-capability evidence
-
-The exact headed `terminal-parity/IN-10-read-only` witness drives a monotonic downgrade and upgrade
-through a real Canvas 2D projected surface. It observes immediate composition, native-settlement,
-paste-review, and textarea repair; continued local search, selection, copy, and history; no stale
-input publication; and only fresh input at the upgraded revision. The fixture controls the
-application delivery stream, so Terminal Host owner tests separately prove authoritative stale and
-downgraded PTY rejection, per-attachment repair ordering, and no queued replay. It does not claim a
-renderer-owned capability upgrade or native browser permission policy.
-
-### Terminal Action context evidence
+### Terminal Action context
 
 `ProjectedTerminal.captureActionContext(...)` is the source-neutral boundary for a containing
 product menu. It returns `terminal-owned` while application mouse tracking owns the surface unless
@@ -929,127 +872,6 @@ the exact history generation, history revision, link epoch, absolute row, and co
 that moment. `linkOpenRequestIsCurrent(...)` reparses those canonical values, requires the complete
 revision tuple to remain current, resolves the same cached cell again, and compares the exact URL
 before an application may admit an effect. It does not open links or own an Action runtime.
-
-The headed witnesses compose a real Canvas 2D `ProjectedTerminal` into one application-owned
-Workbench Action scope. `terminal-parity/IN-09-action-scope` checks available, unavailable, and
-unbound Apple Command handling. `terminal-parity/IN-11-context` checks application mouse ownership,
-the bounded pinned input, revision invalidation, and zero external effects. `terminal-parity/IN-12-actions`
-checks the complete minimal catalog, synchronous availability, typed results, no new confirmation,
-and localized perceivable feedback. `terminal-parity/FS-05-file-links` checks that explicit file
-metadata, detected paths, and a direct Browser-effect request remain inactive.
-`terminal-parity/FS-06-url-policy` checks the same real surface's hover, context, and direct
-activation path for exactly `http`, `https`, and `mailto`, including unsupported automatic and
-explicit URL cases. `terminal-parity/FS-07-keyboard-hints` checks the bounded visible-row read,
-four target kinds, prefix-free labels, exact hash insertion, URL opening, Escape cancellation, and
-zero label-key input through the same production surface. Owner-local unit tests additionally cover malformed context, exact-input
-copying, normalization, automatic-detection filtering, and revalidation immediately before
-execution.
-
-The terminal protocol's generated TypeScript/Zig conformance corpus proves that `plain` is the only
-admitted request and response value and that HTML and raw VT requests fail before Host runtime
-access. The strict projected-client command exposes no format field. The
-`terminal-parity/HS-07-selection-export` witness, which checked the real PTY-to-Electron clipboard
-result on macOS, retired with the Desktop Electron suite.
-
-### Shared focus evidence
-
-The stable headed `terminal-parity/IN-14-shared-focus` trace opens two real `ProjectedTerminal`
-Canvas 2D surfaces with distinct attachments bound to one terminal identity. Both publish active
-projection demand and independent focus claims. Releasing the first claim leaves one active claim;
-pausing the second attachment clears the aggregate, and reactivation publishes no implicit claim.
-The fixture's small observation reducer checks only the application command trace. Terminal Host's
-native two-attachment real-PTY test independently proves the authoritative aggregate emits one
-`FocusIn`/`FocusOut` interval.
-
-| IN-14 claim                                                                                                                | Projected integration                                                                  | Host integration                                                                                                          | Headed system trace                  | Limits                                                                                                                                                        |
-| -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Distinct visible attachments claim focus independently while the terminal observes only aggregate zero/nonzero transitions | `ProjectedTerminal` focus, blur, and projection-demand commands from two live surfaces | `two visible attachments produce one real PTY focus interval` plus stale, detach, downgrade, and repair-order regressions | `terminal-parity/IN-14-shared-focus` | Headed Chromium Canvas 2D with synthetic application-layer focus events; no OS multi-window focus, WebGPU, cross-browser, or native-browser-throttling claim. |
-
-### Immediate retained-history evidence
-
-The `ProjectedTerminal` regressions cover row-window correlation, queued wheel and programmatic
-intent, and bottom recovery. The headed `terminal-parity/SU-11-wheel-scroll` trace, which drove
-wheel history through a real Desktop attachment and Terminal Host and showed that committed history
-rows change without a snapshot canvas or CSS transform, retired with the Desktop Electron suite.
-
-| SU-11 claim                                                     | Projected integration                                                                                                                                     | Reference evidence                                                  | Limits                                                                                                   |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Wheel history commits without a client-owned presentation phase | `commits wheel history immediately without a presentation transaction`; `coalesces queued wheel and programmatic history intents on the canonical canvas` | Pinned Ghostty `Surface.scrollCallback` and `Termio.scrollViewport` | No real-surface run; no OS momentum cadence, WebGPU, transport-latency, or alternate-screen input claim. |
-
-### Visibility and projection-demand evidence
-
-The stable headed `terminal-parity/SU-15-visibility` trace draws an initial frame through a real
-`ProjectedTerminal` and Chromium Canvas 2D surface, then combines document visibility with explicit
-projection demand. While both causes are paused, it proves a queued draw and blinking animation stay
-suspended as multiple revisions commit and emit `FrameApplied`; clearing visibility alone remains
-suspended, and clearing demand schedules exactly one draw of the newest generation and revision.
-The trace also verifies a second draw is not queued and post-disposal visibility, demand, frame, and
-animation activity is inert.
-
-The headed fixture overrides `document.visibilityState` only inside its test document and dispatches
-the real application-layer `visibilitychange` event. It does not exercise operating-system tab
-backgrounding or browser throttling policy, and it makes no WebGPU or cross-browser claim.
-
-Deterministic WebGPU tests separately verify that hiding unconfigures the context, destroys
-per-surface resources, preserves CPU atlas state, releases the final shared lease, fences a pending
-initialization, and rebuilds on visibility restoration. A projected integration test verifies the
-single forced restoration draw uses the newest revision while explicit demand remains paused and
-that later paused revisions do not draw.
-
-| SU-15 claim                                                                                                                                       | Renderer evidence                                                                                                                                                                   | Projected integration                                                                                                                                                                         | Headed system trace                | Limits                                                                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Visibility and explicit demand retain independent pause causes; commits and acknowledgements continue while draws coalesce until the final resume | `suspends packed blinking-cell animation while hidden`; `parks document-hidden WebGPU residency and rebuilds it from retained CPU state`; pending-init and shared-lease regressions | `coordinates document visibility and projection demand before drawing the newest acknowledged frame`; `draws one current restoration frame while explicit presentation demand remains paused` | `terminal-parity/SU-15-visibility` | Headed Chromium Canvas 2D plus deterministic WebGPU ownership/refinement tests; no OS background-throttling, cross-browser, or synchronous physical-reclamation claim. |
-
-### Device-pixel-ratio evidence
-
-The stable headed `terminal-parity/SU-08-dpr` trace commits and draws a frame through a real
-`ProjectedTerminal` and Chromium Canvas 2D surface before changing device scale from `1` to `1.5`.
-It checks unchanged logical and CSS geometry, current-DPR Canvas backing dimensions, raster-atlas
-invalidation and current-frame rerasterization, matching resize cell and derived terminal pixel
-dimensions, the hidden input anchor, resolution-query re-arming, and inert post-disposal changes.
-The trace uses Chromium DevTools device metrics plus a one-pixel viewport-width change so the real
-browser `resize` listener observes the new ratio. This is a controlled synthetic browser transition,
-not evidence of native monitor transfer, operating-system scaling UI, or another browser engine.
-
-| SU-08 claim                                                                             | Renderer evidence                                                                                                                                                     | Projected integration                                                                                                                                                           | Headed system trace         | Limits                                                                                                                       |
-| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| DPR changes rebuild surface geometry, raster state, and PTY pixel dimensions coherently | `remeasures and fully repaints Canvas geometry at a fractional device-pixel ratio`; `reconfigures WebGPU and recreates its atlas for a clean device-pixel transition` | `repaints a committed frame and updates PTY and input geometry for fractional DPR changes`; `suspends hidden rendering and resumes with one draw of the newest committed frame` | `terminal-parity/SU-08-dpr` | Selected `1` to `1.5` Canvas browser trace; deterministic Canvas and WebGPU backend tests; no native monitor-transfer claim. |
-
-### Owner-local compatibility evidence index
-
-The stable identifiers below preserve the owner-local compatibility witnesses that do not require
-their own headed system-test title. Each row maps the identifiers to executable suites run by the
-named package gates. The deterministic TypeScript suites control semantic state, clocks, geometry,
-and renderer adapters; they do not claim native font rasterization, operating-system UI, or another
-browser engine. Native Host refinements and headed cross-owner witnesses retain the narrower limits
-stated by their owning guides. Witnesses that ran only in Desktop's Electron suite, which drove the
-Desktop application through its former Main-owned runtime, retired with it, so the rows below name
-only evidence that still runs; witnesses that drive Web fixture pages run in the Web system suite.
-
-| Stable witness                                                                                                                                                                                                              | Executable owner evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `terminal-parity/PR-01-graphemes`, `terminal-parity/PR-02-cell-topology`, `terminal-parity/PR-04-wrap-boundaries`, `terminal-parity/PR-05-styles`, `terminal-parity/PR-07-semantic-links`, `terminal-parity/PR-08-metadata` | [`src/projected/__tests__/ghostty-surface-parity.unit.test.ts`](src/projected/__tests__/ghostty-surface-parity.unit.test.ts), the Host-owned surface-fixture gate, and the controlled corpus and limits in [`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).                                                                                                                                                                                                                                                                                                                                            |
-| `terminal-parity/PR-03-wide-cursor`, `terminal-parity/SU-03-cursor`                                                                                                                                                         | [`src/rendering/__tests__/resolvePackedCursorPresentation.unit.test.ts`](src/rendering/__tests__/resolvePackedCursorPresentation.unit.test.ts) and [`src/rendering/__tests__/WebGPURenderer.unit.test.ts`](src/rendering/__tests__/WebGPURenderer.unit.test.ts) execute the shared Canvas/WebGPU geometry and one-physical-pixel presentation rules.                                                                                                                                                                                                                                                                                        |
-| `terminal-parity/PR-06-colors`                                                                                                                                                                                              | [`src/projected/__tests__/ghostty-surface-parity.unit.test.ts`](src/projected/__tests__/ghostty-surface-parity.unit.test.ts) and [`src/rendering/__tests__/WebGPURenderer.unit.test.ts`](src/rendering/__tests__/WebGPURenderer.unit.test.ts), refined across owners by `terminal-parity/SU-09-theme`.                                                                                                                                                                                                                                                                                                                                      |
-| `terminal-parity/PR-09-frame-commit`                                                                                                                                                                                        | [`src/projected/__tests__/packed-terminal-store.unit.test.ts`](src/projected/__tests__/packed-terminal-store.unit.test.ts), its 200-run shrinkable `fast-check` state trace, shared `presentation-store-transition.json` corpus, and [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts) cover exact header-correlated recovery, connection-terminal failures, `u64::MAX`, four-field geometry continuity, retained-neighbor topology, graphics tick/reference boundaries, multi-store isolation, bounded sparse streams, acknowledgement, and completed-draw correlation. |
-| `terminal-parity/SU-01-font-load`, `terminal-parity/SU-02-font-metrics`                                                                                                                                                     | [`../../apps/web/src/workbench-client/projected-terminal-renderer/__tests__/registerTerminalProductFonts.unit.test.ts`](../../apps/web/src/workbench-client/projected-terminal-renderer/__tests__/registerTerminalProductFonts.unit.test.ts), [`src/__tests__/font-metric-modifiers.unit.test.ts`](src/__tests__/font-metric-modifiers.unit.test.ts), and [`src/__tests__/buildTextShapingPlan.unit.test.ts`](src/__tests__/buildTextShapingPlan.unit.test.ts); the headed `terminal-parity/SU-02-font-metrics` witness retired, and native raster limits remain in the provenance guide.                                                   |
-| `terminal-parity/SU-04-ime-geometry`, `terminal-parity/SU-05-overlays`, `terminal-parity/SU-06-fit`                                                                                                                         | [`src/input/__tests__/calculateInputAnchor.unit.test.ts`](src/input/__tests__/calculateInputAnchor.unit.test.ts), [`src/input/__tests__/preedit.unit.test.ts`](src/input/__tests__/preedit.unit.test.ts), [`src/rendering/__tests__/WebGPURenderer.unit.test.ts`](src/rendering/__tests__/WebGPURenderer.unit.test.ts), [`src/__tests__/surface-size.unit.test.ts`](src/__tests__/surface-size.unit.test.ts), and [`src/__tests__/measureMountedTerminalGeometry.unit.test.ts`](src/__tests__/measureMountedTerminalGeometry.unit.test.ts).                                                                                                 |
-| `terminal-parity/SU-07-resize-convergence`, `terminal-parity/SU-12-backends`                                                                                                                                                | [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts), [`src/rendering/__tests__/WebGPURenderer.unit.test.ts`](src/rendering/__tests__/WebGPURenderer.unit.test.ts), the Host geometry evidence, and headed `terminal-parity/LC-07-resize-lease`.                                                                                                                                                                                                                                                                                                                            |
-| `terminal-parity/IN-01-keyboard`                                                                                                                                                                                            | [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts), Terminal Protocol semantic-input conformance, and Host input-encoding tests cover normalized physical keys, current modifiers, keypad/Kitty behavior, and native Apple Command handoff.                                                                                                                                                                                                                                                                                                                               |
-| `terminal-parity/IN-02-composition`                                                                                                                                                                                         | The [input-repair and native-settlement models](formal/README.md), [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts), and exact headed `terminal-parity/IN-02-composition` cover composition repair, Shift-punctuation native text, deterministic text fallback, ordering, and duplicate suppression.                                                                                                                                                                                                                                                                    |
-| `terminal-parity/IN-03-paste`, `terminal-parity/IN-18-native-selection-paste`                                                                                                                                               | [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts), the Web Paste Review tests, and Host protocol/runtime paste tests cover sanitization, review, ordering, bracketed-mode agreement, capability, image-only Control+V, ordinary Host-selection isolation, and exactly-once native delivery through textarea or package-owned surface targets; the Desktop image-paste and native-selection-paste traces retired.                                                                                                                                                         |
-| `terminal-parity/IN-04-focus`, `terminal-parity/IN-05-mouse-ownership`, `terminal-parity/IN-06-pointer`, `terminal-parity/IN-13-wheel`, `terminal-parity/IN-17-mobile`                                                      | [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts) and [`src/input/__tests__/surface-mouse.unit.test.ts`](src/input/__tests__/surface-mouse.unit.test.ts) execute focus-boundary repair, fixed gesture ownership, pointer derivation, delta-mode/axis policy, alternate-screen fallback, and touch activation.                                                                                                                                                                                                                                                            |
-| `terminal-parity/HS-01-history-window`, `terminal-parity/HS-02-reflow`, `terminal-parity/HS-03-history-transition`, `terminal-parity/HS-09-scrollback`                                                                      | [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts), plus Terminal Host history-row, selection, and configuration tests linked by the [Host runtime contract](../../apps/terminal-host/docs/runtime-model.md), cover pinned windows, reflow, invalidation, eviction, and zero-retention bounds.                                                                                                                                                                                                                                                                            |
-| `terminal-parity/HS-11-keyboard-scrollback`                                                                                                                                                                                 | Projected-terminal, Web Action, shortcut, Settings, and storage unit tests cover six primary-screen bindings, one-row page overlap, boundaries, and durable migration; the headed Desktop witness of unchanged attachment identity retired.                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `terminal-parity/HS-12-sustained-output-interaction`                                                                                                                                                                        | Projected-terminal buttonless-motion and revision-churn regressions, Host stale-row-acknowledgement tests, and the history-interaction model cover fine wheel accumulation, retained-history entry, and captured drag completion while revisions continue; the headed real-PTY/Electron witness of clipboard copy under live output retired.                                                                                                                                                                                                                                                                                                |
-| `terminal-parity/HS-04-selection-gesture`, `terminal-parity/HS-05-selection-cancel`, `terminal-parity/HS-06-selection-eviction`, `terminal-parity/HS-08-selection-commands`, `terminal-parity/HS-10-copy`                   | [Selection implementation tests](src/projected/__tests__/projected-terminal.unit.test.ts), Host selection/export tests, and Web clipboard-result tests cover gesture derivation, stale retirement, cancellation, pinned export, absolute endpoints, and one perceivable copy outcome; the headed `terminal-parity/HS-04-selection-gesture` witness retired.                                                                                                                                                                                                                                                                                 |
-| `terminal-parity/FS-01-search`, `terminal-parity/FS-02-search-scheduling`                                                                                                                                                   | [`src/search/__tests__/projected-search-controller.unit.test.ts`](src/search/__tests__/projected-search-controller.unit.test.ts), [`src/search/__tests__/projected-search-worker.unit.test.ts`](src/search/__tests__/projected-search-worker.unit.test.ts), and [`src/search/__tests__/ProjectedSearchAccumulator.unit.test.ts`](src/search/__tests__/ProjectedSearchAccumulator.unit.test.ts) cover bounded results, independent navigation, invalidation, cancellation, progress, and reveal.                                                                                                                                             |
-| `terminal-parity/FS-03-links`, `terminal-parity/FS-04-link-invalidation`                                                                                                                                                    | [`src/__tests__/terminal-row-links.unit.test.ts`](src/__tests__/terminal-row-links.unit.test.ts) and [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts) cover complete bounded logical lines, precedence, exact cell mapping, hover retirement, and activation revalidation.                                                                                                                                                                                                                                                                                              |
-| `terminal-parity/FS-19-local-file-links`                                                                                                                                                                                    | Row-link and projected-terminal unit tests and the exact headed `terminal-parity/FS-19-local-file-links` witness cover typed path detection, capability gating, modifier activation, and absence without the capability. The traces use a captured opener; they do not launch an operating-system application, automate Finder, prove network-filesystem latency, or grant remote file access. No current composition supplies the local-file capability.                                                                                                                                                                                   |
-| `terminal-parity/FS-07-keyboard-hints`                                                                                                                                                                                      | [`src/__tests__/terminal-hints.unit.test.ts`](src/__tests__/terminal-hints.unit.test.ts), projected-terminal, Web Action, shortcut, Settings, storage, and exact headed Web system-suite evidence cover visible target detection, overlay ownership, cancellation, effects, migration, and unchanged attachment identity.                                                                                                                                                                                                                                                                                                                   |
-| `terminal-parity/AC-01-accessible-rows`, `terminal-parity/AC-02-dom-selection`, `terminal-parity/AC-03-announcements`, `terminal-parity/AC-04-deletion`                                                                     | [`src/accessibility/__tests__/accessible-text-model.unit.test.ts`](src/accessibility/__tests__/accessible-text-model.unit.test.ts) and [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts) cover valid row structure, ordinary Host-selection isolation, assistive-technology-origin grapheme-safe bidirectional Range mapping, ordered live output, history suppression, and atomic deletion announcements.                                                                                                                                                               |
-| `terminal-parity/CF-01-host-authority`                                                                                                                                                                                      | This is a justified architecture-negative witness: dependency-boundary checks, and [`scripts/check-public-api.mjs`](scripts/check-public-api.mjs) admit only the projected API and no PTY-byte writer, browser VT, or synchronous whole-buffer authority. A differential runtime trace is not applicable because no second VT transition system exists.                                                                                                                                                                                                                                                                                     |
-| `terminal-parity/CF-02-bounds`                                                                                                                                                                                              | The packed-store suite incrementally executes the conservative 36-MiB per-occurrence aggregate, exact canonical snapshot, 4,096-string, and 1,024-style retained budgets across long unique and repeated-value sparse-delta streams and proves atomic over-limit outcomes. The projected-terminal, search, link, accessibility, protocol-limit, and Host backpressure suites named above cover the remaining retained projection, row, result, flight, revision, native allocation, and queue limits.                                                                                                                                       |
 
 ## Development
 

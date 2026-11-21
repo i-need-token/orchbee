@@ -53,12 +53,3 @@ localized result feedback. The terminal context menu does not offer it. Apple an
 Adding this Action extends Web's strict device-local shortcut record from version 8 to version 9.
 The version-9 reader migrates an exact v8 catalog and defaults, rejects a new-default conflict,
 writes only the canonical v9 record, and preserves v8 unchanged as a rollback snapshot.
-
-## Verification
-
-| Claim                                                               | Evidence                                                            | Limit                                                            |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Detection, overlap precedence, clipping, bounds, and prefix labels  | `src/__tests__/terminal-hints.unit.test.ts`                         | Synthetic rendered rows                                          |
-| Pinned visible read, overlay ownership, selection, and invalidation | `src/projected/__tests__/projected-terminal.unit.test.ts`           | Deterministic projected terminal and mocked Host row window      |
-| Effects, cancellation, commit, binding, labels, and v8 migration    | Web Action, shortcut, Settings, i18n, controller, and storage tests | In-process effects, keyboard events, and device-local storage    |
-| Four target kinds work through the production Canvas surface        | `terminal-parity/FS-07-keyboard-hints`                              | Headed Chromium with synthetic pinned rows and a captured opener |

@@ -62,14 +62,3 @@ Adding the six shortcut IDs originally extended Web's strict durable keyboard ca
 defaults before adding later font-size shortcuts; it removes overrides equal to current defaults,
 rejects migration conflicts, and leaves v7 unchanged as the rollback snapshot. Invalid current
 records do not fall back to older versions.
-
-## Verification
-
-| Claim                                                                | Evidence                                                  | Limit                                                        |
-| -------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------ |
-| Line, overlapping-page, top, bottom, boundary, and screen admission  | `src/projected/__tests__/projected-terminal.unit.test.ts` | Deterministic projected-terminal and mocked Host row windows |
-| Action availability, typed results, shared concurrency, and dispatch | Web projected-terminal Action and shortcut unit tests     | In-process Action runtime and synthetic keyboard events      |
-| Catalog labels, conflict freedom, customization, and v7 recovery     | Web catalog, Settings, controller, and storage unit tests | Synthetic device-local storage                               |
-
-The `terminal-parity/HS-11-keyboard-scrollback` trace through a real Desktop attachment and Terminal
-Host retired with the Desktop Electron suite.

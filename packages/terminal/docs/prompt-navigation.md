@@ -95,15 +95,3 @@ not fall back to older versions.
 The general-buffer lane's existing abort listener settles a replaced read. Action cancellation is
 observable only as a cancelled Action result; boundary and unavailable outcomes remain silent so a
 keyboard navigation attempt does not produce status chatter.
-
-## Verification
-
-| Claim                                                                                      | Evidence                                                              | Limit                                                                           |
-| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Direction, strict anchor, nearest target, prompt-only eligibility, paging, and byte bounds | `src/projected/__tests__/projected-prompt-navigation.unit.test.ts`    | Deterministic mocked row-reader pages                                           |
-| Stale, replacement, cancellation, local-history-intent, and single-commit safety           | controlled implementation tests plus `ProjectedTerminal` unit tests   | Controlled traces and synthetic adapter state; no exhaustive interleaving proof |
-| Action availability, replace-latest execution, no-op, and cancellation mapping             | Web projected-terminal Action unit tests                              | In-process Action runtime                                                       |
-| Physical defaults, conflict freedom, customization, and v5-to-v6 migration                 | Web shortcut declaration, catalog, controller, and storage unit tests | Synthetic keyboard events and storage                                           |
-
-The `terminal-parity/SI-02-prompt-navigation` trace through a real Desktop attachment and Terminal
-Host retired with the Desktop Electron suite.
