@@ -1,10 +1,7 @@
 //! Pure scalar and catalog edits on the page's values; executable paths and arguments remain
 //! literal data.
-use super::{
-    AdjustmentStep, Choice, ChoicePicker, Edit, PageState as Draft, Row, SettingControl, setting,
-};
+use super::{AdjustmentStep, Choice, ChoicePicker, Edit, PageState as Draft, Row, SettingControl};
 use crate::localization::SettingsTextRequirement;
-use orchbee_local_runtime::UserSettingsField;
 use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfile};
 
 /// Decimal MB preserves every persisted byte without floating-point rounding.
@@ -40,24 +37,24 @@ fn parse_scrollback_megabytes(value: &str) -> Option<u32> {
     whole.checked_add(fraction)
 }
 
-fn integer_bounds(key: UserSettingsField) -> (u64, u64) {
-    let SettingControl::BoundedInteger {
+fn integer_bounds(row: Row) -> (u64, u64) {
+    let Some(SettingControl::BoundedInteger {
         minimum, maximum, ..
-    } = setting(key).control
+    }) = row.setting().map(|metadata| metadata.control)
     else {
         unreachable!("integer preference metadata")
     };
     (minimum, maximum)
 }
 
-fn integer_step(key: UserSettingsField, step: AdjustmentStep) -> (u64, u64, u64) {
-    let SettingControl::BoundedInteger {
+fn integer_step(row: Row, step: AdjustmentStep) -> (u64, u64, u64) {
+    let Some(SettingControl::BoundedInteger {
         minimum,
         maximum,
         small_step,
         large_step,
         ..
-    } = setting(key).control
+    }) = row.setting().map(|metadata| metadata.control)
     else {
         unreachable!("integer preference metadata")
     };
@@ -71,8 +68,8 @@ fn integer_step(key: UserSettingsField, step: AdjustmentStep) -> (u64, u64, u64)
     )
 }
 
-fn step_integer(current: u64, key: UserSettingsField, forward: bool, step: AdjustmentStep) -> u64 {
-    let (minimum, maximum, amount) = integer_step(key, step);
+fn step_integer(current: u64, row: Row, forward: bool, step: AdjustmentStep) -> u64 {
+    let (minimum, maximum, amount) = integer_step(row, step);
     if forward {
         current.saturating_add(amount).min(maximum)
     } else {
@@ -90,11 +87,17 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
         return;
     }
     let values = &mut draft.values;
+    if step == AdjustmentStep::Small
+        && let Some(flag) = draft.row.flag()
+    {
+        (flag.write)(values, !(flag.read)(values));
+        return;
+    }
     match draft.row {
         Row::CompletionThreshold => {
             values.completion_reminder_minimum_seconds = u16::try_from(step_integer(
                 u64::from(values.completion_reminder_minimum_seconds),
-                UserSettingsField::CompletionReminderMinimumSeconds,
+                Row::CompletionThreshold,
                 forward,
                 step,
             ))
@@ -103,20 +106,13 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
         Row::Scrollback => {
             values.scrollback_bytes = u32::try_from(step_integer(
                 u64::from(values.scrollback_bytes),
-                UserSettingsField::ScrollbackBytes,
+                Row::Scrollback,
                 forward,
                 step,
             ))
             .expect("scrollback metadata fits u32");
         }
         _ if step == AdjustmentStep::Large => {}
-        Row::CopyOnSelect => values.copy_on_select = !values.copy_on_select,
-        Row::ResumeAgents => values.resume_agents_on_restore = !values.resume_agents_on_restore,
-        Row::RestoreOutput => values.restore_terminal_output = !values.restore_terminal_output,
-        Row::Sound => values.sound_enabled = !values.sound_enabled,
-        Row::AutomaticUpdates => values.automatic_updates = !values.automatic_updates,
-        Row::AutoAllowClaude => values.auto_allow_claude = !values.auto_allow_claude,
-        Row::AutoAllowCodex => values.auto_allow_codex = !values.auto_allow_codex,
         Row::Profile => {
             let count = values.launch_profiles.profiles.len();
             draft.profile = (draft.profile + if forward { 1 } else { count - 1 }) % count;
@@ -282,12 +278,11 @@ pub(super) fn requirement(row: Row) -> Option<SettingsTextRequirement> {
     Some(match row {
         Row::Foreground | Row::Background => SettingsTextRequirement::Color,
         Row::CompletionThreshold => {
-            let (minimum, maximum) =
-                integer_bounds(UserSettingsField::CompletionReminderMinimumSeconds);
+            let (minimum, maximum) = integer_bounds(Row::CompletionThreshold);
             SettingsTextRequirement::WholeNumber { minimum, maximum }
         }
         Row::Scrollback => {
-            let (minimum, maximum) = integer_bounds(UserSettingsField::ScrollbackBytes);
+            let (minimum, maximum) = integer_bounds(Row::Scrollback);
             let megabytes = |bytes: u64| scrollback_megabytes(u32::try_from(bytes).unwrap_or(0));
             SettingsTextRequirement::Number {
                 minimum: megabytes(minimum),
@@ -317,8 +312,7 @@ pub(super) fn accept_text(draft: &mut Draft, value: String) -> bool {
             let Ok(number) = value.parse::<u16>() else {
                 return false;
             };
-            let (minimum, maximum) =
-                integer_bounds(UserSettingsField::CompletionReminderMinimumSeconds);
+            let (minimum, maximum) = integer_bounds(Row::CompletionThreshold);
             if !(minimum..=maximum).contains(&u64::from(number)) {
                 return false;
             }
@@ -328,7 +322,7 @@ pub(super) fn accept_text(draft: &mut Draft, value: String) -> bool {
             let Some(number) = parse_scrollback_megabytes(&value) else {
                 return false;
             };
-            let (minimum, maximum) = integer_bounds(UserSettingsField::ScrollbackBytes);
+            let (minimum, maximum) = integer_bounds(Row::Scrollback);
             if !(minimum..=maximum).contains(&u64::from(number)) {
                 return false;
             }

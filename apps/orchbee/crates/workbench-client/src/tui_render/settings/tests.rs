@@ -1,7 +1,7 @@
 //! The narrow tier, page admission and the inline text field's projection of raw text.
 use crate::{
     localization::Locale,
-    native_settings::{Category, Control, Edit, Editor, Pane, Row, SETTINGS, View},
+    native_settings::{Category, Control, Edit, Editor, Pane, Row, View},
     tui_hit_map::HitMapBuilder,
     tui_presentation::ModalPresentation,
     tui_theme::Theme,
@@ -78,8 +78,8 @@ fn below_the_narrow_width_the_page_shows_one_column_at_a_time() {
             let token = editor.open().unwrap();
             assert!(editor.loaded(token, &snapshot()));
             let first = paint(&mut editor, size, locale);
-            let row = locale.settings_row(crate::native_settings::Row::Language);
-            let other = locale.settings_category_name(Category::Notifications);
+            let row = crate::native_settings::Row::Language.name(locale);
+            let other = Category::Notifications.name(locale);
             assert!(has(&first, other), "{size:?}: categories show first:");
             assert_eq!(has(&first, row), !narrow, "{size:?}, {locale:?}");
 
@@ -93,7 +93,7 @@ fn below_the_narrow_width_the_page_shows_one_column_at_a_time() {
             assert!(
                 has(
                     &rows,
-                    locale.settings_description(crate::native_settings::Row::Language)
+                    crate::native_settings::Row::Language.description(locale)
                 ),
                 "descriptions stay visible: {size:?}, {locale:?}"
             );
@@ -132,8 +132,8 @@ fn automatic_updates_shows_on_general_only_once_the_registry_lists_it() {
                 .is_some_and(|setting| setting.page)
                 || unlisted;
             for text in [
-                locale.settings_row(Row::AutomaticUpdates),
-                locale.settings_description(Row::AutomaticUpdates),
+                Row::AutomaticUpdates.name(locale),
+                Row::AutomaticUpdates.description(locale),
             ] {
                 assert_eq!(has(&rows, text), shown, "{locale:?}, {unlisted}: {rows}");
             }
@@ -233,14 +233,14 @@ fn every_description_fits_its_row_at_the_reference_width_in_both_locales() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for category in Category::ALL {
             for group in category.groups() {
-                if let Some(description) = locale.settings_group_description(*group) {
+                if let Some(description) = group.description(locale) {
                     assert!(
                         crate::terminal_text::display_width(description) <= budget + 2,
                         "{locale:?} {group:?}: {description}"
                     );
                 }
                 for row in group.rows() {
-                    let description = locale.settings_description(row);
+                    let description = row.description(locale);
                     assert!(
                         crate::terminal_text::display_width(description) <= budget,
                         "{locale:?} {row:?} needs {} of {budget} cells: {description}",
@@ -294,9 +294,9 @@ fn every_key_set() -> SettingsSnapshot {
         completion_reminder_mode: CompletionReminderMode::Always,
         ..Default::default()
     };
-    let restore_keys = SETTINGS.iter().flat_map(|metadata| {
-        orchbee_local_runtime::value_changes(&values, &values, &[metadata.key])
-    });
+    let restore_keys = orchbee_local_runtime::UserSettingsField::ALL
+        .into_iter()
+        .flat_map(|field| orchbee_local_runtime::value_changes(&values, &values, &[field]));
     let mut snapshot = snapshot();
     snapshot.values = orchbee_local_runtime::value_changes(&Default::default(), &values, &[])
         .into_iter()
@@ -353,7 +353,7 @@ fn the_restore_action_leaves_a_changed_rows_description_whole() {
                     continue;
                 }
                 assert!(
-                    has(&page, locale.settings_description(row)),
+                    has(&page, row.description(locale)),
                     "{locale:?} {row:?}: {page}"
                 );
                 assert!(

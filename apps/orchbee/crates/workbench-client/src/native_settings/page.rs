@@ -5,10 +5,8 @@ use super::{
     Row, SettingAvailability, SettingControl, SettingsDraw, Token,
     catalog::{self, Filter},
     changes::Changes,
-    setting, setting_for_row,
 };
 use crate::terminal_text::line_editor::LineEditor;
-use orchbee_local_runtime::UserSettingsField;
 use orchbee_workbench_protocol::{
     ApplicationAppearance, SettingChange, UserLaunchCommand, UserLaunchField, UserLaunchProfile,
     UserSettingsValues,
@@ -288,19 +286,13 @@ impl PageState {
     /// The edit that puts a row's keys back to their defaults. A theme line restores the slot of
     /// its list, which picking a theme there set, and leaves the other slot alone.
     pub(super) fn restore_changes(&self, row: Row) -> Vec<SettingChange> {
-        let row = match row {
-            Row::ThemeOption(theme) => match theme.theme().polarity() {
-                orchbee_color_themes::Polarity::Light => Row::LightTheme,
-                orchbee_color_themes::Polarity::Dark => Row::DarkTheme,
-            },
-            row => row,
-        };
-        if let Some(key) = text_key(row) {
+        let row = row.setting_row();
+        if let Some(key) = row.text_key() {
             return orchbee_workbench_protocol::SettingPath::parse(key)
                 .map(|key| vec![SettingChange::Restore { key }])
                 .unwrap_or_default();
         }
-        let Some(field) = setting_for_row(row).map(|metadata| metadata.key) else {
+        let Some(field) = row.setting().map(|metadata| metadata.key) else {
             return Vec::new();
         };
         orchbee_local_runtime::value_changes(&self.values, &self.values, &[field])
@@ -320,7 +312,7 @@ impl PageState {
         if let Some(text) = self.changes.text(row) {
             return text;
         }
-        self.confirmed.text(text_key(row)?)
+        self.confirmed.text(row.text_key()?)
     }
 
     /// The choice a finite row shows: its common value, or the folder entry its text gives.
@@ -390,14 +382,14 @@ impl PageState {
             UserLaunchCommand::SystemShell { .. } => None,
         };
         match row {
-            row if setting_for_row(row).is_some_and(|metadata| {
+            row if row.setting().is_some_and(|metadata| {
                 metadata.availability == SettingAvailability::TerminalDisplayThemeCustom
             }) =>
             {
                 self.values.terminal_display_theme
                     == orchbee_workbench_protocol::TerminalDisplayAppearance::Custom
             }
-            row if setting_for_row(row).is_some_and(|metadata| {
+            row if row.setting().is_some_and(|metadata| {
                 metadata.availability == SettingAvailability::NamedThemes
             }) =>
             {
@@ -421,15 +413,10 @@ impl PageState {
     }
 
     pub(super) fn checked(&self, row: Row) -> Option<bool> {
-        let values = &self.values;
+        if let Some(flag) = row.flag() {
+            return Some((flag.read)(&self.values));
+        }
         match row {
-            Row::CopyOnSelect => Some(values.copy_on_select),
-            Row::ResumeAgents => Some(values.resume_agents_on_restore),
-            Row::RestoreOutput => Some(values.restore_terminal_output),
-            Row::Sound => Some(values.sound_enabled),
-            Row::AutomaticUpdates => Some(values.automatic_updates),
-            Row::AutoAllowClaude => Some(values.auto_allow_claude),
-            Row::AutoAllowCodex => Some(values.auto_allow_codex),
             Row::Login => match &self.current_profile().command {
                 UserLaunchCommand::SystemShell { login } => Some(*login),
                 UserLaunchCommand::CustomExecutable { .. } => None,
@@ -439,10 +426,10 @@ impl PageState {
     }
 
     pub(super) fn adjustment(&self, row: Row) -> Option<Adjustment> {
-        let bounded = |field: UserSettingsField, current: u64| {
-            let SettingControl::BoundedInteger {
+        let bounded = |current: u64| {
+            let Some(SettingControl::BoundedInteger {
                 minimum, maximum, ..
-            } = setting(field).control
+            }) = row.setting().map(|metadata| metadata.control)
             else {
                 unreachable!("integer preference metadata")
             };
@@ -456,14 +443,10 @@ impl PageState {
             forward: len > 1 && index < len,
         };
         match row {
-            Row::CompletionThreshold => Some(bounded(
-                UserSettingsField::CompletionReminderMinimumSeconds,
-                u64::from(self.values.completion_reminder_minimum_seconds),
-            )),
-            Row::Scrollback => Some(bounded(
-                UserSettingsField::ScrollbackBytes,
-                u64::from(self.values.scrollback_bytes),
-            )),
+            Row::CompletionThreshold => Some(bounded(u64::from(
+                self.values.completion_reminder_minimum_seconds,
+            ))),
+            Row::Scrollback => Some(bounded(u64::from(self.values.scrollback_bytes))),
             Row::Profile => Some(cycle(
                 self.profile,
                 self.values.launch_profiles.profiles.len(),
@@ -479,15 +462,6 @@ impl PageState {
             }),
             _ => None,
         }
-    }
-}
-
-/// The key of a row that edits one text key the common values do not carry.
-pub(super) const fn text_key(row: Row) -> Option<&'static str> {
-    match row {
-        Row::NewTerminalFolder => Some("terminal.new_cwd"),
-        Row::PrefixKey => Some("keys.prefix"),
-        _ => None,
     }
 }
 

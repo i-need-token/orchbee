@@ -29,12 +29,10 @@ mod text;
 mod values;
 pub(crate) use input::{footer_bindings, key_edit, key_edit_for_view};
 #[cfg(test)]
-pub(crate) use metadata::SETTINGS;
-#[cfg(test)]
 use metadata::SettingEffect;
 #[cfg(test)]
 use metadata::SettingUnit;
-pub(crate) use metadata::{SettingAvailability, SettingControl, setting, setting_for_row};
+pub(crate) use metadata::{SettingAvailability, SettingControl};
 pub(crate) use rows::{Page, Row};
 pub(crate) use values::scrollback_megabytes;
 
@@ -261,7 +259,7 @@ impl Editor {
             page.reduced_color = reduced_color;
             if reduced_color
                 && page.picker.is_some_and(|picker| {
-                    setting_for_row(picker.row()).is_some_and(|metadata| {
+                    picker.row().setting().is_some_and(|metadata| {
                         metadata.availability == SettingAvailability::NamedThemes
                     })
                 })

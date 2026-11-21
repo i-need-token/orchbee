@@ -347,7 +347,7 @@ fn render_nav(
             x + 1,
             y,
             width.saturating_sub(1),
-            locale.settings_category_name(category),
+            category.name(locale),
             on(
                 theme,
                 base,
@@ -386,14 +386,14 @@ fn render_content(
     // The title: the category, search results, or a child page with its way back.
     let child = page.page().is_child();
     let title = match page.page() {
-        Page::Profiles => locale
-            .settings_group_name(Group::LaunchProfiles)
+        Page::Profiles => Group::LaunchProfiles
+            .heading(locale)
             .unwrap_or_default()
             .to_owned(),
         Page::General if !page.query().is_empty() || page.searching() => {
             locale.settings_search_results().to_owned()
         }
-        Page::General => locale.settings_category_name(page.category()).to_owned(),
+        Page::General => page.category().name(locale).to_owned(),
     };
     let title_rect = Rect::new(x, y, width, 1);
     if child || narrow {
@@ -569,7 +569,7 @@ fn render_entries(
         match entry {
             Entry::Heading(group) if child => {
                 if let Some(y) = column.y(line + gap)
-                    && let Some(name) = locale.settings_group_name(group)
+                    && let Some(name) = group.heading(locale)
                 {
                     put(
                         frame,
@@ -623,7 +623,7 @@ fn render_entries(
             Entry::Note(group) => {
                 if let Some(y) = column.y(line) {
                     paint_sides(frame, column.area, y, theme);
-                    if let Some(note) = locale.settings_group_note(group) {
+                    if let Some(note) = group.note(locale) {
                         put(
                             frame,
                             column.area.x + 2,
@@ -689,8 +689,8 @@ fn render_heading(
     let width = usize::from(area.width);
     if let Some(y) = column.y(line) {
         let frame_style = theme.style(Role::FrameUnfocused);
-        let name = locale
-            .settings_group_name(group)
+        let name = group
+            .heading(locale)
             .map(|name| truncate_display(name, width.saturating_sub(6), theme.glyphs.ellipsis));
         let tag = (group.is_theme_list() && page.in_use(group, system_dark(theme)))
             .then(|| locale.settings_in_use());
@@ -762,7 +762,7 @@ fn render_heading(
         && let Some(y) = column.y(line + 1)
     {
         paint_sides(frame, area, y, theme);
-        if let Some(description) = locale.settings_group_description(group) {
+        if let Some(description) = group.description(locale) {
             put(
                 frame,
                 area.x + 2,
@@ -937,8 +937,8 @@ fn render_row(
             _ if enabled => Role::TextSecondary,
             _ => Role::TextDisabled,
         };
-        let mut name = locale.settings_row(row).to_owned();
-        if let Some(effect) = locale.settings_effect(row) {
+        let mut name = row.name(locale).to_owned();
+        if let Some(effect) = row.applies(locale) {
             name = format!("{name} {} {effect}", theme.glyphs.middle_dot);
         }
         // A changed row's marker follows its title, effect included, one cell apart; the title
@@ -1079,7 +1079,7 @@ fn render_row(
             } else if is_focused && !enabled {
                 locale.settings_detail(page)
             } else {
-                locale.settings_description(row).to_owned()
+                row.description(locale).to_owned()
             };
             // A check's result carries its outcome's color, as the window's tone does.
             let description_role = match (row, page.about().update(), page.about().check()) {
@@ -1395,7 +1395,7 @@ fn render_child_row(
         rect.x + 2,
         rect.y,
         half.saturating_sub(3),
-        locale.settings_row(row),
+        row.name(locale),
         style(name_role),
     );
     let value_x = rect.x + half;

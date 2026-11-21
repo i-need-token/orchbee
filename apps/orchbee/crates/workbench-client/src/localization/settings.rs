@@ -35,12 +35,12 @@ use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
     TerminalDisplayAppearance,
 };
+use parameters::SettingsChoice as Choice;
 pub(crate) use parameters::{
-    SettingUnit, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
-    SettingsFieldRequirement, SettingsFileFact, SettingsGroup, SettingsHintLabel,
-    SettingsProfileLabel, SettingsRow, SettingsTextRequirement, SettingsValue, StartFolder,
+    SettingUnit, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsFieldRequirement,
+    SettingsFileFact, SettingsHintLabel, SettingsProfileLabel, SettingsTextRequirement,
+    SettingsValue, StartFolder,
 };
-use parameters::{SettingsChoice as Choice, SettingsGroup as Group, SettingsRow as Row};
 impl Locale {
     fn setting(self, english: &'static str, chinese: &'static str) -> &'static str {
         match self {
@@ -51,141 +51,9 @@ impl Locale {
     pub(crate) fn settings_title(self) -> &'static str {
         self.setting("Settings", "设置")
     }
-    pub(crate) fn settings_row(self, row: impl Into<SettingsRow>) -> &'static str {
-        let (en, zh) = match row.into() {
-            Row::Language => ("Language", "语言"),
-            Row::Theme => ("Application theme", "应用主题"),
-            Row::LightTheme => ("Light theme", "浅色主题"),
-            Row::DarkTheme => ("Dark theme", "深色主题"),
-            Row::TerminalTheme => ("Terminal colors", "终端配色"),
-            Row::Foreground => ("Text color", "文字颜色"),
-            Row::Background => ("Background color", "背景色"),
-            Row::CopyOnSelect => ("Copy on select", "选中即复制"),
-            Row::ResumeAgents => (
-                "Resume Agent conversations after restart",
-                "重启后恢复智能体会话",
-            ),
-            Row::RestoreOutput => (
-                "Restore terminal output after restart",
-                "重启后恢复终端输出",
-            ),
-            Row::Reminders => ("Agent status notifications", "智能体状态通知"),
-            Row::CompletionReminders => ("Command completion reminders", "命令完成提醒"),
-            Row::CompletionThreshold => ("Minimum command duration", "最短命令时长"),
-            Row::Sound => ("Notification sound", "通知声音"),
-            Row::Scrollback => ("Terminal history", "终端历史"),
-            Row::AutomaticUpdates => ("Automatic updates", "自动更新"),
-            // The Agent's product name, the same in every language.
-            Row::AutoAllowClaude => ("Claude Code", "Claude Code"),
-            Row::AutoAllowCodex => ("Codex", "Codex"),
-            Row::LaunchProfiles => ("Default profile", "默认启动配置"),
-            Row::NewTerminalFolder => ("New terminal folder", "新终端文件夹"),
-            Row::PrefixKey => ("Prefix key", "前缀键"),
-            Row::Profile => ("Profile", "启动配置"),
-            Row::ProfileName => ("Name", "名称"),
-            Row::CommandType => ("Command", "命令"),
-            Row::Executable => ("Executable (absolute path)", "可执行文件（绝对路径）"),
-            Row::Login => ("Login shell", "登录 Shell"),
-            Row::Argument => ("Argument", "参数"),
-            Row::ArgumentValue => ("Literal argument value", "参数原文"),
-            Row::AddArgument => ("Add argument", "添加参数"),
-            Row::DeleteArgument => ("Remove argument", "移除参数"),
-            Row::SetDefault => ("Use as default", "设为默认"),
-            Row::AddProfile => ("Add profile", "添加启动配置"),
-            Row::DeleteProfile => ("Delete profile", "删除启动配置"),
-            Row::Back => ("Back", "返回"),
-            Row::Version => ("Version", "版本"),
-            Row::Updates => ("Updates", "更新"),
-        };
-        self.setting(en, zh)
-    }
-    pub(crate) fn settings_category_name(
-        self,
-        category: impl Into<SettingsCategory>,
-    ) -> &'static str {
-        match category.into() {
-            SettingsCategory::General => self.setting("General", "通用"),
-            SettingsCategory::Appearance => self.setting("Appearance", "外观"),
-            SettingsCategory::Themes => self.setting("Themes", "主题"),
-            SettingsCategory::Terminal => self.setting("Terminal", "终端"),
-            SettingsCategory::Notifications => self.setting("Notifications", "通知"),
-            SettingsCategory::Keyboard => self.setting("Keyboard", "快捷键"),
-            SettingsCategory::Agents => self.setting("Agents", "智能体"),
-            SettingsCategory::About => self.setting("About", "关于"),
-        }
-    }
-    /// A group's heading; `None` for a group framed without one.
-    pub(crate) fn settings_group_name(
-        self,
-        group: impl Into<SettingsGroup>,
-    ) -> Option<&'static str> {
-        Some(match group.into() {
-            Group::Language | Group::Updates | Group::Prefix | Group::About => return None,
-            Group::AfterRestart => self.setting("After a restart", "重启之后"),
-            Group::AppAppearance => self.setting("App appearance", "应用外观"),
-            Group::TerminalColors => self.setting("Terminal colors", "终端颜色"),
-            Group::LightThemes => self.setting("Light theme", "浅色主题"),
-            Group::DarkThemes => self.setting("Dark theme", "深色主题"),
-            Group::SelectionKeys => self.setting("Selection and keys", "选择与按键"),
-            Group::Output => self.setting("Output", "输出"),
-            Group::LaunchProfiles => self.setting("Launch profiles", "启动配置"),
-            Group::WhenToNotify => self.setting("When to notify", "何时通知"),
-            Group::SoundDelivery => self.setting("Sound and delivery", "声音与显示"),
-            Group::AgentConfirmations => {
-                self.setting("Allow routine confirmations", "自动允许常规确认")
-            }
-        })
-    }
-    /// The line under a described group's heading.
-    pub(crate) fn settings_group_description(
-        self,
-        group: impl Into<SettingsGroup>,
-    ) -> Option<&'static str> {
-        Some(match group.into() {
-            Group::LaunchProfiles => self.setting(
-                "Which shell a new terminal runs, plus your own profiles.",
-                "新终端运行哪个 Shell，以及你自己的启动配置。",
-            ),
-            Group::LightThemes => self.setting(
-                "Applies when the app appearance is Light.",
-                "应用外观为浅色时才会使用。",
-            ),
-            Group::DarkThemes => self.setting(
-                "Applies when the app appearance is Dark.",
-                "应用外观为深色时才会使用。",
-            ),
-            Group::AgentConfirmations => self.setting(
-                "Presses the Agent's one-time Yes. Destructive commands always wait.",
-                "替你按下智能体的单次允许。破坏性命令始终等你确认。",
-            ),
-            _ => return None,
-        })
-    }
-    /// The line a noted group ends with.
-    pub(crate) fn settings_group_note(
-        self,
-        group: impl Into<SettingsGroup>,
-    ) -> Option<&'static str> {
-        Some(match group.into() {
-            Group::AgentConfirmations => self.setting(
-                "Request more Agents in a GitHub issue.",
-                "可在 GitHub issue 中申请更多智能体。",
-            ),
-            _ => return None,
-        })
-    }
     /// The tag on the theme list in effect.
     pub(crate) fn settings_in_use(self) -> &'static str {
         self.setting("In use now", "正在使用")
-    }
-    /// When a change takes effect, for a row that does not take effect at once.
-    pub(crate) fn settings_effect(self, row: impl Into<SettingsRow>) -> Option<&'static str> {
-        match row.into() {
-            Row::Scrollback | Row::NewTerminalFolder | Row::LaunchProfiles => {
-                Some(self.setting("new terminals", "新终端生效"))
-            }
-            _ => None,
-        }
     }
     pub(crate) fn settings_restore(self) -> &'static str {
         self.setting("Restore default", "恢复默认")
@@ -253,100 +121,6 @@ impl Locale {
         }
     }
 
-    pub(crate) fn settings_description(self, row: impl Into<SettingsRow>) -> &'static str {
-        match row.into() {
-            Row::Language => {
-                self.setting("Language for menus and messages.", "菜单和提示使用的语言。")
-            }
-            Row::Theme => self.setting(
-                "Light, dark, or follow the system. Pick each theme under Themes.",
-                "浅色、深色或跟随系统。浅色和深色各用哪套主题，在“主题”里选。",
-            ),
-            Row::LightTheme => self.setting(
-                "Colors for the interface and terminals when the appearance is light.",
-                "外观为浅色时，界面和终端使用的配色。",
-            ),
-            Row::DarkTheme => self.setting(
-                "Colors for the interface and terminals when the appearance is dark.",
-                "外观为深色时，界面和终端使用的配色。",
-            ),
-            Row::TerminalTheme => self.setting(
-                "Default text and background in terminals; program colors are kept.",
-                "终端默认的文字和背景颜色；程序自己指定的颜色不变。",
-            ),
-            Row::Foreground => self.setting(
-                "Terminal text color for Custom, as #RRGGBB.",
-                "“自定义”时终端的文字颜色，格式为 #RRGGBB。",
-            ),
-            Row::Background => self.setting(
-                "Terminal background color for Custom, as #RRGGBB.",
-                "“自定义”时终端的背景色，格式为 #RRGGBB。",
-            ),
-            Row::CopyOnSelect => self.setting(
-                "Copies text as soon as you finish selecting it.",
-                "选择完成后立即复制文字。",
-            ),
-            Row::ResumeAgents => self.setting(
-                "Reopens Claude Code on Windows; other Agents need a conversation ID.",
-                "重启后恢复 Windows 上的 Claude Code；其他 Agent 需带会话 ID 启动。",
-            ),
-            Row::RestoreOutput => self.setting(
-                "Shows recent output after a restart. Kept locally; may hold secrets.",
-                "重启后再次显示最近的输出。保存在本机，可能包含密钥等敏感信息。",
-            ),
-            Row::Scrollback => self.setting(
-                "How much output each terminal keeps for scrolling back.",
-                "每个终端保留多少输出用于回看。",
-            ),
-            Row::AutomaticUpdates => self.setting(
-                "Installs in the background; nothing restarts until you choose Update.",
-                "在后台下载并安装新版本。点击“更新”前不会重启任何内容。",
-            ),
-            Row::AutoAllowClaude => self.setting(
-                "Orchbee checks the command shown, not what a script does.",
-                "Orchbee 只检查显示的命令，不检查脚本做了什么。",
-            ),
-            Row::AutoAllowCodex => self.setting(
-                "Orchbee checks the command shown, not what a script does.",
-                "Orchbee 只检查显示的命令，不检查脚本做了什么。",
-            ),
-            Row::Reminders => self.setting(
-                "Tells you when an Agent you can’t see finishes or needs you.",
-                "看不到的智能体完成或需要你时通知你。",
-            ),
-            Row::CompletionReminders => self.setting(
-                "Reminds you when a long command ends. Command text is never shown.",
-                "长命令结束时提醒你；不会显示命令内容。",
-            ),
-            Row::CompletionThreshold => self.setting(
-                "Shorter commands don’t remind you.",
-                "比这更短的命令不提醒。",
-            ),
-            Row::Sound => self.setting(
-                "Plays a sound with notifications and reminders.",
-                "通知和提醒时播放声音。",
-            ),
-            Row::LaunchProfiles => self.setting(
-                "Edit profiles and choose the one new terminals use.",
-                "编辑启动配置，并选择新终端使用哪一个。",
-            ),
-            Row::NewTerminalFolder => self.setting(
-                "Applies to terminals the orchbee command creates.",
-                "适用于 orchbee 命令新建的终端。",
-            ),
-            Row::PrefixKey => self.setting(
-                "Press it first, then a command key.",
-                "先按它，再按命令键。",
-            ),
-            // About's rows describe live state; the page draws theirs from it.
-            Row::Version => self.about_build(orchbee_local_runtime::environment_kind()),
-            Row::Updates => self.setting(
-                "Orchbee also checks every hour while automatic updates are on.",
-                "自动更新开启时，Orchbee 也会每小时检查一次。",
-            ),
-            _ => "",
-        }
-    }
     pub(crate) fn settings_choice(self, choice: impl Into<SettingsChoice>) -> &'static str {
         match choice.into() {
             Choice::Locale(SettingsLocale::System)

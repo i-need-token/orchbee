@@ -39,15 +39,17 @@ mod capabilities;
 mod plugins;
 mod settings;
 pub(crate) use settings::{
-    SettingUnit, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
-    SettingsFieldRequirement, SettingsFileFact, SettingsGroup, SettingsHintLabel, SettingsNotice,
-    SettingsProfileLabel, SettingsRow, SettingsTextRequirement, SettingsValue, StartFolder,
+    SettingUnit, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsFieldRequirement,
+    SettingsFileFact, SettingsHintLabel, SettingsNotice, SettingsProfileLabel,
+    SettingsTextRequirement, SettingsValue, StartFolder,
 };
 mod status;
 mod terminal_feedback;
+mod words;
 pub(crate) use status::PersistentStatus;
 use std::ffi::OsString;
 pub(crate) use terminal_feedback::{CompletionReminder, HeldRestoreAction, TerminalEnd};
+pub(crate) use words::{Words, words};
 
 mod copy_mode;
 pub(crate) use copy_mode::{CopyHintLabel, CopyModeStatus};

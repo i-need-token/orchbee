@@ -1,95 +1,10 @@
 //! Selects the facts the localized text needs from the page; the text sees no page state.
-use super::{Category, Choice, FileState, Group, Page, PageView, Row};
+use super::{Choice, FileState, Page, PageView, Row};
 use crate::localization::{
-    SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsFieldRequirement,
-    SettingsFileFact, SettingsGroup, SettingsProfileLabel, SettingsRow, SettingsValue, StartFolder,
+    SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsFieldRequirement, SettingsFileFact,
+    SettingsProfileLabel, SettingsValue, StartFolder,
 };
-use orchbee_color_themes::Polarity;
 use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchField};
-
-impl From<Row> for SettingsRow {
-    fn from(row: Row) -> Self {
-        match row {
-            Row::Language => Self::Language,
-            Row::Theme => Self::Theme,
-            Row::LightTheme => Self::LightTheme,
-            Row::DarkTheme => Self::DarkTheme,
-            Row::ThemeOption(theme) => match theme.theme().polarity() {
-                Polarity::Light => Self::LightTheme,
-                Polarity::Dark => Self::DarkTheme,
-            },
-            Row::TerminalTheme => Self::TerminalTheme,
-            Row::Foreground => Self::Foreground,
-            Row::Background => Self::Background,
-            Row::CopyOnSelect => Self::CopyOnSelect,
-            Row::ResumeAgents => Self::ResumeAgents,
-            Row::RestoreOutput => Self::RestoreOutput,
-            Row::Reminders => Self::Reminders,
-            Row::CompletionReminders => Self::CompletionReminders,
-            Row::CompletionThreshold => Self::CompletionThreshold,
-            Row::Sound => Self::Sound,
-            Row::Scrollback => Self::Scrollback,
-            Row::AutomaticUpdates => Self::AutomaticUpdates,
-            Row::AutoAllowClaude => Self::AutoAllowClaude,
-            Row::AutoAllowCodex => Self::AutoAllowCodex,
-            Row::LaunchProfiles => Self::LaunchProfiles,
-            Row::NewTerminalFolder => Self::NewTerminalFolder,
-            Row::PrefixKey => Self::PrefixKey,
-            Row::Profile => Self::Profile,
-            Row::ProfileName => Self::ProfileName,
-            Row::CommandType => Self::CommandType,
-            Row::Executable => Self::Executable,
-            Row::Login => Self::Login,
-            Row::Argument => Self::Argument,
-            Row::ArgumentValue => Self::ArgumentValue,
-            Row::AddArgument => Self::AddArgument,
-            Row::DeleteArgument => Self::DeleteArgument,
-            Row::SetDefault => Self::SetDefault,
-            Row::AddProfile => Self::AddProfile,
-            Row::DeleteProfile => Self::DeleteProfile,
-            Row::Back => Self::Back,
-            Row::Version => Self::Version,
-            Row::Updates => Self::Updates,
-        }
-    }
-}
-
-impl From<Category> for SettingsCategory {
-    fn from(category: Category) -> Self {
-        match category {
-            Category::General => Self::General,
-            Category::Appearance => Self::Appearance,
-            Category::Themes => Self::Themes,
-            Category::Terminal => Self::Terminal,
-            Category::Notifications => Self::Notifications,
-            Category::Keyboard => Self::Keyboard,
-            Category::Agents => Self::Agents,
-            Category::About => Self::About,
-        }
-    }
-}
-
-impl From<Group> for SettingsGroup {
-    fn from(group: Group) -> Self {
-        match group {
-            Group::Language => Self::Language,
-            Group::AfterRestart | Group::AgentRestore => Self::AfterRestart,
-            Group::Updates => Self::Updates,
-            Group::AppAppearance => Self::AppAppearance,
-            Group::TerminalColors => Self::TerminalColors,
-            Group::LightThemes => Self::LightThemes,
-            Group::DarkThemes => Self::DarkThemes,
-            Group::SelectionKeys => Self::SelectionKeys,
-            Group::Output => Self::Output,
-            Group::LaunchProfiles => Self::LaunchProfiles,
-            Group::WhenToNotify => Self::WhenToNotify,
-            Group::SoundDelivery => Self::SoundDelivery,
-            Group::Prefix => Self::Prefix,
-            Group::AgentConfirmations => Self::AgentConfirmations,
-            Group::About => Self::About,
-        }
-    }
-}
 
 impl From<Choice> for SettingsChoice {
     fn from(choice: Choice) -> Self {
@@ -194,6 +109,9 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
         let values = page.values();
         let profiles = &values.launch_profiles.profiles;
         let profile = &profiles[page.profile().min(profiles.len() - 1)];
+        if let Some(flag) = row.flag() {
+            return Self::Toggle((flag.read)(values));
+        }
         match row {
             Row::Language => Self::Choice(SettingsChoice::Locale(values.locale)),
             Row::Theme => Self::Choice(SettingsChoice::ApplicationTheme(values.application_theme)),
@@ -207,9 +125,6 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
             }
             Row::Foreground => Self::Text(&values.custom_foreground),
             Row::Background => Self::Text(&values.custom_background),
-            Row::CopyOnSelect => Self::Toggle(values.copy_on_select),
-            Row::ResumeAgents => Self::Toggle(values.resume_agents_on_restore),
-            Row::RestoreOutput => Self::Toggle(values.restore_terminal_output),
             Row::Reminders => Self::Choice(SettingsChoice::AgentReminders(
                 values.agent_notification_mode,
             )),
@@ -219,10 +134,6 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
             Row::CompletionThreshold => {
                 Self::Seconds(u64::from(values.completion_reminder_minimum_seconds))
             }
-            Row::Sound => Self::Toggle(values.sound_enabled),
-            Row::AutomaticUpdates => Self::Toggle(values.automatic_updates),
-            Row::AutoAllowClaude => Self::Toggle(values.auto_allow_claude),
-            Row::AutoAllowCodex => Self::Toggle(values.auto_allow_codex),
             Row::Scrollback => {
                 Self::ScrollbackMegabytes(super::scrollback_megabytes(values.scrollback_bytes))
             }

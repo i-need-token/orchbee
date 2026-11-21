@@ -103,39 +103,33 @@ fn key(field: UserSettingsField) -> String {
 }
 
 #[test]
-fn shared_preference_metadata_is_complete_and_every_setting_stays_reachable() {
-    assert_eq!(
-        SETTINGS
+fn every_common_setting_has_one_row_with_one_place_on_the_page() {
+    // A theme list shows its slot's setting once, however many themes it lists.
+    let mut placed: Vec<Row> = Category::ALL
+        .iter()
+        .flat_map(|category| category.groups())
+        .flat_map(|group| group.rows())
+        .map(Row::setting_row)
+        .collect();
+    placed.dedup();
+    for field in UserSettingsField::ALL {
+        let rows = placed
             .iter()
-            .map(|metadata| metadata.key)
-            .collect::<Vec<_>>(),
-        UserSettingsField::ALL.into_iter().collect::<Vec<_>>(),
-        "the native projection must cover the closed protocol inventory in canonical order"
-    );
-    for metadata in &SETTINGS {
-        assert_eq!(setting(metadata.key), metadata);
-        assert_eq!(setting_for_row(metadata.row), Some(metadata));
-        let placed = Category::ALL
-            .iter()
-            .flat_map(|category| category.groups())
-            .filter(|group| match metadata.row {
-                Row::LightTheme => **group == Group::LightThemes,
-                Row::DarkTheme => **group == Group::DarkThemes,
-                row => group.rows().contains(&row),
-            })
+            .filter(|row| row.setting().is_some_and(|metadata| metadata.key == field))
             .count();
-        assert_eq!(placed, 1, "{:?} has exactly one place", metadata.row);
+        assert_eq!(rows, 1, "{field:?} has exactly one row and one place");
     }
+    let setting = |row: Row| row.setting().expect("a row that edits a common setting");
     assert_eq!(
-        setting(UserSettingsField::CustomForeground).availability,
+        setting(Row::Foreground).availability,
         SettingAvailability::TerminalDisplayThemeCustom
     );
     assert_eq!(
-        setting(UserSettingsField::LaunchProfiles).effect,
+        setting(Row::LaunchProfiles).effect,
         SettingEffect::NewDefaultLaunch
     );
     assert_eq!(
-        setting(UserSettingsField::CompletionReminderMinimumSeconds).control,
+        setting(Row::CompletionThreshold).control,
         SettingControl::BoundedInteger {
             minimum: 1,
             maximum: 3_600,
@@ -145,7 +139,7 @@ fn shared_preference_metadata_is_complete_and_every_setting_stays_reachable() {
         }
     );
     assert_eq!(
-        setting(UserSettingsField::ScrollbackBytes).control,
+        setting(Row::Scrollback).control,
         SettingControl::BoundedInteger {
             minimum: 0,
             maximum: 1_000_000_000,
@@ -422,7 +416,7 @@ fn a_theme_line_stores_its_slot_and_leaves_appearance_alone() {
         assert!(restored.is_empty());
         assert_eq!(
             written,
-            [key(setting_for_row(slot).unwrap().key)],
+            [key(slot.setting().unwrap().key)],
             "only the slot is written"
         );
     }

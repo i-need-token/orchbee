@@ -2,7 +2,7 @@
 //! Server applies at once; the launch-profile editor applies its catalog when it closes.
 use super::{
     AdjustmentStep, Category, Choice, ChoicePicker, Control, Edit, Editor, Page, Pane, Row, State,
-    Submission, Token, changes::Change, page::text_key, values,
+    Submission, Token, changes::Change, values,
 };
 use crate::localization::StartFolder;
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
@@ -392,7 +392,7 @@ impl Editor {
         };
         let row = page.row;
         let value = page.text.as_ref()?.text().to_owned();
-        if text_key(row).is_some() {
+        if row.text_key().is_some() {
             page.text = None;
             self.redraw();
             return self.commit_text(row, value);
@@ -437,7 +437,7 @@ impl Editor {
         let State::Open(page) = &mut self.state else {
             return None;
         };
-        let key = SettingPath::parse(text_key(row)?).ok()?;
+        let key = SettingPath::parse(row.text_key()?).ok()?;
         if page.text_value(row).unwrap_or_default() == value {
             return None;
         }
@@ -471,7 +471,7 @@ impl Editor {
             return None;
         }
         page.row = row;
-        let text = text_key(row).map(|_| None);
+        let text = row.text_key().map(|_| None);
         let restored = page.restored_values(row);
         let change = Change::new(row, changes, text, &page.values, &restored);
         self.queue(change)

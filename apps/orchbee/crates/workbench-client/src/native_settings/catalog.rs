@@ -1,7 +1,7 @@
 //! The page's categories and groups in the Desktop page's order, and the entries a category, a
 //! search, or a child page lists. Values only decide which dependent rows show.
 use super::{Choice, Page, Row};
-use crate::localization::Locale;
+use crate::localization::{Locale, Words, words};
 use orchbee_workbench_protocol::{CompletionReminderMode, TerminalDisplayAppearance};
 
 /// One entry of the page's left column.
@@ -43,6 +43,19 @@ impl Category {
         }
     }
 
+    pub(crate) const fn name(self, locale: Locale) -> &'static str {
+        locale.words(match self {
+            Self::General => words("General", "通用"),
+            Self::Appearance => words("Appearance", "外观"),
+            Self::Themes => words("Themes", "主题"),
+            Self::Terminal => words("Terminal", "终端"),
+            Self::Notifications => words("Notifications", "通知"),
+            Self::Keyboard => words("Keyboard", "快捷键"),
+            Self::Agents => words("Agents", "智能体"),
+            Self::About => words("About", "关于"),
+        })
+    }
+
     /// Every category of settings but Themes ends with the line that points to the settings
     /// file; About holds none.
     pub(crate) const fn config_file(self) -> bool {
@@ -79,7 +92,94 @@ pub enum Group {
     About,
 }
 
+/// A group's own lines: its heading, the line under the heading, and the line it ends with.
+#[derive(Clone, Copy)]
+struct GroupWords {
+    heading: Option<Words>,
+    description: Option<Words>,
+    note: Option<Words>,
+}
+
+/// A group framed without a heading.
+const UNNAMED: GroupWords = GroupWords {
+    heading: None,
+    description: None,
+    note: None,
+};
+
+const fn titled(en_us: &'static str, zh_cn: &'static str) -> GroupWords {
+    GroupWords {
+        heading: Some(words(en_us, zh_cn)),
+        ..UNNAMED
+    }
+}
+
+impl GroupWords {
+    const fn described(mut self, en_us: &'static str, zh_cn: &'static str) -> Self {
+        self.description = Some(words(en_us, zh_cn));
+        self
+    }
+
+    const fn noted(mut self, en_us: &'static str, zh_cn: &'static str) -> Self {
+        self.note = Some(words(en_us, zh_cn));
+        self
+    }
+}
+
 impl Group {
+    /// The one declaration of a group's words. A new group is a variant above, its arm here, its
+    /// rows below, and its place in a category's list.
+    const fn words(self) -> GroupWords {
+        match self {
+            Self::Language | Self::Updates | Self::Prefix | Self::About => UNNAMED,
+            Self::AfterRestart | Self::AgentRestore => titled("After a restart", "重启之后"),
+            Self::AppAppearance => titled("App appearance", "应用外观"),
+            Self::TerminalColors => titled("Terminal colors", "终端颜色"),
+            Self::LightThemes => titled("Light theme", "浅色主题").described(
+                "Applies when the app appearance is Light.",
+                "应用外观为浅色时才会使用。",
+            ),
+            Self::DarkThemes => titled("Dark theme", "深色主题").described(
+                "Applies when the app appearance is Dark.",
+                "应用外观为深色时才会使用。",
+            ),
+            Self::SelectionKeys => titled("Selection and keys", "选择与按键"),
+            Self::Output => titled("Output", "输出"),
+            Self::LaunchProfiles => titled("Launch profiles", "启动配置").described(
+                "Which shell a new terminal runs, plus your own profiles.",
+                "新终端运行哪个 Shell，以及你自己的启动配置。",
+            ),
+            Self::WhenToNotify => titled("When to notify", "何时通知"),
+            Self::SoundDelivery => titled("Sound and delivery", "声音与显示"),
+            Self::AgentConfirmations => titled("Allow routine confirmations", "自动允许常规确认")
+                .described(
+                    "Presses the Agent's one-time Yes. Destructive commands always wait.",
+                    "替你按下智能体的单次允许。破坏性命令始终等你确认。",
+                )
+                .noted(
+                    "Request more Agents in a GitHub issue.",
+                    "可在 GitHub issue 中申请更多智能体。",
+                ),
+        }
+    }
+
+    /// The group's heading; `None` for a group framed without one.
+    pub(crate) fn heading(self, locale: Locale) -> Option<&'static str> {
+        self.words().heading.map(|heading| locale.words(heading))
+    }
+
+    /// The line under a described group's heading.
+    pub(crate) fn description(self, locale: Locale) -> Option<&'static str> {
+        self.words()
+            .description
+            .map(|description| locale.words(description))
+    }
+
+    /// The line a noted group ends with, under its rows.
+    pub(crate) fn note(self, locale: Locale) -> Option<&'static str> {
+        self.words().note.map(|note| locale.words(note))
+    }
+
     /// The rows this group can show, in order; theme lists come from the shipped catalog.
     pub(crate) fn rows(self) -> Vec<Row> {
         match self {
@@ -108,11 +208,6 @@ impl Group {
 
     pub(crate) const fn is_theme_list(self) -> bool {
         matches!(self, Self::LightThemes | Self::DarkThemes)
-    }
-
-    /// A group that ends with a line of its own under its rows.
-    pub(crate) const fn noted(self) -> bool {
-        matches!(self, Self::AgentConfirmations)
     }
 }
 
@@ -234,7 +329,7 @@ pub(super) fn entries(
                     entries.extend(options.iter().copied().map(Entry::Option));
                 }
             }
-            if group.noted() {
+            if group.words().note.is_some() {
                 entries.push(Entry::Note(*group));
             }
             entries.push(Entry::End);
@@ -257,13 +352,13 @@ fn matches(row: Row, category: Category, group: Group, terms: &[String]) -> bool
         .map(|locale| {
             let name = match row {
                 Row::ThemeOption(theme) => locale.settings_choice(Choice::ColorTheme(theme)),
-                _ => locale.settings_row(row),
+                _ => row.name(locale),
             };
             format!(
                 "{name} {} {} {}",
-                locale.settings_description(row),
-                locale.settings_group_name(group).unwrap_or_default(),
-                locale.settings_category_name(category),
+                row.description(locale),
+                group.heading(locale).unwrap_or_default(),
+                category.name(locale),
             )
         })
         .join(" ")

@@ -1,6 +1,6 @@
 //! One key map serves dispatch and the hints line: text editing owns printable keys, and the
 //! hints name the keys the focused row answers.
-use super::{Edit, Page, PageView, Pane, Row, SettingControl, View, setting_for_row};
+use super::{Edit, Page, PageView, Pane, Row, SettingControl, View};
 use crate::client_view::{Binding, KeyCode, KeyEvent, KeyKind, Modifiers};
 use crate::terminal_text::line_editor::LineKey;
 
@@ -135,7 +135,8 @@ fn primary_label(page: PageView<'_>, row: Row) -> SettingsHintLabel {
         Row::Updates if page.about().update().is_some() => SettingsHintLabel::Update,
         Row::Updates => SettingsHintLabel::Check,
         row if page.checked(row).is_some() => SettingsHintLabel::Toggle,
-        row if setting_for_row(row)
+        row if row
+            .setting()
             .is_some_and(|metadata| !matches!(metadata.control, SettingControl::Boolean))
             || row.text_limit().is_some() =>
         {
