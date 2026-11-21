@@ -1,6 +1,6 @@
-//! Private checkpoint transport in the Session folder: bounded checkpoint payloads, restore facts
-//! and kept terminal output. The Server owns the retained document's meaning; the
-//! private filesystem adapter owns admission and atomic publication.
+//! Private checkpoint transport in the Session folder: bounded checkpoint payloads, restore facts,
+//! kept terminal output and the binding record. The Server owns the retained documents' meaning;
+//! the private filesystem adapter owns admission and atomic publication.
 use crate::{
     DataRoot, HeldLock, ModeCheckedLocalSessionRendezvous,
     checkpoint_rotation::{self as rotation, Candidate, HEADER_BYTES, SLOTS},
@@ -12,6 +12,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub(crate) mod bindings;
 mod restore;
 mod terminal_output;
 
@@ -68,6 +69,7 @@ impl SessionStore {
             _directories: directories,
         };
         store.cleanup_pending()?;
+        remove_if_present(&store.directory.join(bindings::PENDING))?;
         crate::checkpoint_restore_notice::remove_pending(
             &store
                 .directory

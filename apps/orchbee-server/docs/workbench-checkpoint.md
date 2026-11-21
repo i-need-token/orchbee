@@ -262,6 +262,51 @@ the previous valid copies and a bounded error state; it does not terminate a ter
 fresh Session. The saver must settle before final clean-stop capture. Failure to join it prevents stop
 completion rather than allowing two storage writers.
 
+## Binding record
+
+A Windows Session also keeps `bindings.json` in its Session folder: which running terminal each
+Presentation shows and what this Server issued for it, so that a Server which did not create those
+terminals can adopt them from their Host. `binding_record.rs` owns the document;
+`local_worker_service/managed/checkpoint/bindings.rs` owns when it is written; the
+[storage contract](../../../crates/local-runtime/docs/windows-checkpoint-storage.md#binding-record)
+carries its bytes. macOS writes none until its Server can adopt a Host it did not start.
+
+- **Contents.** One JSON object of at most 1 MiB with snake_case members and identities as 32
+  lowercase hexadecimal digits: `version` 1; `extensions`; the activation id of the generation that
+  wrote it, a diagnostic only, since validity comes from the running Host; the Session Worker id;
+  `next_identity`, the identity the coordinator allocates next; one entry for the Session's Host, with
+  the process id and creation time `session.json` registered and the epoch its terminals carry; and
+  one entry per terminal. A terminal entry holds the product Terminal ID, the Host creation, epoch and
+  terminal ids, whether it awaits its start or started, the highest fence issued for it and the Close
+  in flight on it (operation id, attempt generation, step, effect-unknown): the fields of
+  `AdoptBinding`. Beside them it holds what serving the terminal needs: the Presentation that shows
+  it and the program name that Presentation displays, the creation request a Client's start names, the
+  geometry it started at, whether its start was deferred, whether it is an interactive shell, and its
+  Launch Profile provenance and explicit launch selection.
+- **What is left out.** Popups, which no Presentation shows; a binding whose launch or start is in
+  flight, unknown or unavailable, as a Worker replacement leaves them out; and a binding no
+  Presentation shows, which stays in the coordinator only for replay. When no Host runs, the record
+  names no Host and no terminal; terminals carrying two epochs, which one Host never gives, are all
+  left out with a diagnostic.
+- **Rules.** It belongs to the class of `session.json`: two installed versions read it at once, later
+  facts go into `extensions`, which a writer that adopted the record writes back unchanged, and
+  nothing restores it from a backup. It is not a versioned record of the
+  [persisted data versions](../../../crates/local-runtime/README.md#persisted-data-versions) rules: it
+  never migrates, and a reader that cannot use it (another version, an unknown member outside
+  `extensions`, or contents that contradict each other) treats it as absent. Every publication
+  passes the same decoder first. A record over the bound is written without the launch selections,
+  with a diagnostic; one still over it is not written.
+- **When it is written.** The saver looks at the settled bindings, their fences, geometry and Closes
+  in flight, and the Workbench revision on every poll; it writes 500 ms after the first change it
+  has not written, without restarting that wait for later changes, and skips bytes identical to the
+  last ones it wrote. While the Host is starting or cannot be observed, the write waits one second.
+  Every final capture, of a stop or an `exit`, writes it right after the final checkpoint. A stop
+  removes it once the Worker's disposal, or the stop after that Worker exited, ended the Host, so
+  nothing is left to adopt; an `exit` keeps the Host running and leaves the record in place.
+- **Failure.** A record that cannot be captured or published is removed, since it no longer
+  describes the Session, and tried again a second later; removal failures and repeated causes are
+  reported once as diagnostics. The record never fails a save or a stop.
+
 ## Terminal output replay
 
 The `restoreTerminalOutput` preference (off by default) keeps each terminal's recent output on this

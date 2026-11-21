@@ -83,6 +83,42 @@ impl LocalTerminalService {
         Ok((revision, bytes))
     }
 
+    /// What the binding record says that can change, for the saver to compare between looks.
+    pub(crate) fn binding_observation(
+        &self,
+    ) -> io::Result<crate::session_coordinator::BindingObservation> {
+        Ok(self
+            .coordinator
+            .lock()
+            .map_err(|_| io::Error::other("coordinator failed"))?
+            .binding_observation())
+    }
+
+    /// What the binding record keeps of Session Worker `worker`'s terminals, with the observation it
+    /// matches, from one coordinator acquisition.
+    pub(crate) fn binding_capture(
+        &self,
+        worker: &WorkerId,
+    ) -> io::Result<(
+        crate::session_coordinator::BindingObservation,
+        crate::binding_record::Capture,
+    )> {
+        let worker = u128::from_str_radix(worker.as_str(), 16)
+            .ok()
+            .and_then(|worker| {
+                orchbee_capability_node_protocol::WorkerId::from_bytes(worker.to_be_bytes()).ok()
+            })
+            .ok_or_else(|| io::Error::other("invalid Worker"))?;
+        let coordinator = self
+            .coordinator
+            .lock()
+            .map_err(|_| io::Error::other("coordinator failed"))?;
+        Ok((
+            coordinator.binding_observation(),
+            coordinator.binding_capture(worker),
+        ))
+    }
+
     /// Captures kept terminal output for the next background save within `budget`, where output
     /// replay is on.
     pub(crate) fn capture_kept_output_within(&self, budget: Duration) {

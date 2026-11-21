@@ -299,6 +299,13 @@ const cases = [
 		'config',
 	],
 	[
+		'windows-checkpoint-storage',
+		'a writer that no longer holds the store lock publishes the binding file',
+		'  /\\ storeHeld /\\ t = storeTake\n',
+		'',
+		/Invariant BindingsCurrent is violated/u,
+	],
+	[
 		'native-request-scoped-unknown-outcome',
 		'an owed publication read has no fairness',
 		' /\\ WF_vars(Publish)\n',

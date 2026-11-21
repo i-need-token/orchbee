@@ -1,0 +1,61 @@
+{
+	"version": 1,
+	"extensions": { "added_later": { "member": 1 } },
+	"activation_id": "7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a",
+	"worker_id": "0000000000000000000000000000a001",
+	"next_identity": "00000000000000000000000000000041",
+	"hosts": [
+		{
+			"process": { "pid": 4300, "creation_time": 134000000000000003 },
+			"epoch": "000000000000000000000000000000e1"
+		}
+	],
+	"terminals": [
+		{
+			"terminal_id": "00000000000000000000000000000021",
+			"create_request": "0000000000000000000000000000c021",
+			"presentation_id": "0000000000000000000000000000b021",
+			"launch_program": "pwsh.exe",
+			"host": {
+				"creation_id": "000000000000000000000000000000c1",
+				"epoch": "000000000000000000000000000000e1",
+				"terminal_id": "00000000000000000000000000000001"
+			},
+			"phase": "started",
+			"geometry": { "columns": 120, "rows": 30, "cell_width": 9, "cell_height": 18 },
+			"fence": 3,
+			"deferred": false,
+			"interactive_shell": true,
+			"profile": { "id": "pwsh", "catalog_revision": 7 },
+			"launch_selection": {
+				"executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+				"arguments": ["-NoLogo"]
+			},
+			"close": {
+				"operation_id": "00000000000000000000000000000040",
+				"attempt_generation": 1,
+				"step": 2,
+				"effect_unknown": true
+			}
+		},
+		{
+			"terminal_id": "00000000000000000000000000000024",
+			"create_request": "0000000000000000000000000000c024",
+			"presentation_id": "0000000000000000000000000000b024",
+			"launch_program": null,
+			"host": {
+				"creation_id": "000000000000000000000000000000c2",
+				"epoch": "000000000000000000000000000000e1",
+				"terminal_id": "00000000000000000000000000000002"
+			},
+			"phase": "awaiting-start",
+			"geometry": null,
+			"fence": 1,
+			"deferred": true,
+			"interactive_shell": false,
+			"profile": null,
+			"launch_selection": null,
+			"close": null
+		}
+	]
+}

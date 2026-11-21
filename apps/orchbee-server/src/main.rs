@@ -14,6 +14,8 @@ mod agent_service;
 #[cfg(any(windows, target_os = "macos"))]
 mod automatic_updates;
 #[cfg(any(unix, windows))]
+mod binding_record;
+#[cfg(any(unix, windows))]
 mod client_connection_registry;
 #[cfg(any(unix, windows))]
 mod client_view_registry;

@@ -169,7 +169,10 @@ pub use session_catalog::{
 };
 pub use session_name::SessionName;
 pub mod private_filesystem;
-pub use session_store::{CheckpointLoad, CheckpointRestoreNotice, SessionStore};
+pub use session_store::{
+    CheckpointLoad, CheckpointRestoreNotice, SessionStore,
+    bindings::{MAXIMUM_BINDING_RECORD_BYTES, read_session_bindings},
+};
 #[cfg(test)]
 mod tests;
 

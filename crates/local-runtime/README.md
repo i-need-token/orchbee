@@ -369,9 +369,9 @@ store change; the module's tests drive every store through an injected step.
 A stored sample of every released format keeps opening through today's opener. Each sample is a
 test file named `<record>-v<version>` beside the tests of the store that opens it:
 `src/tests/record_migration/record-samples/` holds the Session record, the restore notice and the
-plugin registry, Workbench Client keeps the machine and TUI position records, and the Server's
+plugin registry, Workbench Client keeps the machine and TUI position records, the Server's
 checkpoint load tests keep a checkpoint slot with the kept terminal output it names, since the
-Server parses both payloads. A format change adds its sample beside the earlier ones and removes
+Server parses both payloads, and the Server's binding record tests keep a binding record. A format change adds its sample beside the earlier ones and removes
 none, and no sample changes: the first automatic-update release sealed the formats it ships. The
 `layouts` folder has no sample, since nothing reads it.
 
@@ -408,6 +408,11 @@ reads the `layouts` folder.
 | --------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `internal/plugins/registry.json`  | `version`; `extensions`      | Readers see no plugin; link, install, folder assignment and cleanup are refused with `UnusableRegistry` |
 | `sessions/<session>/session.json` | `version`; `extensions`      | The catalog lists the Session as unrecognized with reason `Version`; it is neither started nor deleted  |
+
+The binding record, `sessions/<session>/bindings.json`, keeps the same `version` 1 and `extensions`
+rules without being a versioned record: two installed versions read it at once, so it never migrates
+or restores, `inspect_records` does not list it, and a reader that cannot use it treats it as absent
+([Session checkpoint store](#session-checkpoint-store)).
 
 Each store keeps an `extensions` object it reads as opaque and writes back unchanged, so a later
 release adds an optional field there without a migration. A record migrates only in a process that
@@ -671,7 +676,7 @@ and a name two folders spell. Any spelling of a name deletes the Session created
 admitted stopped receipt (or never-activated runtime), free lifetime, checkpoint and TUI position
 locks, and absent endpoints are required before publishing the durable Deleting record, which fences
 activation and survives partial cleanup. The owner removes only known Session and runtime files,
-including `terminal-output/` entries, a `layouts/` folder an earlier build kept, and the Terminal
+including `terminal-output/` entries, the binding record, a `layouts/` folder an earlier build kept, and the Terminal
 Host's `host-fatal.json`, `host-fatal.previous.json` and `host-diagnostics.jsonl` records in the
 `host` folder, plus on POSIX
 the `<endpoint-id>.l` lock file an exited Host leaves there, whose free lock absent endpoints
@@ -709,6 +714,14 @@ history. Raw originals are user recovery data retained until explicit Session de
 repair. Other users are excluded by the private ACL or mode; same-user writers respect the lock. The
 adapter does not claim directory-entry write-through; the acknowledged pending-file flush and
 atomic replacement do not prove power-loss or hardware durability.
+
+The store also keeps the binding record, `bindings.json`: one opaque document of at most
+`MAXIMUM_BINDING_RECORD_BYTES` (1 MiB) that only the store holder publishes, after the caller's
+validation accepts it, through a flushed private `bindings.pending` and the same atomic replacement;
+the holder also reads it back bounded and removes it. `read_session_bindings` reads it without the
+store. It keeps one copy without a frame, so nothing falls back, archives or restores it, and a
+reader that cannot use it treats it as absent. See the
+[storage contract](docs/windows-checkpoint-storage.md#binding-record).
 
 The store does not interpret JSON, select a default data directory, relaunch a process, replay an
 operation or grant Session restart authority. The Server owns startup/stop use of this primitive;

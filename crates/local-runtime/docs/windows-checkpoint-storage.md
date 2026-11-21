@@ -102,6 +102,24 @@ owns the payload, which numbers a checkpoint names and when files are removed. S
 the folder with the other owned checkpoint files; inside it, deletion recognizes only the entry and
 pending names and refuses anything else.
 
+## Binding record
+
+`bindings.json` beside the slots keeps one opaque document of at most 1 MiB that a Server needs to
+adopt running terminals it did not create. Only the holder of `state.lock` writes it: after the
+caller's validation accepts the bytes, it flushes one private `bindings.pending` file and
+atomically replaces the record, as `session.json` is replaced. A store open discards a leftover
+pending file. The store also reads the record back bounded and removes it, and
+`read_session_bindings` reads it through the private boundary without the store, for a process that
+does not hold it. Unlike the slots it keeps one copy and no frame: there is no fallback, corrupt
+archive or backup restore, and a reader that cannot use it treats it as absent. The
+[Server checkpoint contract](../../../apps/orchbee-server/docs/workbench-checkpoint.md#binding-record)
+owns the document and when it is written and removed. Session delete removes it and its pending file
+with the other owned checkpoint files.
+
+The single-writer rule covers it. The model gives each take of `state.lock` its own writer and lets
+only the take that holds the lock publish (`PublishBindings`); no writer of an earlier take replaces
+the record once a later take published it (`BindingsCurrent`).
+
 ## Restore notices
 
 The Server publishes a bounded private restore notice before making its managed Client endpoint
@@ -129,7 +147,10 @@ archival; it is not serialized. The adapter maps that identity to the exact pinn
 fresh raw archive name. Frame generation models only ordering among currently admitted valid slots,
 including restart at one after all valid ordering evidence is lost. The model checks three slots,
 invalid-original preservation, atomic commit and fallback; the Server's autosave model checks
-final-stop ordering. Its adapter mapping treats a successful same-directory atomic replacement as
+final-stop ordering. Its `rotation` variant checks the slots under the full bounds without store
+takes; its `single-writer` variant checks the binding record across two takes of the store lock
+with one publication, since the record's rule does not depend on the slots and their product
+would exceed the configuration deadline. Its adapter mapping treats a successful same-directory atomic replacement as
 commit and claims process-crash recovery only after that result. Deterministic storage tests cover rejection of unframed bytes,
 digest/format/domain rejection, ordering independent of filenames, generation conflicts,
 preservation failure, pending interruption, exhaustion and unchanged publication. Native Windows

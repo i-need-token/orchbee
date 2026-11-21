@@ -108,6 +108,32 @@ impl WorkbenchAuthority {
             .collect()
     }
 
+    /// Every bound member with the Presentation it shows and the program its binding launched, as
+    /// the binding record keeps them.
+    pub fn bound_presentations(
+        &self,
+    ) -> Vec<(
+        PresentationBinding,
+        TerminalPresentationId,
+        Option<orchbee_workbench_protocol::PresentationLaunchProgram>,
+    )> {
+        let mut bound = Vec::new();
+        for context in &self.snapshot().terminal_contexts {
+            for tab in &context.tabs {
+                visit_panel_presentations(&tab.root, &mut |_, presentation| {
+                    if let Some(binding) = &presentation.binding {
+                        bound.push((
+                            binding.clone(),
+                            presentation.presentation_id.clone(),
+                            presentation.launch_program.clone(),
+                        ));
+                    }
+                });
+            }
+        }
+        bound
+    }
+
     /// The kept output token a restored, still unbound Presentation would replay.
     #[must_use]
     pub fn restart_output(&self, presentation_id: &TerminalPresentationId) -> Option<u64> {

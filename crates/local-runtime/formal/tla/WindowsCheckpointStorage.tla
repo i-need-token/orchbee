@@ -1,7 +1,7 @@
 -------------------- MODULE WindowsCheckpointStorage --------------------
 EXTENDS Naturals, FiniteSets, TLC
 
-CONSTANTS MaxPublication, MaxFrameGeneration
+CONSTANTS MaxPublication, MaxFrameGeneration, MaxStoreTake
 Slots == 1..3
 Publications == 1..MaxPublication
 Records == [publication : Publications, generation : 1..MaxFrameGeneration]
@@ -9,12 +9,19 @@ VARIABLES slotPublication, slotGeneration, invalid, damaged, archived,
           phase, chosen, pendingPublication, pendingGeneration,
           nextPublication, committed, protectedPublication, loadedAvailable,
           restoredPublication, restoredGeneration, loadHadDamage, notice,
-          lastEvent
-vars == <<slotPublication, slotGeneration, invalid, damaged, archived,
+          lastEvent,
+          \* The store lock: how many times a Server took it, and whether the newest take still
+          \* holds it. Each take is one writer; the slots above abstract the current one.
+          storeTake, storeHeld,
+          \* The binding file: the take whose writer published it last, and the newest take that
+          \* ever published it.
+          bindingsTake, bindingsNewest
+slotVars == <<slotPublication, slotGeneration, invalid, damaged, archived,
           phase, chosen, pendingPublication, pendingGeneration,
           nextPublication, committed, protectedPublication, loadedAvailable,
-          restoredPublication, restoredGeneration, loadHadDamage, notice,
-          lastEvent>>
+          restoredPublication, restoredGeneration, loadHadDamage, notice>>
+bindingVars == <<storeTake, storeHeld, bindingsTake, bindingsNewest>>
+vars == <<slotVars, bindingVars, lastEvent>>
 
 Maximum(values) == IF values = {} THEN 0
                    ELSE CHOOSE n \in values : \A m \in values : n >= m
@@ -47,6 +54,7 @@ Init ==
   /\ loadedAvailable = {} /\ restoredPublication = 0 /\ restoredGeneration = 0
   /\ loadHadDamage = FALSE /\ notice = "None"
   /\ lastEvent = "Init"
+  /\ storeTake = 0 /\ storeHeld = FALSE /\ bindingsTake = 0 /\ bindingsNewest = 0
 
 Prepare ==
   /\ phase = "Idle" /\ nextPublication <= MaxPublication
@@ -59,6 +67,7 @@ Prepare ==
   /\ UNCHANGED <<slotPublication, slotGeneration, invalid, damaged, archived,
                   nextPublication, committed, loadedAvailable, restoredPublication,
                   restoredGeneration, loadHadDamage, notice>>
+  /\ UNCHANGED bindingVars
 
 Flush ==
   /\ phase = "Writing" /\ phase' = "Prepared" /\ lastEvent' = "Flush"
@@ -66,6 +75,7 @@ Flush ==
                   chosen, pendingPublication, pendingGeneration, nextPublication,
                   committed, protectedPublication, loadedAvailable,
                   restoredPublication, restoredGeneration, loadHadDamage, notice>>
+  /\ UNCHANGED bindingVars
 
 PreserveInvalid ==
   /\ phase = "Prepared" /\ chosen \in invalid
@@ -77,6 +87,7 @@ PreserveInvalid ==
   /\ UNCHANGED <<damaged, chosen, pendingPublication, pendingGeneration,
                   nextPublication, committed, protectedPublication, loadedAvailable,
                   restoredPublication, restoredGeneration, loadHadDamage, notice>>
+  /\ UNCHANGED bindingVars
 
 Commit ==
   /\ phase \in {"Prepared", "Preserved"} /\ chosen \notin invalid
@@ -90,6 +101,7 @@ Commit ==
   /\ UNCHANGED <<invalid, damaged, archived, protectedPublication,
                   loadedAvailable, restoredPublication, restoredGeneration,
                   loadHadDamage, notice>>
+  /\ UNCHANGED bindingVars
 
 WriteFailure ==
   /\ phase # "Idle"
@@ -99,6 +111,7 @@ WriteFailure ==
   /\ UNCHANGED <<slotPublication, slotGeneration, invalid, damaged, archived,
                   nextPublication, committed, protectedPublication, loadedAvailable,
                   restoredPublication, restoredGeneration, loadHadDamage, notice>>
+  /\ UNCHANGED bindingVars
 
 Interrupt ==
   /\ phase # "Idle"
@@ -108,6 +121,7 @@ Interrupt ==
   /\ UNCHANGED <<slotPublication, slotGeneration, invalid, damaged, archived,
                   nextPublication, committed, protectedPublication, loadedAvailable,
                   restoredPublication, restoredGeneration, loadHadDamage, notice>>
+  /\ UNCHANGED bindingVars
 
 CorruptSlot(s) ==
   /\ phase = "Idle" /\ s \in Valid
@@ -118,6 +132,7 @@ CorruptSlot(s) ==
                   pendingPublication, pendingGeneration, nextPublication, committed,
                   loadedAvailable, restoredPublication, restoredGeneration,
                   loadHadDamage, notice>>
+  /\ UNCHANGED bindingVars
 
 Load ==
   /\ phase = "Idle"
@@ -131,9 +146,33 @@ Load ==
   /\ UNCHANGED <<slotPublication, slotGeneration, invalid, damaged, archived,
                   phase, chosen, pendingPublication, pendingGeneration,
                   nextPublication, committed, protectedPublication>>
+  /\ UNCHANGED bindingVars
+
+\* A Server takes the store lock, once no earlier take holds it.
+TakeStore ==
+  /\ ~storeHeld /\ storeTake < MaxStoreTake
+  /\ storeTake' = storeTake + 1 /\ storeHeld' = TRUE
+  /\ lastEvent' = "TakeStore"
+  /\ UNCHANGED <<slotVars, bindingsTake, bindingsNewest>>
+
+\* The holder releases the lock, or its process ends, after its write settled.
+ReleaseStore ==
+  /\ storeHeld /\ phase = "Idle"
+  /\ storeHeld' = FALSE /\ lastEvent' = "ReleaseStore"
+  /\ UNCHANGED <<slotVars, storeTake, bindingsTake, bindingsNewest>>
+
+\* The writer of take t replaces the binding file through a flushed pending file in one step. A
+\* writer exists for every take that happened; only the take that holds the store lock may write.
+PublishBindings(t) ==
+  /\ t <= storeTake
+  /\ storeHeld /\ t = storeTake
+  /\ bindingsTake' = t /\ bindingsNewest' = Maximum({bindingsNewest, t})
+  /\ lastEvent' = "PublishBindings"
+  /\ UNCHANGED <<slotVars, storeTake, storeHeld>>
 
 Next == Prepare \/ Flush \/ PreserveInvalid
         \/ Commit \/ WriteFailure \/ Interrupt \/ (\E s \in Slots : CorruptSlot(s)) \/ Load
+        \/ TakeStore \/ ReleaseStore \/ (\E t \in 1..MaxStoreTake : PublishBindings(t))
 SettleWrite == Flush \/ PreserveInvalid \/ Commit \/ WriteFailure \/ Interrupt
 Spec == Init /\ [][Next]_vars /\ WF_vars(SettleWrite)
 
@@ -154,7 +193,10 @@ TypeOK ==
   /\ loadHadDamage \in BOOLEAN /\ notice \in {"None", "Empty", "Recovered"}
   /\ lastEvent \in {"Init", "Prepare",
                      "Flush", "PreserveInvalid", "Commit", "WriteFailure",
-                     "Interrupt", "CorruptSlot", "Load"}
+                     "Interrupt", "CorruptSlot", "Load",
+                     "TakeStore", "ReleaseStore", "PublishBindings"}
+  /\ storeTake \in 0..MaxStoreTake /\ storeHeld \in BOOLEAN
+  /\ bindingsTake \in 0..MaxStoreTake /\ bindingsNewest \in 0..MaxStoreTake
 
 CompleteSlots == \A s \in Slots : (slotPublication[s] = 0) <=> (slotGeneration[s] = 0)
 ThreeCopies == Cardinality(Valid) <= 3
@@ -184,5 +226,7 @@ LatestValidRestore ==
           \in loadedAvailable)
 VisibleEmpty == (restoredPublication = 0 /\ loadHadDamage) => notice = "Empty"
 VisibleFallback == (restoredPublication # 0 /\ loadHadDamage) => notice = "Recovered"
+\* No writer of an earlier take replaces the binding file once a later take published it.
+BindingsCurrent == bindingsTake = bindingsNewest
 WriteSettles == (phase # "Idle") ~> (phase = "Idle")
 =========================================================================

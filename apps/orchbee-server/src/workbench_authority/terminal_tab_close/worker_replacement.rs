@@ -57,6 +57,60 @@ impl WorkbenchAuthority {
         })
     }
 
+    /// Every terminal a Close issued a step to in its current attempt, with what it issued, in one
+    /// pass over the retained requests, as the binding record keeps them.
+    #[must_use]
+    pub fn terminal_tab_closes_in_flight(
+        &self,
+    ) -> Vec<(
+        WorkerId,
+        WorkerGeneration,
+        TerminalId,
+        WorkbenchTabCloseInFlight,
+    )> {
+        let mut closes = Vec::new();
+        for entry in self.ledger.values() {
+            let RetainedRequest::TabClose(record) = entry else {
+                continue;
+            };
+            if record.is_finished() {
+                continue;
+            }
+            let Some(operation) = u128::from_str_radix(record.command.request_id.as_str(), 16)
+                .ok()
+                .and_then(|operation| OperationId::from_bytes(operation.to_be_bytes()).ok())
+            else {
+                continue;
+            };
+            let Some(attempt_generation) = NonZeroU64::new(record.generation.value()) else {
+                continue;
+            };
+            for (index, target) in record.targets.iter().enumerate() {
+                let Some(runtime) = target.runtime else {
+                    continue;
+                };
+                let Some((step_ordinal, step_effect_unknown)) = record
+                    .continuation(index)
+                    .and_then(|continuation| continuation.issued())
+                else {
+                    continue;
+                };
+                closes.push((
+                    runtime.worker_id,
+                    runtime.worker_generation,
+                    runtime.terminal_id,
+                    WorkbenchTabCloseInFlight {
+                        close_operation_id: operation,
+                        attempt_generation,
+                        step_ordinal,
+                        step_effect_unknown,
+                    },
+                ));
+            }
+        }
+        closes
+    }
+
     /// Moves each retained runtime target of Worker `worker_id` in generation `lost` whose terminal
     /// `imported` names into generation `replacement`, once the replacement adopted that terminal.
     pub fn move_terminal_tab_close_targets(

@@ -37,6 +37,7 @@
 │   ├── session.json
 │   ├── checkpoint.json, checkpoint.previous-1.json, checkpoint.previous-2.json
 │   ├── checkpoint.restore-notice
+│   ├── bindings.json
 │   ├── tui-position.json
 │   ├── layouts/<time>.json
 │   └── terminal-output/<number>.bin

@@ -30,10 +30,12 @@ mod adoption;
 mod create_inputs;
 mod launch_capture;
 mod outcomes;
+mod recorded;
 mod retirement;
 pub(crate) use adoption::AdoptionImport;
 pub(crate) use create_inputs::CreateInputs;
 pub(crate) use launch_capture::LaunchCapture;
+pub(crate) use recorded::RecordedState;
 
 pub(crate) const MAXIMUM_TERMINAL_BINDINGS: usize = 1_024;
 

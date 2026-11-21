@@ -60,6 +60,8 @@ const SESSION_FILES: &[&str] = &[
     "state.lock",
     crate::checkpoint_restore_notice::FILE,
     crate::checkpoint_restore_notice::PENDING,
+    crate::session_store::bindings::FILE,
+    crate::session_store::bindings::PENDING,
     // The TUI position record, `data_root::TUI_POSITION_RECORD`, with its lock and staging file.
     "tui-position.json",
     TUI_POSITION_LOCK,

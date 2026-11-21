@@ -59,6 +59,8 @@ mod directory_label;
 mod pane_graphics;
 mod presentation_titles;
 mod process_observation;
+mod recorded_bindings;
+pub(crate) use recorded_bindings::BindingObservation;
 mod semantic_events;
 mod worker_adoption;
 #[cfg(all(test, windows))]

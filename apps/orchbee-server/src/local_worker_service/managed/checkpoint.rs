@@ -18,6 +18,7 @@ use std::{
 #[cfg(windows)]
 use std::{thread, time::Duration};
 pub(super) mod autosave;
+mod bindings;
 
 /// Whether this platform's managed Session keeps a checkpoint: it restores the last one when it
 /// starts, saves while it runs and publishes a final one when it stops. A Linux Session keeps none
@@ -31,6 +32,9 @@ pub(super) struct Kept {
     saver: Option<autosave::Saver>,
     /// The loaded fallback was the visible empty one, which stays unsaved until it changes.
     suppress_initial_empty: bool,
+    /// What keeps the binding record, where this platform keeps one; the saver and the final
+    /// capture write through it, one at a time.
+    bindings: Option<Arc<Mutex<bindings::Writer>>>,
 }
 
 impl Kept {
@@ -45,6 +49,7 @@ impl Kept {
             Arc::clone(terminals),
             worker,
             self.suppress_initial_empty,
+            self.bindings.clone(),
         )?);
         Ok(())
     }
@@ -57,15 +62,29 @@ impl Kept {
         }
     }
 
-    /// Publishes the final checkpoint, even when it matches the suppressed empty fallback.
+    /// Publishes the final checkpoint, even when it matches the suppressed empty fallback, and
+    /// then the binding record of the same moment. A binding record that cannot be written is
+    /// reported and removed; it never fails the capture.
     pub(super) fn publish_final(
         &self,
         terminals: &LocalTerminalService,
+        worker: &orchbee_workbench_protocol::WorkerId,
         bytes: &[u8],
     ) -> io::Result<()> {
         autosave::publish_final(&self.store, bytes)?;
         terminals.after_checkpoint_save(bytes);
+        if let Some(Ok(mut bindings)) = self.bindings.as_ref().map(|bindings| bindings.lock()) {
+            bindings.write_final(terminals, worker);
+        }
         Ok(())
+    }
+
+    /// Removes the binding record once the Host has ended, so nothing is left to adopt; a failure
+    /// is reported only.
+    pub(super) fn remove_bindings(&self) {
+        if let Some(Ok(mut bindings)) = self.bindings.as_ref().map(|bindings| bindings.lock()) {
+            bindings.remove();
+        }
     }
 
     /// The store kept terminal output shares with the checkpoint.
@@ -90,10 +109,21 @@ pub(super) fn load(
         return Ok((RetainedSessionRecord::retain(&root, session)?, None, None));
     }
     let (store, checkpoint, record, suppress_initial_empty) = load_from(&root, session)?;
+    let store = Arc::new(Mutex::new(store));
+    let bindings = if bindings::RECORDED {
+        let session = RetainedSessionRecord::retain(&root, session)?;
+        Some(Arc::new(Mutex::new(bindings::Writer::new(
+            Arc::clone(&store),
+            session,
+        ))))
+    } else {
+        None
+    };
     let kept = Kept {
-        store: Arc::new(Mutex::new(store)),
+        store,
         saver: None,
         suppress_initial_empty,
+        bindings,
     };
     Ok((record, Some(kept), checkpoint))
 }

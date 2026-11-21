@@ -683,7 +683,25 @@
 				"WriteFailure",
 				"Interrupt",
 				"CorruptSlot",
-				"Load"
+				"Load",
+				"TakeStore",
+				"ReleaseStore",
+				"PublishBindings"
+			],
+			"variants": [
+				{
+					"name": "rotation",
+					"constants": {
+						"MaxStoreTake": 0
+					}
+				},
+				{
+					"name": "single-writer",
+					"constants": {
+						"MaxPublication": 1,
+						"MaxFrameGeneration": 1
+					}
+				}
 			]
 		}
 	]

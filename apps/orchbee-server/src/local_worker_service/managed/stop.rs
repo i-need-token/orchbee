@@ -307,7 +307,7 @@ fn settle(
                 .terminals
                 .checkpoint(&worker, deadline)
                 .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-            kept.publish_final(&owners.terminals, &bytes)
+            kept.publish_final(&owners.terminals, &worker, &bytes)
                 .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
         }
         shutdown.phase(attempt, StopPhase::Worker);
@@ -412,6 +412,11 @@ fn settle(
         .terminals
         .finish_process_observer_after_worker_exit(&owners.handle)
         .map_err(|error| failure(StopPhase::WorkerExit, error))?;
+    // The Worker's disposal, or the stop after that Worker exited, ended the Host, so no running
+    // terminal is left to adopt.
+    if let Some(kept) = &owners.checkpoint {
+        kept.remove_bindings();
+    }
     shutdown.phase(attempt, StopPhase::Ingress);
     owners.ingress.stop_before(deadline).map_err(|error| {
         let mut error = failure(StopPhase::Ingress, error);
@@ -529,7 +534,7 @@ fn settle_without_worker(
                 io::ErrorKind::TimedOut.into(),
             ));
         }
-        kept.publish_final(&owners.terminals, &bytes)
+        kept.publish_final(&owners.terminals, &worker, &bytes)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     }
     shutdown.phase(attempt, StopPhase::HostExit);
@@ -691,7 +696,7 @@ fn settle_for_exit(
             .finish_process_observer_after_worker_exit(&owners.handle)?;
         if let Some(kept) = &owners.checkpoint {
             let bytes = owners.terminals.checkpoint_without_worker(&worker)?;
-            kept.publish_final(&owners.terminals, &bytes)?;
+            kept.publish_final(&owners.terminals, &worker, &bytes)?;
         }
         // A POSIX `exit` disposes the terminals, which only the Worker's Host can still end.
         #[cfg(unix)]
@@ -699,7 +704,7 @@ fn settle_for_exit(
     } else {
         if let Some(kept) = &owners.checkpoint {
             let bytes = owners.terminals.checkpoint(&worker, deadline)?;
-            kept.publish_final(&owners.terminals, &bytes)?;
+            kept.publish_final(&owners.terminals, &worker, &bytes)?;
         }
         let mut operation = [0; 16];
         getrandom::fill(&mut operation).map_err(|error| io::Error::other(error.to_string()))?;
