@@ -155,9 +155,10 @@ A member that states its [lateral-import contract](MODULE-BOUNDARIES.md#native-s
 layers keeps it in `docs/module-layers.md`. The first table under `## Layers` lists layer IDs from
 lowest to highest, or the section links to another member's contract to reuse its table. Tables
 under `## Module assignment` map module paths to layers; a descendant inherits the nearest assigned
-ancestor's layer. `pnpm lint:rust-modules` reads the file and reports cycles and upward references
-without failing ([Linting](LINTING.md#enforcement-boundary)); its
-[fixtures](../scripts/rust-module-graph.test.mjs) exercise graph extraction and contract parsing.
+ancestor's layer. `pnpm lint:rust-modules` reads the file, reports cycles and upward references,
+and fails on any that the [Rust module record](LINTING.md#rust-module-record) does not list; its
+[fixtures](../scripts/rust-module-graph.test.mjs) exercise graph extraction, contract parsing, and
+the record rule.
 
 ## Platform-specific code
 

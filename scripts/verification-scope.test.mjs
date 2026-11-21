@@ -326,6 +326,8 @@ test('only declared verification helpers use root tooling evidence; new helpers 
 		'scripts/run-rust-workspace.test.mjs',
 		'scripts/verification-scope.mjs',
 		'scripts/verification-scope.test.mjs',
+		'scripts/rust-module-graph.mjs',
+		'scripts/rust-module-graph-record.txt',
 		'scripts/tla/run-models.mjs',
 		'scripts/tla/model-cache-cli.test.mjs',
 		'docs/VERIFICATION.md',

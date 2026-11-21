@@ -1,7 +1,8 @@
 # Workbench Client Module Layers
 
 Status: accepted layer and lateral-import contract for this crate. Current code does not conform
-yet; `pnpm lint:rust-modules` reports the remaining cycles and upward references without failing.
+yet; `pnpm lint:rust-modules` passes the cycles and upward references that the
+[Rust module record](../../../../../docs/LINTING.md#rust-module-record) lists and fails any new one.
 
 This document is the owner-local contract that
 [module boundaries](../../../../../docs/MODULE-BOUNDARIES.md#native-source-trees) requires for this

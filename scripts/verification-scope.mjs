@@ -73,6 +73,11 @@ const rootToolInputs = new Set([
 	'scripts/check-output.test.mjs',
 	'scripts/verification-scope.mjs',
 	'scripts/verification-scope.test.mjs',
+	// The Rust module graph check runs complete in `lint`, and its test with the root tooling tests.
+	'scripts/rust-module-graph.mjs',
+	'scripts/rust-module-graph.test.mjs',
+	'scripts/rust-module-graph-record.mjs',
+	'scripts/rust-module-graph-record.txt',
 	'docs/VERIFICATION.md',
 	'docs/MODELING-AND-CORRECTNESS.md',
 	...[

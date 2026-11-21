@@ -1,9 +1,18 @@
-// Report-only Rust module graph check: production module cycles in every Cargo member, plus layer
-// direction for members that declare a module-layer contract. Findings never fail the command;
-// unreadable manifests, unresolvable inputs, and malformed contracts do.
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+// Rust module graph check: production module cycles in every Cargo member, plus layer direction
+// for members that declare a module-layer contract. Findings that the record lists as existing
+// pass; a cycle edge or upward reference beyond the record fails the command, as do unreadable
+// manifests, unresolvable inputs, and malformed contracts.
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import {
+	RECORD_PATH,
+	compareWithRecord,
+	formatRecord,
+	formatVerdict,
+	parseRecord,
+} from './rust-module-graph-record.mjs';
 
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '..');
 export const CONTRACT_PATH = 'docs/module-layers.md';
@@ -720,8 +729,13 @@ function stronglyConnectedComponents(nodes, edges) {
 	return components;
 }
 
-function siblingCycles(root, references) {
+function sourceLocation(repositoryRoot, reference) {
+	return `${normalizeSeparators(path.relative(repositoryRoot, reference.file))}:${reference.line}`;
+}
+
+function siblingCycles(root, references, repositoryRoot) {
 	const levels = new Map();
+	const samples = new Map();
 	for (const reference of references) {
 		const from = reference.from.path;
 		const to = reference.to.path;
@@ -734,6 +748,8 @@ function siblingCycles(root, references) {
 		const targets = level.get(from[common]) ?? new Set();
 		level.set(from[common], targets);
 		targets.add(to[common]);
+		const link = `${parent}\0${from[common]}\0${to[common]}`;
+		if (!samples.has(link)) samples.set(link, sourceLocation(repositoryRoot, reference));
 	}
 	const modulesByKey = new Map([...walkModules(root)].map((module) => [moduleKey(module), module]));
 	const cycles = [];
@@ -742,14 +758,22 @@ function siblingCycles(root, references) {
 		const nodes = [...parentModule.children.keys()].toSorted();
 		for (const members of stronglyConnectedComponents(nodes, edges)) {
 			const memberSet = new Set(members);
-			let internalEdges = 0;
+			const links = [];
 			for (const member of members) {
-				for (const target of edges.get(member) ?? []) if (memberSet.has(target)) internalEdges += 1;
+				for (const target of [...(edges.get(member) ?? [])].toSorted()) {
+					if (!memberSet.has(target)) continue;
+					links.push({
+						from: member,
+						to: target,
+						sample: samples.get(`${parent}\0${member}\0${target}`),
+					});
+				}
 			}
 			cycles.push({
 				parent,
 				members,
-				edges: internalEdges,
+				edges: links.length,
+				links,
 				productionLines: members.reduce(
 					(total, member) => total + subtreeLines(parentModule.children.get(member)),
 					0,
@@ -854,6 +878,19 @@ function assignedKey(assignments, modulePath) {
 	return undefined;
 }
 
+/** Marks the cycle links a layer contract allows: the source's layer is above the target's. */
+function markDownwardLinks(cycles, { layers, assignments }) {
+	for (const cycle of cycles) {
+		const prefix = cycle.parent === '' ? [] : cycle.parent.split('::');
+		for (const link of cycle.links) {
+			const from = assignedKey(assignments, [...prefix, link.from]);
+			const to = assignedKey(assignments, [...prefix, link.to]);
+			if (from === undefined || to === undefined || from === to) continue;
+			if (layers.get(assignments.get(from)) > layers.get(assignments.get(to))) link.downward = true;
+		}
+	}
+}
+
 function layerFindings(root, references, contract, repositoryRoot) {
 	const { layers, assignments } = contract;
 	const existing = new Set([...walkModules(root)].map(moduleKey));
@@ -873,18 +910,31 @@ function layerFindings(root, references, contract, repositoryRoot) {
 			toLayer,
 			references: 0,
 			samples: [],
+			sources: new Map(),
 		};
 		violations.set(key, entry);
 		entry.references += 1;
-		const sample = `${normalizeSeparators(path.relative(repositoryRoot, reference.file))}:${reference.line}`;
+		const sample = sourceLocation(repositoryRoot, reference);
 		if (entry.samples.length < SAMPLE_LIMIT && !entry.samples.includes(sample)) {
 			entry.samples.push(sample);
 		}
+		const module = moduleKey(reference.from);
+		const source = entry.sources.get(module) ?? { module, references: 0, locations: [] };
+		entry.sources.set(module, source);
+		source.references += 1;
+		source.locations.push(sample);
 	}
 	return {
-		violations: [...violations.values()].toSorted(
-			(left, right) => left.from.localeCompare(right.from) || left.to.localeCompare(right.to),
-		),
+		violations: [...violations.values()]
+			.map((entry) => ({
+				...entry,
+				sources: [...entry.sources.values()].toSorted((left, right) =>
+					left.module.localeCompare(right.module),
+				),
+			}))
+			.toSorted(
+				(left, right) => left.from.localeCompare(right.from) || left.to.localeCompare(right.to),
+			),
 		unassigned: [...root.children.keys()].filter((name) => !assignments.has(name)).toSorted(),
 		stale: [...assignments.keys()].filter((key) => !existing.has(key)).toSorted(),
 	};
@@ -948,14 +998,17 @@ export function buildModuleGraph(repositoryRoot, rootFile) {
 export function analyzeTarget(repositoryRoot, memberDirectory, rootFile, contract) {
 	const { root, references, unresolved } = buildModuleGraph(repositoryRoot, rootFile);
 	const modules = [...walkModules(root)];
+	const cycles = siblingCycles(root, references, repositoryRoot);
+	if (contract !== undefined) markDownwardLinks(cycles, contract);
 	return {
 		member: normalizeSeparators(path.relative(repositoryRoot, memberDirectory)),
 		target: path.basename(rootFile, '.rs') === 'main' ? 'bin' : 'lib',
 		topLevelModules: root.children.size,
 		modules: modules.length - 1,
+		modulePaths: modules.map(moduleKey).filter((key) => key !== ''),
 		productionLines: subtreeLines(root),
 		unresolvedModules: unresolved,
-		cycles: siblingCycles(root, references),
+		cycles,
 		layers:
 			contract === undefined
 				? undefined
@@ -1025,7 +1078,7 @@ function cycleScope(cycle) {
 
 /** Renders the bounded summary, or every cycle and violating pair with `details`. */
 export function formatReport({ results, problems }, { details = false } = {}) {
-	const lines = ['Rust module graph (report only; findings never fail this command)'];
+	const lines = ['Rust module graph (recorded findings pass; anything beyond the record fails)'];
 	for (const result of results) {
 		const { layers } = result;
 		lines.push(
@@ -1080,29 +1133,80 @@ export function formatReport({ results, problems }, { details = false } = {}) {
 }
 
 function parseArguments(argv) {
-	const options = { details: false, json: false, members: [] };
+	const options = { details: false, json: false, rewrite: undefined, members: [] };
 	for (let index = 0; index < argv.length; index += 1) {
 		const argument = argv[index];
 		if (argument === '--') continue;
 		if (argument === '--details') options.details = true;
 		else if (argument === '--json') options.json = true;
-		else if (argument === '--member') {
+		else if (argument === '--tighten' || argument === '--owner-approved') {
+			if (options.rewrite !== undefined)
+				throw new Error('Pass one of --tighten or --owner-approved');
+			options.rewrite = argument === '--tighten' ? 'tighten' : 'owner-approved';
+		} else if (argument === '--member') {
 			const value = argv[index + 1];
 			if (value === undefined) throw new Error('--member requires a Cargo member directory');
 			options.members.push(value);
 			index += 1;
 		} else throw new Error(`Unknown argument ${argument}`);
 	}
+	if (options.rewrite !== undefined && options.members.length > 0)
+		throw new Error(`--${options.rewrite} rewrites the whole record; run it without --member`);
 	return options;
+}
+
+/**
+ * Judges analyzed targets against the tracked record. `rewrite: 'tighten'` replaces the record
+ * with the exact findings of a passing tree and writes nothing for a failing one, so it never adds
+ * a finding. `rewrite: 'owner-approved'` records the findings as they are, new ones included: the
+ * one way to extend the record, for entries the repository owner allowed. `complete` says the
+ * results cover every Cargo member.
+ */
+export function checkRecord(repositoryRoot, results, { complete = true, rewrite } = {}) {
+	const file = path.join(repositoryRoot, RECORD_PATH);
+	const text = existsSync(file) ? readFileSync(file, 'utf8').replaceAll('\r\n', '\n') : '';
+	const record = parseRecord(text);
+	if (record.problems.length > 0) return { problems: record.problems };
+	const verdict = compareWithRecord(results, record, { complete });
+	const admitted = rewrite === 'owner-approved' || (rewrite === 'tighten' && !verdict.failed);
+	const next = admitted ? formatRecord(results) : text;
+	if (next === text) return { problems: [], verdict, rewritten: false };
+	writeFileSync(file, next);
+	return {
+		problems: [],
+		verdict: compareWithRecord(results, parseRecord(next), { complete }),
+		rewritten: true,
+	};
 }
 
 function main() {
 	const options = parseArguments(process.argv.slice(2));
 	const report = analyzeWorkspace(REPOSITORY_ROOT, options.members);
-	process.stdout.write(
-		options.json ? `${JSON.stringify(report, undefined, '\t')}\n` : formatReport(report, options),
-	);
-	if (report.problems.length > 0) process.exitCode = 1;
+	// Findings cannot be judged against the record while the graph itself is incomplete.
+	const record =
+		report.problems.length > 0
+			? undefined
+			: checkRecord(REPOSITORY_ROOT, report.results, {
+					complete: options.members.length === 0,
+					rewrite: options.rewrite,
+				});
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ ...report, record }, undefined, '\t')}\n`);
+	} else {
+		process.stdout.write(formatReport(report, options));
+		for (const problem of record?.problems ?? []) process.stdout.write(`error: ${problem}\n`);
+		if (record?.verdict !== undefined) process.stdout.write(formatVerdict(record.verdict, options));
+		if (record?.rewritten === true && options.rewrite === 'owner-approved')
+			process.stdout.write(
+				`Rewrote ${RECORD_PATH} to the findings above, new ones included. Only the repository owner may allow that: name the approval in the commit message.\n`,
+			);
+		else if (record?.rewritten === true)
+			process.stdout.write(`Rewrote ${RECORD_PATH} to the findings above; commit it.\n`);
+		else if (options.rewrite === 'tighten' && record?.verdict?.failed === true)
+			process.stdout.write(`${RECORD_PATH} is unchanged: --tighten never records a new entry.\n`);
+	}
+	if (record === undefined || record.problems.length > 0 || record.verdict.failed)
+		process.exitCode = 1;
 }
 
 if (

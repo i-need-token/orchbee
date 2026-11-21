@@ -1,0 +1,336 @@
+# Existing Rust module cycle edges and upward references, one per line.
+# `pnpm lint:rust-modules` fails when the module graph grows beyond this record.
+# Never add or change a line by hand: only the repository owner may allow a new entry.
+# After removing a cycle or an upward reference, run `pnpm lint:rust-modules -- --tighten`
+# and commit the smaller file. docs/LINTING.md#rust-module-record defines the rule.
+cycle apps/orchbee bin cli -> local_startup
+cycle apps/orchbee bin cli -> relaunch
+cycle apps/orchbee bin cli::agent_manifests -> cli::operation
+cycle apps/orchbee bin cli::agent_projection -> cli::present
+cycle apps/orchbee bin cli::agent_projection -> cli::results
+cycle apps/orchbee bin cli::caller_context -> cli::results
+cycle apps/orchbee bin cli::client_control -> cli::operation
+cycle apps/orchbee bin cli::installation -> cli::update
+cycle apps/orchbee bin cli::machines::connect -> cli::machines::routing
+cycle apps/orchbee bin cli::machines::hub::carrier -> cli::machines::hub::state
+cycle apps/orchbee bin cli::machines::hub::draft_ledger -> cli::machines::hub::state
+cycle apps/orchbee bin cli::machines::hub::relay -> cli::machines::hub::state
+cycle apps/orchbee bin cli::machines::hub::state -> cli::machines::hub::carrier
+cycle apps/orchbee bin cli::machines::hub::state -> cli::machines::hub::draft_ledger
+cycle apps/orchbee bin cli::machines::hub::state -> cli::machines::hub::relay
+cycle apps/orchbee bin cli::machines::hub::state -> cli::machines::hub::stop
+cycle apps/orchbee bin cli::machines::hub::stop -> cli::machines::hub::relay
+cycle apps/orchbee bin cli::machines::hub::stop -> cli::machines::hub::state
+cycle apps/orchbee bin cli::machines::routing -> cli::machines::connect
+cycle apps/orchbee bin cli::operation -> cli::agent_manifests
+cycle apps/orchbee bin cli::operation -> cli::client_control
+cycle apps/orchbee bin cli::operation -> cli::workspace_group_close
+cycle apps/orchbee bin cli::operation -> cli::worktree_operation
+cycle apps/orchbee bin cli::present -> cli::results
+cycle apps/orchbee bin cli::present -> cli::runtime_status
+cycle apps/orchbee bin cli::present -> cli::terminal_observation
+cycle apps/orchbee bin cli::query -> cli::agent_projection
+cycle apps/orchbee bin cli::query -> cli::caller_context
+cycle apps/orchbee bin cli::query -> cli::results
+cycle apps/orchbee bin cli::query -> cli::runtime_status
+cycle apps/orchbee bin cli::query -> cli::terminal_observation
+cycle apps/orchbee bin cli::query -> cli::terminal_output
+cycle apps/orchbee bin cli::results -> cli::query
+cycle apps/orchbee bin cli::results -> cli::runtime_status
+cycle apps/orchbee bin cli::runtime_status -> cli::installation
+cycle apps/orchbee bin cli::runtime_status -> cli::query
+cycle apps/orchbee bin cli::source_context -> cli::client_control
+cycle apps/orchbee bin cli::terminal_observation -> cli::results
+cycle apps/orchbee bin cli::terminal_output -> cli::results
+cycle apps/orchbee bin cli::update -> cli::agent_projection
+cycle apps/orchbee bin cli::update::acquire -> cli::update::platform
+cycle apps/orchbee bin cli::update::platform -> cli::update::acquire
+cycle apps/orchbee bin cli::workspace_focus -> cli::client_control
+cycle apps/orchbee bin cli::workspace_group_close -> cli::operation
+cycle apps/orchbee bin cli::worktree_operation -> cli::client_control
+cycle apps/orchbee bin cli::worktree_operation -> cli::operation
+cycle apps/orchbee bin cli::worktree_operation -> cli::workspace_focus
+cycle apps/orchbee bin cli::worktree_operation -> cli::worktree_source
+cycle apps/orchbee bin cli::worktree_source -> cli::client_control
+cycle apps/orchbee bin cli::worktree_source -> cli::source_context
+cycle apps/orchbee bin cli_text -> cli
+cycle apps/orchbee bin diagnostic_events -> relaunch
+cycle apps/orchbee bin local_startup -> cli
+cycle apps/orchbee bin local_startup -> relaunch
+cycle apps/orchbee bin relaunch -> cli
+cycle apps/orchbee-server bin agent_catalog -> worker_obcn_carrier
+cycle apps/orchbee-server bin agent_catalog -> worker_registry
+cycle apps/orchbee-server bin local_client_service::application_connection -> local_client_service::multiplex
+cycle apps/orchbee-server bin local_client_service::multiplex -> local_client_service::application_connection
+cycle apps/orchbee-server bin local_terminal_service::controller_connection -> local_terminal_service::viewer_connection
+cycle apps/orchbee-server bin local_terminal_service::observation -> local_terminal_service::viewer_connection
+cycle apps/orchbee-server bin local_terminal_service::semantic_events -> local_terminal_service::observation
+cycle apps/orchbee-server bin local_terminal_service::semantic_events -> local_terminal_service::viewer_connection
+cycle apps/orchbee-server bin local_terminal_service::viewer_connection -> local_terminal_service::controller_connection
+cycle apps/orchbee-server bin local_terminal_service::viewer_connection -> local_terminal_service::semantic_events
+cycle apps/orchbee-server bin local_worker_service::managed::replacement -> local_worker_service::managed::stop
+cycle apps/orchbee-server bin local_worker_service::managed::stop -> local_worker_service::managed::replacement
+cycle apps/orchbee-server bin terminal_titles -> worker_obcn_carrier
+cycle apps/orchbee-server bin terminal_titles -> worker_registry
+cycle apps/orchbee-server bin worker_obcn_carrier -> terminal_titles
+cycle apps/orchbee-server bin worker_registry -> agent_catalog
+cycle apps/orchbee-server bin worker_registry -> terminal_titles
+cycle apps/orchbee-server bin worker_registry -> worker_obcn_carrier
+cycle apps/orchbee-server lib workbench_authority::agent_reports -> workbench_authority::panel_agent
+cycle apps/orchbee-server lib workbench_authority::panel_agent -> workbench_authority::agent_reports
+cycle apps/orchbee-server lib workbench_authority::terminal_tab_close::control -> workbench_authority::terminal_tab_close::reservation
+cycle apps/orchbee-server lib workbench_authority::terminal_tab_close::reservation -> workbench_authority::terminal_tab_close::control
+cycle apps/orchbee-server lib workbench_authority::worktree_membership -> workbench_authority::worktree_operation
+cycle apps/orchbee-server lib workbench_authority::worktree_operation -> workbench_authority::worktree_membership
+cycle apps/orchbee-worker bin host_connection::events -> host_connection::exchange
+cycle apps/orchbee-worker bin host_connection::events -> host_connection::pacing
+cycle apps/orchbee-worker bin host_connection::exchange -> host_connection::events
+cycle apps/orchbee-worker bin host_connection::exchange -> host_connection::pacing
+cycle apps/orchbee-worker bin host_connection::pacing -> host_connection::exchange
+cycle apps/orchbee-worker bin terminal_control_operation -> terminal_viewer_operation
+cycle apps/orchbee-worker bin terminal_viewer_operation -> terminal_control_operation
+cycle apps/orchbee/crates/workbench-client lib action_menu -> machine_agents
+cycle apps/orchbee/crates/workbench-client lib action_menu -> machine_picker
+cycle apps/orchbee/crates/workbench-client lib action_menu -> workbench_state
+cycle apps/orchbee/crates/workbench-client lib action_projection -> client_actions
+cycle apps/orchbee/crates/workbench-client lib action_projection -> localization
+cycle apps/orchbee/crates/workbench-client lib agent_board -> machine_agents
+cycle apps/orchbee/crates/workbench-client lib agent_board -> workbench_projection
+cycle apps/orchbee/crates/workbench-client lib agent_board -> workbench_state
+cycle apps/orchbee/crates/workbench-client lib client_actions -> localization
+cycle apps/orchbee/crates/workbench-client lib client_actions -> machine_picker
+cycle apps/orchbee/crates/workbench-client lib client_view -> machine_agents
+cycle apps/orchbee/crates/workbench-client lib client_view -> machine_picker
+cycle apps/orchbee/crates/workbench-client lib client_view -> native_settings
+cycle apps/orchbee/crates/workbench-client lib client_view -> release_update
+cycle apps/orchbee/crates/workbench-client lib client_view -> tui_hit_map
+cycle apps/orchbee/crates/workbench-client lib host_capabilities -> notifications
+cycle apps/orchbee/crates/workbench-client lib localization -> client_view
+cycle apps/orchbee/crates/workbench-client lib localization -> host_capabilities
+cycle apps/orchbee/crates/workbench-client lib localization -> machine_discovery
+cycle apps/orchbee/crates/workbench-client lib localization -> machine_picker
+cycle apps/orchbee/crates/workbench-client lib localization -> machine_status
+cycle apps/orchbee/crates/workbench-client lib localization -> release_update
+cycle apps/orchbee/crates/workbench-client lib localization -> terminal_title
+cycle apps/orchbee/crates/workbench-client lib localization -> workbench_state
+cycle apps/orchbee/crates/workbench-client lib localization::action_menu -> localization::tab_menu
+cycle apps/orchbee/crates/workbench-client lib localization::agent_board -> localization::shell
+cycle apps/orchbee/crates/workbench-client lib localization::shell -> localization::agent_board
+cycle apps/orchbee/crates/workbench-client lib localization::tab_menu -> localization::action_menu
+cycle apps/orchbee/crates/workbench-client lib machine_agents -> machine_discovery
+cycle apps/orchbee/crates/workbench-client lib machine_agents -> machine_observation
+cycle apps/orchbee/crates/workbench-client lib machine_discovery -> machine_carrier
+cycle apps/orchbee/crates/workbench-client lib machine_discovery -> machine_status
+cycle apps/orchbee/crates/workbench-client lib machine_hub::attach -> machine_hub::control
+cycle apps/orchbee/crates/workbench-client lib machine_hub::control -> machine_hub::attach
+cycle apps/orchbee/crates/workbench-client lib machine_observation -> machine_discovery
+cycle apps/orchbee/crates/workbench-client lib machine_picker -> action_menu
+cycle apps/orchbee/crates/workbench-client lib machine_picker -> client_view
+cycle apps/orchbee/crates/workbench-client lib machine_picker -> machine_agents
+cycle apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery
+cycle apps/orchbee/crates/workbench-client lib machine_picker -> machine_spaces
+cycle apps/orchbee/crates/workbench-client lib machine_picker -> machine_status
+cycle apps/orchbee/crates/workbench-client lib machine_picker -> startup_directory
+cycle apps/orchbee/crates/workbench-client lib machine_picker -> workbench_client
+cycle apps/orchbee/crates/workbench-client lib machine_picker -> workbench_projection
+cycle apps/orchbee/crates/workbench-client lib machine_spaces -> machine_observation
+cycle apps/orchbee/crates/workbench-client lib machine_status -> machine_discovery
+cycle apps/orchbee/crates/workbench-client lib native_settings -> release_update
+cycle apps/orchbee/crates/workbench-client lib native_settings::choices -> native_settings::rows
+cycle apps/orchbee/crates/workbench-client lib native_settings::page -> native_settings::values
+cycle apps/orchbee/crates/workbench-client lib native_settings::rows -> native_settings::choices
+cycle apps/orchbee/crates/workbench-client lib native_settings::values -> native_settings::page
+cycle apps/orchbee/crates/workbench-client lib notifications -> client_view
+cycle apps/orchbee/crates/workbench-client lib notifications -> host_capabilities
+cycle apps/orchbee/crates/workbench-client lib notifications -> tui_hit_map
+cycle apps/orchbee/crates/workbench-client lib release_update -> localization
+cycle apps/orchbee/crates/workbench-client lib release_update -> machine_observation
+cycle apps/orchbee/crates/workbench-client lib startup_directory -> machine_agents
+cycle apps/orchbee/crates/workbench-client lib startup_directory -> startup_preference
+cycle apps/orchbee/crates/workbench-client lib startup_directory -> workbench_projection
+cycle apps/orchbee/crates/workbench-client lib startup_directory -> workbench_state
+cycle apps/orchbee/crates/workbench-client lib startup_preference -> workbench_projection
+cycle apps/orchbee/crates/workbench-client lib startup_preference -> workbench_state
+cycle apps/orchbee/crates/workbench-client lib terminal_copy_mode -> terminal_content
+cycle apps/orchbee/crates/workbench-client lib terminal_copy_query -> machine_observation
+cycle apps/orchbee/crates/workbench-client lib terminal_copy_query -> terminal_content
+cycle apps/orchbee/crates/workbench-client lib terminal_copy_query -> terminal_copy_mode
+cycle apps/orchbee/crates/workbench-client lib terminal_find -> terminal_copy_mode
+cycle apps/orchbee/crates/workbench-client lib terminal_input -> tui_pointer
+cycle apps/orchbee/crates/workbench-client lib terminal_lifecycle -> terminal_host_appearance
+cycle apps/orchbee/crates/workbench-client lib terminal_link_activation -> machine_observation
+cycle apps/orchbee/crates/workbench-client lib terminal_link_activation -> terminal_content
+cycle apps/orchbee/crates/workbench-client lib terminal_title -> localization
+cycle apps/orchbee/crates/workbench-client lib tui_capabilities -> client_actions
+cycle apps/orchbee/crates/workbench-client lib tui_capabilities -> host_capabilities
+cycle apps/orchbee/crates/workbench-client lib tui_graphics -> terminal_lifecycle
+cycle apps/orchbee/crates/workbench-client lib tui_hit_map -> tui_layout
+cycle apps/orchbee/crates/workbench-client lib tui_pointer -> terminal_input
+cycle apps/orchbee/crates/workbench-client lib tui_render::sidebar_chrome -> tui_render::sidebar_touch
+cycle apps/orchbee/crates/workbench-client lib tui_render::sidebar_touch -> tui_render::sidebar_chrome
+cycle apps/orchbee/crates/workbench-client lib tui_render::sidebar_touch -> tui_render::tabs
+cycle apps/orchbee/crates/workbench-client lib tui_render::tabs -> tui_render::sidebar_chrome
+cycle apps/orchbee/crates/workbench-client lib tui_render::tabs -> tui_render::sidebar_touch
+cycle apps/orchbee/crates/workbench-client lib workbench_client -> release_update
+cycle apps/orchbee/crates/workbench-client lib workbench_client::ui::held_intent -> workbench_client::ui::tab_close
+cycle apps/orchbee/crates/workbench-client lib workbench_client::ui::tab_close -> workbench_client::ui::held_intent
+cycle apps/orchbee/crates/workbench-client lib workbench_client::ui::tab_close -> workbench_client::ui::tab_groups
+cycle apps/orchbee/crates/workbench-client lib workbench_client::ui::tab_groups -> workbench_client::ui::held_intent
+cycle apps/orchbee/crates/workbench-client lib workbench_state -> machine_spaces
+cycle apps/orchbee/crates/workbench-client lib workbench_state -> workbench_projection
+cycle apps/orchbee/crates/workbench-client lib workbench_state::membership -> workbench_state::tab_close
+cycle apps/orchbee/crates/workbench-client lib workbench_state::panel -> workbench_state::membership
+cycle apps/orchbee/crates/workbench-client lib workbench_state::tab_close -> workbench_state::panel
+cycle apps/orchbee/crates/workbench-client lib workbench_state::tab_close::flight -> workbench_state::tab_close::set
+cycle apps/orchbee/crates/workbench-client lib workbench_state::tab_close::set -> workbench_state::tab_close::flight
+cycle apps/orchbee/crates/workbench-client lib workbench_state::worktree_launch::addressed -> workbench_state::worktree_launch::removal
+cycle apps/orchbee/crates/workbench-client lib workbench_state::worktree_launch::removal -> workbench_state::worktree_launch::addressed
+cycle crates/agent-integration-writer lib capsule -> files
+cycle crates/agent-integration-writer lib files -> inspect
+cycle crates/agent-integration-writer lib hermes -> providers
+cycle crates/agent-integration-writer lib inspect -> capsule
+cycle crates/agent-integration-writer lib inspect -> files
+cycle crates/agent-integration-writer lib providers -> hermes
+cycle crates/agent-observation-protocol lib changes -> read
+cycle crates/agent-observation-protocol lib launch -> read
+cycle crates/agent-observation-protocol lib names -> launch
+cycle crates/agent-observation-protocol lib names -> read
+cycle crates/agent-observation-protocol lib read -> changes
+cycle crates/agent-observation-protocol lib read -> launch
+cycle crates/agent-observation-protocol lib read -> names
+cycle crates/capability-node-protocol lib codec -> worker_request_declined
+cycle crates/capability-node-protocol lib launch_preferences -> terminal_launch
+cycle crates/capability-node-protocol lib send_stroke -> terminal_send
+cycle crates/capability-node-protocol lib terminal_launch -> launch_preferences
+cycle crates/capability-node-protocol lib terminal_send -> send_stroke
+cycle crates/capability-node-protocol lib worker_request_declined -> codec
+cycle crates/client-server-protocol lib launch_read -> model
+cycle crates/client-server-protocol lib model -> launch_read
+cycle crates/client-server-protocol lib send -> send_stroke
+cycle crates/client-server-protocol lib send_stroke -> send
+cycle crates/local-client-protocol lib codec -> session_stop
+cycle crates/local-client-protocol lib session_stop -> codec
+cycle crates/local-ipc lib polling -> windows
+cycle crates/local-ipc lib windows -> polling
+cycle crates/local-runtime lib checkpoint_restore_notice -> session_store
+cycle crates/local-runtime lib data_root -> private_filesystem
+cycle crates/local-runtime lib data_root -> rendezvous
+cycle crates/local-runtime lib data_root::state -> data_root::unix
+cycle crates/local-runtime lib data_root::unix -> data_root::state
+cycle crates/local-runtime lib diagnostic_log -> local_clock
+cycle crates/local-runtime lib durable_sessions -> process_observation
+cycle crates/local-runtime lib local_clock -> diagnostic_log
+cycle crates/local-runtime lib private_filesystem -> data_root
+cycle crates/local-runtime lib process_observation -> durable_sessions
+cycle crates/local-runtime lib rendezvous -> private_filesystem
+cycle crates/local-runtime lib session_store -> checkpoint_restore_notice
+cycle crates/local-runtime lib user_settings::keys -> user_settings::registry
+cycle crates/local-runtime lib user_settings::registry -> user_settings::keys
+cycle crates/windows-console-host lib input -> sys
+cycle crates/windows-console-host lib sys -> input
+cycle crates/workbench-protocol lib agent_view -> validation
+cycle crates/workbench-protocol lib command -> agent_view
+cycle crates/workbench-protocol lib command -> launch_environment
+cycle crates/workbench-protocol lib command -> launch_options
+cycle crates/workbench-protocol lib command -> layout_template
+cycle crates/workbench-protocol lib command -> model
+cycle crates/workbench-protocol lib command -> navigation
+cycle crates/workbench-protocol lib command -> navigation_configuration
+cycle crates/workbench-protocol lib command -> panel_label
+cycle crates/workbench-protocol lib command -> split_ratio
+cycle crates/workbench-protocol lib command -> tab_configuration
+cycle crates/workbench-protocol lib command -> tab_creation
+cycle crates/workbench-protocol lib command -> validation
+cycle crates/workbench-protocol lib command -> workspace_order
+cycle crates/workbench-protocol lib command::agent_manifest_update -> command::agent_manifests
+cycle crates/workbench-protocol lib command::agent_manifests -> command::agent_manifest_update
+cycle crates/workbench-protocol lib command::client_navigation -> command::client_view
+cycle crates/workbench-protocol lib command::client_presentation -> command::client_view
+cycle crates/workbench-protocol lib command::client_presentation -> command::client_viewport
+cycle crates/workbench-protocol lib command::client_view -> command::client_navigation
+cycle crates/workbench-protocol lib command::client_view -> command::client_presentation
+cycle crates/workbench-protocol lib command::client_view -> command::client_viewport
+cycle crates/workbench-protocol lib command::client_view -> command::configured_command
+cycle crates/workbench-protocol lib command::client_view -> command::plugin_popup
+cycle crates/workbench-protocol lib command::client_viewport -> command::client_view
+cycle crates/workbench-protocol lib command::configured_command -> command::client_view
+cycle crates/workbench-protocol lib command::configured_command -> command::plugin_popup
+cycle crates/workbench-protocol lib command::configured_command -> command::plugins
+cycle crates/workbench-protocol lib command::plugin_popup -> command::client_presentation
+cycle crates/workbench-protocol lib command::plugin_popup -> command::plugins
+cycle crates/workbench-protocol lib command::plugins -> command::plugin_popup
+cycle crates/workbench-protocol lib launch_environment -> validation
+cycle crates/workbench-protocol lib launch_options -> command
+cycle crates/workbench-protocol lib launch_options -> launch_environment
+cycle crates/workbench-protocol lib layout_template -> command
+cycle crates/workbench-protocol lib layout_template -> model
+cycle crates/workbench-protocol lib layout_template -> panel_label
+cycle crates/workbench-protocol lib layout_template -> validation
+cycle crates/workbench-protocol lib model -> launch_options
+cycle crates/workbench-protocol lib model -> panel_label
+cycle crates/workbench-protocol lib model -> split_ratio
+cycle crates/workbench-protocol lib navigation -> command
+cycle crates/workbench-protocol lib navigation -> model
+cycle crates/workbench-protocol lib navigation_configuration -> command
+cycle crates/workbench-protocol lib navigation_configuration -> model
+cycle crates/workbench-protocol lib navigation_configuration -> validation
+cycle crates/workbench-protocol lib panel_label -> validation
+cycle crates/workbench-protocol lib split_ratio -> validation
+cycle crates/workbench-protocol lib tab_configuration -> command
+cycle crates/workbench-protocol lib tab_configuration -> model
+cycle crates/workbench-protocol lib tab_configuration -> validation
+cycle crates/workbench-protocol lib tab_creation -> command
+cycle crates/workbench-protocol lib tab_creation -> model
+cycle crates/workbench-protocol lib tab_creation -> validation
+cycle crates/workbench-protocol lib validation -> command
+cycle crates/workbench-protocol lib validation -> model
+cycle crates/workbench-protocol lib workspace_order -> command
+cycle crates/workbench-protocol lib workspace_order -> model
+cycle crates/workbench-protocol lib workspace_order -> validation
+upward apps/orchbee bin cli_text -> cli in cli_text::agent_projection 1
+upward apps/orchbee bin cli_text -> cli in cli_text::agent_start 1
+upward apps/orchbee bin cli_text -> cli in cli_text::client_control 4
+upward apps/orchbee bin cli_text -> cli in cli_text::layouts 1
+upward apps/orchbee bin cli_text -> cli in cli_text::machines 26
+upward apps/orchbee bin cli_text -> cli in cli_text::panel_agent 1
+upward apps/orchbee bin cli_text -> cli in cli_text::panel_metadata 1
+upward apps/orchbee bin cli_text -> cli in cli_text::panel_relocation 6
+upward apps/orchbee bin cli_text -> cli in cli_text::receipt 8
+upward apps/orchbee bin cli_text -> cli in cli_text::terminal_clear 1
+upward apps/orchbee bin cli_text -> cli in cli_text::workspace_group_close 1
+upward apps/orchbee bin cli_text -> cli in cli_text::workspace_metadata 1
+upward apps/orchbee bin cli_text -> cli in cli_text::worktree 4
+upward apps/orchbee/crates/workbench-client lib client_actions -> machine_picker in client_actions 1
+upward apps/orchbee/crates/workbench-client lib client_view -> tui_hit_map in client_view::tab_list 4
+upward apps/orchbee/crates/workbench-client lib localization -> client_view in localization::startup 1
+upward apps/orchbee/crates/workbench-client lib localization -> machine_picker in localization::machine_manage 29
+upward apps/orchbee/crates/workbench-client lib localization -> workbench_state in localization::agent_board 17
+upward apps/orchbee/crates/workbench-client lib machine_discovery::overview -> machines in machine_discovery::overview 1
+upward apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery in machine_picker 1
+upward apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery in machine_picker::forget 3
+upward apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery in machine_picker::login 1
+upward apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery in machine_picker::manage::exchange 9
+upward apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery in machine_picker::waiting 1
+upward apps/orchbee/crates/workbench-client lib machine_picker -> workbench_client::input in machine_picker::waiting 1
+upward apps/orchbee/crates/workbench-client lib native_settings -> local_client in native_settings::text 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render 10
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::agent_sidebar 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::agent_sidebar::touch 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::copy_mode::content 3
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::held_restore 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::navigator 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::pane_titles 2
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::panel_close 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::presentation_selector 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::scrollbar 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::status_line 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::tab_bar 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::tab_close 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::tab_rename 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::tabs 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::tabs::list 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::terminal_runtime 1
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::viewport 5
+upward apps/orchbee/crates/workbench-client lib tui_render -> workbench_client::ui in tui_render::workspace_sidebar 1
+upward apps/orchbee/crates/workbench-client lib workbench_client::connection -> workbench_client in workbench_client::connection::native 17
+upward apps/orchbee/crates/workbench-client lib workbench_client::connection -> workbench_client in workbench_client::connection::native::control_takeover 8

@@ -63,7 +63,9 @@ An application-internal Rust crate is a compilation boundary within its owning a
 admitted under [Rust](RUST.md#placement-and-workspace-ownership). Its library root explicitly
 re-exports only the contracts consumed by the application or sibling internal crates. Moving a
 module does not authorize wider state access, a callback into the application, or a dependency
-cycle; preserve the semantic owner and break cycles before extraction.
+cycle; preserve the semantic owner and break cycles before extraction. `pnpm lint:rust-modules`
+fails a new Rust module cycle or upward reference; the
+[Rust module record](LINTING.md#rust-module-record) lists the existing ones.
 
 ## Structural component groups
 

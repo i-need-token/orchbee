@@ -80,7 +80,10 @@ separately from executed results; an unaffected suite is unexecuted, never a pas
 Shared paths need explicit ownership. The existing `docs/tui/` standards select the native
 terminal client and its consumers by review policy; no test reads them. Root verification commands,
 their declared helpers/tests select root tooling evidence; the complete prerequisites above still
-run. New root helpers remain unknown until reviewed.
+run. New root helpers remain unknown until reviewed. The Rust module graph check, its test and the
+[Rust module record](LINTING.md#rust-module-record) are root tooling inputs: `lint` runs the check
+over the whole workspace in every gate, affected or not, in about two seconds, so tightening the
+record selects no suite.
 Documentation without a test consumer selects no suite and reports `documentation <- <path>`:
 anything under `proposals/`, which is never current authority, and Markdown under `docs/` or
 directly at the repository root, which no product test or build reads. The explicit mappings above
@@ -270,8 +273,9 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
 - The Linux `verify` job runs `pnpm verify:no-rust-tests`: every stage of `pnpm verify` except the
   Cargo test suites and their native prerequisites. Linux is not a release platform yet and several
   of its Cargo test targets fail, so that stage made every run red and hid the other results. Rust
-  lint stays in the job and keeps the Linux configuration compiling. Restore `pnpm verify` in this
-  job when Linux support resumes.
+  lint stays in the job and keeps the Linux configuration compiling. Its `lint` stage is also the
+  only CI run of the Rust module graph check, which reads source text for every platform and so
+  needs no native runner. Restore `pnpm verify` in this job when Linux support resumes.
 - A push to `main` never cancels the run in progress. A complete run outlasts the gap between
   pushes, so cancelling on every push left `main` without one finished run. GitHub keeps
   one waiting run per concurrency group: the newest commit is verified next, and that run covers
