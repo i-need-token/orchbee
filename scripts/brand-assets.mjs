@@ -37,8 +37,9 @@ const TRAY_ICON_SIZES = [16, 20, 24, 32, 40, 48];
 // carries shapes only: the mark's hive ring without its tile, cropped to the ring; while an Agent
 // state needs the person, the status hexagon in the lower-right corner; and outside a release the
 // environment's circle or square in the upper-left corner. Each badge is a [shape, gap] pair: the gap
-// is cut out of the ring so the badge stands apart from it. Electron reads the `Template` file name
-// and the `@2x` file beside the 18 point one.
+// is cut out of the ring so the badge stands apart from it. Desktop joins the 18 point picture and
+// its `-2x` double into one template image itself: Electron's own `@2x` name is outside the window
+// file list's path grammar (scripts/desktop-files.mjs), which every reader of an update checks.
 const MENU_BAR_VIEW_BOX = [144, 144, 736, 736];
 const MENU_BAR_BADGES = {
 	release: null,
@@ -54,7 +55,7 @@ const MENU_BAR_STATE = [
 ];
 const MENU_BAR_SCALES = [
 	['', 18],
-	['@2x', 36],
+	['-2x', 36],
 ];
 
 const ICON_SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 180, 192, 256, 512, 1024, 2048];

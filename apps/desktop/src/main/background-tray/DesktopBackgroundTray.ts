@@ -1,7 +1,15 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { desktopTrayMessages, type IntlShape } from '@orchbee/i18n';
-import { Menu, Notification, Tray, type MenuItemConstructorOptions } from 'electron';
+import {
+	Menu,
+	Notification,
+	Tray,
+	nativeImage,
+	type MenuItemConstructorOptions,
+	type NativeImage,
+} from 'electron';
 
 import {
 	projectDesktopTray,
@@ -131,13 +139,13 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 		const image = this.#iconPath(view.status);
 		let tray = this.#tray;
 		if (tray === undefined || tray.isDestroyed()) {
-			tray = this.#create(image);
+			tray = this.#create(this.#trayImage(image));
 			this.#tray = tray;
 			this.#image = image;
 			this.#menuKey = undefined;
 			this.#toolTip = undefined;
 		} else if (image !== this.#image) {
-			tray.setImage(image);
+			tray.setImage(this.#trayImage(image));
 			this.#image = image;
 		}
 		const { applicationName, intl } = this.#options;
@@ -208,7 +216,7 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 		}
 	}
 
-	#create(image: string): Tray {
+	#create(image: NativeImage | string): Tray {
 		const tray =
 			this.#options.distribution === 'release'
 				? new Tray(image, RELEASE_TRAY_GUID)
@@ -225,9 +233,26 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 	}
 
 	/**
+	 * The icon as the tray takes it: the `.ico` file on Windows, and on macOS one template image of the
+	 * 18 point picture and its `-2x` double. Electron would join a `@2x` file by itself, but that name
+	 * is outside the window file list's path grammar, which every reader of an update checks.
+	 */
+	#trayImage(iconPath: string): NativeImage | string {
+		if (this.#options.platform !== 'darwin') return iconPath;
+		const image = nativeImage.createEmpty();
+		image.addRepresentation({ buffer: readFileSync(iconPath), scaleFactor: 1 });
+		image.addRepresentation({
+			buffer: readFileSync(iconPath.replace(/\.png$/u, '-2x.png')),
+			scaleFactor: 2,
+		});
+		image.setTemplateImage(true);
+		return image;
+	}
+
+	/**
 	 * The Windows icon marks each Agent state in its color. The macOS icon is a template image, which
 	 * macOS draws in the menu bar's own color, so one mark stands for every state and the status line
-	 * names it; Electron reads the `Template` name and the `@2x` file beside it.
+	 * names it.
 	 */
 	#iconPath(status: DesktopTrayStatus): string {
 		const { distribution, iconDirectory, platform } = this.#options;
