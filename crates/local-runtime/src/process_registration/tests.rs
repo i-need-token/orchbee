@@ -276,25 +276,21 @@ fn a_replacement_needs_a_worker_and_a_settled_host() {
 }
 
 #[test]
-fn a_spawning_host_needs_an_identified_worker_and_an_identified_host_a_registered_one() {
+fn a_spawning_host_needs_an_identified_worker_and_an_identified_host_none() {
     let mut replaced = enrolled();
     replaced
         .reserve_replacement_worker(Creator::Process(identity(1, 10)))
         .unwrap();
     let valid = serde_json::to_value(&replaced).unwrap();
     assert!(serde_json::from_value::<SessionProcesses>(valid.clone()).is_ok());
-    for invalid in [
-        {
-            let mut value = valid.clone();
-            value["host"] = serde_json::json!({"state":"spawning"});
-            value
-        },
-        {
-            let mut value = valid;
-            value["worker"] = serde_json::json!({"state":"not-started"});
-            value
-        },
-    ] {
-        assert!(serde_json::from_value::<SessionProcesses>(invalid).is_err());
-    }
+    let mut spawning = valid;
+    spawning["host"] = serde_json::json!({"state":"spawning"});
+    assert!(serde_json::from_value::<SessionProcesses>(spawning).is_err());
+    // A generation adopting its predecessor's Host starts with that Host alone, and has started
+    // nothing of its own.
+    let adopting = SessionProcesses::adopting(identity(3, 30));
+    let read: SessionProcesses =
+        serde_json::from_value(serde_json::to_value(&adopting).unwrap()).unwrap();
+    assert_eq!(read, adopting);
+    assert!(read.is_unstarted());
 }

@@ -81,13 +81,12 @@ impl<'de> Deserialize<'de> for SessionProcesses {
             worker: wire.worker,
             host: wire.host,
         };
-        // A Host is reserved only by an identified Worker. A replacement Worker returns its slot to
-        // spawning while the Host it adopts keeps its identity, so an identified Host needs only a
-        // registered Worker; an older reader refuses that combination instead of misreading it.
+        // A Host is reserved only by an identified Worker. An identified Host needs no registered
+        // Worker: a replacement Worker returns its slot to spawning while the Host it adopts keeps
+        // its identity, and a generation that adopts its predecessor's running Host starts with
+        // that Host alone. An older reader refuses both instead of misreading them.
         if (processes.worker != Registration::NotStarted && processes.server.identity().is_none())
             || (processes.host == Registration::Spawning && processes.worker.identity().is_none())
-            || (processes.host != Registration::NotStarted
-                && processes.worker == Registration::NotStarted)
         {
             return Err(de::Error::custom(
                 "child registration requires its identified parent",
@@ -138,10 +137,19 @@ pub(crate) enum RecoveryVerdict {
 }
 
 impl SessionProcesses {
+    /// The registrations of a generation that adopts `host`, the Host its predecessor left
+    /// running: its Server and Worker are not started yet.
+    pub(crate) fn adopting(host: ProcessIdentity) -> Self {
+        Self {
+            host: Registration::Identified { identity: host },
+            ..Self::default()
+        }
+    }
+
+    /// Whether this generation created no process. Without a Server no Worker started and no Host
+    /// spawned, so an identified Host is one an adopting generation kept from its predecessor.
     pub(crate) fn is_unstarted(&self) -> bool {
-        ROLES
-            .into_iter()
-            .all(|role| self.registration(role) == Registration::NotStarted)
+        self.server == Registration::NotStarted && self.worker == Registration::NotStarted
     }
 
     pub(crate) fn registration(&self, role: ProcessRole) -> Registration {

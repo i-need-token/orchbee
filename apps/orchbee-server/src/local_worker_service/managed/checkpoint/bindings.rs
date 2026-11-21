@@ -68,6 +68,16 @@ impl Writer {
         }
     }
 
+    /// Writes `extensions`, the members a later release added to the record this generation
+    /// adopted its Host from, back unchanged.
+    #[cfg(windows)]
+    pub(super) fn keep_extensions(
+        &mut self,
+        extensions: serde_json::Map<String, serde_json::Value>,
+    ) {
+        self.extensions = extensions;
+    }
+
     /// One look from the saver: notes a change and writes once the first unwritten change waited
     /// [`DEBOUNCE`].
     pub(super) fn look(&mut self, terminals: &LocalTerminalService, worker: &WorkerId) {

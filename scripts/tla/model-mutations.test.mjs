@@ -244,6 +244,15 @@ const cases = [
 		/Action property ExactCommitWasIssuedToCurrentWorker is violated/u,
 	],
 	[
+		'local-terminal-coordinator',
+		'an adopting Server imports a recorded binding the Host did not confirm',
+		'  /\\ workerState[recorded] = "quarantined"\n',
+		'',
+		/Invariant (?:SettledTerminalIsLive|RetiredIdNeverReissued) is violated/u,
+		'module',
+		'cold-adoption',
+	],
+	[
 		'native-projection-record-resync',
 		'a record the Client cannot read resyncs while the Server waits on its flight',
 		'[] r.bad = "envelope" \\/ count > Bound ->',

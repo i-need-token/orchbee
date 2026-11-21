@@ -185,7 +185,7 @@ its fresh reservation planned, and advances revision;
 structural identities, allocator high-water, labels, order, groups and profiles remain
 unchanged. Already-bound targets and duplicate physical terminal bindings are refused.
 
-Preparation creates no process and replays no command. The managed coordinator prepares a fresh terminal reservation with the canonical binding, commits both under one lock, then dispatches and settles that exact physical request before exposing Clients. Restored snapshot bindings are the only attachment selection source; there is no reconstructed Open reference. Planning tests alone do not establish runtime integration.
+Preparation creates no process and replays no command. The managed coordinator prepares a fresh terminal reservation with the canonical binding, commits both under one lock, then dispatches and settles that exact physical request before exposing Clients. A Server that adopts its predecessor's Host instead binds each Presentation whose recorded terminal the Host confirmed to that terminal, with its recorded program, and dispatches nothing for it ([Binding record](#binding-record)). Restored snapshot bindings are the only attachment selection source; there is no reconstructed Open reference. Planning tests alone do not establish runtime integration.
 
 ## Managed startup and clean stop
 
@@ -303,6 +303,14 @@ carries its bytes. macOS writes none until its Server can adopt a Host it did no
   Every final capture, of a stop or an `exit`, writes it right after the final checkpoint. A stop
   removes it once the Worker's disposal, or the stop after that Worker exited, ended the Host, so
   nothing is left to adopt; an `exit` keeps the Host running and leaves the record in place.
+- **Adoption.** A Server started for a generation that kept its predecessor's running Host decodes
+  the record whole and requires its Host entry to name the Host `session.json` registered; crash
+  recovery already read only that entry before admitting the generation. Each recorded terminal
+  whose Presentation the restored checkpoint holds is offered to the Host's adoption; a confirmed one
+  is bound to its Presentation without a launch, kept-output replay or Agent resume, and one the
+  Host no longer runs leaves its Presentation unavailable. Every other Presentation restores as
+  [above](#managed-startup-and-clean-stop). The Server's
+  [cold adoption](../README.md#cold-adoption) owns the sequence and its failures.
 - **Failure.** A record that cannot be captured or published is removed, since it no longer
   describes the Session, and tried again a second later; removal failures and repeated causes are
   reported once as diagnostics. The record never fails a save or a stop.

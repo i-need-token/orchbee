@@ -1,19 +1,21 @@
 //! Joins what the coordinator settled with the Presentation that shows each terminal and the Close
 //! in flight on it, as the binding record keeps them, and gives the cheap observation the
-//! checkpoint saver compares to decide when to write that record again. It writes nothing.
+//! checkpoint saver compares to decide when to write that record again. A Server that adopted the
+//! Host such a record names joins them back: each terminal the Host kept enters the coordinator and
+//! its Presentation shows it again. It writes nothing and sends nothing to a Worker.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, io};
 
 use orchbee_capability_node_protocol::{
-    AdoptCloseInFlight, TerminalId, WorkerGeneration, WorkerId,
+    AdoptCloseInFlight, LeaseExpiresAtUnixMilliseconds, TerminalId, WorkerGeneration, WorkerId,
 };
-use orchbee_server::{WorkbenchAuthority, WorkbenchTabCloseInFlight};
+use orchbee_server::{WorkbenchAuthority, WorkbenchRestoreTarget, WorkbenchTabCloseInFlight};
 use orchbee_workbench_protocol::WorkbenchRevision;
 
-use super::SessionCoordinator;
+use super::{SessionCoordinator, presentation_binding};
 use crate::{
     binding_record::{Capture, RecordedTerminal},
-    terminal_coordinator::RecordedState,
+    terminal_coordinator::{RecordedState, WorkerPlacement},
 };
 
 /// Everything the binding record says that can change while the Session runs, short of what a
@@ -115,5 +117,42 @@ impl SessionCoordinator {
             next_identity: self.terminals.next_identity(),
             terminals,
         }
+    }
+}
+
+impl SessionCoordinator {
+    /// Allocates no identity below `floor` from now on; `None` exhausts the identities.
+    pub(crate) fn raise_identity_floor(&mut self, floor: Option<u128>) {
+        self.terminals.raise_identity_floor(floor);
+    }
+
+    /// Binds `target` again to `terminal`, the recorded terminal the Host kept for it, entered as a
+    /// settled binding of `worker`, the generation that adopted that Host; one the Host's inventory
+    /// lacked, `missing`, binds unavailable. Nothing launches, and the Presentation keeps its
+    /// retained Agent reference, which later captures carry until one is observed. Only used while
+    /// this entire coordinator is unpublished.
+    pub(crate) fn adopt_recorded_terminal(
+        &mut self,
+        target: &WorkbenchRestoreTarget,
+        terminal: &RecordedTerminal,
+        missing: bool,
+        worker: WorkerPlacement,
+        expiry: LeaseExpiresAtUnixMilliseconds,
+    ) -> io::Result<()> {
+        let workbench = self
+            .workbench
+            .as_mut()
+            .ok_or_else(|| io::Error::other("Workbench unavailable"))?;
+        let authorization = self
+            .terminals
+            .import_recorded(&terminal.recorded_binding(worker), missing, worker, expiry)
+            .ok_or_else(|| io::Error::other("recorded terminal import unavailable"))?;
+        let binding = presentation_binding(authorization)
+            .ok_or_else(|| io::Error::other("recorded terminal binding unavailable"))?;
+        workbench
+            .prepare_restored_terminal(target, binding, terminal.launch_program.clone())
+            .map_err(io::Error::other)?
+            .commit();
+        Ok(())
     }
 }

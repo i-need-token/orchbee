@@ -15,7 +15,7 @@ fn a_session_removed_after_the_listing_named_it_is_skipped() {
     let directory = Directory::create(&root).unwrap();
     let name = SessionName::parse("victim").unwrap();
     let runtime = base.0.canonicalize().unwrap().join(name.as_str());
-    let record = Record::registered(&runtime, &name, [1; 16]).unwrap();
+    let record = Record::registered(&runtime, &name, [1; 16], None).unwrap();
     directory.publish(name.as_str(), &record).unwrap();
 
     // Step one: the listing names the Session's folder.

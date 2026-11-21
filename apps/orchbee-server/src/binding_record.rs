@@ -26,6 +26,9 @@ const VERSION: u8 = 1;
 /// The most Hosts one record names; today a Session has one.
 const MAXIMUM_HOSTS: usize = 8;
 const MAXIMUM_TERMINALS: usize = crate::terminal_coordinator::MAXIMUM_TERMINAL_BINDINGS;
+/// How far past the recorded next identity an adopting Server starts allocating: the writer may have
+/// issued identities after its last write, and the Host may hold receipts naming them.
+const ADOPTION_IDENTITY_MARGIN: u128 = 1 << 64;
 
 /// One binding record.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -69,6 +72,29 @@ pub(crate) struct RecordedTerminal {
     pub(crate) interactive_shell: bool,
     pub(crate) profile: Option<LaunchProfileProvenance>,
     pub(crate) launch_selection: Option<LaunchSelection>,
+}
+
+impl RecordedTerminal {
+    /// The settled binding a Server that adopted this terminal's Host enters for it in `worker`'s
+    /// generation, as the coordinator that created it kept it, without the Close in flight.
+    pub(crate) fn recorded_binding(
+        &self,
+        worker: crate::terminal_coordinator::WorkerPlacement,
+    ) -> crate::terminal_coordinator::RecordedBinding {
+        crate::terminal_coordinator::RecordedBinding {
+            reference: self.create_request.clone(),
+            binding: AdoptBinding {
+                close: None,
+                ..self.binding
+            },
+            worker,
+            geometry: self.geometry,
+            deferred: self.deferred,
+            interactive_shell: self.interactive_shell,
+            profile_provenance: self.profile.clone(),
+            launch_selection: self.launch_selection.clone(),
+        }
+    }
 }
 
 /// Whether the Session's Host runs, as the binding writer observed its registration.
@@ -139,6 +165,12 @@ impl BindingRecord {
             },
             mixed,
         )
+    }
+
+    /// The identity a Server that adopts this record's Host allocates from; none when none is left.
+    /// Every recorded terminal's identity lies below the recorded next identity.
+    pub(crate) fn identity_floor(&self) -> Option<u128> {
+        self.next_identity.checked_add(ADOPTION_IDENTITY_MARGIN)
     }
 
     /// The same record without the explicit programs the terminals launched, which are the only

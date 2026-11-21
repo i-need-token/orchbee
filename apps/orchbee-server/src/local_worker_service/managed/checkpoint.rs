@@ -87,6 +87,25 @@ impl Kept {
         }
     }
 
+    /// The binding record this generation adopts its predecessor's Host from, read through the
+    /// store; the record this generation writes keeps its `extensions`. An absent or unusable
+    /// record fails.
+    #[cfg(windows)]
+    pub(super) fn adopted_record(&self) -> io::Result<crate::binding_record::BindingRecord> {
+        let bytes = self
+            .store
+            .lock()
+            .map_err(|_| io::Error::other("checkpoint store failed"))?
+            .read_bindings()?
+            .ok_or_else(|| io::Error::other("no binding record names the kept Terminal Host"))?;
+        let record = crate::binding_record::decode(&bytes)
+            .ok_or_else(|| io::Error::other("the binding record is unusable"))?;
+        if let Some(Ok(mut bindings)) = self.bindings.as_ref().map(|bindings| bindings.lock()) {
+            bindings.keep_extensions(record.extensions.clone());
+        }
+        Ok(record)
+    }
+
     /// The store kept terminal output shares with the checkpoint.
     pub(super) fn output_store(&self) -> Arc<dyn crate::terminal_output::TerminalOutputStore> {
         Arc::clone(&self.store) as _

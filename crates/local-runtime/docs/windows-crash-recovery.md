@@ -18,7 +18,8 @@ The private record writer lock, `session.lock` beside the record, serializes gen
 Activation additionally holds the namespace (`internal/sessions.lock`), activation and Session
 lifetime guards. Effects derive paths from the admitted Session name and runtime folder, never from
 serialized paths. Checkpoint storage
-must be idle and all Client, Worker, Host and observation endpoints absent before cold recovery.
+must be idle and all Client, Worker, Host and observation endpoints absent before cold recovery,
+except the endpoint of a Host the next generation adopts.
 
 ## Registration transitions
 
@@ -62,7 +63,8 @@ only after it has proved the recorded Worker gone through the handle it created 
 or knows a failed replacement left no process; the record holds no such proof, so the Server
 carries it. The adopted Host keeps its identity, and a Host still Spawning refuses the reservation.
 The record therefore admits a Spawning Host only under an identified Worker, and an identified Host
-under any registered Worker. Cold recovery reads a replacement still Spawning like any other
+under any Worker registration: a registered one during a replacement, and none in a generation that
+adopts its predecessor's Host ([cold adoption](#cold-adoption)). Cold recovery reads a replacement still Spawning like any other
 Spawning slot; a reader that predates the rule refuses it as malformed.
 [`SessionCrashRecovery`](../formal/tla/SessionCrashRecovery.tla) checks the replacement: its
 `replacement` configuration gives one generation two Worker incarnations, and `SingleOwner` and
@@ -86,13 +88,14 @@ proposal.
 
 ## Cold recovery transitions
 
-| Catalog and observed facts                                                                                                   | Result                                                                                                                                                           |
-| ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Active; all identified identities gone, a Spawning slot counting as not started; all guards and endpoint/storage checks pass | Publish Crashed for the old activation; reconcile its marker; begin a fresh generation; the old activation counts as a crash unless the record names it `exited` |
-| Crashed with matching old marker, or marker absent after runtime loss                                                        | Resume the same guarded reconciliation before a fresh generation                                                                                                 |
-| Any exact identity alive, identity query unknown, unsafe storage, conflicting receipt after creation or endpoint present     | Refuse and retain data                                                                                                                                           |
-| Malformed or unsupported record                                                                                              | Refuse as InvalidData; retain bytes                                                                                                                              |
-| Valid Stopped with current checkpoint evidence                                                                               | Existing clean-stop restart path; next activation writes version 1                                                                                               |
+| Catalog and observed facts                                                                                                     | Result                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Active; all identified identities gone, a Spawning slot counting as not started; all guards and endpoint/storage checks pass   | Publish Crashed for the old activation; reconcile its marker; begin a fresh generation; the old activation counts as a crash unless the record names it `exited` |
+| Crashed with matching old marker, or marker absent after runtime loss                                                          | Resume the same guarded reconciliation before a fresh generation                                                                                                 |
+| Active or Crashed; Server and Worker proven gone, the registered Host alive and named by the binding record; other checks pass | As the first row, but the fresh generation keeps the Host's registration, with Server and Worker NotStarted, for its Server to adopt                             |
+| Any other exact identity alive, identity query unknown, unsafe storage, conflicting receipt after creation or endpoint present | Refuse and retain data                                                                                                                                           |
+| Malformed or unsupported record                                                                                                | Refuse as InvalidData; retain bytes                                                                                                                              |
+| Valid Stopped with current checkpoint evidence                                                                                 | Existing clean-stop restart path; next activation writes version 1                                                                                               |
 
 A Spawning slot counts as not started only under the [writer-lock rule](#the-writer-lock-rule).
 
@@ -102,9 +105,25 @@ the same rules but answers no activation to count, so the activator records no c
 fallback failure for it. A fresh generation starts without the member, and an `exited` that names
 another activation counts nothing.
 
+## Cold adoption
+
+A generation whose Server and Worker are proven gone while its registered Host still runs is
+recovered only when the Session's binding record names that Host: `bindings.json` reads as version
+1 with exactly one Host entry whose process ID and creation time equal the registration. Recovery
+reads only those members, under the storage guard, and leaves the rest of the record to the
+Server. The fresh generation then keeps the Host's Identified registration with Server and Worker
+NotStarted, its Host endpoint need not be absent, and its Server adopts the Host from the record
+([cold adoption](../../../apps/orchbee-server/README.md#cold-adoption)); the Host's epoch is not
+registered, so that adoption checks it. Without such a record the live Host blocks recovery as
+before, and the refusal names it. `begin_activation` keeps the Host only from a Crashed predecessor
+whose Host it observes running: a Host gone, NotStarted or Spawning starts a generation without
+one, and an unknown observation refuses. An adopting generation keeps its predecessor's receipt
+across an interrupted activation as an unstarted one does, since it created no process. A reader
+that predates the rule refuses the adopting record as malformed.
+
 Recovery never terminates old processes, fabricates a clean-stop receipt, deletes checkpoint data,
-or resumes an Agent into a still-owned terminal. A live orphan Host remains protected and requires
-the separately owned Host-adoption protocol. Refusal offers read-only diagnosis: a refusal whose
+or resumes an Agent into a still-owned terminal. A live Host is never ended: a binding record that
+names it lets the next generation adopt it, and otherwise it blocks recovery. Refusal offers read-only diagnosis: a refusal whose
 verdict observed a registered identity alive carries that `RecoveryBlocker`, the first such role in
 Server, Worker, Host order and its PID, so the surface that reports the refusal can name the process
 whose end, or a restart, clears it. An unknown observation names nothing, and naming grants no
@@ -177,17 +196,18 @@ or migrates; identity replacement belongs to a recovery workflow that owns the o
 
 ## Correctness evidence
 
-| Claim                                                            | Evidence                                                                                            |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Child execution follows identity publication                     | Windows suspended-child trace and registration transition tests                                     |
-| Live or unknown identity never authorizes recovery               | Parser/policy tests and SessionCrashRecovery `ProofIsSound`                                         |
-| An attempt that ended without an identity never refuses recovery | Policy tests, the native failed-start regression and SessionCrashRecovery `RecoveryNeverStuck`      |
-| Old live owner cannot coexist with a newly recovered owner       | TLA+ bounded two-Client/two-generation model and contended Windows activation traces                |
-| PID reuse does not grant termination authority                   | Pure identity comparison and native identity observation; recovery exposes no termination operation |
-| Recovery interruption preserves generation and checkpoint        | Publication-boundary tests and isolated process-loss restart traces                                 |
-| Default and named Sessions share policy                          | Native Windows integration cases for both routes                                                    |
-| A record refuses only the Session it names                       | Windows catalog regression cases for unreadable and other-runtime records; letter-case is untested  |
-| A recorded `exit` counts no crash and hides no running Worker    | The `durable_sessions` exit-recovery test and SessionCrashRecovery `ExitedRunsNoWorker`             |
+| Claim                                                                                | Evidence                                                                                            |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Child execution follows identity publication                                         | Windows suspended-child trace and registration transition tests                                     |
+| Live or unknown identity never authorizes recovery                                   | Parser/policy tests and SessionCrashRecovery `ProofIsSound`                                         |
+| An attempt that ended without an identity never refuses recovery                     | Policy tests, the native failed-start regression and SessionCrashRecovery `RecoveryNeverStuck`      |
+| Old live owner cannot coexist with a newly recovered owner                           | TLA+ bounded two-Client/two-generation model and contended Windows activation traces                |
+| PID reuse does not grant termination authority                                       | Pure identity comparison and native identity observation; recovery exposes no termination operation |
+| Recovery interruption preserves generation and checkpoint                            | Publication-boundary tests and isolated process-loss restart traces                                 |
+| Default and named Sessions share policy                                              | Native Windows integration cases for both routes                                                    |
+| A record refuses only the Session it names                                           | Windows catalog regression cases for unreadable and other-runtime records; letter-case is untested  |
+| A live Host is recovered only by adoption, and only when the binding record names it | The catalog cold-adoption test                                                                      |
+| A recorded `exit` counts no crash and hides no running Worker                        | The `durable_sessions` exit-recovery test and SessionCrashRecovery `ExitedRunsNoWorker`             |
 
 The abstract model retains physical processes across generation changes instead of forgetting old
 owners. Suspended creation, identity publication and resume are separate actions; parent loss can

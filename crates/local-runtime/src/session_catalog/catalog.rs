@@ -7,7 +7,7 @@ use crate::{
     durable_sessions::{self as durable, CatalogRecord, Directory, Lifecycle, Record},
     private_filesystem as permissions,
     process_observation::ProcessSnapshot,
-    process_registration::RecoveryVerdict,
+    process_registration::{ProcessIdentity, RecoveryVerdict},
 };
 use std::{
     collections::BTreeMap,
@@ -208,6 +208,10 @@ impl SessionCatalog {
     /// Proved-dead recovery uses the same namespace and exact runtime guards as new activation.
     /// Answers the activation identifier of the generation it proved dead, which counts as a crash,
     /// or `None` when the Session has no record, stopped, or recorded the `exit` that ended it.
+    ///
+    /// On Windows a generation whose Server and Worker are proven gone while its Host runs is
+    /// recovered too when the binding record names that Host: the next generation adopts it, and
+    /// [`Self::begin_activation`] keeps its registration. Without such a record it is refused.
     pub fn recover_inactive(
         &self,
         session: &Rendezvous,
@@ -233,15 +237,19 @@ impl SessionCatalog {
         let processes = &record.processes;
         let snapshot = ProcessSnapshot::observe(processes);
         let verdict = snapshot.verdict(processes, &writer);
-        if verdict != RecoveryVerdict::Gone {
-            return Err(RecoveryBlocker::refusal(processes, verdict));
-        }
+        let kept = adoptable(processes, verdict)
+            .ok_or_else(|| RecoveryBlocker::refusal(processes, verdict))?;
         // begin_activation closes the prior generation before publishing the fresh
         // record. With every slot NotStarted, no CreateProcess can have happened,
         // so its complete predecessor receipt can survive interrupted marker commit.
         let allow_previous_receipt = processes.is_unstarted();
-        no_endpoints(runtime)?;
-        let _storage = storage_guard(&self.durable.folder(scope))?;
+        free_endpoints(runtime, kept)?;
+        let folder = self.durable.folder(scope);
+        let _storage = storage_guard(&folder)?;
+        // A running Host the binding record does not name blocks recovery as before.
+        if !names_kept_host(&folder, kept) {
+            return Err(RecoveryBlocker::refusal(processes, verdict));
+        }
         let retry = record.lifecycle == Lifecycle::Crashed;
         if !retry {
             match session.activation_state()? {
@@ -264,7 +272,10 @@ impl SessionCatalog {
         Ok((!record.exited()).then_some(activation_id))
     }
 
-    /// One new generation is published before its runtime marker or Server can exist.
+    /// One new generation is published before its runtime marker or Server can exist. After a
+    /// crashed generation whose Host still runs, the new one keeps that Host's registration, so no
+    /// record forgets a live Host and the new Server adopts it; a Host that cannot be observed
+    /// refuses the activation.
     pub fn begin_activation(
         &self,
         session: &Rendezvous,
@@ -292,7 +303,8 @@ impl SessionCatalog {
         {
             return Err(io::ErrorKind::InvalidData.into());
         }
-        no_endpoints(runtime)?;
+        let kept = kept_host(previous.as_ref())?;
+        free_endpoints(runtime, kept)?;
         let checkpoint = self.durable.folder(scope);
         idle_storage(&checkpoint)?;
         if let Some(previous) = &previous {
@@ -316,7 +328,7 @@ impl SessionCatalog {
             Some(previous) => SessionName::parse(&previous.name)?,
             None => SessionName::parse(scope)?,
         };
-        let active = Record::registered(runtime, &name, activation_id)?;
+        let active = Record::registered(runtime, &name, activation_id, kept)?;
         self.durable.publish(scope, &active)
     }
 
@@ -728,12 +740,18 @@ impl NamedSessionEntry {
             let processes = &record.processes;
             let snapshot = ProcessSnapshot::observe(processes);
             let verdict = snapshot.verdict(processes, &writer);
-            if verdict != RecoveryVerdict::Gone {
-                return Ok(RecoveryBlocker::named(processes, verdict)
-                    .map_or(NotRecoverable, ColdObservation::Blocked));
-            }
-            no_endpoints(&self.runtime)?;
+            let blocked = || {
+                RecoveryBlocker::named(processes, verdict)
+                    .map_or(NotRecoverable, ColdObservation::Blocked)
+            };
+            let Some(kept) = adoptable(processes, verdict) else {
+                return Ok(blocked());
+            };
+            free_endpoints(&self.runtime, kept)?;
             let _storage = storage_guard(&self.checkpoint)?;
+            if !names_kept_host(&self.checkpoint, kept) {
+                return Ok(blocked());
+            }
             // Only an entirely unstarted fresh generation may retain its predecessor receipt.
             if record.lifecycle == Lifecycle::Active {
                 let session = match Rendezvous::from_runtime_directory(&self.runtime) {
@@ -867,8 +885,17 @@ fn stopped_checkpoint_evidence(path: &Path) -> io::Result<()> {
 /// any Client, Worker, Host or observation pipe of this runtime.
 #[cfg(windows)]
 fn no_endpoints(runtime: &Path) -> io::Result<()> {
+    free_endpoints(runtime, None)
+}
+
+/// [`no_endpoints`] beside the Host `kept`, which a generation that adopts it leaves serving its
+/// endpoint.
+#[cfg(windows)]
+fn free_endpoints(runtime: &Path, kept: Option<ProcessIdentity>) -> io::Result<()> {
+    let host = Rendezvous::host_endpoint_path(runtime);
     for endpoint in Rendezvous::socket_budget_paths(runtime)
         .into_iter()
+        .filter(|endpoint| kept.is_none() || *endpoint != host)
         .chain([Rendezvous::observation_endpoint_path(runtime)])
     {
         if crate::rendezvous::endpoint_exists(&endpoint)? {
@@ -887,6 +914,74 @@ fn no_endpoints(runtime: &Path) -> io::Result<()> {
         return Err(io::ErrorKind::WouldBlock.into());
     }
     Ok(())
+}
+
+/// A POSIX generation keeps no Host, so this is [`no_endpoints`].
+#[cfg(unix)]
+fn free_endpoints(runtime: &Path, _kept: Option<ProcessIdentity>) -> io::Result<()> {
+    no_endpoints(runtime)
+}
+
+/// Whether recovery may go on after `verdict`, the process verdict on `processes`, and the Host it
+/// keeps: none when every registered process is gone, and on Windows the registered Host when the
+/// Server and Worker are proven gone while it runs.
+fn adoptable(
+    processes: &crate::process_registration::SessionProcesses,
+    verdict: RecoveryVerdict,
+) -> Option<Option<ProcessIdentity>> {
+    match verdict {
+        RecoveryVerdict::Gone => Some(None),
+        #[cfg(windows)]
+        RecoveryVerdict::Live(crate::process_registration::ProcessRole::Host) => processes
+            .registration(crate::process_registration::ProcessRole::Host)
+            .identity()
+            .map(Some),
+        _ => {
+            let _ = processes;
+            None
+        }
+    }
+}
+
+/// Whether the Session folder `folder` holds a binding record naming the Host `kept`, which the
+/// next generation adopts; keeping no Host needs no record.
+fn names_kept_host(folder: &Path, kept: Option<ProcessIdentity>) -> bool {
+    match kept {
+        None => true,
+        #[cfg(windows)]
+        Some(host) => crate::session_store::bindings::names_host(folder, host),
+        #[cfg(unix)]
+        Some(_) => {
+            let _ = folder;
+            false
+        }
+    }
+}
+
+/// The Host the crashed generation `previous` left running, which the next generation keeps
+/// registered: none after a stop, without a Host, or once it is gone; a Host still spawning names
+/// an ended attempt, as recovery reads it. An unknown observation refuses.
+#[cfg(windows)]
+fn kept_host(previous: Option<&Record>) -> io::Result<Option<ProcessIdentity>> {
+    let Some(previous) = previous.filter(|record| record.lifecycle == Lifecycle::Crashed) else {
+        return Ok(None);
+    };
+    match crate::process_observation::host_presence(&previous.processes) {
+        crate::HostPresence::Running(_) => Ok(previous
+            .processes
+            .registration(crate::process_registration::ProcessRole::Host)
+            .identity()),
+        crate::HostPresence::NotStarted
+        | crate::HostPresence::Spawning
+        | crate::HostPresence::Gone => Ok(None),
+        crate::HostPresence::Unknown => Err(io::ErrorKind::InvalidData.into()),
+    }
+}
+
+/// A POSIX generation keeps no Host.
+#[cfg(unix)]
+fn kept_host(_previous: Option<&Record>) -> io::Result<Option<ProcessIdentity>> {
+    Ok(None)
 }
 
 /// The evidence a clean stop leaves beside its matching receipt. A Windows Server publishes its

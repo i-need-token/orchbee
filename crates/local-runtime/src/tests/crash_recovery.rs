@@ -353,6 +353,81 @@ fn unknown_and_exact_live_registration_refuse_without_publication() {
 }
 
 #[test]
+fn a_live_host_is_kept_for_adoption_only_when_the_binding_record_names_it() {
+    // The Server and Worker are gone; this test process stands in for the running Host.
+    let server = ProcessIdentity::new(u32::MAX - 7, 1).unwrap();
+    let worker = ProcessIdentity::new(u32::MAX - 11, 2).unwrap();
+    let host = crate::process_observation::current_identity().unwrap();
+    let another_host = ProcessIdentity::new(host.pid(), host.creation_time() + 1).unwrap();
+    for case in ["another-host", "this-host"] {
+        let base = Fixture::new();
+        let local = Fixture::new();
+        let (catalog, session, scope) = setup(&base, &local, case);
+        let directory = directory(&local);
+        let mut record = directory.read(&scope).unwrap().unwrap();
+        {
+            let processes = &mut record.processes;
+            processes
+                .reserve(ProcessRole::Server, Creator::Activator)
+                .unwrap();
+            processes.identify(ProcessRole::Server, server).unwrap();
+            processes
+                .reserve(ProcessRole::Worker, Creator::Process(server))
+                .unwrap();
+            processes.identify(ProcessRole::Worker, worker).unwrap();
+            processes
+                .reserve(ProcessRole::Host, Creator::Process(worker))
+                .unwrap();
+            processes.identify(ProcessRole::Host, host).unwrap();
+        }
+        directory.publish(&scope, &record).unwrap();
+        let named = if case == "this-host" {
+            host
+        } else {
+            another_host
+        };
+        write_private(
+            local.0.join("sessions").join(&scope).join("bindings.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "version": 1,
+                "hosts": [{ "process": {
+                    "pid": named.pid(),
+                    "creation_time": named.creation_time(),
+                } }],
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let (activation, lifetime) = guards(&session);
+        let recovered = catalog.recover_inactive(&session, &activation, &lifetime);
+        if case == "another-host" {
+            // The running Host still blocks recovery, and the refusal names it.
+            let error = recovered.unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+            assert_eq!(
+                crate::RecoveryBlocker::of(&error),
+                Some(crate::RecoveryBlocker {
+                    role: crate::BlockerRole::TerminalHost,
+                    process_id: host.pid(),
+                })
+            );
+            assert_eq!(directory.read(&scope).unwrap().unwrap(), record);
+            continue;
+        }
+        // The ended generation counts as a crash, and the next one starts with that Host alone.
+        assert_eq!(recovered.unwrap(), Some([1; 16]));
+        catalog.begin_activation(&session, [2; 16]).unwrap();
+        session.commit_activation().unwrap();
+        let next = directory.read(&scope).unwrap().unwrap();
+        assert_eq!(next.activation_id, Some([2; 16]));
+        assert_eq!(
+            next.processes,
+            crate::process_registration::SessionProcesses::adopting(host)
+        );
+    }
+}
+
+#[test]
 fn endpoint_checkpoint_writer_and_record_writer_obstruction_refuse() {
     let base = Fixture::new();
     let local = Fixture::new();

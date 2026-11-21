@@ -421,6 +421,18 @@ fn adopt(
             bindings,
         ),
     };
+    send_pages(handle, target, bindings, || shutdown.ending())
+}
+
+/// Sends the adopting Worker `handle` its `AdoptHost` pages for `bindings` and `target`, its first
+/// requests, and reads the last page's answer. `ending` ends the adoption before the next page. A
+/// Server that adopts its predecessor's Host at startup sends the same pages.
+pub(super) fn send_pages(
+    handle: &WorkerRequestHandle,
+    target: AdoptHostTarget,
+    bindings: Vec<AdoptBinding>,
+    ending: impl Fn() -> bool,
+) -> Adoption {
     let (Ok(adoption_id), Ok(worker_id)) = (
         random_operation(),
         WorkerId::from_bytes(handle.worker_id().as_bytes()),
@@ -434,7 +446,7 @@ fn adopt(
     };
     let count = pages.len();
     for (index, page) in pages.into_iter().enumerate() {
-        if shutdown.ending() {
+        if ending() {
             return Adoption::Ended;
         }
         let last = index + 1 == count;
@@ -615,7 +627,7 @@ enum Admission {
     Failed(&'static str),
 }
 
-enum Adoption {
+pub(super) enum Adoption {
     Adopted {
         sent: Vec<TerminalId>,
         outcome: Adopted,
@@ -624,10 +636,10 @@ enum Adoption {
     Failed(&'static str, Class),
 }
 
-struct Adopted {
-    imported: u32,
-    quarantined: u32,
-    missing: Vec<TerminalId>,
+pub(super) struct Adopted {
+    pub(super) imported: u32,
+    pub(super) quarantined: u32,
+    pub(super) missing: Vec<TerminalId>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -639,7 +651,7 @@ enum Stage {
 
 /// What a failure allows next, before the cap is counted.
 #[derive(Clone, Copy, Debug)]
-enum Class {
+pub(super) enum Class {
     Retry,
     HostGone,
     GiveUp,

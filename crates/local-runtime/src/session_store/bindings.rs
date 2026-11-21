@@ -55,6 +55,54 @@ impl SessionStore {
     }
 }
 
+/// Whether the binding record in the Session folder `folder` names `host` as its one Host: version
+/// 1 with a single Host entry whose process is `host`. Recovery reads only this much to decide
+/// whether the next generation may adopt that Host; the adopting Server reads the whole record and
+/// checks it again. A missing, unreadable or larger record names no Host. It reads like
+/// [`read_session_bindings`], without the store.
+#[cfg(windows)]
+pub(crate) fn names_host(
+    folder: &std::path::Path,
+    host: crate::process_registration::ProcessIdentity,
+) -> bool {
+    #[derive(serde::Deserialize)]
+    struct Header {
+        version: u64,
+        hosts: Vec<HostEntry>,
+    }
+    #[derive(serde::Deserialize)]
+    struct HostEntry {
+        process: Option<Process>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Process {
+        pid: u32,
+        creation_time: u64,
+    }
+    let Ok(Some(bytes)) = PrivateCache::read_existing(folder, FILE, MAXIMUM_BINDING_RECORD_BYTES)
+    else {
+        return false;
+    };
+    // The Server owns every other member, so they are not read here.
+    let Ok(header) = serde_json::from_slice::<Header>(&bytes) else {
+        return false;
+    };
+    match header.hosts.as_slice() {
+        [
+            HostEntry {
+                process: Some(process),
+            },
+        ] => {
+            header.version == 1
+                && crate::process_registration::ProcessIdentity::new(
+                    process.pid,
+                    process.creation_time,
+                ) == Some(host)
+        }
+        _ => false,
+    }
+}
+
 /// The binding record of the Session whose runtime `session` admitted, read without its store: it
 /// creates nothing and takes no lock, and since the holder only ever replaces the file whole, it
 /// reads one complete record, the earlier or the later one. A file larger than the bound is

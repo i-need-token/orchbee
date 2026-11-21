@@ -10,22 +10,31 @@ EXTENDS Naturals, FiniteSets, TLC
 \* the bounded correlation surrogate; exact wire request IDs remain runtime evidence.
 \* CloseTerminals admits Closes. Retirement reads no Worker generation, so a configuration that
 \* replaces Workers may leave Closes to one that refills the slot.
-CONSTANTS Clients, MaxOperation, MaxGeneration, MaxTerminal, CloseTerminals
+\* ColdAdoption lets the Server and its Worker end together while the Host keeps its terminals; the
+\* next Server starts empty and adopts that Host from the binding record the old one wrote.
+CONSTANTS Clients, MaxOperation, MaxGeneration, MaxTerminal, CloseTerminals, ColdAdoption
 ResponseValues == {"none", "accepted", "unknown", "unavailable", "server-busy"}
 TerminalIds == 1..MaxTerminal
 \* The Worker's record of one terminal: none made, live (counted against its bound), Disposed
-\* (kept for exact Close replay, not counted), or forgotten after the Server retired it.
-WorkerStates == {"none", "live", "disposed", "forgotten"}
+\* (kept for exact Close replay, not counted), or forgotten after the Server retired it. A terminal
+\* the Host runs that no Worker serves, after its Server ended and until an adoption imports it,
+\* is quarantined.
+WorkerStates == {"none", "live", "disposed", "forgotten", "quarantined"}
 CloseStates == {"none", "open", "disposing", "published"}
+RecordedPhases == {"none", "awaiting", "started"}
 VARIABLES phase, workerGeneration, bindingGeneration, operation, nextOperation,
   fence, issued, pendingClient, connected, response, published, committedOperation, responseOperation,
   operationGeneration,
-  terminal, nextTerminal, closeState, workerState, retired, retireQueue
+  terminal, nextTerminal, closeState, workerState, retired, retireQueue,
+  recorded, recordedPhase, recordedFence, adopting
 coordinatorVars == <<phase, workerGeneration, bindingGeneration, operation, nextOperation,
   fence, issued, pendingClient, connected, response, published, committedOperation, responseOperation,
   operationGeneration>>
 retirementVars == <<terminal, nextTerminal, closeState, workerState, retired, retireQueue>>
-vars == <<coordinatorVars, retirementVars>>
+\* The record an ended Server left, until the next Server's adoption reads it; an adopting Server
+\* serves nothing until its adoption settles.
+adoptionVars == <<recorded, recordedPhase, recordedFence, adopting>>
+vars == <<coordinatorVars, retirementVars, adoptionVars>>
 Pending == phase \in {"creating", "starting"}
 \* A settled binding whose terminal a Close may dispose.
 Settled == phase \in {"awaiting", "started"}
@@ -50,8 +59,13 @@ Init ==
   /\ workerState = [id \in TerminalIds |-> "none"]
   /\ retired = {}
   /\ retireQueue = {}
+  /\ recorded = 0
+  /\ recordedPhase = "none"
+  /\ recordedFence = 0
+  /\ adopting = FALSE
 
 IssueCreate(client) ==
+  /\ ~adopting
   /\ client \in connected
   /\ phase = "absent"
   /\ response[client] = "none"
@@ -70,8 +84,10 @@ IssueCreate(client) ==
   /\ closeState' = "open"
   /\ UNCHANGED <<workerGeneration, connected, response, published, committedOperation, responseOperation,
        workerState, retired, retireQueue>>
+  /\ UNCHANGED adoptionVars
 \* An accepted Close fences every later start of its terminal.
 IssueStart(client) ==
+  /\ ~adopting
   /\ client \in connected
   /\ phase = "awaiting"
   /\ closeState = "open"
@@ -87,6 +103,7 @@ IssueStart(client) ==
   /\ operationGeneration' = workerGeneration
   /\ UNCHANGED <<bindingGeneration, workerGeneration, connected, response, published, committedOperation, responseOperation>>
   /\ UNCHANGED retirementVars
+  /\ UNCHANGED adoptionVars
 RejectConcurrent(client) ==
   /\ client \in connected
   /\ client # pendingClient
@@ -98,6 +115,7 @@ RejectConcurrent(client) ==
        nextOperation, fence, issued, pendingClient, connected, published,
        committedOperation, operationGeneration>>
   /\ UNCHANGED retirementVars
+  /\ UNCHANGED adoptionVars
 CompleteExact ==
   /\ Pending
   /\ workerGeneration = bindingGeneration
@@ -109,6 +127,7 @@ CompleteExact ==
   /\ UNCHANGED <<workerGeneration, bindingGeneration, operation, nextOperation,
        fence, issued, pendingClient, connected, published, operationGeneration>>
   /\ UNCHANGED <<terminal, nextTerminal, closeState, retired, retireQueue>>
+  /\ UNCHANGED adoptionVars
 \* An unknown create may or may not have made its terminal; the binding is never retired.
 CompleteUnknown ==
   /\ Pending
@@ -120,6 +139,7 @@ CompleteUnknown ==
   /\ UNCHANGED <<workerGeneration, bindingGeneration, operation, nextOperation,
        fence, issued, pendingClient, connected, published, committedOperation, operationGeneration>>
   /\ UNCHANGED <<terminal, nextTerminal, closeState, retired, retireQueue>>
+  /\ UNCHANGED adoptionVars
 CompleteNotDelivered ==
   /\ Pending
   /\ phase' = IF phase = "creating" THEN "unavailable" ELSE "awaiting"
@@ -128,6 +148,7 @@ CompleteNotDelivered ==
   /\ UNCHANGED <<workerGeneration, bindingGeneration, operation, nextOperation,
        fence, issued, pendingClient, connected, published, committedOperation, operationGeneration>>
   /\ UNCHANGED retirementVars
+  /\ UNCHANGED adoptionVars
 CompleteRejected ==
   /\ Pending
   /\ phase' = "unavailable"
@@ -136,6 +157,7 @@ CompleteRejected ==
   /\ UNCHANGED <<workerGeneration, bindingGeneration, operation, nextOperation,
        fence, issued, pendingClient, connected, published, committedOperation, operationGeneration>>
   /\ UNCHANGED retirementVars
+  /\ UNCHANGED adoptionVars
 CompleteStale ==
   /\ Pending
   /\ workerGeneration # bindingGeneration
@@ -148,6 +170,7 @@ Publish(client) ==
   /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
        nextOperation, fence, issued, connected, pendingClient, committedOperation, responseOperation, operationGeneration>>
   /\ UNCHANGED retirementVars
+  /\ UNCHANGED adoptionVars
 AbandonPublication(client) ==
   /\ response[client] # "none"
   /\ client \notin connected
@@ -155,20 +178,24 @@ AbandonPublication(client) ==
   /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
        nextOperation, fence, issued, connected, pendingClient, published, committedOperation, responseOperation, operationGeneration>>
   /\ UNCHANGED retirementVars
+  /\ UNCHANGED adoptionVars
 Disconnect(client) ==
   /\ client \in connected
   /\ connected' = connected \ {client}
   /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
        nextOperation, fence, issued, pendingClient, response, published, committedOperation, responseOperation, operationGeneration>>
   /\ UNCHANGED retirementVars
+  /\ UNCHANGED adoptionVars
 \* The Worker's records stay as they were: an adopting replacement keeps them, and keeping them
 \* also over-approximates a replacement that lost them.
 ReplaceWorker ==
+  /\ ~adopting
   /\ workerGeneration < MaxGeneration
   /\ workerGeneration' = workerGeneration + 1
   /\ UNCHANGED <<phase, bindingGeneration, operation, nextOperation, fence,
        issued, pendingClient, connected, response, published, committedOperation, responseOperation, operationGeneration>>
   /\ UNCHANGED retirementVars
+  /\ UNCHANGED adoptionVars
 \* A replacement that adopted the Host imports each settled binding into its generation, keeping
 \* its fence and issued operations. A binding with an operation in flight at the loss is not
 \* imported: that operation settles as unknown against the generation it was issued to.
@@ -179,6 +206,7 @@ ImportBinding ==
   /\ UNCHANGED <<phase, workerGeneration, operation, nextOperation, fence, issued, pendingClient,
        connected, response, published, committedOperation, responseOperation, operationGeneration>>
   /\ UNCHANGED retirementVars
+  /\ UNCHANGED adoptionVars
 \* A Close disposes the settled terminal. The Worker stops counting it at once, before the Server
 \* can learn the outcome, so the Worker's count never exceeds the Server's.
 DisposeTerminal ==
@@ -190,6 +218,7 @@ DisposeTerminal ==
   /\ workerState' = [workerState EXCEPT ![terminal] = "disposed"]
   /\ UNCHANGED coordinatorVars
   /\ UNCHANGED <<terminal, nextTerminal, retired, retireQueue>>
+  /\ UNCHANGED adoptionVars
 \* The Server learns Disposed and publishes the Close. A create whose result said it made no
 \* terminal publishes its Close without one.
 PublishClose ==
@@ -201,6 +230,7 @@ PublishClose ==
   /\ closeState' = "published"
   /\ UNCHANGED coordinatorVars
   /\ UNCHANGED <<terminal, nextTerminal, workerState, retired, retireQueue>>
+  /\ UNCHANGED adoptionVars
 \* Once its Close is published and no Presentation names it, the Server retires the binding: the
 \* slot admits a fresh create, the terminal ID is never issued again, and the Worker that holds a
 \* Disposed record is told to forget it.
@@ -217,6 +247,7 @@ RetireBinding ==
   /\ UNCHANGED <<workerGeneration, operation, nextOperation, issued, pendingClient, connected,
        response, published, committedOperation, responseOperation, operationGeneration>>
   /\ UNCHANGED <<nextTerminal, workerState>>
+  /\ UNCHANGED adoptionVars
 \* The Worker forgets a retired terminal only from its Disposed record; any other record stays.
 ForgetRetired(id) ==
   /\ id \in retireQueue
@@ -226,6 +257,98 @@ ForgetRetired(id) ==
                     ELSE workerState
   /\ UNCHANGED coordinatorVars
   /\ UNCHANGED <<terminal, nextTerminal, closeState, retired>>
+  /\ UNCHANGED adoptionVars
+\* The binding records a Server's saver may have written, as <<terminal, phase, fence>>: none, the
+\* slot's terminal as it stood at a settled moment before now (awaiting at any fence it reached, or
+\* started), or a terminal retired since, whose phase and fence no adoption reads.
+RecordedValues ==
+  {<<0, "none", 0>>}
+  \cup {<<id, "awaiting", 1>> : id \in retired}
+  \cup (IF terminal # 0 /\ (phase = "awaiting" \/ fence > 1)
+        THEN {<<terminal, "awaiting", f>> : f \in 1..fence}
+             \cup (IF phase = "started" THEN {<<terminal, "started", fence>>} ELSE {})
+        ELSE {})
+\* An adoption reads the record once; the adopting Server writes its own.
+RecordRead ==
+  /\ recorded' = 0
+  /\ recordedPhase' = "none"
+  /\ recordedFence' = 0
+\* The Server and its Worker end together, at any step, and the Host keeps every terminal it runs,
+\* served by no Worker; a Disposed terminal is gone with the Worker that disposed it. Operations in
+\* flight and owed results end with the Server. The next Server starts empty in adopt mode with its
+\* Clients reconnected, reads the record the ended one left (an ended adoption leaves it unread),
+\* and allocates above every identity the ended one may have issued.
+CrashServer ==
+  /\ ColdAdoption
+  /\ workerGeneration < MaxGeneration
+  /\ workerGeneration' = workerGeneration + 1
+  /\ phase' = "absent"
+  /\ bindingGeneration' = 0
+  /\ operation' = 0
+  /\ fence' = 0
+  /\ pendingClient' = "none"
+  /\ connected' = Clients
+  /\ response' = [client \in Clients |-> "none"]
+  /\ responseOperation' = [client \in Clients |-> 0]
+  /\ operationGeneration' = 0
+  /\ terminal' = 0
+  /\ closeState' = "none"
+  /\ workerState' = [id \in TerminalIds |->
+       CASE workerState[id] \in {"live", "quarantined"} -> "quarantined"
+         [] OTHER -> "none"]
+  /\ retireQueue' = {}
+  /\ adopting' = TRUE
+  /\ IF adopting
+     THEN UNCHANGED <<recorded, recordedPhase, recordedFence>>
+     ELSE \E value \in RecordedValues:
+            /\ recorded' = value[1]
+            /\ recordedPhase' = value[2]
+            /\ recordedFence' = value[3]
+  /\ UNCHANGED <<nextOperation, issued, published, committedOperation, nextTerminal, retired>>
+\* An adopting Server imports the recorded binding only once the Host confirmed it still runs the
+\* terminal, into the new Worker's generation with the recorded phase and fence; the new Worker
+\* then serves it. Every other terminal the Host runs stays quarantined.
+ImportRecorded ==
+  /\ ColdAdoption
+  /\ adopting
+  /\ recorded # 0
+  /\ workerState[recorded] = "quarantined"
+  /\ phase' = recordedPhase
+  /\ bindingGeneration' = workerGeneration
+  /\ fence' = recordedFence
+  /\ terminal' = recorded
+  /\ closeState' = "open"
+  /\ workerState' = [workerState EXCEPT ![recorded] = IF @ = "quarantined" THEN "live" ELSE @]
+  /\ adopting' = FALSE
+  /\ RecordRead
+  /\ UNCHANGED <<workerGeneration, operation, nextOperation, issued, pendingClient, connected,
+       response, published, committedOperation, responseOperation, operationGeneration>>
+  /\ UNCHANGED <<nextTerminal, retired, retireQueue>>
+\* A recorded terminal the Host no longer runs binds unavailable: its program is gone.
+AdoptMissing ==
+  /\ ColdAdoption
+  /\ adopting
+  /\ recorded # 0
+  /\ workerState[recorded] # "quarantined"
+  /\ phase' = "unavailable"
+  /\ bindingGeneration' = workerGeneration
+  /\ terminal' = recorded
+  /\ closeState' = "open"
+  /\ adopting' = FALSE
+  /\ RecordRead
+  /\ UNCHANGED <<workerGeneration, operation, nextOperation, fence, issued, pendingClient, connected,
+       response, published, committedOperation, responseOperation, operationGeneration>>
+  /\ UNCHANGED <<nextTerminal, workerState, retired, retireQueue>>
+\* Without a recorded binding every terminal the Host runs stays quarantined, and the Presentation
+\* restores with a fresh program: a later create.
+AdoptWithoutRecord ==
+  /\ ColdAdoption
+  /\ adopting
+  /\ recorded = 0
+  /\ adopting' = FALSE
+  /\ RecordRead
+  /\ UNCHANGED coordinatorVars
+  /\ UNCHANGED retirementVars
 Next ==
   \/ \E client \in Clients: IssueCreate(client) \/ IssueStart(client)
        \/ RejectConcurrent(client) \/ Disconnect(client)
@@ -234,6 +357,7 @@ Next ==
   \/ ReplaceWorker \/ ImportBinding
   \/ DisposeTerminal \/ PublishClose \/ RetireBinding
   \/ (\E id \in TerminalIds: ForgetRetired(id))
+  \/ CrashServer \/ ImportRecorded \/ AdoptMissing \/ AdoptWithoutRecord
 Settle == CompleteExact \/ CompleteUnknown \/ CompleteNotDelivered \/ CompleteRejected \/ CompleteStale
 FinishPublication(client) == Publish(client) \/ AbandonPublication(client)
 Spec == Init /\ [][Next]_vars /\ WF_vars(Settle) /\ (\A client \in Clients: WF_vars(FinishPublication(client)))
@@ -258,6 +382,10 @@ TypeOK ==
   /\ workerState \in [TerminalIds -> WorkerStates]
   /\ retired \subseteq TerminalIds
   /\ retireQueue \subseteq retired
+  /\ recorded \in 0..MaxTerminal
+  /\ recordedPhase \in RecordedPhases
+  /\ recordedFence \in 0..MaxOperation
+  /\ adopting \in BOOLEAN
 FreshIssuance == [][(\E client \in Clients: IssueCreate(client) \/ IssueStart(client)) =>
   /\ operation' \notin issued
   /\ operation' = nextOperation
@@ -265,7 +393,9 @@ FreshIssuance == [][(\E client \in Clients: IssueCreate(client) \/ IssueStart(cl
 ExactCommitIsCurrent == [][CompleteExact => bindingGeneration = workerGeneration]_vars
 \* An operation commits exactly only against the Worker generation it was issued to.
 ExactCommitWasIssuedToCurrentWorker == [][CompleteExact => operationGeneration = workerGeneration]_vars
-UnknownCannotDispatch == [][phase = "unknown" =>
+\* An unknown binding never dispatches again while its Server runs; a Server that ends forgets it,
+\* and its terminal, if made, stays quarantined in the Host.
+UnknownCannotDispatch == [][phase = "unknown" /\ ~adopting' =>
   /\ phase' = "unknown"
   /\ issued' = issued]_vars
 DisconnectPreservesTerminal == [][(\E client \in Clients: Disconnect(client)) =>
@@ -284,8 +414,15 @@ PendingExcludesResult == Pending => response[pendingClient] = "none"
 \* terminal only if some state holds a retired ID live: retired IDs are never issued again and were
 \* Disposed or never made before retirement.
 RetiredIdNeverDeliveredToLive == \A id \in retired: workerState[id] # "live"
-\* The binding slot never names a retired terminal.
-RetiredIdNeverReissued == terminal \notin retired
+\* The binding slot never names a retired terminal for a launch. Only a binding record written before
+\* the terminal's Close can name it again, and the Host no longer runs it, so it binds unavailable.
+RetiredIdNeverReissued == terminal \in retired => phase = "unavailable"
+\* A settled binding whose terminal no Close disposed is served by its Worker: no binding enters a
+\* Server for a terminal the Host does not run.
+SettledTerminalIsLive == Settled /\ closeState = "open" => workerState[terminal] = "live"
+\* Every terminal a Worker or the Host ever held lies below the next identity, so no create
+\* names one, a quarantined one included.
+FreshIdsAboveHeld == \A id \in TerminalIds: workerState[id] # "none" => id < nextTerminal
 \* The Worker counts only live terminals, and each one has the Server's binding, so a create the
 \* Server admitted is never refused by the Worker's bound.
 WorkerCountWithinServerCount ==

@@ -1,15 +1,21 @@
 //! Loads admitted checkpoint values into the coordinator, samples current terminal directory
-//! facts, and dispatches prepared restoration launches outside the state lock. It does not
-//! define the checkpoint format or own filesystem storage publication.
+//! facts, and dispatches prepared restoration launches outside the state lock. A Server that adopts
+//! its predecessor's running Host binds the terminals that Host kept instead of launching them. It
+//! does not define the checkpoint format or own filesystem storage publication.
 
 use super::{LocalTerminalService, create_reference, lease_expiry, placement, random_session_id};
 use crate::{
+    binding_record::{BindingRecord, RecordedTerminal},
+    session_coordinator::SessionCoordinator,
     terminal_coordinator::{Completion, CreateInputs, PendingOperation},
+    worker_obcn_carrier::WorkerRequestHandle,
     worker_registry::WorkerRegistry,
 };
-use orchbee_server::{WorkbenchAuthority, WorkbenchCheckpoint};
-use orchbee_workbench_protocol::WorkerId;
+use orchbee_capability_node_protocol::{AdoptBinding, TerminalId};
+use orchbee_server::{WorkbenchAuthority, WorkbenchCheckpoint, WorkbenchRestoreTarget};
+use orchbee_workbench_protocol::{TerminalPresentationId, WorkerId};
 use std::{
+    collections::BTreeMap,
     io,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
@@ -17,6 +23,14 @@ use std::{
 
 mod riders;
 pub(super) use riders::{Riders, attach_held_seed};
+
+/// What a Server that adopts its predecessor's running Host restores from: the binding record that
+/// Host's terminals are named in, and the adoption that offers them to the Host and answers the
+/// offered terminals its inventory lacked.
+struct Adoption<'record> {
+    record: &'record BindingRecord,
+    adopt: Box<dyn FnOnce(Vec<AdoptBinding>) -> io::Result<Vec<TerminalId>> + 'record>,
+}
 
 pub(crate) struct CheckpointRestore {
     /// Each restored launch and, when replay is on, the kept output its Presentation replays.
@@ -143,7 +157,43 @@ impl LocalTerminalService {
             .map_err(|_| io::Error::other("Worker registry failed"))?
             .request_handle()
             .ok_or_else(|| io::Error::other("Worker unavailable"))?;
-        let worker = placement(Some(&handle)).ok_or_else(|| io::Error::other("invalid Worker"))?;
+        Self::restore(workers, &handle, checkpoint, configuration, None)
+    }
+
+    /// [`Self::from_checkpoint`] for a Server that adopts the Host its predecessor left running,
+    /// through the Worker adopting it. Each terminal `record` names that a restored Presentation
+    /// shows is offered to `adopt`, which answers the offered terminals the Host's inventory lacked;
+    /// every Presentation of an offered terminal shows it again without a launch, a kept-output
+    /// replay or an Agent resume. Every other Presentation restores as at any start, and no
+    /// identity the predecessor may have issued is issued again.
+    #[cfg(windows)]
+    pub(crate) fn adopting_checkpoint(
+        workers: Arc<Mutex<WorkerRegistry>>,
+        checkpoint: Option<WorkbenchCheckpoint>,
+        configuration: &orchbee_local_runtime::UserSettingsLoad,
+        record: &BindingRecord,
+        adopt: impl FnOnce(Vec<AdoptBinding>) -> io::Result<Vec<TerminalId>>,
+    ) -> io::Result<(Self, CheckpointRestore)> {
+        let handle = workers
+            .lock()
+            .map_err(|_| io::Error::other("Worker registry failed"))?
+            .adopting_handle()
+            .ok_or_else(|| io::Error::other("Worker unavailable"))?;
+        let adoption = Adoption {
+            record,
+            adopt: Box::new(adopt),
+        };
+        Self::restore(workers, &handle, checkpoint, configuration, Some(adoption))
+    }
+
+    fn restore(
+        workers: Arc<Mutex<WorkerRegistry>>,
+        handle: &WorkerRequestHandle,
+        checkpoint: Option<WorkbenchCheckpoint>,
+        configuration: &orchbee_local_runtime::UserSettingsLoad,
+        adoption: Option<Adoption<'_>>,
+    ) -> io::Result<(Self, CheckpointRestore)> {
+        let worker = placement(Some(handle)).ok_or_else(|| io::Error::other("invalid Worker"))?;
         let owner = WorkerId::parse(&format!(
             "{:032x}",
             u128::from_be_bytes(worker.worker_id.as_bytes())
@@ -183,9 +233,17 @@ impl LocalTerminalService {
             .get_mut()
             .map_err(|_| io::Error::other("coordinator failed"))?;
         let expiry = lease_expiry().ok_or_else(|| io::Error::other("restore lease unavailable"))?;
+        let mut adopted = match adoption {
+            Some(adoption) => offer_recorded(coordinator, &targets, adoption)?,
+            None => BTreeMap::new(),
+        };
         let mut pending = Vec::with_capacity(targets.len());
         let mut resumes = riders::resumes();
         for target in targets {
+            if let Some((terminal, missing)) = adopted.remove(target.presentation_id()) {
+                coordinator.adopt_recorded_terminal(&target, terminal, missing, worker, expiry)?;
+                continue;
+            }
             // A Presentation whose directory is unavailable stays unbound in its place, keeping
             // its retained directory and, when resuming is on, its Agent reference until the
             // person retries there or starts elsewhere. Nothing retries on its own.
@@ -209,7 +267,7 @@ impl LocalTerminalService {
             let inputs = CreateInputs::admitted_by(
                 Some(reference),
                 Some(expiry),
-                Some(&handle),
+                Some(handle),
                 capture.clone(),
             );
             let output = riders.restored_output(&target);
@@ -344,4 +402,43 @@ impl LocalTerminalService {
             &entries,
         )
     }
+}
+
+/// Raises `coordinator`'s identity floor past every identity the record's writer may have issued,
+/// then offers the Host each recorded terminal a restored Presentation in `targets` shows, keyed by
+/// that Presentation with whether the Host's inventory lacked it. A Close the record shows in
+/// flight is not offered: no one holds that Close to finish it, and a Worker that imported it would
+/// refuse the person's next Close of that terminal.
+fn offer_recorded<'record>(
+    coordinator: &mut SessionCoordinator,
+    targets: &[WorkbenchRestoreTarget],
+    adoption: Adoption<'record>,
+) -> io::Result<BTreeMap<TerminalPresentationId, (&'record RecordedTerminal, bool)>> {
+    coordinator.raise_identity_floor(adoption.record.identity_floor());
+    let offered: Vec<&RecordedTerminal> = adoption
+        .record
+        .terminals
+        .iter()
+        .filter(|terminal| {
+            targets
+                .iter()
+                .any(|target| target.presentation_id() == &terminal.presentation_id)
+        })
+        .collect();
+    let missing = (adoption.adopt)(
+        offered
+            .iter()
+            .map(|terminal| AdoptBinding {
+                close: None,
+                ..terminal.binding
+            })
+            .collect(),
+    )?;
+    Ok(offered
+        .into_iter()
+        .map(|terminal| {
+            let lacked = missing.contains(&terminal.binding.terminal_id);
+            (terminal.presentation_id.clone(), (terminal, lacked))
+        })
+        .collect())
 }

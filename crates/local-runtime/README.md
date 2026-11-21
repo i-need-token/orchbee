@@ -414,7 +414,9 @@ reads the `layouts` folder.
 The binding record, `sessions/<session>/bindings.json`, keeps the same `version` 1 and `extensions`
 rules without being a versioned record: two installed versions read it at once, so it never migrates
 or restores, `inspect_records` does not list it, and a reader that cannot use it treats it as absent
-([Session checkpoint store](#session-checkpoint-store)).
+([Session checkpoint store](#session-checkpoint-store)). Cold recovery reads its Host entry to admit
+a generation that adopts a running Host
+([cold adoption](docs/windows-crash-recovery.md#cold-adoption)).
 
 Each store keeps an `extensions` object it reads as opaque and writes back unchanged, so a later
 release adds an optional field there without a migration. `session.json` reads one member itself:

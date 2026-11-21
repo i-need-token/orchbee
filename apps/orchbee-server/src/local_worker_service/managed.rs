@@ -1,6 +1,7 @@
 //! Composes admitted runtime locks, verified cohort artifacts, retained Worker startup, Client
-//! service, and checkpoint lifecycle for a managed Session. It does not define domain
-//! transitions or adopt an unregistered process as the Session owner.
+//! service, and checkpoint lifecycle for a managed Session. A Windows generation that kept its
+//! predecessor's running Host adopts it before serving. It does not define domain transitions or
+//! adopt an unregistered process as the Session owner.
 
 use crate::{
     agent_service::{AgentPolicy, AgentService},
@@ -21,6 +22,8 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+#[cfg(windows)]
+mod adoption;
 mod checkpoint;
 mod replacement;
 #[cfg(unix)]
@@ -69,6 +72,10 @@ pub(super) fn run(
     let socket_root = session.hold_socket_root()?;
     let record = session.retain_active_record()?;
     let (session_record, kept, checkpoint) = checkpoint::load(&session)?;
+    // A generation that kept its predecessor's running Host adopts it; one that cannot fails here,
+    // before anything starts, and leaves that Host running.
+    #[cfg(windows)]
+    let adopting = adoption::Adopting::find(&session_record, kept.as_ref())?;
     // A Session that ended without its stop left its socket files, and no listener can serve
     // them while this Server holds the lifetime lock.
     #[cfg(unix)]
@@ -115,10 +122,24 @@ pub(super) fn run(
     listener.set_nonblocking(true)?;
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let executable = cohort.executable(CohortArtifact::Worker);
-    let arguments = [
+    // An adopting Worker keeps the Session Worker id its predecessor's bindings name.
+    #[cfg(windows)]
+    let (worker_argument, replacing) = (
+        adopting.as_ref().map(adoption::Adopting::worker_argument),
+        adopting.as_ref().map(adoption::Adopting::worker_id),
+    );
+    #[cfg(not(windows))]
+    let (worker_argument, replacing): (Option<String>, _) = (None, None);
+    let mut arguments = vec![
         std::ffi::OsStr::new("--runtime-directory"),
         runtime.as_os_str(),
     ];
+    if let Some(worker_id) = &worker_argument {
+        arguments.extend([
+            std::ffi::OsStr::new("--worker-id"),
+            std::ffi::OsStr::new(worker_id),
+        ]);
+    }
     #[cfg(windows)]
     let mut worker = orchbee_local_runtime::spawn_session_child(
         &orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
@@ -148,7 +169,7 @@ pub(super) fn run(
                         cohort.identity(),
                         Some(&agents),
                         worker.id(),
-                        None,
+                        replacing,
                         Some(wake_on_end(&Arc::downgrade(&shutdown))),
                     );
                 }
@@ -158,12 +179,11 @@ pub(super) fn run(
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
                 Err(error) => return Err(error),
             }
-            if registry
+            // An adopting Worker serves no job until it adopted the Host.
+            let registry = registry
                 .lock()
-                .map_err(|_| io::Error::other("Worker registry failed"))?
-                .request_handle()
-                .is_some()
-            {
+                .map_err(|_| io::Error::other("Worker registry failed"))?;
+            if registry.request_handle().is_some() || registry.adopting_handle().is_some() {
                 break Ok(());
             }
         }
@@ -177,6 +197,13 @@ pub(super) fn run(
     #[cfg(not(windows))]
     admitted?;
     let initialized = (|| {
+        #[cfg(windows)]
+        if let Some(adopting) = &adopting {
+            let (handle, mut terminals, pending) =
+                adopting.restore(&registry, checkpoint, &configuration)?;
+            terminals.configure_graphics_files(runtime);
+            return Ok((handle, Arc::new(terminals), pending));
+        }
         let handle = registry
             .lock()
             .map_err(|_| io::Error::other("Worker registry failed"))?
@@ -219,6 +246,10 @@ pub(super) fn run(
             worker,
             carrier,
             handle,
+            #[cfg(windows)]
+            adopted: adopting.is_some(),
+            #[cfg(not(windows))]
+            adopted: false,
             listener,
             registry,
             waker: Arc::downgrade(&shutdown),

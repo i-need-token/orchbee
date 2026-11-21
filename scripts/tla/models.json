@@ -364,6 +364,9 @@
 				"apps/orchbee-server/tests/client_process/terminal_operations.rs",
 				"apps/orchbee-server/src/session_coordinator/terminal_retirement.rs",
 				"apps/orchbee-server/src/session_coordinator/tab_close.rs",
+				"apps/orchbee-server/src/session_coordinator/recorded_bindings.rs",
+				"apps/orchbee-server/src/local_terminal_service/checkpoint.rs",
+				"apps/orchbee-server/src/local_worker_service/managed/adoption.rs",
 				"apps/orchbee-worker/src/terminal_authorization.rs",
 				"apps/orchbee-worker/src/terminal_authorization/**"
 			],
@@ -384,7 +387,11 @@
 				"DisposeTerminal",
 				"PublishClose",
 				"RetireBinding",
-				"ForgetRetired"
+				"ForgetRetired",
+				"CrashServer",
+				"ImportRecorded",
+				"AdoptMissing",
+				"AdoptWithoutRecord"
 			],
 			"variants": [
 				{
@@ -393,7 +400,8 @@
 						"MaxOperation": 3,
 						"MaxGeneration": 2,
 						"MaxTerminal": 1,
-						"CloseTerminals": false
+						"CloseTerminals": false,
+						"ColdAdoption": false
 					}
 				},
 				{
@@ -402,7 +410,18 @@
 						"MaxOperation": 2,
 						"MaxGeneration": 1,
 						"MaxTerminal": 2,
-						"CloseTerminals": true
+						"CloseTerminals": true,
+						"ColdAdoption": false
+					}
+				},
+				{
+					"name": "cold-adoption",
+					"constants": {
+						"MaxOperation": 2,
+						"MaxGeneration": 2,
+						"MaxTerminal": 1,
+						"CloseTerminals": true,
+						"ColdAdoption": true
 					}
 				}
 			]

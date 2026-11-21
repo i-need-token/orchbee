@@ -3,7 +3,8 @@
 //! runtime folder. Effects derive their paths from admission.
 use crate::{
     ActivationState, DataRoot, HeldLock, ModeCheckedLocalSessionRendezvous as Rendezvous,
-    SessionName, private_filesystem as permissions, process_registration::SessionProcesses,
+    SessionName, private_filesystem as permissions,
+    process_registration::{ProcessIdentity, SessionProcesses},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -87,12 +88,19 @@ impl Record {
             processes: SessionProcesses::default(),
         })
     }
+    /// The record of a new generation, which adopts `host`, the Host its predecessor left running,
+    /// when there is one.
     pub(crate) fn registered(
         runtime: &Path,
         name: &SessionName,
         activation_id: [u8; 16],
+        host: Option<ProcessIdentity>,
     ) -> io::Result<Self> {
-        Self::new(runtime, name, Some(activation_id), Lifecycle::Active)
+        let mut record = Self::new(runtime, name, Some(activation_id), Lifecycle::Active)?;
+        if let Some(host) = host {
+            record.processes = SessionProcesses::adopting(host);
+        }
+        Ok(record)
     }
     /// The runtime folder this record's generation uses.
     pub(crate) fn runtime(&self) -> &Path {

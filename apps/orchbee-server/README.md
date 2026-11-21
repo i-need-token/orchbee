@@ -39,6 +39,7 @@ error's text.
 | `worker-connection-ended` | The Worker connection ends, or its thread cannot start                                                                                                                                                                                                                                        | `exit`, `failure`, `error`, `request` with `elapsedMs` since it was sent, `afterShutdown`, `workerProcess` (`not-held`, `running`, `exited`, `unknown`), `workerExitCode`                                                                                                                                                                                           |
 | `worker-lost`             | The managed Server lost its Worker and decided what follows, once per lost generation                                                                                                                                                                                                         | `generation`, `cause` (`exited`, or `disconnected` when the Server ended a process still running), `exitCode` or `exitSignal` when known, `attempts` in the cap's window, `action` (`replace`, `stop`, `give-up`), and for the last two `reason` (`stop-admitted`, `worker-not-gone`, `host-gone`, `host-spawning`, `host-unverified`, `cap-reached`)               |
 | `worker-replaced`         | One replacement attempt adopted the Host or failed                                                                                                                                                                                                                                            | `generation` once admitted, `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `stage` (`create`, `admit`, `adopt`), the `failure` (an `AdoptHost` failure, `timed-out`, `declined`, `exited`, `protocol`, `unavailable`, or an I/O error kind) and `next` (`retry`, `stop`, `give-up`); `elapsedMs` |
+| `host-adopted`            | A Windows Server started for a generation that kept its predecessor's running Host adopted that Host or failed to, once per start                                                                                                                                                             | `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `failure` (`host`, `record`, an `AdoptHost` failure, `timed-out`, `declined`, `protocol`, `unavailable`); `elapsedMs`                                                                                                                             |
 | `panicked`                | Any Server thread panics; the panic still ends only that thread                                                                                                                                                                                                                               | `thread` (the program's own thread names, else `other` or `unnamed`), `file` stem, `line`, `suppressed`                                                                                                                                                                                                                                                             |
 | `state-poisoned`          | The Session coordinator lock is first observed poisoned                                                                                                                                                                                                                                       | `lock` (`coordinator`)                                                                                                                                                                                                                                                                                                                                              |
 | `agent-change-refused`    | The Agent state refused a change as `invalid-event`, keeping its previous state                                                                                                                                                                                                               | `transition` (the refused change's kind), `suppressed`                                                                                                                                                                                                                                                                                                              |
@@ -59,6 +60,7 @@ counts the records left out since the last one. The Agent state writes `agent-ch
 `suppressed` counts the refusals or rebuilds left out; the
 [fault recovery rule](docs/agent-canonical-model.md#fault-recovery) says what is kept. `worker-lost` is `error`, and `worker-replaced` is
 `info` when adopted and `error` otherwise; neither is rate-limited, since the cap bounds them.
+`host-adopted` follows the same levels and comes at most once per start.
 `worker-connection-ended` is
 `info` when the Server ended the connection or the Worker left after answering a shutdown, and
 `error` otherwise. Only a Windows Session holds its Worker's handle after admission; there the
@@ -329,6 +331,38 @@ count against the cap. A replacement that cannot be proven gone after its failur
 admitted, or an `exit` received, during a replacement ends it at the next step boundary through the
 Server's handle, and the stop goes on without a Worker. Giving up lasts until the Session stops; a
 Host that ends meanwhile makes the Server stop itself. The supervision never ends a Host.
+
+## Cold adoption
+
+On Windows a Server can start for a generation that kept its predecessor's running Terminal Host:
+the Server and Worker ended, by a crash or an `exit`, while the Host kept its terminals. Crash
+recovery admits that generation only when the Session's
+[binding record](docs/workbench-checkpoint.md#binding-record) names the Host, and publishes it with
+the Host's registration and no Server or Worker
+([cold recovery](../../crates/local-runtime/docs/windows-crash-recovery.md#cold-recovery-transitions)).
+The Server learns it at startup from that record: a registered Host it observes running is adopted,
+and one gone, still spawning or not observable fails the start, so the next activation decides
+again.
+
+The Server decodes the whole binding record and requires its one Host entry to name the registered
+process. It starts its Worker with the record's Session Worker id, admits it as a replacement, and
+before any job sends `AdoptHost` for the recorded Host and epoch, in the pages
+[Worker replacement](#managed-worker-replacement) sends, with each recorded terminal whose
+Presentation the restored Workbench holds. A Close that was in flight is not carried: its Tab stays,
+and a later Close works. Once the last page answers `adopted`, the coordinator imports each
+confirmed binding into the new Worker's generation with its recorded fence, its awaiting or started
+state and the facts the record keeps, under a fresh operation and lease, and allocates identities
+from the record's next identity plus 2^64, above any the ended Server issued after its last write.
+Each such Presentation shows its running terminal again: nothing is launched, no kept output is
+shown and no Agent resume is typed, and its Agent reference stays for the next capture. A recorded
+terminal the Host no longer runs reads unavailable, a terminal the Host runs that the record does
+not name stays quarantined in the Host, and every other Presentation restores as at any start. The
+binding writer keeps the adopted record's `extensions`.
+
+A start makes one attempt. A record that does not decode or names another Host, or an `AdoptHost`
+that does not answer `adopted`, fails the start; its Worker then shuts down with its terminals kept,
+never disposed, so the Host keeps every terminal, those a restore launched in that start included,
+and the next activation tries again. `host-adopted` records the attempt.
 
 ## Workbench projection store
 
@@ -973,7 +1007,7 @@ No grant is inferred for another endpoint, remote identity, Worker peer, or rend
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem      | Connect admitted Client Create/Start intent to the existing Worker carrier without transferring placement authority, replaying effects, or losing retained bindings when a Client disconnects.                                                                                                                                                                                                                                                                                           |
 | Inputs       | Strict OBCS intent, the current admitted Worker identity/generation, and an adapter-supplied absolute lease expiry. No Client field becomes an operation, terminal, lease, generation, or fence.                                                                                                                                                                                                                                                                                         |
-| Data         | One Server-owned in-memory map of at most 1,024 create references for its single local subject; each retains exact placement, last authorization, launch mode, and pending, awaiting-start, started, unknown, or unavailable state. A binding leaves the map only by retirement, below; there is no other eviction and no durable recovery.                                                                                                                                              |
+| Data         | One Server-owned in-memory map of at most 1,024 create references for its single local subject; each retains exact placement, last authorization, launch mode, and pending, awaiting-start, started, unknown, or unavailable state. A binding leaves the map only by retirement, below; there is no other eviction. Only a Windows Server that adopts its predecessor's Host restores bindings, from the binding record ([Cold adoption](#cold-adoption)).                               |
 | Outputs      | A correlated OBCS result or one exact OBCN command. Missing Worker and unsatisfied constraints are effect-free. Start resolves a successful deferred Create across Connections; unknown/missing creates cannot dispatch.                                                                                                                                                                                                                                                                 |
 | Invariants   | A checked monotonic 128-bit allocator never reuses operation identity across terminals or Worker generations. Each dispatched Start advances its terminal fence and uses a fresh lease. One terminal has at most one pending operation. No synchronous lock spans Worker I/O or Client output.                                                                                                                                                                                           |
 | Decisions    | Known create-reference collisions reject; full retained capacity and concurrent operations return server-busy, and a Tab, Workspace launch or Panel creation refused at full capacity answers `terminal-limit-reached` to a Client that negotiated it. Same-geometry Start after confirmed deferred Start returns already-started without another command; different geometry rejects. Immediate creates reject Start. Worker replacement never retargets a retained binding.            |
@@ -989,10 +1023,11 @@ Client issuing Create and Start through the real Server, Worker, and Host proces
 missing user-visible boundary is TUI activation.
 
 [`LocalTerminalCoordinator`](formal/tla/LocalTerminalCoordinator.tla) checks one binding slot and
-two peer Connections in two configurations: `replacement` has three operation identities, two
-Worker generations, one terminal identity and no Close, and `refill` has two operation identities,
+two peer Connections in three configurations: `replacement` has three operation identities, two
+Worker generations, one terminal identity and no Close, `refill` has two operation identities,
 one Worker generation, two terminal identities and Closes, so a retired slot admits a fresh
-terminal. Retirement reads no Worker generation, so splitting them keeps both within the TLC
+terminal, and `cold-adoption`, below, has two operation identities, two Worker generations, one
+terminal identity and Closes. Retirement reads no Worker generation, so splitting them keeps both within the TLC
 budget; the generation bound on the Worker's `Retire` is runtime evidence. Prepare maps to
 IssueCreate/IssueStart, complete maps to exact/not-delivered/rejected/unknown/stale settlement, and each
 Connection's independent publication can interleave another Connection's operation. Progress assumes
@@ -1010,6 +1045,17 @@ A message naming a retired terminal may arrive in any later state, so
 reaching a live terminal. `RetiredIdNeverReissued` keeps a retired terminal identity out of the
 slot, and `WorkerCountWithinServerCount` keeps the Worker's live count within the Server's binding
 count.
+
+In `cold-adoption` the Server and its Worker may end together at any step (`CrashServer`) while the
+Host keeps every terminal it runs, unserved. The record the ended Server left is any value its saver
+may have written: none, the slot's terminal as it stood at a settled moment, or a terminal retired
+since. The next Server serves nothing until its adoption settles: `ImportRecorded` imports the
+recorded binding only once the Host confirmed it still runs that terminal, `AdoptMissing` binds a
+recorded terminal the Host no longer runs as unavailable, and `AdoptWithoutRecord` leaves every
+terminal quarantined. `SettledTerminalIsLive` keeps every settled binding no Close disposed on a
+terminal its Worker serves, `RetiredIdNeverReissued` lets a retired identity return only as
+unavailable, and `FreshIdsAboveHeld` keeps every identity a Worker or the Host holds below the next
+one issued.
 
 `RejectConcurrent` uses the other peer Connection's one-outstanding-request slot as the bounded
 correlation surrogate, queues an explicit `server-busy` result, and preserves the original

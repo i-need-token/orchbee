@@ -48,6 +48,9 @@ pub(super) struct Owners {
     pub(super) worker: RetainedChild,
     pub(super) carrier: thread::JoinHandle<()>,
     pub(super) handle: WorkerRequestHandle,
+    /// Whether this generation adopted the Host its predecessor left running, whose terminals a
+    /// failed start keeps for the next activation.
+    pub(super) adopted: bool,
     /// The Worker endpoint, which admits a replacement Worker only while one is being started.
     pub(super) listener: orchbee_local_ipc::LocalListener,
     pub(super) registry: Arc<std::sync::Mutex<crate::worker_registry::WorkerRegistry>>,
@@ -799,7 +802,9 @@ fn worker_phase(stage: ShutdownStage) -> StopPhase {
     }
 }
 
-/// Startup has no Client requests, but restoration may already have created a Host.
+/// Startup has no Client requests, but restoration may already have created a Host. A generation
+/// that adopted its predecessor's Host keeps it and its terminals, which the next activation adopts
+/// again; any other ends its Host.
 fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
     let deadline = Instant::now() + Duration::from_secs(30);
     let cleanup = (|| -> io::Result<()> {
@@ -827,7 +832,11 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
                 .map_err(io::Error::other)?,
             worker_generation: WorkerGeneration::new(owners.handle.generation()),
             budget: ShutdownBudget::new(15_000).map_err(io::Error::other)?,
-            terminals: ShutdownTerminals::Dispose,
+            terminals: if owners.adopted {
+                ShutdownTerminals::Keep
+            } else {
+                ShutdownTerminals::Dispose
+            },
         };
         match owners
             .handle
@@ -836,7 +845,9 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
             Ok(WorkerOperationResult::Shutdown(result))
                 if matches!(
                     result.outcome,
-                    WorkerShutdownOutcome::NoHost | WorkerShutdownOutcome::Stopped { .. }
+                    WorkerShutdownOutcome::NoHost
+                        | WorkerShutdownOutcome::Stopped { .. }
+                        | WorkerShutdownOutcome::Released { .. }
                 ) => {}
             // Startup cleanup requires a complete shutdown receipt from this Worker; other responses do not prove it stopped.
             _ => return Err(io::Error::other("startup Worker shutdown unconfirmed")),
