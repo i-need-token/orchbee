@@ -379,6 +379,8 @@ Windows 和 macOS 正式版要求在控制台中输入 orchbee；开发和测试
             ) => self.cli_session_command_help(path),
             (Locale::EnUs, CommandPath::ServerStart) => super::server::HELP_SERVER_START_EN,
             (Locale::ZhCn, CommandPath::ServerStart) => super::server::HELP_SERVER_START_ZH,
+            (Locale::EnUs, CommandPath::ServerRestart) => super::server::HELP_SERVER_RESTART_EN,
+            (Locale::ZhCn, CommandPath::ServerRestart) => super::server::HELP_SERVER_RESTART_ZH,
             (Locale::EnUs, CommandPath::ServerConnect) => super::server::HELP_SERVER_CONNECT_EN,
             (Locale::ZhCn, CommandPath::ServerConnect) => super::server::HELP_SERVER_CONNECT_ZH,
             (

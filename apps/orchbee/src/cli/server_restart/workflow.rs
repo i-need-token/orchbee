@@ -1,0 +1,327 @@
+//! The requester of a Server restart that keeps terminals, on Windows. It asks the running Server
+//! whether its restart keeps terminals, then, holding the Session's activation lock so that no
+//! activation starts a Server beside the restart, starts the successor Server suspended outside its
+//! own Job, names it in the Session record with a fresh ticket and the activation identifier it
+//! commits, and resumes it. It waits until the Session's Client endpoint answers from that
+//! successor. A successor that ended names a refusal in its exit code; otherwise, once what the
+//! attempt left in the record is cleared, the record and the Client endpoint tell where the restart
+//! ended: in the successor's Check, after it started its Worker with the running Server keeping or
+//! taking back the Session, or with no Server serving it. Cancelled or out of time once the
+//! successor runs, it stops waiting and leaves the restart to finish or fail by itself.
+
+use super::{FailedPhase, Refusal, Restart};
+use crate::cli::console_interrupt::ArmedSignals;
+use orchbee_connection_handshake::{EnvironmentName, ProcessRole, QueryResult};
+use orchbee_local_runtime::{
+    Cohort, CohortArtifact, DataRoot, JobPlacement, LockAttempt, LogLevel, LogValue,
+    ModeCheckedLocalSessionRendezvous as Rendezvous, ModeCheckedSessionLock, RestartCleared,
+    RestartRefusal, RestartReservation, SessionCatalog, SessionScope,
+};
+use std::{
+    ffi::OsStr,
+    io,
+    path::{Path, PathBuf},
+    thread,
+    time::{Duration, Instant},
+};
+
+/// How long the namespace and activation locks may stay with others before the restart is refused
+/// as busy.
+const LOCKS: Duration = Duration::from_secs(2);
+/// How long one `query` may take.
+const QUERY: Duration = Duration::from_secs(2);
+/// How often the Client endpoint is asked which Server answers.
+const ASK: Duration = Duration::from_millis(500);
+/// How long clearing what an ended attempt left may take.
+const CLEAR: Duration = Duration::from_secs(10);
+
+/// Runs one restart until `deadline`. A signal ends the wait as [`Restart::TimedOut`], which the
+/// caller reports as cancelled.
+pub(super) fn restart(deadline: Instant, signals: &mut ArmedSignals) -> Restart {
+    let Some((base, session)) = session() else {
+        return Restart::Refused(Refusal::NotRunning);
+    };
+    let environment = orchbee_local_runtime::environment_name();
+    match query(&session, &environment, deadline, signals) {
+        Some(answer) if answer.restart_keeps_terminals() == Some(true) => {}
+        Some(_) => return Restart::SessionTooOld,
+        None if cancelled(signals) => return Restart::TimedOut,
+        None => return Restart::Refused(Refusal::NotRunning),
+    }
+    let Some(start) = Start::prepare(deadline) else {
+        return Restart::Failed(FailedPhase::Start);
+    };
+    let locks = deadline.min(Instant::now() + LOCKS);
+    let Some(catalog) = catalog(&base, &start.root, locks) else {
+        return Restart::Refused(Refusal::Busy);
+    };
+    let activation = match activation_lock(&session, locks) {
+        Ok(activation) => activation,
+        Err(refused) => return refused,
+    };
+    if cancelled(signals) {
+        return Restart::TimedOut;
+    }
+    let arguments = start.arguments(&session);
+    let spawned = catalog.spawn_successor_outside_job(
+        &session,
+        &activation,
+        start.reservation,
+        &start.executable,
+        &arguments,
+        deadline,
+    );
+    // Only the reservation needs the namespace; the activation lock stays until the end.
+    drop(catalog);
+    let (mut successor, placement) = match spawned {
+        Ok(spawned) => spawned,
+        // Another restart's successor still runs.
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            return Restart::Refused(Refusal::Busy);
+        }
+        // The record names no running generation of this Session: it stopped or is stopping.
+        Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+            return Restart::Refused(Refusal::NotRunning);
+        }
+        Err(_) => return Restart::Failed(FailedPhase::Start),
+    };
+    record_server_job(placement);
+    let pid = successor.id();
+    let mut ask = Instant::now();
+    loop {
+        if cancelled(signals) {
+            return Restart::TimedOut;
+        }
+        // A successor whose end cannot be observed is judged by the endpoint alone.
+        if let Ok(Some(status)) = successor.try_wait() {
+            let refusal = status
+                .code()
+                .and_then(|code| u32::try_from(code).ok())
+                .and_then(RestartRefusal::from_code);
+            return ended(&start, &session, &environment, &activation, refusal);
+        }
+        if Instant::now() >= deadline {
+            return Restart::TimedOut;
+        }
+        if Instant::now() >= ask {
+            ask = Instant::now() + ASK;
+            if query(&session, &environment, deadline, signals)
+                .is_some_and(|answer| answered_by(&answer, pid))
+            {
+                return Restart::Restarted;
+            }
+        }
+        thread::sleep(
+            deadline
+                .saturating_duration_since(Instant::now())
+                .min(Duration::from_millis(50)),
+        );
+    }
+}
+
+/// What starting the successor needs, read before any lock is taken.
+struct Start {
+    root: DataRoot,
+    executable: PathBuf,
+    /// The configuration location an activation would freeze, which the successor reads.
+    configuration: Option<PathBuf>,
+    explicit: bool,
+    reservation: RestartReservation,
+    /// The reservation's ticket as the successor's argument.
+    ticket: String,
+}
+
+impl Start {
+    fn prepare(deadline: Instant) -> Option<Self> {
+        let root = DataRoot::resolve(|name| std::env::var_os(name)).ok()?;
+        let executable = Cohort::current(deadline)
+            .ok()?
+            .executable(CohortArtifact::Server);
+        let settings =
+            orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name)).ok()?;
+        let reservation = RestartReservation {
+            ticket: entropy()?,
+            activation_id: entropy()?,
+        };
+        Some(Self {
+            root,
+            executable,
+            configuration: settings.path.clone(),
+            explicit: settings.explicit,
+            reservation,
+            ticket: reservation
+                .ticket
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+        })
+    }
+
+    fn arguments<'a>(&'a self, session: &'a Rendezvous) -> Vec<&'a OsStr> {
+        vec![
+            OsStr::new("--runtime-directory"),
+            session.runtime_directory().as_os_str(),
+            OsStr::new("--handover"),
+            OsStr::new(&self.ticket),
+            OsStr::new("--configuration-file"),
+            self.configuration
+                .as_deref()
+                .map(Path::as_os_str)
+                .unwrap_or(OsStr::new("")),
+            OsStr::new("--configuration-file-explicit"),
+            OsStr::new(if self.explicit { "true" } else { "false" }),
+        ]
+    }
+}
+
+/// The Session this invocation names, when its runtime folder exists.
+fn session() -> Option<(PathBuf, Rendezvous)> {
+    let (base, scope) = crate::local_activation::runtime_location().ok()?;
+    let scope = SessionScope::parse(&scope).ok()?;
+    let session = Rendezvous::validate_mode_checked(&base, scope).ok()?;
+    Some((base, session))
+}
+
+fn cancelled(signals: &mut ArmedSignals) -> bool {
+    signals.take().is_ok_and(|signal| signal.is_some())
+}
+
+/// One `query` of the Session's Client endpoint; `None` when no Server answered in time or a
+/// signal interrupted it.
+fn query(
+    session: &Rendezvous,
+    environment: &EnvironmentName,
+    deadline: Instant,
+    signals: &ArmedSignals,
+) -> Option<QueryResult> {
+    orchbee_local_client_protocol::exchange_query_before(
+        session.client_socket_path(),
+        environment.clone(),
+        deadline.min(Instant::now() + QUERY),
+        signals.poll_fd(),
+    )
+    .ok()
+}
+
+/// Whether the Server answering is the successor this invocation started.
+fn answered_by(answer: &QueryResult, successor: Option<u32>) -> bool {
+    answer.processes().first().is_some_and(|server| {
+        server.role == ProcessRole::Server && Some(server.pid.get()) == successor
+    })
+}
+
+/// The outcome once the successor ended, after what the attempt left in the record is cleared: the
+/// refusal its exit code names, or what the record says.
+fn ended(
+    start: &Start,
+    session: &Rendezvous,
+    environment: &EnvironmentName,
+    activation: &ModeCheckedSessionLock,
+    refusal: Option<RestartRefusal>,
+) -> Restart {
+    let cleared = orchbee_local_runtime::clear_restart(
+        &start.root,
+        session,
+        activation,
+        start.reservation,
+        Instant::now() + CLEAR,
+    );
+    if let Some(refusal) = refusal {
+        return match refusal {
+            RestartRefusal::Unsupported => Restart::SessionTooOld,
+            RestartRefusal::NotServing => Restart::Refused(Refusal::NotRunning),
+            RestartRefusal::Busy | RestartRefusal::NotRecorded => Restart::Refused(Refusal::Busy),
+            RestartRefusal::BackgroundPrograms => Restart::Refused(Refusal::BackgroundPrograms),
+            RestartRefusal::Clients => Restart::Refused(Refusal::Clients),
+            RestartRefusal::WorkerUnavailable => Restart::Refused(Refusal::WorkerUnavailable),
+            RestartRefusal::Host => Restart::Refused(Refusal::Host),
+            RestartRefusal::Records => Restart::Refused(Refusal::Records),
+        };
+    }
+    // The record names the successor, which ended before it served, or the running Server ended
+    // during the restart too: no Server serves, and the next start brings the Session back with
+    // every terminal.
+    if matches!(cleared, Ok(RestartCleared::Committed)) || !served(session, environment) {
+        return Restart::Failed(FailedPhase::Open);
+    }
+    Restart::Failed(match cleared {
+        // The entry named no Worker: the successor ended in its Check, before the running Server
+        // could hold the Session.
+        Ok(RestartCleared::Cleared {
+            worker_recorded: false,
+        }) => FailedPhase::Check,
+        // The successor had started its Worker, so the running Server may have held the Session:
+        // it keeps it or took it back, whether this command or that Server removed the entry, or
+        // the record cannot be read. The running Server serves either way.
+        _ => FailedPhase::Takeover,
+    })
+}
+
+/// Whether a Server answers the Session's Client endpoint.
+fn served(session: &Rendezvous, environment: &EnvironmentName) -> bool {
+    orchbee_local_client_protocol::exchange_query_before(
+        session.client_socket_path(),
+        environment.clone(),
+        Instant::now() + QUERY,
+        None,
+    )
+    .is_ok()
+}
+
+/// The namespace owner, waited for until `deadline`.
+fn catalog(base: &Path, root: &DataRoot, deadline: Instant) -> Option<SessionCatalog> {
+    loop {
+        match SessionCatalog::try_lock(base, root) {
+            Ok(catalog) => return Some(catalog),
+            Err(error)
+                if error.kind() == io::ErrorKind::WouldBlock && Instant::now() < deadline =>
+            {
+                thread::sleep(Duration::from_millis(25));
+            }
+            Err(_) => return None,
+        }
+    }
+}
+
+/// The Session's activation lock, waited for until `deadline`.
+fn activation_lock(
+    session: &Rendezvous,
+    deadline: Instant,
+) -> Result<ModeCheckedSessionLock, Restart> {
+    loop {
+        match session.try_acquire_activation_lock() {
+            Ok(LockAttempt::Acquired(lock)) => return Ok(lock),
+            Ok(LockAttempt::Contended) if Instant::now() < deadline => {
+                thread::sleep(Duration::from_millis(25));
+            }
+            Ok(LockAttempt::Contended) => return Err(Restart::Refused(Refusal::Busy)),
+            Err(_) => return Err(Restart::Failed(FailedPhase::Start)),
+        }
+    }
+}
+
+fn entropy() -> Option<[u8; 16]> {
+    let mut bytes = [0; 16];
+    getrandom::fill(&mut bytes).ok()?;
+    (bytes != [0; 16]).then_some(bytes)
+}
+
+/// Writes `server-job` as an activation does: `outside` for a successor created outside this
+/// process's Job, or `inside` with the refused request's error kind, when it shares that Job and
+/// ends with it.
+fn record_server_job(placement: JobPlacement) {
+    let (level, fields) = match placement {
+        JobPlacement::Outside => (
+            LogLevel::Info,
+            vec![("outcome", LogValue::Token("outside"))],
+        ),
+        JobPlacement::Inside(kind) => (
+            LogLevel::Warning,
+            vec![
+                ("outcome", LogValue::Token("inside")),
+                ("reason", LogValue::from(kind)),
+            ],
+        ),
+    };
+    orchbee_local_runtime::log_event(level, "server-job", &fields);
+}

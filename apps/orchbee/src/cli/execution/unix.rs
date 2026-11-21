@@ -85,6 +85,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::NamedSessions
         | Capability::ReleaseUpdate
         | Capability::ServerStop
+        | Capability::ServerRestart
         | Capability::TerminalClear
         | Capability::ChannelPreference
         | Capability::Events

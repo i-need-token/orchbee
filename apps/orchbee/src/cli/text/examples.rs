@@ -144,6 +144,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
             &["--output", "C:/Users/me/Desktop/orchbee-diagnostics.zip"]
         }
         CommandPath::ServerStart => &[],
+        CommandPath::ServerRestart => &[],
         CommandPath::ServerConnect => &[],
         CommandPath::SessionList => &[],
         CommandPath::SessionAttach => &["work"],

@@ -111,6 +111,41 @@ interrupted or timed-out start can leave committed activation state behind;
 a later invocation then answers `rejected` with a recovery-required reason.
 Linux has no Session stop, repair or deletion command. Windows and macOS support `server stop --confirm`, and `operation status <id>` reads the stop; a completed stop allows a later `server start`. Stop ends all terminal processes and discards the Session's in-memory state. A timeout or cancellation ends the CLI wait only: retain the request ID and query status. Use `--retry --request-id <id>` only to explicitly retry a failed stop. The release build refuses `--confirm` and scripted stops; a person runs `server stop` in a console and types the Session name, as the [release confirmation](../README.md#release-destructive-confirmation) describes.
 
+### Restart the Server (Windows)
+
+`server restart` hands this Session to a new Server and Worker of this build while every terminal
+keeps running. It runs only on Windows; other platforms refuse it as unsupported. The declared
+workflow, in phase order:
+
+1. Reserve: holding the Session's activation lock until it answers, so that no start runs beside
+   the restart, the command creates this build's Server suspended outside the caller's Job, records
+   it in the Session record as the restart's successor with a fresh ticket and activation
+   identifier, then resumes it.
+2. The successor checks the running Server, its connected Clients and its Terminal Hosts; asks the
+   running Server to prepare (it holds new requests, records the Session exactly, releases the
+   Session store and ends its Worker while every Host keeps its terminals); takes the store and
+   every Host; and commits by publishing the Session record that names it and its Worker. The
+   running Server then ends, and the successor binds the Session's endpoints.
+3. The command succeeds once the successor answers on the Session's Client endpoint.
+
+- Commit point: the successor's Session record publish.
+- A running Server whose restart cannot keep terminals answers the `incompatible` capability
+  failure before anything starts.
+- A refusal (exit 3, or 4 when no Server runs) leaves nothing changed: the command removes its
+  successor entry and ends the processes it names.
+- A failure (exit 9) names where the restart ended once the command has cleared its entry: `start`
+  when the successor could not be started, `check` when it ended in its Check before starting its
+  Worker, `takeover` when it ended later and the running Server keeps or took back the Session, and
+  `open` with no Server serving the Session, after the commit or because the running Server ended
+  too. Every terminal keeps running, and after `open` the next start brings the Session back. The
+  phase comes from the successor entry the command clears, the only trace a successor that was
+  ended leaves: an entry that names a Worker means the running Server may have held the Session.
+- The fixed deadline covers the whole command; a timed-out wait (exit 7) leaves the restart running.
+- Ctrl+C stops the wait only (exit 130); the restart continues by itself, and its successor or the
+  running Server clears its entry.
+- Until Clients reconnect to a new Server by themselves (a later release), a connected Client
+  refuses the restart (`clients`).
+
 ## 2. Create a Project, Workspace, and directory
 
 Each command prints a receipt; verify `outcome` is `committed` before

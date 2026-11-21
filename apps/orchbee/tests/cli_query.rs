@@ -5077,6 +5077,7 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
         "orchbee.agent.wait",
         "orchbee.cli.failure.agent-names",
         "orchbee.doctor",
+        "orchbee.server.restart",
         "orchbee.server.stop",
         "orchbee.launch-profile.list",
         "orchbee.launch-profile.get",

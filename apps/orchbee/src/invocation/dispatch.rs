@@ -996,6 +996,12 @@ pub(super) fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
+        ["server", "restart"] => {
+            reject_filters(options, UsageContext::Path("server restart"), envelope)?;
+            Ok(Request::ServerRestart {
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
         ["terminal", "title", "set", title] => {
             let context = UsageContext::Path("terminal title set");
             reject_filters(options, context, envelope)?;

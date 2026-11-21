@@ -498,6 +498,10 @@ impl super::CliText {
                 "Ensure a local terminal session is running.",
                 "确保本地终端会话已启动。",
             ),
+            HelpTopic::Command(CommandPath::ServerRestart) => (
+                "Restart this Session's Server and Worker; terminals keep running.",
+                "重启此会话的 Server 和 Worker；终端保持运行。",
+            ),
             HelpTopic::Command(CommandPath::ServerConnect) => (
                 "Relay a Client connection over standard input and output.",
                 "通过标准输入和输出转发一条 Client 连接。",

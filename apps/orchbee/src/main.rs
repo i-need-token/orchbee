@@ -215,6 +215,12 @@ fn main() -> ExitCode {
                 diagnostic_events::activation_finished("server-start-finished", output.status);
                 output
             }
+            Ok(invocation::Request::ServerRestart { format }) => {
+                diagnostic_events::activation_started("server-restart");
+                let output = cli::server_restart(format, locale);
+                diagnostic_events::activation_finished("server-restart-finished", output.status);
+                output
+            }
             Ok(invocation::Request::ServerConnect) => {
                 diagnostic_events::activation_started("relay-started");
                 let output = cli::server_connect(locale);

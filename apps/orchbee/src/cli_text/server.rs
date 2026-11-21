@@ -39,6 +39,18 @@ pub(super) const HELP_SERVER_STOP_ZH: crate::cli_text::HelpDetails =
         "停止现有托管会话及其终端；先对 Workbench 配置、采样所得的逐终端 cwd 执行最新 final 保存，再结束进程。保存失败会保留此前的有效存档、无效原件及运行中的终端；解决故障后显式重试。不保存存活智能体状态、终端历史或屏幕内容。开发版和测试版必须提供 --confirm；Windows 和 macOS 正式版拒绝该选项，只在交互式控制台中由人输入会话名称后执行，每次请求都会记录。不激活会话。--detach 立即返回已准入尝试；否则默认等待 65000 毫秒（范围 1–3600000）。取消或超时只停止等待，不取消已接受的停止。\n\n省略请求标识时自动生成非零 32 位小写十六进制标识。重复开始只观察现有尝试；\n--retry 必须搭配 --request-id，显式重试该失败停止。使用 operation status <id>\n恢复结果。仅准确匹配的已停止记录加空闲生命周期锁能证明完成，管道消失不够。后续 server start 会消费回执。Linux 尚不支持。\n\n使用 --machine <name-or-id> 时，先按上述规则在本机确认，再由后台连接进程停止该已保存机器的远端会话及其中的所有终端。此时拒绝 --request-id、--retry、--detach 和 --timeout；'--format json' 输出 orchbee.machine.server-stop 封套。",
     );
 
+pub(super) const HELP_SERVER_RESTART_EN: crate::cli_text::HelpDetails =
+    crate::cli_text::HelpDetails::new(
+        "orchbee server restart [--format text|json]",
+        "Start a new Server and Worker of this orchbee, which take the Session over from the running pair while every terminal program keeps running. Nothing changes when the restart is refused or fails before the hand-over. While a connected Client cannot reconnect by itself, the restart is refused. It waits at most 150 seconds; Ctrl+C stops the wait, not the restart.\n\nJSON uses orchbee.server.restart.",
+    );
+
+pub(super) const HELP_SERVER_RESTART_ZH: crate::cli_text::HelpDetails =
+    crate::cli_text::HelpDetails::new(
+        "orchbee server restart [--format text|json]",
+        "启动此 orchbee 的新 Server 和 Worker，它们会在所有终端程序保持运行时，从正在运行的这一对进程手中接管此会话。重启在交接前被拒绝或失败时，不会有任何改变。已连接的客户端无法自行重新连接时，重启会被拒绝。最多等待 150 秒；Ctrl+C 只停止等待，不停止重启。\n\nJSON 使用 orchbee.server.restart。",
+    );
+
 impl super::CliText {
     /// `server start` service-unavailable diagnostics, routed by the failure's
     /// stage: each one states what the start actually observed.
@@ -152,6 +164,107 @@ impl super::CliText {
             Locale::ZhCn => format!(
                 "会话停止：{state}{waiting}\n请求：{id}\n检查：orchbee operation status {id} --format json\n"
             ),
+        }
+    }
+
+    /// Localizes one `server restart` outcome. A refusal, failure or wait names its closed reason or
+    /// phase; a cancelled wait leaves the restart running by itself.
+    pub(crate) fn cli_server_restart_result(
+        self,
+        outcome: &str,
+        reason: Option<&str>,
+        phase: Option<&str>,
+    ) -> String {
+        let text = match (self.locale, outcome, reason, phase) {
+            (Locale::EnUs, "restarted", _, _) => {
+                "Restarted this Session's Server and Worker; every terminal kept running."
+            }
+            (Locale::ZhCn, "restarted", _, _) => {
+                "已重启此会话的 Server 和 Worker；所有终端保持运行。"
+            }
+            (Locale::EnUs, "refused", Some("not-running"), _) => {
+                "No Server is running for this Session. Start it with `orchbee server start`."
+            }
+            (Locale::ZhCn, "refused", Some("not-running"), _) => {
+                "此会话没有正在运行的 Server。可用 `orchbee server start` 启动。"
+            }
+            (Locale::EnUs, "refused", Some("busy"), _) => {
+                "The Session is busy with another restart, a stop, or a Worker replacement. Try again shortly."
+            }
+            (Locale::ZhCn, "refused", Some("busy"), _) => {
+                "此会话正在进行另一次重启、停止或 Worker 替换。请稍后重试。"
+            }
+            (Locale::EnUs, "refused", Some("background-programs"), _) => {
+                "A configured command or plugin job is running in the background. Try again when it ends."
+            }
+            (Locale::ZhCn, "refused", Some("background-programs"), _) => {
+                "有自定义命令或插件任务正在后台运行。请在其结束后重试。"
+            }
+            (Locale::EnUs, "refused", Some("clients"), _) => {
+                "A connected Client cannot reconnect to a restarted Server by itself. Close or update it, then try again."
+            }
+            (Locale::ZhCn, "refused", Some("clients"), _) => {
+                "有已连接的客户端无法自动重新连接到重启后的 Server。请关闭或更新它后重试。"
+            }
+            (Locale::EnUs, "refused", Some("worker-unavailable"), _) => {
+                "The Session's Worker is not serving right now. Try again shortly."
+            }
+            (Locale::ZhCn, "refused", Some("worker-unavailable"), _) => {
+                "此会话的 Worker 当前未在服务。请稍后重试。"
+            }
+            (Locale::EnUs, "refused", Some("host"), _) => {
+                "The Session's Terminal Host cannot be handed over right now."
+            }
+            (Locale::ZhCn, "refused", Some("host"), _) => {
+                "此会话的 Terminal Host（Host）当前无法交接。"
+            }
+            (Locale::EnUs, "refused", Some("records"), _) => {
+                "The Session's records cannot be used for a restart that keeps terminals."
+            }
+            (Locale::ZhCn, "refused", Some("records"), _) => "此会话的记录无法用于保留终端的重启。",
+            (Locale::EnUs, "failed", _, Some("start")) => {
+                "The new Server could not be started; nothing changed."
+            }
+            (Locale::ZhCn, "failed", _, Some("start")) => "无法启动新的 Server；没有任何改变。",
+            (Locale::EnUs, "failed", _, Some("check")) => {
+                "The new Server ended before taking over; nothing changed."
+            }
+            (Locale::ZhCn, "failed", _, Some("check")) => {
+                "新的 Server 在接管前结束；没有任何改变。"
+            }
+            (Locale::EnUs, "failed", _, Some("takeover")) => {
+                "The restart failed; the running Server keeps serving the Session."
+            }
+            (Locale::ZhCn, "failed", _, Some("takeover")) => "重启失败；原 Server 继续服务此会话。",
+            (Locale::EnUs, "failed", _, Some("open")) => {
+                "The restart ended with no Server running. Terminals keep running; the next start brings the Session back."
+            }
+            (Locale::ZhCn, "failed", _, Some("open")) => {
+                "重启结束时没有 Server 在运行。终端仍在运行；下次启动会恢复此会话。"
+            }
+            (Locale::EnUs, "timed-out", _, _) => {
+                "The restart did not finish in time; it may still finish by itself."
+            }
+            (Locale::ZhCn, "timed-out", _, _) => "重启未在限定时间内完成；它可能仍会自行完成。",
+            (Locale::EnUs, "cancelled", _, _) => {
+                "Stopped waiting; the restart continues by itself."
+            }
+            (Locale::ZhCn, "cancelled", _, _) => "已停止等待；重启会自行继续。",
+            (Locale::EnUs, _, _, _) => "The restart outcome is unknown.",
+            (Locale::ZhCn, _, _, _) => "重启结果未知。",
+        };
+        format!("{text}\n")
+    }
+
+    /// The restart's own copy for a Session whose Server cannot hand its terminals to a new one.
+    pub(crate) const fn cli_server_restart_session_too_old(self) -> &'static str {
+        match self.locale {
+            Locale::EnUs => {
+                "This Session's Server cannot hand its terminals to a new Server. It moves to this version when it next starts.\n"
+            }
+            Locale::ZhCn => {
+                "此会话的 Server 无法把终端交给新的 Server。它会在下次启动时使用此版本。\n"
+            }
         }
     }
 

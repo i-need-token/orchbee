@@ -124,6 +124,7 @@ commands! {
     ConfigReload => ["config", "reload"], 0, Operand, Portable, true, true, false;
     DiagnosticsCreate => ["diagnostics", "create"], 0, Operand, Portable, true, false, false;
     ServerStart => ["server", "start"], 0, Operand, Portable, true, false, false;
+    ServerRestart => ["server", "restart"], 0, Operand, Windows, true, false, false;
     ServerConnect => ["server", "connect"], 0, Operand, Portable, false, false, false;
     SessionList => ["session", "list"], 0, Operand, WindowsAndMacos, true, false, false;
     SessionAttach => ["session", "attach"], 1, Session, WindowsAndMacos, false, false, false;

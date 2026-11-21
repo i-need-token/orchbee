@@ -764,7 +764,8 @@ arguments, environment values, credentials and unrecognized settings values beco
 and home paths, data-root variables, URL credentials and URL queries are scrubbed from every string.
 The bundle never reads checkpoints, layouts, terminal output, plugin data, saved machines or the
 destructive request log. The Client writes `tui-started` and `tui-exited` with a closed outcome,
-`server-start` and `server-start-finished` with the exit status, and `relay-started` and
+`server-start` and `server-start-finished`, `server-restart` and `server-restart-finished` with the
+exit status, and `relay-started` and
 `relay-exited` to the
 [daily log](../../crates/local-runtime/README.md#diagnostic-log), the remote link helper
 writes `link-rights` with the rights its token runs with or why it refused, its

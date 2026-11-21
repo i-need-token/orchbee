@@ -40,6 +40,8 @@ pub(super) enum Capability {
     /// `update`, the automatic helper and channel changes, which download.
     ReleaseUpdate,
     ServerStop,
+    /// `server restart`: the Windows-only handover of this Session to a new Server.
+    ServerRestart,
     TerminalClear,
     ChannelPreference,
     Events,
@@ -90,6 +92,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::ReleaseInstall
         | Capability::ReleaseUpdate
         | Capability::ServerStop
+        | Capability::ServerRestart
         | Capability::TerminalClear
         | Capability::ChannelPreference
         | Capability::Events

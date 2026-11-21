@@ -1,0 +1,84 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.server.restart",
+	"title": "orchbee server restart outcome",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.server.restart"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "local-runtime"
+				}
+			}
+		},
+		"result": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["outcome"],
+					"properties": {
+						"outcome": {
+							"const": "restarted"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["outcome", "reason"],
+					"properties": {
+						"outcome": {
+							"const": "refused"
+						},
+						"reason": {
+							"enum": [
+								"not-running",
+								"busy",
+								"background-programs",
+								"clients",
+								"worker-unavailable",
+								"host",
+								"records"
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["outcome", "phase"],
+					"properties": {
+						"outcome": {
+							"const": "failed"
+						},
+						"phase": {
+							"enum": ["start", "check", "takeover", "open"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["outcome"],
+					"properties": {
+						"outcome": {
+							"enum": ["timed-out", "cancelled"]
+						}
+					}
+				}
+			]
+		}
+	}
+}

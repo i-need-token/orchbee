@@ -823,6 +823,10 @@ pub(crate) enum Request {
     ServerStart {
         format: OutputFormat,
     },
+    /// `server restart`: hands this Session to a new Server and Worker of this build; Windows only.
+    ServerRestart {
+        format: OutputFormat,
+    },
     /// `server connect`: relays one admitted Client connection over standard input and output.
     ServerConnect,
     Plugin {

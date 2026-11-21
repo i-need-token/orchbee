@@ -968,6 +968,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ServerReloadAgentManifests,
         CommandPath::ServerUpdateAgentManifests,
         CommandPath::ServerStart,
+        CommandPath::ServerRestart,
         CommandPath::ServerConnect,
         CommandPath::ServerStop,
         CommandPath::Status,
@@ -1121,6 +1122,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "clear-agent-authority",
         "release-agent",
         "resolve",
+        "restart",
         "schema",
         "send",
         "send-keys",
@@ -1652,9 +1654,10 @@ fn unsupported_commands_share_the_platform_failure_contract() {
                     locale,
                 )
             });
-            // `channel show` stays Windows only.
+            // `channel show` and `server restart` stay Windows only.
             let channel = super::channel::show(format, locale);
-            for output in control.into_iter().chain([channel]) {
+            let restart = super::server_restart(format, locale);
+            for output in control.into_iter().chain([channel, restart]) {
                 assert_eq!(output.status, 4);
                 assert!(!output.stderr.is_empty());
                 if format == OutputFormat::Json {
