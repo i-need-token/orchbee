@@ -210,6 +210,8 @@ test "export then import restores a busy shell exactly" {
     else
         try harness.createRuntimeWithHooksAndCommand(.{}, "/bin/sh", &.{ "-c", posix_command });
     defer harness.destroyRuntimeWithIdentityRetry(source);
+    // The shell's own flood is what this test exports.
+    harness.deliverProgramOutput(source);
 
     var exports: usize = 0;
     var timer = try monotonic.Timer.start();

@@ -2072,6 +2072,8 @@ test "ordered input reservations prevent overtaking and cancellation leaves no g
         .writer_waiting_for_input = semantic_wait.GenerationSignal.notify,
     }, executable, arguments);
     defer runtime.destroy();
+    // The program's answer on the screen is the oracle.
+    harness.deliverProgramOutput(runtime);
 
     const first = try reserveInput(runtime, 1, false, .client);
     const cancelled = try reserveInput(runtime, 1, false, .client);

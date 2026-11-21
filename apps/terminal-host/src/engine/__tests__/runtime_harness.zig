@@ -190,19 +190,121 @@ pub const CountingThreadSpawner = struct {
     }
 };
 
+const RuntimeState = @typeInfo(@TypeOf(runtimeState)).@"fn".return_type.?;
+
+/// Keeps what one runtime's program writes away from its terminal. A starting console writes at its
+/// own time (ConPTY turns on focus reporting and paints its program), and a reader that commits
+/// that moves the revision and queues replies between a test's own steps.
+const ProgramOutput = struct {
+    delivered: std.atomic.Value(bool) = .init(false),
+    next: ?*ProgramOutput = null,
+    state: RuntimeState,
+    threads: usize = 0,
+
+    var registry_mutex: thread_sync.Mutex = .{};
+    var registry: ?*ProgramOutput = null;
+    threadlocal var current: ?*ProgramOutput = null;
+    var no_context: u8 = 0;
+
+    fn enter(state: RuntimeState) !*ProgramOutput {
+        registry_mutex.lock();
+        defer registry_mutex.unlock();
+        var entry = registry;
+        while (entry) |output| : (entry = output.next) {
+            if (output.state == state) {
+                output.threads += 1;
+                return output;
+            }
+        }
+        const output = try std.heap.page_allocator.create(ProgramOutput);
+        output.* = .{ .next = registry, .state = state, .threads = 1 };
+        registry = output;
+        return output;
+    }
+
+    /// The runtime's workers end only at shutdown's join, so the last one out frees the entry.
+    fn leave(self: *ProgramOutput) void {
+        registry_mutex.lock();
+        defer registry_mutex.unlock();
+        self.threads -= 1;
+        if (self.threads != 0) return;
+        var link = &registry;
+        while (link.*) |output| : (link = &output.next) {
+            if (output == self) {
+                link.* = output.next;
+                break;
+            }
+        }
+        std.heap.page_allocator.destroy(self);
+    }
+
+    fn Worker(comptime thread_function: anytype) type {
+        return struct {
+            fn run(output: *ProgramOutput) void {
+                current = output;
+                thread_function(output.state);
+                output.leave();
+            }
+        };
+    }
+
+    /// Reads as the platform does and drops the bytes until the test asks for them. The reader
+    /// keeps emptying the PTY, so a program that writes never blocks on a full one, and the end
+    /// of output, a pause and an abort reach the runtime as they do without this hook.
+    fn read(_: *anyopaque, buffer: []u8, mode: pty_process.ReadMode) anyerror!pty_process.Read {
+        const output = current.?;
+        while (true) {
+            const result = try pty_process.readPausable(&output.state.process, buffer, mode);
+            switch (result) {
+                .bytes => if (output.delivered.load(.acquire)) return result,
+                .end, .paused => return result,
+            }
+        }
+    }
+};
+
+/// Lets what the program of a harness runtime writes from here on reach its terminal; what it
+/// wrote before is gone. A test that reads its program's own output calls this right after
+/// creating the runtime. One that needs the program's first bytes installs its own read hook.
+pub fn deliverProgramOutput(runtime: *TerminalRuntime) void {
+    const state = runtimeState(runtime);
+    ProgramOutput.registry_mutex.lock();
+    defer ProgramOutput.registry_mutex.unlock();
+    var entry = ProgramOutput.registry;
+    while (entry) |output| : (entry = output.next) {
+        if (output.state == state) output.delivered.store(true, .release);
+    }
+}
+
+/// Starts a runtime's workers with the caller's hooks. Unless those hooks replace the read, the
+/// reader drops what the program writes until `deliverProgramOutput`: only the batches a test
+/// commits itself reach the terminal.
 pub const HookedThreadSpawner = struct {
     hooks: RuntimeTestingHooks,
 
+    fn dropsProgramOutput(self: *const HookedThreadSpawner) bool {
+        return self.hooks.read_pty == null and self.hooks.read_pty_pausable == null;
+    }
+
     pub fn terminalRuntimeTestingHooks(self: *HookedThreadSpawner) RuntimeTestingHooks {
-        return self.hooks;
+        var hooks = self.hooks;
+        if (self.dropsProgramOutput()) {
+            hooks.read_pty_pausable = ProgramOutput.read;
+            // The read finds its runtime through its own thread, so any context serves.
+            if (hooks.context == null) hooks.context = &ProgramOutput.no_context;
+        }
+        return hooks;
     }
 
     pub fn spawn(
-        _: *HookedThreadSpawner,
+        self: *HookedThreadSpawner,
         comptime thread_function: anytype,
         runtime: anytype,
     ) !std.Thread {
-        return std.Thread.spawn(.{}, thread_function, .{runtime});
+        if (!self.dropsProgramOutput()) return std.Thread.spawn(.{}, thread_function, .{runtime});
+        const output = try ProgramOutput.enter(runtime);
+        errdefer output.leave();
+        return std.Thread.spawn(.{}, ProgramOutput.Worker(thread_function).run, .{output});
     }
 };
 
