@@ -2,7 +2,8 @@
 //! Machine, and the command asks it through one attachment that holds and watches nothing, after
 //! the hub has taken the current catalog. An interrupt ends the wait, not the hub's attempt. A hub
 //! closing under the request is asked once more, through the hub that takes its place. Every
-//! committed catalog edit also asks a running hub to take the catalog, starting none. A routed
+//! committed catalog edit also asks a running hub to take the catalog; it and `machine disconnect`
+//! reach only the hub running now and start, replace and wait for none. A routed
 //! command and a remote stop have the hub take the catalog the same way and bring their Machine
 //! `online` through the same steps only when the hub answers that it is not.
 //!
@@ -40,9 +41,7 @@ mod requests {
     };
     use orchbee_workbench_client::application::{
         machine_add::Proposal,
-        machine_hub::{
-            AttachFailure, Attachment, EndFailure, HubClient, RequestFailure, data_root, running,
-        },
+        machine_hub::{AttachFailure, Attachment, HubClient, OpenCancel, Opening, RequestFailure},
     };
     use std::{
         sync::{Arc, mpsc},
@@ -266,6 +265,7 @@ mod requests {
             match reload(client, context)? {
                 Reloaded::Current => {}
                 Reloaded::Stopping | Reloaded::Lost => continue,
+                Reloaded::Gone => return Err(Error::HubUnavailable),
             }
             report.remote = Remote::PossiblyStarted;
             let request = Request::Connect(Connect {
@@ -328,14 +328,16 @@ mod requests {
             match reload(client, context)? {
                 Reloaded::Current => return Ok(()),
                 Reloaded::Stopping | Reloaded::Lost => {}
+                Reloaded::Gone => return Err(Error::HubUnavailable),
             }
         }
         Err(Error::HubUnavailable)
     }
 
-    /// Ends the hub's connection to the Machine `selector` names. With no hub running there is no
-    /// connection, and none is started. A running hub first takes the current catalog, so a record
-    /// that was removed or changed without telling it ends there before the selector resolves.
+    /// Ends the hub's connection to the Machine `selector` names. It reaches only the hub running
+    /// now: with none, or only a closing one, there is no connection, and none is started. A
+    /// running hub first takes the current catalog, so a record that was removed or changed
+    /// without telling it ends there before the selector resolves.
     pub(in super::super) fn disconnect(
         store: &Store,
         selector: &str,
@@ -343,13 +345,10 @@ mod requests {
         report: &mut Report,
     ) -> Result<(), Error> {
         context.check()?;
-        let root = data_root().map_err(attach_error)?;
-        let running = wait(context, move |deadline| running(&root, deadline))?;
-        if running.map_err(end_error)?.is_none() {
+        let Some(client) = open_present(context)? else {
             resolve(store, selector, report)?;
             return Ok(());
-        }
-        let client = open(context)?;
+        };
         let result = ask_disconnect(&client, store, selector, context, report);
         close(client);
         result
@@ -366,8 +365,9 @@ mod requests {
             match reload(client, context)? {
                 Reloaded::Current => {}
                 Reloaded::Stopping | Reloaded::Lost if round < ROUNDS => continue,
-                // A closing hub ends every connection it carries.
-                Reloaded::Stopping => {
+                // A closing hub, or one gone with none in its place, ends every connection it
+                // carried.
+                Reloaded::Stopping | Reloaded::Gone => {
                     resolve(store, selector, report)?;
                     report.remote = Remote::Unchanged;
                     return Ok(());
@@ -386,8 +386,10 @@ mod requests {
                 }
                 Ok(Reply::Disconnect(DisconnectOutcome::Stopping)) | Err(RequestFailure::Lost)
                     if round < ROUNDS => {}
-                // A closing hub ends every connection it carries.
-                Ok(Reply::Disconnect(DisconnectOutcome::Stopping)) => {
+                // A closing hub, or one gone with none in its place, ends every connection it
+                // carried.
+                Ok(Reply::Disconnect(DisconnectOutcome::Stopping))
+                | Err(RequestFailure::Ended(AttachFailure::Closing)) => {
                     report.remote = Remote::Unchanged;
                     return Ok(());
                 }
@@ -406,6 +408,9 @@ mod requests {
         Stopping,
         /// The connection was lost with the request in flight.
         Lost,
+        /// The owner ended `closing`: no hub runs any more, and an owner that reaches only the hub
+        /// present starts none.
+        Gone,
     }
 
     /// Asks the hub to take the current catalog. A hub that could not read it keeps the one it
@@ -416,6 +421,7 @@ mod requests {
             Ok(Reply::Reload(ReloadOutcome::Reloaded { .. })) => Ok(Reloaded::Current),
             Ok(Reply::Reload(ReloadOutcome::Stopping)) => Ok(Reloaded::Stopping),
             Err(RequestFailure::Lost) => Ok(Reloaded::Lost),
+            Err(RequestFailure::Ended(AttachFailure::Closing)) => Ok(Reloaded::Gone),
             Ok(Reply::Reload(ReloadOutcome::InvalidCatalog)) => {
                 Err(Error::Catalog(CatalogError::InvalidCatalog))
             }
@@ -426,23 +432,17 @@ mod requests {
     }
 
     /// After a committed catalog edit, asks the hub of this data root to take the catalog when
-    /// one runs; it starts none. The edit stands whatever the hub answers, so only an interrupt
-    /// ends the command differently.
+    /// one runs; it starts, replaces and waits for none, and a hub that serves later reads the
+    /// edit at its start. The edit stands whatever the hub answers, so only an interrupt ends the
+    /// command differently.
     pub(in super::super) fn reload_running(context: &mut Context) -> Result<(), Error> {
         let interrupted = |error: Error| match error {
             Error::Cancelled => Err(Error::Cancelled),
             _ => Ok(()),
         };
-        let Ok(root) = data_root() else {
-            return Ok(());
-        };
-        match wait(context, move |deadline| running(&root, deadline)) {
-            Ok(Ok(Some(_))) => {}
-            Ok(_) => return Ok(()),
-            Err(error) => return interrupted(error),
-        }
-        let client = match open(context) {
-            Ok(client) => client,
+        let client = match open_present(context) {
+            Ok(Some(client)) => client,
+            Ok(None) => return Ok(()),
             Err(error) => return interrupted(error),
         };
         let asked = ask(&client, Request::Reload, context);
@@ -503,6 +503,29 @@ mod requests {
         })?
         .map_err(attach_error)?;
         Ok(Arc::new(client))
+    }
+
+    /// Attaches to the hub serving this data root now, as one that holds and watches nothing;
+    /// `None` when none does or it is closing. It starts, replaces and waits for no hub, and the
+    /// owner ends instead of starting one when that hub goes.
+    fn open_present(context: &mut Context) -> Result<Option<Arc<HubClient>>, Error> {
+        let attachment = Attachment {
+            presence: false,
+            asks: false,
+            watch: false,
+        };
+        match wait(context, move |deadline| {
+            HubClient::open_with(
+                attachment,
+                deadline,
+                Opening::Present,
+                &OpenCancel::default(),
+            )
+        })? {
+            Ok((client, _attached)) => Ok(Some(Arc::new(client))),
+            Err(AttachFailure::Closing) => Ok(None),
+            Err(failure) => Err(attach_error(failure)),
+        }
     }
 
     /// Says goodbye to the hub unless an abandoned wait still holds the attachment; the process
@@ -617,15 +640,6 @@ mod requests {
             | AttachFailure::Denied
             | AttachFailure::Closing
             | AttachFailure::Lost => Error::HubUnavailable,
-        }
-    }
-
-    fn end_error(failure: EndFailure) -> Error {
-        match failure {
-            EndFailure::Foreign { .. } => Error::VersionIncompatible,
-            EndFailure::Timeout { .. } => Error::Timeout,
-            EndFailure::Elevated => Error::HubElevated,
-            EndFailure::Denied | EndFailure::Unavailable => Error::HubUnavailable,
         }
     }
 }

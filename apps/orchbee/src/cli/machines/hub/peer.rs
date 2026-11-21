@@ -270,13 +270,15 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             let Some(peer) = hub.peers.get_mut(&id) else {
                 return;
             };
+            // A client whose version does not show offered logins never asks, whatever it states.
+            let asks = attach.asks && peer.shows_offers;
             let gained = attach.presence && !peer.presence;
             let dropped = !attach.presence && peer.presence;
             let watching = attach.watch && !peer.watch;
-            let asking = attach.asks && !peer.asks;
-            let unasked = !attach.asks && peer.asks;
+            let asking = asks && !peer.asks;
+            let unasked = !asks && peer.asks;
             peer.presence = attach.presence;
-            peer.asks = attach.asks;
+            peer.asks = asks;
             peer.watch = attach.watch;
             let changed = if gained {
                 hub.lifetime.attach()

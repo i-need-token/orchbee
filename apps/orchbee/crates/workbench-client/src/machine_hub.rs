@@ -61,7 +61,8 @@ pub enum AttachFailure {
     /// on Windows only. Nothing here can attach until it ends.
     Elevated,
     /// The hub was still closing at the deadline; for the owner, also a hub that was asked to stop
-    /// when no other took its place.
+    /// when no other took its place; for an open or owner that reaches only the hub present, also
+    /// no hub at all.
     Closing,
     /// A hub this client cannot use serves the data root.
     Incompatible(Incompatible),

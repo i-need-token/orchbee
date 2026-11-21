@@ -368,6 +368,12 @@ false.
 
 - A TUI sets `presence` and `asks`. Desktop's bundled Client sets `presence` for the Desktop's
   whole process life and `asks` only while a window exists. A command sets neither.
+- The hub reads `asks` as false from a client whose offer's `productVersion` orders below
+  `0.1.0-beta.2` by SemVer precedence, or does not read as a version. The 0.1.0-beta.1 TUI set
+  `asks` without showing offered logins, and before 0.1.0-beta.14 this contract changed in place
+  at generation 1 ([compatibility window](../connection/README.md#compatibility-window)), so its
+  version alone tells it apart; offering it a login would make a command wait for a notice nobody
+  sees. Such a client still claims its own `user` episodes.
 - `attach-result` has outcome `attached` with `hub`, an object of the members of the
   [`hub` event](#hub-lifetime), or `stopping` without it.
 - After an `attach` that turns `watch` on, the hub sends `catalog`, then one `machine` event for

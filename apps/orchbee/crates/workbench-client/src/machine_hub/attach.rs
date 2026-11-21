@@ -1,6 +1,7 @@
 //! Attach or start: the one way a client reaches the hub of its data root, starting it when no
-//! endpoint exists and replacing an unheld hub of another version. Concurrent callers each may
-//! start a hub; the lock lets one serve and every caller connects to it.
+//! endpoint exists and replacing an unheld hub of another version, as far as the call's [`Start`]
+//! allows. Concurrent callers each may start a hub; the lock lets one serve and every caller
+//! connects to it.
 
 use super::{AttachFailure, Attached, Attachment, HUB_ENTRY, Incompatible, control, holders};
 use crate::machine_endpoint::{LocalStream, refused_from_above};
@@ -71,6 +72,10 @@ pub(super) enum Start {
     /// somebody else starts, reports a hub of another version without replacing it, and fails
     /// `closing` at its deadline or [`GONE_WAIT`] after the endpoint is gone.
     Never,
+    /// Never, and only to the hub serving the data root now: no endpoint, or a hub answering
+    /// `stopping`, fails `closing` at once, a hub of another version is reported without being
+    /// replaced, and nothing is created.
+    Present,
 }
 
 /// Ends an attach or start early, for the owner's `close`. It is checked before every attempt, it
@@ -148,7 +153,12 @@ pub(super) fn attach(
     start: Start,
     cancel: &Cancel,
 ) -> Result<Link, AttachFailure> {
-    let endpoint = endpoint(root)?;
+    let endpoint = if start == Start::Present {
+        // A data root that does not exist yet has no hub.
+        machine_hub_endpoint(root).map_err(|_| AttachFailure::Closing)?
+    } else {
+        endpoint(root)?
+    };
     let executable = std::env::current_exe().map_err(|_| AttachFailure::Unavailable)?;
     let mut child: Option<RetainedChild> = None;
     let mut starts = 0;
@@ -198,7 +208,7 @@ pub(super) fn attach(
                 RejectionReason::InitiatorTooOld
                 | RejectionReason::InitiatorTooNew
                 | RejectionReason::FingerprintMismatch => {
-                    if start == Start::Never {
+                    if matches!(start, Start::Never | Start::Present) {
                         // Somebody else's hub: this owner may not replace what it cannot start.
                         return Err(held(&rejection));
                     }
@@ -220,6 +230,7 @@ pub(super) fn attach(
             }
             Err(Attempt::Denied) => return Err(AttachFailure::Denied),
             Err(Attempt::Elevated) => return Err(AttachFailure::Elevated),
+            Err(Attempt::Nothing) if start == Start::Present => return Err(AttachFailure::Closing),
             Err(Attempt::Nothing) if start == Start::Never => {
                 closing = false;
                 if gone_since.get_or_insert_with(Instant::now).elapsed() >= GONE_WAIT {
@@ -256,7 +267,7 @@ pub(super) fn attach(
             }
         }
         let pause = if stopping {
-            if start == Start::UntilStopping && !replaced {
+            if start == Start::Present || (start == Start::UntilStopping && !replaced) {
                 return Err(AttachFailure::Closing);
             }
             closing = true;

@@ -40,6 +40,15 @@ pub(super) type Line = super::super::shared_carrier::Shared<Wire>;
 
 /// Attached connections.
 pub(super) const PEERS: usize = 256;
+/// The first release whose clients show the `command` logins the hub offers. The 0.1.0-beta.1
+/// TUI attached with `asks` without showing them.
+const SHOWS_OFFERS_FROM: &str = "0.1.0-beta.2";
+
+/// Whether a client whose offer names `version` shows offered logins, so that its `asks` counts;
+/// a version that does not read as one does not.
+pub(super) fn shows_offers(version: &str) -> bool {
+    orchbee_local_runtime::compare_product_versions(version, SHOWS_OFFERS_FROM).is_ge()
+}
 /// Control requests served at once.
 pub(super) const CONTROLS: usize = 4;
 /// Candidates read at once.
@@ -88,6 +97,8 @@ pub(super) struct Peer {
     pub(super) presence: bool,
     /// The connection shows login questions.
     pub(super) asks: bool,
+    /// The client's version shows offered logins, so an `attach` with `asks` makes it ask.
+    pub(super) shows_offers: bool,
     pub(super) watch: bool,
     pub(super) writer_done: bool,
     /// The reader and the writer that still run.
@@ -136,8 +147,9 @@ impl Hub {
         }
     }
 
-    /// Registers an admitted connection whose reader and writer are about to run.
-    pub(super) fn register(&mut self, stream: LocalStream) -> (u64, Arc<Line>) {
+    /// Registers an admitted connection whose reader and writer are about to run; `shows_offers`
+    /// tells whether its client's version shows offered logins.
+    pub(super) fn register(&mut self, stream: LocalStream, shows_offers: bool) -> (u64, Arc<Line>) {
         self.next_peer += 1;
         let line = Arc::new(Line::new(Wire {
             connection: Connection::<hub::Hub>::acceptor(),
@@ -150,6 +162,7 @@ impl Hub {
                 stream,
                 presence: false,
                 asks: false,
+                shows_offers,
                 watch: false,
                 writer_done: false,
                 threads: 2,

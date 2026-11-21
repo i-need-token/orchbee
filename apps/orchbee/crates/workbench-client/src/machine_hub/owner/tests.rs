@@ -101,6 +101,19 @@ fn acceptor_profile() -> AcceptorProfile {
 fn accept_hub_connection(
     stream: &mut crate::machine_endpoint::LocalStream,
 ) -> Connection<hub::Hub> {
+    answer_attach(
+        stream,
+        AttachOutcome::Attached {
+            hub: HubState::Held,
+        },
+    )
+}
+
+/// Admits the offer and answers the `attach` request with `outcome`.
+fn answer_attach(
+    stream: &mut crate::machine_endpoint::LocalStream,
+    outcome: AttachOutcome,
+) -> Connection<hub::Hub> {
     let profile = acceptor_profile();
     let mut reader = &*stream;
     let message = read_initiator_message(&mut reader).expect("read offer from client");
@@ -148,13 +161,8 @@ fn accept_hub_connection(
             break id;
         }
     };
-    conn.reply(
-        attach_id,
-        Reply::Attach(AttachOutcome::Attached {
-            hub: HubState::Held,
-        }),
-    )
-    .expect("queue attach reply");
+    conn.reply(attach_id, Reply::Attach(outcome))
+        .expect("queue attach reply");
     flush_frames(&mut conn, stream);
     conn
 }
@@ -501,4 +509,67 @@ fn repeated_violations_reach_the_bound_and_preserve_protocol_failure() {
 
     client.close();
     server.join().expect("server thread finished");
+}
+
+/// A catalog edit's `reload` and `machine disconnect` once checked for a hub and then opened one
+/// that starts a hub, so a hub that was closing, or went in between, was replaced by a start. The
+/// attach-only opening, and its re-attachment, start none.
+#[test]
+fn an_owner_that_reaches_only_the_present_hub_never_starts_one() {
+    let temp = TempRoot::new("present");
+    let root = temp.data_root();
+    let open = |root: &DataRoot| {
+        HubClient::open_with_in(
+            root.clone(),
+            Attachment::default(),
+            Instant::now() + Duration::from_secs(10),
+            Opening::Present,
+            &OpenCancel::default(),
+        )
+    };
+    // An open that waits for a hub somebody else starts waits 10 seconds.
+    let at_once = Duration::from_secs(5);
+
+    let started = Instant::now();
+    assert_eq!(open(&root).err(), Some(AttachFailure::Closing));
+    assert!(started.elapsed() < at_once, "waited for a hub to appear");
+    assert!(
+        !root.machines().exists(),
+        "an attach-only open created state"
+    );
+
+    let (_folder, listener) = bind_test_endpoint(&root);
+    let (attached_tx, attached_rx) = mpsc::channel::<()>();
+    let server = thread::spawn(move || {
+        // A closing hub answers the attachment `stopping`.
+        let (mut closing, ()) = listener
+            .accept()
+            .expect("accept the attachment to a closing hub");
+        let _refused = answer_attach(&mut closing, AttachOutcome::Stopping);
+        // A hub that attaches, then goes, its endpoint first, with none in its place.
+        let (mut stream, ()) = listener.accept().expect("accept the attachment");
+        let _attached = accept_hub_connection(&mut stream);
+        attached_rx.recv().expect("wait for the owner to attach");
+        drop(closing);
+        drop(listener);
+        drop(stream.shutdown(Shutdown::Both));
+        drop(stream);
+    });
+
+    let started = Instant::now();
+    assert_eq!(open(&root).err(), Some(AttachFailure::Closing));
+    assert!(
+        started.elapsed() < at_once,
+        "waited for the closing hub to go"
+    );
+
+    let (client, _) = open(&root).expect("attach to the hub present");
+    attached_tx.send(()).expect("let the hub go");
+    server.join().expect("hub thread");
+    assert_eq!(
+        client.next(Instant::now() + Duration::from_secs(10)),
+        Some(Notice::Ended(AttachFailure::Closing)),
+        "the owner re-attached by starting or waiting for a hub after its own went"
+    );
+    client.close();
 }

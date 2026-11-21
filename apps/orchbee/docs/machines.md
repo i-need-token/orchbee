@@ -66,9 +66,12 @@ writer lock, so the machine changed is the one the catalog names at commit time.
 
 A command that commits an edit then asks a running [machine hub](#machine-hub) to `reload`,
 through one attachment that holds and watches nothing, so the hub stops carrying a removed or
-disabled record and carries a changed one as it now reads. It starts no hub and does nothing more
-when none runs, and the edit stands whatever the hub answers; only an interrupt during that wait
-changes the receipt, to `cancelled` with `committed` true.
+disabled record and carries a changed one as it now reads. The attachment opens
+[`present`](#attach-or-start): it reaches only the hub serving the data root at that moment, and
+when none does, or that hub is closing or goes before it answers, the command starts, replaces and
+waits for no hub and does nothing more. A hub binds its endpoint before it reads the catalog, so a
+hub that serves later reads the edit. The edit stands whatever the hub answers; only an interrupt
+during that wait changes the receipt, to `cancelled` with `committed` true.
 
 | Event          | Guard and transition                                                                                                           | Effects                                                                                                                     |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
@@ -168,12 +171,14 @@ false, with the resolved `profileId` and the catalog it was read from.
   that runs `machine connect` there is asked and waits for a person. An Agent that cannot answer
   redirects standard input away from the console, for example from the null device; the command
   then sends `answers` false and a sign-in that needs an answer ends `auth-required` at once.
-- **Disconnect** starts no hub: with none running there is no connection, and it succeeds with
+- **Disconnect** starts no hub: it attaches [`present`](#attach-or-start), and with no hub
+  running, or only a closing one, there is no connection, and it succeeds with
   `remote: "not-contacted"` once the operand resolves. Otherwise it asks the hub to `reload`
   before it resolves the operand, so a record that was removed or changed without telling the hub
   ends there too, then sends `disconnect`; a hub whose catalog does not list the machine carries
-  nothing for it, and a closing hub ends every carrier, so both read as disconnected. The deadline
-  is 15 seconds. The remote Session keeps running.
+  nothing for it, and a closing hub, or one that went with no other in its place, ends every
+  carrier, so all read as disconnected. The deadline is 15 seconds. The remote Session keeps
+  running.
 - A `reload` answered `invalid-catalog` or `storage` leaves the hub on the catalog it had, which
   may name a record as it was, so the command ends with that code and asks for nothing more.
 - A reply `stopping`, or a connection lost with the request in flight, is asked once more through
@@ -375,13 +380,19 @@ meanwhile, does the command ask it to `connect` the Machine with `origin` `comma
 person at an interface that `asks`, within the hub's bound on the question, with the waiting line
 on standard error, and ends `auth-required` at once when none `asks` or the Machine is muted, nothing
 submitted; then it opens the route once more; that `connect` restarts the countdown
-as every `connect` does. On the route the command writes one bounded request packet, sends `end`,
-and reads the reply packet until `close`; the hub [relays](#channels) it to a link `route` channel,
-so three commands to one Machine share its one carrier. The packet and its
-reply are closed objects whose `version` is their `machine-route` generation in the
-[connection registry](../../../schemas/connection/v1/connections.json); each may carry an
-`extensions` object whose member names follow the capability-name grammar and whose content the
-receiver ignores. Neither carries a cohort. The remote [link helper](#link-helper) refuses a
+as every `connect` does. The `connect` brings the Machine's Session up with it: once the link
+answers, the hub opens [`ensure-session`](#link-helper), which starts the remote Session as
+`server start` would when it is not running. A read-only command therefore starts that Session
+too: `orchbee --machine <machine> agent list` against a Machine whose Orchbee is not running
+connects it, starts its Session, and then lists that Session's Agents. The routed command itself
+never starts a Session, so a Session that stopped while its Machine stayed `online` is not started
+again by a query, which answers as it would on that machine. On the route the command writes one
+bounded request packet, sends `end`, and reads the reply packet until `close`; the hub
+[relays](#channels) it to a link `route` channel, so three commands to one Machine share its one
+carrier. The packet and its reply are closed objects whose `version` is their `machine-route`
+generation in the [connection registry](../../../schemas/connection/v1/connections.json); each may
+carry an `extensions` object whose member names follow the capability-name grammar and whose
+content the receiver ignores. Neither carries a cohort. The remote [link helper](#link-helper) refuses a
 generation it does not read, then revalidates the Session, argument grammar and command allowlist
 under its own grammar before spawning its own executable with literal arguments in an owned
 Windows Job.
@@ -1289,15 +1300,15 @@ opened the pipe with, that the client's token user equals the hub's before a byt
 [`local-ipc`](../../../crates/local-ipc/README.md) does for machine and Session Client endpoints.
 The `OBHS` frame must arrive within 2 seconds of the accept.
 
-| Request                        | Answer                                                                                                                                                                                                                                                                                             |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `attach`                       | `attached` with the state; turning `watch` on sends `catalog`, then one `machine` per id; gaining `presence` starts a silent attempt for every `idle` Machine                                                                                                                                      |
-| `reload`                       | Rereads `machines.json`: `reloaded`, or `invalid-catalog` or `storage` keeping the catalog; a change sends `catalog` and every changed `machine` to each watcher, and a changed record is reconciled as above; while `presence` holds, a new, changed or enabled SSH Machine is attempted silently |
-| `connect`                      | With a `draft`, this connection's [draft Machine](#draft-machines); otherwise `not-found` for an id outside the catalog, or [carried](#carrying-a-machine), which answers `disabled-machine` and `unsupported-machine` at once                                                                     |
-| `disconnect`                   | `not-found` for an id outside the catalog that is not this connection's draft; otherwise the Machine is disconnected, a draft dropped, and the answer is `disconnected`                                                                                                                            |
-| `stop-session`                 | `not-found` for an id outside the catalog, `not-online` for a Machine that is not `online`, otherwise a run that [stops the Session](#stopping-a-session), or joins the Machine's run                                                                                                              |
-| `claim`, `dismiss`             | As the [login episode](#login-episode) states                                                                                                                                                                                                                                                      |
-| `open` of `session` or `route` | [Relayed](#channels) for an `online` Machine; otherwise `reset` `not-found` for an id outside the catalog or `not-online`                                                                                                                                                                          |
+| Request                        | Answer                                                                                                                                                                                                                                                                                                |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `attach`                       | `attached` with the state; turning `watch` on sends `catalog`, then one `machine` per id; gaining `presence` starts a silent attempt for every `idle` Machine; `asks` counts only from a client whose offer names 0.1.0-beta.2 or later ([attachment](../../../schemas/machine/README.md#attachment)) |
+| `reload`                       | Rereads `machines.json`: `reloaded`, or `invalid-catalog` or `storage` keeping the catalog; a change sends `catalog` and every changed `machine` to each watcher, and a changed record is reconciled as above; while `presence` holds, a new, changed or enabled SSH Machine is attempted silently    |
+| `connect`                      | With a `draft`, this connection's [draft Machine](#draft-machines); otherwise `not-found` for an id outside the catalog, or [carried](#carrying-a-machine), which answers `disabled-machine` and `unsupported-machine` at once                                                                        |
+| `disconnect`                   | `not-found` for an id outside the catalog that is not this connection's draft; otherwise the Machine is disconnected, a draft dropped, and the answer is `disconnected`                                                                                                                               |
+| `stop-session`                 | `not-found` for an id outside the catalog, `not-online` for a Machine that is not `online`, otherwise a run that [stops the Session](#stopping-a-session), or joins the Machine's run                                                                                                                 |
+| `claim`, `dismiss`             | As the [login episode](#login-episode) states                                                                                                                                                                                                                                                         |
+| `open` of `session` or `route` | [Relayed](#channels) for an `online` Machine; otherwise `reset` `not-found` for an id outside the catalog or `not-online`                                                                                                                                                                             |
 
 A disabled record reads `disabled`, a connection kind this build does not know `unsupported` with
 cause `connection-kind`, and any other Machine starts `offline` without a cause or a next attempt.
@@ -1525,23 +1536,31 @@ Client crate is the lowest crate that both the CLI and the TUI reach, and it alr
 saved-machine catalog the hub serves. The hub process stays in the application, as a Server stays
 apart from its clients. No second client loop exists: the state printer is a caller of the owner.
 
-| Operation                         | Effect                                                                                                                                                                                 |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `open(attachment, deadline)`      | Attaches or starts with the caller's `presence`, `asks` and `watch`; returns the owner, the hub's state, and the hubs it started                                                       |
-| `request(request, deadline)`      | Sends one request and waits for its reply; one that cannot be sent, such as one too large for a frame, fails at once; an `attach` also becomes what a re-attachment restores           |
-| `next(deadline)`                  | The next notice: a hub event, a re-attachment, or the owner's end                                                                                                                      |
-| `open_channel(channel, deadline)` | Opens a hub channel on the attached connection, waiting for one while re-attaching; returns its handle                                                                                 |
-| `write(handle, bytes, deadline)`  | Commits as many leading bytes as the channel's credit admits and returns their count; waits for credit until the deadline when none is left                                            |
-| `end(handle)`, `cancel(handle)`   | Sends `end`, or `reset` `cancelled` and forgets the channel                                                                                                                            |
-| `receive(handle, deadline)`       | The channel's next delivery, in order: `accepted`, data, `ended`, `closed` with its outcome, `reset` with its reason, or `lost`; credit returns only as the caller takes data          |
-| `close`                           | Sends `bye` `done`, cancels a re-attachment in progress, which then starts no hub, gives `bye` and the threads at most 2 seconds, and ends the owner; dropping the owner does this too |
-| `running(root, deadline)`         | The running hub's process id through `query`; starts nothing                                                                                                                           |
-| `end(root, deadline)`             | [Ends](#ending-a-hub) the running hub through `drain` and `exit`                                                                                                                       |
+| Operation                             | Effect                                                                                                                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `open(attachment, deadline, opening)` | Attaches with the caller's `presence`, `asks` and `watch`, starting a hub only as its [opening](#attach-or-start) allows; returns the owner, the hub's state, and the hubs it started  |
+| `request(request, deadline)`          | Sends one request and waits for its reply; one that cannot be sent, such as one too large for a frame, fails at once; an `attach` also becomes what a re-attachment restores           |
+| `next(deadline)`                      | The next notice: a hub event, a re-attachment, or the owner's end                                                                                                                      |
+| `open_channel(channel, deadline)`     | Opens a hub channel on the attached connection, waiting for one while re-attaching; returns its handle                                                                                 |
+| `write(handle, bytes, deadline)`      | Commits as many leading bytes as the channel's credit admits and returns their count; waits for credit until the deadline when none is left                                            |
+| `end(handle)`, `cancel(handle)`       | Sends `end`, or `reset` `cancelled` and forgets the channel                                                                                                                            |
+| `receive(handle, deadline)`           | The channel's next delivery, in order: `accepted`, data, `ended`, `closed` with its outcome, `reset` with its reason, or `lost`; credit returns only as the caller takes data          |
+| `close`                               | Sends `bye` `done`, cancels a re-attachment in progress, which then starts no hub, gives `bye` and the threads at most 2 seconds, and ends the owner; dropping the owner does this too |
+| `running(root, deadline)`             | The running hub's process id through `query`; starts nothing                                                                                                                           |
+| `end(root, deadline)`                 | [Ends](#ending-a-hub) the running hub through `drain` and `exit`                                                                                                                       |
 
 #### Attach or start
 
-A call resolves the data root, creates `internal/machines/` privately, names the endpoint, and
-within its deadline connects and offers `machine-hub`.
+A call resolves the data root, creates `internal/machines/` privately unless it opens `present`,
+names the endpoint, and within its deadline connects and offers `machine-hub`. Its opening decides
+whether it may start a hub; the answers below then apply as far as the opening allows.
+
+| Opening   | No endpoint                                                                               | A closing hub                                       | Another version's hub          |
+| --------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------ |
+| `start`   | Starts one                                                                                | Waits for it to go, then starts one                 | Replaced when nothing holds it |
+| `restart` | Starts one                                                                                | Fails `closing` at once                             | Replaced when nothing holds it |
+| `join`    | Waits for one somebody else starts; fails `closing` 10 seconds after the endpoint is gone | Waits for it to go and for one somebody else starts | Reported, never replaced       |
+| `present` | Fails `closing` at once and creates nothing                                               | Fails `closing` at once                             | Reported, never replaced       |
 
 | Answer                                                           | The call                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1588,6 +1607,9 @@ happens only when nothing holds it. Another user's processes stay refused at eve
 After `bye` `idle` or a lost connection, the owner re-attaches by the same rules, starting a hub
 when none runs, and restores the caller's last `presence`, `asks` and `watch`.
 
+- **An owner opened `present` ends with its hub.** Whether its hub stopped or was lost, it
+  re-attaches only to a hub serving the data root at that moment and otherwise ends `closing` at
+  once, so it never starts, replaces or waits for a hub.
 - **A stopped hub stays stopped.** A hub that sends `bye` `stopping` or a `closing` state event,
   or answers an attachment or the re-attachment `stopping`, was asked to stop or expired with
   nothing holding it. The owner never starts a hub in reaction: it waits for that hub to go and

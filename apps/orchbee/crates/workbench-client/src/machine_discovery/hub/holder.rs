@@ -237,7 +237,7 @@ fn attach(
     }
     let bound = match opening {
         Opening::Start | Opening::Restart => ATTACH,
-        Opening::Join => JOIN,
+        Opening::Join | Opening::Present => JOIN,
     };
     let client =
         match HubClient::open_with(ATTACHMENT, Instant::now() + bound, opening, &shared.cancel) {

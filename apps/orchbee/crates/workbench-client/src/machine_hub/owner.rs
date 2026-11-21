@@ -1,6 +1,7 @@
 //! The owner of one attachment to the hub. A reader thread hands frames to the connection's state
 //! machine and re-attaches after the hub goes away, starting a hub only when that hub was not asked
-//! to stop and the owner is not closing; a writer thread writes what the state machine queues;
+//! to stop, the owner is not closing, and it was not opened [`Opening::Present`], which ends with
+//! its hub instead; a writer thread writes what the state machine queues;
 //! callers send requests, take notices, and open, write, end and read channels. One lock guards the
 //! owner's state, with one signal for callers and one for the writer; no thread holds it while it
 //! reads or writes the carrier or attaches. A channel's deliveries wait in the owner, bounded by
@@ -119,6 +120,10 @@ pub enum Opening {
     /// Attach only to a hub somebody else started; a hub of another version is reported, not
     /// replaced, and no hub at the deadline fails `closing`.
     Join,
+    /// Attach only to the hub serving the data root now, creating nothing: no hub, or a closing
+    /// one, fails `closing` at once, and a hub of another version is reported, not replaced. The
+    /// owner's re-attachment keeps this rule, so it ends `closing` when its hub goes.
+    Present,
 }
 
 /// Ends an open in progress from another thread. Once [`OpenCancel::cancel`] returns, no start is
@@ -140,6 +145,9 @@ pub struct HubClient {
 
 struct Inner {
     root: DataRoot,
+    /// The owner was opened [`Opening::Present`]: it re-attaches only to a hub serving the data
+    /// root at that moment, whatever ended the last connection.
+    present_only: bool,
     /// Ends a re-attachment in progress when `close` begins.
     cancel: Cancel,
     state: Mutex<State>,
@@ -301,11 +309,13 @@ impl HubClient {
             Opening::Start => Start::Always,
             Opening::Restart => Start::UntilStopping,
             Opening::Join => Start::Never,
+            Opening::Present => Start::Present,
         };
         let link = attach::attach(&root, attachment, deadline, start, &cancel.0)?;
         let attached = link.attached;
         let inner = Arc::new(Inner {
             root,
+            present_only: opening == Opening::Present,
             cancel: Cancel::default(),
             state: Mutex::new(State {
                 current: None,
@@ -770,9 +780,10 @@ impl Inner {
 
     /// After a loss: ends the owner, or re-attaches and returns the new connection to read. A hub
     /// that was stopping is never restarted in reaction: the owner attaches only to a hub somebody
-    /// else starts, and ends `closing` when none appears. A protocol violation ends only the
-    /// broken connection and re-attaches within [`LOSSES`] in [`LOSS_WINDOW`], ending as `lost`
-    /// if that bound is reached on a violation.
+    /// else starts, and ends `closing` when none appears. An owner opened [`Opening::Present`]
+    /// attaches only to a hub serving the data root at that moment and otherwise ends `closing` at
+    /// once. A protocol violation ends only the broken connection and re-attaches within
+    /// [`LOSSES`] in [`LOSS_WINDOW`], ending as `lost` if that bound is reached on a violation.
     fn recover(&self, loss: Loss) -> Option<Reading> {
         let (attachment, stopped) = {
             let mut state = self.lock();
@@ -812,7 +823,9 @@ impl Inner {
         };
         self.changed.notify_all();
         let lost = Instant::now();
-        let (mut start, mut deadline) = if stopped {
+        let (mut start, mut deadline) = if self.present_only {
+            (Start::Present, lost + ATTEMPT)
+        } else if stopped {
             (Start::Never, lost + CLOSING_ALLOWANCE)
         } else {
             (Start::UntilStopping, lost + ATTEMPT)

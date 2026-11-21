@@ -12,12 +12,12 @@ use super::{
     environment::Environment,
     lifetime::{Lifetime, Moment, ReadDue},
     machine, peer, relay,
-    state::{CANDIDATES, CONTROLS, Hub, Line, PEERS, Shared},
+    state::{CANDIDATES, CONTROLS, Hub, Line, PEERS, Shared, shows_offers},
 };
 use orchbee_connection_handshake::{
     AcceptorLoad, AcceptorMessage, AcceptorProfile, CANDIDATE_DEADLINE, ConnectionKind, Decision,
-    DrainResult, ExitResult, Extensions, ProcessRole, ProcessState, ReadError, RejectionReason,
-    RequestKind, read_initiator_message,
+    DrainResult, ExitResult, Extensions, InitiatorMessage, ProcessRole, ProcessState, ReadError,
+    RejectionReason, RequestKind, read_initiator_message,
 };
 use orchbee_local_runtime::{
     DataRoot, HeldLock, LogRole, create_private_directory, install_diagnostic_log, log_panicked,
@@ -362,7 +362,11 @@ fn decide(
             if stream.set_read_timeout(None).is_err() {
                 return None;
             }
-            let (id, line) = hub.register(stream.clone());
+            let shows_offers = match &message {
+                InitiatorMessage::Offer(offer) => shows_offers(offer.product_version.as_str()),
+                InitiatorMessage::Request(_) | InitiatorMessage::UnknownRequest(_) => false,
+            };
+            let (id, line) = hub.register(stream.clone(), shows_offers);
             drop(hub);
             if answer(&mut &*stream, &AcceptorMessage::Answer(reply))
                 && peer::start_writer(shared, &line, id, stream.clone())

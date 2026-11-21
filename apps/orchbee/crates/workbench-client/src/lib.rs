@@ -278,8 +278,8 @@ pub mod application {
     pub mod machine_hub {
         pub use crate::machine_hub::{
             AttachFailure, Attached, Attachment, ChannelDelivery, ChannelFailure, ChannelHandle,
-            DeliveryFailure, EndFailure, HUB_ENTRY, HubClient, Incompatible, Notice,
-            RequestFailure, SessionRead, data_root, deliver, end, read_sessions, running,
+            DeliveryFailure, EndFailure, HUB_ENTRY, HubClient, Incompatible, Notice, OpenCancel,
+            Opening, RequestFailure, SessionRead, data_root, deliver, end, read_sessions, running,
             runtime_base,
         };
     }
