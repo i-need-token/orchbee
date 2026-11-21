@@ -1364,9 +1364,11 @@ Plugin Panel membership is prepared against the candidate canonical snapshot and
 ## Agent integration admission
 
 `workbench.agent-integration` inspection (`list`, `explain`), poll, and cancel require the read
-grant. Starting `enable` or `disable` additionally requires the terminal-creation and lifecycle
-grants, the same set as mutating plugin actions. Non-mutating requests trigger no generic
-Workbench invalidation. An unauthorized request answers `denied`.
+grant. Starting `disable` additionally requires the terminal-creation and lifecycle grants, the
+same set as mutating plugin actions. Starting `enable` needs the same grants and is then withheld
+in every build and state: the Server answers `worker-unavailable` before the Session check and
+dispatches no Worker job, because the user-facing Agent integration was removed. Non-mutating
+requests trigger no generic Workbench invalidation. An unauthorized request answers `denied`.
 
 An authorized request must name the current Session, or it answers `session-mismatch`. The Server
 relays it to the current Worker as OBCN kind 31 under a fresh operation ID and pairs the kind 32
@@ -1374,9 +1376,9 @@ result by operation ID, job ID, and action. A Start's job ID is its own operatio
 Workbench job `{workerId, generation, jobId}` names exactly one Worker job. A poll or cancel whose
 job names another Worker or generation, or a Worker fencing refusal, answers `worker-changed`.
 Worker `Busy` and carrier backpressure answer `busy`; a missing Worker, `SpawnThreadFailed`, or
-`Dead` answers `worker-unavailable`. A delivered enable or disable start whose result is lost
-answers `abandoned`, because its effects are unknown. The Server decodes a completed report
-against the contract before answering; an undecodable report answers `malformed`.
+`Dead` answers `worker-unavailable`. A delivered disable start whose result is lost answers
+`abandoned`, because its effects are unknown. The Server decodes a completed report against the
+contract before answering; an undecodable report answers `malformed`.
 
 ## Agent catalog
 

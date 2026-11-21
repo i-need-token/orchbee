@@ -577,5 +577,7 @@ mod configured_commands;
 
 mod terminal_limit;
 
+mod agent_integration;
+
 #[cfg(all(test, windows))]
 mod plugins;

@@ -58,6 +58,25 @@ fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
     }
 }
 
+/// Starting `enable` writes node-local Agent configuration. The user-facing Agent integration was
+/// removed and Agent status comes from screen detection alone, so an enable that an older Client
+/// still sends is refused before any Worker job starts. Disable, poll and cancel stay served, so an
+/// entry an earlier version wrote can still be removed.
+fn withheld_agent_integration_enable(request: &WorkbenchRequest) -> bool {
+    matches!(
+        request,
+        WorkbenchRequest::AgentIntegration(orchbee_workbench_protocol::AgentIntegrationRequest {
+            action: orchbee_workbench_protocol::AgentIntegrationAction::Start {
+                request: orchbee_agent_integration::IntegrationRequest {
+                    operation: orchbee_agent_integration::IntegrationOperation::Enable { .. },
+                    ..
+                },
+            },
+            ..
+        })
+    )
+}
+
 pub(crate) struct WorkbenchService {
     changes: orchbee_server::SessionChangeSource,
     agent_views: std::sync::Mutex<agent_view::Registry>,
@@ -233,7 +252,7 @@ impl WorkbenchService {
         if !permitted {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
-        if withheld_off_windows(&request) {
+        if withheld_off_windows(&request) || withheld_agent_integration_enable(&request) {
             return WorkbenchExecution::Response(unavailable_or_denied(request, false));
         }
         match &request {
