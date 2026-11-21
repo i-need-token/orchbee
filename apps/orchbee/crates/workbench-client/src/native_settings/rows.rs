@@ -59,6 +59,27 @@ pub enum Row {
     Version,
     /// About: Check for updates, or the Update control while a newer version is offered.
     Updates,
+    /// Settings › Machines: opens Add Machine.
+    AddMachine,
+    /// Settings › Machines: filters the list, past the threshold.
+    FindMachine,
+    /// Settings › Machines: what this computer has free.
+    ThisComputer,
+    /// Settings › Machines: the saved machine at this place in the facts' order, which opens its
+    /// page; its name is the machine's.
+    Machine(u16),
+    MachineName,
+    MachineAddress,
+    /// A machine's state, its sentence, and the one action it offers now.
+    MachineStatus,
+    /// What the machine has free, while it is online.
+    MachineFree,
+    /// Forgets the password saved for the machine.
+    MachinePassword,
+    /// Stops the machine's Session after a confirmation that states what stops.
+    MachineStop,
+    /// Removes the machine's record; nothing stops.
+    MachineRemove,
 }
 
 /// Reads and writes the on/off value of a row's setting.
@@ -386,6 +407,29 @@ impl Row {
                 "Orchbee also checks every hour while automatic updates are on.",
                 "自动更新开启时，Orchbee 也会每小时检查一次。",
             ),
+            // Settings › Machines edits no setting; a machine's facts describe the other rows.
+            Self::AddMachine => row("Add machine…", "添加机器…"),
+            Self::FindMachine => row("Find a machine", "查找机器"),
+            Self::ThisComputer => row("This computer", "这台电脑"),
+            Self::Machine(_) => row("Machine", "机器"),
+            Self::MachineName => row("Name", "名称").described(
+                "Shown on its Workspaces and in commands.",
+                "显示在它的工作区上和命令里。",
+            ),
+            Self::MachineAddress => {
+                row("Address", "地址").described("What ssh connects to.", "ssh 连接的目标。")
+            }
+            Self::MachineStatus => row("Status", "状态"),
+            Self::MachineFree => row("Free now", "当前空闲"),
+            Self::MachinePassword => row("Saved password", "已保存的密码").described(
+                "Kept in the system password store.",
+                "存放在系统的密码存放处。",
+            ),
+            Self::MachineStop => row("Stop its terminals", "停止它的终端").described(
+                "Ends every terminal and Agent there; the machine stays.",
+                "结束那里的所有终端和智能体；机器仍保留。",
+            ),
+            Self::MachineRemove => row("Remove machine", "移除机器"),
         }
     }
 
@@ -453,6 +497,9 @@ impl Row {
             Self::Executable | Self::ArgumentValue => Some(32 * 1024),
             Self::NewTerminalFolder => Some(4096),
             Self::PrefixKey => Some(64),
+            Self::MachineName => Some(crate::machines::LABEL_LIMIT),
+            // A filter of 128 characters, each up to four bytes.
+            Self::FindMachine => Some(512),
             _ => None,
         }
     }
@@ -463,13 +510,16 @@ impl Row {
 pub(crate) enum Page {
     General,
     Profiles,
+    /// One saved machine's page, opened from its row on Settings › Machines.
+    Machine,
 }
 
 impl Page {
-    /// A child page's rows in order; the categories list theirs through the catalog.
+    /// A child page's rows in order; the categories list theirs through the catalog, and a
+    /// machine's page through its facts.
     pub(crate) const fn rows(self) -> &'static [Row] {
         match self {
-            Self::General => &[],
+            Self::General | Self::Machine => &[],
             Self::Profiles => &[
                 Row::Profile,
                 Row::ProfileName,
@@ -492,10 +542,16 @@ impl Page {
         !matches!(self, Self::General)
     }
 
+    /// A page of one-line rows, the launch-profile editor; the others frame two-line rows.
+    pub(crate) const fn one_line_rows(self) -> bool {
+        matches!(self, Self::Profiles)
+    }
+
     /// The row that opened this child page, whose name titles it.
     pub(crate) const fn opener(self) -> Row {
         match self {
             Self::General | Self::Profiles => Row::LaunchProfiles,
+            Self::Machine => Row::ThisComputer,
         }
     }
 }

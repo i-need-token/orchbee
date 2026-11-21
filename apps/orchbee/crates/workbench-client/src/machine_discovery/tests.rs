@@ -3,6 +3,7 @@ use crate::client_context::ClientContextLocation;
 use crate::local_client::cancellation::OwnedCancellation;
 use crate::local_client::test_support::multiplex_peer::{admit, read_open, respond};
 use crate::localization::Locale;
+use crate::machine_overview::Tone;
 use crate::{local_client::test_support::server::FakeServer, machines::Draft};
 use orchbee_workbench_protocol::{
     MultiplexMessage, Navigation, ProtocolVersion, StreamFrameKind, StreamMode, TerminalContext,
@@ -11,7 +12,6 @@ use orchbee_workbench_protocol::{
     write_multiplex_message,
 };
 use orchbee_workbench_protocol::{Snapshot, WorkbenchProjectId};
-use overview::Tone;
 use std::{num::NonZeroU64, thread, time::Duration};
 
 fn profile(n: u8) -> Profile {

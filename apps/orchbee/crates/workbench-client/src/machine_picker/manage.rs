@@ -211,6 +211,9 @@ pub(crate) struct Manage {
     stopping: Option<ProfileId>,
     /// The Machine the next catalog refresh selects: the one just added.
     select: Option<ProfileId>,
+    /// Add Machine opened from Settings › Machines, with the machine it saved once it did: the
+    /// picker closes as the add ends, and Settings focuses that machine.
+    settings_add: Option<Option<ProfileId>>,
 }
 
 impl Manage {
@@ -424,6 +427,29 @@ impl Picker {
     /// The Add row's selection ends as a Machine row is clicked.
     pub(super) fn leave_add_row(&mut self) {
         self.manage.add_focused = false;
+    }
+
+    /// Opens Add Machine for Settings › Machines: the picker shows its add form and closes once
+    /// the add was saved or given up.
+    pub fn open_add_from_settings(&mut self) {
+        self.show();
+        if self.open {
+            self.open_add();
+            self.manage.settings_add = Some(None);
+        }
+    }
+
+    /// Once the add opened from Settings ended: closes the picker and returns the machine it
+    /// saved, `Some(None)` when it saved none.
+    pub fn take_settings_add(&mut self) -> Option<Option<ProfileId>> {
+        if self.open && matches!(self.manage.page, Page::Add(_)) {
+            return None;
+        }
+        let added = self.manage.settings_add.take()?;
+        if self.open {
+            self.close_picker();
+        }
+        Some(added)
     }
 
     pub(super) fn open_add(&mut self) {

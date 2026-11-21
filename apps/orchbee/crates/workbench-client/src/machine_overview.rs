@@ -1,5 +1,6 @@
 //! Settled discovery values: one saved machine's row observation and the bounded overview of its
-//! canonical navigation. Discovery produces them; Client state holds them.
+//! canonical navigation. Discovery produces them; Client state and every interface's explanation
+//! of a machine's state hold them.
 
 // module-layer: values
 
@@ -196,10 +197,9 @@ pub(crate) enum Tone {
 }
 impl Observation {
     /// The observation of a Machine the hub reports in `state` without an overview, for the
-    /// Machine whose ssh target is `target`.
-    pub(crate) fn reported(state: &MachineState, target: &str) -> Self {
-        LoginState::of(state, &crate::machines::known_hosts_name(target))
-            .map_or(Self::State(state.name()), Self::Login)
+    /// Machine whose host `ssh-keygen -R` forgets is `host`.
+    pub(crate) fn reported(state: &MachineState, host: &str) -> Self {
+        LoginState::of(state, host).map_or(Self::State(state.name()), Self::Login)
     }
 
     /// The picker message of the row's word.

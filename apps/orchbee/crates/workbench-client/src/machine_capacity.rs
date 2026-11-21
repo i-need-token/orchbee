@@ -29,15 +29,21 @@ pub fn summary(capacity: Option<&Capacity>) -> String {
     format!("{cpu} · {memory} · {disk}")
 }
 
-/// `bytes` in gigabytes, rounded to the nearest: whole from 10 up, with one decimal below.
+/// `bytes` in gigabytes with the unit, as [`gigabyte_number`] rounds them.
 #[must_use]
 pub fn gigabytes(bytes: u64) -> String {
+    format!("{} GB", gigabyte_number(bytes))
+}
+
+/// `bytes` in gigabytes, rounded to the nearest: whole from 10 up, with one decimal below.
+#[must_use]
+pub fn gigabyte_number(bytes: u64) -> String {
     const GIGABYTE: u128 = 1 << 30;
     let bytes = u128::from(bytes);
     let whole = (bytes + GIGABYTE / 2) / GIGABYTE;
     if whole >= 10 {
-        return format!("{whole} GB");
+        return whole.to_string();
     }
     let tenths = (bytes * 10 + GIGABYTE / 2) / GIGABYTE;
-    format!("{}.{} GB", tenths / 10, tenths % 10)
+    format!("{}.{}", tenths / 10, tenths % 10)
 }

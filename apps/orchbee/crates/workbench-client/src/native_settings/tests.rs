@@ -105,7 +105,7 @@ fn key(field: UserSettingsField) -> String {
 #[test]
 fn every_common_setting_has_one_row_with_one_place_on_the_page() {
     // A theme list shows its slot's setting once, however many themes it lists.
-    let mut placed: Vec<Row> = Category::ALL
+    let mut placed: Vec<Row> = Category::all()
         .iter()
         .flat_map(|category| category.groups())
         .flat_map(|group| group.rows())
@@ -686,4 +686,59 @@ fn each_folder_entry_writes_its_value_and_a_stored_value_shows_as_its_entry() {
     assert_eq!(written(None, 3, "D:/w"), set("D:/w"));
     // The entry the row already shows writes nothing, so an unset key stays unset.
     assert_eq!(written(None, 2, ""), None);
+}
+
+/// Stop its terminals ends everything that runs on a machine: the first Enter only states what
+/// stops, the second asks for the stop, and Esc between them asks nothing.
+#[cfg(any(windows, target_os = "macos"))]
+#[test]
+fn stopping_a_machines_terminals_asks_first_and_escape_asks_nothing() {
+    use crate::machine_settings::{Facts, Machine, Request, State as MachineState};
+    let id = "0123456789abcdef0123456789abcdef".to_owned();
+    let mut editor = open(&snapshot(1, &UserSettingsValues::default(), &[]));
+    editor.observe_machines(Facts {
+        machines: vec![Machine {
+            id: id.clone(),
+            label: "devbox".into(),
+            address: Some("devbox".into()),
+            state: MachineState::Online,
+            capacity: None,
+            workspaces: Some(1),
+            terminals: Some(3),
+            agents: Some(1),
+            last_attempt: None,
+            explanation: Default::default(),
+            stopping: false,
+        }],
+        ..Facts::default()
+    });
+    draw(&mut editor);
+    let token = page(&editor).token();
+    editor.control(token, Control::Category(Category::Machines));
+    draw(&mut editor);
+    select(&mut editor, Row::Machine(0));
+    editor.edit(Edit::Activate);
+    draw(&mut editor);
+    assert_eq!(page(&editor).page(), Page::Machine);
+    select(&mut editor, Row::MachineStop);
+    editor.edit(Edit::Activate);
+    draw(&mut editor);
+    assert!(
+        page(&editor).confirm_stop(),
+        "the first Enter states what stops"
+    );
+    assert_eq!(editor.take_machine_request(), None);
+    editor.edit(Edit::Cancel);
+    draw(&mut editor);
+    assert!(!page(&editor).confirm_stop());
+    assert_eq!(
+        page(&editor).page(),
+        Page::Machine,
+        "Esc leaves the page open"
+    );
+    assert_eq!(editor.take_machine_request(), None, "Esc asks nothing");
+    editor.edit(Edit::Activate);
+    draw(&mut editor);
+    editor.edit(Edit::Activate);
+    assert_eq!(editor.take_machine_request(), Some(Request::Stop(id)));
 }

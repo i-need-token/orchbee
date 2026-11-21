@@ -19,6 +19,7 @@ mod choices;
 pub(crate) use choices::{Choice, ChoicePicker};
 mod editing;
 mod input;
+use page::machines::{self, Machines};
 mod metadata;
 mod page;
 use page::PageState;
@@ -235,6 +236,8 @@ pub(crate) struct Editor {
     unlisted: bool,
     /// About's mirror of the update state, followed while Settings is closed.
     about: About,
+    /// Settings › Machines' mirror of the TUI's machine facts and the request made there.
+    machines: Machines,
     /// Followed while Settings is closed, so a page that opens names the file at once.
     file: FileState,
     next: u64,
@@ -335,7 +338,9 @@ impl Editor {
             filter: LineEditor::new(String::new(), LengthLimit::Bytes(256)),
             searching: false,
             picker: None,
+            machines: machines::Listing::default(),
         };
+        page.follow_machines(self.machines.facts());
         page.settle_focus();
         self.state = State::Open(Box::new(page));
         true
@@ -476,7 +481,7 @@ impl Editor {
                 token,
                 visible: true,
             } => Some(View::Loading { token: *token }),
-            State::Open(page) => Some(View::Page(PageView::new(page, &self.about))),
+            State::Open(page) => Some(View::Page(PageView::new(page, &self.about, &self.machines))),
             _ => None,
         }
     }

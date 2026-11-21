@@ -1612,6 +1612,16 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn view(&self) -> Option<crate::workbench_client::WorkbenchClientView<'_>> {
         None
     }
+    /// `None` while Settings is closed; otherwise whether Settings › Machines shows.
+    fn machine_settings_shown(&self) -> Option<bool> {
+        None
+    }
+    fn take_machine_settings_request(&mut self) -> Option<crate::machine_settings::Request> {
+        None
+    }
+    fn observe_machine_settings(&mut self, _facts: crate::machine_settings::Facts) -> bool {
+        false
+    }
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::workbench_client::WorkbenchClient {
@@ -1748,6 +1758,15 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     }
     fn view(&self) -> Option<crate::workbench_client::WorkbenchClientView<'_>> {
         Some(self.view())
+    }
+    fn machine_settings_shown(&self) -> Option<bool> {
+        crate::workbench_client::WorkbenchClient::machine_settings_shown(self)
+    }
+    fn take_machine_settings_request(&mut self) -> Option<crate::machine_settings::Request> {
+        crate::workbench_client::WorkbenchClient::take_machine_settings_request(self)
+    }
+    fn observe_machine_settings(&mut self, facts: crate::machine_settings::Facts) -> bool {
+        crate::workbench_client::WorkbenchClient::observe_machine_settings(self, facts)
     }
 }
 

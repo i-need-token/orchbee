@@ -432,6 +432,28 @@ impl WorkbenchClient {
         self.tick_with_client_capture(crate::tui_composition::ClientCaptureClaims::default())
     }
 
+    /// `None` while Settings is closed; otherwise whether Settings › Machines shows, so the TUI
+    /// reads what the machines have free.
+    pub fn machine_settings_shown(&self) -> Option<bool> {
+        match &self.backend {
+            ClientBackend::Native(native) => native.machine_settings_shown(),
+        }
+    }
+
+    /// The request the person made on Settings › Machines, once.
+    pub fn take_machine_settings_request(&mut self) -> Option<crate::machine_settings::Request> {
+        self.backend
+            .native_mut()
+            .and_then(|native| native.take_machine_settings_request())
+    }
+
+    /// Gives Settings › Machines the TUI's facts; true when a visible page changed.
+    pub fn observe_machine_settings(&mut self, facts: crate::machine_settings::Facts) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.observe_machine_settings(facts))
+    }
+
     /// Gives this TUI its Update control, which watches the release store from now on.
     pub fn offer_updates(&mut self, updater: crate::release_update::Updater) {
         self.updater = Some(updater);

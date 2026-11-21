@@ -14,21 +14,46 @@ pub enum Category {
     Notifications,
     Keyboard,
     Agents,
+    /// The computers that run Workspaces: this one and the saved machines; it holds no setting.
+    Machines,
     /// This Client's version and the update control; it holds no setting.
     About,
 }
 
+/// Every category, in the left column's order.
+const EVERY: [Category; 9] = [
+    Category::General,
+    Category::Appearance,
+    Category::Themes,
+    Category::Terminal,
+    Category::Notifications,
+    Category::Keyboard,
+    Category::Agents,
+    Category::Machines,
+    Category::About,
+];
+
+/// The categories where this platform saves no machines.
+const WITHOUT_MACHINES: [Category; 8] = [
+    Category::General,
+    Category::Appearance,
+    Category::Themes,
+    Category::Terminal,
+    Category::Notifications,
+    Category::Keyboard,
+    Category::Agents,
+    Category::About,
+];
+
 impl Category {
-    pub(crate) const ALL: [Self; 8] = [
-        Self::General,
-        Self::Appearance,
-        Self::Themes,
-        Self::Terminal,
-        Self::Notifications,
-        Self::Keyboard,
-        Self::Agents,
-        Self::About,
-    ];
+    /// The categories this platform shows, in order: Machines only where machines can be saved.
+    pub(crate) fn all() -> &'static [Self] {
+        if crate::host_capabilities::Capability::SavedMachines.available() {
+            &EVERY
+        } else {
+            &WITHOUT_MACHINES
+        }
+    }
 
     pub(crate) const fn groups(self) -> &'static [Group] {
         match self {
@@ -39,6 +64,7 @@ impl Category {
             Self::Notifications => &[Group::WhenToNotify, Group::SoundDelivery],
             Self::Keyboard => &[Group::Prefix],
             Self::Agents => &[Group::AgentRestore, Group::AgentConfirmations],
+            Self::Machines => &[Group::MachineList],
             Self::About => &[Group::About],
         }
     }
@@ -52,19 +78,20 @@ impl Category {
             Self::Notifications => words("Notifications", "通知"),
             Self::Keyboard => words("Keyboard", "快捷键"),
             Self::Agents => words("Agents", "智能体"),
+            Self::Machines => words("Machines", "机器"),
             Self::About => words("About", "关于"),
         })
     }
 
     /// Every category of settings but Themes ends with the line that points to the settings
-    /// file; About holds none.
+    /// file; Machines and About hold none.
     pub(crate) const fn config_file(self) -> bool {
-        !matches!(self, Self::Themes | Self::About)
+        !matches!(self, Self::Themes | Self::Machines | Self::About)
     }
 
-    /// Search finds settings, so it skips About.
+    /// Search finds settings, so it skips Machines and About.
     const fn searched(self) -> bool {
-        !matches!(self, Self::About)
+        !matches!(self, Self::Machines | Self::About)
     }
 }
 
@@ -90,6 +117,13 @@ pub enum Group {
     AgentConfirmations,
     /// About's version and update rows; unnamed, since the category names it.
     About,
+    /// Settings › Machines: this computer and one row per saved machine; unnamed, since the
+    /// category names it.
+    MachineList,
+    /// A machine's page: what it is and how it is connected.
+    Machine,
+    /// A machine's page: what ends its terminals or its record.
+    MachineEnd,
 }
 
 /// A group's own lines: its heading, the line under the heading, and the line it ends with.
@@ -131,7 +165,13 @@ impl Group {
     /// rows below, and its place in a category's list.
     const fn words(self) -> GroupWords {
         match self {
-            Self::Language | Self::Updates | Self::Prefix | Self::About => UNNAMED,
+            Self::Language
+            | Self::Updates
+            | Self::Prefix
+            | Self::About
+            | Self::Machine
+            | Self::MachineEnd => UNNAMED,
+            Self::MachineList => UNNAMED.noted("No machine matches.", "没有匹配的机器。"),
             Self::AfterRestart | Self::AgentRestore => titled("After a restart", "重启之后"),
             Self::AppAppearance => titled("App appearance", "应用外观"),
             Self::TerminalColors => titled("Terminal colors", "终端颜色"),
@@ -203,6 +243,16 @@ impl Group {
             Self::AgentRestore => vec![Row::ResumeAgents],
             Self::AgentConfirmations => vec![Row::AutoAllowClaude, Row::AutoAllowCodex],
             Self::About => vec![Row::Version, Row::Updates],
+            // The saved machines' own rows come from the facts the TUI reports.
+            Self::MachineList => vec![Row::AddMachine, Row::FindMachine, Row::ThisComputer],
+            Self::Machine => vec![
+                Row::MachineName,
+                Row::MachineAddress,
+                Row::MachineStatus,
+                Row::MachineFree,
+                Row::MachinePassword,
+            ],
+            Self::MachineEnd => vec![Row::MachineStop, Row::MachineRemove],
         }
     }
 
@@ -294,6 +344,8 @@ pub(super) fn entries(
             entries.extend(page.rows().iter().copied().map(Entry::Setting));
             return entries;
         }
+        // A machine's page lists what the machine facts hold, which `machines` builds.
+        Page::Machine => return entries,
         Page::General => {}
     }
     let terms: Vec<String> = filter
@@ -304,7 +356,7 @@ pub(super) fn entries(
     let categories: &[Category] = if terms.is_empty() {
         std::slice::from_ref(&category)
     } else {
-        &Category::ALL
+        Category::all()
     };
     for category in categories
         .iter()

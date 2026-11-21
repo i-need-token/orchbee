@@ -146,8 +146,10 @@ impl Draft {
     }
 }
 pub fn valid_label(value: &str) -> bool {
-    !value.trim().is_empty() && value.len() <= 128 && !value.chars().any(char::is_control)
+    !value.trim().is_empty() && value.len() <= LABEL_LIMIT && !value.chars().any(char::is_control)
 }
+/// The longest name a saved machine takes, in bytes of UTF-8.
+pub const LABEL_LIMIT: usize = 128;
 /// The name that means this computer wherever a machine is named.
 pub const LOCAL: &str = "local";
 /// Whether `value` is [`LOCAL`] in any letter case. No saved machine can take that name; one an

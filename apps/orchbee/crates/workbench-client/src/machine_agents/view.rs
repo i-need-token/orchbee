@@ -4,7 +4,7 @@
 
 use super::checkpoint::Row;
 use crate::client_context::{ClientContextLocation, ClientContextTarget};
-use crate::machine_discovery::overview::display_label;
+use crate::machine_overview::display_label;
 use crate::machines::Choice;
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
 use crate::terminal_title::ChromeName;

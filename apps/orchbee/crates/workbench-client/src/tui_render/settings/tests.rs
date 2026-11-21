@@ -1,7 +1,7 @@
 //! The narrow tier, page admission and the inline text field's projection of raw text.
 use crate::{
     localization::Locale,
-    native_settings::{Category, Control, Edit, Editor, Pane, Row, View},
+    native_settings::{Category, Control, Edit, Editor, Group, Pane, Row, View},
     tui_hit_map::HitMapBuilder,
     tui_presentation::ModalPresentation,
     tui_theme::Theme,
@@ -231,22 +231,26 @@ fn the_text_field_cursor_lands_on_whole_projected_graphemes() {
 fn every_description_fits_its_row_at_the_reference_width_in_both_locales() {
     let budget = super::description_width(100);
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for category in Category::ALL {
-            for group in category.groups() {
-                if let Some(description) = group.description(locale) {
-                    assert!(
-                        crate::terminal_text::display_width(description) <= budget + 2,
-                        "{locale:?} {group:?}: {description}"
-                    );
-                }
-                for row in group.rows() {
-                    let description = row.description(locale);
-                    assert!(
-                        crate::terminal_text::display_width(description) <= budget,
-                        "{locale:?} {row:?} needs {} of {budget} cells: {description}",
-                        crate::terminal_text::display_width(description)
-                    );
-                }
+        // A machine's page frames its rows as a category does.
+        let pages = [Group::Machine, Group::MachineEnd];
+        let groups = Category::all()
+            .iter()
+            .flat_map(|category| category.groups())
+            .chain(&pages);
+        for group in groups {
+            if let Some(description) = group.description(locale) {
+                assert!(
+                    crate::terminal_text::display_width(description) <= budget + 2,
+                    "{locale:?} {group:?}: {description}"
+                );
+            }
+            for row in group.rows() {
+                let description = row.description(locale);
+                assert!(
+                    crate::terminal_text::display_width(description) <= budget,
+                    "{locale:?} {row:?} needs {} of {budget} cells: {description}",
+                    crate::terminal_text::display_width(description)
+                );
             }
         }
         for (update, check) in [
@@ -334,7 +338,7 @@ const REFERENCE_WINDOW: (u16, u16) = (106, 40);
 fn the_restore_action_leaves_a_changed_rows_description_whole() {
     let snapshot = every_key_set();
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for category in Category::ALL {
+        for category in Category::all() {
             for row in category.groups().iter().flat_map(|group| group.rows()) {
                 if matches!(row, Row::ThemeOption(_)) {
                     continue;

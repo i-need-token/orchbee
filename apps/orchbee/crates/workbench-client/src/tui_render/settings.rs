@@ -29,6 +29,7 @@ use ratatui::{
 
 use super::controls::{KeyHint, QueryField, render_overlay_hints, render_query_field};
 
+mod machines;
 #[cfg(test)]
 mod tests;
 
@@ -311,7 +312,7 @@ fn render_nav(
         }
     }
     y += 2;
-    for category in Category::ALL {
+    for &category in Category::all() {
         if y >= nav.bottom() {
             break;
         }
@@ -390,6 +391,10 @@ fn render_content(
             .heading(locale)
             .unwrap_or_default()
             .to_owned(),
+        Page::Machine => page.shown_machine().map_or_else(
+            || Category::Machines.name(locale).to_owned(),
+            |machine| sanitize_terminal_text(&machine.label).into_owned(),
+        ),
         Page::General if !page.query().is_empty() || page.searching() => {
             locale.settings_search_results().to_owned()
         }
@@ -442,6 +447,12 @@ fn render_content(
             ))
         };
         put(frame, x, y, width, &text, theme.style(Role::TextMuted));
+    } else if page.page() == Page::General
+        && page.query().is_empty()
+        && page.category() == Category::Machines
+    {
+        let text = locale.machine_text(crate::localization::MachineText::Description);
+        put(frame, x, y, width, text, theme.style(Role::TextMuted));
     }
     y += 1;
     let detail = page.page() == Page::Profiles;
@@ -561,7 +572,7 @@ fn render_entries(
     hits: &mut HitMapBuilder,
 ) {
     let entries = page.entries();
-    let child = page.page().is_child();
+    let child = page.page().one_line_rows();
     let mut line = 0;
     for (index, entry) in entries.iter().copied().enumerate() {
         let height = page.height(entry, index == 0);
@@ -587,6 +598,12 @@ fn render_entries(
             Entry::Setting(row) if child => {
                 if let Some(rect) = column.rect(line, 1) {
                     render_child_row(frame, rect, row, page, locale, theme, hits);
+                }
+            }
+            Entry::Setting(row) if machines::draws(row) => {
+                if let Some(rect) = column.rect(line, height) {
+                    let first_drawn = column.y(line).is_some();
+                    machines::render_row(frame, rect, first_drawn, row, page, locale, theme, hits);
                 }
             }
             Entry::Setting(row) => {

@@ -13,7 +13,8 @@ use crate::{
         Binding, KeyCode, LabelStyle, Modifiers, format_binding_with_glyphs, join_key_labels,
     },
     localization::{Locale, ManageText},
-    machine_discovery::{Observation, display_label, overview::Tone},
+    machine_discovery::{Observation, display_label},
+    machine_overview::Tone,
     terminal_text::{
         display_width, sanitize_terminal_text, truncate_display, truncate_display_start,
     },

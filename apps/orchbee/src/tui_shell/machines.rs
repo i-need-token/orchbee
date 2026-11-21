@@ -1,4 +1,6 @@
 //! UI-owned selection over read-only saved-machine observers.
+mod settings;
+
 use super::{SurfaceSlot, TerminalSurface, terminal_geometry};
 use crate::background_thread::BackgroundThread;
 use crate::{
@@ -130,6 +132,8 @@ pub(super) struct Manager {
     /// online; the hub reading it not online, or another Machine on screen, renews it.
     reattach_spent: bool,
     discovery: Discovery,
+    /// Settings › Machines' requests and what is still under way of them.
+    settings: crate::machine_settings_exchange::Exchange,
     agents: crate::machine_agents::Collector,
     spaces: crate::machine_spaces::Collector,
     space_git: Option<bool>,
@@ -230,6 +234,7 @@ impl Manager {
             reattach: false,
             reattach_spent: false,
             discovery: Discovery::new(wakeup.clone()),
+            settings: crate::machine_settings_exchange::Exchange::default(),
             // Host process titles have no publication source; canonical Agent facts also push.
             agents: crate::machine_agents::Collector::new(wakeup.clone(), true),
             spaces: crate::machine_spaces::Collector::new(wakeup.clone(), false),
@@ -398,6 +403,12 @@ impl Manager {
         view.machines.carry_waiting(&mut self.discovery);
         self.discovery.tick(now);
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
+        // Settings › Machines settles first: a forget or stop it asked for ends there.
+        let settings = surface.active().machine_settings_shown();
+        let settled =
+            self.exchange_settings(settings, surface, view, dimensions, now, before_switch);
+        change.redraw |= settled.redraw || settled.switched;
+        change.switched |= settled.switched;
         // The login question the hub put to this TUI, and the person's act on the last one.
         change.redraw |= view.machines.exchange_login(&mut self.discovery);
         // "Forget password" on a selected remote Machine, and how the last one ended.
@@ -472,7 +483,9 @@ impl Manager {
             change.redraw = true;
         }
         let mut agent_sources = Vec::new();
-        let every_machine = view.machines.wants_agents() || view.machines.wants_spaces();
+        // Settings › Machines counts every machine's working Agents for its stop.
+        let every_machine =
+            view.machines.wants_agents() || view.machines.wants_spaces() || settings == Some(true);
         // The Windows Tab strip summarizes the attached machine's Agents without the Sidebar.
         let current = self.current.as_ref().map(|profile| profile.id.clone());
         let attached = |profile: Option<&Profile>| current.as_ref() == profile.map(|p| &p.id);
@@ -805,12 +818,14 @@ impl Manager {
         }
         // Only the remote selection still queued may ask the person; a selection that ended in any
         // way abandons its login.
+        // A login asked for on Settings › Machines may ask while no selection waits.
         let waiting = self
             .queued
             .as_ref()
             .filter(|_| !self.reattach)
             .and_then(|queued| queued.profile.as_ref())
-            .map(|profile| profile.id.clone());
+            .map(|profile| profile.id.clone())
+            .or_else(|| self.settings.login().cloned());
         self.discovery.wait_for(waiting.as_ref());
         if let Some(mut candidate) = self.candidate.take() {
             candidate.session.tick();

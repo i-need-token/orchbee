@@ -5,9 +5,10 @@
 
 mod credentials;
 mod hub;
-pub(crate) mod overview;
 mod policy;
-pub use overview::{Blocked, Context, HubStatus, LoginState, Observation, Overview, display_label};
+pub use crate::machine_overview::{
+    Blocked, Context, HubStatus, LoginState, Observation, Overview, display_label,
+};
 #[cfg(test)]
 mod tests;
 mod worker;
@@ -25,12 +26,16 @@ pub(crate) use credentials::Forgotten;
 use hub::{Ask, Holder, Reach, Settled, View};
 use orchbee_machine_protocol::{
     Id,
+    capacity::Capacity,
     hub::{ConnectFailure, MachineState, MachineStateName, NeedsLoginCause, StopSessionOutcome},
 };
 #[cfg(any(test, feature = "test-support"))]
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
 use policy::{Phase, Policy};
-use std::{io, time::Instant};
+use std::{
+    io,
+    time::{Duration, Instant},
+};
 use worker::{Event, Update, Worker};
 
 #[derive(Clone)]
@@ -190,6 +195,8 @@ pub struct Discovery {
     credentials: Credentials,
     /// The machine being added, checked as the hub's draft until it is saved or given up.
     adding: Option<Proposal>,
+    /// When Settings › Machines last asked what the machines have free.
+    sampled: Option<Instant>,
 }
 impl Discovery {
     /// A discovery that holds the hub once the catalog holds a Machine it can observe, and wakes
@@ -207,6 +214,7 @@ impl Discovery {
             logins: Logins::default(),
             credentials: Credentials::new(),
             adding: None,
+            sampled: None,
         }
     }
     /// Reconciles the enabled profiles of the catalog of `revision`; `None` for an unreadable
@@ -388,7 +396,7 @@ impl Discovery {
                 .hub
                 .facts(&entry.profile.id)
                 .map_or(Observation::State(state), |facts| {
-                    Observation::reported(facts, target)
+                    Observation::reported(facts, &crate::machines::known_hosts_name(target))
                 });
         }
         if let Some(refusal) = entry.refusal {
@@ -449,10 +457,9 @@ impl Discovery {
         let failed = |stage: Option<MachineStateName>, failure: Option<ConnectFailure>| {
             let facts = self.facts(&proposal.id);
             let host = proposal.draft.ssh_target().unwrap_or_default();
-            let observation = facts
-                .state
-                .as_ref()
-                .map(|state| Observation::reported(state, host));
+            let observation = facts.state.as_ref().map(|state| {
+                Observation::reported(state, &crate::machines::known_hosts_name(host))
+            });
             let explanation = observation
                 .as_ref()
                 .map(|observation| Explanation::of(observation, &facts, host))
@@ -522,6 +529,46 @@ impl Discovery {
         if let Some(holder) = &self.holder {
             holder.disconnect(machine);
         }
+    }
+    /// Settings › Machines shows: asks, at most once a second, what this computer and every
+    /// `online` Machine have free, starting the hub when none is held.
+    pub fn sample_capacity(&mut self, now: Instant) {
+        if self
+            .sampled
+            .is_some_and(|sampled| now < sampled + Duration::from_secs(1))
+        {
+            return;
+        }
+        self.sampled = Some(now);
+        self.hold();
+        let Some(holder) = &self.holder else {
+            return;
+        };
+        holder.capacity(None);
+        for entry in &self.entries {
+            if self.hub.state(&entry.profile.id) == Some(MachineStateName::Online) {
+                holder.capacity(Some(&entry.profile.id));
+            }
+        }
+    }
+    /// What `machine`, this computer for `None`, had free when the hub last answered; a Machine's
+    /// only while the hub reads it `online`.
+    pub fn capacity(&self, machine: Option<&ProfileId>) -> Option<Capacity> {
+        if self.hub_status().is_some() || machine.is_some_and(|machine| !self.online(machine)) {
+            return None;
+        }
+        self.hub
+            .capacities
+            .get(&machine.map(|machine| machine.as_str().to_owned()))
+            .cloned()
+    }
+    /// When `machine`'s last connection attempt ended, as the hub reported it, in milliseconds
+    /// since the Unix epoch.
+    pub fn last_attempt(&self, machine: &ProfileId) -> Option<u64> {
+        self.hub
+            .reported
+            .get(machine.as_str())
+            .and_then(|reported| reported.last_attempt)
     }
     /// Whether `machine` reads `online`, so its remote Session can be stopped.
     pub fn online(&self, machine: &ProfileId) -> bool {

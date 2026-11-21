@@ -3,20 +3,20 @@
 use super::{Ask, Hub, Reach, Reported, Settled, Shared, State, Stop};
 use crate::{
     background_thread::BackgroundThread,
-    machine_discovery::overview::Blocked,
     machine_hub::{
         AttachFailure, Attachment, DeliveryFailure, HubClient, HubWatch, Incompatible, Notice,
         Opening, data_root, deliver as deliver_answer, present,
     },
     machine_login::{self, Answer, Delivery, Token},
+    machine_overview::Blocked,
     machine_retry::Backoff,
 };
 use orchbee_machine_protocol::{
     Id, MachineId,
     hub::{
-        AnswerEndpoint, ClaimOutcome, Claimant, Connect, ConnectFailure, ConnectOutcome,
-        ConnectResult, Draft, Event, HubState, LoginEvent, LoginPhase, MachineStateName, Origin,
-        Reply, Request,
+        AnswerEndpoint, CapacityOutcome, ClaimOutcome, Claimant, Connect, ConnectFailure,
+        ConnectOutcome, ConnectResult, Draft, Event, HubState, LoginEvent, LoginPhase,
+        MachineStateName, Origin, Reply, Request,
     },
 };
 use std::{
@@ -54,6 +54,8 @@ const DISMISS: Duration = Duration::from_secs(3);
 /// How long the hub may take to answer `stop-session`: its run watches the Session for 65
 /// seconds, and the exchange in progress then takes at most 30 more.
 const STOP: Duration = Duration::from_secs(120);
+/// How long a `capacity` request may take: the hub answers within its own 2-second wait.
+const CAPACITY: Duration = Duration::from_secs(4);
 
 /// The holder's attachments, as selections waiting for a hub read them.
 #[derive(Default)]
@@ -597,6 +599,58 @@ pub(super) fn stop_session(shared: &Arc<Shared>, machine: String, number: u64) {
                 Some(orchbee_machine_protocol::hub::StopSessionOutcome::NotOnline),
             )
         });
+    }
+}
+
+/// Asks the hub what `machine`, this computer for `None`, has free, and keeps the answer in the
+/// view; an answer that names no sample forgets the last one. One ask per machine runs at a time,
+/// and none without a live hub.
+pub(super) fn capacity(shared: &Arc<Shared>, machine: Option<String>) {
+    let id = match machine.as_deref().map(MachineId::new) {
+        None => None,
+        Some(Ok(id)) => Some(id),
+        Some(Err(_)) => return,
+    };
+    let client = {
+        let mut state = shared.lock();
+        if state.view.reach != Reach::Attached || state.sampling.contains(&machine) {
+            return;
+        }
+        let Some(client) = state.link.clone() else {
+            return;
+        };
+        state.sampling.insert(machine.clone());
+        client
+    };
+    let shared_for_thread = shared.clone();
+    let key = machine.clone();
+    let started = thread::Builder::new()
+        .name("orchbee-machine-capacity".into())
+        .spawn(move || {
+            let reply =
+                client.request(Request::Capacity { machine: id }, Instant::now() + CAPACITY);
+            let sampled = match reply {
+                Ok(Reply::Capacity(CapacityOutcome::Sampled { capacity, .. })) => Some(capacity),
+                _ => None,
+            };
+            let changed = {
+                let mut state = shared_for_thread.lock();
+                state.sampling.remove(&key);
+                state.view.capacities.get(&key) != sampled.as_ref()
+            };
+            if changed {
+                shared_for_thread.update(|state| match sampled {
+                    Some(capacity) => {
+                        state.view.capacities.insert(key, capacity);
+                    }
+                    None => {
+                        state.view.capacities.remove(&key);
+                    }
+                });
+            }
+        });
+    if started.is_err() {
+        shared.lock().sampling.remove(&machine);
     }
 }
 

@@ -8,7 +8,7 @@ mod holder;
 
 use holder as platform;
 
-use super::overview::Blocked;
+use crate::machine_overview::Blocked;
 use crate::{
     background_thread::BackgroundThread,
     machine_carrier::Gate,
@@ -19,13 +19,14 @@ use crate::{
 };
 use orchbee_machine_protocol::{
     Id,
+    capacity::Capacity,
     hub::{
         AnswerEndpoint, ConnectFailure, Draft, MachineState, MachineStateName, Remote,
         StopSessionOutcome,
     },
 };
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io,
     sync::{
         Arc, Mutex, MutexGuard,
@@ -105,6 +106,8 @@ pub(super) struct View {
     /// The add's draft `connect`: the Machine, the ask's number and how it settled.
     pub(super) added: Option<(String, u64, Settled)>,
     pub(super) stops: HashMap<String, Stop>,
+    /// What this computer (`None`) and each Machine had free when the hub last answered.
+    pub(super) capacities: HashMap<Option<String>, Capacity>,
 }
 
 impl View {
@@ -126,6 +129,7 @@ impl View {
         self.states.clear();
         self.drafts.clear();
         self.reported.clear();
+        self.capacities.clear();
         self.catalog = None;
     }
 }
@@ -148,6 +152,8 @@ struct State {
     logins: Vec<Notice>,
     /// The holder's attachments, as selections waiting for a hub read them.
     attempts: platform::Attempts,
+    /// The machines whose `capacity` request is unanswered, this computer as `None`.
+    sampling: HashSet<Option<String>>,
 }
 
 /// The view and the owner, shared by the holder thread, discovery, observers, carriers, and
@@ -173,6 +179,7 @@ impl Shared {
                 saved: None,
                 logins: Vec::new(),
                 attempts: platform::Attempts::default(),
+                sampling: HashSet::new(),
             }),
             stop: AtomicBool::new(false),
             cancel: crate::machine_hub::OpenCancel::default(),
@@ -401,6 +408,12 @@ impl Holder {
                 .insert(machine.as_str().to_owned(), Stop::Pending(number));
         });
         platform::stop_session(&self.shared, machine.as_str().to_owned(), number);
+    }
+
+    /// Asks the hub what `machine`, this computer for `None`, has free, unless that ask is still
+    /// unanswered; the view's `capacities` holds the answer.
+    pub(super) fn capacity(&self, machine: Option<&ProfileId>) {
+        platform::capacity(&self.shared, machine.map(|id| id.as_str().to_owned()));
     }
 
     /// Forgets the outcome of `machine`'s stop once it was read.

@@ -386,6 +386,25 @@ impl WorkbenchClientUi {
     }
     pub(in crate::workbench_client) fn clear_settings_notice(&mut self) {
         self.settings.clear_notice();
+        self.settings.editor.clear_machine_outcome();
+    }
+    /// `None` while Settings is closed; otherwise whether Settings › Machines shows.
+    pub(in crate::workbench_client) fn machine_settings_shown(&self) -> Option<bool> {
+        self.settings
+            .editor
+            .visible()
+            .then(|| self.settings.editor.machines_visible())
+    }
+    pub(in crate::workbench_client) fn take_machine_settings_request(
+        &mut self,
+    ) -> Option<crate::machine_settings::Request> {
+        self.settings.editor.take_machine_request()
+    }
+    pub(in crate::workbench_client) fn observe_machine_settings(
+        &mut self,
+        facts: crate::machine_settings::Facts,
+    ) -> bool {
+        self.settings.editor.observe_machines(facts)
     }
     pub(in crate::workbench_client) fn settings_active(&self) -> bool {
         self.settings.editor.visible()

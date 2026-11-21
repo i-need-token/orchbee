@@ -107,17 +107,13 @@ cycle apps/orchbee/crates/workbench-client lib client_view -> tui_hit_map
 cycle apps/orchbee/crates/workbench-client lib host_capabilities -> notifications
 cycle apps/orchbee/crates/workbench-client lib localization -> client_view
 cycle apps/orchbee/crates/workbench-client lib localization -> host_capabilities
-cycle apps/orchbee/crates/workbench-client lib localization -> machine_discovery
 cycle apps/orchbee/crates/workbench-client lib localization -> machine_picker
-cycle apps/orchbee/crates/workbench-client lib localization -> machine_status
 cycle apps/orchbee/crates/workbench-client lib localization -> release_update
 cycle apps/orchbee/crates/workbench-client lib localization -> terminal_title
 cycle apps/orchbee/crates/workbench-client lib localization::agent_board -> localization::shell
 cycle apps/orchbee/crates/workbench-client lib localization::shell -> localization::agent_board
-cycle apps/orchbee/crates/workbench-client lib machine_agents -> machine_discovery
 cycle apps/orchbee/crates/workbench-client lib machine_agents -> machine_observation
 cycle apps/orchbee/crates/workbench-client lib machine_discovery -> machine_carrier
-cycle apps/orchbee/crates/workbench-client lib machine_discovery -> machine_status
 cycle apps/orchbee/crates/workbench-client lib machine_hub::attach -> machine_hub::control
 cycle apps/orchbee/crates/workbench-client lib machine_hub::control -> machine_hub::attach
 cycle apps/orchbee/crates/workbench-client lib machine_observation -> machine_discovery
@@ -126,12 +122,10 @@ cycle apps/orchbee/crates/workbench-client lib machine_picker -> client_view
 cycle apps/orchbee/crates/workbench-client lib machine_picker -> machine_agents
 cycle apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery
 cycle apps/orchbee/crates/workbench-client lib machine_picker -> machine_spaces
-cycle apps/orchbee/crates/workbench-client lib machine_picker -> machine_status
 cycle apps/orchbee/crates/workbench-client lib machine_picker -> startup_directory
 cycle apps/orchbee/crates/workbench-client lib machine_picker -> workbench_client
 cycle apps/orchbee/crates/workbench-client lib machine_picker -> workbench_projection
 cycle apps/orchbee/crates/workbench-client lib machine_spaces -> machine_observation
-cycle apps/orchbee/crates/workbench-client lib machine_status -> machine_discovery
 cycle apps/orchbee/crates/workbench-client lib native_settings -> release_update
 cycle apps/orchbee/crates/workbench-client lib native_settings::choices -> native_settings::rows
 cycle apps/orchbee/crates/workbench-client lib native_settings::page -> native_settings::values
@@ -300,8 +294,7 @@ upward apps/orchbee bin cli_text -> cli in cli_text::worktree 4
 upward apps/orchbee/crates/workbench-client lib client_actions -> machine_picker in client_actions 1
 upward apps/orchbee/crates/workbench-client lib client_view -> tui_hit_map in client_view::tab_list 4
 upward apps/orchbee/crates/workbench-client lib localization -> client_view in localization::startup 1
-upward apps/orchbee/crates/workbench-client lib localization -> machine_picker in localization::machine_manage 29
-upward apps/orchbee/crates/workbench-client lib machine_discovery::overview -> machines in machine_discovery::overview 1
+upward apps/orchbee/crates/workbench-client lib localization -> machine_picker in localization::machine_manage 27
 upward apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery in machine_picker 1
 upward apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery in machine_picker::forget 3
 upward apps/orchbee/crates/workbench-client lib machine_picker -> machine_discovery in machine_picker::login 1

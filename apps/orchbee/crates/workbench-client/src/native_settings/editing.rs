@@ -34,7 +34,7 @@ impl Editor {
             page.picker = None;
             if !page.rows().contains(&row)
                 && page.page == Page::General
-                && let Some(category) = super::Category::ALL.into_iter().find(|category| {
+                && let Some(category) = super::Category::all().iter().copied().find(|category| {
                     category
                         .groups()
                         .iter()
@@ -57,7 +57,14 @@ impl Editor {
                 return self.accept_text();
             }
             values::edit_text(page, edit);
+            self.follow_machine_query();
             self.redraw();
+            return None;
+        }
+        if page.machines.confirm_stop {
+            if matches!(edit, Edit::Activate) {
+                self.activate_machine_row(Row::MachineStop);
+            }
             return None;
         }
         if page.confirm_delete {
@@ -144,15 +151,19 @@ impl Editor {
             _ => {}
         }
         if page.pane == Pane::Categories && page.page == Page::General {
-            let index = Category::ALL
+            let all = Category::all();
+            let index = all
                 .iter()
                 .position(|category| *category == page.category)
                 .unwrap_or(0);
             let category = match edit {
-                Edit::Next => Category::ALL.get(index + 1).copied(),
-                Edit::Previous => index.checked_sub(1).map(|index| Category::ALL[index]),
-                Edit::Home => Some(Category::ALL[0]),
-                Edit::End => Some(Category::ALL[Category::ALL.len() - 1]),
+                Edit::Next => all.get(index + 1).copied(),
+                Edit::Previous => index
+                    .checked_sub(1)
+                    .and_then(|index| all.get(index))
+                    .copied(),
+                Edit::Home => all.first().copied(),
+                Edit::End => all.last().copied(),
                 Edit::Adjust(true) | Edit::Pane(true) | Edit::Activate => {
                     if page.rows().is_empty() {
                         return None;
@@ -203,7 +214,7 @@ impl Editor {
             Edit::Adjust(forward) => {
                 if !page.activation_ready
                     || !matches!(page.row, Row::Profile | Row::Argument)
-                    || !page.enabled(&self.about, page.row)
+                    || !page.enabled(&self.about, &self.machines, page.row)
                 {
                     return None;
                 }
@@ -228,7 +239,10 @@ impl Editor {
                 page.text = None;
                 page.invalid = false;
                 page.invalid_field = None;
+                // A dropped filter draft gives the list back its committed filter.
+                page.follow_machines(self.machines.facts());
             }
+            State::Open(page) if page.machines.confirm_stop => page.machines.confirm_stop = false,
             State::Open(page) if page.confirm_delete => page.confirm_delete = false,
             State::Open(page) if page.picker.is_some() => page.picker = None,
             State::Open(page) if page.searching && !page.filter.text().is_empty() => {
@@ -239,6 +253,9 @@ impl Editor {
             State::Open(page) if page.searching => page.searching = false,
             State::Open(page) if page.page == Page::Profiles => return self.leave_profiles(),
             State::Open(page) if page.page.is_child() => page.return_to_parent(),
+            State::Open(page) if page.machine_query_clears() => {
+                page.clear_machine_query(self.machines.facts());
+            }
             State::Open(page) if !page.filter.text().is_empty() => {
                 page.filter.clear();
                 page.viewport = 0;
@@ -285,9 +302,16 @@ impl Editor {
             return None;
         };
         let row = page.row;
-        if !page.activation_ready || !page.enabled(&self.about, row) {
+        if !page.activation_ready || !page.enabled(&self.about, &self.machines, row) {
             return None;
         }
+        // Machines' rows hold no setting: the TUI takes what they asked for.
+        if self.activate_machine_row(row) {
+            return None;
+        }
+        let State::Open(page) = &mut self.state else {
+            return None;
+        };
         // About's rows hold no setting: only Updates acts, and the TUI takes what it asked for.
         match row {
             Row::Version => return None,
@@ -387,6 +411,9 @@ impl Editor {
 
     /// `Enter` in a row editor: a valid text applies; an invalid one stays open and says so.
     fn accept_text(&mut self) -> Option<Submission> {
+        if self.accept_machine_text() {
+            return None;
+        }
         let State::Open(page) = &mut self.state else {
             return None;
         };
@@ -543,7 +570,7 @@ impl Editor {
         let State::Open(page) = &mut self.state else {
             return None;
         };
-        if page.token != token || !page.drawn || page.confirm_delete {
+        if page.token != token || !page.drawn || page.confirm_delete || page.machines.confirm_stop {
             return None;
         }
         let maximum = page.total_lines().saturating_sub(page.visible_rows.max(1));
@@ -570,6 +597,7 @@ impl Editor {
             || !page.drawn
             || page.text.is_some()
             || page.confirm_delete
+            || page.machines.confirm_stop
             || page.picker.is_some()
             || !page.rows().contains(&row)
         {
@@ -601,7 +629,7 @@ impl Editor {
         if !page.drawn {
             return None;
         }
-        let idle = page.text.is_none() && !page.confirm_delete;
+        let idle = page.text.is_none() && !page.confirm_delete && !page.machines.confirm_stop;
         match control {
             Control::Search if idle && page.page == Page::General => {
                 page.picker = None;
@@ -647,7 +675,7 @@ impl Editor {
                 if idle
                     && page.picker.is_none()
                     && page.rows().contains(&row)
-                    && page.enabled(&self.about, row)
+                    && page.enabled(&self.about, &self.machines, row)
                     && page.adjustment(row).is_some_and(|adjustment| {
                         if forward {
                             adjustment.forward

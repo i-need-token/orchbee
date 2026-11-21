@@ -37,6 +37,25 @@ impl Picker {
                 _ => None,
             })
     }
+    /// How many of `machine`'s Agents work now, while their read is current.
+    pub fn working_agents(&self, machine: &crate::machines::ProfileId) -> Option<usize> {
+        self.agent_observations
+            .iter()
+            .find(|(id, _)| matches!(id, Choice::Remote(id) if id == machine))
+            .and_then(|(_, observation)| match observation {
+                Agents::Ready(checkpoint) => Some(
+                    checkpoint
+                        .rows
+                        .iter()
+                        .filter(|row| {
+                            row.display_state()
+                                == orchbee_workbench_protocol::MetadataState::Working
+                        })
+                        .count(),
+                ),
+                _ => None,
+            })
+    }
     /// The current Session's Agent rows as last observed; empty until they are ready.
     pub(crate) fn current_agent_rows(&self) -> &[crate::machine_agents::checkpoint::Row] {
         self.agent_observations

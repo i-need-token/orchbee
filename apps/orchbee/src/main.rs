@@ -32,6 +32,8 @@ use orchbee_workbench_client::application::machine_discovery;
 use orchbee_workbench_client::application::machine_observation;
 use orchbee_workbench_client::application::machine_picker;
 use orchbee_workbench_client::application::machine_refusal;
+use orchbee_workbench_client::application::machine_settings;
+use orchbee_workbench_client::application::machine_settings_exchange;
 use orchbee_workbench_client::application::machine_spaces;
 use orchbee_workbench_client::application::machines;
 use orchbee_workbench_client::application::notifications;

@@ -1090,6 +1090,16 @@ pub fn render_terminal_shell_with_resize<'a>(
             )
         });
         let deferred = login_deferred(view, locale);
+        // How the person's last request on Settings › Machines ended, until the next input.
+        let machine_notice = match settings {
+            crate::native_settings::View::Page(page) => page.machine_outcome().map(|outcome| {
+                (
+                    locale.machine_outcome(outcome),
+                    machine_outcome_role(outcome),
+                )
+            }),
+            crate::native_settings::View::Loading { .. } => None,
+        };
         let draw = if tier == ViewportTier::TooSmall {
             ModalPresentation::NotPresented
         } else {
@@ -1100,7 +1110,10 @@ pub fn render_terminal_shell_with_resize<'a>(
                 area,
                 settings,
                 native.settings_pending(),
-                native.settings_notice().is_some() || update_notice.is_some() || deferred.is_some(),
+                native.settings_notice().is_some()
+                    || machine_notice.is_some()
+                    || update_notice.is_some()
+                    || deferred.is_some(),
                 locale,
                 theme,
                 hits,
@@ -1145,6 +1158,11 @@ pub fn render_terminal_shell_with_resize<'a>(
             (locale.settings_notice(notice), shorter, role)
         });
         let line = line
+            .or_else(|| {
+                machine_notice
+                    .as_ref()
+                    .map(|(text, role)| (text.as_str(), Vec::new(), *role))
+            })
             .or_else(|| {
                 update_notice.map(|notice| {
                     let role = match notice {
@@ -2725,6 +2743,21 @@ fn status_overlay_visible(
                 || native.close_set_status().is_some();
             visible || native.duplicate_progress().is_some()
         })
+}
+
+/// The tone of a Settings › Machines outcome on the dialog's status line.
+const fn machine_outcome_role(outcome: &crate::machine_settings::Outcome) -> Role {
+    use crate::machine_settings::Outcome;
+    match outcome {
+        Outcome::Removed(_) | Outcome::Stopped(_) | Outcome::PasswordForgotten => {
+            Role::StatusSuccess
+        }
+        Outcome::NotConnected(_) | Outcome::NoPasswordSaved => Role::StatusWarning,
+        Outcome::StopFailed(_)
+        | Outcome::NameRefused
+        | Outcome::SaveFailed
+        | Outcome::ForgetFailed => Role::StatusError,
+    }
 }
 
 /// The status sign naming the Machine whose command login notice waits for the keyboard.

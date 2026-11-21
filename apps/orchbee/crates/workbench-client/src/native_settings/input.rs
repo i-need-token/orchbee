@@ -129,7 +129,7 @@ const RESTORE: &[LocalBinding] = &[LocalBinding::Delete];
 /// What `Enter` does on a row, as its hint names it.
 fn primary_label(page: PageView<'_>, row: Row) -> SettingsHintLabel {
     match row {
-        Row::LaunchProfiles => SettingsHintLabel::Open,
+        Row::LaunchProfiles | Row::AddMachine | Row::Machine(_) => SettingsHintLabel::Open,
         Row::Back => SettingsHintLabel::Back,
         Row::ThemeOption(_) => SettingsHintLabel::Select,
         Row::Updates if page.about().update().is_some() => SettingsHintLabel::Update,
@@ -153,7 +153,7 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
         View::Loading { .. } => return vec![hint(EXIT, SettingsHintLabel::Close)],
         View::Page(page) => page,
     };
-    if page.confirm_delete() {
+    if page.confirming() {
         return vec![
             hint(EXIT, SettingsHintLabel::Cancel),
             hint(PRIMARY, SettingsHintLabel::Confirm),
@@ -179,13 +179,25 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
         ];
     }
     let selected = page.selected();
+    // Rows that only show a fact, and actions that cannot run now, name no primary key.
+    let acts = match selected {
+        Row::Version | Row::ThisComputer | Row::MachineAddress | Row::MachineFree => false,
+        Row::Updates => page.about().actionable(),
+        Row::MachineName
+        | Row::MachineStatus
+        | Row::MachinePassword
+        | Row::MachineStop
+        | Row::MachineRemove => page.enabled(selected),
+        _ => true,
+    };
+    let primary = acts.then(|| hint(PRIMARY, primary_label(page, selected)));
     match page.page() {
-        Page::Profiles => {
+        Page::Profiles | Page::Machine => {
             let mut hints = vec![
                 hint(EXIT, SettingsHintLabel::Back),
                 hint(MOVE, SettingsHintLabel::Move),
-                hint(PRIMARY, primary_label(page, selected)),
             ];
+            hints.extend(primary);
             if matches!(selected, Row::Profile | Row::Argument) {
                 hints.push(hint(SWITCH, SettingsHintLabel::Change));
             }
@@ -204,19 +216,11 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
     let previewing = matches!(selected, Row::ThemeOption(theme) if !theme.current(page.values()));
     let exit = if previewing {
         SettingsHintLabel::Cancel
-    } else if page.narrow() || !page.query().is_empty() {
+    } else if page.narrow() || !page.query().is_empty() || !page.machine_query().is_empty() {
         SettingsHintLabel::Back
     } else {
         SettingsHintLabel::Close
     };
-    // Version has nothing to activate, and Updates nothing while a check runs or none can, so
-    // they name no primary key then.
-    let acts = match selected {
-        Row::Version => false,
-        Row::Updates => page.about().actionable(),
-        _ => true,
-    };
-    let primary = acts.then(|| hint(PRIMARY, primary_label(page, selected)));
     let restore = page
         .changed(selected)
         .then(|| hint(RESTORE, SettingsHintLabel::Restore));
@@ -245,7 +249,7 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
 pub(crate) fn key_edit_for_view(event: KeyEvent, view: View<'_>) -> Option<Edit> {
     let text_entry = matches!(view, View::Page(page) if page.text().is_some() || page.searching());
     let edit = key_edit(event, text_entry)?;
-    if matches!(view, View::Page(page) if page.confirm_delete()) {
+    if matches!(view, View::Page(page) if page.confirming()) {
         match edit {
             Edit::Cancel => Some(edit),
             Edit::Activate if LocalBinding::Primary.spec().binding.matches(event) => Some(edit),

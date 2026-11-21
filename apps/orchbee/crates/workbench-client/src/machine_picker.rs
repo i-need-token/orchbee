@@ -4,7 +4,7 @@
 
 use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
 use crate::localization::Locale;
-use crate::machine_discovery::overview::{Context, Observation};
+use crate::machine_overview::{Context, Observation};
 use crate::machines::{Profile, ProfileId};
 use crate::startup_directory::ClientStartupTarget;
 use crate::workbench_projection::{ClientContextTarget, ClientMemberTarget};

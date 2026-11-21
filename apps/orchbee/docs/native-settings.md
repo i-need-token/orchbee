@@ -15,7 +15,7 @@ their bounds.
 
 The page follows the Desktop page's structure, wording and order in both locales. The left column
 holds Back, search and the categories General, Appearance, Themes, Terminal, Notifications, Keyboard,
-Agents and About. The right column holds the category title, a line naming the settings file when it is
+Agents, Machines on Windows and macOS, and About. The right column holds the category title, a line naming the settings file when it is
 unusable, and framed groups under their headings. Every row shows its name, a one-line description
 that is always visible, and its control at the row's end. Themes shows the light list and the dark
 list; the list the current appearance paints is tagged in use, and System follows the canvas. A row
@@ -121,6 +121,21 @@ begins after 200 ms. The ordered settings lane has a two-second exchange deadlin
 subscription on the shared carrier; an edit is a one-shot request whose reply and the subscription's
 observations are ordered by revision. Closing cancels its requests and subscription. A replacement
 Session or editor episode cannot inherit an old completion.
+
+## Machines
+
+Machines holds no setting: it shows no settings-file line, search skips it, and its rows never
+reach the Server's settings; the TUI carries out what the person asks there under the rules of
+[Settings › Machines](machines.md#machines-in-settings). The category opens with Add machine…, then
+Find a machine once more than eight machines are saved, then a framed list of this computer and every
+saved machine. A machine's row opens its page, titled with its name: Name, Address, Status, Free now
+while the machine is online and Saved password while the system's password store can be used, then
+a closing group of Stop its terminals and Remove machine. Every row takes two lines, its name with its value
+or button first and its description below; the description is always visible. A button is drawn
+as Updates' is, whole at the row's end, and Stop its terminals and Remove machine take the destructive
+tone. The first Enter on Stop its terminals puts what stops on the description line in the warning
+tone; until the second Enter or Esc, no other key acts. Esc on the list first clears its filter. How
+a request ended shows on the status line until the next input.
 
 ## About
 

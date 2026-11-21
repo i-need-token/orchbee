@@ -3,7 +3,7 @@
 //! it reported with it. Drawing-free: an interface lays the lines out and offers the action in its
 //! own way, and `localization` words both. `apps/orchbee/docs/machines.md#states-and-details`
 //! owns the table.
-use crate::machine_discovery::{HubStatus, LoginState, Observation};
+use crate::machine_overview::{HubStatus, LoginState, Observation};
 use orchbee_machine_protocol::hub::{
     MachineState, NeedsUpdateCause, OfflineCause, ReconnectCause, Remote, Stage, UnsupportedCause,
 };

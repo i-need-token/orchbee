@@ -216,6 +216,9 @@ impl Picker {
                 match store.map(|store| proposal.save(store)) {
                     Some(Ok((catalog, _))) => {
                         discovery.add_saved(catalog.revision);
+                        if let Some(added) = &mut self.manage.settings_add {
+                            *added = Some(proposal.id.clone());
+                        }
                         self.manage.select = Some(proposal.id);
                         self.manage.add_focused = false;
                         self.manage.set_page(Page::List);

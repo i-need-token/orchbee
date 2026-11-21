@@ -1,5 +1,7 @@
 //! What the page shows and what is in flight: the confirmed values, the changes the person asked
 //! for in order, and where focus is. Drawing and key decoding stay outside.
+pub(super) mod machines;
+
 use super::{
     About, Adjustment, Category, Choice, ChoicePicker, Confirmed, Entry, FileState, Group, Page,
     Row, SettingAvailability, SettingControl, SettingsDraw, Token,
@@ -7,6 +9,7 @@ use super::{
     changes::Changes,
 };
 use crate::terminal_text::line_editor::LineEditor;
+use machines::{Listing, Machines};
 use orchbee_workbench_protocol::{
     ApplicationAppearance, SettingChange, UserLaunchCommand, UserLaunchField, UserLaunchProfile,
     UserSettingsValues,
@@ -63,10 +66,15 @@ pub(super) struct PageState {
     pub(super) filter: LineEditor,
     pub(super) searching: bool,
     pub(super) picker: Option<ChoicePicker>,
+    /// What Settings › Machines lists, from the facts the TUI last reported.
+    pub(super) machines: Listing,
 }
 
 impl PageState {
     pub(super) fn entries(&self) -> Vec<Entry> {
+        if let Some(entries) = machines::entries(self) {
+            return entries;
+        }
         catalog::entries(
             self.page,
             self.category,
@@ -91,7 +99,7 @@ impl PageState {
     /// heading after another group, and the settings-file line, start with a blank line.
     pub(super) fn height(&self, entry: Entry, first: bool) -> usize {
         let gap = usize::from(!first);
-        if self.page.is_child() {
+        if self.page.one_line_rows() {
             return match entry {
                 Entry::Heading(_) => gap + 1,
                 _ => 1,
@@ -99,7 +107,7 @@ impl PageState {
         }
         match entry {
             Entry::Heading(group) => gap + 1 + usize::from(self.described(group)),
-            Entry::Setting(Row::ThemeOption(_)) => 1,
+            Entry::Setting(Row::ThemeOption(_) | Row::AddMachine | Row::FindMachine) => 1,
             Entry::Setting(_) => 2,
             Entry::Option(_) | Entry::Note(_) | Entry::End | Entry::NoResults => 1,
             Entry::ConfigFile => 2,
@@ -248,6 +256,7 @@ impl PageState {
     }
 
     pub(super) fn return_to_parent(&mut self) {
+        let leaving_machine = self.page == Page::Machine;
         let navigation = self.parents.pop().unwrap_or(Navigation {
             page: Page::General,
             row: self.page.opener(),
@@ -262,6 +271,9 @@ impl PageState {
         self.invalid = false;
         self.invalid_field = None;
         self.confirm_delete = false;
+        if leaving_machine {
+            self.machines.leave_page(&mut self.row);
+        }
         self.settle_focus();
     }
 
@@ -366,8 +378,12 @@ impl PageState {
             .unwrap_or_else(|_| self.values.clone())
     }
 
-    pub(super) fn enabled(&self, about: &About, row: Row) -> bool {
-        // About's rows act through the update state, independently of the settings file.
+    pub(super) fn enabled(&self, about: &About, machines: &Machines, row: Row) -> bool {
+        // Machines' rows act through the facts the TUI reports, About's through the update state,
+        // both independently of the settings file.
+        if let Some(enabled) = machines::enabled(self, machines, row) {
+            return enabled;
+        }
         match row {
             Row::Version => return true,
             Row::Updates => return about.enabled(),
@@ -468,13 +484,22 @@ impl PageState {
 /// The page as the renderer, the key map and the text projections read it.
 #[derive(Clone, Copy)]
 pub(crate) struct PageView<'a> {
-    state: &'a PageState,
+    pub(super) state: &'a PageState,
     about: &'a About,
+    pub(super) machines: &'a Machines,
 }
 
 impl<'a> PageView<'a> {
-    pub(super) const fn new(state: &'a PageState, about: &'a About) -> Self {
-        Self { state, about }
+    pub(super) const fn new(
+        state: &'a PageState,
+        about: &'a About,
+        machines: &'a Machines,
+    ) -> Self {
+        Self {
+            state,
+            about,
+            machines,
+        }
     }
     /// The update state About's rows show.
     pub(crate) const fn about(self) -> &'a About {
@@ -534,6 +559,10 @@ impl<'a> PageView<'a> {
     pub(crate) const fn confirm_delete(self) -> bool {
         self.state.confirm_delete
     }
+    /// A confirmation holds the keyboard: deleting a profile, or stopping a machine's terminals.
+    pub(crate) const fn confirming(self) -> bool {
+        self.state.confirm_delete || self.state.machines.confirm_stop
+    }
     pub(crate) const fn file(self) -> &'a FileState {
         &self.state.file
     }
@@ -569,7 +598,7 @@ impl<'a> PageView<'a> {
         self.state.described(group)
     }
     pub(crate) fn enabled(self, row: Row) -> bool {
-        self.state.enabled(self.about, row)
+        self.state.enabled(self.about, self.machines, row)
     }
     pub(crate) fn checked(self, row: Row) -> Option<bool> {
         self.state.checked(row)

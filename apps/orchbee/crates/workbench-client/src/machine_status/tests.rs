@@ -224,7 +224,8 @@ fn each_failed_check_reads_as_its_state_detail_and_action() {
             Some(case.check),
             "{failure:?}"
         );
-        let observation = Observation::reported(&case.state, target);
+        let observation =
+            Observation::reported(&case.state, &crate::machines::known_hosts_name(target));
         assert_eq!(observation.key(), case.word, "{failure:?}");
         let explanation = Explanation::of(&observation, &facts, target);
         assert_eq!(explanation.lines, case.lines, "{failure:?}");

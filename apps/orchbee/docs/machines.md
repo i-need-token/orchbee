@@ -1256,6 +1256,56 @@ with `end`, and the store wait then covers its program file and any hub a client
 The uninstall document is unchanged: the hub has no member of its own, and a hub that will not end
 stops the run at the store wait, which names it.
 
+## Machines in Settings
+
+Settings' Machines category, on Windows and macOS where the TUI reaches saved machines, is where a
+person adds and looks after them; [native settings](native-settings.md#machines) owns how it is
+drawn. It lists this computer and every saved machine, each with what it has free while it is
+online and its state otherwise, and a machine's own page offers the one act its state calls for.
+The page never reaches a machine or the machines store itself: it hands the TUI one request, which
+the TUI carries out on its next tick through [discovery](#the-tui-as-a-hub-client) and the store,
+and it learns the result from the facts the TUI gives it on every tick while Settings is open.
+Nothing on that path waits for the hub, so a machine that does not answer never stalls the page or
+the local Session.
+
+- **Order.** Machines are listed by name, comparing runs of digits by their value and ignoring
+  letter case, then by ID, so `devbox2` comes before `devbox10`. Once more than eight machines are
+  saved, a filter narrows the list by name or address. Focus follows the machine, not the row,
+  when the list re-sorts.
+- **Status.** The act a machine's page offers follows its state: Connect while it is disconnected,
+  Retry while it is offline, Retry now while it waits to reconnect, Log in while it needs a login,
+  nothing while it connects or its terminals are stopping, and Disconnect otherwise. The sentence
+  beside it is the state's [explanation](#states-and-details).
+- **Disconnect and Connect.** Disconnect saves the machine disabled and then ends its link, so
+  nothing, the hub's own retries included, connects it again until Connect saves it enabled; its
+  Session and terminals keep running. The hub connects a machine saved enabled once it reloads the
+  catalog, as it keeps every enabled machine while the TUI holds it. A save that fails leaves the
+  machine as it was and says so.
+- **Logins.** Connect, Retry, Retry now and Log in let that machine's login ask this TUI for 60
+  seconds, and for as long as its question is open, since only a login the person waits for may
+  [ask](#login-questions).
+- **Stop its terminals.** Offered while the machine is online. The first Enter says what stops: the
+  machine's terminals and the working Agents among them as it last reported them, or every terminal
+  when it has not said, as Quit All counts this computer's. The second asks the hub's
+  [Session stop](#stopping-a-session), and Esc asks nothing. A view showing that machine returns to
+  this computer as the stop begins, since its terminals end; the record stays, and the result
+  shows once the hub answers.
+- **Remove machine.** It deletes the record at once, asks nothing and stops nothing: the machine's
+  Session and terminals keep running, and adding the machine again finds them. Stop its terminals
+  is the act that ends work, so removing cannot lose any. A view showing the machine returns to this
+  computer.
+- **Names.** A rename follows the [catalog rule](#catalog-and-transitions): at most 128 bytes, no
+  control characters, and never `local` in any letter case. The name field takes no more than a
+  name may hold.
+- **What is free.** While the page shows, the TUI asks the hub what this computer and each online
+  machine have free, at most once a second, with one request per machine at a time, each answer
+  awaited for at most 4 seconds; the hub answers from a sample up to 3 seconds old. A machine shows
+  what it has free only while it is online, and a value its source cannot give reads "—".
+- **Add.** Add machine… opens the [add form](#adding-a-machine) over Settings; once the form saves
+  the machine, it closes and the list focuses the new machine.
+- **Outcomes.** How a request ended shows on the page's status line until the next input; one that
+  ends while Settings is closed shows when it opens again.
+
 ## Persistent TUI connections
 
 The Windows and macOS TUI discovers the saved catalog while open and offers a machine
@@ -1300,7 +1350,7 @@ terminals, Workspace switches, Agents mode and every `orchbee --machine` command
 
 ### Managing machines in the TUI
 
-The picker's Machines list ends with a fixed "Add machine…" row, and while Local is the only
+[Settings › Machines](#machines-in-settings) manages the same records. The picker's Machines list ends with a fixed "Add machine…" row, and while Local is the only
 machine a line under the list says what a remote one offers. A remote row shows its name, its
 address in the secondary color and its state word; the selected row adds its
 [details and action](#states-and-details) and two buttons, its action on Enter and Actions on F2.

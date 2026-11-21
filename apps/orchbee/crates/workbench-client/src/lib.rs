@@ -32,10 +32,13 @@ mod machine_endpoint;
 mod machine_hub;
 mod machine_login;
 mod machine_observation;
+mod machine_overview;
 mod machine_picker;
 mod machine_question;
 mod machine_refusal;
 mod machine_retry;
+mod machine_settings;
+mod machine_settings_exchange;
 mod machine_spaces;
 mod machine_ssh;
 mod machine_ssh_config;
@@ -260,6 +263,14 @@ pub mod application {
 
     pub mod machine_capacity {
         pub use crate::machine_capacity::{UNKNOWN, gigabytes, summary};
+    }
+
+    pub mod machine_settings {
+        pub use crate::machine_settings::{Facts, Request};
+    }
+
+    pub mod machine_settings_exchange {
+        pub use crate::machine_settings_exchange::{Carried, Exchange};
     }
 
     pub mod machine_credentials {
