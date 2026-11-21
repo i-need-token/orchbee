@@ -7,7 +7,6 @@ const std = harness.std;
 const TerminalRuntime = harness.TerminalRuntime;
 const RuntimeTestingHooks = harness.RuntimeTestingHooks;
 const ReaderBatchOutcome = harness.ReaderBatchOutcome;
-const clearTestingHooks = harness.clearTestingHooks;
 const commitReaderBatch = harness.commitReaderBatch;
 const inputQueueSnapshot = harness.inputQueueSnapshot;
 const runtimeState = harness.runtimeState;
@@ -67,9 +66,10 @@ const Fixture = struct {
         try self.output("Do you want to proceed?\r\n> 1. Yes");
     }
 
+    /// The hooks stay installed: the reader and the writer read them until `destroy` joins
+    /// those threads, and the probe outlives it.
     fn deinit(self: *Fixture) void {
         self.probe.reader.release();
-        clearTestingHooks(self.runtime);
         self.runtime.destroy();
     }
 
