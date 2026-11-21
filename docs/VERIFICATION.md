@@ -173,21 +173,27 @@ bounded diagnostics. It does not establish arbitrary descendant cancellation or 
 on runners where those cases were not exercised. Standalone TLC output and its machine-readable
 results remain unchanged.
 
-## Required tasks
+## Commands
 
-| Task                      | Contract                                                                                                                                                        |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format:check`            | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                   |
-| `lint`                    | Code, Rust workspace and Clippy, style, storage, architecture, dependency, export, and manifest rules pass.                                                     |
-| `test:tla:inventory`      | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree; every trigger matches a tracked file. |
-| `build`, `build:packages` | Shared library workspaces produce the artifacts consumed by lint, type checking, tests and export checks.                                                       |
-| `build:full`              | Explicitly build every buildable pnpm and Cargo workspace for the host with its pinned toolchain and dependencies.                                              |
-| `typecheck`               | Every workspace with a TypeScript contract satisfies it.                                                                                                        |
-| `test`                    | Contract-checker tests, custom lint-rule and dependency-scope tests, pnpm and Cargo host test suites, and required controlled local system witnesses pass.      |
-| `test:cross`              | Explicitly compile the declared native foreign-target test graphs.                                                                                              |
-| `verify:rust-native`      | Run Rust workspace Clippy, the native test prerequisites and every Cargo host test suite under the current host's platform configuration.                       |
-| `verify:no-rust-tests`    | Run every stage of `verify` except the Cargo host test suites and their native prerequisites; Rust lint stays.                                                  |
-| `test:exports`            | Every library's packed exports, runtime formats, and declarations are consumable.                                                                               |
+| Command                          | Contract                                                                                                                                                                                                                                           |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verify`                         | The complete host gate: the stages under [Merge gate](#merge-gate), in order.                                                                                                                                                                      |
+| `verify:changed -- <base>`       | The daily gate under [Affected verification](#affected-verification).                                                                                                                                                                              |
+| `format:check`                   | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                                                                                                      |
+| `test:tla:inventory`             | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree; every trigger matches a tracked file.                                                                                    |
+| `build`, `build:packages`        | Shared library workspaces produce the artifacts consumed by lint, type checking, tests and export checks.                                                                                                                                          |
+| `lint`                           | Runs `lint:code` (blocking oxlint diagnostics), `lint:rust-modules`, `lint:rust`, `lint:styles`, `lint:storage` and `lint:dependencies`. [Linting](LINTING.md#enforcement-boundary) says what each one enforces.                                   |
+| `lint:code:warnings`, `lint:fix` | Outside the gate: show the non-blocking oxlint warnings too; apply the safe oxlint fixes.                                                                                                                                                          |
+| `typecheck`                      | Every workspace with a TypeScript contract satisfies it.                                                                                                                                                                                           |
+| `test`                           | The root tooling suites, the pnpm and Cargo host test suites, and the required controlled local system witnesses pass.                                                                                                                             |
+| `test:lint-rules`                | A root tooling suite: the `orchbee/*` rules and the documentation contract. The other root tooling suites each test one root script on isolated fixtures; `toolingSuites` in `scripts/verification-scope.mjs` lists them with the files they read. |
+| `test:exports`                   | Every library's packed exports, runtime formats, and declarations are consumable.                                                                                                                                                                  |
+| `build:full`                     | Explicitly build every buildable pnpm and Cargo workspace for the host with its pinned toolchain and dependencies.                                                                                                                                 |
+| `test:cross`                     | Explicitly compile the declared native foreign-target test graphs.                                                                                                                                                                                 |
+| `verify:rust-native`             | Run Rust workspace Clippy, the native test prerequisites and every Cargo host test suite under the current host's platform configuration.                                                                                                          |
+| `verify:no-rust-tests`           | Run every stage of `verify` except the Cargo host test suites and their native prerequisites; Rust lint stays.                                                                                                                                     |
+
+### Required tasks
 
 - `build:packages` precedes `lint` and `typecheck` because dependency analysis and production consumers resolve library artifacts, not another package's source. A clean checkout must produce those exports before Knip classifies dependency usage.
 - `build:full` finishes all shared packages before starting applications; each phase remains topological. Story discovery can consume another owner's package dependencies without a direct runtime dependency from the host, so applications must not race those package builds.

@@ -1,395 +1,140 @@
 # Modeling and Correctness
 
-## Gate and authority
+## When evidence is required
 
-Start with [`DEVELOPMENT.md`](DEVELOPMENT.md). Apply this standard to the changed behavior and
-claims, selecting evidence for failure consequences, state-space complexity, and observable
-boundaries. Consider every applicable risk, but do not accumulate methods merely because a feature
-uses async work, cancellation, gestures, or several files.
+Select the smallest evidence that can judge the changed claims. Use of async work, cancellation,
+gestures, or several files does not by itself require a stronger method; a real ordering, ownership,
+or durability risk does, however local the change looks.
 
-| Behavior                                                                                  | Required evidence                                                                                   |
-| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Local presentation without new domain state or transitions                                | Existing component contract and meaningful evidence under [`TESTING.md`](TESTING.md)                |
-| Bounded local completion or cancellation within established ownership and effect policies | Types and focused tests for relevant stale results, cancellation, failures, and cleanup             |
-| Owned domain state, interacting transitions, persistence, or process coordination         | A compact model of state, ownership, invariants, and relevant traces, with deterministic core tests |
-| A risk in [Correctness escalation](#correctness-escalation)                               | The evidence selected for each affected claim and uncovered failure risk                            |
+| The change has                                                                                          | It carries                                                                                           |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Local presentation without new domain state or transitions                                              | The existing component contract and tests admitted under [`TESTING.md`](TESTING.md)                  |
+| Local completion, cancellation, or retry under one established owner with bounded effects               | Types and focused tests for stale results, cancellation, failure, and cleanup                        |
+| Owned domain state, interacting transitions, persistence, or process coordination                       | Explicit state, events, outputs, and invariants in types, with deterministic tests of the core       |
+| Combinations or sequences that named examples cannot bound                                              | Property-based or model-based exploration with shrinking and a replayable failure                    |
+| A shared protocol with an ownership, commit, recovery, or progress risk that implementation traces miss | A TLA+ model with safety and applicable progress checks, and evidence tying it to the implementation |
+| A critical pure transformation that needs a claim over all inputs                                       | A Lean theorem                                                                                       |
+| A source-compatible port or behavioral replica                                                          | A pinned reference, a stated parity scope, and differential checks inside that scope                 |
+| Timing, geometry, focus, gestures, or platform behavior that cannot be judged at the core boundary      | Controlled adapter or system traces at the lowest faithful boundary                                  |
 
-- Types, transitions, and behavior-focused tests are the model. Add prose only for a decision,
-  assumption, or boundary they do not explain, under
-  [package documents](DOCUMENTATION.md#package-documents); never restate them in a model document
-  or per-change manifest.
-- Keep reusable cross-workspace rules in `docs/`; package behavior remains with its owner.
+- Types, transitions, and behavior tests are the model. Add prose only for a decision, assumption,
+  or boundary they do not explain, under [package documents](DOCUMENTATION.md#package-documents);
+  never restate them in a model document, a per-change record, or a claim-to-evidence table.
+- Existing evidence obligations and registered models stay in force. Retiring a model, weakening a
+  property, or replacing a mandatory method needs the decision owner's acceptance; cost alone does
+  not waive evidence.
+- A passing model or theorem says nothing about the implementation without a refinement mapping or
+  an executable comparison. The model, the implementation, and the physical platform are separate
+  claims.
 
-Existing owner-specific evidence obligations and maintained model registrations remain in force.
-Changing the general selection policy does not retire a model, weaken a property, or remove an
-already-required check. Such changes need a separate claim-specific justification and acceptance
-under the owning lifecycle.
+| Method                    | Supports                                                             | Limit                                       |
+| ------------------------- | -------------------------------------------------------------------- | ------------------------------------------- |
+| Example test              | One selected case                                                    | Only the selected cases                     |
+| Property test             | Invariants over generated states and sequences                       | The configured search space                 |
+| TLA+                      | No checked safety or progress counterexample in the abstract machine | The model within its declared bounds        |
+| Lean                      | A theorem for all values its definitions and assumptions admit       | Nothing about unrelated production code     |
+| Deterministic system test | A controlled observable timeline of the integrated system            | The declared traces and environments        |
+| Differential verification | Agreement with an adopted reference projection                       | The reference scope and observation quality |
 
 ## Domain contract
 
-Define the problem in user-observable terms before naming components, Hooks, storage keys, or implementation techniques. State success, failure, cancellation, and intentional no-op behavior.
+Define the behavior in user-observable terms before naming components, Hooks, storage keys, or
+techniques: success, failure, cancellation, and the intentional no-op.
 
-| Output kind    | Required decision                                                        |
-| -------------- | ------------------------------------------------------------------------ |
-| Returned value | Shape, meaning, ordering, and absence semantics                          |
-| Semantic event | Name, payload, emission point, idempotency, and owner                    |
-| State change   | Authoritative owner, commit point, and rollback or cancellation behavior |
-| Rendered state | Meaningful visual, focus, accessibility, and reduced-motion result       |
-| Side effect    | Target, timing, retry, failure handling, and observability               |
-| No-op          | Rejecting guard and whether rejection is visible                         |
+- Give every mutable fact one authoritative owner. Keep authoritative state, reversible previews,
+  derived values, and presentation state apart.
+- Use distinct variants where independent booleans could represent an impossible combination, and
+  return complete results whose variants make invalid field combinations unrepresentable.
+- Parse untrusted input and define absence at the boundary. Never infer a transition from
+  coincidental equality between optional values.
+- Keep network, storage, time, randomness, process APIs, and DOM measurement out of deterministic
+  domain units. A transition returns its effects as commands and takes their results as later
+  events.
+- For long-lived state, define what an invalid, repeated, stale, out-of-order, interrupted, or
+  cancelled event does, and hold the invariants after every accepted transition, not only after the
+  final commit.
+- A UI shell renders prepared state and emits intent. It may measure, capture pointers, and schedule
+  frames; it never decides membership, ordering, selection, eligibility, cancellation, or commit.
 
-Choose the smallest model that represents every valid case and rejects invalid combinations.
+## Commit and publication boundaries
 
-| Shape                    | Use when                                                          | Public operation                | Side effects         |
-| ------------------------ | ----------------------------------------------------------------- | ------------------------------- | -------------------- |
-| Extractor or parser      | Meaning is derived from encoded input                             | `extract` or `parse`            | None                 |
-| Normalizer               | External or legacy data becomes one canonical form                | `normalize`                     | None                 |
-| Policy or resolver       | Explicit facts determine one decision                             | `resolve` or `decide`           | None                 |
-| Builder or projector     | Canonical inputs produce one complete read model                  | `build` or `project`            | None by default      |
-| State machine or reducer | Events change long-lived state through guarded transitions        | `transition` or `reduce`        | Returned as commands |
-| Workflow or orchestrator | Ordered phases coordinate effects, short-circuiting, and recovery | `execute`, `load`, or `prepare` | Explicitly allowed   |
-
-- Give durable entities stable identifiers and define relationship cardinality, ordering, uniqueness, membership, lifecycle, and referential integrity.
-- Give every mutable fact one authoritative owner; separate authoritative state, reversible previews, derived values, animation projections, and presentation state.
-- Use distinct variants when independent booleans could represent impossible combinations.
-- Parse untrusted input and define absence at the boundary; never infer a transition from coincidental equality between optional values.
-- Make required data nonoptional at the domain boundary and expose only the capabilities the operation may use.
-- Return complete semantic results whose variants make invalid field combinations unrepresentable.
-- Keep network, storage, time, randomness, process APIs, and DOM measurement out of deterministic domain units.
-- Name domain units after the result they own, not a page, component, or framework lifecycle.
-
-## State and workflow
-
-Use a transition model only for long-lived state or multi-event interaction. Each transition defines its guard, next state, commands, observable output, invariant result, and cancellation path.
-
-```ts
-interface TransitionResult<State, Command> {
-	readonly commands: readonly Command[];
-	readonly state: State;
-}
-
-declare function transition<State, Event, Command>(
-	state: State,
-	event: Event,
-): TransitionResult<State, Command>;
-
-declare function observe<State, Observable>(state: State): Observable;
-```
-
-- Normalize pointer data, measurements, time, and external responses into explicit events.
-- Return effects as commands and apply their results through later events.
-- Define invalid, repeated, stale, out-of-order, interrupted, and cancelled events.
-- Keep authoritative state unchanged during a reversible preview unless the contract explicitly owns optimistic state.
-- Evaluate invariants after every accepted transition, not only after final commit.
-- Make state, events, commands, and observations serializable when selected evidence requires replay or comparison, or provide a lossless canonical trace.
-- Test complete transition sequences, including reversal, interruption, cancellation, rollback, and re-entry.
-
-A workflow owns phase order, short-circuiting, retry, recovery, and effects; domain units own
-decisions. Select only the applicable phases and order them according to the owned contract.
-
-| Phase     | Consumes                                 | Produces                            | Effect policy                       |
-| --------- | ---------------------------------------- | ----------------------------------- | ----------------------------------- |
-| Normalize | Untrusted or legacy input                | Canonical domain input              | Boundary validation only            |
-| Decide    | Canonical input and semantic intent      | Decision or projection              | Deterministic                       |
-| Prepare   | Decision plus external capabilities      | Prepared data or typed failure      | No untracked authoritative mutation |
-| Commit    | Prepared result plus authoritative state | Committed state and semantic result | Named authoritative commit          |
-| Publish   | Committed semantic result                | Delivery result or tracked outcome  | Explicit delivery semantics         |
-| Present   | Prepared or committed domain result      | Public output model                 | No new domain decisions             |
-
-- Give every phase the smallest capability and typed input/output it needs.
-- Document every writer if a mutable workflow context is unavoidable.
-- Never convert an unexpected failure into empty success unless the output type defines degraded behavior.
-- Test deterministic phases directly and the orchestrator separately for order, calls, short-circuiting, retry, recovery, commit boundaries, publication outcomes, and error mapping.
-
-### Commit and publication boundaries
-
-- Name the authoritative commit point and classify every fallible action as pre-commit or
-  post-commit. Complete fallible allocation, encoding, validation, and capacity checks before commit
-  when the contract permits it.
-- A pre-commit failure leaves authoritative state unchanged or invokes rollback owned by the same
-  boundary. A post-commit failure preserves and reports the committed outcome, then follows an
+- Name the authoritative commit point and classify every fallible action as before or after it.
+  Complete fallible allocation, encoding, validation, and capacity checks before commit when the
+  contract permits it.
+- A failure before commit leaves authoritative state unchanged or runs a rollback owned by the same
+  boundary. A failure after commit preserves and reports the committed outcome, then follows an
   explicit idempotency, retry, compensation, or terminal-failure policy.
-- Never mutate one owner and then perform untracked fallible work before another required mutation
-  or effect. Put the work under one owner and commit boundary, or represent the partial outcome and
-  recovery path in the model.
-- When several capabilities cannot commit atomically, model the intermediate and ambiguous outcomes;
-  do not claim atomic behavior that the implementation cannot provide.
+- Never mutate one owner and then do untracked fallible work before another required mutation or
+  effect. Put the work under one owner and commit boundary, or model the partial outcome and its
+  recovery.
+- When several capabilities cannot commit atomically, model the intermediate and ambiguous
+  outcomes; do not claim atomicity the implementation cannot provide.
+- Never turn an unexpected failure into an empty success unless the output type defines that
+  degraded result.
 
-## Test and interaction design
+## TLA+
 
-Identify the relevant decisions and cases before production UI integration. Apply
-[test admission](TESTING.md#unit-test-admission-and-removal) to select meaningful behavior evidence;
-reuse existing checks and add core tests only for uncovered risks. The dimensions below select
-cases for admitted behavior, not a mandatory checklist for every helper. Use a separate inventory
-or scenario matrix only when it explains a complexity the tests do not. Exercise the principal
-public operation rather than private helpers.
+Use TLA+ for a small shared protocol whose independently ordered actors create a specific
+ownership, commit, recovery, or progress risk. Async calls, an explicit state machine, several UI
+states, or a long fixed workflow alone do not justify a model. Prefer one maintained protocol per
+authority boundary over a model per product feature.
 
-| Coverage dimension  | Required cases                                                                  |
-| ------------------- | ------------------------------------------------------------------------------- |
-| Equivalence classes | Every meaningfully different valid state                                        |
-| Boundaries          | Empty, singleton, first, last, threshold, minimum, and maximum where applicable |
-| Invalid input       | Rejected identity, relationship, transition, and stale reference                |
-| Direction           | Forward and reverse when direction should not change semantics                  |
-| Sequence            | Repetition, interruption, cancellation, rollback, and re-entry                  |
-| Invariants          | Properties that survive every accepted operation or transition                  |
-| Ownership           | Caller updates, delayed commits, and rejected optimistic assumptions            |
-| Ambiguity           | Zero, one, and multiple matches plus tie-breaking                               |
-| Hierarchy           | Supported depths and missing, empty, partial, and complete branches             |
-| Regression          | Evidence selected under [`TESTING.md`](TESTING.md#regression-coverage)          |
+- State the falsifiable claim, why implementation tests cannot judge it, the mapping from actions
+  to source, the finite bounds, and the assumptions. Fairness comes from the contract.
+- Keep competing identities, stale completions, failure cuts, and progress risks in the
+  abstraction. Never hide a reachable failure with a state constraint or a weakened assertion.
+- Require reachable action coverage and negative controls for the motivating faults. Turn a real
+  counterexample into a deterministic implementation regression at the owning boundary.
+- Register each module and configuration once in `scripts/tla/models.json` with its owner, claims,
+  and implementation triggers. A changed protocol updates the model and the implementation evidence
+  together; an unchanged passing model does not prove changed code.
+- Every maintained configuration runs in the complete uncached `pnpm test:tla` gate within its
+  60-second budget. Do not add a routinely required suite outside it.
+- Retire a model by deleting its artifacts, registration, and proof claims together, mapping the
+  behavior obligations that continue to maintained models or implementation tests, and stating any
+  loss of exhaustive assurance.
 
-- Derive cases from independent decisions and conflict points; do not use happy-path coverage or a blind Cartesian product.
-- Use domain-language test names, valid minimal fixture defaults, table-driven cases, and property assertions where appropriate.
-- Keep core tests independent of rendering, browser automation, network services, and persistent storage.
-- A disposable spike may answer one feasibility question; it never becomes production by default.
+## Other methods
 
-Model the complete gesture timeline when activation, preview, commit, cancellation, focus, geometry, or motion changes behavior.
+- **Lean.** No `sorry`, `admit`, or project-created axiom in a required theorem; disclose
+  unavoidable axioms, classical assumptions, and foreign code. Tie the proof to production code
+  through a shared canonical schema or corpus.
+- **Property tests.** Use explicit seeds, size limits, and deterministic schedulers. Reduce every
+  discovered failure to a replayable minimal case and keep it in the regression corpus. Iteration
+  count is not coverage.
+- **System traces.** Control or record time, scheduling, environment, interaction, geometry, and
+  external state. Advance logical time or wait for a named condition; never sleep for an arbitrary
+  duration. A retry cannot hide a race, and a manual observation is discovery until an asserted
+  deterministic trace captures it.
+- **Reference parity.** Record the reference's version, revision, flags, and platform, the
+  supported scope with its exclusions, and the noise removed with the reason it cannot hide a
+  difference. Capture again deliberately when the reference changes.
 
-| Dimension       | Required decision                                                    |
-| --------------- | -------------------------------------------------------------------- |
-| Activation      | Pointer or keyboard threshold and selection timing                   |
-| Hit testing     | Eligible targets, overlap, and boundary hysteresis                   |
-| Geometry        | Measurement owner, coordinate space, scrolling, and resize behavior  |
-| Stacking        | Paint order during every interaction phase                           |
-| Preview         | Reversible projection, insertion feedback, and membership indication |
-| Focus and menus | Focus ownership, dismissal, click-through, and keyboard continuity   |
-| Motion          | Displacement, interruption, reduced motion, and completion           |
-| Cancellation    | Escape, lost capture, unmount, stale data, and platform cancellation |
+## Counterexamples
 
-Define priority among active, hover, focus, selected, and dragging states. Feedback must describe the result of committing at that moment; styling and animation must not hide an invalid or ambiguous transition.
+Preserve the environment, seed, state, events, and observations; reduce to the shortest failing
+trace; find the first divergent step and the violated claim or assumption; fix the earliest
+incorrect authority; keep the reduced case and run the broader exploration again.
 
-Test placement, naming, and regression rules follow [`TESTING.md`](TESTING.md).
+Never weaken a property, exclude a reachable state, add an axiom, retry a race, or replace a
+semantic regression with a screenshot to accept current behavior. Remove a model, property, or
+theorem together with the behavior it described.
 
-## Correctness escalation
+## Gate
 
-Select the smallest set of evidence that can judge the affected claims. For each additional method,
-identify the failure risk or assurance gap it addresses. One artifact may support several claims;
-different methods are cumulative only when they cover distinct required gaps.
-
-| Risk trigger                                                                                                        | Evidence selection                                                                                                            |
-| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Owned domain state or transitions                                                                                   | Explicit state, events, outputs, invariants, and deterministic behavior tests                                                 |
-| Large combinations or sequences that named examples cannot adequately explore                                       | Property-based or model-based exploration with shrinking or counterexample reduction and replay                               |
-| Local async completion, cancellation, or retries with an established single owner and bounded effects               | Controlled completion order, stale-result, cancellation, failure, and cleanup cases; TLA+ is not required by async work alone |
-| A shared protocol has an ownership, commit, recovery or progress risk inadequately covered by implementation traces | TLA+ safety checks and applicable progress checks, plus evidence relating the abstraction to implementation                   |
-| Critical pure transformation requires a universal claim beyond sampled or bounded states                            | Lean preservation, determinism, or refinement theorem                                                                         |
-| Source-compatible port or behavioral replica                                                                        | Pinned reference, explicit parity scope, and differential or refinement verification                                          |
-| Timing, geometry, focus, gestures, or platform behavior cannot be judged at the core boundary                       | Controlled adapter or system traces at the lowest faithful integration boundary                                               |
-
-Assess who can act independently, which outcomes can be lost or duplicated, how a failure is detected,
-and whether recovery is bounded. A local-looking operation that writes durable data or coordinates
-several actors still needs the relevant stronger evidence. If named cases cannot bound the ordering
-risk, escalate to exploration or model checking; author confidence is not a substitute.
-
-A different method may be proposed when it supports the same claim and assurance limits. Changing
-an existing mandatory method or accepted consequential evidence plan requires decision-owner
-acceptance and updates to the owning contract and execution gate. Cost alone does not waive evidence,
-and implementation behavior, the abstract model, and the physical platform remain distinct claims.
-
-| Method                    | Claim supported                                                            | Limitation                                         |
-| ------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------- |
-| Example test              | A selected case produces its expected result                               | Covers only selected cases                         |
-| Property test             | Invariants survive generated states and sequences                          | Samples a configured search space                  |
-| TLA+                      | The abstract machine has no checked safety or progress counterexample      | Checks the model within declared bounds            |
-| Lean                      | A theorem holds for all values admitted by its definitions and assumptions | Does not prove unrelated TypeScript                |
-| Deterministic system test | The integrated system reproduces a controlled observable timeline          | Covers declared traces and environments            |
-| Differential verification | The implementation agrees with an adopted reference projection             | Depends on reference scope and observation quality |
-
-Map each selected evidence artifact to its implementation claim. A formal model or theorem needs
-an explicit refinement mapping or executable comparison; a passing model alone does not establish
-implementation correctness. The possible chain is:
-
-`reference evidence -> owned contract -> abstract model and theorems -> deterministic core -> platform adapters -> observable system`
-
-Include only layers selected for the claim and explain their actual connections. Ordinary behavior
-tests do not require placeholder formal, reference, or system artifacts.
-
-## Decision boundaries
-
-Before changing behavior after an observed mismatch:
-
-1. Record reference provenance, environment, canonical initial state, semantic actions, and first divergence.
-2. Identify discrete modes, ownership, selection, focus, interaction phase, platform switches, and continuous inputs.
-3. Define precedence when outputs compete for the same resource.
-4. Partition every guard and threshold; for boundary `b`, include `b - 1`, `b`, `b + 1`, and adjacent interior values when valid.
-5. Define canonical semantic state, controls, geometry, focus, overlap, and clipping for every partition and transition.
-6. Make the lowest effective evidence fail, then fix the earliest owning rule.
-
-When selected, property tests explore the supported continuous domain by equivalence class and deterministic traces check adapter projections; named examples pin relevant boundaries. Visibility, placement, hit testing, and accessibility for one control must derive from one semantic policy or demonstrably equivalent projections.
-
-A focused checker is local evidence; run the applicable root gate at completion under [`VERIFICATION.md`](VERIFICATION.md). Treat a broader regression as a counterexample until the contract, priority, boundary, or adapter mapping explains it.
-
-## Correctness evidence
-
-### TLA+
-
-Use TLA+ for a small shared protocol whose independently ordered actors create a specific ownership, commit, recovery or progress risk that controlled implementation traces do not adequately expose. Async calls, an explicit state machine, several UI states or a long fixed workflow alone do not justify a model. Prefer one maintained protocol per authority boundary over a separate model per product feature.
-
-- State the falsifiable claim, why implementation tests are insufficient for that claim, action-to-source mapping, finite bounds, and assumptions.
-- Keep UI values, payload arithmetic, codecs and fixed decisions in implementation tests unless they affect the concurrency claim.
-- Define exact initial states, authoritative variables, actions, stuttering, safety and applicable progress. Fairness must come from the contract.
-- Preserve competing identities, stale completions, relevant failure cuts and progress risks when abstracting. Do not hide a reachable failure with a state constraint or a weakened assertion.
-- Require reachable action coverage and negative controls for the motivating protocol faults. Convert real counterexamples into deterministic implementation regressions at the owning boundary.
-- Pin the toolchain. Every maintained configuration runs in the complete uncached `pnpm test:tla` gate within its 60-second budget. Do not add a hidden routinely required expensive suite.
-
-#### TLA+ artifact lifecycle
-
-| Lifecycle point | Requirement                                                                                                                                                                                                                                            |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Admission       | Identify a distinct shared-protocol assurance gap, its implementation mapping and its share of the complete budget. Reuse an existing core when it owns the same invariant.                                                                            |
-| Registration    | Register module/configuration, owner claims, implementation triggers, deadlines, variants and semantic action witnesses exactly once.                                                                                                                  |
-| Change          | Update the owning abstraction and implementation evidence together; an unchanged passing model does not prove changed product code.                                                                                                                    |
-| Consolidation   | Remove irrelevant state dimensions or separate independent owners. State narrowed proof limits explicitly; small bounds alone do not prove equivalence to a larger model.                                                                              |
-| Retirement      | Delete artifacts, registration, empty commands and stale proof claims together. Map continuing behavior obligations to maintained protocol cores or concrete controlled/generated implementation tests, and disclose any loss of exhaustive assurance. |
-
-Retirement or a consequential evidence-method change requires the decision owner's acceptance under the scoped authorization contract. Its implementation is not an excuse to accept a known counterexample or silently discard a behavior requirement. State counts, duration and coverage are bounded run evidence, not universal or implementation-refinement proofs.
-
-### Lean
-
-- Define formal inputs, outputs, validity predicates, the transformation or transition, named theorems, minimal assumptions, and any executable oracle needed for refinement.
-- Use Lean for universal claims about critical identity, membership, ordering, grouping, selection, normalization, determinism, inverse behavior, or invariant preservation.
-- Do not use `sorry`, `admit`, or project-created axioms for required theorems; disclose unavoidable axioms, classical assumptions, foreign code, and parser trust.
-- Bridge Lean and production code through a shared canonical schema or corpus and compare canonical observations.
-- Lean is the default proof assistant for new conformance; an established alternative must provide equivalent kernel checks, trust disclosure, refinement, and merge guarantees.
-
-### Property-based testing
-
-- Define valid-state and stateful-command generators, model-derived preconditions, adversarial invalid or stale events, an oracle or invariant set, semantic shrinkers, coverage classifications, and stable serialization.
-- Apply preservation, determinism, idempotence, inverse, symmetry, refinement, and no-op stability properties where relevant.
-- Use explicit seeds, size limits, deterministic schedulers, and logged parameters; the merge gate owns a stable seed corpus.
-- Reduce every discovery failure to a replayable minimal case and add it to the regression corpus.
-- Report reached state classes, actions, boundaries, directions, and phases; iteration count alone is not coverage.
-
-### Deterministic system testing
-
-Control or record every applicable source of nondeterminism:
-
-| Source              | Required control                                                                                      |
-| ------------------- | ----------------------------------------------------------------------------------------------------- |
-| Time and scheduling | Wall and monotonic clocks, timers, frames, tasks, microtasks, async completion order, and randomness  |
-| Environment         | Viewport, scale, zoom, fonts, locale, theme, motion preference, platform flags, and generated IDs     |
-| Interaction         | Pointer and keyboard sequence, coordinates, capture, cancellation, coalescing, focus, and animation   |
-| Geometry            | Measurements, scrolling, hit-test candidates, resize observations, and snapshots                      |
-| External state      | Network, storage, worker, process, operating-system responses, persisted state, and reference version |
-
-- Record semantic checkpoints for model state, phase, commands, projection, focus, geometry, and rendered identifiers.
-- Advance logical time or wait for named semantic conditions; never use arbitrary sleeps.
-- Drive animation with fixed logical frames and assert start, displacement, interruption, and settlement.
-- Compare canonical state and geometry before pixels; make every trace independently replayable by stable name.
-- Retries cannot hide a race. Manual observation is discovery evidence until captured by an asserted deterministic trace.
-
-### Reference refinement
-
-A compatibility or replication claim needs a versioned parity contract.
-
-| Field         | Required content                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------- |
-| Provenance    | Product version, source revision, build flags, platform, theme, and runtime configuration   |
-| Scope         | Supported operations, states, inputs, modes, and explicit exclusions                        |
-| Projection    | Semantic state, checkpoints, geometry, accessibility, timing, and required painting details |
-| Normalization | Declared nondomain noise and why removing it cannot hide a behavioral difference            |
-| Authority     | Conflict rule for source, observed behavior, upstream tests, and the locally owned contract |
-
-- Treat reference behavior as selected by revision, flags, channel, platform, experiments, and runtime configuration.
-- Audit the behavioral dependency closure: policies, ownership, lifetime, constants, flags, scheduling, geometry, hit testing, animation, platform integration, accessibility, tests, and shared state.
-- For each scenario, establish a clean precondition, apply the same semantic actions, capture the same checkpoints, canonicalize only declared noise, compare the full projection, and classify every mismatch.
-- Source inspection and exploratory use may discover behavior; merge evidence requires a repeatable harness or versioned golden trace with recorded provenance and capture.
-- Re-capture deliberately. A reference upgrade requires a dependency-closure audit, scenario rerun, golden review, and parity-scope update.
-
-## Traceability and change discipline
-
-Types, stable test names, and imports carry the link between a claim and its evidence. Do not keep a
-claim-to-evidence table or an inventory of tests in a document. A formal model or differential
-suite states its bounds and trust assumptions in its own source or registration.
-
-- Give each claim requiring automated evidence under [test admission](TESTING.md#unit-test-admission-and-removal) an executable witness at the lowest effective layer; existing compiler, contract, and behavior checks can supply it.
-- Map each selected formal property and theorem to an owned claim; omit unused method columns.
-- Remove a model, property, or theorem together with the behavior it described.
-- Treat coverage percentages as diagnostics, not traceability.
-
-For every counterexample:
-
-1. Preserve environment, seed, state, events, reference version, and observations.
-2. Reduce it to the shortest failing semantic trace.
-3. Find the first divergent checkpoint and violated claim or assumption.
-4. Classify the missing contract, invalid assumption, incomplete generator, implementation, adapter, or harness defect.
-5. Fix the earliest incorrect authority.
-6. Retain the reduced case and rerun broader exploration.
-
-Never weaken a property, exclude a reachable TLA+ state, add an axiom, retry a race, or replace a semantic regression with a screenshot to accept current behavior.
-
-| Change kind                                     | Required updates                                                                                                                                         |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| State, event, guard, command, or cancellation   | Owned contract and state model, relevant behavior tests, and affected selected formal or trace evidence                                                  |
-| Pure transformation or invariant                | Owned contract and evidence selected under [test admission](TESTING.md#unit-test-admission-and-removal), including applicable proof or property evidence |
-| Platform, geometry, focus, timing, or animation | Environment contract, deterministic inputs and checkpoints, adapter tests, and parity projection when applicable                                         |
-| Reference revision or compatibility scope       | Provenance, dependency-closure audit, differential scenarios, reviewed goldens, and declared limits                                                      |
-| Defect                                          | Regression evidence under [`TESTING.md`](TESTING.md#regression-coverage), root-cause class, and corrected earliest owner                                 |
-
-Update the abstract model or proof before relying on changed production behavior. Do not preserve competing semantic models unless an explicit compatibility boundary owns both and differential tests compare them.
-
-Every implementation follows the same evidence contract:
-
-- Before production edits, read the owning types, tests, and models, and identify any reference dependency closure and affected refinement links.
-- Reproduce an existing defect as a minimal semantic trace.
-- Run focused checks at useful feedback boundaries and the applicable root gate at completion; reuse unchanged valid evidence and preserve counterexamples before another patch.
-- Completion reports name checked claims, bounds, reference revision, executed evidence, and exclusions; file inspection, generated code, examples, or screenshots alone never establish completeness.
-
-## Integration and implementation
-
-Integrate the stable core through a thin shell:
-
-- Components render prepared state and emit semantic intent.
-- Hooks coordinate framework lifecycles and adapters without owning hidden state machines.
-- CSS renders model-supplied presentation state and never infers domain state.
-- Effects consume explicit commands and report results through explicit events.
-- The shell may measure the DOM, capture pointers, schedule frames, and render pixels; it never decides membership, ordering, selection, eligibility, cancellation, or commit semantics.
-- Component tests verify wiring and accessibility, browser tests verify real timelines, and visual review verifies presentation; none replaces domain evidence.
-
-Implementation order:
-
-1. Record the problem, non-goals, inputs, outputs, invariants, and ownership.
-2. Define canonical types, decisions, model shape, and principal operation.
-3. Add transitions, workflow phases, and correctness claims when applicable.
-4. Identify relevant cases and select evidence for the affected claims and failure risks.
-5. Implement the deterministic core and make its evidence pass.
-6. Implement and test workflows and external adapters.
-7. Integrate the stable operation into the application shell.
-8. Add deterministic browser, visual, formal, and differential evidence where selected.
-
-Correct the owning artifact when implementation reveals a gap. Escalate only a new reserved decision
-under [`DEVELOPMENT.md`](DEVELOPMENT.md); ordinary corrections continue within the accepted task.
-
-Source decomposition and visibility follow [`MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md), React
-ownership follows [`frontend/react.md`](frontend/react.md), visual decisions follow
-[`frontend/visual-foundations.md`](frontend/visual-foundations.md), and cross-workspace dependencies
-follow [`ARCHITECTURE.md`](ARCHITECTURE.md).
-
-## Verification and completion
-
-Every deterministic, bounded, pinned and repository-provisioned evidence artifact exposes an owning command. The root gate in [`VERIFICATION.md`](VERIFICATION.md) runs default implementation evidence. Protocol state, transitions, assumptions or refinement changes require affected TLA models and implementation tests. Runner or verification/modeling-standard changes require the complete `pnpm test:tla` gate: inventory, all retained configurations and real pinned-TLC cache/mutation witnesses. Exact reuse of unchanged mathematical results is permitted only under the changed-selection contract; the complete baseline remains uncached.
-
-The applicable gate or selected evidence command must fail on:
+The root gate in [`VERIFICATION.md`](VERIFICATION.md) runs the default implementation evidence.
+A change to protocol state, transitions, assumptions, or refinement runs the affected TLA models
+and implementation tests; a change to the TLA runner, to this standard, or to `VERIFICATION.md` runs
+the complete `pnpm test:tla` gate
+([change-triggered TLA+ verification](VERIFICATION.md#change-triggered-tla-verification)). The
+applicable command fails, without retries, on:
 
 - a checked TLA+ safety or progress counterexample;
-- an unchecked or admitted Lean theorem or undeclared trust assumption;
-- a failed property, unreachable required generator class, or non-replayable generated failure;
-- a deterministic trace mismatch or result-affecting uncontrolled timing;
+- an unchecked or admitted Lean theorem, or an undeclared trust assumption;
+- a failed property, or a generated failure that cannot be replayed;
+- a deterministic trace mismatch, or timing that affects the result and is not controlled;
 - a differential mismatch inside the declared parity scope; or
 - a registered model whose source or trigger file no longer exists.
 
-Pin tools and configurations, cap resources, fail fast, and retain actionable counterexamples. Do not use retries. External reference capture and environment-specific exploration remain maintenance verification until their inputs are pinned and provisioned; run them before compatibility releases without making the merge gate depend on ambient external state.
-
-Production integration is ready when:
-
-- the types and tests define the applicable behavior, ownership, invariants, and cases;
-- deterministic core tests pass without the production UI; and
-- every relevant failure risk has selected evidence and explicit limits.
-
-A feature is complete when:
-
-- the selected core, workflow, integration, browser, accessibility, and correctness evidence protects the affected claims;
-- regression evidence satisfies [`TESTING.md`](TESTING.md#regression-coverage) at the lowest effective layer;
-- prototypes, duplicate state, and obsolete flags are removed;
-- every change-triggered correctness command passes without retries;
-- the [applicable root gate](VERIFICATION.md#merge-gate) passes without retries; and
-- the completion report states checked claims, bounds, reference revision, evidence, and exclusions without unbounded claims such as “fully verified” or “perfect replica.”
+A completion report names the checked claims, their bounds, and the exclusions. It makes no
+unbounded claim such as "fully verified" or "perfect replica".

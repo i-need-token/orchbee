@@ -1,6 +1,6 @@
 # Existing Rust module cycle edges and upward references, one per line.
 # `pnpm lint:rust-modules` fails when the module graph grows beyond this record.
-# Never add or change a line by hand: only the repository owner may allow a new entry.
+# Never add or change a line by hand; the rule below says when an entry may be recorded.
 # After removing a cycle or an upward reference, run `pnpm lint:rust-modules -- --tighten`
 # and commit the smaller file. docs/LINTING.md#rust-module-record defines the rule.
 cycle apps/orchbee bin cli -> local_startup

@@ -1,27 +1,6 @@
 # Linting
 
-## Commands
-
-| Command                      | Responsibility                                                                                                                                    |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm verify`                | Run the complete merge gate defined by `docs/VERIFICATION.md`                                                                                     |
-| `pnpm lint`                  | Run the complete required repository lint pipeline                                                                                                |
-| `pnpm lint:code`             | Run blocking oxlint diagnostics with agent-oriented output                                                                                        |
-| `pnpm lint:code:warnings`    | Audit blocking diagnostics and non-blocking oxlint warnings                                                                                       |
-| `pnpm lint:rust`             | Validate the pinned Cargo workspace and run locked Clippy over every member                                                                       |
-| `pnpm lint:rust-modules`     | Report Rust module cycles and upward references against owner layer contracts, and fail on any beyond the record of existing ones                 |
-| `pnpm lint:styles`           | Validate the token registry and authored frontend styling contract                                                                                |
-| `pnpm lint:storage`          | Validate browser-storage access, ownership, key shape, and versioning                                                                             |
-| `pnpm lint:dependencies`     | Run Knip over the complete graph and then the strict production graph, after checking that the packages are built                                 |
-| `pnpm lint:fix`              | Apply safe oxlint fixes; remaining diagnostics require code changes                                                                               |
-| `pnpm typecheck`             | Run TypeScript diagnostics that syntax-aware lint does not replace                                                                                |
-| `pnpm test:lint-rules`       | Test the `orchbee/*` rules and the documentation contract                                                                                         |
-| `pnpm test:dependency-scope` | Test complete and strict Knip graph coverage with isolated positive and negative fixtures                                                         |
-| `pnpm test:rust-runner`      | Test Rust target coverage, failure propagation, dependency inheritance/defaults, and authored unsafe/import policies with isolated Cargo fixtures |
-| `pnpm test:rust-modules`     | Test production-graph extraction, cycle and layer findings, contract parsing, and the record rule with isolated fixture crates                    |
-| `pnpm test:ghostty-source`   | Test exact-pin and clean-worktree admission for Ghostty provenance tools                                                                          |
-| `pnpm test:style-contract`   | Run regression tests for the frontend style-contract checker                                                                                      |
-| `pnpm test:storage-contract` | Run regression tests for the browser-storage contract checker                                                                                     |
+[Verification](VERIFICATION.md#commands) lists the root commands and what each one checks.
 
 ## Enforcement boundary
 
@@ -40,6 +19,46 @@
 | Style exception     | The shadcn authoring exception for `pnpm lint:styles` is path-scoped to checked-in generated source and support files.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Browser storage     | `pnpm lint:storage` enforces [`docs/frontend/browser-storage.md`](frontend/browser-storage.md): only an application composition entry may access `localStorage` or `sessionStorage`; `orchbee:` key literals remain in their owning `*-storage.ts` module and use the versioned grammar.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Policy changes      | Never weaken a rule to pass existing code; fix the code or obtain human approval for a project-policy change.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+## Code style
+
+Formatters own layout: `.oxfmtrc.json` for Oxfmt-managed files (tabs, single quotes, semicolons,
+trailing commas), the root toolchain's `rustfmt` for Rust, and the workspace-pinned `zig fmt` for Zig
+source and build files. Format changed files with their owning formatter while iterating.
+`pnpm format` is for an intentional repository-wide format; a scoped change does not rewrite
+unrelated files. `.gitattributes` keeps text files on LF so that checkout conversion cannot
+invalidate formatting or byte-based checks; preserve its byte-sensitive exceptions.
+
+The explicitly configured oxlint rules that no language standard owns:
+
+- `import/no-default-export`: Use named exports except in configuration files and JavaScript lint-plugin entry points.
+- `import/no-cycle`: Keep module dependencies acyclic.
+- `import/no-self-import`: Do not import a module from itself.
+- `import/no-duplicates`: Merge imports from the same module.
+- `typescript/consistent-type-imports`: Mark type-only dependencies with `import type` or an inline `type` specifier.
+- `no-var`: Declare bindings with `const` or `let`.
+- `prefer-const`: Use `const` when a binding is never reassigned.
+- `no-shadow`: Give nested bindings distinct names.
+- `eqeqeq`: Use strict equality operators.
+- `unicorn/no-nested-ternary`: Replace nested ternaries with named branches or control flow.
+- `no-console`: Route runtime diagnostics through an owned logging or host boundary.
+- `no-eval`, `no-implied-eval`, `no-new-func`: Do not execute code assembled from strings.
+
+### Inline suppressions
+
+- `orchbee/no-inline-suppressions`: Remove `oxlint-disable` and `eslint-disable` comments from production and test code; fix the code or change the project rule with human approval.
+
+### Comments
+
+Comments explain constraints and non-obvious decisions; names and structure explain behavior.
+
+```ts
+// ❌ Increment the retry count.
+retryCount += 1;
+
+// ✅ The bridge allows three transient failures before surfacing the host error.
+retryCount += 1;
+```
 
 ## Dependency graph boundaries
 
@@ -91,16 +110,16 @@ changing a package's exports.
 one finding per line. `pnpm lint:rust-modules` passes those and fails on anything beyond them, so
 the module graph cannot grow while the recorded findings are being removed.
 
-| Concern          | Contract                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cycle edge       | A `cycle` line names one edge between two sibling modules of the same cycle group, per Cargo member and target. A new group, a module joining a group, and a new edge between two members of a group each add an edge and fail. An edge that a layer contract allows, from a higher layer to a lower one, is never counted: the opposite edge is the one at fault.                                                          |
-| Upward reference | An `upward` line gives the number of references from one module into a higher-layer module. The limit is the sum over one pair of assigned modules, so moving code between the submodules of the source passes and one more reference in the pair fails.                                                                                                                                                                    |
-| Rename or move   | Entries are compared by name. Recorded entries of a module that no longer exists cover the same number of unrecorded entries in the same member and target, so renaming or moving a module passes without a change to the record. Moving a cycle into another member fails: break it first, as [Module Boundaries](MODULE-BOUNDARIES.md#native-source-trees) requires.                                                      |
-| Removed finding  | A recorded entry that the tree no longer has never fails, and while its modules still exist it makes no room for a different finding. The check prints how many recorded lines no longer match the tree. Until the record is tightened, that same finding can come back without failing.                                                                                                                                    |
-| Tightening       | `pnpm lint:rust-modules -- --tighten` rewrites the record to the exact findings of a passing tree and writes nothing for a failing one. Run it in the change that removes a finding or renames a recorded module, and commit the result.                                                                                                                                                                                    |
-| Parallel changes | The record is sorted with one finding per line, so two changes that each remove findings delete different lines. After a conflict in the record, keep either side and run `--tighten` again. A change that adds a reference to a finding another change removed fails once it is rebased onto that change.                                                                                                                  |
-| New entry        | Only the repository owner may allow one. An agent that meets the failure removes the reference or restructures, and otherwise stops and reports it. For entries the owner allowed, `pnpm lint:rust-modules -- --owner-approved` records the tree as it is, and the commit message names the approval. A layer row added for an unassigned module can bring existing references into the count; they need the same approval. |
-| Failure output   | The failure names each new edge with its first source location, the shortest loop it closes, and how many of the other unrecorded edges leave the cycle without it, because one new reference can pull older edges into a cycle. For a grown pair it lists the source modules whose count rose, with their reference locations. `--details` removes the list bounds.                                                        |
+| Concern          | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cycle edge       | A `cycle` line names one edge between two sibling modules of the same cycle group, per Cargo member and target. A new group, a module joining a group, and a new edge between two members of a group each add an edge and fail. An edge that a layer contract allows, from a higher layer to a lower one, is never counted: the opposite edge is the one at fault.                                                                                                              |
+| Upward reference | An `upward` line gives the number of references from one module into a higher-layer module. The limit is the sum over one pair of assigned modules, so moving code between the submodules of the source passes and one more reference in the pair fails.                                                                                                                                                                                                                        |
+| Rename or move   | Entries are compared by name. Recorded entries of a module that no longer exists cover the same number of unrecorded entries in the same member and target, so renaming or moving a module passes without a change to the record. Moving a cycle into another member fails: break it first, as [Module Boundaries](MODULE-BOUNDARIES.md#native-source-trees) requires.                                                                                                          |
+| Removed finding  | A recorded entry that the tree no longer has never fails, and while its modules still exist it makes no room for a different finding. The check prints how many recorded lines no longer match the tree. Until the record is tightened, that same finding can come back without failing.                                                                                                                                                                                        |
+| Tightening       | `pnpm lint:rust-modules -- --tighten` rewrites the record to the exact findings of a passing tree and writes nothing for a failing one. Run it in the change that removes a finding or renames a recorded module, and commit the result.                                                                                                                                                                                                                                        |
+| Parallel changes | The record is sorted with one finding per line, so two changes that each remove findings delete different lines. After a conflict in the record, keep either side and run `--tighten` again. A change that adds a reference to a finding another change removed fails once it is rebased onto that change.                                                                                                                                                                      |
+| New entry        | Removing the reference or restructuring is the default. An agent may add an entry only when restructuring to avoid the new edge would materially expand its task: `pnpm lint:rust-modules -- --owner-approved` records the tree as it is, the commit body states the reason, and the agent's final report lists the entry as a decision the owner may veto. A layer row added for an unassigned module can bring existing references into the count; the same rule covers them. |
+| Failure output   | The failure names each new edge with its first source location, the shortest loop it closes, and how many of the other unrecorded edges leave the cycle without it, because one new reference can pull older edges into a cycle. For a grown pair it lists the source modules whose count rose, with their reference locations. `--details` removes the list bounds.                                                                                                            |
 
 The check reads source text only, needs no network, and takes about two seconds for the whole
 workspace (Windows 11 x64, Node.js 22, 2026-11-20). It covers Rust only: `import/no-cycle` and
@@ -126,7 +145,7 @@ TypeScript has no record.
 | `orchbee/filename-naming-convention`        | `docs/TESTING.md#source-and-test-paths`               |
 | `orchbee/module-boundaries`                 | `docs/MODULE-BOUNDARIES.md#module-boundaries`         |
 | `orchbee/no-cross-workspace-source-imports` | `docs/ARCHITECTURE.md#package-boundaries`             |
-| `orchbee/no-inline-suppressions`            | `docs/CODESTYLE.md#inline-suppressions`               |
+| `orchbee/no-inline-suppressions`            | `docs/LINTING.md#inline-suppressions`                 |
 | `orchbee/no-react-use-callback`             | `docs/frontend/react.md#callback-identity`            |
 | `orchbee/component-export-boundary`         | `docs/frontend/react.md#tsx-file-boundary`            |
 | `orchbee/hook-export-boundary`              | `docs/frontend/react.md#hook-file-boundary`           |

@@ -2,10 +2,10 @@
 
 ## Semantic module design
 
-Apply this section to every authored language. Start with the accepted domain contract and modeling
-record in [`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md); this section owns only the
-mapping from those semantic responsibilities to source modules. Change authorization and task
-slicing remain in [`DEVELOPMENT.md`](DEVELOPMENT.md), cross-workspace direction remains in
+Apply this section to every authored language. Start with the domain contract under
+[`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md#domain-contract); this section owns only
+the mapping from those semantic responsibilities to source modules. Change authorization remains in
+[`DEVELOPMENT.md`](DEVELOPMENT.md), cross-workspace direction remains in
 [`ARCHITECTURE.md`](ARCHITECTURE.md), and language-specific visibility remains in the sections below
 and the owning language standard.
 

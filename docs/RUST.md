@@ -111,7 +111,7 @@ Adding a dependency is a reserved decision under
 
 | Concern            | Contract                                                                                                                                                                                    |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime frameworks | The workspace uses no async runtime, argument-parsing framework, error-aggregation crate, or logging framework. Introducing one is Consequential work, not a per-crate choice.              |
+| Runtime frameworks | The workspace uses no async runtime, argument-parsing framework, error-aggregation crate, or logging framework. Introducing one is a reserved dependency decision, not a per-crate choice.  |
 | Features           | Declare `default-features = false` and list the features actually used; enabling a feature is reviewed as a dependency change.                                                              |
 | Version unity      | Direct dependencies resolve to one version across the workspace; a change that adds a duplicate transitive version to `Cargo.lock` names it in review with the reason it cannot be unified. |
 | Transitive review  | Review the added transitive tree, its `unsafe` footprint, build scripts, proc macros, maintenance status, and license before acceptance.                                                    |
@@ -182,7 +182,7 @@ the record rule.
 - Every `pub` and `pub(crate)` item at a crate or module boundary carries a `///` comment that
   states what the item guarantees. Add `# Errors` when the returned error has variants the caller
   must distinguish and `# Panics` when a proven invariant is asserted.
-- Private items follow [Code Style](CODESTYLE.md#comments): a comment explains a constraint or a
+- Private items follow [Linting](LINTING.md#comments): a comment explains a constraint or a
   non-obvious decision, not the signature.
 - Comments describe current behavior. Task history, staged-slice markers, and references to
   conversations do not belong in source.

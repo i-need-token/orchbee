@@ -43,6 +43,29 @@ Product copy that ships is not a package document: the root `README` pair,
 `apps/orchbee/docs/cli-agent-skill.md` with its `zh-CN` twin, and any Markdown a binary embeds keep
 the form their reader or consumer needs.
 
+## Tracked files
+
+Track a file only when something will read or run it after the current change is complete: a
+runtime, a build, a test, a release or maintenance workflow, or a reader of current authoritative
+documentation. Name that consumer, what the file alone owns, and what updates or deletes it. When
+one of the three is missing, keep the artifact out of the repository.
+
+- Task history is not repository value. One-off audit, migration, and extraction scripts, scratch
+  notes, command transcripts, point-in-time reports, screenshots, logs, benchmark output, coverage
+  snapshots, and summaries of finished work stay in an operating-system temporary directory, the
+  issue, the pull request, or Git history. Effort spent producing an artifact is not a reason to
+  keep it.
+- Promote the result, not the work trail: add the regression test, update the current contract, or
+  build the reusable tool, then delete the intermediate artifact.
+- A script is durable only with a repeatable workflow and a stable entry point. Do not add a package
+  command or a documentation entry to legitimize a temporary file.
+- Track a generated file only when a runtime, build, release, or external consumer needs the
+  materialized output. Commit its deterministic generator and a check that fails when the output is
+  stale; otherwise generate it locally or in CI.
+- Before handoff, review every new and untracked path in `git status --short` against this section,
+  and remove task-local artifacts together with every command, link, and configuration entry that
+  refers to them.
+
 ## Writing contract
 
 | Rule           | Requirement                                                                                                                                                                               |
@@ -96,4 +119,4 @@ the form their reader or consumer needs.
 | Diagnostic edit       | State the action, violated constraint, and repository-relative `path#anchor`.                                                                                                                                                                            |
 | Enforced rule edit    | Update the implementation, configuration, standard, and rule tests together.                                                                                                                                                                             |
 | Markdown verification | Run `pnpm test:lint-rules`; it checks local inline-link paths and Markdown heading anchors across repository Markdown and the Chinese Markdown allowlist under [Language](#language). Fenced and inline code examples are excluded from link resolution. |
-| Contract edit         | Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and relevant tests.                                                                                                                                                                              |
+| Contract edit         | Run the [applicable root gate](VERIFICATION.md#merge-gate).                                                                                                                                                                                              |

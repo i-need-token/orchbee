@@ -114,7 +114,7 @@ depend on execution order.
 
 Add a benchmark only for a named performance question with a recurring consumer, such as
 comparing a hot path before and after a change; it is a tracked file under
-[Repository Hygiene](REPOSITORY-HYGIENE.md#tracked-file-admission).
+[Documentation](DOCUMENTATION.md#tracked-files).
 
 - Reach the measured code through the entries its production consumers use. Measurement never
   widens visibility or adds a test-access seam.

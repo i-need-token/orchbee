@@ -9,7 +9,7 @@ const LOCATION_LIMIT = 6;
 const HEADER = [
 	'# Existing Rust module cycle edges and upward references, one per line.',
 	'# `pnpm lint:rust-modules` fails when the module graph grows beyond this record.',
-	'# Never add or change a line by hand: only the repository owner may allow a new entry.',
+	'# Never add or change a line by hand; the rule below says when an entry may be recorded.',
 	'# After removing a cycle or an upward reference, run `pnpm lint:rust-modules -- --tighten`',
 	'# and commit the smaller file. docs/LINTING.md#rust-module-record defines the rule.',
 ];
@@ -281,9 +281,10 @@ function formatFailure(verdict, details, recordPath) {
 	lines.push(
 		'What to do: take the new reference out, or make the dependency point one way: move the',
 		'shared item into a module that both sides may depend on, or let the caller pass it in.',
-		`Never add or change a line in ${recordPath}.`,
-		'Only the repository owner may allow a new entry: if neither fix fits your task, stop and',
-		'report the reference to the owner.',
+		`Never add or change a line in ${recordPath} by hand.`,
+		'If avoiding the new reference would materially expand your task, record it with',
+		'`pnpm lint:rust-modules -- --owner-approved`, state the reason in the commit body, and list',
+		'the entry in your final report as a decision the owner may veto.',
 	);
 	return lines;
 }

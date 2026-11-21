@@ -179,7 +179,7 @@ Before merging a package change:
 2. Review every public source entry and `package.json#exports` as public API changes.
 3. Build the package and its workspace dependencies with `pnpm --filter <package-name>... build`.
 4. Run `pnpm --filter <package-name> typecheck`, `pnpm --filter <package-name> test`, and `pnpm --filter <package-name> test:exports`.
-5. Run `pnpm verify` from the repository root.
+5. Run the [applicable root gate](VERIFICATION.md#merge-gate) from the repository root.
 6. Update the package README and affected repository standards when the change alters something they state.
 
 ## Publishable packages

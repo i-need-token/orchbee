@@ -19,7 +19,7 @@ export const noInlineSuppressions = {
 					if (!suppression) continue;
 					context.report({
 						loc: startLoc(comment),
-						message: `Remove inline lint suppression "${suppression}"; fix the code or change the project rule with human approval. See docs/CODESTYLE.md#inline-suppressions.`,
+						message: `Remove inline lint suppression "${suppression}"; fix the code or change the project rule with human approval. See docs/LINTING.md#inline-suppressions.`,
 					});
 				}
 			},

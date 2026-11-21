@@ -1159,7 +1159,7 @@ function parseArguments(argv) {
  * Judges analyzed targets against the tracked record. `rewrite: 'tighten'` replaces the record
  * with the exact findings of a passing tree and writes nothing for a failing one, so it never adds
  * a finding. `rewrite: 'owner-approved'` records the findings as they are, new ones included: the
- * one way to extend the record, for entries the repository owner allowed. `complete` says the
+ * one way to extend the record, under docs/LINTING.md#rust-module-record. `complete` says the
  * results cover every Cargo member.
  */
 export function checkRecord(repositoryRoot, results, { complete = true, rewrite } = {}) {
@@ -1198,7 +1198,7 @@ function main() {
 		if (record?.verdict !== undefined) process.stdout.write(formatVerdict(record.verdict, options));
 		if (record?.rewritten === true && options.rewrite === 'owner-approved')
 			process.stdout.write(
-				`Rewrote ${RECORD_PATH} to the findings above, new ones included. Only the repository owner may allow that: name the approval in the commit message.\n`,
+				`Rewrote ${RECORD_PATH} to the findings above, new ones included. State the reason in the commit body and list each new entry in your final report as a decision the owner may veto.\n`,
 			);
 		else if (record?.rewritten === true)
 			process.stdout.write(`Rewrote ${RECORD_PATH} to the findings above; commit it.\n`);

@@ -12,7 +12,7 @@
 - **Product copy is localized.** Every product-facing message goes through the localization system and ships in both `en-US` and `zh-CN`; locale resources are product assets and may contain their target language.
 - **Documentation authority follows ownership.** Each fact has one authority. Code, help text, and schemas own what they declare; a package document keeps only what they cannot show, under `docs/DOCUMENTATION.md#package-documents`, and a change edits a document only when it alters something that document states. Repository standards never inventory one package's business behavior, source tree, screen composition, or roadmap; future design belongs under `proposals/`.
 - **Every tracked file must have durable repository value.** Before adding a file, identify its future consumer, authoritative responsibility, recurring use, and maintenance lifecycle; task history and one-off working artifacts do not belong in the repository.
-- **Complete authorized work autonomously.** Follow `docs/DEVELOPMENT.md`: classify risk before editing, treat a clear request as authorization for its complete scoped result, and continue through implementation, checks, and ordinary repairs. Escalate new reserved decisions; pause only their dependent work.
+- **Complete authorized work autonomously.** Follow `docs/DEVELOPMENT.md`: treat a clear request as authorization for its complete scoped result, and continue through implementation, checks, and ordinary repairs. Escalate new reserved decisions; pause only their dependent work.
 - **Routine verification does not require full builds.** Use the affected host gate in `docs/VERIFICATION.md` for ordinary edits and merges. Full application builds and cross-compilation use explicit commands when the changed build, packaging, or platform contract needs them; do not repeat a gate merely to merge unchanged checked inputs.
 - **Do not add unit tests by default.** Rust, Zig, and TypeScript use the admission and removal rule in `docs/TESTING.md`: justify a meaningful evidence gap before adding tests, assert rules rather than one design, delete a design-pinning test that an intended change breaks instead of updating its expectations, and remove low-value companions while retaining necessary behavior and regression evidence.
 - **Act on structural smells early.** When an in-scope change reveals a clear risk of growth, coupling, ownership ambiguity, or boundary erosion, resolve it before it spreads; if the remedy would materially expand scope, surface the risk before proceeding.
@@ -29,14 +29,12 @@
 - **Applications**: `docs/APPLICATIONS.md` — runnable workspace placement, shape, and lifecycle
 - **Module Boundaries**: `docs/MODULE-BOUNDARIES.md` — semantic module design, source-tree visibility, entry points, composition, and cycles
 - **Packages**: `docs/PACKAGES.md` — package naming, exports, builds, dependencies, and versioning
-- **Code Style**: `docs/CODESTYLE.md` — comments, naming, file structure conventions
-- **Documentation**: `docs/DOCUMENTATION.md` — read before adding, moving, or restructuring docs or changing documented engineering contracts
-- **Repository Hygiene**: `docs/REPOSITORY-HYGIENE.md` — tracked-file admission, temporary artifacts, generated files, and pre-handoff review
-- **Linting**: `docs/LINTING.md` — commands, enforcement boundary, and custom-rule ownership
-- **Verification**: `docs/VERIFICATION.md` — the canonical local and CI quality gate
+- **Documentation**: `docs/DOCUMENTATION.md` — read before adding, moving, or restructuring docs or changing documented engineering contracts; tracked-file admission, temporary artifacts, and generated files
+- **Linting**: `docs/LINTING.md` — enforcement boundary, code style and comments, the Rust module record, and custom-rule ownership
+- **Verification**: `docs/VERIFICATION.md` — the canonical local and CI quality gate, the affected gate, and the root commands
 - **Releasing**: `docs/RELEASING.md` — the owner's release setup, per-release steps, and failure recovery
-- **Development**: `docs/DEVELOPMENT.md` — scoped authorization, risk classification, continuous delivery, and convergence
-- **Modeling and Correctness**: `docs/MODELING-AND-CORRECTNESS.md` — model-first behavior design and risk-based correctness evidence
+- **Development**: `docs/DEVELOPMENT.md` — scoped authorization, reserved decisions, working rules, and completion
+- **Modeling and Correctness**: `docs/MODELING-AND-CORRECTNESS.md` — when a change needs a model, property test, or trace; commit boundaries; TLA+ and counterexample rules
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
 - **Rust**: `docs/RUST.md` — Cargo workspace placement, crate shape, dependency admission, platform gating, ownership, safety, concurrency, process boundaries, localization, contracts, and verification
 - **Zig**: `docs/ZIG.md` — native naming, resource ownership, safety, concurrency, and testing
@@ -65,11 +63,11 @@
 - **TUI Mouse Input**: `docs/tui/mouse-input.md` — capture policy, hit testing, gesture vocabulary, passthrough, wheel normalization, and selection
 - **TUI Overlays and Status**: `docs/tui/overlays-and-status.md` — surface selection, overlay composition, confirmations, status line, notices, and pending indication
 - **TUI Terminal Environment**: `docs/tui/terminal-environment.md` — host admission, mode lifecycle, capability detection, output discipline, and restoration
-- **TUI Verification**: `docs/tui/verification.md` — structural prerequisites and render, input, environment, and host evidence for terminal interfaces
+- **TUI Verification**: `docs/tui/verification.md` — structural prerequisites, the outcomes a terminal-interface change keeps, whole-screen visual review, and host evidence
 - **CLI Command Surface**: `docs/cli/command-surface.md` — grammar authority, command paths, options, targets, help, completion, destructive commands, Agent discoverability, and environment variables
 - **CLI Output**: `docs/cli/output.md` — stream split, formats, machine documents, exit codes, text rendering, bounds, streamed records, and localization
 - **CLI Process**: `docs/cli/process.md` — input trust boundary, parse before effect, deadlines, side effects, request identity, signals, and runtime discovery
-- **CLI Verification**: `docs/cli/verification.md` — structural prerequisites and grammar, effect, exit-code, text, bounds, and process evidence for command-line surfaces
+- **CLI Verification**: `docs/cli/verification.md` — structural prerequisites and the outcomes a command-line change keeps
 
 ## Project Structure
 
