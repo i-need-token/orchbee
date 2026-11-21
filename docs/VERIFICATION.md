@@ -219,15 +219,16 @@ results remain unchanged.
 - The Terminal Host Zig tests run under two deadlines, because one hung test otherwise stalls
   `pnpm verify` indefinitely. Zig's `--test-timeout 120s` bounds each unit test, reports a hung test
   by name, and continues with the next one; the slowest test binary took at most 18 s in total, so
-  the bound leaves more than six times that. A 20-minute deadline bounds the whole `zig build test`
-  run, including compilation and the native witnesses outside Zig's test runner. A cold run took
-  3.7 minutes and a warm run 41 seconds, so the bound leaves over five times the cold run, and it
-  stays inside the CI job limits (30 minutes for `terminal-host-native`, and 60 for the macOS
-  `client-commands` job, which runs the tests after its Rust part) so the gate reports before CI
-  cancels the job. Measurements: Windows 11 x64, Zig 0.16.0, 2026-10-31. On expiry the runner lists
-  the test binaries still running and the process tree that run started, terminates only that tree,
-  and fails with exit 124. Either timeout fails the stage, never passes or skips it. Remeasure
-  before changing either bound.
+  the bound leaves more than six times that. A 25-minute deadline bounds the whole `zig build test`
+  run, including compilation and the native witnesses outside Zig's test runner. GitHub's Windows
+  runner is the slowest host: with the moves between Hosts, its run took 15.0 to 17.7 minutes, and
+  their black-box run adds about one more, so the bound leaves over six minutes above the slowest
+  run. It stays inside the CI job limits (30 minutes for `terminal-host-native`, whose earlier steps
+  take about 2 minutes, and 60 for the macOS `client-commands` job, which runs the tests after its
+  Rust part) so the gate reports before CI cancels the job. Measurements: `windows-latest`, Zig
+  0.16.0, 2026-11-21. On expiry the runner lists the test binaries still running and the process
+  tree that run started, terminates only that tree, and fails with exit 124. Either timeout fails
+  the stage, never passes or skips it. Remeasure before changing either bound.
 - The Terminal Host's program-output fuzz pass joins `zig build test` as a bounded Debug pass:
   three fixed seeds of two reader batches each took 5.6 to 7.8 s, inside the 120 s per-test bound,
   because Ghostty's Debug integrity checks make one batch cost seconds. Its volume runs only on

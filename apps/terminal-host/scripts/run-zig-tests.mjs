@@ -3,7 +3,7 @@ import path from 'node:path';
 
 // Deadline basis and measurements: docs/VERIFICATION.md#required-tasks.
 const unitTestTimeout = '120s';
-const runDeadlineMilliseconds = 20 * 60_000;
+const runDeadlineMilliseconds = 25 * 60_000;
 const timeoutExitCode = 124;
 const listedProcessLimit = 40;
 
