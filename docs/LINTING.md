@@ -8,7 +8,7 @@
 | `pnpm lint`                  | Run the complete required repository lint pipeline                                                                                                |
 | `pnpm lint:code`             | Run blocking oxlint diagnostics with agent-oriented output                                                                                        |
 | `pnpm lint:code:warnings`    | Audit blocking diagnostics and non-blocking oxlint warnings                                                                                       |
-| `pnpm lint:rust`             | Validate the pinned Cargo workspace and run locked Clippy work when members exist                                                                 |
+| `pnpm lint:rust`             | Validate the pinned Cargo workspace and run locked Clippy over every member                                                                       |
 | `pnpm lint:rust-modules`     | Report Rust module cycles and upward references against owner layer contracts, and fail on any beyond the record of existing ones                 |
 | `pnpm lint:styles`           | Validate the token registry and authored frontend styling contract                                                                                |
 | `pnpm lint:storage`          | Validate browser-storage access, ownership, key shape, and versioning                                                                             |

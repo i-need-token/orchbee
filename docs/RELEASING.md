@@ -1,9 +1,8 @@
 # Releasing
 
 The owner's steps for the release path of `.github/workflows/release.yml` and the update check of
-`.github/workflows/update-check.yml` after it; what each job does and checks is in
-[Release workflow](VERIFICATION.md#release-workflow) and
-[Update check workflow](VERIFICATION.md#update-check-workflow), and the names it produces are in
+`.github/workflows/update-check.yml` after it; what each job does and checks is in the comments of
+those two files, and the names it produces are in
 the [release distribution proposal](../proposals/platform/release-distribution.md). Commands run
 from the repository root.
 
@@ -88,7 +87,7 @@ repository>`. Print each public half with the command in
    path when no qualifying release exists yet, which lets publication go on. Beside the build, each
    job "Release window Update <platform>" builds a Test window and presses Update in it, in
    Settings › About and in the sidebar footer, as the
-   [real-window Update check](VERIFICATION.md#release-workflow) describes; publication waits for
+   [real-window Update check](../scripts/release-window-update.mjs) describes; publication waits for
    it as for the gate. Publication places the
    feed's signature beside it, then creates
    a draft release `v0.1.0-beta.1` holding the setup file, the `.zip`, the
@@ -107,7 +106,7 @@ repository>`. Print each public half with the command in
    which on a fresh runner of each platform whose release builds update themselves (Windows and
    both macOS rows) installs the version people have now—including `<store root>/desktop/` when
    both feeds carry `extensions.desktop`—and updates it to the release through `orchbee update`
-   from the published assets ([Update check workflow](VERIFICATION.md#update-check-workflow)). To
+   from the published assets ([update check workflow](../.github/workflows/update-check.yml)). To
    run it again by hand, Run workflow with the tag, or
    `gh workflow run update-check.yml --ref main -f tag=v0.1.0-beta.1`.
 7. Automatic website rollout and live verification: once every `update-check` row passes, the
@@ -204,6 +203,8 @@ then set `"publish": true` on its row of `RELEASE_PLATFORMS` in `.github/workflo
 
 ## What clients rely on
 
+- The Windows installer and its programs carry no Authenticode signature; the release manifest's
+  Ed25519 signature is the only one.
 - A published archive stays at its address for as long as a channel's feed names it. A feed is
   signed with a key every client still in use trusts; while rotating keys, sign with the old and
   the new one, and keep `RELEASE_KEYS` in `apps/orchbee/src/cli/update/signature.rs` and

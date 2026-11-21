@@ -205,7 +205,7 @@ Every release proves the window before Publish.
   the repository is public, so the runners cost nothing. The paths run in parallel, about 15
   minutes each (unmeasured).
 - The gate first runs for the release after slice 1, the first with an earlier release that updates
-  itself. The [update check workflow](../../docs/VERIFICATION.md#update-check-workflow) still runs
+  itself. The [update check workflow](../../.github/workflows/update-check.yml) still runs
   after publication, over the public route.
 
 ### Make before break

@@ -10,7 +10,8 @@ name: Update check
 # the public release: no secret, no environment, read-only permissions. Once every row passes,
 # `website-release` advances `main` and deploys the website when the tag is newer than `main`'s
 # `release.ts`, then verifies the live edge feeds and `install.sh` byte for byte.
-# Contract: docs/VERIFICATION.md#update-check-workflow; the owner's steps: docs/RELEASING.md.
+# Rules for changing this file: docs/VERIFICATION.md#release-and-update-check-workflows; the owner's
+# steps: docs/RELEASING.md. The comments here are the description of each job.
 on:
   release:
     types: [published]

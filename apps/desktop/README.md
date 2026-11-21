@@ -157,7 +157,7 @@ installed release's. A Session already running keeps the configuration it starte
 Run these steps on real windows before merging a change to the Update action and its refusal and
 failure notices, the relaunch, the window launcher, or the window store handover. The unit tests
 do not start a real window. The release workflow runs the same steps on every release-path run as
-the [real-window Update check](../../docs/VERIFICATION.md#release-workflow), on a packaged Test
+the [real-window Update check](../../scripts/release-window-update.mjs), on a packaged Test
 window and two older stand-ins copied from it; locally,
 `node scripts/release-smoke-windows.mjs window-update <folder> --work <new folder>` (on macOS
 `release-smoke-macos.mjs`), given the folder `pnpm desktop:package:test` writes, replaces them.

@@ -13,7 +13,8 @@ name: Release
 # release as Latest, and starts the Update check. A lightweight tag or an empty tag message stops it
 # before the build. A rehearsal cannot publish: `release-publish` is the only job with write
 # permissions or the npm token, and it runs only for a `push` event whose plan says `publish`.
-# Contract: docs/VERIFICATION.md#release-workflow; the owner's steps: docs/RELEASING.md.
+# Rules for changing this file: docs/VERIFICATION.md#release-and-update-check-workflows; the owner's
+# steps: docs/RELEASING.md. The comments here are the description of each job.
 on:
   workflow_dispatch:
     inputs:

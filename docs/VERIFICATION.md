@@ -203,9 +203,8 @@ results remain unchanged.
 - Rust workspace work uses the exact root toolchain and committed Cargo lockfile; Zig source
   dependencies use immutable URLs and content hashes. Required builds reject a different compiler
   or dependency resolution before producing an artifact.
-- `scripts/run-rust-workspace.mjs` connects the root pnpm gate to Cargo. Before the first accepted
-  Rust member exists, it validates the pinned toolchain and empty workspace metadata; afterward the
-  same tasks run rustfmt, Clippy, build, and tests over every member with `--locked`. The test
+- `scripts/run-rust-workspace.mjs` connects the root pnpm gate to Cargo. It validates the pinned
+  toolchain, then runs rustfmt, Clippy, build, and tests over every member with `--locked`. The test
   task adds `--no-fail-fast`, so one run reports every failing test target instead of stopping at
   the first; a Windows CI job takes tens of minutes, so a run that names one failure at a time
   costs a run per failure. The result is unchanged: any failing target still fails the task.
@@ -252,7 +251,7 @@ results remain unchanged.
 
 `pnpm test:tla` is the complete TLA verification gate. It runs the Java-free inventory and runner tests, then checks every registered configuration and the real TLC cache/mutation witnesses. Model checking always starts from fresh state and does not reuse success results. The complete invocation fails if wall time exceeds 60 seconds. Measure three complete fresh-state runs with dependencies and pinned tools installed when changing this budget or the portfolio; disclose machine/load and provisioning time separately.
 
-`scripts/tla/models.json` registers 19 protocol models with 28 configurations (one per named variant, otherwise one per model), with semantic owners, claims, implementation triggers, required action coverage and a 20-second configuration deadline. This is the whole maintained portfolio, not a fast subset in front of a hidden required full suite. New models must fit the complete budget and the admission criteria in [Modeling and Correctness](MODELING-AND-CORRECTNESS.md). A timeout is a failure, not a way to skip work.
+`scripts/tla/models.json` registers every protocol model and its configurations (one per named variant, otherwise one per model), with semantic owners, claims, implementation triggers, required action coverage and a 20-second configuration deadline. This is the whole maintained portfolio, not a fast subset in front of a hidden required full suite. New models must fit the complete budget and the admission criteria in [Modeling and Correctness](MODELING-AND-CORRECTNESS.md). A timeout is a failure, not a way to skip work.
 
 The ordinary `pnpm verify` gate runs `test:tla:inventory`; it does not implicitly run Java. CI runs no TLA+ model checking or TLC. Product protocol state, transitions, assumptions or refinement changes require the affected registered model, run locally with `pnpm test:tla:changed -- <base>` or `pnpm test:tla`, and its implementation tests. Workspace commands delegate to the shared runner; workspaces with only local implementation evidence expose no empty TLA command. `node scripts/tla/run-models.mjs --all` is the model-only baseline; it is not the complete TLA gate.
 
@@ -328,181 +327,19 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
 - The workflow uses read-only repository permissions.
 - Credentials, write permissions, release actions, external checkouts, and other side effects require separate human review and must not enter the required job implicitly.
 
-## Release workflow
+## Release and update-check workflows
 
-`.github/workflows/release.yml` is never a required check. Its top-level permission is
-`contents: read`; the owner's steps are in [Releasing](RELEASING.md). It has two ways in:
+`.github/workflows/release.yml` and `.github/workflows/update-check.yml` are never required checks.
+The comments in those files and in the scripts they run state what each job does, in what order,
+and why; the owner's steps are in [Releasing](RELEASING.md). Three rules bind every change to them:
 
-| Start                              | Path    | Identity and key                                | Publishes                               |
-| ---------------------------------- | ------- | ----------------------------------------------- | --------------------------------------- |
-| By hand, `version` empty           | Dry run | Test identity, the repository's test key        | Nothing; artifacts kept three days      |
-| By hand, `version` set (rehearsal) | Release | Release identity, `ORCHBEE_RELEASE_SIGNING_KEY` | Nothing; artifacts kept one day         |
-| Pushed tag `v<version>`            | Release | Release identity, `ORCHBEE_RELEASE_SIGNING_KEY` | A GitHub Release and npm, no human step |
-
-- One row per release platform token carries `build` and `publish` flags. The dry run's `plan` job
-  selects the Windows `build` rows. `node scripts/release-publish.mjs plan` gives the release path
-  every `build` row on a rehearsal and the rows with both flags on a tag run, split into a Windows
-  matrix and a macOS matrix, and refuses a run without a Windows row or a row of a platform family
-  the workflow has no jobs for. `windows-x86_64`, `macos-aarch64` (`macos-15`) and `macos-x86_64`
-  (`macos-15-intel`) have both flags, so a tag run builds, smokes and publishes all three, and a
-  failure on any of them stops the tag.
-- Dry run: `build` installs the pinned toolchains, with Zig and Inno Setup 6.7.1 downloaded and
-  checked by digest, runs `pnpm desktop:installer:test --build-id <commit>.<run number>`, and then
-  `node scripts/release-artifacts.mjs collect`, which gathers the signed release directory, its
-  `.zip`, the window archive `<stem>-desktop-<version>-<platform>.zip`, the update feed document
-  with its signature by the repository's test key, the setup file, the npm tarballs, and
-  `SHA256SUMS`. `smoke` and `smoke-npm` take that
-  artifact to fresh runners, check it with `node scripts/release-artifacts.mjs check`, and run
-  `node scripts/release-smoke-windows.mjs` one step at a time: the installer route, then the npm
-  route, each ending with the leftover scan. Run those steps only on a disposable Windows machine;
-  they install and remove for real.
-- Release path, in order; each job stops the run with a sentence naming what is wrong:
-
-  | Job                                  | Does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Needs                                                                                                      |
-  | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-  | `release-plan`                       | Takes the version from the tag or the input; on a tag run, `release-publish.mjs notes` reads the release notes, the annotated tag's message without a trailing signature block, through the GitHub API, and fails for a lightweight tag or an empty message; runs `node scripts/release-version.mjs check v<version>`; then `release-publish.mjs gate-paths` reads the published releases through the GitHub API and selects the Windows release gate paths (`gate` / `gate-matrix`: previous, second-previous, middle and oldest in the 90-day window from `gateFirstVersion` 0.1.0-beta.14 on) plus the Apple silicon macOS gate path (`macos-gate` / `macos-gate-matrix`: the newest published release in that window carrying `orchbee-<ver>-macos-aarch64.feed.json` and `.sig`)                                                                                                                                                                                                                                                                | Every version source at that version                                                                       |
-  | `release-preconditions`              | `release-publish.mjs preconditions`: the signing key is an Ed25519 PKCS #8 PEM key whose public half is in `RELEASE_KEYS`; on a tag run `NPM_TOKEN` is set                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Environment `release`                                                                                      |
-  | `release-build`                      | Stages the cohort with the release stem and writes `release.json` (`stable`, the version, `<commit>.<run number>`); uploads the cohort and, separately, `release.json`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | No secret                                                                                                  |
-  | `release-build-macos`                | On each macOS row's runner, in bash: the pinned Zig macOS archive checked by digest and the Zig packages action as in `verify.yml`, then the same staging and `release.json` as `release-build`, refusing a manifest whose platform is not the row's                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | No secret                                                                                                  |
-  | `release-sign`                       | For every row, signs only `release.json` with `scripts/sign-release-manifest.mjs`, which with the feed module it imports uses Node built-ins only, in a job that runs no other repository code                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Environment `release`                                                                                      |
-  | `release-package`                    | `node apps/desktop/scripts/package.mjs --profile release --installer --cohort <signed cohort>`, then `release-artifacts.mjs collect --profile release`, which also writes the window archive and the unsigned update feed document naming both archives by their GitHub release asset addresses; uploads the feed document again on its own for `release-feed`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | No secret                                                                                                  |
-  | `release-package-macos`              | Restores the executable bit download-artifact drops from the four programs, then `package.mjs --profile release --installer --cohort <signed cohort>`, which writes the ad-hoc signed app, its window file list and its disk image, and `release-artifacts.mjs collect --profile release`, which adds the `.tar.gz`, the window archive and its feed document                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | No secret                                                                                                  |
-  | `release-feed`                       | After `release-package`, receiving only the feed document: `node scripts/release-feed.mjs gate` writes the gate copy `<stem>-<version>-<platform>.gate.feed.json`, the same document naming each archive by its file name, and one step signs both with `scripts/sign-release-manifest.mjs` and the release key; uploads the feed's `.sig` as `release-feed-signature-<platform>` and the signed gate copy as `release-gate-feed-<platform>`, kept as long as the release artifacts. Runs for every row on every release-path run, rehearsals included, and runs only scripts that use Node built-ins                                                                                                                                                                                                                                                                                                                                                                                                                                                | Environment `release`                                                                                      |
-  | `release-smoke`, `release-smoke-npm` | The dry run's smoke steps on fresh runners with those exact files and the release names; a release build must refuse each withheld command with exit `4`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | No secret                                                                                                  |
-  | `release-smoke-macos`                | On a fresh runner of each macOS row, `release-artifacts.mjs check`, then `node scripts/release-smoke-macos.mjs` one step at a time: `disk-image` mounts the image read-only without Finder, runs `codesign --verify --deep --strict` and the bundled program's `--version`; `archive` installs from the `.tar.gz` under a scratch `HOME`, checks the active version, the link and the PATH lines in `~/.zshenv`, and uninstalls, after which the link and that file are gone; `install-script` pipes the website's `install.sh --desktop` into `/bin/sh`, under a shell's soft open-file limit of 256, against a local gate copy of the row's feed signed with the repository's test key (`feed.json.sig`), checks signature verification, the active version, the link, the PATH lines in `~/.zshenv`, the copied application's signature, the store's signed window version and its emptied temporary folder, and uninstalls; `npm` installs the npm tarballs into a scratch prefix, starts once, and uninstalls; each ends with the leftover scan | No secret                                                                                                  |
-  | `release-window-update`              | From `release-plan` on, beside the release build, on each Windows row's runner: the toolchains as in `build`, `pnpm desktop:package:test --build-id <commit>.<run number>`, then `node scripts/release-smoke-windows.mjs window-update <packaged Test window> --work <new directory> --diagnostics <directory>`, the real-window Update check below; a failure uploads the diagnostics as `release-window-update-<platform>` for three days                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | No secret                                                                                                  |
-  | `release-window-update-macos`        | The same on each macOS row's runner, in bash, with the toolchains of `release-build-macos` and `node scripts/release-smoke-macos.mjs window-update`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | No secret                                                                                                  |
-  | `release-gate`                       | After `release-feed`, only when `gate == 'true'`: one fresh `windows-latest` runner per selected older release downloads this run's `windows-x86_64` release artifacts with the signed gate copy beside them and runs `node scripts/release-smoke-windows.mjs gate v<older> --release <the older release's download address> --feed <gate copy> --work <new directory>`, which installs the older release from its published archive, pre-seeds `<store root>\desktop\` via `--installer-window-v1` when both feeds carry `extensions.desktop`, lets its own automatic helper install this release and window version from the gate copy while a terminal runs a probe, and checks active runtime and window versions, Client join, gapless probe output, idle move and layout preservation                                                                                                                                                                                                                                                          | No secret                                                                                                  |
-  | `release-gate-macos`                 | After `release-feed`, only when `macos-gate == 'true'`: a fresh `macos-15` runner downloads `release-assets-macos-aarch64` and `release-gate-feed-macos-aarch64` and runs `node scripts/release-smoke-macos.mjs gate v<older> --release <the older release's download address> --feed <gate copy> --work <new directory>`, proving the `macos-aarch64` runtime and `<store root>/desktop/` window store (`codesign --verify --deep --strict` on the stored `Orchbee.app` bundle), Client join, gapless probe output, idle move and layout preservation before stopping the Session cleanly                                                                                                                                                                                                                                                                                                                                                                                                                                                           | No secret                                                                                                  |
-  | `release-join`                       | Downloads every row's release artifacts and feed signature, places each signature beside its feed, runs `check` on each row, then `release-artifacts.mjs join`: one row is copied unchanged; several rows give one directory with one main npm package whose `optionalDependencies` list every row's platform package, the other package bytes kept, and one `SHA256SUMS`, which `check` then admits; uploads it as `release-joined`, so a re-run publishes the same bytes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | No secret                                                                                                  |
-  | `release-publish`                    | Tag runs only (its condition also requires a `push` event), after `release-join`, every smoke job, `release-window-update`, `release-window-update-macos`, `release-gate` and `release-gate-macos` (a skipped macOS smoke or window Update check counts only when the plan has no macOS row, and a skipped gate only when the plan selected no path for that platform): downloads `release-joined`, and `release-artifacts.mjs check` verifies it with each feed's signature; then `release-publish.mjs github` creates or completes the draft release, never a pre-release, with the Install section and the tag's notes; then `release-publish.mjs npm` publishes platform packages first, the main package last, with `--provenance` and the dist-tag `next` for a pre-release, `latest` otherwise; then `release-publish.mjs publish` publishes the draft as the Latest release; then `gh workflow run update-check.yml` starts the update check                                                                                                 | Environment `release`; `actions: write`, `contents: write` and `id-token: write`, granted to this job only |
-
-- The real-window Update check (`scripts/release-window-update.mjs`) drives a Test build, because
-  only a development or Test window reads `ORCHBEE_DESKTOP_DEBUG_PORT` and opens a DevTools port on
-  the loopback interface; a release build never does. Two copies of the Test window whose
-  `app.asar` package version reads `0.0.0-window-update.1` and `0.0.0-window-update.2`, their window
-  file lists written again (on macOS signed ad hoc again), stand in for older window versions. In a
-  scratch store root and data root, the Test window's bundled Client runs `install --no-path`, each
-  window version is installed by its own `--installer-window-v1`, the oldest starts as a person
-  starts it, and a terminal the CLI opens prints a tick every second. Over the DevTools protocol,
-  Settings › About › Update relaunches into the next version; the sidebar footer's Update shows the
-  waiting notice with the newer version's bundled Client moved aside and the failure notice with
-  the file the relaunch starts moved aside, then relaunches into the Test window's own version.
-  Each relaunch must end the older window process, add `window-relaunch-started` to the diagnostic
-  log, run one new window process from the expected program, show the Workspace the older window
-  showed, name the new version in Settings › About, and leave the terminal printing. Nothing is
-  downloaded; the stand-ins cannot prove that a published older window hands over, which the
-  release gate proves for the runtime and window store.
 - Secrets reach only the step that needs them, by environment variable: never an argument, a log
   line, or an artifact. A job that holds a secret installs no dependencies and runs only repository
   scripts that use Node built-ins, plus `gh` and `npm` in `release-publish`.
-- The update feed document (`<stem>-<version>-<platform>.feed.json`, format and signature domain in
-  the [release distribution proposal](../proposals/platform/release-distribution.md#release-feed))
-  names the `.zip` (the `.tar.gz` on macOS) by address, exact size, and SHA-256, and the SHA-256
-  of its `release.json`. In
-  `extensions.desktop` it names the window archive the same way, with the SHA-256 of the
-  `desktop-files.json` that `apps/desktop/scripts/package.mjs` wrote into the packaged window,
-  beside the bundle on macOS ([window archive](../proposals/platform/automatic-updates.md#window-archive-and-file-list)); no
-  reader acts on it before the window self-update release. Its signature is the one published
-  top-level file `SHA256SUMS` does not list: `check` and the draft step admit it only when it
-  verifies under the feed domain with the build's table, `RELEASE_KEYS` for the release stem and
-  `TEST_KEYS` otherwise, and `check` confirms the feed against both archives and the release
-  directory: the window archive holds one top-level folder whose list matches the digest, names
-  exactly its other files by size and SHA-256, and bundles the feed's `release.json`. The draft
-  step refuses a feed without its signature. The gate copy is never published: placed with its
-  `.sig` beside the archives, it is a local feed for the release gate, and `check` admits it
-  unlisted only with a signature that verifies the same way and archives named by their bare file
-  names.
-- A rehearsal cannot publish: `release-publish` requires a `push` event and a plan whose `publish`
-  output is `true`, which only a tag run gives; every other job only uploads workflow artifacts, and
-  `update-check.yml` starts only from `release-publish`. Jobs after a macOS job or the release
-  gate, either of which may be skipped, state their condition with `!cancelled()` and each needed
-  job's result, because GitHub skips a job whose ancestor was skipped. A failed gate path stops
-  the release before Publish.
-- The environment `release` has no required reviewers; cancelling a tag run before
-  `release-publish` starts is the only stop. A failed npm step leaves the release a draft.
-- A re-run never duplicates or replaces a publication. A draft release for the tag is completed with
-  the assets it lacks and then published; a published release holding exactly this run's assets is
-  only confirmed; a published release lacking an asset, an asset with another SHA-256, an asset this
-  run did not make, or two releases for the tag stop the job without a change. An npm version the
-  registry already holds with this run's tarball is skipped; with another tarball the job fails.
-- The installer and its programs carry no Authenticode signature; the release manifest's Ed25519
-  signature is the only one.
-- The release path's artifacts carry release names and a release signature. A rehearsal's are
-  rebuilt by the tag run, so an installed rehearsal build blocks the published one of the same
-  version with `version-conflict`; never install them.
-
-## Update check workflow
-
-`.github/workflows/update-check.yml` proves that a published release can be updated to across
-every self-updating platform and then rolls out and verifies the website update channel
-([Releasing](RELEASING.md#each-release)). It is never a required check.
-
-- Starts: `workflow_dispatch` with the input `tag`, a published tag such as `v0.1.0-beta.2`, which
-  `release-publish` sends after publishing because a release published with its `GITHUB_TOKEN`
-  raises no workflow; and `release: published`, for a release published by hand. A draft's assets
-  answer 404 to an anonymous request, so no check can run before publication.
-- Needs (`update-check` matrix): `permissions: contents: read`, no secret and no environment; every
-  request is an anonymous HTTPS GET to the public release with the system curl.
-- Does (`update-check`), in one job per platform whose release builds update themselves, each on a
-  fresh runner of the one `release.yml` builds that row on (`windows-x86_64` on `windows-latest`,
-  `macos-aarch64` on `macos-15`, `macos-x86_64` on `macos-15-intel`; Linux release builds withhold
-  `update`):
-  `node scripts/release-smoke-<windows|macos>.mjs update <tag> --release <release download folder> --work <runner temp>`,
-  whose shared flow is `scripts/release-update-check.mjs`. The rows run independently, so one
-  platform's failure leaves the others' results.
-- The version people have now is the one the row's tracked update pair names
-  (`apps/website/public/update/stable/<platform>/` at the checked-out commit: the tag for a release
-  run, the chosen branch for a manual one), whose signature must verify with `RELEASE_KEYS`. Its
-  archive (the `.zip` on Windows, the `.tar.gz` on macOS) is fetched from the address the pair
-  signs, checked against the signed size and SHA-256, unpacked with the system tar and installed by
-  its own `install`; when both the tracked feed and the offered feed carry `extensions.desktop`,
-  its window archive is also fetched, verified, unpacked and installed into `<store root>/desktop/`
-  via `--installer-window-v1` (skipped only for pre-window releases below `0.1.0-beta.14` that exit
-  2 or 4 without an `orchbee.install` document). Then the installed command runs `update` with
-  `ORCHBEE_UPDATE_FEED` naming the release's `orchbee-<version>-<platform>.feed.json` asset and
-  must report `activated` with the release's version (and `result.desktop.activated === true` for
-  the new window version when `desktop/` was seeded).
-  - Windows runs `<store root>\bin\orchbee.exe update`, after which `active.json` and the
-    launcher's `--version` name the release, and when `desktop\` was seeded `desktop\active.json`,
-    `desktop\orchbee-desktop.exe` and `desktop\versions\<new>\orchbee-desktop.exe` match the new
-    window version.
-  - macOS works with HOME and TMPDIR in the work folder, so the store root
-    `~/.local/share/orchbee`, the command link `~/.local/bin/orchbee` and the data root lie inside
-    it. It runs `update` through the link, after which `active.json` names the release, the
-    version's Client and the link answer `--version` with it, the link names that Client, and when
-    `desktop/` was seeded `desktop/active.json` names the new window version and
-    `codesign --verify --deep --strict` accepts `desktop/versions/<new>/Orchbee.app`; no process
-    may run from the work folder afterwards, and the work folder is deleted. The release must be
-    this Mac's own platform, so a row is never proven on the other architecture.
-- Without a tracked pair (the first update-capable release of a platform), or when the pair
-  already names the release, the release itself is installed from its archive and its `update`
-  fills an empty scratch store through `ORCHBEE_INSTALL_DIR`, which still exercises feed,
-  download, unpacking, publication and activation from GitHub. The scratch store sits beside the
-  store root: the store refuses to create a missing root below a folder other accounts can read,
-  such as the runner's temporary folder.
-- A release that publishes no row of a platform fails that platform's row at its feed, which
-  answers 404; move the channel only for the platforms the release published.
-- A failure names the stage that failed and prevents `website-release` from advancing the channel.
-  The Windows step installs for real, so run it only on a disposable Windows machine; the macOS
-  step touches nothing outside its work folder. Their stand-in for a rehearsal on one computer is
-  a test build's stem with `--stem`, a loopback address for `--release` serving the release's
-  assets, and `--current` naming a folder with a test-signed pair; only a test stem admits a
-  loopback address. Either script refuses a release stem with a loopback address (exit 2), an
-  existing work folder, and a feed that is not public yet, which is how a draft answers.
-- `website-release` (`ubuntu-latest`, `needs: [update-check]`, `environment: website`): runs only
-  after every `update-check` row passes. Checks `node scripts/website-release.mjs should-advance <version>`
-  against `main` first (exiting 0 without requiring secrets when `<version>` is strictly below
-  `main`'s `release.ts` version, or equal with the live edge already matching), validates
-  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` via
-  `node scripts/website-release.mjs preconditions`, runs `pnpm website:release <version>`, enforces
-  `node scripts/website-release.mjs assert-clean-diff` (`release.ts` and
-  `apps/website/public/update/<channel>/<platform>/feed.json.{signed,sig}` only, with
-  `schemaVersion: 1` enforced on `/update/<channel>/`), runs `@orchbee/website` tests and
-  `pnpm website:build`, commits and pushes to `main` with retry regeneration on concurrent pushes,
-  deploys via `wrangler deploy`, and runs `node scripts/website-release.mjs verify-live` to compare
-  every live `/update/<channel>/<platform>/feed.json`, `.sig` and `/install.sh` byte for byte
-  against the tracked files.
+- Only `release-publish` holds write permissions, and it runs only for a pushed tag. A rehearsal
+  and a dry run publish nothing.
+- The Windows smoke, gate and update steps install and remove for real: run them only on a
+  disposable Windows machine. The macOS steps touch nothing outside their work folder.
 
 ## External-source audits
 
@@ -510,16 +347,3 @@ every self-updating platform and then rolls out and verifies the website update 
   not an external-source audit. Its immutable URL and digest belong in the owning native manifest.
 - Package-specific audits requiring an external checkout, credential, service, device, or undeclared environment input remain explicit maintenance commands documented by the owning package and stay outside `pnpm verify`.
 - Promote an audit to a separate CI job only when it pins and provisions every external input, has a stable owner, and adds no side effects to the required merge gate.
-
-## Scaling threshold
-
-Measure elapsed time by stage separately from output bytes and lines. Compare equivalent command
-scope, toolchain, and cold or warm cache conditions; quieter output alone is not a runtime saving.
-The threshold below opens a design review, not permission to skip required checks.
-
-| Decision                | Contract                                                                                                          |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Default                 | Use affected host verification for scoped changes; keep full builds and cross-compilation explicit.               |
-| Affected-task threshold | Require at least three independently changing workspaces or a cold CI critical path consistently over 30 seconds. |
-| Before changing         | Measure the bottleneck.                                                                                           |
-| Global policy checks    | Keep explicit inputs even when package tasks become affected-only.                                                |

@@ -365,7 +365,7 @@ document is never reformatted.
   request. The proposed [release gate](automatic-updates.md#the-release-gate) runs before all of
   this from the run's own files, so a failing upgrade path publishes nothing. Publication starts the
   update check, which on a fresh runner updates the version people have now to the release over
-  HTTPS ([update check workflow](../../docs/VERIFICATION.md#update-check-workflow));
+  HTTPS ([update check workflow](../../.github/workflows/update-check.yml));
   once it passes, the owner runs `pnpm website:release <version>`, commits, builds, and deploys the
   website. The channel has moved when the deploy finishes.
 - `scripts/website-release.mjs` reads the platform rows a release published from the feed
