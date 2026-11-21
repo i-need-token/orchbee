@@ -160,14 +160,18 @@ fn install(self: *state.State, engine: EngineState, held_attachments: []contract
     else
         null;
     self.clipboard_write_sequence = engine.clipboard_sequence;
-    if (engine.clipboard_pending) |pending| self.clipboard_write_pending = .{
-        .sequence = pending.sequence,
-        .text = try self.allocator.dupe(u8, pending.text),
-    };
+    // A failed import's cleanup frees what these fields name, so each value is built before it is
+    // assigned: Zig writes a literal in place, and a `try` inside one would leave the field naming
+    // text that was never allocated.
+    if (engine.clipboard_pending) |pending| {
+        const text = try self.allocator.dupe(u8, pending.text);
+        self.clipboard_write_pending = .{ .sequence = pending.sequence, .text = text };
+    }
     self.application_signal_sequence = engine.application_signal_sequence;
     for (engine.application_signals) |signal| {
+        const payload = try self.allocator.dupe(u8, signal.payload);
         self.application_signal_pending[self.application_signal_pending_count] = .{
-            .payload = try self.allocator.dupe(u8, signal.payload),
+            .payload = payload,
             .sequence = signal.sequence,
         };
         self.application_signal_pending_count += 1;

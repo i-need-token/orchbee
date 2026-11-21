@@ -49,11 +49,9 @@ pub const Tracker = struct {
         }
         const pin = screen.pages.pin(.{ .screen = .{ .x = 0, .y = 0 } }) orelse
             return error.InvalidPoint;
-        self.origin = .{
-            .pin = try screen.pages.trackPin(pin),
-            .screen_key = key,
-            .screen_generation = generation,
-        };
+        // Tracked before it is assigned, so a failed track leaves no origin for `deinit` to untrack.
+        const tracked = try screen.pages.trackPin(pin);
+        self.origin = .{ .pin = tracked, .screen_key = key, .screen_generation = generation };
     }
 
     pub fn begin(self: *Tracker) void {

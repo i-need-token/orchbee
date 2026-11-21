@@ -18,6 +18,7 @@ Format every Zig source and build file with the workspace-pinned `zig fmt`. The 
 - Every allocation, handle, thread, process, and operating-system resource has one explicit owner. A type that retains owned resources provides `deinit` unless it transfers ownership through its API.
 - Accept an allocator from the owning boundary when allocation is required. Do not introduce hidden process-global allocators.
 - Place `defer` immediately after successful acquisition and use `errdefer` to roll back partially constructed state.
+- Assign a value to state that a cleanup path releases only once the value is complete. Zig writes an aggregate literal through its result location, so in `state.field = .{ .text = try allocator.dupe(u8, text) }` a failing `try` leaves `field` assigned, and an optional one non-null, with `text` never written, and the cleanup then frees whatever bytes it holds. Build such values in locals first. In a Debug build those bytes are `0xAA` under Zig's own x86_64 backend, the default on Linux, while LLVM, the default on Windows, can leave zeros that free harmlessly, so a passing Windows run does not rule this fault out.
 - Return expected input, operating-system, and resource failures. Use `catch unreachable`, `.?`, or `unreachable` only when a local invariant proves the failure impossible; never use them to dismiss external input or recoverable runtime state.
 
 ## Boundaries and safety
