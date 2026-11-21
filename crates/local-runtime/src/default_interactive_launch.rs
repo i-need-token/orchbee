@@ -94,6 +94,51 @@ pub fn default_launch_environment() -> [DefaultLaunchEnvironmentEntry; 3] {
     ]
 }
 
+/// The variables that choose a process's character locale, in the C library's precedence.
+#[cfg(unix)]
+const CHARACTER_LOCALE_VARIABLES: [&str; 3] = ["LC_ALL", "LC_CTYPE", "LANG"];
+
+/// The UTF-8 locale a terminal launch receives when its environment names no character locale, and
+/// the files whose presence shows that the C library can load it: macOS keeps each locale under
+/// `/usr/share/locale`, and glibc installs its built-in `C.UTF-8` as `C.utf8` (Debian and Ubuntu
+/// releases before glibc 2.35 as `C.UTF-8`) under `/usr/lib/locale`.
+#[cfg(target_os = "macos")]
+const UTF8_LOCALE: (&str, &[&str]) = ("en_US.UTF-8", &["/usr/share/locale/en_US.UTF-8/LC_CTYPE"]);
+#[cfg(all(unix, not(target_os = "macos")))]
+const UTF8_LOCALE: (&str, &[&str]) = (
+    "C.UTF-8",
+    &[
+        "/usr/lib/locale/C.utf8/LC_CTYPE",
+        "/usr/lib/locale/C.UTF-8/LC_CTYPE",
+    ],
+);
+
+/// The `LANG` entry a terminal launch adds when `effective`, the environment the terminal would
+/// otherwise start with, sets none of `LC_ALL`, `LC_CTYPE` and `LANG`. A process started from Finder,
+/// the Dock or a login item inherits launchd's environment, which has none, and its shell then runs
+/// in the C locale: `ls` prints `?` for each byte of a non-ASCII name and the line editor cannot
+/// take non-ASCII input. Terminal.app, iTerm2, VS Code and Ghostty set `LANG` in that case too. A
+/// locale already named, UTF-8 or not, is never replaced; nothing is added when this host lacks the
+/// UTF-8 locale.
+#[cfg(unix)]
+pub fn character_locale_entry(
+    effective: impl Fn(&str) -> Option<String>,
+) -> Option<DefaultLaunchEnvironmentEntry> {
+    add_character_locale(effective, |path| std::path::Path::new(path).is_file())
+}
+
+#[cfg(unix)]
+fn add_character_locale(
+    effective: impl Fn(&str) -> Option<String>,
+    installed: impl Fn(&str) -> bool,
+) -> Option<DefaultLaunchEnvironmentEntry> {
+    let named = CHARACTER_LOCALE_VARIABLES
+        .into_iter()
+        .any(|name| effective(name).is_some_and(|value| !value.is_empty()));
+    let (locale, files) = UTF8_LOCALE;
+    (!named && files.iter().copied().any(installed)).then(|| environment_entry("LANG", locale))
+}
+
 fn environment_entry(name: &str, value: &str) -> DefaultLaunchEnvironmentEntry {
     DefaultLaunchEnvironmentEntry {
         name: name.to_owned(),

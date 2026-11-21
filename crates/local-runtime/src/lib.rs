@@ -234,9 +234,9 @@ pub use command_child::{
     run_windows_command, run_windows_command_exchange, windows_system_program,
 };
 mod default_interactive_launch;
-#[cfg(unix)]
-pub use default_interactive_launch::login_shell_command;
 pub use default_interactive_launch::{
     DefaultInteractiveLaunch, DefaultInteractiveLaunchError, DefaultLaunchEnvironmentEntry,
     default_launch_environment, resolve_default_interactive_launch,
 };
+#[cfg(unix)]
+pub use default_interactive_launch::{character_locale_entry, login_shell_command};

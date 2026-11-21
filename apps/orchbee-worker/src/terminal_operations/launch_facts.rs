@@ -182,6 +182,19 @@ fn launch_environment(
             });
         }
     }
+    // The terminal starts with the Worker's environment under these entries.
+    #[cfg(unix)]
+    let locale = orchbee_local_runtime::character_locale_entry(|name| {
+        match entries.iter().rev().find(|entry| entry.name == name) {
+            Some(entry) => entry.value.clone(),
+            None => std::env::var_os(name).map(|value| value.to_string_lossy().into_owned()),
+        }
+    });
+    #[cfg(unix)]
+    entries.extend(locale.map(|entry| LaunchEnvironmentEntry {
+        name: entry.name,
+        value: Some(entry.value),
+    }));
     entries.push(LaunchEnvironmentEntry {
         name: orchbee_local_runtime::AGENT_START_VARIABLE.into(),
         value: agent_start,

@@ -52,7 +52,9 @@ before.
 ## Shared launch and notification policy
 
 `default_interactive_launch` owns pure platform shell selection and native executable admission,
-shared by Desktop's matched helper and Native Worker. It starts no process.
+shared by Desktop's matched helper and Native Worker. It starts no process. On macOS and Linux its
+`character_locale_entry` gives a launch environment that names no character locale the host's UTF-8
+locale; the [Worker](../../apps/orchbee-worker/README.md#character-locale) states the rule.
 `UserTerminalLaunchIntent::capture` takes scrollback, colors and the selected launch profile
 together from one confirmed set of setting values; an explicit executable bypasses default shell
 resolution while retaining the shared scrollback default, and a catalog without its default profile

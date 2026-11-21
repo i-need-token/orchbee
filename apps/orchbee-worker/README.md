@@ -584,6 +584,21 @@ entries; Worker process environment is never changed. The caller cannot override
 terminal identity variables. This is launch data, separate from the observation-only
 `CreateTerminal.environmentOverlay` described above.
 
+### Character locale
+
+On macOS and Linux every launch, default shell or explicit program, also receives a UTF-8 character
+locale when the environment it would start with names none: when neither its entries nor the
+Worker's environment set a nonempty `LC_ALL`, `LC_CTYPE` or `LANG`, the entries gain `LANG`, which
+is `en_US.UTF-8` on macOS and `C.UTF-8` on Linux. A Session started from Finder, the Dock, a login
+item or a restart by an update inherits launchd's environment, which has none, and its shells would
+otherwise run in the C locale, where `ls` prints `?` for every byte of a non-ASCII name and the line
+editor refuses non-ASCII input. Terminal.app, iTerm2, VS Code and Ghostty set `LANG` in the same
+case. A locale already named, UTF-8 or not, is never replaced, no other variable changes, and nothing
+is added when the host lacks the locale (`/usr/share/locale/en_US.UTF-8` on macOS,
+`/usr/lib/locale/C.utf8` or `C.UTF-8` on Linux). Windows launches are unchanged. The rule lives in
+the shared runtime's `character_locale_entry`; a Worker on another machine applies it to that
+machine's environment.
+
 Resolution considers an inherited `SHELL`, then the effective operating-system account's shell,
 then `/bin/sh`. A candidate is valid only when its path is nonempty, absolute, valid UTF-8, free of
 U+0000, no longer than 4,096 bytes, resolves to a regular file, and is executable by the process's

@@ -80,3 +80,37 @@ fn launch_facts_are_empty_literal_arguments_and_only_the_fixed_environment() {
         ]
     );
 }
+
+/// A launch environment without a character locale gains the host's UTF-8 locale; one that names a
+/// locale in any of the three variables keeps it, and a host without the UTF-8 locale adds nothing.
+#[cfg(unix)]
+#[test]
+fn only_a_launch_without_a_character_locale_gains_the_utf8_locale() {
+    use super::{UTF8_LOCALE, add_character_locale};
+    let (locale, _) = UTF8_LOCALE;
+    let from = |pairs: &'static [(&'static str, &'static str)]| {
+        move |name: &str| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| (*value).to_owned())
+        }
+    };
+    let added = add_character_locale(from(&[("HOME", "/h"), ("LANG", "")]), |_| true)
+        .map(|entry| (entry.name, entry.value));
+    assert_eq!(added, Some(("LANG".to_owned(), locale.to_owned())));
+    for named in [
+        &[("LC_ALL", "zh_CN.UTF-8")][..],
+        &[("LC_CTYPE", "UTF-8")],
+        &[("LANG", "en_GB.UTF-8")],
+        &[("LANG", "C")],
+    ] {
+        let pairs: &'static [(&'static str, &'static str)] = named;
+        assert_eq!(
+            add_character_locale(from(pairs), |_| true),
+            None,
+            "{pairs:?}"
+        );
+    }
+    assert_eq!(add_character_locale(from(&[]), |_| false), None);
+}
