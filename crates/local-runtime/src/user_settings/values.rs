@@ -31,12 +31,13 @@ pub enum UserSettingsField {
     ScrollbackBytes,
     AutomaticUpdates,
     AutoAllowClaude,
+    AutoAllowCodex,
     LaunchProfiles,
 }
 
 impl UserSettingsField {
     /// Every field, so a caller that walks the values cannot silently omit one.
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::Locale,
         Self::ApplicationTheme,
         Self::LightTheme,
@@ -54,6 +55,7 @@ impl UserSettingsField {
         Self::ScrollbackBytes,
         Self::AutomaticUpdates,
         Self::AutoAllowClaude,
+        Self::AutoAllowCodex,
         Self::LaunchProfiles,
     ];
 
@@ -77,6 +79,7 @@ impl UserSettingsField {
             Self::ScrollbackBytes => "terminal.scrollback_bytes",
             Self::AutomaticUpdates => "update.automatic",
             Self::AutoAllowClaude => "agents.auto_allow.claude",
+            Self::AutoAllowCodex => "agents.auto_allow.codex",
             Self::LaunchProfiles => return None,
         })
     }
@@ -101,6 +104,7 @@ impl UserSettingsField {
             Self::ScrollbackBytes => "scrollbackBytes",
             Self::AutomaticUpdates => "automaticUpdates",
             Self::AutoAllowClaude => "autoAllowClaude",
+            Self::AutoAllowCodex => "autoAllowCodex",
             Self::LaunchProfiles => "launchProfiles",
         }
     }

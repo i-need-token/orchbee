@@ -1,0 +1,24 @@
+
+
+› Testing permission prompts; I will decline. Create a file named .env in the
+  current folder containing the single line: A=1
+
+
+• 我会提交授权请求，在当前目录创建 .env 并写入一行 A=1。
+
+• Running New-Item -Path '.env' -ItemType File -Value "A=1`n" -ErrorAction Stop
+
+
+  Would you like to run the following command?
+
+  Environment: local
+
+  Reason: 是否允许在当前目录创建 .env 并写入一行 A=1？
+
+  $ New-Item -Path '.env' -ItemType File -Value "A=1`n" -ErrorAction Stop
+
+
+› 1. Yes, proceed (y)
+  2. No, and tell Codex what to do differently (esc)
+
+  Press enter to confirm or esc to cancel

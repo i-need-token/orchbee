@@ -1,0 +1,24 @@
+  unchanged: git push --force origin main
+
+
+• 我会为 git push --force origin main 提交授权请求。
+
+• Running git push --force origin main
+
+
+  Would you like to run the following command?
+
+  Environment: local
+
+  Reason: 是否允许原样执行 git push --force origin main，强制更新 origin 的
+  main 分支？
+
+  $ git push --force origin main
+
+
+› 1. Yes, proceed (y)
+  2. Yes, and don't ask again for commands that start with `git push --force
+     origin main` (p)
+  3. No, and tell Codex what to do differently (esc)
+
+  Press enter to confirm or esc to cancel

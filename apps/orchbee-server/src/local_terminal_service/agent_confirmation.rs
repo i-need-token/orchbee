@@ -37,6 +37,8 @@ use crate::worker_obcn_carrier::{
 
 /// The saved setting that turns answering on for every Claude Code run.
 const CLAUDE_KEY: &str = "agents.auto_allow.claude";
+/// The saved setting that turns answering on for every Codex run.
+const CODEX_KEY: &str = "agents.auto_allow.codex";
 /// The saved setting a person's "no" to an offer turns off.
 const OFFER_KEY: &str = "agents.auto_allow.offer";
 /// A run no sampler turn has observed for this long is forgotten when another run is first seen.
@@ -53,12 +55,17 @@ pub(in crate::local_terminal_service) struct ConfirmationScreen<'a> {
 #[derive(Clone, Copy)]
 struct Saved {
     claude: bool,
+    codex: bool,
     offer: bool,
 }
 impl Saved {
     fn settings(self, provider: AgentReportProvider) -> Settings {
         Settings {
-            agent_type: provider == AgentReportProvider::Claude && self.claude,
+            agent_type: match provider {
+                AgentReportProvider::Claude => self.claude,
+                AgentReportProvider::Codex => self.codex,
+                _ => false,
+            },
             offer: self.offer,
         }
     }
@@ -66,7 +73,11 @@ impl Saved {
 
 /// The saved setting of one Agent type, for the types a person can turn on.
 fn type_key(provider: AgentReportProvider) -> Option<&'static str> {
-    (provider == AgentReportProvider::Claude).then_some(CLAUDE_KEY)
+    match provider {
+        AgentReportProvider::Claude => Some(CLAUDE_KEY),
+        AgentReportProvider::Codex => Some(CODEX_KEY),
+        _ => None,
+    }
 }
 
 struct Entry {
@@ -298,10 +309,12 @@ impl LocalTerminalService {
         self.configuration
             .with_settings(|settings| Saved {
                 claude: settings.values.auto_allow_claude,
+                codex: settings.values.auto_allow_codex,
                 offer: settings.auto_allow_offer,
             })
             .unwrap_or(Saved {
                 claude: false,
+                codex: false,
                 offer: false,
             })
     }

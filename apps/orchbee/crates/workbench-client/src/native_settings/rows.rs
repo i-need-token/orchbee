@@ -24,6 +24,9 @@ pub enum Row {
     /// Whether the Server answers Claude Code's routine confirmations
     /// (`agents.auto_allow.claude`).
     AutoAllowClaude,
+    /// Whether the Server answers Codex's routine confirmations
+    /// (`agents.auto_allow.codex`).
+    AutoAllowCodex,
     LaunchProfiles,
     /// Where a new terminal starts (`terminal.new_cwd`).
     NewTerminalFolder,

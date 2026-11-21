@@ -31,6 +31,7 @@ impl From<Row> for SettingsRow {
             Row::Scrollback => Self::Scrollback,
             Row::AutomaticUpdates => Self::AutomaticUpdates,
             Row::AutoAllowClaude => Self::AutoAllowClaude,
+            Row::AutoAllowCodex => Self::AutoAllowCodex,
             Row::LaunchProfiles => Self::LaunchProfiles,
             Row::NewTerminalFolder => Self::NewTerminalFolder,
             Row::PrefixKey => Self::PrefixKey,
@@ -221,6 +222,7 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
             Row::Sound => Self::Toggle(values.sound_enabled),
             Row::AutomaticUpdates => Self::Toggle(values.automatic_updates),
             Row::AutoAllowClaude => Self::Toggle(values.auto_allow_claude),
+            Row::AutoAllowCodex => Self::Toggle(values.auto_allow_codex),
             Row::Scrollback => {
                 Self::ScrollbackMegabytes(super::scrollback_megabytes(values.scrollback_bytes))
             }

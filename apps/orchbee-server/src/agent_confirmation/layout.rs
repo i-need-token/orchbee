@@ -17,8 +17,12 @@ const TEXT_ROWS: usize = 16;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawFile {
-    /// Matches a whole row: the dialog's top border.
+    /// Matches a whole row: the dialog's top border, or its title where the Agent draws none.
     top: String,
+    /// Matches a whole row that text a model supplies cannot draw. An Agent whose `top` such
+    /// text can draw names one; see [`region`].
+    #[serde(default)]
+    fence: Option<String>,
     layout: Vec<RawLayout>,
 }
 
@@ -51,6 +55,7 @@ struct Layout {
 struct Agent {
     provider: AgentReportProvider,
     top: Regex,
+    fence: Option<Regex>,
     layouts: Vec<Layout>,
 }
 
@@ -133,19 +138,37 @@ fn parse(provider: AgentReportProvider, source: &str) -> Result<Agent, String> {
     Ok(Agent {
         provider,
         top: compile(&format!(r"\A(?:{})\z", raw.top))?,
+        fence: raw
+            .fence
+            .map(|fence| compile(&format!(r"\A(?:{fence})\z")))
+            .transpose()?,
         layouts,
     })
 }
 
-/// The dialog region: from the last row the top border matches to the last row that is not
-/// blank, every row without trailing spaces and ended by one line break.
-fn region(top: &Regex, screen: &str) -> Option<String> {
+/// The dialog region: from the last row `top` matches to the last row that is not blank, every
+/// row without trailing spaces and ended by one line break.
+///
+/// Under a fence that row must be the only one `top` matches, with a fence row above it. The
+/// fence row is not the dialog's, so the dialog starts on the screen and its own top row is
+/// there; being the only one, the matched row is that row and not text drawn to look like it.
+fn region(agent: &Agent, screen: &str) -> Option<String> {
     let rows: Vec<&str> = screen
         .lines()
         .map(|row| row.trim_end_matches(' '))
         .collect();
     let end = rows.iter().rposition(|row| !row.is_empty())? + 1;
-    let start = rows[..end].iter().rposition(|row| top.is_match(row))?;
+    let start = rows[..end]
+        .iter()
+        .rposition(|row| agent.top.is_match(row))?;
+    if let Some(fence) = &agent.fence {
+        let above = &rows[..start];
+        if above.iter().any(|row| agent.top.is_match(row))
+            || !above.iter().any(|row| fence.is_match(row))
+        {
+            return None;
+        }
+    }
     let mut region = String::with_capacity(screen.len());
     for row in &rows[start..end] {
         region.push_str(row);
@@ -195,7 +218,7 @@ impl Layouts {
                 )),*]
             };
         }
-        bundle!(Claude => "claude")
+        bundle!(Claude => "claude", Codex => "codex")
             .into_iter()
             .map(|(provider, source)| parse(provider, source))
             .collect::<Result<Vec<_>, _>>()
@@ -214,7 +237,7 @@ impl Layouts {
             return None;
         }
         let agent = self.0.iter().find(|agent| agent.provider == provider)?;
-        let region = region(&agent.top, screen)?;
+        let region = region(agent, screen)?;
         agent.layouts.iter().find_map(|layout| layout.read(&region))
     }
 }

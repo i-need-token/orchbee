@@ -429,6 +429,7 @@ impl PageState {
             Row::Sound => Some(values.sound_enabled),
             Row::AutomaticUpdates => Some(values.automatic_updates),
             Row::AutoAllowClaude => Some(values.auto_allow_claude),
+            Row::AutoAllowCodex => Some(values.auto_allow_codex),
             Row::Login => match &self.current_profile().command {
                 UserLaunchCommand::SystemShell { login } => Some(*login),
                 UserLaunchCommand::CustomExecutable { .. } => None,

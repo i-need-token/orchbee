@@ -1,0 +1,13 @@
+
+  Would you like to run the following command?
+
+  Environment: local
+
+  Reason: 是否允许在当前暂存目录原样执行这段 14 行命令，创建
+  aab-t1 至 aab-t14？
+
+  [… 21 lines] ctrl+a view all
+› 1. Yes, proceed (y)
+  2. Yes, and don't ask again for commands that start with `mkdir
+     aab-t1` (p)
+  Press enter to confirm or esc to cancel

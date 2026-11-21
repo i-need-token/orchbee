@@ -1,0 +1,38 @@
+# Codex's command confirmation, as Codex CLI 0.171.0 draws it in an 80-column terminal.
+#
+# Codex draws no border, and indents the model's reason and command by two columns exactly as it
+# indents its own title, so a reason or a command can draw a second title. The fence answers
+# that: the title must be the only one on the screen and a row that starts in the first column,
+# which that text cannot reach, must lie above it. The option rows start in the first column too.
+#
+# A reason row cannot start with the command's `$`, so the first `$` row is the command's, and
+# the command is every row from there to the two blank rows above the options.
+#
+# A dialog taller than the Panel fills the Panel, so no row lies above its title. Codex then
+# shortens the options behind an arrow, and in a short Panel writes `[… N lines] ctrl+a view all`
+# in place of the command rows it does not show.
+
+top = '  Would you like to run the following command\?'
+fence = '[^ ].*'
+
+[[layout]]
+name = "command"
+kind = "command"
+accept = "enter"
+rows = [
+	'  Would you like to run the following command\?\n',
+	'\n',
+	'  Environment: local\n',
+	'\n',
+	'  Reason: [^\n]*\n(?:  [^$ \n][^\n]*\n){0,7}\n',
+	'(?P<text>  \$ [^\n]+\n(?:  [^$ \n][^\n]*\n){0,15})',
+	'\n',
+	'\n',
+	'› 1\. Yes, proceed \(y\)\n',
+	'''(?:  2\. Yes, and don't ask again for commands that start with `[^\n]*\n(?:     [^\n]+\n){0,6})?''',
+	'  [23]\. No, and tell Codex what to do differently \(esc\)\n',
+	'\n',
+	'  Press enter to confirm or esc to cancel\n',
+]
+# The first row carries the `$`; a wrapped row is its text.
+text = ['  (?:\$ )?(?P<text>.*)']

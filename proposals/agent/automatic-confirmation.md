@@ -230,6 +230,12 @@ as one anchored pattern from the dialog's top border to the last row of the scre
 pattern does not describe is a mismatch. The [Server reference](../../apps/orchbee-server/docs/agent-confirmation.md#layouts) owns the format, the
 bounds and the admission rule.
 
+Codex draws no border and indents the model's reason and command exactly as it indents its own
+title, so that text can draw a title. Its layout starts at the title under a fence: the title
+must be the only one on the screen, and a row that starts in the first column, which the model's
+text cannot reach, must lie above it. A dialog taller than the screen, or one with a second
+title anywhere, therefore waits.
+
 - Layouts are compiled into the Server and never read from a local override or a downloaded
   catalog: a rule that can press a key ships only inside a signed release.
 - Layouts are matched exactly and not pinned to Agent versions (Decided as announced). Evidence
@@ -366,6 +372,9 @@ it.
 | 4     | Settings keys, the row read and the two requests behind their capability, with schemas and bindings; the sampler wiring            | No      |
 | 5     | Both Clients together: offer, row menu, notices, hover reason, Settings, both locales. Claude Code only                            | Yes     |
 | 6–9   | Codex, OpenCode, Gemini CLI, Hermes Agent: layouts, captured screens, Settings switch, one merge each                              | Yes     |
+
+Codex is answered for its shell command confirmation only. Where Codex writes files through
+PowerShell, the command carries quotes, so it waits as not understood.
 
 Hermes Agent waits for a product-owner decision. In its default configuration it asks nothing
 before a routine command; the only confirmation it draws is its own approval of a command it

@@ -1,0 +1,24 @@
+› Testing permission prompts in an empty scratch folder; I will decline. Run e…
+  └ LinkType   :
+    Target     :
+
+    + 4 lines (ctrl+t to expand)
+
+• Running rm -rf ./aab-dir
+
+
+  Would you like to run the following command?
+
+  Environment: local
+
+  Reason: 是否允许在当前目录原样执行 rm -rf ./aab-dir？
+
+  $ rm -rf ./aab-dir
+
+
+› 1. Yes, proceed (y)
+  2. Yes, and don't ask again for commands that start with `rm -rf ./aab-dir`
+     (p)
+  3. No, and tell Codex what to do differently (esc)
+
+  Press enter to confirm or esc to cancel

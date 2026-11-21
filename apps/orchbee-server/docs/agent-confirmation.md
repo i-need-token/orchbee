@@ -7,7 +7,7 @@ reaches the terminal. The rules are the module `agent_confirmation`, which is pu
 file and no clock of its own; `local_terminal_service/agent_confirmation.rs` connects them to the
 screen sampler, the settings and the Clients. The
 [proposal](../../../proposals/agent/automatic-confirmation.md) owns the design that is not built:
-the Agents after Claude Code.
+the Agents after Claude Code and Codex.
 
 Every rule fails closed. A screen, a command or a path the module cannot read completely is one
 that waits for the person, and each wait carries one reason from a closed list: destructive
@@ -28,7 +28,8 @@ built, which the module's tests do.
 
 | Field    | Meaning                                                                            |
 | -------- | ---------------------------------------------------------------------------------- |
-| `top`    | One pattern per file: a row that can be the dialog's top border                    |
+| `top`    | One pattern per file: a row that can be the dialog's top border or title           |
+| `fence`  | Optional, one per file: a row that text a model supplies cannot draw               |
 | `name`   | The layout's name inside its Agent; part of a prompt's identity                    |
 | `kind`   | `command`, `create` or `edit`                                                      |
 | `accept` | The key that accepts; `enter` is the only value read                               |
@@ -39,6 +40,12 @@ built, which the module's tests do.
 - **Region.** Rows are trimmed of trailing spaces. The region runs from the last row that matches
   `top` to the last row that is not blank, so text scrolled above the dialog is not part of it and
   nothing may follow the dialog.
+- **Fence.** An Agent that draws no border and indents the model's text like its own title gives
+  that text a way to draw a title. Its file names a `fence`, and then the row `top` matches must
+  be the only such row on the screen, with a fence row above it. The fence row is not the
+  dialog's, so the dialog starts on the screen and its own title is there; being the only one,
+  the matched row is that title. A dialog taller than the screen and a screen with two titles
+  are not read.
 - **Whole match.** `rows` is anchored at both ends of the region. Extra rows, a missing footer,
   the highlight on another row, a pager hint and a truncated dialog all fail to match. The
   highlighted row is written into the pattern as the Agent's one-time accept; no pattern accepts
@@ -56,8 +63,18 @@ Evidence for a layout is a set of screens captured from the real Agent, kept und
 neutral text of the same width. Add a layout with its captures and their expected answers in the
 same change; a layout without captures is not admitted.
 
-Claude Code is the only Agent with layouts: its Bash command, file create and file edit dialogs.
-Its trust prompt and its screens after an answer match no layout.
+| Agent       | Layouts                                     | Not read                                                |
+| ----------- | ------------------------------------------- | ------------------------------------------------------- |
+| Claude Code | Bash command, file create, file edit        | Its trust prompt and its screens after an answer        |
+| Codex       | Shell command, under the first-column fence | Every other approval, such as a patch or network access |
+
+Codex's reason rows cannot start with the command's `$`, so the first `$` row is the command's,
+and the command is every row from there to the two blank rows above the options. Where Codex
+writes files through PowerShell the command carries quotes, and the command check holds it.
+A Codex dialog taller than its Panel fills the Panel: no row lies above the title, the options
+are shortened behind an arrow, and in a short Panel a marker row stands in place of the command
+rows that are not shown. The fence, the option rows and the command check's rule for text that
+is not all on the screen each make such a dialog wait.
 
 ## Command check
 
@@ -189,6 +206,7 @@ steps against the Terminal Host's gate.
   setting changed by another editor of the settings file is read within a second and sends its
   holds then.
 - **Settings.** `agents.auto_allow.claude` turns answering on for every Claude Code run.
+  `agents.auto_allow.codex` turns answering on for every Codex run.
   `agents.auto_allow.offer` is true until a person answers "no" to an offer. No settings page
   shows it and it is not among the common values Clients read: the Server reads it from the
   settings file and writes it there on a "no".

@@ -43,6 +43,7 @@
 		"apps/web/src/terminal-settings-surface/components/terminal-behavior-settings/TerminalBehaviorSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/notification-settings/NotificationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/agent-settings/AgentSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/agent-settings/components/agent-confirmation-row/AgentConfirmationRow.tsx",
 		"apps/web/src/terminal-settings-surface/components/about-settings/AboutSettings.tsx",
 		"apps/web/src/workbench/model/WorkbenchUpdateCheckModel.ts",
 		"apps/web/src/workbench-client/server-workbench/askServerUpdateCheck.ts",
@@ -166,7 +167,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-agents",
 			"states": [
-				"Inspect the Agents category: the resume-on-restore switch with its description, then the Allow routine confirmations group with its note, the Claude Code switch with its description, and the closing line that asks for more Agents in a GitHub issue."
+				"Inspect the Agents category: the resume-on-restore switch with its description, then the Allow routine confirmations group with its note, the Claude Code switch with its description, the Codex switch with its description, and the closing line that asks for more Agents in a GitHub issue."
 			]
 		},
 		{

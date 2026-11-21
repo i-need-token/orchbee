@@ -77,6 +77,7 @@ impl Locale {
             Row::AutomaticUpdates => ("Automatic updates", "自动更新"),
             // The Agent's product name, the same in every language.
             Row::AutoAllowClaude => ("Claude Code", "Claude Code"),
+            Row::AutoAllowCodex => ("Codex", "Codex"),
             Row::LaunchProfiles => ("Default profile", "默认启动配置"),
             Row::NewTerminalFolder => ("New terminal folder", "新终端文件夹"),
             Row::PrefixKey => ("Prefix key", "前缀键"),
@@ -302,6 +303,10 @@ impl Locale {
                 "在后台下载并安装新版本。点击“更新”前不会重启任何内容。",
             ),
             Row::AutoAllowClaude => self.setting(
+                "Orchbee checks the command shown, not what a script does.",
+                "Orchbee 只检查显示的命令，不检查脚本做了什么。",
+            ),
+            Row::AutoAllowCodex => self.setting(
                 "Orchbee checks the command shown, not what a script does.",
                 "Orchbee 只检查显示的命令，不检查脚本做了什么。",
             ),

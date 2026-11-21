@@ -1,0 +1,24 @@
+› Create a new file named aab-note.txt in the current folder containing the
+  single line: hello
+
+
+• 我会在当前目录创建 aab-note.txt，写入一行 hello。
+
+• Running New-Item -Path 'aab-note.txt' -ItemType File -Value "hello`n" -ErrorA…
+    + Show details
+
+
+  Would you like to run the following command?
+
+  Environment: local
+
+  Reason: 是否允许在当前目录创建 aab-note.txt 并写入一行 hello？
+
+  $ New-Item -Path 'aab-note.txt' -ItemType File -Value "hello`n" -ErrorAction
+  Stop
+
+
+› 1. Yes, proceed (y)
+  2. No, and tell Codex what to do differently (esc)
+
+  Press enter to confirm or esc to cancel

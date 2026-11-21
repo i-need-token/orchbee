@@ -101,7 +101,7 @@ impl Group {
             Self::SoundDelivery => vec![Row::Sound],
             Self::Prefix => vec![Row::PrefixKey],
             Self::AgentRestore => vec![Row::ResumeAgents],
-            Self::AgentConfirmations => vec![Row::AutoAllowClaude],
+            Self::AgentConfirmations => vec![Row::AutoAllowClaude, Row::AutoAllowCodex],
             Self::About => vec![Row::Version, Row::Updates],
         }
     }

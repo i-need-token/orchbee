@@ -100,6 +100,9 @@ pub struct UserSettingsValues {
     /// Whether the Server answers Claude Code's routine confirmations for the person.
     #[serde(default)]
     pub auto_allow_claude: bool,
+    /// Whether the Server answers Codex's routine confirmations for the person.
+    #[serde(default)]
+    pub auto_allow_codex: bool,
     pub launch_profiles: UserLaunchProfiles,
 }
 impl Default for UserSettingsValues {
@@ -122,6 +125,7 @@ impl Default for UserSettingsValues {
             scrollback_bytes: 10_000_000,
             automatic_updates: true,
             auto_allow_claude: false,
+            auto_allow_codex: false,
             launch_profiles: UserLaunchProfiles::default(),
         }
     }

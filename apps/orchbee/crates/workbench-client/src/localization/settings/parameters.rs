@@ -24,6 +24,7 @@ pub(crate) enum SettingsRow {
     Scrollback,
     AutomaticUpdates,
     AutoAllowClaude,
+    AutoAllowCodex,
     LaunchProfiles,
     NewTerminalFolder,
     PrefixKey,

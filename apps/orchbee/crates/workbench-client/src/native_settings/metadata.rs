@@ -59,7 +59,7 @@ pub(crate) struct SettingMetadata {
     pub(crate) effect: SettingEffect,
 }
 
-pub(crate) static SETTINGS: [SettingMetadata; 18] = [
+pub(crate) static SETTINGS: [SettingMetadata; 19] = [
     SettingMetadata {
         key: UserSettingsField::Locale,
         row: Row::Language,
@@ -187,6 +187,13 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
     SettingMetadata {
         key: UserSettingsField::AutoAllowClaude,
         row: Row::AutoAllowClaude,
+        control: SettingControl::Boolean,
+        availability: SettingAvailability::Always,
+        effect: SettingEffect::AgentConfirmations,
+    },
+    SettingMetadata {
+        key: UserSettingsField::AutoAllowCodex,
+        row: Row::AutoAllowCodex,
         control: SettingControl::Boolean,
         availability: SettingAvailability::Always,
         effect: SettingEffect::AgentConfirmations,

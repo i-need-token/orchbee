@@ -780,6 +780,15 @@ pub const SETTING_KEYS: &[SettingKey] = &[
     )
     .page(),
     key(
+        "agents.auto_allow.codex",
+        V::Boolean,
+        D::Boolean(false),
+        (C::Agents, G::Confirmations),
+        SERVER,
+        "Let Orchbee press Codex's one-time Yes on routine confirmations; destructive commands always wait.",
+    )
+    .page(),
+    key(
         "agents.auto_allow.offer",
         V::Boolean,
         D::Boolean(true),

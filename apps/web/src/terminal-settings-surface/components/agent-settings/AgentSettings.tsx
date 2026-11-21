@@ -9,6 +9,7 @@ import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
 
 import styles from './AgentSettings.module.css';
+import { AgentConfirmationRow } from './components/agent-confirmation-row/AgentConfirmationRow';
 
 interface AgentSettingsProps {
 	readonly query: string;
@@ -29,8 +30,6 @@ export function AgentSettings({
 	const intl = useOrchbeeIntl();
 	const resume = useSetting(userSettings, 'agents.resume_on_restore');
 	const resumeLabel = intl.formatMessage(terminalSettingsMessages.pageResumeAgentsLabel);
-	const allowClaude = useSetting(userSettings, 'agents.auto_allow.claude');
-	const claudeLabel = intl.formatMessage(agentObservationMessages.providerClaudeCode);
 	const request = intl.formatMessage(terminalSettingsMessages.pageAgentConfirmationsRequest);
 	return (
 		<>
@@ -74,28 +73,20 @@ export function AgentSettings({
 					)
 				}
 			>
-				<SettingsRow
-					description={intl.formatMessage(
-						terminalSettingsMessages.pageAgentConfirmationsRowDescription,
-					)}
-					label={claudeLabel}
-					modified={allowClaude.modified}
+				<AgentConfirmationRow
+					label={intl.formatMessage(agentObservationMessages.providerClaudeCode)}
 					query={query}
-					searchTerms={[
-						intl.formatMessage(terminalSettingsMessages.pageGroupAgentConfirmations),
-						intl.formatMessage(terminalSettingsMessages.pageAgentConfirmationsDescription),
-					]}
 					settingId='agents.auto-allow.claude'
-					status={<SettingFailure message={allowClaude.failureMessage} />}
-					onRestore={allowClaude.readOnly ? undefined : allowClaude.restore}
-				>
-					<Switch
-						aria-label={claudeLabel}
-						checked={allowClaude.value}
-						disabled={allowClaude.readOnly}
-						onCheckedChange={allowClaude.set}
-					/>
-				</SettingsRow>
+					settingKey='agents.auto_allow.claude'
+					userSettings={userSettings}
+				/>
+				<AgentConfirmationRow
+					label={intl.formatMessage(agentObservationMessages.providerCodex)}
+					query={query}
+					settingId='agents.auto-allow.codex'
+					settingKey='agents.auto_allow.codex'
+					userSettings={userSettings}
+				/>
 			</SettingsGroup>
 		</>
 	);
