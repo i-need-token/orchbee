@@ -362,7 +362,8 @@ export const workbenchMessages = defineMessages({
 	tabDuplicationNotCreated: {
 		id: 'workbench.tabs.duplicate.notCreated',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.duplicate.notCreated'],
-		description: 'Status notice when duplicating Tabs stopped before every copy was created.',
+		description:
+			'Status notice, worded as the terminal interface words it, when duplicating Tabs was refused, failed, or stopped before every copy was created.',
 	},
 	tabsNotApplied: {
 		id: 'workbench.tabs.update.notApplied',
@@ -1167,6 +1168,60 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.actions.unavailable'],
 		description:
 			'Notice after an Action the person invoked from a control, menu, or shortcut could not run because it is not available right now, such as a disabled or unregistered Action.',
+	},
+	tabsRenameNotApplied: {
+		id: 'workbench.tabs.rename.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.rename.notApplied'],
+		description: 'Notice after renaming a Tab was refused or failed, worded as the TUI names it.',
+	},
+	tabsMoveNotApplied: {
+		id: 'workbench.tabs.move.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.move.notApplied'],
+		description: 'Notice after moving a Tab was refused or failed, worded as the TUI names it.',
+	},
+	tabsSwitchNotApplied: {
+		id: 'workbench.tabs.switch.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.switch.notApplied'],
+		description: 'Notice after switching Tabs was refused or failed, worded as the TUI names it.',
+	},
+	panelsMoveNotApplied: {
+		id: 'workbench.panels.move.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.move.notApplied'],
+		description: 'Notice after moving a Panel was refused or failed, worded as the TUI names it.',
+	},
+	panelsSplitNotApplied: {
+		id: 'workbench.panels.split.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.split.notApplied'],
+		description:
+			'Notice after splitting a Panel was refused or failed, worded as the TUI names it.',
+	},
+	projectRenameNotApplied: {
+		id: 'workbench.projects.rename.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.rename.notApplied'],
+		description:
+			'Notice after renaming a Project was refused or failed, worded as the TUI names it.',
+	},
+	workspaceRenameNotApplied: {
+		id: 'workbench.workspaces.rename.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.rename.notApplied'],
+		description:
+			'Notice after renaming a Workspace was refused or failed, worded as the TUI names it.',
+	},
+	workspaceCreateNotApplied: {
+		id: 'workbench.workspaces.create.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.create.notApplied'],
+		description:
+			'Notice after creating a Workspace was refused or failed, worded as the TUI names it.',
+	},
+	tabCloseSingleNotApplied: {
+		id: 'workbench.tab.close.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.tab.close.notApplied'],
+		description: 'Notice after closing a Tab was refused or failed, worded as the TUI names it.',
+	},
+	panelCloseNotApplied: {
+		id: 'workbench.panel.close.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.panel.close.notApplied'],
+		description: 'Notice after closing a Panel was refused or failed, worded as the TUI names it.',
 	},
 	updateWaiting: {
 		id: 'workbench.update.waiting',

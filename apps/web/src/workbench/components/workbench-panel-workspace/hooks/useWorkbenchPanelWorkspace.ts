@@ -57,6 +57,7 @@ import type {
 import { createPanelDragSnapshot } from '../utils/createPanelDragSnapshot';
 import { getPanelDropDirection } from '../utils/getPanelDropDirection';
 import { useWorkbenchPanelActions } from './useWorkbenchPanelActions';
+import { workbenchActionNotAppliedDescriptor } from '../../../actions/workbenchActionNotAppliedDescriptor';
 
 interface UseWorkbenchPanelWorkspaceOptions {
 	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
@@ -252,7 +253,11 @@ export function useWorkbenchPanelWorkspace({
 		terminalContextId,
 	});
 	const executePanelAction: typeof panelActions.execute = (actionId, input, source) =>
-		reportActionOutcome(source, () => panelActions.execute(actionId, input, source));
+		reportActionOutcome(
+			source,
+			() => panelActions.execute(actionId, input, source),
+			workbenchActionNotAppliedDescriptor(actionId),
+		);
 	const commitSplitRatio = useMemoizedFn(
 		async (splitId: string, leadingWeight: number): Promise<void> => {
 			const tabId = store.getActiveTabId();
@@ -815,12 +820,15 @@ export function useWorkbenchPanelWorkspace({
 						await heldRestores.restore(presentationId, directory);
 					},
 		createTerminalTab: (source: ActionInvocationSource = 'programmatic') => {
-			reportActionOutcome(source, () =>
-				actionRuntime.execute(
-					WORKBENCH_ACTION_IDS.createTerminal,
-					{ groupId: null },
-					{ scope: panelActions.scope, source },
-				),
+			reportActionOutcome(
+				source,
+				() =>
+					actionRuntime.execute(
+						WORKBENCH_ACTION_IDS.createTerminal,
+						{ groupId: null },
+						{ scope: panelActions.scope, source },
+					),
+				workbenchActionNotAppliedDescriptor(WORKBENCH_ACTION_IDS.createTerminal),
 			);
 		},
 		displayedRoot,

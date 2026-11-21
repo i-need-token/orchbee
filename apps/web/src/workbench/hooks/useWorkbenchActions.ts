@@ -47,6 +47,7 @@ import {
 	type WorkbenchTerminalCreateInput,
 	workbenchTerminalCreateInput,
 } from '../actions/workbench-action-ids';
+import { workbenchActionNotAppliedDescriptor } from '../actions/workbenchActionNotAppliedDescriptor';
 import {
 	createWorkbenchFocusAfterTabClose,
 	type WorkbenchFocusAfterTabClose,
@@ -349,11 +350,14 @@ export function useWorkbenchActions({
 							}
 							if (projectWorkspaceRuntime.getSnapshot().activeLocation.kind !== 'workspace') {
 								// A Tab needs a Workspace, and creating one explicitly has its own owner.
-								reportActionOutcome(context.source, () =>
-									typedRuntime.execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined, {
-										scope,
-										source: context.source,
-									}),
+								reportActionOutcome(
+									context.source,
+									() =>
+										typedRuntime.execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined, {
+											scope,
+											source: context.source,
+										}),
+									workbenchActionNotAppliedDescriptor(WORKBENCH_ACTION_IDS.createWorkspace),
 								);
 								return { kind: 'unchanged' };
 							}
@@ -565,8 +569,10 @@ export function useWorkbenchActions({
 			source: ActionInvocationSource,
 			details?: Pick<ActionInvocation, 'capabilities' | 'focus' | 'target'>,
 		) =>
-			reportActionOutcome(source, () =>
-				typedRuntime.execute(actionId, input, { ...details, scope, source }),
+			reportActionOutcome(
+				source,
+				() => typedRuntime.execute(actionId, input, { ...details, scope, source }),
+				workbenchActionNotAppliedDescriptor(actionId),
 			),
 	);
 	const invokeShortcut = useMemoizedFn(
@@ -582,7 +588,11 @@ export function useWorkbenchActions({
 					) {
 						return false;
 					}
-					reportActionOutcome(source, () => typedRuntime.execute(definition.id, input, invocation));
+					reportActionOutcome(
+						source,
+						() => typedRuntime.execute(definition.id, input, invocation),
+						workbenchActionNotAppliedDescriptor(definition.id),
+					);
 					return true;
 				}
 				case 'actionsSearch':
@@ -594,8 +604,10 @@ export function useWorkbenchActions({
 					) {
 						return false;
 					}
-					reportActionOutcome(source, () =>
-						typedRuntime.execute(definition.id, definition.input, invocation),
+					reportActionOutcome(
+						source,
+						() => typedRuntime.execute(definition.id, definition.input, invocation),
+						workbenchActionNotAppliedDescriptor(definition.id),
 					);
 					return true;
 				}
@@ -625,8 +637,10 @@ export function useWorkbenchActions({
 					) {
 						return false;
 					}
-					reportActionOutcome(source, () =>
-						typedRuntime.execute(definition.id, definition.input, invocation),
+					reportActionOutcome(
+						source,
+						() => typedRuntime.execute(definition.id, definition.input, invocation),
+						workbenchActionNotAppliedDescriptor(definition.id),
 					);
 					return true;
 				}
@@ -675,8 +689,10 @@ export function useWorkbenchActions({
 					) {
 						return false;
 					}
-					reportActionOutcome(source, () =>
-						typedRuntime.execute(definition.id, undefined, invocation),
+					reportActionOutcome(
+						source,
+						() => typedRuntime.execute(definition.id, undefined, invocation),
+						workbenchActionNotAppliedDescriptor(definition.id),
 					);
 					return true;
 				}

@@ -273,7 +273,8 @@ impl Locale {
             N::Unsupported(capability) => self.unsupported_capability(capability),
             N::Settings(notice) => self.settings_notice(notice).to_owned(),
             N::AgentStart(phase) => self.agent_start_phase(phase),
-            N::LocalBusy | N::MenuUnavailable => say("Couldn't run the action.", "没能执行操作。"),
+            N::LocalBusy => say("Couldn't run the action.", "没能执行操作。"),
+            N::MenuUnavailable => say("This isn't available right now.", "此操作现在不可用。"),
             N::TerminalClearRefused | N::TerminalClearUnavailable => {
                 say("Couldn't clear the terminal.", "没能清除终端。")
             }

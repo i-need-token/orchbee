@@ -311,6 +311,14 @@ export function workbenchFailureNotice(
 	);
 }
 
+/** A refusal or failure of one Action, in the words the TUI gives for that Action. */
+export function workbenchNamedFailureNotice(
+	result: ActionResult<unknown>,
+	descriptor: WorkbenchAuthorityNotice['descriptor'],
+): WorkbenchAuthorityNotice | null {
+	return failureNotice(result, descriptor, descriptor);
+}
+
 /** Refusals another surface already explains: a question asks first, and a repeated press or a newer navigation owns the outcome. */
 const ACTION_OUTCOMES_SAID_ELSEWHERE: ReadonlySet<string> = new Set([
 	'confirmation-required',
@@ -325,12 +333,14 @@ const ACTION_UNAVAILABLE_CODES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * What an Action invoked from a control, menu, or shortcut says when it was refused or failed and no
- * surface has said so. Cancelled, completed, and unchanged results say nothing: the person chose the
- * outcome, or the Action intends it.
+ * What an Action invoked from a control, menu, shortcut, or Search says when it was refused or failed
+ * and no surface has said so: the TUI's words for that Action when `named` gives them, else the generic
+ * sentence. Cancelled, completed, and unchanged results say nothing: the person chose the outcome, or
+ * the Action intends it.
  */
 export function workbenchActionOutcomeNotice(
 	result: ActionResult<unknown>,
+	named?: WorkbenchAuthorityNotice['descriptor'],
 ): WorkbenchAuthorityNotice | null {
 	if (
 		result.kind === 'unsupported' ||
@@ -339,7 +349,9 @@ export function workbenchActionOutcomeNotice(
 		return { descriptor: workbenchMessages.actionUnavailable, lifetime: 'until-press' };
 	}
 	if (result.kind === 'blocked' && ACTION_OUTCOMES_SAID_ELSEWHERE.has(result.code)) return null;
-	return workbenchFailureNotice(result);
+	return named === undefined
+		? workbenchFailureNotice(result)
+		: workbenchNamedFailureNotice(result, named);
 }
 
 const DIRECTORY_REFUSAL_NOTICES = {
@@ -352,7 +364,7 @@ const DIRECTORY_REFUSAL_NOTICES = {
 /**
  * A creation's refusal. A folder the person named that the Server would not use says why and which
  * folder, in the words the TUI shows under its folder field; a folder field that reopens with the
- * reason withdraws it. A creation that names no folder keeps the TUI's not-applied words.
+ * reason withdraws it. A creation that names no folder says the TUI's words for that creation.
  */
 export function workbenchCreationFailureNotice(
 	creation: WorkbenchAuthorityCreation,
@@ -363,7 +375,9 @@ export function workbenchCreationFailureNotice(
 		refusal === null ||
 		(creation.type !== 'project-created' && creation.type !== 'workspace-created-at-path')
 	) {
-		return workbenchFailureNotice(result);
+		return creation.type === 'project-created'
+			? workbenchFailureNotice(result)
+			: workbenchNamedFailureNotice(result, workbenchMessages.workspaceCreateNotApplied);
 	}
 	return {
 		descriptor: DIRECTORY_REFUSAL_NOTICES[refusal],
@@ -401,6 +415,17 @@ export function workbenchTabCreationFailureNotice(
 		workbenchMessages.tabCreateNotCreated,
 		workbenchMessages.tabCreateNotCreated,
 	);
+}
+
+/** A duplication that did not finish, in the TUI's words for duplicating Tabs. */
+export function workbenchTabDuplicationFailureNotice(
+	result: ActionResult<unknown>,
+): WorkbenchAuthorityNotice | null {
+	// A changed, removed or unsupported launch profile is fixed in Settings, never by another program.
+	if (result.kind === 'blocked' && result.code === 'launch-profile-unavailable') {
+		return { descriptor: workbenchMessages.tabCreateProfileUnavailable, lifetime: 'until-press' };
+	}
+	return workbenchNamedFailureNotice(result, workbenchMessages.tabDuplicationNotCreated);
 }
 
 export function workbenchPanelsFailureNotice(

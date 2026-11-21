@@ -23,6 +23,7 @@ import type { WorkbenchSearchEvent, WorkbenchSearchState } from '../model/workbe
 import { useWorkbenchSearchArgumentRead } from './useWorkbenchSearchArgumentRead';
 import { useWorkbenchSearchCatalog } from './useWorkbenchSearchCatalog';
 import { useWorkbenchSearchProviders } from './useWorkbenchSearchProviders';
+import { workbenchActionNotAppliedDescriptor } from '../../../actions/workbenchActionNotAppliedDescriptor';
 
 interface UseWorkbenchSearchSurfaceOptions {
 	readonly argumentPickerForAction: (actionId: string) => WorkbenchSearchArgumentPicker | undefined;
@@ -220,7 +221,11 @@ export function useWorkbenchSearchSurface({
 		}
 		update({ type: 'close' });
 		const prepared = result.invocation.prepared;
-		reportActionOutcome('command-surface', () => runtime.executePrepared(prepared));
+		reportActionOutcome(
+			'command-surface',
+			() => runtime.executePrepared(prepared),
+			workbenchActionNotAppliedDescriptor(prepared.actionId),
+		);
 	});
 	const invokePickerOption = useMemoizedFn((optionId: string) => {
 		if (
@@ -239,7 +244,11 @@ export function useWorkbenchSearchSurface({
 			return;
 		}
 		update({ type: 'close' });
-		reportActionOutcome('command-surface', () => runtime.executePrepared(prepared.invocation));
+		reportActionOutcome(
+			'command-surface',
+			() => runtime.executePrepared(prepared.invocation),
+			workbenchActionNotAppliedDescriptor(prepared.invocation.actionId),
+		);
 	});
 	const sections = React.useMemo<readonly WorkbenchSearchSectionView[]>(() => {
 		if (state.kind === 'picking-argument') {

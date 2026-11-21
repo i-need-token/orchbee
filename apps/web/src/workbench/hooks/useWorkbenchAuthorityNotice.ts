@@ -13,9 +13,11 @@ import {
 	workbenchConfiguredCommandNotice,
 	workbenchCreationFailureNotice,
 	workbenchFailureNotice,
+	workbenchNamedFailureNotice,
 	workbenchPanelsFailureNotice,
 	workbenchSplitRatioFailureNotice,
 	workbenchTabCreationFailureNotice,
+	workbenchTabDuplicationFailureNotice,
 	workbenchTabDuplicationStoppedNotice,
 	workbenchTabsFailureNotice,
 	workbenchWorktreeOutcomeNotice,
@@ -46,6 +48,7 @@ export interface WorkbenchAuthorityNoticeView {
 	readonly reportActionOutcome: <Execution extends ActionExecution<unknown>>(
 		source: ActionInvocationSource,
 		start: () => Execution,
+		named?: WorkbenchAuthorityNotice['descriptor'],
 	) => Execution;
 	/** An Agent destination failed revalidation, so nothing moved; the TUI says the same. */
 	readonly reportAgentNavigationUnavailable: () => void;
@@ -239,6 +242,7 @@ export function useWorkbenchAuthorityNotice(
 		<Execution extends ActionExecution<unknown>>(
 			source: ActionInvocationSource,
 			start: () => Execution,
+			named?: WorkbenchAuthorityNotice['descriptor'],
 		): Execution => {
 			// Automation and programmatic calls are not a person's control, so their caller owns any outcome.
 			if (source === 'automation' || source === 'programmatic') return start();
@@ -248,7 +252,7 @@ export function useWorkbenchAuthorityNotice(
 				if (outcome !== null && noticeWrites.current === writesBefore) setNotice(outcome);
 			};
 			void execution.completion.then(
-				(result) => say(workbenchActionOutcomeNotice(result)),
+				(result) => say(workbenchActionOutcomeNotice(result, named)),
 				() => say({ descriptor: workbenchMessages.actionUnavailable, lifetime: 'until-press' }),
 			);
 			return execution;
@@ -261,13 +265,15 @@ export function useWorkbenchAuthorityNotice(
 			change: async (context, change) => {
 				setNotice(null);
 				const result = await authority.change(context, change);
-				if (change.type === 'tab-renamed' || change.type === 'tabs-changed') {
+				if (change.type === 'tab-renamed') {
+					setNotice(workbenchNamedFailureNotice(result, workbenchMessages.tabsRenameNotApplied));
+				} else if (change.type === 'tabs-changed' && change.change.kind === 'tab-moved') {
+					setNotice(workbenchNamedFailureNotice(result, workbenchMessages.tabsMoveNotApplied));
+				} else if (change.type === 'tabs-changed') {
 					setNotice(workbenchTabsFailureNotice(result));
-				} else if (
-					change.type === 'panel-moved' ||
-					change.type === 'panels-swapped' ||
-					change.type === 'panel-renamed'
-				) {
+				} else if (change.type === 'panel-moved') {
+					setNotice(workbenchNamedFailureNotice(result, workbenchMessages.panelsMoveNotApplied));
+				} else if (change.type === 'panels-swapped' || change.type === 'panel-renamed') {
 					setNotice(workbenchPanelsFailureNotice(result));
 				} else if (
 					change.type === 'panel-size-adjusted' ||
@@ -275,6 +281,12 @@ export function useWorkbenchAuthorityNotice(
 					change.type === 'split-ratio-set'
 				) {
 					setNotice(workbenchSplitRatioFailureNotice(result));
+				} else if (change.type === 'project-renamed') {
+					setNotice(workbenchNamedFailureNotice(result, workbenchMessages.projectRenameNotApplied));
+				} else if (change.type === 'workspace-updated') {
+					setNotice(
+						workbenchNamedFailureNotice(result, workbenchMessages.workspaceRenameNotApplied),
+					);
 				} else {
 					setNotice(workbenchFailureNotice(result));
 				}
@@ -349,7 +361,7 @@ export function useWorkbenchAuthorityNotice(
 			createPanelTerminal: async (context, creation) => {
 				setNotice(null);
 				const result = await authority.createPanelTerminal(context, creation);
-				setNotice(workbenchPanelsFailureNotice(result));
+				setNotice(workbenchNamedFailureNotice(result, workbenchMessages.panelsSplitNotApplied));
 				return result;
 			},
 			createTab: async (context, creation) => {
@@ -361,7 +373,7 @@ export function useWorkbenchAuthorityNotice(
 			duplicateTabs: async (context, duplication) => {
 				setNotice(null);
 				const result = await authority.duplicateTabs(context, duplication);
-				setNotice(workbenchTabCreationFailureNotice(result));
+				setNotice(workbenchTabDuplicationFailureNotice(result));
 				return result;
 			},
 			heldRestores:
