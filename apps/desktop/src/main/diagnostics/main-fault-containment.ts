@@ -41,12 +41,11 @@ function codeOf(error: unknown): ErrorCode {
 }
 
 /**
- * Where a listener Main registers with Electron runs: a notification-area or Dock surface, the
+ * Where a listener Main registers with Electron runs: the notification-area or menu-bar icon, the
  * application menu, an IPC channel, or a document's port.
  */
 type DesktopListenerSite =
 	| 'application-menu'
-	| 'dock'
 	| 'ipc-server-connection-request'
 	| 'ipc-window-caption'
 	| 'ipc-window-fault'

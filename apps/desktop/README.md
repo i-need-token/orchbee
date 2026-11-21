@@ -18,15 +18,17 @@ application stays open without a window, and activating it opens one. A renderer
 and the new document connects again; a second crash within a minute of the last stops reloading,
 and a native dialog, like VS Code's, offers Reopen or Close (Esc closes). Closing destroys the dead
 page, so the window opens afresh later. Closing the window or quitting asks nothing, because nothing ends
-with it: Main records the window's place and the Session's terminals keep running. On Windows,
-closing the window while terminals run hides it, and Desktop keeps running in the notification area
-until the window is reopened, Orchbee is quit from the icon, or the last terminal ends, as
+with it: Main records the window's place and the Session's terminals keep running. From start until
+quit, Desktop shows an icon in the Windows notification area or the macOS menu bar, with or without
+a window, whose menu counts the running terminals. On Windows, closing the window while terminals
+run hides it, and Desktop keeps running until the window is reopened, Orchbee is quit from the
+icon, or the last terminal ends, as
 [Window lifecycle](docs/window-lifecycle.md#running-in-the-notification-area) describes; with no
 terminal running, closing it quits as before. On macOS the same close hides the window, and Desktop
-stays in the Dock whatever runs, with a Dock menu that counts the running terminals, as
-[Running in the Dock](docs/window-lifecycle.md#running-in-the-dock) describes. Quit All, in the
-icon's menu, the Dock menu, and the macOS application menu, is the one quit that stops the Session,
-and it asks first.
+stays in the Dock whatever runs, as
+[Running in the menu bar](docs/window-lifecycle.md#running-in-the-menu-bar) describes. Quit All, in
+the icon's menu and the macOS application menu, is the one quit that stops the Session, and it asks
+first.
 
 ## Server connection
 
@@ -40,9 +42,8 @@ ends that connection alone. The second is the document's
 [Project Folder acquisition](docs/project-folder-acquisition.md) port, served by a broker that lives
 as long as the connection; the third is its background-status port, over which the page reports how
 many terminals run and which Agent states need the person, and asks for the window when a
-notification is clicked. Main parses each report and counts nothing itself; where Desktop keeps
-neither the notification-area icon nor the Dock menu, on Linux and for a window started hidden, it
-closes that port. Over the same port Main asks the page for Quit
+notification is clicked. Main parses each report and counts nothing itself; where Desktop keeps no
+notification-area or menu-bar icon, on Linux and for a window started hidden, it closes that port. Over the same port Main asks the page for Quit
 All's Session stop, which the page sends through its Server connection because Main never speaks
 the Client protocol. The fourth is its window-update port, described under
 [Window Update](#window-update). The process owns activation, peer validation and admission, and the page
@@ -54,8 +55,8 @@ connection, and closing the process's standard input ends it.
 One window, connection, message, or request never ends Main. A document whose connection cannot be
 made gets none, and a reload asks again; a throw or rejection that nothing else handled is
 recorded as `main-fault-contained` and Main goes on, because every fault Main can meet belongs to
-one of them. A throw from a notification-area, Dock, application menu, IPC or port listener costs
-only that call and is recorded with its site.
+one of them. A throw from a notification-area or menu-bar icon, application menu, IPC or port
+listener costs only that call and is recorded with its site.
 
 The page reports the site of every fault it contains, and of every error or rejection that escapes
 it, by posting it to its own window; the preload forwards a parsed site to Main, which records it
@@ -202,18 +203,21 @@ Test build.
   Session's title policy as the TUI's outer title does.
 - The window's place, restored and recorded as [Window lifecycle](docs/window-lifecycle.md)
   describes.
-- On Windows, the notification-area icon while the window is hidden with terminals running. Its
-  image is the Orchbee mark with a hexagon for the most urgent Agent state, red for a failure,
-  yellow for one needing attention, green for a finished turn not yet seen, and outside a release
-  the Dev circle or Test square; its tooltip and its menu's first line count the running terminals
-  and those Agents. Left click and double-click reopen the window; the menu holds Reopen Orchbee,
-  Quit Orchbee, Keep Terminals Running, and Quit All…, which asks in a native dialog before it stops
-  every terminal and quits. The icons are generated into
-  `resources/brand/ico/tray/`, which a Windows package carries as `resources/tray`.
-- On macOS, the Dock menu instead of an icon: the same status line while a window's page reports,
-  Reopen Orchbee while no window shows, Quit Orchbee, Keep Terminals Running, and Quit All…. The
-  application menu names `Command+Q` Quit Orchbee, Keep Terminals Running and adds Quit All… after
-  it, and the Window menu holds Reopen Orchbee while no window shows.
+- On Windows, the notification-area icon, from start until quit. Its image is the Orchbee mark
+  with a hexagon for the most urgent Agent state, red for a failure, yellow for one needing
+  attention, green for a finished turn not yet seen, and outside a release the Dev circle or Test
+  square; its tooltip and its menu's first line count the running terminals and those Agents. Left
+  click and double-click show and focus the window, hidden, minimized or behind others; the menu
+  holds Open Orchbee, Quit Orchbee, Keep Terminals Running, and, while terminals run, Quit All…,
+  which asks in a native dialog before it stops every terminal and quits. The icons are generated
+  into `resources/brand/ico/tray/`, which a Windows package carries as `resources/tray`.
+- On macOS, the menu-bar icon, from start until quit, with the same menu, which a click opens. Its
+  image is a template image that follows the menu bar's color: the hive ring, a hexagon while an
+  Agent state needs the person, and outside a release the Dev circle or Test square. The icons are
+  generated into `resources/brand/png/tray/`, which a macOS package carries as `resources/tray`.
+  The Dock keeps the system's own menu. The application menu names `Command+Q` Quit Orchbee, Keep
+  Terminals Running and adds Quit All… after it, and the Window menu holds Open Orchbee while no
+  window shows.
 - On Windows and macOS, Save Diagnostic Bundle… in the Help menu, and on Windows also in the
   taskbar's Jump List of a packaged build, since the title bar overlay hides the menu bar. It asks
   where to save, starting in the

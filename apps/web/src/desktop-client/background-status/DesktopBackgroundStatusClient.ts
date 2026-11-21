@@ -8,9 +8,9 @@ import {
 type SessionStop = (stopId: string) => Promise<DesktopSessionStopAnswer>;
 
 /**
- * This document's background-status port: what Main's notification-area icon shows while the
- * window is hidden, the request to show the window, which a page cannot make for itself, and the
- * answer to each Session stop Main asks for.
+ * This document's background-status port: what Main's notification-area or menu-bar icon shows,
+ * the request to show the window, which a page cannot make for itself, and the answer to each
+ * Session stop Main asks for.
  */
 export class DesktopBackgroundStatusClient {
 	#disposed = false;

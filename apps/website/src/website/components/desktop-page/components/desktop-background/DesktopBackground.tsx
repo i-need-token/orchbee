@@ -35,10 +35,11 @@ function TrayIcon(): ReactElement {
 }
 
 /**
- * Running in the background: what closing the window does, beside the Windows notification it
- * shows and the notification-area menu, both in the application's own words. While the release
- * offers macOS, the text names Windows and adds what macOS does: Orchbee stays in the Dock, whose
- * menu holds the same items (apps/desktop/docs/window-lifecycle.md, Running in the Dock).
+ * Running in the background: the icon Orchbee always shows and what closing the window does, beside
+ * the Windows notification it shows and the notification-area menu, both in the application's own
+ * words. While the release offers macOS, the text names Windows and adds what macOS does: the
+ * menu-bar icon holds the same menu, and Orchbee stays in the Dock
+ * (apps/desktop/docs/window-lifecycle.md, Running in the menu bar).
  */
 export function DesktopBackground({ release }: { release: Release }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
@@ -77,7 +78,7 @@ export function DesktopBackground({ release }: { release: Release }): ReactEleme
 							})}
 						</span>
 						<i className={styles['rule']} />
-						<span className={styles['current']}>{t(desktopTrayMessages.reopen)}</span>
+						<span className={styles['current']}>{t(desktopTrayMessages.open)}</span>
 						<i className={styles['rule']} />
 						<span>{t(desktopTrayMessages.quitKeepRunning)}</span>
 						<span>{t(desktopTrayMessages.quitAll)}</span>

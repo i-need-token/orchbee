@@ -7,13 +7,14 @@ export interface DesktopBackgroundSurfaceActions {
 	/** Quit Orchbee, Keep Terminals Running. */
 	readonly onQuit: () => void;
 	readonly onQuitAll: () => void;
+	/** Open Orchbee: shows and focuses the window, or opens one. */
 	readonly onReopen: () => void;
 }
 
 /**
- * Where Desktop shows that it keeps running without a window: the notification-area icon on Windows,
- * the Dock menu on macOS. It projects each lifecycle state itself and reports what the person asks
- * for through its actions.
+ * Where Desktop shows that it runs, with or without a window: the icon in the notification area on
+ * Windows and in the menu bar on macOS. It projects each lifecycle state itself and reports what the
+ * person asks for through its actions.
  */
 export interface DesktopBackgroundSurface {
 	dispose(): void;

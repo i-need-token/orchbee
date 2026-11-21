@@ -114,11 +114,12 @@ const desktopBuild = path.join(applicationRoot, 'dist');
 // extra resource keeps its directory's base name under the application's resources directory.
 const rendererBuild = path.join(repositoryRoot, 'apps', 'web', 'dist');
 const cohortDirectoryName = 'cohort';
-// Windows keeps running in the notification area after its window closes, with these icons.
-const trayIconDirectory =
-	process.platform === 'win32'
-		? path.join(repositoryRoot, 'resources', 'brand', 'ico', 'tray')
-		: undefined;
+// The icon Desktop shows from start until quit: `.ico` files in the Windows notification area and
+// template PNGs in the macOS menu bar, carried as `resources/tray` on both.
+const trayIconDirectory = {
+	darwin: path.join(repositoryRoot, 'resources', 'brand', 'png', 'tray'),
+	win32: path.join(repositoryRoot, 'resources', 'brand', 'ico', 'tray'),
+}[process.platform];
 // Every Windows profile carries the Orchbee mark; the installer's names tell a test build apart.
 const applicationIcon = {
 	darwin: path.join(repositoryRoot, 'resources', 'brand', 'icns', distributionProfile.iconFileName),

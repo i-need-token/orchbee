@@ -134,15 +134,15 @@ export const websiteDesktopMessages = defineMessages({
 	),
 	backgroundBody: message(
 		'website.desktop.background.body',
-		'What closing the window does while terminals run.',
+		'The notification-area icon Orchbee always shows, and what closing the window does while terminals run.',
 	),
 	backgroundBodyWindows: message(
 		'website.desktop.background.bodyWindows',
-		'What closing the window does on Windows while terminals run, once a release offers macOS.',
+		'The notification-area icon Orchbee always shows on Windows, and what closing the window does there while terminals run, once a release offers macOS.',
 	),
 	backgroundMacos: message(
 		'website.desktop.background.macos',
-		'What closing the window does on macOS, once a release offers macOS.',
+		'The menu-bar icon that holds the same menu on macOS, and what closing the window does there, once a release offers macOS.',
 	),
 	backgroundQuitAll: message(
 		'website.desktop.background.quitAll',

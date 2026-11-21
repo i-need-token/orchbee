@@ -47,7 +47,6 @@ describe('Desktop background lifecycle', () => {
 		const closed = transitionDesktopBackground(shown(0), close);
 		expect(closed.commands).toEqual([]);
 		expect(closed.state.window).toBe('shown');
-		expect(projectDesktopTray(closed.state)).toBeNull();
 	});
 
 	it('never intercepts a close once quitting, restarting for development, or ending the session', () => {
@@ -57,7 +56,6 @@ describe('Desktop background lifecycle', () => {
 			expect(fromShown.commands).toEqual([]);
 
 			const fromHidden = run(shown(3), [close, ending]);
-			expect(projectDesktopTray(fromHidden)).toBeNull();
 			expect(transitionDesktopBackground(fromHidden, close).commands).toEqual([]);
 			// A later summary never turns the ending back into a hide or a second quit.
 			const later = run(fromHidden, [{ kind: 'summary-changed', summary: summary(4) }, close]);
@@ -98,7 +96,7 @@ describe('Desktop background lifecycle', () => {
 			summary: summary(0),
 		});
 		expect(ended.commands).toEqual([]);
-		expect(projectDesktopTray(ended.state)?.stopping).toBe(true);
+		expect(projectDesktopTray(ended.state)?.menu.status).toEqual({ kind: 'stopping' });
 		const stopped = transitionDesktopBackground(ended.state, { kind: 'quit-all-stopped' });
 		expect(stopped.commands).toEqual([{ kind: 'quit' }]);
 		expect(projectDesktopTray(stopped.state)).toBeNull();
@@ -120,7 +118,6 @@ describe('Desktop background lifecycle', () => {
 			{ kind: 'summary-changed', summary: summary(0) },
 		]);
 		expect(reported.ending).toBe('none');
-		expect(projectDesktopTray(reported)).toBeNull();
 		// No second Quit All starts while the report shows; once it is dismissed, Quit All asks again.
 		expect(transitionDesktopBackground(reported, { kind: 'quit-all-requested' }).commands).toEqual(
 			[],
@@ -131,7 +128,7 @@ describe('Desktop background lifecycle', () => {
 		);
 	});
 
-	it('shows the icon exactly while the window is hidden with terminals running or a Quit All under way, and macOS quits only through Quit All', () => {
+	it('shows the icon until the application quits, stops the Session only on confirmation, and quits macOS only through Quit All', () => {
 		const events: readonly DesktopBackgroundEvent[] = [
 			close,
 			{ kind: 'notice-shown' },
@@ -160,12 +157,9 @@ describe('Desktop background lifecycle', () => {
 			const key = JSON.stringify(state);
 			if (seen.has(key)) continue;
 			seen.add(key);
-			const tray = projectDesktopTray(state) !== null;
-			const underWay = state.quitAll.kind === 'stopping' || state.quitAll.kind === 'failed';
-			const kept = state.window === 'hidden' && (state.summary.runningTerminals > 0 || underWay);
-			// No icon while the window shows, and no hidden window without an icon to reopen it from.
-			const holds = state.ending === 'none' ? tray === kept : !tray;
-			if (!holds || (state.ending === 'none' && state.window === 'hidden' && !tray)) {
+			// The icon shows whatever the window does until the application quits, so a hidden window
+			// always has an icon to reopen it from.
+			if ((projectDesktopTray(state) !== null) !== (state.ending !== 'quitting')) {
 				violations.push(state);
 			}
 			for (const event of events) {

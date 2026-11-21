@@ -10,17 +10,21 @@ export const desktopTrayMessages = defineMessages({
 		'desktop.tray.notice.body',
 		'Body of the one-time Windows notification shown when closing the window leaves Orchbee running in the notification area. {terminals} is the number of terminals still running.',
 	),
-	noticeDockBody: message(
-		'desktop.tray.notice.dockBody',
-		'Body of the one-time macOS notification shown when closing the window leaves Orchbee running in the Dock. {terminals} is the number of terminals still running. Use the platform terms for the Dock and Control-click.',
+	noticeMenuBarBody: message(
+		'desktop.tray.notice.menuBarBody',
+		'Body of the one-time macOS notification shown when closing the window leaves Orchbee running in the Dock, whose menu-bar icon holds Quit All. {terminals} is the number of terminals still running. Use the platform terms for the Dock and the menu bar.',
 	),
 	noticeTitle: message(
 		'desktop.tray.notice.title',
 		'Title of the one-time notification, on Windows and macOS. {application} is the application name, such as Orchbee or Orchbee Test.',
 	),
+	open: message(
+		'desktop.tray.open',
+		'Menu item of the Windows notification-area icon and the macOS menu-bar icon, always offered, and of the macOS Window menu while no window shows, that shows and focuses the window, or opens one.',
+	),
 	quitAll: message(
 		'desktop.tray.quitAll',
-		'Menu item of the Windows notification-area icon, the macOS Dock menu, and the macOS application menu, and the button a terminal shows once Orchbee cannot reconnect to it, that asks to stop the Session, ending every terminal and Agent, and then quit Orchbee.',
+		'Menu item of the Windows notification-area icon, the macOS menu-bar icon, and the macOS application menu, and the button a terminal shows once Orchbee cannot reconnect to it, that asks to stop the Session, ending every terminal and Agent, and then quit Orchbee.',
 	),
 	quitAllCancel: message(
 		'desktop.tray.quitAll.cancel',
@@ -68,7 +72,7 @@ export const desktopTrayMessages = defineMessages({
 	),
 	quitAllStopping: message(
 		'desktop.tray.quitAll.stopping',
-		'First, inert line of the notification-area menu or the Dock menu, and the tooltip status, while Quit All stops the Session.',
+		'First, inert line of the menu of the Windows notification-area icon or the macOS menu-bar icon, and the tooltip status, while Quit All stops the Session.',
 	),
 	quitAllTitle: message(
 		'desktop.tray.quitAll.title',
@@ -76,18 +80,14 @@ export const desktopTrayMessages = defineMessages({
 	),
 	quitKeepRunning: message(
 		'desktop.tray.quitKeepRunning',
-		'Menu item of the notification-area icon, the Dock menu, and the macOS application menu, where it is the Command-Q item: Orchbee quits while its terminals and Agents keep running in the background.',
-	),
-	reopen: message(
-		'desktop.tray.reopen',
-		'Menu item of the notification-area icon, the Dock menu, and the macOS Window menu that shows the window again.',
+		'Menu item of the Windows notification-area icon, the macOS menu-bar icon, and the macOS application menu, where it is the Command-Q item: Orchbee quits while its terminals and Agents keep running in the background.',
 	),
 	status: message(
 		'desktop.tray.status',
-		'First, inert line of the notification-area menu or the Dock menu, also used in the icon tooltip: how many terminals run, and how many Agents failed, need attention, or finished a turn the person has not seen.',
+		'First, inert line of the menu of the Windows notification-area icon or the macOS menu-bar icon, also used in the icon tooltip: how many terminals run, none included, and how many Agents failed, need attention, or finished a turn the person has not seen.',
 	),
 	tooltip: message(
 		'desktop.tray.tooltip',
-		'Tooltip of the notification-area icon. {application} is the application name; {status} is the status line.',
+		'Tooltip of the Windows notification-area icon and the macOS menu-bar icon. {application} is the application name; {status} is the status line.',
 	),
 });

@@ -240,7 +240,8 @@ async function run(
 		);
 		return;
 	}
-	// Quit All in Main's notification-area menu stops the Session through this connection.
+	// Quit All in the menu of Main's notification-area or menu-bar icon stops the Session through
+	// this connection.
 	backgroundStatus.serveSessionStop((stopId) => stopServerSession(session, stopId));
 
 	// Check for updates asks this Session's Server to run its update job now; what it installs
@@ -386,7 +387,7 @@ async function run(
 		// Electron names the window after its page, which the taskbar and window switcher show.
 		titleWindow: targetWindow,
 	});
-	// What Main's notification-area icon shows while the window is hidden.
+	// What Main's notification-area or menu-bar icon shows.
 	stopBackgroundStatus = bindDesktopBackgroundStatus({
 		agentObservationSource: runtime.agentObservationSource,
 		client: backgroundStatus,

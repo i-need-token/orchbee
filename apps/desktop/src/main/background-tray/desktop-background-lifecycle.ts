@@ -1,21 +1,21 @@
 /**
- * Whether Desktop keeps running after its window closes: in the notification area on Windows, and
- * in the Dock on macOS.
+ * How Desktop keeps running without its window: an icon that shows from start until quit, in the
+ * notification area on Windows and in the menu bar on macOS, and a window that hides on close while
+ * terminals run.
  *
- * Closing the window while terminals run hides it instead. On Windows the notification-area icon
- * shows until the window shows again or the last terminal ends, which quits Desktop; on macOS the
- * Dock stays, as it does for every macOS application, and the last terminal ending closes the hidden
- * window instead of quitting. Nothing intercepts a close once the application is quitting, a
- * development rebuild restarts it, or the operating system ends the person's session, so Desktop
- * never holds up a quit, a restart, logoff, or shutdown.
+ * On Windows the last terminal ending while the window is hidden quits Desktop; on macOS it closes
+ * the hidden window instead, and Desktop stays in the Dock, as every macOS application does. Nothing
+ * intercepts a close once the application is quitting, a development rebuild restarts it, or the
+ * operating system ends the person's session, so Desktop never holds up a quit, a restart, logoff,
+ * or shutdown.
  *
- * Quit All, from the icon's menu or the Dock and application menus, stops the Session and then
- * quits, but only once the person confirms it and the stop has completed; a stop that fails shows
- * the window with the reason and nothing quits.
+ * Quit All, from the icon's menu or the macOS application menu, stops the Session and then quits,
+ * but only once the person confirms it and the stop has completed; a stop that fails shows the
+ * window with the reason and nothing quits.
  *
- * Invariant, while the application is not ending: a hidden window has terminals running or a Quit
- * All stopping or reporting its failure, and on Windows the icon shows exactly then, so a hidden
- * window always has an icon to reopen it from.
+ * Invariants: a hidden window has terminals running or a Quit All stopping or reporting its failure,
+ * unless the application is ending; the icon shows until the application quits, so a hidden window
+ * always has an icon to reopen it from.
  */
 import type { DesktopBackgroundStatusSummary } from '@orchbee/desktop-client-protocol';
 
@@ -71,7 +71,7 @@ export type DesktopBackgroundEvent =
 	/** The person closed the window: its close button, the taskbar, or `Alt+F4`. */
 	| { readonly kind: 'close-requested' }
 	| { readonly kind: 'notice-shown' }
-	/** The person chose Quit All from the icon's menu, the Dock menu, or the application menu. */
+	/** The person chose Quit All from the icon's menu, the application menu, or a terminal. */
 	| { readonly kind: 'quit-all-requested' }
 	| { readonly kind: 'quit-all-cancelled' }
 	| { readonly kind: 'quit-all-confirmed' }
@@ -113,11 +113,34 @@ export interface DesktopBackgroundTransition {
 /** The Agent state the icon marks, most urgent first; `none` marks nothing. */
 export type DesktopTrayStatus = 'attention' | 'done' | 'failed' | 'none';
 
+/** The first, inert line of the icon's menu, which its tooltip repeats. */
+export type DesktopBackgroundStatusLine =
+	/** No window's page reports, so nothing is known. */
+	| { readonly kind: 'none' }
+	| { readonly kind: 'stopping' }
+	| { readonly kind: 'summary'; readonly summary: DesktopBackgroundStatusSummary };
+
+/**
+ * What the icon's menu offers besides Open Orchbee, which it always offers; the macOS application
+ * menu's Quit All… and Open Orchbee follow it.
+ */
+export interface DesktopBackgroundMenuView {
+	/** Whether Quit Orchbee, Keep Terminals Running is offered; not while Quit All stops the Session. */
+	readonly quit: boolean;
+	/**
+	 * Whether Quit All can be asked for: a window's page reports running terminals, the application
+	 * is not ending, and no Quit All is under way.
+	 */
+	readonly quitAll: boolean;
+	readonly status: DesktopBackgroundStatusLine;
+	/** Whether a window shows; the macOS Window menu offers Open Orchbee only while none does. */
+	readonly windowShown: boolean;
+}
+
 export interface DesktopTrayView {
+	readonly menu: DesktopBackgroundMenuView;
+	/** The Agent state the image marks; none while Quit All stops the Session. */
 	readonly status: DesktopTrayStatus;
-	/** Whether Quit All is stopping the Session, when the menu offers only to reopen the window. */
-	readonly stopping: boolean;
-	readonly summary: DesktopBackgroundStatusSummary;
 }
 
 const EMPTY_SUMMARY: DesktopBackgroundStatusSummary = {
@@ -127,24 +150,6 @@ const EMPTY_SUMMARY: DesktopBackgroundStatusSummary = {
 	runningTerminals: 0,
 	workingAgents: 0,
 };
-
-/** The status line of the Dock menu. */
-type DesktopDockStatus =
-	/** No window's page reports, so nothing is known. */
-	| { readonly kind: 'none' }
-	| { readonly kind: 'stopping' }
-	| { readonly kind: 'summary'; readonly summary: DesktopBackgroundStatusSummary };
-
-/** What the macOS Dock menu and the application menu's background items offer. */
-export interface DesktopDockView {
-	/** Whether Quit Orchbee, Keep Terminals Running is offered; not while Quit All stops the Session. */
-	readonly quit: boolean;
-	/** Whether Quit All can be asked for: a window's page reports running terminals and none is under way. */
-	readonly quitAll: boolean;
-	/** Whether Reopen is offered: no window shows. */
-	readonly reopen: boolean;
-	readonly status: DesktopDockStatus;
-}
 
 export function createDesktopBackgroundState(
 	noticeShown: boolean,
@@ -253,25 +258,26 @@ export function transitionDesktopBackground(
 	}
 }
 
-/** What the notification-area icon shows, or null while it should not exist. */
+/**
+ * What the icon shows, in the notification area on Windows and the menu bar on macOS, whether or not
+ * a window shows; null once the application is quitting, when the icon goes. The end of the person's
+ * session keeps it, so Desktop stays reachable if another program cancels that end.
+ */
 export function projectDesktopTray(state: DesktopBackgroundState): DesktopTrayView | null {
-	if (
-		state.ending !== 'none' ||
-		state.window !== 'hidden' ||
-		(!hasRunningTerminals(state) && !quitAllUnderWay(state))
-	) {
-		return null;
-	}
-	const { summary } = state;
-	const stopping = state.quitAll.kind === 'stopping';
-	return { status: stopping ? 'none' : agentStatus(summary), stopping, summary };
+	if (state.ending === 'quitting') return null;
+	return {
+		menu: projectDesktopBackgroundMenu(state),
+		status: state.quitAll.kind === 'stopping' ? 'none' : agentStatus(state.summary),
+	};
 }
 
-/** What the Dock menu offers; the application menu's Reopen and Quit All follow the same view. */
-export function projectDesktopDock(state: DesktopBackgroundState): DesktopDockView {
+/** What the icon's menu offers; the macOS application menu's Open Orchbee and Quit All follow it. */
+export function projectDesktopBackgroundMenu(
+	state: DesktopBackgroundState,
+): DesktopBackgroundMenuView {
 	const stopping = state.quitAll.kind === 'stopping';
 	const reporting = state.window !== 'absent';
-	let status: DesktopDockStatus = { kind: 'none' };
+	let status: DesktopBackgroundStatusLine = { kind: 'none' };
 	if (stopping) status = { kind: 'stopping' };
 	else if (reporting) status = { kind: 'summary', summary: state.summary };
 	return {
@@ -281,8 +287,8 @@ export function projectDesktopDock(state: DesktopBackgroundState): DesktopDockVi
 			state.ending === 'none' &&
 			state.quitAll.kind === 'idle' &&
 			hasRunningTerminals(state),
-		reopen: state.window !== 'shown',
 		status,
+		windowShown: state.window === 'shown',
 	};
 }
 

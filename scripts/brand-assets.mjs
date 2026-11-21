@@ -33,6 +33,30 @@ const TRAY_BADGES = {
 const TRAY_STATUS_HEXAGON = 'M760 520 967.8 640V880L760 1000 552.2 880V640Z';
 const TRAY_ICON_SIZES = [16, 20, 24, 32, 40, 48];
 
+// The macOS menu-bar icon is a template image, which macOS draws in the menu bar's own color, so it
+// carries shapes only: the mark's hive ring without its tile, cropped to the ring; while an Agent
+// state needs the person, the status hexagon in the lower-right corner; and outside a release the
+// environment's circle or square in the upper-left corner. Each badge is a [shape, gap] pair: the gap
+// is cut out of the ring so the badge stands apart from it. Electron reads the `Template` file name
+// and the `@2x` file beside the 18 point one.
+const MENU_BAR_VIEW_BOX = [144, 144, 736, 736];
+const MENU_BAR_BADGES = {
+	release: null,
+	dev: ['<circle cx="224" cy="224" r="80"/>', '<circle cx="224" cy="224" r="116"/>'],
+	test: [
+		'<rect x="144" y="144" width="160" height="160" rx="36"/>',
+		'<rect x="108" y="108" width="232" height="232" rx="72"/>',
+	],
+};
+const MENU_BAR_STATE = [
+	'<path d="M780 680 866.6 730V830L780 880 693.4 830V730Z"/>',
+	'<path d="M780 640 901.2 710V850L780 920 658.8 850V710Z"/>',
+];
+const MENU_BAR_SCALES = [
+	['', 18],
+	['@2x', 36],
+];
+
 const ICON_SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 180, 192, 256, 512, 1024, 2048];
 const DARWIN_SIZES = [16, 32, 64, 128, 256, 512, 1024];
 const JPEG_SIZES = [256, 512, 1024, 2048];
@@ -72,6 +96,8 @@ const DISK_IMAGE_BACKGROUND = {
 const darwinSuffix = (variant) => (variant === 'release' ? '' : `-${variant}`);
 const traySuffix = (status) => (status === 'none' ? '' : `-${status}`);
 const trayName = (variant, status) => `orchbee${darwinSuffix(variant)}${traySuffix(status)}`;
+const menuBarName = (variant, state) =>
+	`orchbee${darwinSuffix(variant)}${state ? '-state' : ''}Template`;
 
 export function renderBrandSvgs(masterSvg) {
 	const master = masterSvg.trim();
@@ -100,6 +126,19 @@ export function renderBrandSvgs(masterSvg) {
 			svgs.set(
 				`tray-${trayName(variant, status)}`,
 				`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">${artwork}${badge}${hexagon}</svg>`,
+			);
+		}
+	}
+	const ring = artwork.replace(tilePath, '').replaceAll(/fill="#[0-9A-F]{6}"/giu, 'fill="#000"');
+	const [left, top, size] = MENU_BAR_VIEW_BOX;
+	for (const [variant, badge] of Object.entries(MENU_BAR_BADGES)) {
+		for (const state of [false, true]) {
+			const badges = [...(badge === null ? [] : [badge]), ...(state ? [MENU_BAR_STATE] : [])];
+			const shapes = badges.map(([shape]) => shape).join('');
+			const gaps = badges.map(([, gap]) => gap).join('');
+			svgs.set(
+				`menu-bar-${menuBarName(variant, state)}`,
+				`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${MENU_BAR_VIEW_BOX.join(' ')}"><mask id="gaps"><rect x="${left}" y="${top}" width="${size}" height="${size}" fill="#fff"/><g fill="#000">${gaps}</g></mask><g mask="url(#gaps)">${ring}</g><g fill="#000">${shapes}</g></svg>`,
 			);
 		}
 	}
@@ -181,6 +220,19 @@ export function brandAssetPlan() {
 				svg: `tray-${name}`,
 				sizes: TRAY_ICON_SIZES,
 			});
+		}
+	}
+	for (const variant of Object.keys(MENU_BAR_BADGES)) {
+		for (const state of [false, true]) {
+			const name = menuBarName(variant, state);
+			for (const [suffix, size] of MENU_BAR_SCALES) {
+				plan.set(`png/tray/${name}${suffix}.png`, {
+					kind: 'png',
+					svg: `menu-bar-${name}`,
+					width: size,
+					height: size,
+				});
+			}
 		}
 	}
 	for (const [name, background, svg] of SOCIAL_CARDS) {

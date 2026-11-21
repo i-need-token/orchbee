@@ -9,12 +9,12 @@ import type { DesktopDiagnosticRecorder } from '../diagnostics';
 import type { ServerStopStatus } from '../server-connection';
 import {
 	createDesktopBackgroundState,
-	projectDesktopDock,
+	projectDesktopBackgroundMenu,
 	transitionDesktopBackground,
 	type DesktopBackgroundEvent,
+	type DesktopBackgroundMenuView,
 	type DesktopBackgroundRelease,
 	type DesktopBackgroundState,
-	type DesktopDockView,
 } from './desktop-background-lifecycle';
 import type {
 	DesktopBackgroundSurface,
@@ -69,8 +69,8 @@ export interface DesktopBackgroundRuntimeOptions {
 }
 
 /**
- * Runs the background lifecycle for the window: applies each event, keeps the platform's surface,
- * the Windows notification-area icon or the macOS Dock menu, equal to the lifecycle's state, and
+ * Runs the background lifecycle for the window: applies each event, keeps the icon, in the
+ * notification area on Windows and the menu bar on macOS, equal to the lifecycle's state, and
  * performs the commands it returns.
  */
 export class DesktopBackgroundRuntime implements DesktopWindowBackground {
@@ -95,9 +95,9 @@ export class DesktopBackgroundRuntime implements DesktopWindowBackground {
 		this.#surface.update(this.#state);
 	}
 
-	/** What the Dock menu offers, which the macOS application menu's Reopen and Quit All follow. */
-	get dockView(): DesktopDockView {
-		return projectDesktopDock(this.#state);
+	/** What the icon's menu offers, which the macOS application menu's Open and Quit All follow. */
+	get menuView(): DesktopBackgroundMenuView {
+		return projectDesktopBackgroundMenu(this.#state);
 	}
 
 	closeRequested(): boolean {

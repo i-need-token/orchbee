@@ -80,7 +80,7 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	negotiatedCapabilities: z.array(CapabilityNameSchema).max(256).nullable().catch(null),
 	/**
 	 * Whether Main serves Quit All, which a terminal offers once its Server gave up on it; false where
-	 * Desktop keeps no notification-area icon or Dock menu.
+	 * Desktop keeps no notification-area or menu-bar icon.
 	 */
 	quitAllAvailable: z.boolean(),
 	/**
@@ -110,8 +110,8 @@ export const DesktopServerConnectionReplySchema = z.strictObject({
 /**
  * What the ports transferred with a reply carry, in this order: the document's Client connection
  * bytes, the native folder picker a new Project starts from, which only Main can open, the
- * summary of terminals and Agents the page reports for the notification-area icon, and the newer
- * window version Main offers to switch to.
+ * summary of terminals and Agents the page reports for the notification-area or menu-bar icon, and
+ * the newer window version Main offers to switch to.
  */
 export const DESKTOP_SERVER_CONNECTION_PORT_ROLES = [
 	'server-connection',

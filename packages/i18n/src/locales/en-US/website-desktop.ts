@@ -46,11 +46,11 @@ export const enUSWebsiteDesktopMessages = {
 	'website.desktop.background.kicker': 'background',
 	'website.desktop.background.title': 'Closing the window is not quitting',
 	'website.desktop.background.body':
-		'While terminals are running, closing the window keeps Orchbee in the notification area. Its icon shows the most urgent agent state, and its menu says how many terminals are running.',
+		'Orchbee keeps its icon in the notification area, with or without a window. While terminals are running, closing the window keeps Orchbee running there. The icon shows the most urgent agent state, and its menu says how many terminals are running.',
 	'website.desktop.background.bodyWindows':
-		'On Windows, while terminals are running, closing the window keeps Orchbee in the notification area. Its icon shows the most urgent agent state, and its menu says how many terminals are running.',
+		'On Windows, Orchbee keeps its icon in the notification area, with or without a window. While terminals are running, closing the window keeps Orchbee running there. The icon shows the most urgent agent state, and its menu says how many terminals are running.',
 	'website.desktop.background.macos':
-		'On a Mac, Orchbee stays in the Dock when you close its window, whether or not terminals are running. Control-click its Dock icon for the same menu.',
+		'On a Mac, the same menu is behind the Orchbee icon in the menu bar, and Orchbee stays in the Dock when you close its window, whether or not terminals are running.',
 	'website.desktop.background.quitAll': 'Quit All asks before it stops anything.',
 	'website.desktop.tray.label':
 		'The Windows notification and the notification-area menu of Orchbee',

@@ -49,9 +49,9 @@ import { followRendererCrashes } from './followRendererCrashes';
 /** What the window's Client processes run under, and where its page comes from. */
 export interface DesktopServerClientApplicationOptions {
 	/**
-	 * Keeps Desktop running, in the notification area or the Dock, when the window closes while
-	 * terminals run; absent where closing the window keeps its current behavior, and for a window
-	 * started hidden.
+	 * Keeps Desktop running behind its notification-area or menu-bar icon when the window closes
+	 * while terminals run; absent where closing the window keeps its current behavior, and for a
+	 * window started hidden.
 	 */
 	readonly background: DesktopWindowBackground | undefined;
 	/** The version this window runs, which About shows. */

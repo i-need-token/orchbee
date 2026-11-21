@@ -1,4 +1,3 @@
-export { DesktopBackgroundDock } from './DesktopBackgroundDock';
 export { DesktopBackgroundRuntime } from './DesktopBackgroundRuntime';
 export type {
 	DesktopBackgroundStatusSink,

@@ -19,7 +19,6 @@ import { DesktopDevelopmentRestartRequestSchema } from '../../development';
 import { resolveDesktopCheckoutName, resolveDesktopSessionName } from '../../distribution';
 import { installDesktopApplicationMenu } from '../application-menu';
 import {
-	DesktopBackgroundDock,
 	DesktopBackgroundRuntime,
 	DesktopBackgroundTray,
 	FileDesktopTrayRecord,
@@ -315,26 +314,29 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 	});
 }
 
-/** The notification-area icons: the package's copy, or in a checkout the generated brand assets. */
+/**
+ * The icons of the notification area or the menu bar: the package's copy, or in a checkout the
+ * generated brand assets, `.ico` files on Windows and template PNGs on macOS.
+ */
 function resolveTrayIconDirectory(): string {
 	if (packaged || distribution.dataScope.kind !== 'development') {
 		return path.join(process.resourcesPath, PACKAGED_TRAY_ICON_DIRECTORY);
 	}
-	return path.join(distribution.dataScope.sourceRoot, 'resources', 'brand', 'ico', 'tray');
+	const format = process.platform === 'darwin' ? 'png' : 'ico';
+	return path.join(distribution.dataScope.sourceRoot, 'resources', 'brand', format, 'tray');
 }
 
 /**
- * Closing the window while terminals run keeps Desktop running: in the notification area on Windows,
- * and in the Dock, with its Dock menu, on macOS. A window started hidden for automation keeps
- * neither, and Linux keeps its close behavior.
+ * Desktop's icon, from start until quit: in the notification area on Windows and the menu bar on
+ * macOS. Closing the window while terminals run keeps Desktop running behind it, and on macOS in the
+ * Dock whatever runs. A window started hidden for automation keeps no icon, and Linux keeps its
+ * close behavior.
  */
 async function createBackground(
 	sessionArguments: readonly string[],
 ): Promise<DesktopBackgroundRuntime | undefined> {
-	const dock = process.platform === 'darwin' ? app.dock : undefined;
-	if (windowHidden || (process.platform !== 'win32' && dock === undefined)) {
-		return undefined;
-	}
+	const platform = process.platform;
+	if (windowHidden || (platform !== 'win32' && platform !== 'darwin')) return undefined;
 	const record = new FileDesktopTrayRecord(dataRoot.trayStateFile);
 	const clientExecutable = resolveClientExecutable();
 	const clientEnvironment = resolveClientEnvironment();
@@ -343,24 +345,18 @@ async function createBackground(
 	return new DesktopBackgroundRuntime({
 		applicationName,
 		closeWindow: () => application?.window?.close(),
-		createSurface: (actions) => {
-			const site = dock === undefined ? 'tray' : 'dock';
-			const contained = {
-				onNoticeShown: containListenerFault(recordEvent, site, actions.onNoticeShown, undefined),
-				onQuit: containListenerFault(recordEvent, site, actions.onQuit, undefined),
-				onQuitAll: containListenerFault(recordEvent, site, actions.onQuitAll, undefined),
-				onReopen: containListenerFault(recordEvent, site, actions.onReopen, undefined),
-			};
-			return dock === undefined
-				? new DesktopBackgroundTray({
-						...contained,
-						applicationName,
-						distribution: distribution.dataScope.kind,
-						iconDirectory: resolveTrayIconDirectory(),
-						intl,
-					})
-				: new DesktopBackgroundDock({ ...contained, applicationName, dock, intl });
-		},
+		createSurface: (actions) =>
+			new DesktopBackgroundTray({
+				applicationName,
+				distribution: distribution.dataScope.kind,
+				iconDirectory: resolveTrayIconDirectory(),
+				intl,
+				onNoticeShown: containListenerFault(recordEvent, 'tray', actions.onNoticeShown, undefined),
+				onQuit: containListenerFault(recordEvent, 'tray', actions.onQuit, undefined),
+				onQuitAll: containListenerFault(recordEvent, 'tray', actions.onQuitAll, undefined),
+				onReopen: containListenerFault(recordEvent, 'tray', actions.onReopen, undefined),
+				platform,
+			}),
 		intl,
 		noticeShown: await record.readNoticeShown(),
 		quit: () => app.quit(),
@@ -368,8 +364,13 @@ async function createBackground(
 			readServerStopStatus(clientExecutable, sessionArguments, clientEnvironment, stopId),
 		record,
 		recordEvent,
-		release: dock === undefined ? 'quit' : 'close-window',
-		reopen: () => void application?.openWindow().catch(() => undefined),
+		release: platform === 'darwin' ? 'close-window' : 'quit',
+		reopen: () => {
+			// A menu-bar menu leaves the application that was active before it, so Open Orchbee makes
+			// Orchbee the active one; the window it shows would otherwise open behind.
+			if (platform === 'darwin') app.focus({ steal: true });
+			void application?.openWindow().catch(() => undefined);
+		},
 		requestSessionStop: (stopId) => application?.requestSessionStop(stopId) ?? false,
 		showWindow: async () => {
 			await application?.openWindow().catch(() => undefined);
@@ -411,7 +412,7 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 	saveDiagnosticBundle = () => diagnosticsActions.invokeSaveBundle('menu');
 	// The title bar overlay hides the Windows menu bar, so the taskbar's Jump List holds the same
 	// Action; a checkout's Electron has no identity of its own to hold one. The macOS menu bar always
-	// shows, so its Help menu is enough and the Dock menu keeps only window and quit items.
+	// shows, so its Help menu is enough.
 	if (process.platform === 'win32' && packaged) {
 		app.setUserTasks([
 			{
@@ -450,10 +451,10 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 					? undefined
 					: {
 							getQuitAllAvailability: () => ({
-								kind: menuBackground.dockView.quitAll ? 'enabled' : 'disabled',
+								kind: menuBackground.menuView.quitAll ? 'enabled' : 'disabled',
 							}),
 							getReopenAvailability: () => ({
-								kind: menuBackground.dockView.reopen ? 'enabled' : 'hidden',
+								kind: menuBackground.menuView.windowShown ? 'hidden' : 'enabled',
 							}),
 							invokeQuitAll: menuListener(() => menuBackground.quitAllRequested(), undefined),
 							invokeReopen: menuListener(
@@ -462,7 +463,7 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 							),
 							quitAllLabel: intl.formatMessage(desktopTrayMessages.quitAll),
 							quitKeepRunningLabel: intl.formatMessage(desktopTrayMessages.quitKeepRunning),
-							reopenLabel: intl.formatMessage(desktopTrayMessages.reopen),
+							reopenLabel: intl.formatMessage(desktopTrayMessages.open),
 						},
 			getSecureKeyboardEntryAvailability: () => secureKeyboardEntryActions.getToggleAvailability(),
 			getToggleFullScreenAvailability: () => windowActions.getToggleFullScreenAvailability(),

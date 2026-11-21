@@ -37,7 +37,7 @@ interface DesktopApplicationMenuDiagnostics {
 
 /**
  * The macOS background items: Command-Q named for what it does, Quit All… after it in the
- * application menu, and Reopen in the Window menu while no window shows.
+ * application menu, and Open Orchbee in the Window menu while no window shows.
  */
 interface DesktopApplicationMenuBackground {
 	readonly quitAllLabel: string;

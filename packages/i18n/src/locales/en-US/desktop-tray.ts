@@ -1,9 +1,10 @@
 export const enUSDesktopTrayMessages = {
 	'desktop.tray.notice.body':
 		'{terminals, plural, one {# terminal keeps working.} other {# terminals keep working.}} Click the Orchbee icon at the lower right to reopen it, or right-click it for Quit All.',
-	'desktop.tray.notice.dockBody':
-		'{terminals, plural, one {# terminal keeps working.} other {# terminals keep working.}} Click Orchbee in the Dock to reopen it, or Control-click it for Quit All.',
+	'desktop.tray.notice.menuBarBody':
+		'{terminals, plural, one {# terminal keeps working.} other {# terminals keep working.}} Click Orchbee in the Dock to reopen it, or click the Orchbee icon in the menu bar for Quit All.',
 	'desktop.tray.notice.title': '{application} is still running in the background',
+	'desktop.tray.open': 'Open Orchbee',
 	'desktop.tray.quitAll': 'Quit All…',
 	'desktop.tray.quitAll.cancel': 'Cancel',
 	'desktop.tray.quitAll.confirm': 'Stop All and Quit',
@@ -21,9 +22,8 @@ export const enUSDesktopTrayMessages = {
 	'desktop.tray.quitAll.stopping': 'Stopping all terminals…',
 	'desktop.tray.quitAll.title': 'Stop all terminals and quit Orchbee?',
 	'desktop.tray.quitKeepRunning': 'Quit Orchbee, Keep Terminals Running',
-	'desktop.tray.reopen': 'Reopen Orchbee',
 	'desktop.tray.status':
-		'{terminals, plural, one {# terminal running} other {# terminals running}}{failed, plural, =0 {} other { · # failed}}{attention, plural, =0 {} one { · # needs attention} other { · # need attention}}{done, plural, =0 {} other { · # finished}}',
+		'{terminals, plural, =0 {No terminals running} one {# terminal running} other {# terminals running}}{failed, plural, =0 {} other { · # failed}}{attention, plural, =0 {} one { · # needs attention} other { · # need attention}}{done, plural, =0 {} other { · # finished}}',
 	'desktop.tray.tooltip': '{application} · {status}',
 } as const;
 

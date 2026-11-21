@@ -48,11 +48,11 @@ export const zhCNWebsiteDesktopMessages = {
 	'website.desktop.background.kicker': '后台',
 	'website.desktop.background.title': '关闭窗口不等于退出',
 	'website.desktop.background.body':
-		'只要还有终端在运行，关闭窗口后 Orchbee 会留在通知区域。图标显示最紧急的 Agent 状态，菜单里写着有多少终端正在运行。',
+		'不管窗口开着还是关着，Orchbee 的图标都在通知区域。只要还有终端在运行，关闭窗口后 Orchbee 会继续在那里运行。图标显示最紧急的 Agent 状态，菜单里写着有多少终端正在运行。',
 	'website.desktop.background.bodyWindows':
-		'在 Windows 上，只要还有终端在运行，关闭窗口后 Orchbee 会留在通知区域。图标显示最紧急的 Agent 状态，菜单里写着有多少终端正在运行。',
+		'在 Windows 上，不管窗口开着还是关着，Orchbee 的图标都在通知区域。只要还有终端在运行，关闭窗口后 Orchbee 会继续在那里运行。图标显示最紧急的 Agent 状态，菜单里写着有多少终端正在运行。',
 	'website.desktop.background.macos':
-		'在 Mac 上，关闭窗口后 Orchbee 会留在程序坞中，不管有没有终端在运行。按住 Control 键点按程序坞图标，可以打开同样的菜单。',
+		'在 Mac 上，同样的菜单在菜单栏的 Orchbee 图标里；关闭窗口后 Orchbee 会留在程序坞中，不管有没有终端在运行。',
 	'website.desktop.background.quitAll': '“全部退出”在停止任何内容之前会先询问。',
 	'website.desktop.tray.label': 'Orchbee 的 Windows 通知和通知区域菜单',
 	'website.desktop.tray.whenClosed': '关闭窗口时',
