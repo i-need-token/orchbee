@@ -55,6 +55,11 @@ const MAXIMUM_CLIENT_CONNECTIONS: usize = 48;
 /// budget is shorter, so a reply arrives unless the owner stalls.
 const EXIT_REPLY_WINDOW: std::time::Duration = std::time::Duration::from_secs(40);
 
+/// How long a `handover` requester waits for the lifecycle owner's answer; a `prepare` settles
+/// in-flight work, captures the Session and releases the Worker within a shorter budget.
+#[cfg(windows)]
+const HANDOVER_REPLY_WINDOW: std::time::Duration = std::time::Duration::from_secs(40);
+
 /// What the Client endpoint states about this Server in the handshake, and the Worker it lists in
 /// a `query` reply.
 #[derive(Clone, Debug)]
@@ -357,6 +362,13 @@ fn handle_candidate_control(
             return;
         }
     };
+    // What an admitted Client offered stays with its connection for the `query` reply.
+    let offer = match &message {
+        orchbee_connection_handshake::InitiatorMessage::Offer(offer) => {
+            Some(crate::client_connection_registry::ClientOffer::of(offer))
+        }
+        _ => None,
+    };
     let session_slot_free = match registry.lock() {
         Ok(registry) => registry.has_capacity(),
         Err(_poisoned) => {
@@ -399,12 +411,17 @@ fn handle_candidate_control(
             return;
         }
         Decision::Serve(RequestKind::Query) => {
+            let clients = registry
+                .lock()
+                .map(|registry| registry.offers())
+                .unwrap_or_default();
             query::respond(
                 &mut stream,
                 identity,
                 control.process_state(),
                 terminals,
                 accepted,
+                &clients,
             );
             return;
         }
@@ -437,9 +454,33 @@ fn handle_candidate_control(
             }
             return;
         }
-        // This Server does not hand its Session to a successor, so it answers as an older one does.
-        Decision::Serve(kind @ RequestKind::Handover { .. }) => {
-            send_unsupported(&mut stream, kind);
+        // A managed Windows Server hands its Session to a successor; any other answers as an older
+        // one does. An answer that does not come in time is not sent: the lease and the Session
+        // record decide the restart.
+        Decision::Serve(kind @ RequestKind::Handover { step, ticket }) => {
+            #[cfg(windows)]
+            let answered = control.handover(
+                step,
+                ticket,
+                std::time::Instant::now() + HANDOVER_REPLY_WINDOW,
+            );
+            #[cfg(unix)]
+            let answered = {
+                let _ = (step, ticket);
+                None
+            };
+            match answered {
+                Some(Some(outcome)) => {
+                    let result = orchbee_connection_handshake::HandoverResult {
+                        outcome,
+                        extensions: Extensions::new(),
+                    };
+                    let _delivered =
+                        send_handshake(&mut stream, &AcceptorMessage::HandoverResult(result));
+                }
+                Some(None) => {}
+                None => send_unsupported(&mut stream, kind),
+            }
             return;
         }
     };
@@ -481,7 +522,15 @@ fn handle_candidate_control(
     };
 
     let admission = match registry.lock() {
-        Ok(mut registry) => registry.admit(),
+        Ok(mut registry) => {
+            let admission = registry.admit();
+            if let (ClientConnectionAdmission::Accepted { generation }, Some(offer)) =
+                (admission, offer)
+            {
+                registry.note_offer(generation, offer);
+            }
+            admission
+        }
         Err(_poisoned) => {
             diagnostic::drop_candidate(&Diagnostic::new("admission", "registry-poisoned"));
             return;

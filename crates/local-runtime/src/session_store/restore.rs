@@ -31,7 +31,7 @@ impl SessionStore {
         output: impl FnMut(&[u8]) -> bool,
     ) {
         let held = crate::release_store::restore_sources();
-        if !held.is_empty() {
+        if !held.is_empty() && self.held().is_ok() {
             self.restore_from(root, &held, checkpoint, output);
         }
     }

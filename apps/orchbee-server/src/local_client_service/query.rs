@@ -10,27 +10,34 @@ use std::{
 };
 
 use orchbee_connection_handshake::{
-    AcceptorMessage, CapabilitySet, ConnectionEntry, ConnectionKind, ContractName, Delivery,
-    Extensions, FrameFormat, GenerationRange, InvalidValue, MAXIMUM_QUERY_PROCESSES, ProcessEntry,
-    ProcessRole, ProcessState, QueryResult,
+    AcceptorMessage, CapabilityName, CapabilitySet, ConnectionEntry, ConnectionKind, ContractName,
+    Delivery, Extensions, FrameFormat, GenerationRange, InvalidValue, MAXIMUM_QUERY_PROCESSES,
+    ProcessEntry, ProcessRole, ProcessState, QueryResult,
 };
 use orchbee_local_ipc::LocalStream;
 
 use super::{ServerIdentity, diagnostic, send_handshake};
-use crate::local_terminal_service::LocalTerminalService;
+use crate::{
+    client_connection_registry::ClientOffer, local_terminal_service::LocalTerminalService,
+};
 
 /// How long after accepting the connection the Server waits for its Worker's Hosts, leaving the
 /// rest of the candidate deadline for the reply.
 const HOSTS_DUE: Duration = Duration::from_secs(1);
+/// The extension that lists what each connected Client offered.
+const CLIENTS: &str = "clients";
+/// The extension that counts the background programs the Worker runs.
+const BACKGROUND_PROGRAMS: &str = "background-programs";
 
 /// Sends the `query-result` for the connection accepted at `accepted`; the caller closes the
-/// connection.
+/// connection. `clients` is what each connected Client offered.
 pub(super) fn respond(
     stream: &mut LocalStream,
     identity: &ServerIdentity,
     state: ProcessState,
     terminals: &LocalTerminalService,
     accepted: Instant,
+    clients: &[ClientOffer],
 ) {
     // Hosts follow the Worker they are connected to, so a Server that lists no Worker lists none.
     let hosts = if identity.worker.get().is_some() {
@@ -38,7 +45,24 @@ pub(super) fn respond(
     } else {
         Vec::new()
     };
-    match result(identity, state, terminals.terminal_count(), hosts) {
+    // A count the Worker does not give in time is left out, which reads as not idle.
+    #[cfg(windows)]
+    let programs = identity
+        .worker
+        .get()
+        .and_then(|_| terminals.background_programs(accepted + HOSTS_DUE));
+    #[cfg(unix)]
+    let programs = None;
+    let built = extensions(clients, programs).and_then(|extensions| {
+        result(
+            identity,
+            state,
+            terminals.terminal_count(),
+            hosts,
+            extensions,
+        )
+    });
+    match built {
         Ok(result) => {
             let _delivered = send_handshake(stream, &AcceptorMessage::QueryResult(result));
         }
@@ -48,13 +72,35 @@ pub(super) fn respond(
     }
 }
 
+/// The reply's `extensions`: each connected Client's offer as `clients`, and the count of
+/// background programs the Worker runs as `background-programs` when it gave one.
+fn extensions(clients: &[ClientOffer], programs: Option<u32>) -> Result<Extensions, InvalidValue> {
+    let mut extensions = Extensions::new();
+    let clients = clients
+        .iter()
+        .map(|client| {
+            Ok(serde_json::json!({
+                "productVersion": client.product_version,
+                "generations": serde_json::to_value(client.generations).map_err(|_| InvalidValue)?,
+                "capabilities": serde_json::to_value(&client.capabilities).map_err(|_| InvalidValue)?,
+            }))
+        })
+        .collect::<Result<Vec<_>, InvalidValue>>()?;
+    extensions.insert(CapabilityName::new(CLIENTS)?, clients.into())?;
+    if let Some(programs) = programs {
+        extensions.insert(CapabilityName::new(BACKGROUND_PROGRAMS)?, programs.into())?;
+    }
+    Ok(extensions)
+}
+
 /// The reply for `identity` in `state`, which its Worker shares, followed by at most 256 of `hosts`
-/// without capabilities; Restart Session does not keep terminals yet.
+/// without capabilities, and `extensions`; Restart Session does not keep terminals yet.
 pub(super) fn result(
     identity: &ServerIdentity,
     state: ProcessState,
     terminals: u32,
     hosts: Vec<ProcessEntry>,
+    extensions: Extensions,
 ) -> Result<QueryResult, InvalidValue> {
     let profile = &identity.profile;
     let process = |role, pid, connections| ProcessEntry {
@@ -99,7 +145,7 @@ pub(super) fn result(
         let room = MAXIMUM_QUERY_PROCESSES - processes.len();
         processes.extend(hosts.into_iter().take(room).map(host));
     }
-    QueryResult::new(processes, Some(false), Extensions::new())
+    QueryResult::new(processes, Some(false), extensions)
 }
 
 /// A Host's entry as a Server lists it: only the answering process states capabilities.

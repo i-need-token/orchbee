@@ -214,6 +214,49 @@ impl LocalTerminalService {
             })
         )
     }
+
+    /// How many plugin jobs and configured commands the Worker reports running, read before
+    /// `deadline` through the serving Worker, also while a restart holds it. `None` short of a
+    /// correlated answer in time; the carrier discards a late reply.
+    #[cfg(windows)]
+    pub(crate) fn background_programs(&self, deadline: std::time::Instant) -> Option<u32> {
+        use crate::worker_obcn_carrier::ExchangeWait;
+        if std::time::Instant::now() >= deadline {
+            return None;
+        }
+        let operation_id = self
+            .coordinator
+            .lock()
+            .ok()?
+            .allocate_identity_block(1)
+            .and_then(|value| node::OperationId::from_bytes(value.to_be_bytes()).ok())?;
+        let handle = self.workers.lock().ok()?.capture_handle()?;
+        let dispatch = node::PluginJobRequest {
+            operation_id,
+            worker_id: node::WorkerId::from_bytes(handle.worker_id().as_bytes()).ok()?,
+            worker_generation: node::WorkerGeneration::new(handle.generation()),
+            action: node::PluginJobAction::Running,
+        };
+        let ExchangeWait::Ready(result) = handle
+            .admit_plugin_job(dispatch.clone())
+            .ok()?
+            .recv_deadline(deadline)
+        else {
+            return None;
+        };
+        match *result {
+            Ok(WorkerOperationResult::PluginJob(result)) if result.answers(&dispatch) => {
+                match result.outcome {
+                    node::PluginJobOutcome::Running {
+                        plugin_jobs,
+                        configured_commands,
+                    } => Some(u32::from(plugin_jobs) + u32::from(configured_commands)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
 }
 /// A Worker plugin-job exchange without a correlated answer.
 enum JobRequestError {

@@ -209,3 +209,64 @@ fn an_idle_stop_begins_only_with_nothing_admitted() {
     // An idle stop never replaces a stop already recorded.
     assert!(!state.begin_idle(StopId::new([8; 16]).unwrap(), || true));
 }
+
+#[test]
+fn a_restart_hold_refuses_only_intents_other_than_terminal_records_and_settles_only_intents() {
+    let state = SessionShutdown::default();
+    let read = state.enter_read().unwrap();
+    let intent = state.enter_intent().unwrap();
+    state.hold(true);
+    // Reads, terminal records and connections are still admitted; other intents wait for the end
+    // of the hold, and so does an idle stop.
+    assert!(state.enter_intent().is_none());
+    let terminal = state.enter().unwrap();
+    assert!(state.enter_read().is_some());
+    assert!(!state.begin_idle(StopId::new([9; 16]).unwrap(), || true));
+    assert_eq!(state.process_state(), ProcessState::Ready);
+    drop(intent);
+    assert!(!state.settle_intents(Instant::now()));
+    drop(terminal);
+    // A read in flight does not keep the capture waiting.
+    assert!(state.settle_intents(Instant::now()));
+    drop(read);
+    state.hold(false);
+    assert!(state.enter_intent().is_some());
+}
+
+#[test]
+fn one_handover_step_waits_at_a_time_and_an_untaken_one_is_withdrawn() {
+    let state = std::sync::Arc::new(SessionShutdown::default());
+    let ticket = HandoverTicket::from_bytes([7; 16]);
+    // Nobody takes the step before its deadline, so it is withdrawn and the slot is free again.
+    assert_eq!(
+        state.handover(HandoverStep::Prepare, ticket, Instant::now()),
+        None
+    );
+    assert_eq!(state.take_handover(), None);
+    let waiting = {
+        let state = std::sync::Arc::clone(&state);
+        std::thread::spawn(move || {
+            state.handover(
+                HandoverStep::Commit,
+                ticket,
+                Instant::now() + Duration::from_secs(30),
+            )
+        })
+    };
+    // The owner's wait ends early for the step, which it takes exactly once.
+    let taken = loop {
+        if state.take_within(Duration::from_secs(30)).is_none()
+            && let Some(taken) = state.take_handover()
+        {
+            break taken;
+        }
+    };
+    assert_eq!(taken, (HandoverStep::Commit, ticket));
+    assert_eq!(state.take_handover(), None);
+    assert_eq!(
+        state.handover(HandoverStep::Abort, ticket, Instant::now()),
+        Some(HandoverOutcome::Refused(HandoverRefusal::Busy))
+    );
+    state.answer_handover(HandoverOutcome::Committed);
+    assert_eq!(waiting.join().unwrap(), Some(HandoverOutcome::Committed));
+}

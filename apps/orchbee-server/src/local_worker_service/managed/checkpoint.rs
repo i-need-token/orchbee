@@ -79,6 +79,61 @@ impl Kept {
         Ok(())
     }
 
+    /// Publishes a restart's exact capture: the checkpoint, then the binding record of the same
+    /// moment, which the successor adopts the Host from, so a binding record that cannot be written
+    /// fails it.
+    #[cfg(windows)]
+    pub(super) fn publish_exact(
+        &self,
+        terminals: &LocalTerminalService,
+        worker: &orchbee_workbench_protocol::WorkerId,
+        bytes: &[u8],
+    ) -> io::Result<()> {
+        autosave::publish_final(&self.store, bytes)?;
+        terminals.after_checkpoint_save(bytes);
+        match self.bindings.as_ref().map(|bindings| bindings.lock()) {
+            Some(Ok(mut bindings)) => bindings.write_exact(terminals, worker),
+            _ => Err(io::Error::other("no binding record is kept")),
+        }
+    }
+
+    /// Lets the successor of a restart open the store; every write refuses until
+    /// [`Self::retake_store`].
+    #[cfg(windows)]
+    pub(super) fn release_store(&self) -> io::Result<()> {
+        self.store
+            .lock()
+            .map_err(|_| io::Error::other("checkpoint store failed"))?
+            .release();
+        Ok(())
+    }
+
+    /// Holds the store again after a restart that did not commit, waiting until `deadline` for the
+    /// ended successor's hold on it to go. The binding record is written again at the next change,
+    /// since the successor may have replaced it.
+    #[cfg(windows)]
+    pub(super) fn retake_store(&self, deadline: Instant) -> io::Result<()> {
+        loop {
+            let retaken = self
+                .store
+                .lock()
+                .map_err(|_| io::Error::other("checkpoint store failed"))?
+                .retake();
+            match retaken {
+                Err(error)
+                    if error.kind() == io::ErrorKind::WouldBlock && Instant::now() < deadline =>
+                {
+                    thread::sleep(Duration::from_millis(50));
+                }
+                retaken => break retaken?,
+            }
+        }
+        if let Some(Ok(mut bindings)) = self.bindings.as_ref().map(|bindings| bindings.lock()) {
+            bindings.forget_written();
+        }
+        Ok(())
+    }
+
     /// Removes the binding record once the Host has ended, so nothing is left to adopt; a failure
     /// is reported only.
     pub(super) fn remove_bindings(&self) {

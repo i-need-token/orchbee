@@ -450,6 +450,14 @@ version's Server; that Server runs these steps.
   successor before it takes anything back, and the new Server commits only while the successor is
   still recorded. The update then waits for the idle move. Server and Worker never run different
   versions.
+- The successor entry names the new Server and, before that Server resumes it, the new Worker, each
+  by process ID and creation time. Whoever removes the entry first ends what it names by that
+  identity, the Worker first, under the writer lock and before its publish; an identity that
+  matches no live process is gone. The old Server does so through the handles it opened at
+  `prepare`, before it takes anything back. Holding nothing, it clears an entry whose new Server is
+  gone or whose ticket reached no `prepare` within 120 seconds, and so do its stop and `exit`. With
+  both Servers gone, the next start ends what the entry names before it recovers; only a process it
+  cannot observe or end refuses that one attempt.
 - The Session lifetime lock and the endpoints move only after the commit and are never handed back.
 - A Host holds one Worker session at a time, so the hand-over leaves it without a Worker for a
   moment: its program keeps running, its output waits in the Host, and Clients show Reconnecting.

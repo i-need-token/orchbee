@@ -113,6 +113,12 @@ decoders only.
   to 9,007,199,254,740,991 counting the turns its dispatch loop has completed, which grows while the
   loop is not stopped, including while it waits on a Worker that is slow to send or take a record.
   A reader that does not know it ignores it.
+- A Server adds `clients` to its `query-result`'s `extensions`: one object per admitted Client
+  connection with exactly `productVersion`, `generations` (the `client-server` range that Client
+  offered) and `capabilities` (every capability it offered, not only those both sides share). When
+  its Worker answers in time it also adds `background-programs`, an integer from 0 to 510 counting
+  the plugin jobs and configured commands that Worker runs. A reader that does not know them
+  ignores them.
 
 ## Admission
 

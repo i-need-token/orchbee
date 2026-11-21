@@ -458,9 +458,11 @@ a generation that adopts a running Host
 ([cold adoption](docs/windows-crash-recovery.md#cold-adoption)).
 
 Each store keeps an `extensions` object it reads as opaque and writes back unchanged, so a later
-release adds an optional field there without a migration. `session.json` reads one member itself:
+release adds an optional field there without a migration. `session.json` reads two members itself:
 `exited`, the activation identifier that `RetainedSessionRecord::record_exit` writes for a Server
-`exit` once its Worker is gone; a fresh generation starts without it. A record migrates only in a
+`exit` once its Worker is gone, and `successor`, a restart's
+[successor entry](docs/windows-crash-recovery.md#successor-entry); a fresh generation starts
+without either. A record migrates only in a
 process that writes it: the plugin registry when a writer changes it, and `session.json` when it is
 published, which outside the Server happens only after proving no Server of the Session runs.
 Workbench Client owns the machine and TUI position records, kept through `VersionedFile`, with the
@@ -741,7 +743,10 @@ unclaimed.
 the data root and admitted Session; the Server owns checkpoint validation and recovery. Each Session
 has its own store. Private ancestor handles, private new folders, no-link admission and single-link
 file checks apply on every host. A private `state.lock`
-is held exclusively for the store lifetime; a competing owner receives `WouldBlock`.
+is held exclusively for the store lifetime; a competing owner receives `WouldBlock`. `release`
+frees it for a restart's successor, after which every writer of the store, the checkpoint slots,
+kept terminal output, the binding record and the restore notice, refuses `WouldBlock` until
+`retake` takes the lock back.
 
 The store retains three versioned, integrity-checked slots, ordered by their private generation.
 The Server supplies whole-document validation; the newest valid payload wins. Invalid copies remain

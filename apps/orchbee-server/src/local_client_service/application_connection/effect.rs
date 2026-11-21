@@ -18,17 +18,20 @@ pub(in crate::local_client_service) enum Effect {
     /// snapshots, subscriptions, viewer attachment, demand and acknowledgements, heartbeats, and
     /// reading an admitted operation's result.
     Read,
-    /// Asks the Session to change shared state, a terminal, an Agent, or user storage.
+    /// Asks the Session to change shared state, an Agent, or user storage.
     Intent,
+    /// Asks a terminal to change through the Session's Worker. A restart's hold admits it, and it
+    /// then finds no Worker, as while the Server replaces a lost one.
+    RuntimeIntent,
 }
 
-use Effect::{Intent, Read};
+use Effect::{Intent, Read, RuntimeIntent};
 
 pub(super) fn terminal(request: &ClientMessage) -> Effect {
     match request {
         ClientMessage::TerminalCreate(_)
         | ClientMessage::TerminalStart(_)
-        | ClientMessage::TerminalSend(_) => Intent,
+        | ClientMessage::TerminalSend(_) => RuntimeIntent,
         ClientMessage::TerminalLaunchRead(_) => Read,
         ClientMessage::TerminalControl(request) => match request.action() {
             TerminalControlAction::Observe { .. } => Read,
@@ -41,7 +44,7 @@ pub(super) fn terminal(request: &ClientMessage) -> Effect {
             | TerminalControlAction::SemanticInput { .. }
             | TerminalControlAction::Resize { .. }
             | TerminalControlAction::Paste { .. }
-            | TerminalControlAction::HostColors { .. } => Intent,
+            | TerminalControlAction::HostColors { .. } => RuntimeIntent,
         },
         // A viewer's attachment, demand, acknowledgements and selection belong to that viewer.
         ClientMessage::TerminalViewer(request) => match request.action() {

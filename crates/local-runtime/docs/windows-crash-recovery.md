@@ -88,14 +88,15 @@ proposal.
 
 ## Cold recovery transitions
 
-| Catalog and observed facts                                                                                                     | Result                                                                                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Active; all identified identities gone, a Spawning slot counting as not started; all guards and endpoint/storage checks pass   | Publish Crashed for the old activation; reconcile its marker; begin a fresh generation; the old activation counts as a crash unless the record names it `exited` |
-| Crashed with matching old marker, or marker absent after runtime loss                                                          | Resume the same guarded reconciliation before a fresh generation                                                                                                 |
-| Active or Crashed; Server and Worker proven gone, the registered Host alive and named by the binding record; other checks pass | As the first row, but the fresh generation keeps the Host's registration, with Server and Worker NotStarted, for its Server to adopt                             |
-| Any other exact identity alive, identity query unknown, unsafe storage, conflicting receipt after creation or endpoint present | Refuse and retain data                                                                                                                                           |
-| Malformed or unsupported record                                                                                                | Refuse as InvalidData; retain bytes                                                                                                                              |
-| Valid Stopped with current checkpoint evidence                                                                                 | Existing clean-stop restart path; next activation writes version 1                                                                                               |
+| Catalog and observed facts                                                                                                     | Result                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Active; all identified identities gone, a Spawning slot counting as not started; all guards and endpoint/storage checks pass   | Publish Crashed for the old activation; reconcile its marker; begin a fresh generation; the old activation counts as a crash unless the record names it `exited`    |
+| Crashed with matching old marker, or marker absent after runtime loss                                                          | Resume the same guarded reconciliation before a fresh generation                                                                                                    |
+| Active or Crashed; Server and Worker proven gone, the registered Host alive and named by the binding record; other checks pass | As the first row, but the fresh generation keeps the Host's registration, with Server and Worker NotStarted, for its Server to adopt                                |
+| Any state; the record carries a readable [successor entry](#successor-entry)                                                   | First end every live process the entry names, the Worker first; then the row that applies. One that cannot be opened or ended refuses this attempt and retains data |
+| Any other exact identity alive, identity query unknown, unsafe storage, conflicting receipt after creation or endpoint present | Refuse and retain data                                                                                                                                              |
+| Malformed or unsupported record                                                                                                | Refuse as InvalidData; retain bytes                                                                                                                                 |
+| Valid Stopped with current checkpoint evidence                                                                                 | Existing clean-stop restart path; next activation writes version 1                                                                                                  |
 
 A Spawning slot counts as not started only under the [writer-lock rule](#the-writer-lock-rule).
 
@@ -104,6 +105,25 @@ activation identifier to the record's `extensions.exited`. Recovery proves the g
 the same rules but answers no activation to count, so the activator records no crash and no
 fallback failure for it. A fresh generation starts without the member, and an `exited` that names
 another activation counts nothing.
+
+## Successor entry
+
+A [Server and Worker restart](../../../proposals/platform/versioning-and-upgrade.md#server-and-worker-restart)
+records its successor in `session.json` as `extensions.successor`: the ticket, the successor
+Server's process ID and creation time, the activation identifier it commits, and, as `worker`, the
+process ID and creation time of the Worker that Server created suspended, written under the writer
+lock before the Worker is resumed. The commit removes the entry in the publish that names the
+successor, so an entry a later reader finds names processes that never became the recorded pair.
+Whoever removes it first ends what it names by that identity, the Worker first, inside the same
+writer-lock hold and before its publish: `RetainedSessionRecord::fence` for the Server holding the
+restart, `clear_successor` for an abandoned entry. An identity that matches no live process is gone
+and nothing is ended. An entry this build cannot read is no entry.
+
+Recovery holds the lifetime lock, so both Servers are gone. Under the writer lock, before any
+verdict and whatever the record's state, it ends every live process the entry names, the Worker
+first, waiting up to 5 seconds for each. A live successor process therefore never refuses recovery,
+and no generation adopts the Host beside one; only a process that cannot be opened or ended refuses,
+as `RecoveryRequired`, and only that attempt. A fresh generation's record starts without the entry.
 
 ## Cold adoption
 
@@ -121,8 +141,9 @@ one, and an unknown observation refuses. An adopting generation keeps its predec
 across an interrupted activation as an unstarted one does, since it created no process. A reader
 that predates the rule refuses the adopting record as malformed.
 
-Recovery never terminates old processes, fabricates a clean-stop receipt, deletes checkpoint data,
-or resumes an Agent into a still-owned terminal. A live Host is never ended: a binding record that
+Recovery never terminates a registered process, fabricates a clean-stop receipt, deletes checkpoint
+data, or resumes an Agent into a still-owned terminal; it ends only what a
+[successor entry](#successor-entry) names. A live Host is never ended: a binding record that
 names it lets the next generation adopt it, and otherwise it blocks recovery. Refusal offers read-only diagnosis: a refusal whose
 verdict observed a registered identity alive carries that `RecoveryBlocker`, the first such role in
 Server, Worker, Host order and its PID, so the surface that reports the refusal can name the process

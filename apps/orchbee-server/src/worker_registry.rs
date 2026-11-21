@@ -150,6 +150,9 @@ pub(crate) struct WorkerRegistry {
     viewer_ready: Arc<ViewerReadyRoutes>,
     titles: Arc<TerminalTitles>,
     catalog: Arc<AgentCatalog>,
+    /// Whether a Server restart holds the Worker for its successor: no request or job reaches it,
+    /// as while it is replaced, except the exact capture's observation.
+    held: bool,
 }
 
 impl WorkerRegistry {
@@ -160,7 +163,14 @@ impl WorkerRegistry {
             viewer_ready: Arc::default(),
             titles: Arc::default(),
             catalog: Arc::default(),
+            held: false,
         }
+    }
+
+    /// Holds the serving Worker for a restart's successor, or lifts that hold.
+    #[cfg(windows)]
+    pub(crate) fn hold(&mut self, held: bool) {
+        self.held = held;
     }
 
     pub(crate) fn viewer_ready_routes(&self) -> Arc<ViewerReadyRoutes> {
@@ -317,7 +327,18 @@ impl WorkerRegistry {
         })
     }
 
+    /// The serving Worker's live carrier; none while a restart holds it.
     pub(crate) fn request_handle(&self) -> Option<WorkerRequestHandle> {
+        if self.held {
+            return None;
+        }
+        self.capture_handle()
+    }
+
+    /// The serving Worker's live carrier, also while a restart holds it: only the exact capture and
+    /// the observation it and the background-program count make use it then, and they change
+    /// nothing in the Session.
+    pub(crate) fn capture_handle(&self) -> Option<WorkerRequestHandle> {
         self.active
             .as_ref()
             .and_then(|active| active.carrier.as_ref())
@@ -448,7 +469,7 @@ impl WorkerRegistry {
         let Some(carrier) = active.carrier.as_ref() else {
             return AgentDrainCarrier::CarrierUnavailable;
         };
-        if !carrier.serving || !carrier.request_handle.is_active() {
+        if !carrier.serving || self.held || !carrier.request_handle.is_active() {
             return AgentDrainCarrier::CarrierUnavailable;
         }
         let Ok(worker_id) = CapabilityWorkerId::from_bytes(active.worker_id.as_bytes()) else {

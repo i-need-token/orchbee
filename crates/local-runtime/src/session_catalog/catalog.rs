@@ -24,6 +24,9 @@ use super::{
 };
 
 const MAXIMUM_SESSIONS: usize = 256;
+/// How long recovery waits for the processes a leftover successor entry names to end.
+#[cfg(windows)]
+const SUCCESSOR_END_BUDGET: std::time::Duration = std::time::Duration::from_secs(5);
 const RUNTIME_FILES: &[&str] = &[
     "activation.started",
     "activation.lock",
@@ -212,6 +215,12 @@ impl SessionCatalog {
     /// On Windows a generation whose Server and Worker are proven gone while its Host runs is
     /// recovered too when the binding record names that Host: the next generation adopts it, and
     /// [`Self::begin_activation`] keeps its registration. Without such a record it is refused.
+    ///
+    /// A restart's successor entry the record still carries names a Server and Worker that never
+    /// committed, and whose old Server is gone, since this caller holds the lifetime lock. Every
+    /// live process it names is ended by its recorded identity first, whatever the record's state,
+    /// so no later generation runs beside one; only a process that cannot be opened or ended
+    /// refuses, and only this attempt.
     pub fn recover_inactive(
         &self,
         session: &Rendezvous,
@@ -226,6 +235,11 @@ impl SessionCatalog {
         let Some(mut record) = self.durable.read(scope)? else {
             return Ok(None);
         };
+        #[cfg(windows)]
+        if let Some(successor) = crate::Successor::of(&record) {
+            crate::ExactProcess::end_successor(&successor, Instant::now() + SUCCESSOR_END_BUDGET)
+                .map_err(|_| io::Error::from(io::ErrorKind::InvalidData))?;
+        }
         if matches!(record.lifecycle, Lifecycle::Stopped { .. }) {
             return Ok(None);
         }

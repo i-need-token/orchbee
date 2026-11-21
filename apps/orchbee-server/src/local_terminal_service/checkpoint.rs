@@ -62,7 +62,9 @@ impl LocalTerminalService {
     }
 
     /// Build a bounded configuration from committed state and cached observations. The caller
-    /// performs disk publication only after every Session/Worker gate below has been released.
+    /// performs disk publication only after every Session/Worker gate below has been released. A
+    /// restart's exact capture builds it too, while its hold keeps every request from the Worker,
+    /// so the placement it checks is the held Worker's.
     pub(crate) fn cached_checkpoint(
         &self,
         worker: &WorkerId,
@@ -73,7 +75,7 @@ impl LocalTerminalService {
             .workers
             .lock()
             .map_err(|_| io::Error::other("Worker registry failed"))?;
-        let placement = placement(workers.request_handle().as_ref());
+        let placement = placement(workers.capture_handle().as_ref());
         let mut coordinator = self
             .coordinator
             .lock()

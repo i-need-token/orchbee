@@ -52,6 +52,7 @@ impl SessionStore {
     /// Writes `payload` under `token` through a flushed staging file and an atomic rename. A
     /// failure before the rename leaves every kept file unchanged.
     pub fn write_terminal_output(&mut self, token: u64, payload: &[u8]) -> io::Result<()> {
+        self.held()?;
         let token = NonZeroU64::new(token).ok_or(io::ErrorKind::InvalidInput)?;
         if payload.len() > output::MAXIMUM_BYTES {
             return Err(io::ErrorKind::InvalidInput.into());
@@ -67,6 +68,7 @@ impl SessionStore {
     }
 
     pub fn remove_terminal_output(&mut self, token: u64) -> io::Result<()> {
+        self.held()?;
         match NonZeroU64::new(token) {
             Some(token) => {
                 remove_if_present(&self.output_directory().join(output::entry_name(token)))

@@ -108,6 +108,29 @@ impl Writer {
         let _ = self.write(terminals, worker);
     }
 
+    /// The write a restart's exact capture makes: the record on disk must describe the Session as
+    /// captured, so a write that is deferred or fails fails the capture.
+    #[cfg(windows)]
+    pub(super) fn write_exact(
+        &mut self,
+        terminals: &LocalTerminalService,
+        worker: &WorkerId,
+    ) -> io::Result<()> {
+        self.due = None;
+        match self.write(terminals, worker) {
+            Wrote::Published | Wrote::Unchanged => Ok(()),
+            Wrote::Deferred => Err(io::Error::other("binding record not written")),
+        }
+    }
+
+    /// Forgets what was last published, so the next write publishes even an unchanged record: a
+    /// restart's successor may have replaced it while it held the store.
+    #[cfg(windows)]
+    pub(super) fn forget_written(&mut self) {
+        self.written = None;
+        self.observed = None;
+    }
+
     /// Removes the record once no running terminal is left to adopt.
     pub(super) fn remove(&mut self) {
         let removed = self

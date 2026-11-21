@@ -61,6 +61,7 @@ fn admits_the_last_nonzero_generation_before_exhaustion() {
     let mut registry = ClientConnectionRegistry {
         active_generations: Default::default(),
         next_generation: Some(maximum_generation),
+        offers: Default::default(),
     };
 
     assert_eq!(

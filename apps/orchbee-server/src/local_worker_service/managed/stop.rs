@@ -28,6 +28,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(windows)]
+mod handover;
 #[cfg(any(windows, target_os = "macos"))]
 mod idle;
 mod worker_loss;
@@ -131,6 +133,8 @@ pub(super) fn run(
     let mut idle = idle::IdleMove::default();
     let mut loss = worker_loss::WorkerLoss::default();
     let mut supervision = super::replacement::Supervision::new(cohort);
+    #[cfg(windows)]
+    let mut restart = handover::Restart::default();
     // Every stop a POSIX Server begins uses its one identity, the idle move's too.
     #[cfg(target_os = "macos")]
     let mut idle = idle::IdleMove::under(own);
@@ -139,8 +143,18 @@ pub(super) fn run(
             loss: &mut loss,
             supervision: &mut supervision,
         };
+        // The Session record names this Server's successor, which holds the Session from now on.
         #[cfg(windows)]
-        let work = next_work(&mut owners, &shutdown, &clients, &mut idle, watch);
+        let Some(work) = next_work(
+            &mut owners,
+            &shutdown,
+            &clients,
+            &mut idle,
+            watch,
+            &mut restart,
+        ) else {
+            return handover::leave(owners, clients, &shutdown);
+        };
         #[cfg(target_os = "macos")]
         let work = next_work(&mut owners, &shutdown, own, &clients, &mut idle, watch);
         #[cfg(all(unix, not(target_os = "macos")))]
@@ -450,9 +464,10 @@ impl Watch<'_> {
     }
 }
 
-/// Waits for a stop request or an `exit`. Each tick looks at the Worker, which replaces a lost
-/// one, and feeds the idle move; a Worker exit no stop explains is recorded as this generation's
-/// failure first.
+/// Waits for a stop request or an `exit`, answering the `handover` steps of a restart meanwhile.
+/// Each tick looks at the Worker, which replaces a lost one, and feeds the idle move; a Worker exit
+/// no stop explains is recorded as this generation's failure first. While a restart holds the
+/// Session it watches only the restart. `None` means the Session record names the successor.
 #[cfg(windows)]
 fn next_work(
     owners: &mut Owners,
@@ -460,11 +475,35 @@ fn next_work(
     clients: &local_client_service::ManagedClients,
     idle: &mut idle::IdleMove,
     mut watch: Watch<'_>,
-) -> Work {
+    restart: &mut handover::Restart,
+) -> Option<Work> {
     loop {
-        if let Some(work) = shutdown.take_within(Duration::from_secs(1)) {
-            return work;
+        let tick = if restart.holding() {
+            handover::HELD_TICK
+        } else {
+            Duration::from_secs(1)
+        };
+        if let Some(work) = shutdown.take_within(tick) {
+            // A stop or an `exit` decides a held restart first, and clears one that never got so
+            // far.
+            if restart.settle_before_ending(owners, shutdown) == handover::Next::Leave {
+                return None;
+            }
+            return Some(work);
         }
+        if let Some((step, ticket)) = shutdown.take_handover() {
+            if restart.step(owners, shutdown, &mut watch, step, ticket) == handover::Next::Leave {
+                return None;
+            }
+            continue;
+        }
+        if restart.holding() {
+            if restart.tick(owners, shutdown, &mut watch) == handover::Next::Leave {
+                return None;
+            }
+            continue;
+        }
+        restart.look(owners);
         if watch.look(owners, shutdown)
             && !shutdown.stopping()
             && let Some(id) = own_stop_id()
@@ -719,44 +758,7 @@ fn settle_for_exit(
             let bytes = owners.terminals.checkpoint(&worker, deadline)?;
             kept.publish_final(&owners.terminals, &worker, &bytes)?;
         }
-        let mut operation = [0; 16];
-        getrandom::fill(&mut operation).map_err(|error| io::Error::other(error.to_string()))?;
-        let budget = deadline
-            .saturating_duration_since(Instant::now())
-            .as_millis()
-            .min(15_000) as u32;
-        let request = WorkerShutdownRequest {
-            operation_id: OperationId::from_bytes(operation).map_err(io::Error::other)?,
-            worker_id: WorkerId::from_bytes(owners.handle.worker_id().as_bytes())
-                .map_err(io::Error::other)?,
-            worker_generation: WorkerGeneration::new(owners.handle.generation()),
-            budget: ShutdownBudget::new(budget).map_err(|_| io::ErrorKind::TimedOut)?,
-            terminals: EXIT_TERMINALS,
-        };
-        match owners
-            .handle
-            .request(WorkerOperationRequest::Shutdown(request))
-        {
-            #[cfg(windows)]
-            Ok(WorkerOperationResult::Shutdown(result))
-                if matches!(
-                    result.outcome,
-                    WorkerShutdownOutcome::NoHost | WorkerShutdownOutcome::Released { .. }
-                ) => {}
-            #[cfg(unix)]
-            Ok(WorkerOperationResult::Shutdown(result))
-                if matches!(
-                    result.outcome,
-                    WorkerShutdownOutcome::NoHost | WorkerShutdownOutcome::Stopped { .. }
-                ) => {}
-            _ => return Err(io::Error::other("Worker exit unconfirmed")),
-        }
-        while owners.worker.try_wait()?.is_none() || !owners.carrier.is_finished() {
-            if Instant::now() >= deadline {
-                return Err(io::ErrorKind::TimedOut.into());
-            }
-            thread::sleep(Duration::from_millis(10));
-        }
+        end_worker(owners, deadline)?;
         owners
             .terminals
             .finish_process_observer_after_worker_exit(&owners.handle)?;
@@ -776,6 +778,50 @@ fn settle_for_exit(
         while !host_absent(owners) && Instant::now() < host_deadline {
             thread::sleep(Duration::from_millis(10));
         }
+    }
+    Ok(())
+}
+
+/// Ends the Worker as an `exit` does, its terminals kept on Windows and disposed on POSIX, and
+/// waits until it and its connection's thread are gone or `deadline` passes.
+fn end_worker(owners: &mut Owners, deadline: Instant) -> io::Result<()> {
+    let mut operation = [0; 16];
+    getrandom::fill(&mut operation).map_err(|error| io::Error::other(error.to_string()))?;
+    let budget = deadline
+        .saturating_duration_since(Instant::now())
+        .as_millis()
+        .min(15_000) as u32;
+    let request = WorkerShutdownRequest {
+        operation_id: OperationId::from_bytes(operation).map_err(io::Error::other)?,
+        worker_id: WorkerId::from_bytes(owners.handle.worker_id().as_bytes())
+            .map_err(io::Error::other)?,
+        worker_generation: WorkerGeneration::new(owners.handle.generation()),
+        budget: ShutdownBudget::new(budget).map_err(|_| io::ErrorKind::TimedOut)?,
+        terminals: EXIT_TERMINALS,
+    };
+    match owners
+        .handle
+        .request(WorkerOperationRequest::Shutdown(request))
+    {
+        #[cfg(windows)]
+        Ok(WorkerOperationResult::Shutdown(result))
+            if matches!(
+                result.outcome,
+                WorkerShutdownOutcome::NoHost | WorkerShutdownOutcome::Released { .. }
+            ) => {}
+        #[cfg(unix)]
+        Ok(WorkerOperationResult::Shutdown(result))
+            if matches!(
+                result.outcome,
+                WorkerShutdownOutcome::NoHost | WorkerShutdownOutcome::Stopped { .. }
+            ) => {}
+        _ => return Err(io::Error::other("Worker exit unconfirmed")),
+    }
+    while owners.worker.try_wait()?.is_none() || !owners.carrier.is_finished() {
+        if Instant::now() >= deadline {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        thread::sleep(Duration::from_millis(10));
     }
     Ok(())
 }

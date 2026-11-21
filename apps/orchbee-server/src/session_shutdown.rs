@@ -1,6 +1,11 @@
-//! Single-identity shutdown admission, the `drain` and `exit` control course, and observable
-//! attempts, independent of process adapters.
+//! Single-identity shutdown admission, the `drain` and `exit` control course, observable attempts,
+//! the hold of a Server restart that keeps terminals, and the one `handover` step a Client delivers
+//! to the lifecycle owner at a time, independent of process adapters.
 use orchbee_connection_handshake::ProcessState;
+#[cfg(any(windows, test))]
+use orchbee_connection_handshake::{
+    HandoverOutcome, HandoverRefusal, HandoverStep, HandoverTicket,
+};
 use orchbee_local_client_protocol::{
     SessionStopRequest, SessionStopResult, SessionStopStatus, StopAction, StopAttempt, StopFailure,
     StopId, StopPhase,
@@ -48,6 +53,15 @@ struct State {
     entry: Option<Entry>,
     course: Course,
     records: usize,
+    /// The admitted records and connections that may change the Session, a subset of `records`.
+    intents: usize,
+    /// Whether a Server restart holds the Session for its successor: intents other than terminal
+    /// records are refused like under a `drain`, while reads, terminal records and new Client
+    /// connections are still admitted.
+    held: bool,
+    /// The `handover` step a Client waits on, if any.
+    #[cfg(any(windows, test))]
+    exchange: Option<Exchange>,
     /// `exit` requesters that have not yet written their reply.
     exit_replies: usize,
     /// Whether a stop signal arrived; it stays set until the process ends.
@@ -62,6 +76,19 @@ struct State {
 pub(crate) enum Work {
     Stop(Attempt),
     Exit,
+}
+
+/// One `handover` step between the Client that delivered it and the lifecycle owner.
+#[cfg(any(windows, test))]
+struct Exchange {
+    step: HandoverStep,
+    ticket: HandoverTicket,
+    /// Whether the lifecycle owner took the step; an untaken one is withdrawn at the deadline.
+    taken: bool,
+    /// The owner's answer, once given.
+    answer: Option<HandoverOutcome>,
+    /// Whether the Client stopped waiting; the owner's answer then goes nowhere.
+    abandoned: bool,
 }
 
 /// Owns stop admission; effects are performed only by the managed process owner.
@@ -189,16 +216,26 @@ impl SessionShutdown {
         true
     }
 
-    /// Admits new work: a Client connection, or an intent record. A record lease is acquired after
-    /// decoding and remains held through its result write. There is none once a Session stop is
-    /// recorded or a `drain` or `exit` arrived.
+    /// Admits new work that a restart's hold lets through: a Client connection, or a terminal
+    /// record, which then finds no Worker. A record lease is acquired after decoding and remains
+    /// held through its result write. There is none once a Session stop is recorded or a `drain` or
+    /// `exit` arrived.
     pub(crate) fn enter(&self) -> Option<RecordLease<'_>> {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         if state.entry.is_some() || state.course != Course::Serving {
             return None;
         }
-        state.records += 1;
-        Some(RecordLease(self))
+        Some(self.lease(&mut state, true))
+    }
+
+    /// Admits any other intent record: as [`Self::enter`], and none while a restart holds the
+    /// Session, since its successor starts from the state captured when the hold began.
+    pub(crate) fn enter_intent(&self) -> Option<RecordLease<'_>> {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.entry.is_some() || state.course != Course::Serving || state.held {
+            return None;
+        }
+        Some(self.lease(&mut state, true))
     }
 
     /// Admits a read record: a `drain` keeps serving reads, while a Session stop or an `exit`
@@ -208,8 +245,109 @@ impl SessionShutdown {
         if state.entry.is_some() || state.course > Course::Draining {
             return None;
         }
+        Some(self.lease(&mut state, false))
+    }
+
+    fn lease(&self, state: &mut State, intent: bool) -> RecordLease<'_> {
         state.records += 1;
-        Some(RecordLease(self))
+        state.intents += usize::from(intent);
+        RecordLease {
+            owner: self,
+            intent,
+        }
+    }
+
+    #[cfg(any(windows, test))]
+    /// Holds the Session for a restart's successor, or lifts that hold.
+    pub(crate) fn hold(&self, held: bool) {
+        self.state.lock().unwrap_or_else(|e| e.into_inner()).held = held;
+    }
+
+    #[cfg(any(windows, test))]
+    /// Waits until no admitted intent record or connection is left, without renewing the deadline;
+    /// reads go on.
+    pub(crate) fn settle_intents(&self, deadline: Instant) -> bool {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        while state.intents > 0 {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return false;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, remaining)
+                .unwrap_or_else(|e| e.into_inner())
+                .0;
+        }
+        true
+    }
+
+    #[cfg(any(windows, test))]
+    /// Delivers one `handover` step to the lifecycle owner and waits for its answer until
+    /// `deadline`. A step that arrives while another is waiting is refused `busy`. `None` means
+    /// the owner did not answer in time: a step it never took is withdrawn, and the answer to one it
+    /// took goes nowhere.
+    pub(crate) fn handover(
+        &self,
+        step: HandoverStep,
+        ticket: HandoverTicket,
+        deadline: Instant,
+    ) -> Option<HandoverOutcome> {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.exchange.is_some() {
+            return Some(HandoverOutcome::Refused(HandoverRefusal::Busy));
+        }
+        state.exchange = Some(Exchange {
+            step,
+            ticket,
+            taken: false,
+            answer: None,
+            abandoned: false,
+        });
+        // The owner's wait ends early, so it takes the step at once.
+        state.woken = true;
+        self.changed.notify_all();
+        loop {
+            if let Some(answer) = state.exchange.as_ref().and_then(|exchange| exchange.answer) {
+                state.exchange = None;
+                self.changed.notify_all();
+                return Some(answer);
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                match state.exchange.as_mut() {
+                    Some(exchange) if exchange.taken => exchange.abandoned = true,
+                    _ => state.exchange = None,
+                }
+                return None;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, remaining)
+                .unwrap_or_else(|e| e.into_inner())
+                .0;
+        }
+    }
+
+    #[cfg(any(windows, test))]
+    /// The waiting `handover` step, granting the lifecycle owner its answer exactly once.
+    pub(crate) fn take_handover(&self) -> Option<(HandoverStep, HandoverTicket)> {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let exchange = state.exchange.as_mut().filter(|exchange| !exchange.taken)?;
+        exchange.taken = true;
+        Some((exchange.step, exchange.ticket))
+    }
+
+    #[cfg(any(windows, test))]
+    /// The lifecycle owner's answer to the step it took.
+    pub(crate) fn answer_handover(&self, answer: HandoverOutcome) {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        match state.exchange.as_mut() {
+            Some(exchange) if exchange.abandoned => state.exchange = None,
+            Some(exchange) if exchange.taken => exchange.answer = Some(answer),
+            _ => {}
+        }
+        self.changed.notify_all();
     }
 
     /// Admits the lifecycle owner's own stop under `id` when no stop exists yet.
@@ -263,7 +401,11 @@ impl SessionShutdown {
     #[cfg(any(windows, target_os = "macos", test))]
     pub(crate) fn begin_idle(&self, id: StopId, idle: impl FnOnce() -> bool) -> bool {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        if state.entry.is_some() || state.course != Course::Serving || state.records > 0 || !idle()
+        if state.entry.is_some()
+            || state.course != Course::Serving
+            || state.records > 0
+            || state.held
+            || !idle()
         {
             return false;
         }
@@ -391,12 +533,18 @@ fn status(entry: &Entry) -> SessionStopStatus {
 }
 
 /// Keeps one admitted operation and its response write ahead of lifecycle cleanup until drop.
-pub(crate) struct RecordLease<'a>(&'a SessionShutdown);
+pub(crate) struct RecordLease<'a> {
+    owner: &'a SessionShutdown,
+    intent: bool,
+}
 impl Drop for RecordLease<'_> {
     fn drop(&mut self) {
-        let mut state = self.0.state.lock().unwrap_or_else(|e| e.into_inner());
+        let mut state = self.owner.state.lock().unwrap_or_else(|e| e.into_inner());
         state.records = state.records.checked_sub(1).expect("owned record lease");
-        self.0.changed.notify_all();
+        if self.intent {
+            state.intents = state.intents.checked_sub(1).expect("owned intent lease");
+        }
+        self.owner.changed.notify_all();
     }
 }
 

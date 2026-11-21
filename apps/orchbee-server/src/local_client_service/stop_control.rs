@@ -73,6 +73,19 @@ impl<'a> StopControl<'a> {
         false
     }
 
+    /// Delivers one `handover` step to the lifecycle owner and returns its answer: `Some(None)` when
+    /// none came by `deadline`, and `None` without a lifecycle owner, having delivered nothing.
+    #[cfg(windows)]
+    pub(super) fn handover(
+        &self,
+        step: orchbee_connection_handshake::HandoverStep,
+        ticket: orchbee_connection_handshake::HandoverTicket,
+        deadline: std::time::Instant,
+    ) -> Option<Option<orchbee_connection_handshake::HandoverOutcome>> {
+        self.shutdown
+            .map(|owner| owner.handover(step, ticket, deadline))
+    }
+
     pub(super) fn unmanaged(agents: &'a AgentService) -> Self {
         Self {
             agents,
@@ -156,16 +169,21 @@ impl<'a> StopControl<'a> {
     }
 
     /// Admits one application record. A `drain` refuses intents only; a Session stop or an `exit`
-    /// refuses every record.
+    /// refuses every record. A restart's hold refuses intents other than terminal records as a
+    /// `drain` does.
     pub(super) fn admit(&'a self, effect: Effect) -> Result<Lease<'a>, Refusal> {
+        // The course only advances, so a refusal observed as `draining` here was a drain, and one
+        // observed as `ready` was a restart's hold.
+        let refusal = |owner: &crate::session_shutdown::SessionShutdown| match owner.process_state()
+        {
+            ProcessState::Draining | ProcessState::Ready => Refusal::Draining,
+            _ => Refusal::Stopping,
+        };
         let record = match self.shutdown {
             Some(owner) => Some(match effect {
                 Effect::Read => owner.enter_read().ok_or(Refusal::Stopping)?,
-                // The course only advances, so a refusal observed as `draining` here was a drain.
-                Effect::Intent => owner.enter().ok_or_else(|| match owner.process_state() {
-                    ProcessState::Draining => Refusal::Draining,
-                    _ => Refusal::Stopping,
-                })?,
+                Effect::RuntimeIntent => owner.enter().ok_or_else(|| refusal(owner))?,
+                Effect::Intent => owner.enter_intent().ok_or_else(|| refusal(owner))?,
             }),
             None => None,
         };

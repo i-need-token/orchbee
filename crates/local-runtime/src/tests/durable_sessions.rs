@@ -713,3 +713,92 @@ fn a_recorded_exit_recovers_without_counting_a_crash() {
         Some([2; 16])
     );
 }
+
+/// A restart is decided by the record under its writer lock: until the record names the
+/// successor's generation, the retained one keeps the Session and ends what the entry names before
+/// the entry goes; once it names it, nothing is ended or taken back.
+#[cfg(windows)]
+#[test]
+fn a_restart_is_decided_by_the_record_under_its_writer_lock() {
+    let base = Fixture::new();
+    let local = Fixture::new();
+    let (name, _session, owner) = start(&base, &local, "fenced", 1);
+    let path = record_path(&local, &name);
+    let record: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    let write = |record: &serde_json::Value| {
+        write_private(&path, serde_json::to_vec(record).unwrap()).unwrap();
+    };
+    // This process's id with a creation time it never had: an identity no live process has.
+    let gone = serde_json::json!({"pid": std::process::id(), "creation_time": 1});
+    let with_entry = |ticket: u8| {
+        let mut record = record.clone();
+        record["extensions"]["successor"] = serde_json::json!({
+            "ticket": ([ticket; 16]),
+            "server": gone,
+            "worker": gone,
+            "activation_id": ([9_u8; 16]),
+        });
+        record
+    };
+    write(&with_entry(1));
+    let successor = owner.successor().unwrap().unwrap();
+    assert!(successor.worker_recorded());
+    assert!(!owner.names_committed(&successor, deadline()).unwrap());
+    // An end that fails keeps the entry, and another restart's entry outlives this one's fence.
+    assert!(
+        owner
+            .fence(&successor, deadline(), || Err(io::ErrorKind::Other.into()))
+            .is_err()
+    );
+    assert_eq!(owner.successor().unwrap(), Some(successor));
+    write(&with_entry(2));
+    assert_eq!(
+        owner.fence(&successor, deadline(), || Ok(())).unwrap(),
+        crate::Fenced::Kept
+    );
+    assert_eq!(
+        owner.successor().unwrap().map(|entry| entry.ticket()),
+        Some([2; 16])
+    );
+    write(&with_entry(1));
+    let mut ended = false;
+    assert_eq!(
+        owner
+            .fence(&successor, deadline(), || {
+                ended = true;
+                Ok(())
+            })
+            .unwrap(),
+        crate::Fenced::Kept
+    );
+    assert!(ended);
+    assert_eq!(owner.successor().unwrap(), None);
+    // An abandoned entry goes only once judged so; what it names is already gone, so nothing ends.
+    write(&with_entry(1));
+    let end = |entry: &crate::Successor| crate::ExactProcess::end_successor(entry, deadline());
+    assert_eq!(
+        owner.clear_successor(deadline(), |_| false, end).unwrap(),
+        None
+    );
+    assert_eq!(
+        owner.clear_successor(deadline(), |_| true, end).unwrap(),
+        Some(successor)
+    );
+    assert_eq!(owner.successor().unwrap(), None);
+    // The successor's commit names its activation and Server.
+    let mut committed = with_entry(1);
+    committed["activation_id"] = serde_json::json!(vec![9_u8; 16]);
+    committed["processes"]["server"] = serde_json::json!({"state": "identified", "identity": gone});
+    write(&committed);
+    assert!(owner.names_committed(&successor, deadline()).unwrap());
+    let bytes = fs::read(&path).unwrap();
+    assert_eq!(
+        owner
+            .fence(&successor, deadline(), || panic!(
+                "a committed successor is never ended"
+            ))
+            .unwrap(),
+        crate::Fenced::Committed
+    );
+    assert_eq!(fs::read(&path).unwrap(), bytes);
+}

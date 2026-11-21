@@ -20,6 +20,7 @@ impl SessionStore {
         bytes: &[u8],
         validate: impl FnOnce(&[u8]) -> bool,
     ) -> io::Result<()> {
+        self.held()?;
         if bytes.len() > MAXIMUM_BINDING_RECORD_BYTES || !validate(bytes) {
             return Err(io::ErrorKind::InvalidInput.into());
         }
@@ -51,6 +52,7 @@ impl SessionStore {
 
     /// Removes the binding record; an absent one counts as removed.
     pub fn remove_bindings(&mut self) -> io::Result<()> {
+        self.held()?;
         remove_if_present(&self.directory.join(FILE))
     }
 }

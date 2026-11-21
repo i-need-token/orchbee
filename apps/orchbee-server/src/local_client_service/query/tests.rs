@@ -25,7 +25,14 @@ use std::{
 fn the_reply_lists_the_server_first_then_the_worker_it_started() {
     let cohort = "ab".repeat(32);
     let identity = ServerIdentity::local(Some(&cohort), Some(4242));
-    let result = result(&identity, ProcessState::Ready, 3, Vec::new()).unwrap();
+    let result = result(
+        &identity,
+        ProcessState::Ready,
+        3,
+        Vec::new(),
+        Extensions::new(),
+    )
+    .unwrap();
     assert_eq!(result.restart_keeps_terminals(), Some(false));
     let [server, worker] = result.processes() else {
         panic!("expected the Server and its Worker")
@@ -76,6 +83,7 @@ fn the_reply_lists_the_server_first_then_the_worker_it_started() {
         ProcessState::Stopping,
         0,
         Vec::new(),
+        Extensions::new(),
     )
     .unwrap();
     let [server] = alone.processes() else {
@@ -109,6 +117,7 @@ fn hosts_follow_the_worker_in_its_order_without_capabilities_and_at_most_256() {
         ProcessState::Ready,
         2,
         (1..=300).map(host).collect(),
+        Extensions::new(),
     )
     .unwrap();
     let [server, worker, hosts @ ..] = reply.processes() else {
@@ -138,6 +147,7 @@ fn hosts_follow_the_worker_in_its_order_without_capabilities_and_at_most_256() {
         ProcessState::Ready,
         0,
         vec![host(1)],
+        Extensions::new(),
     )
     .unwrap();
     assert_eq!(

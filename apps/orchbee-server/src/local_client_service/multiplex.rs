@@ -229,10 +229,12 @@ fn deliverable(
     };
     match (effect, unknown) {
         (Effect::Read, _) => Ok(Err(StreamFailure::Undeliverable(failure))),
-        (Effect::Intent, IntentUnknown::ClosesStream) => {
+        (Effect::Intent | Effect::RuntimeIntent, IntentUnknown::ClosesStream) => {
             Ok(Err(StreamFailure::OutcomeUnknown(failure)))
         }
-        (Effect::Intent, IntentUnknown::EndsConnection) => Err(io::ErrorKind::OutOfMemory.into()),
+        (Effect::Intent | Effect::RuntimeIntent, IntentUnknown::EndsConnection) => {
+            Err(io::ErrorKind::OutOfMemory.into())
+        }
     }
 }
 

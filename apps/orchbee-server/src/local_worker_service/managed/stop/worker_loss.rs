@@ -25,6 +25,12 @@ impl WorkerLoss {
             record();
         }
     }
+
+    /// The Worker ended because a restart released it to a successor, which fails nothing.
+    #[cfg(windows)]
+    pub(super) fn released(&mut self) {
+        self.seen = true;
+    }
 }
 
 /// Records the generation `session` retains as failed, for the store this Server runs from.

@@ -16,6 +16,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod successor;
+pub use successor::Successor;
+
 const MAXIMUM_BYTES: usize = 8192;
 const MAXIMUM_SESSIONS: usize = 256;
 /// The `extensions` member an `exit` writes: the activation identifier of the generation it ended.
@@ -634,16 +637,7 @@ impl RetainedSessionRecord {
     /// activation recovers it without counting a crash. Waits for the record's writer until
     /// `deadline`; a record that no longer names the generation refuses.
     pub fn record_exit(&self, deadline: Instant) -> io::Result<()> {
-        let _writer = loop {
-            match self.directory.try_writer(&self.scope) {
-                Err(error)
-                    if error.kind() == io::ErrorKind::WouldBlock && Instant::now() < deadline =>
-                {
-                    thread::sleep(Duration::from_millis(10));
-                }
-                writer => break writer?,
-            }
-        };
+        let _writer = self.writer_before(deadline)?;
         let mut current = self
             .directory
             .read(&self.scope)?
@@ -656,4 +650,110 @@ impl RetainedSessionRecord {
         current.extensions.insert(EXITED.to_owned(), value);
         self.directory.publish(&self.scope, &current)
     }
+
+    /// The successor entry of a restart the record carries while it still names the retained
+    /// generation, if this build can read it.
+    pub fn successor(&self) -> io::Result<Option<Successor>> {
+        let current = self
+            .directory
+            .read(&self.scope)?
+            .ok_or(io::ErrorKind::NotFound)?;
+        if !current.same_active_generation(&self.active) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        Ok(Successor::of(&current))
+    }
+
+    /// Whether the record names `successor`'s generation committed: its activation and Server.
+    /// Read under the record's writer lock, waited for until `deadline`.
+    pub fn names_committed(&self, successor: &Successor, deadline: Instant) -> io::Result<bool> {
+        let _writer = self.writer_before(deadline)?;
+        let current = self
+            .directory
+            .read(&self.scope)?
+            .ok_or(io::ErrorKind::NotFound)?;
+        Ok(successor.committed_in(&current))
+    }
+
+    /// Decides a restart under the record's writer lock, waited for until `deadline`. Once the
+    /// record names `successor`'s generation committed, the successor holds the Session. While it
+    /// still names the retained generation, `end` ends what `successor` names and the entry for its
+    /// ticket is removed, so the retained generation keeps the Session. Any other record, or an
+    /// `end` that fails, leaves the record unchanged and fails.
+    pub fn fence(
+        &self,
+        successor: &Successor,
+        deadline: Instant,
+        end: impl FnOnce() -> io::Result<()>,
+    ) -> io::Result<Fenced> {
+        let _writer = self.writer_before(deadline)?;
+        let mut current = self
+            .directory
+            .read(&self.scope)?
+            .ok_or(io::ErrorKind::NotFound)?;
+        if successor.committed_in(&current) {
+            return Ok(Fenced::Committed);
+        }
+        if !current.same_active_generation(&self.active) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        end()?;
+        if Successor::of(&current).is_some_and(|entry| entry.ticket() == successor.ticket()) {
+            current.extensions.remove(successor::SUCCESSOR);
+            self.directory.publish(&self.scope, &current)?;
+        }
+        Ok(Fenced::Kept)
+    }
+
+    /// Clears an abandoned successor entry under the record's writer lock, waited for until
+    /// `deadline`: while the record still names the retained generation and carries an entry that
+    /// `abandoned` judges abandoned, `end` ends every live process it names by its recorded
+    /// identity, the Worker first ([`crate::ExactProcess::end_successor`]), and only then is the
+    /// entry removed. Answers the entry it cleared; an `end` that fails leaves the record unchanged.
+    #[cfg(windows)]
+    pub fn clear_successor(
+        &self,
+        deadline: Instant,
+        abandoned: impl FnOnce(&Successor) -> bool,
+        end: impl FnOnce(&Successor) -> io::Result<()>,
+    ) -> io::Result<Option<Successor>> {
+        let _writer = self.writer_before(deadline)?;
+        let mut current = self
+            .directory
+            .read(&self.scope)?
+            .ok_or(io::ErrorKind::NotFound)?;
+        if !current.same_active_generation(&self.active) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        let Some(entry) = Successor::of(&current).filter(|entry| abandoned(entry)) else {
+            return Ok(None);
+        };
+        end(&entry)?;
+        current.extensions.remove(successor::SUCCESSOR);
+        self.directory.publish(&self.scope, &current)?;
+        Ok(Some(entry))
+    }
+
+    /// The record's writer lock, waited for until `deadline`.
+    fn writer_before(&self, deadline: Instant) -> io::Result<RecordWriter> {
+        loop {
+            match self.directory.try_writer(&self.scope) {
+                Err(error)
+                    if error.kind() == io::ErrorKind::WouldBlock && Instant::now() < deadline =>
+                {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                writer => return writer,
+            }
+        }
+    }
+}
+
+/// Who holds the Session after [`RetainedSessionRecord::fence`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Fenced {
+    /// The retained generation: the entry is gone and what it named was ended.
+    Kept,
+    /// The successor: the record names its generation.
+    Committed,
 }

@@ -70,6 +70,7 @@ impl SessionStore {
         record: &RetainedSessionRecord,
         notice: Option<Notice>,
     ) -> io::Result<()> {
+        self.held()?;
         let generation = record.current_activation_id()?;
         if self.directory != record.checkpoint_directory() {
             return Err(io::ErrorKind::InvalidInput.into());

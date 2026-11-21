@@ -31,9 +31,13 @@ pub struct CheckpointLoad<T> {
 pub struct SessionStore {
     pub(crate) directory: PathBuf,
     maximum_bytes: usize,
-    _lock: HeldLock,
+    /// `state.lock`, held from opening until [`Self::release`] and again after [`Self::retake`].
+    lock: Option<HeldLock>,
     _directories: Vec<File>,
 }
+
+/// The single-writer lock of a Session's store, beside its checkpoint slots.
+const STATE_LOCK: &str = "state.lock";
 
 impl SessionStore {
     /// Opens the checkpoint storage of the Session whose runtime `session` admitted: its folder in
@@ -49,23 +53,11 @@ impl SessionStore {
         let name = session.session_name()?;
         let directory = root.sessions().join(name.as_str());
         let directories = crate::data_root::create_state_directory(&directory)?;
-        let lock_path = directory.join("state.lock");
-        let lock = match permissions::open_file(&lock_path, true, true) {
-            Ok(file) => file,
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                permissions::open_file(&lock_path, false, true)?
-            }
-            Err(error) => return Err(error),
-        };
-        let lock = match HeldLock::try_exclusive(lock) {
-            Ok(lock) => lock,
-            Err(TryLockError::WouldBlock) => return Err(io::ErrorKind::WouldBlock.into()),
-            Err(TryLockError::Error(error)) => return Err(error),
-        };
+        let lock = take_state_lock(&directory)?;
         let store = Self {
             directory,
             maximum_bytes,
-            _lock: lock,
+            lock: Some(lock),
             _directories: directories,
         };
         store.cleanup_pending()?;
@@ -76,6 +68,30 @@ impl SessionStore {
                 .join(crate::checkpoint_restore_notice::PENDING),
         )?;
         Ok(store)
+    }
+
+    /// Lets go of `state.lock`, so the successor Server of a restart can open the store, and keeps
+    /// this handle for [`Self::retake`]. Until then every write refuses with `WouldBlock`; a read
+    /// still takes its snapshot.
+    pub fn release(&mut self) {
+        self.lock = None;
+    }
+
+    /// Holds `state.lock` again after [`Self::release`]: `WouldBlock` while another process holds
+    /// it. Holding it already changes nothing.
+    pub fn retake(&mut self) -> io::Result<()> {
+        if self.lock.is_none() {
+            self.lock = Some(take_state_lock(&self.directory)?);
+        }
+        Ok(())
+    }
+
+    /// Refuses a write while the store is released.
+    pub(crate) fn held(&self) -> io::Result<()> {
+        match self.lock {
+            Some(_) => Ok(()),
+            None => Err(io::ErrorKind::WouldBlock.into()),
+        }
     }
 
     pub fn read(&self) -> io::Result<Option<Vec<u8>>> {
@@ -120,6 +136,7 @@ impl SessionStore {
         bytes: &[u8],
         mut validate: impl FnMut(&[u8]) -> bool,
     ) -> io::Result<()> {
+        self.held()?;
         if bytes.len() > self.maximum_bytes || !validate(bytes) {
             return Err(io::ErrorKind::InvalidInput.into());
         }
@@ -213,6 +230,23 @@ impl SessionStore {
 
     fn cleanup_pending(&self) -> io::Result<()> {
         remove_if_present(&self.directory.join("checkpoint.pending"))
+    }
+}
+
+/// Holds the `state.lock` of the Session folder `directory`, creating it on first use.
+fn take_state_lock(directory: &Path) -> io::Result<HeldLock> {
+    let path = directory.join(STATE_LOCK);
+    let file = match permissions::open_file(&path, true, true) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            permissions::open_file(&path, false, true)?
+        }
+        Err(error) => return Err(error),
+    };
+    match HeldLock::try_exclusive(file) {
+        Ok(lock) => Ok(lock),
+        Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
+        Err(TryLockError::Error(error)) => Err(error),
     }
 }
 

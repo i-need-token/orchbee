@@ -46,6 +46,16 @@ const POLL: Duration = Duration::from_millis(10);
 
 const WORKER_LOST: &str = "worker-lost";
 const WORKER_REPLACED: &str = "worker-replaced";
+#[cfg(windows)]
+const HANDOVER_TAKE_BACK: &str = "handover-take-back";
+
+/// Why the serving Worker is gone: it was lost, or a restart that did not commit released it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Cause {
+    Loss,
+    #[cfg(windows)]
+    TakeBack,
+}
 
 /// Supervises the Worker the stop loop serves with, across its replacements.
 pub(super) struct Supervision {
@@ -78,10 +88,20 @@ impl Supervision {
             return false;
         }
         self.unreplaced = Some(generation);
-        self.lost(owners, shutdown)
+        self.lost(owners, shutdown, Cause::Loss)
     }
 
-    fn lost(&mut self, owners: &mut Owners, shutdown: &SessionShutdown) -> bool {
+    /// Takes the Session back after a restart that did not commit: the Worker this Server released
+    /// to the successor ended by its own Keep shutdown, so a replacement adopts its Host as after a
+    /// loss. The first attempt counts against no cap, and it is recorded as `handover-take-back`,
+    /// not as a loss. Returns whether the Server should begin its own stop.
+    #[cfg(windows)]
+    pub(super) fn take_back(&mut self, owners: &mut Owners, shutdown: &SessionShutdown) -> bool {
+        self.unreplaced = Some(owners.handle.generation());
+        self.lost(owners, shutdown, Cause::TakeBack)
+    }
+
+    fn lost(&mut self, owners: &mut Owners, shutdown: &SessionShutdown, cause: Cause) -> bool {
         owners.serving.set(None);
         // Clients show Reconnecting from the loss itself, not after the seconds that proving the
         // Worker gone may take; giving up then turns it to GivenUp, and a stop ends the Session.
@@ -99,13 +119,14 @@ impl Supervision {
             (false, Proof::NotGone, _) | (false, _, None) => {
                 Decision::GiveUp(Reason::WorkerNotGone)
             }
-            (false, Proof::Gone { .. }, Some(lost)) => self.decide(owners, lost),
+            (false, Proof::Gone { .. }, Some(lost)) => self.decide(owners, lost, cause),
         };
         lost_record(
             owners.handle.generation(),
             proof,
             self.attempts.len(),
             decision,
+            cause,
         );
         match decision {
             // The admitted stop goes on without a Worker.
@@ -121,13 +142,13 @@ impl Supervision {
                     give_up(owners);
                     return false;
                 };
-                self.replace(owners, shutdown, lost, target)
+                self.replace(owners, shutdown, lost, target, cause)
             }
         }
     }
 
     /// The action for a Worker proven gone while no stop is admitted.
-    fn decide(&self, owners: &Owners, lost: WorkerPlacement) -> Decision {
+    fn decide(&self, owners: &Owners, lost: WorkerPlacement, cause: Cause) -> Decision {
         let presence = owners.session_record.host_presence();
         // A POSIX Host lock that no process holds also reads as gone for a Host that never
         // started; only a binding the lost Worker settled shows that one ran.
@@ -159,7 +180,7 @@ impl Supervision {
             },
             Ok(HostPresence::Unknown) | Err(_) => return Decision::GiveUp(Reason::HostUnverified),
         };
-        if self.attempts.len() >= CAP_ATTEMPTS {
+        if cause == Cause::Loss && self.attempts.len() >= CAP_ATTEMPTS {
             return Decision::GiveUp(Reason::CapReached);
         }
         Decision::Replace(target)
@@ -175,12 +196,18 @@ impl Supervision {
         shutdown: &SessionShutdown,
         lost: WorkerPlacement,
         target: AdoptHostTarget,
+        cause: Cause,
     ) -> bool {
+        // A take-back's first attempt counts against no cap; every later one does.
+        let mut counted = cause == Cause::Loss;
         loop {
             if shutdown.ending() {
                 return false;
             }
-            self.attempts.push_back(Instant::now());
+            if counted {
+                self.attempts.push_back(Instant::now());
+            }
+            counted = true;
             let failure = match self.attempt(owners, shutdown, lost, target) {
                 Attempt::Adopted => {
                     self.unreplaced = None;
@@ -696,6 +723,7 @@ fn lost_record(
     proof: Proof,
     attempts: usize,
     decision: Decision,
+    cause: Cause,
 ) {
     let mut fields: Vec<LogField> = Vec::with_capacity(7);
     fields.push(("generation", LogValue::Count(generation.get())));
@@ -732,7 +760,13 @@ fn lost_record(
     if let Some(reason) = reason {
         fields.push(("reason", LogValue::Token(reason_token(reason))));
     }
-    orchbee_local_runtime::log_event(LogLevel::Error, WORKER_LOST, &fields);
+    match cause {
+        Cause::Loss => orchbee_local_runtime::log_event(LogLevel::Error, WORKER_LOST, &fields),
+        #[cfg(windows)]
+        Cause::TakeBack => {
+            orchbee_local_runtime::log_event(LogLevel::Warning, HANDOVER_TAKE_BACK, &fields);
+        }
+    }
 }
 
 fn adopted_record(generation: std::num::NonZeroU64, outcome: &Adopted, elapsed: Duration) {

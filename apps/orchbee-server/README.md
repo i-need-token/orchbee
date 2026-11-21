@@ -92,17 +92,22 @@ second after accepting the connection, leaving the rest of the two-second candid
 reply. Each Host's entry is the one it reports for itself, listed without capabilities and at most
 256 of them. A Host that has not answered, and every Host when the Worker is absent, late, or between
 generations, is left out rather than listed with guessed facts; a Server that did not start its
-Worker lists neither. The query creates no Connection generation or
-Workbench/viewer state, acquires no shutdown record lease, and closes after one reply, including
-when Client capacity is full. These are diagnostic facts, never an operation grant or proof of
+Worker lists neither. Its `extensions` carry `clients`, one entry per admitted Client connection
+with the `productVersion`, `client-server` `generations` and `capabilities` that Client offered, its
+own rather than those both sides share, and, on Windows while a Worker is listed,
+`background-programs`, the plugin jobs and configured commands the Worker runs, asked within the
+same second and left out when the Worker does not answer; a restart's check reads both. The query
+creates no Connection generation or Workbench/viewer state, acquires no shutdown record lease, and
+closes after one reply, including when Client capacity is full. These are diagnostic facts, never an operation grant or proof of
 future availability. The [runtime status contract](../orchbee/docs/native-runtime-status.md) owns
 CLI behavior and evidence; the [local Client protocol](../../crates/local-client-protocol/README.md)
 owns the exchange.
 
 `drain` and `exit` are checked like `query` and served only by the managed Windows lifecycle owner;
-any other Server answers both `unsupported`. Every Server answers `handover` `unsupported`. `drain`
-is repeatable and answers `drain-result` with the state. It refuses new Clients and new intents,
-while records already admitted run to their result and existing connections keep their reads. Each
+any other Server answers both `unsupported`, and `handover`, which the same owner serves for a
+[Server and Worker restart](#server-and-worker-restart), too. `drain` is repeatable and answers
+`drain-result` with the state. It refuses new Clients and new intents, while records already
+admitted run to their result and existing connections keep their reads. Each
 application record is either a read, which observes the Session or keeps the requester's own
 observation going (queries, snapshots, subscriptions and their continuations, viewer attachment,
 demand and acknowledgements, heartbeats, and reading an admitted operation's result), or an intent,
@@ -121,8 +126,9 @@ failure is reported and the process still ends. The Host and every terminal keep
 publishes no Stopped record or receipt. Once its Worker is gone it writes the generation's
 activation identifier to `extensions.exited` in `session.json`, so the next activation recovers the
 Session without counting a crash or a fallback failure; a write that fails, or an `exit` that ends
-before its Worker does, leaves that end counted as a crash. Recovery still needs every recorded
-process gone and refuses while the Host runs. A queued Session stop goes before a pending `exit`;
+before its Worker does, leaves that end counted as a crash. Recovery still needs the recorded
+Server and Worker gone, and adopts the running Host only through the binding record
+([cold adoption](#cold-adoption)). A queued Session stop goes before a pending `exit`;
 either one ending the process first answers waiting `exit` requesters.
 
 ## Durable Windows session lifecycle
@@ -363,6 +369,72 @@ A start makes one attempt. A record that does not decode or names another Host, 
 that does not answer `adopted`, fails the start; its Worker then shuts down with its terminals kept,
 never disposed, so the Host keeps every terminal, those a restore launched in that start included,
 and the next activation tries again. `host-adopted` records the attempt.
+
+## Server and Worker restart
+
+On Windows the managed lifecycle owner serves `handover`, the old side of a
+[Server and Worker restart](../../proposals/platform/versioning-and-upgrade.md#server-and-worker-restart).
+Nothing sends it yet: the successor side and the requester come later. Each step waits for the
+owner's answer up to 40 seconds and gets none after that; a step that arrives while another waits is
+answered `busy`.
+
+`prepare` names the ticket of the `successor` entry in `session.json`. The owner refuses it `busy`
+while a stop or `exit` is recorded, while it holds another restart, or unless the Session serves;
+`not-recorded` unless the entry names that ticket and the successor's Worker and it opens both the
+successor Server and Worker on their recorded process ID and creation time; and
+`worker-unavailable` without a serving Worker or a kept checkpoint. It then holds the Session: the
+Workbench, Agent and every other intent is refused as during a drain, and terminal requests and
+every internal job see no Worker, as after a Worker loss, while reads, viewer polls and new Client
+connections go on and no idle stop begins. Admitted intents and in-flight operations get 5 seconds
+to settle, or it refuses `busy`; the Worker must report no plugin job or configured command running
+within 2 seconds, or it refuses `background-programs`. It stops the checkpoint saver, publishes the
+exact capture, the committed Workbench with each terminal's last cached directory and the binding
+record, and releases `state.lock`; a failure up to there retakes the store, restarts the saver, lifts
+the hold and refuses `busy`. Only then does the [terminal-runtime state](#terminal-runtime) read
+`Reconnecting` and the Worker get the Keep shutdown, which frees the Host with every terminal
+running; a Worker that has not exited within 10 seconds is ended through the Server's handle. The
+owner answers `prepared` and holds for 30 seconds.
+
+A repeated `prepare` of the held ticket answers `prepared`, and any step naming another ticket
+`busy`. `commit` answers `committed`, and the Server leaves, once the record, read under its writer
+lock, names the successor's activation and Server; otherwise it answers `not-recorded` and keeps
+holding. `abort`, the end of the 30 seconds, and the exit of the successor Server or Worker _fence_
+under the writer lock: a record that names the successor makes the Server leave, and an `abort` is
+answered `committed`; otherwise the successor Worker and then its Server are ended through the
+handles, the entry is removed, and the Server takes the Session back. It retakes the store, restarts
+the saver, lifts the hold and replaces its Worker through
+[Worker replacement](#managed-worker-replacement), whose first attempt is outside the cap and logged
+`handover-take-back` instead of `worker-lost`. A fence that cannot read or write the record is
+tried again every 100 ms; 30 seconds after the first such failure the Server ends the successor
+through its handles and leaves without the store, and the next start adopts the Host through
+[cold adoption](#cold-adoption). A stop or `exit` that arrives while held fences first: kept, it goes
+on without a Worker. Leaving stops the background jobs and the Client listeners and publishes no
+Stopped record, receipt or `exited`, since the record belongs to the successor.
+
+Holding nothing, the owner looks every 5 seconds for an abandoned `successor` entry, one whose
+Server is gone or whose ticket reached no `prepare` within 120 seconds of the first look that saw
+it, and its stop and `exit` treat any entry as abandoned. Under the writer lock it ends what the
+entry names, the Worker first, then removes the entry; an identity that matches no live process is
+gone and nothing is ended. A start after both Servers ended does the same before it recovers
+([successor entry](../../crates/local-runtime/docs/windows-crash-recovery.md#successor-entry)). The
+`handover` log event records each step. Other platforms answer `handover` `unsupported`.
+
+`SessionRestartHandover.tla/.cfg` checks one restart: the old Server and Worker, the successor
+Server and Worker, one Host session, the store lock, the record with its successor entry, a lossy
+channel and the 30-second lease, with up to four crashes, hangs or stray messages and one take-back
+replacement. A hung process acts no more and ends only through a handle opened on its verified
+identity. `AdmitsOnlyRecordedOwner` and `SingleOwner` keep intents to the recorded Server that holds
+the store and whose Worker holds the Host; `ExitOnlyAfterCommit` lets the old Server exit only after
+the record names the successor; `SuccessorTracked` keeps every live successor process named by the
+entry or as the recorded pair; `AdoptionAlone` keeps a start from adopting beside one; and
+`EndsWell` requires every behavior with no step left to end with one pair serving, the next start's
+pair, or a failure the restart does not add. The maintained mutants take the Session back without
+the fence or before the successor Worker is proven gone, commit before the adoption, exit on the
+commit message without reading the record, serve before the commit publish, adopt beside a live
+successor Worker, refuse a start for a live successor process, and clear an abandoned entry leaving
+its Worker running; each must violate an invariant. Run
+`node scripts/tla/run-models.mjs --models session-restart-handover` plus the owning Server and
+local-runtime tests.
 
 ## Workbench projection store
 
@@ -1482,7 +1554,8 @@ connection leaves nothing to release.
 Server replaces a lost Worker, or `GivenUp` once it stops trying until the Session stops. It starts
 `Serving` at revision 1; `set` advances the revision by one only when the state changes and then
 wakes its watchers, held weakly and woken after its lock is released, so a change never waits on a
-Client connection. The Worker replacement is its only writer.
+Client connection. The Worker replacement is its writer, and on Windows a restart's `prepare` sets
+`Reconnecting` once it releases its Worker ([Server and Worker restart](#server-and-worker-restart)).
 
 The read-only [`workbench.terminal-runtime`](../../schemas/workbench/README.md#session-terminal-runtime-reads)
 answers from it: `current` for the Session's own Workbench, `denied` for another Session and
