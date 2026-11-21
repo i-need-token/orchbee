@@ -244,6 +244,11 @@ impl DataRoot {
         self.internal().join("state")
     }
 
+    /// Desktop Main's Electron folder, which its bundled Client creates before the window opens.
+    pub fn desktop(&self) -> PathBuf {
+        self.internal().join("desktop")
+    }
+
     /// The writer lock of the default settings file, kept out of the top level.
     pub fn config_lock_directory(&self) -> PathBuf {
         self.internal()

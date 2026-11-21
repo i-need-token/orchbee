@@ -18,6 +18,69 @@ fn missing_runtime_location_is_a_check_failure_before_activation() {
         .unwrap();
 }
 
+/// Every failure document that can carry an activation refusal, as `(schema id, validator)`.
+fn activation_failure_validators() -> [(&'static str, jsonschema::Validator); 3] {
+    [
+        (
+            "orchbee.cli.failure",
+            include_str!("../schemas/orchbee.cli.failure.json"),
+        ),
+        (
+            "orchbee.cli.failure.tab-move",
+            include_str!("../schemas/orchbee.cli.failure.tab-move.json"),
+        ),
+        (
+            "orchbee.cli.failure.workspace-move",
+            include_str!("../schemas/orchbee.cli.failure.workspace-move.json"),
+        ),
+    ]
+    .map(|(id, text)| {
+        let schema = serde_json::from_str(text).unwrap();
+        (id, jsonschema::validator_for(&schema).unwrap())
+    })
+}
+
+/// A folder the runtime refused names the item and the rule it breaks in the machine details,
+/// which the desktop window reads, and words it with the TUI's sentence.
+#[test]
+fn refused_runtime_folders_name_the_item_and_its_rule() {
+    let path = if cfg!(windows) {
+        r"C:\Shared\Orchbee"
+    } else {
+        "/srv/shared/orchbee"
+    };
+    let refusal = orchbee_local_runtime::AdmissionRefusal::new(
+        orchbee_local_runtime::RefusalReason::OthersCanRead,
+        std::path::Path::new(path),
+    );
+    let failure = classify(ActivationFailure {
+        failure: StartupFailure::Refused(Box::new(refusal.clone())),
+        cause: Some(ActivationCause::RuntimeLocation(
+            std::io::ErrorKind::PermissionDenied.into(),
+        )),
+    })
+    .source(crate::cli_outcome::local_runtime_source());
+    assert_eq!(failure.kind, FailureKind::CheckFailed);
+    assert_eq!(
+        serde_json::Value::Object(failure.details.clone().unwrap()),
+        json!({
+            "stage": "runtime-base",
+            "refusal": { "reason": "others-can-read", "path": path },
+        })
+    );
+    for (id, validator) in &activation_failure_validators() {
+        let mut document = failure.document();
+        document["schema"] = json!(id);
+        validator.validate(&document).unwrap();
+    }
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        assert_eq!(
+            CliText::new(locale).cli_failure(&failure),
+            locale.startup_failure(&StartupFailure::Refused(Box::new(refusal.clone())))
+        );
+    }
+}
+
 /// A refused start keeps its kind and exit status, names what blocks it or what the system
 /// answered in every failure document that can carry an activation refusal, and words it with the
 /// sentence the TUI and the desktop window show.
@@ -54,24 +117,7 @@ fn refused_starts_name_the_blocking_process_or_the_system_answer() {
             }),
         ),
     ];
-    let schemas = [
-        (
-            "orchbee.cli.failure",
-            include_str!("../schemas/orchbee.cli.failure.json"),
-        ),
-        (
-            "orchbee.cli.failure.tab-move",
-            include_str!("../schemas/orchbee.cli.failure.tab-move.json"),
-        ),
-        (
-            "orchbee.cli.failure.workspace-move",
-            include_str!("../schemas/orchbee.cli.failure.workspace-move.json"),
-        ),
-    ]
-    .map(|(id, text)| {
-        let schema = serde_json::from_str(text).unwrap();
-        (id, jsonschema::validator_for(&schema).unwrap())
-    });
+    let schemas = activation_failure_validators();
     for (startup, details) in cases {
         let failure = classify(ActivationFailure {
             failure: startup.clone(),

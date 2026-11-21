@@ -1429,9 +1429,13 @@ and is never reset per stage:
    `<data root>/internal/runtime`, select the Session (`default` unless routed), then
    `prepare_mode_checked` in create-if-missing mode: the runtime directory may be created even
    on an invocation that later refuses. Rendezvous errors classify exactly like a query's
-   discovery stage. A data folder the macOS or Linux admission rules refuse is `check-failed`
-   `{stage:"runtime-base"}`; its text names the item at fault and the fix with the TUI's
-   startup refusal copy, while the machine document keeps only the stage. On Windows and macOS,
+   discovery stage. A data folder the admission rules refuse, on every platform, is
+   `check-failed` `{stage:"runtime-base",refusal}`, or keeps the stage its rendezvous error
+   classifies to; its text names the item at fault and the fix with the TUI's startup refusal
+   copy, whichever stage met it. `refusal` is `{reason,path}`: `path` is the refused folder or
+   file, spelled as `dataRoot` is, and `reason` the rule it breaks, one of `other-owner`,
+   `others-can-change`, `others-can-read`, `permissions-not-kept`, `locks-unsupported`,
+   `symbolic-link`, `access-control-list` or `unsafe-socket-folder`. On Windows and macOS,
    before `prepare_mode_checked`, a release or test Client outside the release store whose
    selected Session has no Client endpoint hands the start to the store's active version and waits
    for it under the same deadline
@@ -1457,7 +1461,9 @@ and is never reset per stage:
    number or null. Nothing ran, and the text says what the system refused. On Windows only the
    process creation itself answers this way; a Session record failure around it, and a `try_wait`
    failure everywhere, is the same `recovery-required` refusal — the marker may already be
-   committed, so the answer is never a clean-timeout claim.
+   committed, so the answer is never a clean-timeout claim. A lock, the marker or a socket
+   probe that meets a refused item is `check-failed` `{stage:"runtime-directory",refusal}`;
+   any other of their I/O failures is `internal-failure` `{stage:"activation"}`.
 5. **Probe** — the admitted probe `LocalClient` is dropped before output; a success implies
    no held session, grant, or Session identity receipt.
 
@@ -2174,7 +2180,11 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | `server start` marker or sockets committed without a live owner; record failure around Server creation; `try_wait` io failure             | `rejected`                                                                 | 3         | `{stage:"activation",reason:"recovery-required",blockingProcess?}`                                      |
 | `server start` Server creation refused by the system                                                                                      | `rejected`                                                                 | 3         | `{stage:"activation",reason:"server-not-started",ioKind,osError}`                                       |
 | `server start` activation deadline elapsed; lock acquisition `TimedOut`                                                                   | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                                  |
-| `server start` marker/probe/lock io failure (non-timeout)                                                                                 | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                                  |
+| `server start` data folder or file the admission rules refuse while preparing                                                             | `check-failed`                                                             | 1         | `{stage:"runtime-base" \| "runtime-directory" \| "socket",refusal:{reason,path}}`                       |
+| `server start` marker/probe/lock io failure (non-timeout) that meets a refused item                                                       | `check-failed`                                                             | 1         | `{stage:"runtime-directory",refusal:{reason,path}}`                                                     |
+| `server start` other marker/probe/lock io failure (non-timeout)                                                                           | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                                  |
+| `--create-window-folder-v1` could not create the data root or Desktop's folder                                                            | `check-failed`                                                             | 1         | `{stage:"data-root"[,refusal:{reason,path}]}`                                                           |
+| A command that opens the data root, when the admission rules refuse its `internal/version.json`                                           | `check-failed`                                                             | 1         | `{stage:"data-root",refusal:{reason,path}}`                                                             |
 | Network query, mutation, `server start` or `config check` outside Linux/macOS/Windows                                                     | `service-unavailable`                                                      | 4         | `{stage:"platform",reason:"unsupported-platform"}`                                                      |
 | A `plugin`, `popup` or `channel` invocation in a release build (0.1.0-beta.1 also withheld `update`)                                      | `service-unavailable`                                                      | 4         | `{stage:"release",reason:"withheld-in-release",feature}`                                                |
 | `terminal wait-output` deadline exhausted without a match                                                                                 | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                                     |
@@ -2193,7 +2203,7 @@ such as a shell over Win32-OpenSSH, which an administrator account receives elev
 elevated-Session rule above stays.
 
 `resource` is `project|workspace|tab|panel|terminal|schema`; `stage` is
-`cohort|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|agent-read|platform|wait`.
+`cohort|data-root|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|agent-read|platform|wait`.
 The dedicated `orchbee.cli.failure.worktree` envelope admits `resource:"directory"` and the
 `worktree-list|probe|list|parse` stage vocabulary documented with its schema above — those
 values belong to that envelope only, not to the generic `orchbee.cli.failure` vocabulary.
@@ -2201,7 +2211,7 @@ The source-stage `input` stage lives only in the `orchbee.cli.failure.source` en
 it is not admitted into the standard `orchbee.cli.failure` stage vocabulary.
 Stages and reasons are finite schema values; no exception text becomes a machine field. `details`
 is a closed per-kind vocabulary — `{resource,target}`,
-`{resource,target,candidates≤8,totalCount}`, `{stage[,reason]}`,
+`{resource,target,candidates≤8,totalCount}`, `{stage[,reason]}`, `{stage,refusal}`,
 `{stage:"command",reason,revision}`, `{stage:"command",requestId,reason}`,
 `{stage:"send",requestId,reason}`,
 `{stage:"viewer",operation:"read-history"|"wait-output",reason}`,

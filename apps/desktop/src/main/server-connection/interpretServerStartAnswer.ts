@@ -5,6 +5,8 @@ import {
 } from '@orchbee/desktop-client-protocol';
 import { z } from 'zod';
 
+import { interpretPathRefusal } from './interpretPathRefusal';
+
 /** A capability name of the handshake: 1 to 64 lowercase letters, digits, and hyphens. */
 const CapabilityNameSchema = z.string().regex(/^[a-z0-9-]{1,64}$/u);
 
@@ -92,7 +94,11 @@ const LOST_OR_UNKNOWN: ServerStartAnswer = {
  * only then can the window say what would help; any other failure, and an answer that cannot be
  * read, counts as a restore that may have lost everything.
  */
-export function interpretServerStartAnswer(stdout: string, failed: boolean): ServerStartAnswer {
+export function interpretServerStartAnswer(
+	stdout: string,
+	failed: boolean,
+	platform: NodeJS.Platform,
+): ServerStartAnswer {
 	let document: unknown;
 	try {
 		document = JSON.parse(stdout);
@@ -108,10 +114,12 @@ export function interpretServerStartAnswer(stdout: string, failed: boolean): Ser
 			restore: restoreNotice === 'empty' ? { kind: 'lost-or-unknown' } : { kind: 'intact' },
 		};
 	}
-	return { negotiatedCapabilities: [], restore: interpretRefusal(document) };
+	return { negotiatedCapabilities: [], restore: interpretRefusal(document, platform) };
 }
 
-function interpretRefusal(document: unknown): ServerRestoreState {
+function interpretRefusal(document: unknown, platform: NodeJS.Platform): ServerRestoreState {
+	const refusedPath = interpretPathRefusal(document, platform);
+	if (refusedPath !== undefined) return { kind: 'refused', refusal: refusedPath };
 	const recovery = RecoveryRequiredFailureSchema.safeParse(document);
 	if (recovery.success) {
 		const blocking = recovery.data.failure.details.blockingProcess;

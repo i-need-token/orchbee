@@ -732,19 +732,12 @@ fn runtime_location_failure(error: io::Error) -> ActivationFailure {
     )
 }
 
-/// A macOS or Linux folder refused by the ownership, permission, or file-lock rules is reported
-/// with the item at fault; every other runtime failure keeps the `Runtime` verdict.
-#[cfg(unix)]
+/// A folder or file refused by the ownership, permission, link, or file-lock rules is reported with
+/// the item at fault; every other runtime failure keeps the `Runtime` verdict.
 fn runtime_verdict(refusal: Option<orchbee_local_runtime::AdmissionRefusal>) -> StartupFailure {
     refusal.map_or(StartupFailure::Runtime, |refusal| {
         StartupFailure::Refused(Box::new(refusal))
     })
-}
-
-/// A Windows runtime failure keeps the `Runtime` verdict.
-#[cfg(windows)]
-fn runtime_verdict(_refusal: Option<orchbee_local_runtime::AdmissionRefusal>) -> StartupFailure {
-    StartupFailure::Runtime
 }
 
 /// A recovery refused because an earlier start's process still runs names that process; any other

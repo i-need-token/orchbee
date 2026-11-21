@@ -13,6 +13,10 @@ export const desktopWindowMessages = defineMessages({
 	crashedTitle: message('desktop.window.crashedTitle'),
 	dataFolderLayoutNewer: message('desktop.window.dataFolderLayoutNewer'),
 	dataFolderLayoutNewerUnnamed: message('desktop.window.dataFolderLayoutNewerUnnamed'),
+	dataFolderNotCreated: message(
+		'desktop.window.dataFolderNotCreated',
+		'The bundled orchbee program could not create the data folder for a reason it did not name. root is the folder, which is not translated.',
+	),
 	dataFolderRefused: message('desktop.window.dataFolderRefused'),
 	dataFolderUnreadable: message('desktop.window.dataFolderUnreadable'),
 	placementNewer: message('desktop.window.placementNewer'),

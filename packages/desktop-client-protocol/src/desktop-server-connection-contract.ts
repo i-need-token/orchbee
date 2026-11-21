@@ -51,10 +51,26 @@ export const DesktopSystemErrorKindSchema = z.enum([
 ]);
 
 /**
+ * The rule a refused data or socket folder, or a file in one, breaks, as the `refusal` member of a
+ * `server start` failure names it.
+ */
+export const DesktopPathRefusalCauseSchema = z.enum([
+	'access-control-list',
+	'locks-unsupported',
+	'other-owner',
+	'others-can-change',
+	'others-can-read',
+	'permissions-not-kept',
+	'symbolic-link',
+	'unsafe-socket-folder',
+]);
+
+/**
  * Why starting the Session was refused. Each reason has its own message; a refused version names
  * this Desktop's version and the Session's, which a Session older than the handshake never states.
- * A recovery refusal names the process that blocks it when the start found one, and a Server the
- * system would not create keeps what the system answered.
+ * A recovery refusal names the process that blocks it when the start found one, a Server the
+ * system would not create keeps what the system answered, and a refused folder names the item at
+ * fault and the rule it breaks.
  */
 const DesktopSessionRefusalSchema = z.discriminatedUnion('reason', [
 	z.strictObject({
@@ -79,6 +95,14 @@ const DesktopSessionRefusalSchema = z.discriminatedUnion('reason', [
 	}),
 	z.strictObject({ reason: z.literal('other-environment') }),
 	z.strictObject({ reason: z.literal('development-build-mismatch') }),
+	z.strictObject({
+		cause: DesktopPathRefusalCauseSchema,
+		/** The refused folder or file, spelled as the TUI and CLI name it. */
+		path: z.string().min(1).max(32_767),
+		reason: z.literal('path-refused'),
+		/** Whose rules refused it, which decides the remedy the words give. */
+		system: z.enum(['posix', 'windows']),
+	}),
 ]);
 
 /** A capability name of the `client-server` handshake: 1 to 64 lowercase letters, digits, and hyphens. */

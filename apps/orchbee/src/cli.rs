@@ -89,6 +89,7 @@ mod server_stop;
 mod stale_retry;
 mod terminal_observation;
 pub(crate) mod update;
+pub(crate) mod window_folder;
 mod workbench_agents;
 mod workbench_metadata;
 pub(crate) mod workbench_query;
@@ -200,17 +201,26 @@ pub(crate) fn process_result(result: ProcessResult, locale: Locale) -> Output {
 /// Encode a failure into its process answer. `format` is the format selected by
 /// a valid selector before the failure; `None` keeps stdout empty.
 /// Refuses a data root whose layout this build cannot read, before anything else in it is read.
-/// Only the root a command would open is admitted; resolving it reads no file.
+/// Only the root a command would open is admitted; resolving it reads no file. A layout record the
+/// admission rules refuse is named as the refused item it is, as `server start` names one.
 pub(crate) fn data_root_layout_refusal(
     format: Option<OutputFormat>,
     locale: Locale,
 ) -> Option<Output> {
+    use orchbee_local_runtime::LayoutRefusal;
     let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name)).ok()?;
-    let refusal = root.admit_layout().err()?;
-    let reason = if refusal.layout.is_some() {
-        "layout-newer"
-    } else {
-        "layout-unreadable"
+    let (reason, layout, newest_version) = match root.admit_layout().err()? {
+        LayoutRefusal::Refused(refusal) => {
+            let failure = Failure::new(FailureKind::CheckFailed)
+                .details(stage_details("data-root"))
+                .admission_refusal(Box::new(refusal));
+            return Some(failure_output(failure, format, locale));
+        }
+        LayoutRefusal::Newer {
+            layout,
+            newest_version,
+        } => ("layout-newer", Some(layout), newest_version),
+        LayoutRefusal::Unreadable => ("layout-unreadable", None, None),
     };
     let mut details = serde_json::Map::from_iter([
         ("stage".to_owned(), Value::from("data-root")),
@@ -220,10 +230,10 @@ pub(crate) fn data_root_layout_refusal(
             Value::from(root.path().to_string_lossy().into_owned()),
         ),
     ]);
-    if let Some(layout) = refusal.layout {
+    if let Some(layout) = layout {
         details.insert("layout".to_owned(), Value::from(layout));
     }
-    if let Some(version) = refusal.newest_version {
+    if let Some(version) = newest_version {
         details.insert("newestVersion".to_owned(), Value::from(version));
     }
     Some(failure_output(

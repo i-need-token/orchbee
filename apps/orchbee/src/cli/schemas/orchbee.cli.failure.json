@@ -102,7 +102,30 @@
 			"additionalProperties": false,
 			"properties": {
 				"stage": {
-					"enum": ["cohort", "runtime-base", "runtime-directory", "socket"]
+					"enum": ["cohort", "data-root", "runtime-base", "runtime-directory", "socket"]
+				},
+				"refusal": {
+					"type": "object",
+					"required": ["reason", "path"],
+					"additionalProperties": false,
+					"properties": {
+						"reason": {
+							"enum": [
+								"other-owner",
+								"others-can-change",
+								"others-can-read",
+								"permissions-not-kept",
+								"locks-unsupported",
+								"symbolic-link",
+								"access-control-list",
+								"unsafe-socket-folder"
+							]
+						},
+						"path": {
+							"type": "string",
+							"minLength": 1
+						}
+					}
 				}
 			}
 		},

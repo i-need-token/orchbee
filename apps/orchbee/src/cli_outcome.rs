@@ -114,8 +114,9 @@ pub(crate) enum FailureDisplay {
     /// interrupt ended it while the local session kept answering; the machine
     /// document keeps its own stage details.
     Awaited(Awaited),
-    /// A macOS or Linux data folder the local runtime refused, with the item
-    /// at fault; the machine document keeps its `runtime-base` stage.
+    /// A data folder, socket folder or file in one that the local runtime
+    /// refused, with the item at fault; the machine document names it in its
+    /// `refusal` detail.
     Refused(Box<orchbee_local_runtime::AdmissionRefusal>),
     /// The person's own Session runs as administrator and refused this
     /// standard Client at its endpoint; the machine document keeps the kind
@@ -277,12 +278,20 @@ impl Failure {
         self
     }
 
-    /// Retain the folder the local runtime refused and why, for the localized
-    /// diagnostic only; the machine document keeps its stage.
+    /// Name the item the local runtime refused and the rule it breaks: the
+    /// details gain `refusal: {reason, path}`, which a window reads to say the
+    /// same, and the localized diagnostic uses the TUI's words.
     pub(crate) fn admission_refusal(
         mut self,
         refusal: Box<orchbee_local_runtime::AdmissionRefusal>,
     ) -> Self {
+        self.details.get_or_insert_with(Map::new).insert(
+            "refusal".to_owned(),
+            json!({
+                "reason": refusal_reason_token(refusal.reason),
+                "path": refusal.path.to_string_lossy(),
+            }),
+        );
         self.display = Some(Box::new(FailureDisplay::Refused(refusal)));
         self
     }
@@ -339,6 +348,21 @@ pub(crate) fn target_details(
         ("resource".to_owned(), json!(resource.as_str())),
         ("target".to_owned(), json!(target)),
     ])
+}
+
+/// The `refusal.reason` token of a refused folder or file.
+const fn refusal_reason_token(reason: orchbee_local_runtime::RefusalReason) -> &'static str {
+    use orchbee_local_runtime::RefusalReason;
+    match reason {
+        RefusalReason::OtherOwner => "other-owner",
+        RefusalReason::OthersCanChange => "others-can-change",
+        RefusalReason::OthersCanRead => "others-can-read",
+        RefusalReason::PermissionsNotKept => "permissions-not-kept",
+        RefusalReason::LocksUnsupported => "locks-unsupported",
+        RefusalReason::SymbolicLink => "symbolic-link",
+        RefusalReason::AccessControlList => "access-control-list",
+        RefusalReason::UnsafeSocketFolder => "unsafe-socket-folder",
+    }
 }
 
 pub(crate) fn stage_details(stage: &str) -> Map<String, Value> {

@@ -75,7 +75,24 @@ pub(crate) fn parse_selected_request(
             session: None,
         });
     }
+    if let Some(request) = create_window_folder(&tokens) {
+        // Desktop Main reads its answer, so a refusal is a JSON document.
+        return Ok(SelectedRequest {
+            availability: super::grammar::Availability::Portable,
+            format: Some(OutputFormat::Json),
+            request,
+            session: None,
+        });
+    }
     machine_routing::parse(tokens)
+}
+
+/// The window-folder helper `--create-window-folder-v1`, alone, run by Desktop Main through its own
+/// bundled Client before its window opens. This helper grammar is permanent; a change adds a new
+/// helper name.
+fn create_window_folder(tokens: &[String]) -> Option<super::Request> {
+    matches!(tokens, [only] if only == "--create-window-folder-v1")
+        .then_some(super::Request::CreateWindowFolder)
 }
 
 /// The window installer helper `--installer-window-v1`, alone. A build that does not install

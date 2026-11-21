@@ -68,11 +68,17 @@ root remains untouched.
 
 ## Startup order and ownership
 
-Desktop Main resolves the explicit distribution profile and creates its data root, `internal/`, and
-`internal/desktop/` before requesting Electron's single-instance lock. Before it reads anything else
-in the root it reads `internal/version.json`: a `layout` above 1, or a record it cannot read, stops
-startup with the localized refusal in an error dialog, and nothing in the root is read, created, or
-logged. When the record is absent Main writes `{"layout":1,"newestVersion":"<version>"}`
+Desktop Main resolves the explicit distribution profile and prepares its data root before
+requesting Electron's single-instance lock. Before it reads anything else in the root it reads
+`internal/version.json`: a `layout` above 1, or a record it cannot read, stops startup with the
+localized refusal in an error dialog, and nothing in the root is read, created, or logged. While
+`internal/desktop/` is missing, Main then has its bundled Client create the data root, `internal/`,
+and `internal/desktop/` by running `orchbee --create-window-folder-v1`, so they follow the one rule
+every Orchbee folder follows and the Session never meets a folder of Main's making that it would
+refuse. Main creates none of the three itself, even when the Client fails. A refusal stops startup
+with an error dialog that names the folder and the rule it breaks in the words the TUI and CLI use;
+any other failure stops it with a dialog saying the data folder could not be set up. When the
+record is absent Main writes `{"layout":1,"newestVersion":"<version>"}`
 exclusively; when its own version takes Semantic Versioning precedence over `newestVersion`, it
 replaces the record with that entry raised and every other entry kept. The native writers apply
 the same rules under the `data-root-version-record` contract. Live development accepts only the launcher-provided source root;
@@ -85,7 +91,11 @@ The bundled Client is compiled with the profile's artifact stem and derives the 
 inherited `ORCHBEE_HOME` names it for both, so Main passes its environment through unchanged on
 every platform. Main creates no configuration file.
 
-On POSIX, Main creates product-owned data directories with owner-only access. The renderer receives
+The folders Main creates later lie below the ones the Client created: on Windows they take the
+access list their parent passes down, and on POSIX Main creates them with owner-only access. Main
+never repairs the access of a folder or file it finds, and its own read of `internal/version.json`
+does not judge access; the Client refuses an unsafe one, that record included, when the window
+starts its Session, and the page shows that refusal. The renderer receives
 no data-root path, enumeration, location override, or generic filesystem capability. Tests use an
 explicitly injected temporary home and source root.
 
@@ -135,7 +145,7 @@ editing the sample.
 `prepareDesktopDataRoot` tests cover the fixed Release root with its files under `internal/`, the
 `ORCHBEE_HOME` override and its refusal of a relative value, the stable development root,
 different-checkout isolation, marker creation, reuse, and mismatch, and a version record written
-once. `FileDesktopWindowStateStore` tests drive a synthetic earlier step: the backup at its relative
+once; a stand-in creates the folders the bundled Client creates. `FileDesktopWindowStateStore` tests drive a synthetic earlier step: the backup at its relative
 path, the replacement, a current second load, and a failed step, backup, or replacement leaving the
 record byte-identical; upgrade backup tests cover folder reuse, retention, and numbered copies.
 `resolveDesktopApplicationDistribution` tests cover live development from the canonical checkout,

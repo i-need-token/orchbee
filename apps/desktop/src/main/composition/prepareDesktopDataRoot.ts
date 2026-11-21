@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { z } from 'zod';
@@ -65,11 +65,7 @@ export type DesktopDataRoot = DesktopDataRootLocations &
 	);
 
 interface DesktopDataRootDependencies {
-	readonly chmod: (filePath: string, mode: number) => void;
-	readonly mkdir: (
-		filePath: string,
-		options: { readonly mode: number; readonly recursive: true },
-	) => void;
+	readonly exists: (filePath: string) => boolean;
 	readonly readFile: (filePath: string, encoding: 'utf8') => string;
 	readonly rename: (fromPath: string, toPath: string) => void;
 	readonly writeFile: (
@@ -80,8 +76,7 @@ interface DesktopDataRootDependencies {
 }
 
 const defaultDependencies: DesktopDataRootDependencies = {
-	chmod: (filePath, mode) => chmodSync(filePath, mode),
-	mkdir: (filePath, options) => void mkdirSync(filePath, options),
+	exists: (filePath) => existsSync(filePath),
 	readFile: (filePath, encoding) => readFileSync(filePath, encoding),
 	rename: (fromPath, toPath) => renameSync(fromPath, toPath),
 	writeFile: (filePath, data, options) => writeFileSync(filePath, data, options),
@@ -89,22 +84,26 @@ const defaultDependencies: DesktopDataRootDependencies = {
 
 /**
  * Admits the root's layout before reading anything else, throwing {@link DesktopDataRootRefusal}
- * for a higher or unreadable one; then creates the root, `internal/`, and Electron's folder, and
- * records the layout in `internal/version.json`, raising its `newestVersion` to this version when
- * this version is newer. The window state's folder is left to the first save.
+ * for a higher or unreadable one. While Electron's folder is missing, `createFolders` has the
+ * bundled Client create the root, `internal/` and that folder, as every Orchbee folder is created;
+ * Main creates none of them itself. Then it records the layout in `internal/version.json`, raising
+ * its `newestVersion` to this version when this version is newer. The window state's folder is
+ * left to the first save.
  */
 export function prepareDesktopDataRoot(
 	input: DesktopDataRootInput,
+	createFolders: (root: string) => void,
 	dependencies: DesktopDataRootDependencies = defaultDependencies,
 ): DesktopDataRoot {
 	const resolved = resolveDesktopDataRoot(input);
 	const platformPath = input.platform === 'win32' ? path.win32 : path.posix;
 	const internal = platformPath.join(resolved.path, INTERNAL_DIRECTORY_NAME);
 	const recordPath = platformPath.join(internal, VERSION_FILE_NAME);
-	const record = admitLayout(resolved.path, recordPath, dependencies);
-	for (const directory of [resolved.path, internal, resolved.electronDirectory]) {
-		dependencies.mkdir(directory, { mode: 0o700, recursive: true });
-		if (input.platform !== 'win32') dependencies.chmod(directory, 0o700);
+	let record = admitLayout(resolved.path, recordPath, dependencies);
+	if (!dependencies.exists(resolved.electronDirectory)) {
+		createFolders(resolved.path);
+		// The Client records the layout of a root it creates.
+		record ??= admitLayout(resolved.path, recordPath, dependencies);
 	}
 	if (record === undefined) ensureVersionRecord(recordPath, input, dependencies);
 	else raiseNewestVersion(recordPath, record, input.applicationVersion, dependencies);

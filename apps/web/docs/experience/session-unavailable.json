@@ -15,7 +15,7 @@
 			"file": "apps/web/stories/session-unavailable.stories.tsx",
 			"id": "applications-web-desktop-session-unavailable--recovery-required",
 			"states": [
-				"Inspect the generic, recovery-required, recovery blocked by a named process, Server program missing, denied or otherwise refused, Desktop too old, Session too old (with and without its version), other environment, and development build explanations and the Try Again action in English and Simplified Chinese."
+				"Inspect the generic, recovery-required, recovery blocked by a named process, Server program missing, denied or otherwise refused, Desktop too old, Session too old (with and without its version), other environment, development build, and refused folder (Windows and elsewhere) explanations and the Try Again action in English and Simplified Chinese."
 			]
 		}
 	],
@@ -30,9 +30,9 @@
 	"invariants": [
 		"Trying again is the only effect; nothing retries or recovers automatically.",
 		"Recovering or stopping the Session stays an explicit command that the surface names but never runs.",
-		"Each command the copy names is inline code that never wraps, so it reads and copies as written.",
+		"Each command the copy names is inline code that never wraps, so it reads and copies as written; only a command that holds a path wraps, and a path breaks where it must, so neither widens the page.",
 		"A refused version names both the Desktop and the Session version; a Session that states none predates version checks, and only the Orchbee that started it can stop it.",
-		"A recovery blocked by a process an earlier start left running names its role, program file and process ID and what clears it; a Server the system would not create says what the system refused. Both read word for word as in the TUI and CLI.",
+		"A recovery blocked by a process an earlier start left running names its role, program file and process ID and what clears it; a Server the system would not create says what the system refused; a data or socket folder, or a file in one, that failed the ownership or permission check names that item and its remedy, in Windows terms on Windows. Each reads word for word as in the TUI and CLI.",
 		"A refusal this window cannot read shows the generic explanation.",
 		"The window stays movable through a title-bar strip, because no Workbench draws one.",
 		"All user-facing copy is provided by the Orchbee localization catalog."

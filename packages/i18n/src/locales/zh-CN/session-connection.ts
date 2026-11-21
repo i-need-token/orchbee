@@ -12,6 +12,22 @@ export const zhCNSessionConnectionMessages = {
 		'此开发构建无法加入正在运行的会话。请运行 <command>orchbee server stop</command> 停止它，然后重试。',
 	'session.connection.unavailable.otherEnvironment':
 		'此 Orchbee Desktop 属于另一个环境，无法加入正在运行的会话。',
+	'session.connection.unavailable.pathRefused.accessControlList':
+		'{system, select, windows {Orchbee 无法使用 {path}：其权限中有 Orchbee 无法核对的条目。请在“属性 > 安全 > 高级”中移除该条目，或将 ORCHBEE_HOME 设为只有你能打开的文件夹。} other {Orchbee 无法使用 {path}：它的访问控制列表可能允许其他用户访问。请运行 <command>chmod -RN {path}</command>，然后重新启动 Orchbee。}}',
+	'session.connection.unavailable.pathRefused.locksUnsupported':
+		'Orchbee 无法把数据保存在 {path}：此文件系统不支持文件锁。请将 ORCHBEE_HOME 设为本机磁盘上的文件夹。',
+	'session.connection.unavailable.pathRefused.otherOwner':
+		'{system, select, windows {Orchbee 无法使用 {path}：其所有者不是你、SYSTEM 或 Administrators。请在“属性 > 安全 > 高级”中将你的账户设为其所有者，或将 ORCHBEE_HOME 设为你拥有的文件夹。} other {Orchbee 无法使用 {path}：它属于其他用户。如果你用 sudo 启动了 Orchbee，请以自己的身份运行，或将 ORCHBEE_HOME 设为你拥有的文件夹。}}',
+	'session.connection.unavailable.pathRefused.othersCanChange':
+		'{system, select, windows {Orchbee 无法使用 {path}：它没有权限设置，任何用户都可以修改它。请将 ORCHBEE_HOME 设为本机磁盘上的文件夹。} other {Orchbee 无法使用 {path}：其他用户可以修改它。请运行 <command>chmod go-w {path}</command>，然后重新启动 Orchbee。}}',
+	'session.connection.unavailable.pathRefused.othersCanRead':
+		'{system, select, windows {Orchbee 无法使用 {path}：其权限允许你、SYSTEM 和 Administrators 以外的用户访问。请在“属性 > 安全 > 高级”中移除该访问权限，或将 ORCHBEE_HOME 设为只有你能打开的文件夹。} other {Orchbee 无法使用 {path}：其他用户可以读取它。请运行 <command>chmod -R go-rwx {path}</command>，然后重新启动 Orchbee。}}',
+	'session.connection.unavailable.pathRefused.permissionsNotKept':
+		'Orchbee 无法把数据保存在 {path}：此文件系统不保留文件权限。请将 ORCHBEE_HOME 设为本机磁盘上的文件夹。',
+	'session.connection.unavailable.pathRefused.symbolicLink':
+		'{system, select, windows {Orchbee 无法使用 {path}：它是链接或联接点。Orchbee 只在真实的文件夹中保存数据；请将 ORCHBEE_HOME 设为这样的文件夹。} other {Orchbee 无法使用 {path}：它是符号链接。只有数据文件夹本身和 config.toml 可以是链接。}}',
+	'session.connection.unavailable.pathRefused.unsafeSocketFolder':
+		'Orchbee 无法用 {path} 存放套接字：它属于其他用户或对其他用户开放。请删除它，然后重新启动 Orchbee。',
 	'session.connection.unavailable.recoveryBlocked':
 		'之前启动的 {role, select, server {Server} worker {Worker} other {Terminal Host}} 仍在运行（{program}，进程 {processId}），Orchbee 无法启动此会话。请在任务管理器中结束该进程或重启电脑，下次启动会自动恢复会话。',
 	'session.connection.unavailable.recoveryRequired':

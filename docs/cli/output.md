@@ -73,7 +73,10 @@ the Client's `clientVersion` and, when the Session stated one, its `sessionVersi
 opens a data root whose layout this build cannot read emits kind `incompatible` in the shared
 failure document before it reads anything else, with `stage: "data-root"`, `reason`
 `layout-newer` (with the root's `layout` and, when recorded, its `newestVersion`) or
-`layout-unreadable`, the `dataRoot` path, and exit code `6`. A command that needs a capability an
+`layout-unreadable`, the `dataRoot` path, and exit code `6`. When the access rules for private
+data refuse that layout record itself, the command instead emits kind `check-failed` with
+`stage: "data-root"`, a `refusal` naming the file and the rule it breaks, and exit code `1`. A
+command that needs a capability an
 admitted peer did not declare refuses before that effect and never falls back to a weaker one: it
 emits kind `incompatible`, `stage: "capability"`, a closed `reason` (`session-too-old` when the
 Session's handshake omitted it, `terminal-too-old` when the target terminal's Host lacks it), and

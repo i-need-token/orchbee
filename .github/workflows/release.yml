@@ -952,9 +952,7 @@ jobs:
       - name: Build the Test window
         run: pnpm desktop:package:test --build-id "${{ github.sha }}.${{ github.run_number }}"
 
-      # The work folder lies in the profile, as a person's data root does: the window creates the
-      # data root with the access list its folder passes down, and the Session admits only a private
-      # one, which the runner's work drive does not pass down.
+      # The work folder lies in the profile, as a person's data root does.
       - name: Press Update in the real window
         run: |
           $windows = @(Get-ChildItem -LiteralPath 'apps\desktop\out\test' -Directory)

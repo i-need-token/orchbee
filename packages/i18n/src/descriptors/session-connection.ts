@@ -48,3 +48,39 @@ export const sessionConnectionMessages = defineMessages({
 	workbenchFailedReload: message('session.connection.workbenchFailed.reload'),
 	workbenchFailedTitle: message('session.connection.workbenchFailed.title'),
 });
+
+const PATH_REFUSED =
+	'A data folder, socket folder or a file in one failed Orchbee’s ownership or permission check. Matches the TUI and CLI refusal word for word. path is the refused item, which is not translated; system, where present, is windows on Windows, whose remedy uses the folder’s Security settings, and other elsewhere. The <command> tag holds a command, which is not translated.';
+
+/**
+ * A refused folder or file, keyed by the rule it breaks as `server start` names it, for the page and
+ * for Main's startup dialog alike.
+ */
+export const sessionPathRefusalMessages = defineMessages({
+	'access-control-list': message(
+		'session.connection.unavailable.pathRefused.accessControlList',
+		PATH_REFUSED,
+	),
+	'locks-unsupported': message(
+		'session.connection.unavailable.pathRefused.locksUnsupported',
+		PATH_REFUSED,
+	),
+	'other-owner': message('session.connection.unavailable.pathRefused.otherOwner', PATH_REFUSED),
+	'others-can-change': message(
+		'session.connection.unavailable.pathRefused.othersCanChange',
+		PATH_REFUSED,
+	),
+	'others-can-read': message(
+		'session.connection.unavailable.pathRefused.othersCanRead',
+		PATH_REFUSED,
+	),
+	'permissions-not-kept': message(
+		'session.connection.unavailable.pathRefused.permissionsNotKept',
+		PATH_REFUSED,
+	),
+	'symbolic-link': message('session.connection.unavailable.pathRefused.symbolicLink', PATH_REFUSED),
+	'unsafe-socket-folder': message(
+		'session.connection.unavailable.pathRefused.unsafeSocketFolder',
+		PATH_REFUSED,
+	),
+});

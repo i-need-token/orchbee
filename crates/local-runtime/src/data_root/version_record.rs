@@ -3,6 +3,7 @@
 //! contract: search for `data-root-version-record` before changing it; Desktop Main reads and
 //! writes the same record.
 use super::DataRoot;
+use crate::AdmissionRefusal;
 use std::cmp::Ordering;
 use std::{
     fs::File,
@@ -28,33 +29,38 @@ const FILLING_POLL: Duration = Duration::from_millis(10);
 
 /// Why this build refuses a data root, found before it reads anything else in the root.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct LayoutRefusal {
-    /// The root's layout, higher than [`LAYOUT`], or `None` when `internal/version.json` exists
-    /// but cannot be read as a layout record.
-    pub layout: Option<u64>,
-    /// The newest Orchbee version that used the root, when the record names one.
-    pub newest_version: Option<String>,
-}
-
-impl LayoutRefusal {
-    const UNREADABLE: Self = Self {
-        layout: None,
-        newest_version: None,
-    };
+pub enum LayoutRefusal {
+    /// The root's layout is higher than [`LAYOUT`].
+    Newer {
+        layout: u64,
+        /// The newest Orchbee version that used the root, when the record names one.
+        newest_version: Option<String>,
+    },
+    /// `internal/version.json` exists but cannot be read as a layout record.
+    Unreadable,
+    /// The admission rules refuse `internal/version.json`, as every storage owner refuses an
+    /// unsafe file, so its layout is never read; the refusal names the file and the rule.
+    Refused(AdmissionRefusal),
 }
 
 impl DataRoot {
     /// Admits this root's layout, reading only `internal/version.json` and creating nothing. A
     /// root without the record is admitted, since nothing newer wrote it; a record whose layout is
-    /// higher than [`LAYOUT`], or that cannot be read as a layout record, is refused.
+    /// higher than [`LAYOUT`], that cannot be read as a layout record, or that the admission rules
+    /// refuse, is refused.
     pub fn admit_layout(&self) -> Result<(), LayoutRefusal> {
-        let Some(bytes) =
-            read_record(&self.version_file()).map_err(|_| LayoutRefusal::UNREADABLE)?
-        else {
-            return Ok(());
+        let bytes = match read_record(&self.version_file()) {
+            Ok(Some(bytes)) => bytes,
+            Ok(None) => return Ok(()),
+            Err(error) => {
+                return Err(AdmissionRefusal::of(&error)
+                    .map_or(LayoutRefusal::Unreadable, |refusal| {
+                        LayoutRefusal::Refused(refusal.clone())
+                    }));
+            }
         };
         VersionRecord::parse(&bytes)
-            .ok_or(LayoutRefusal::UNREADABLE)?
+            .ok_or(LayoutRefusal::Unreadable)?
             .refusal()
             .map_or(Ok(()), Err)
     }
@@ -115,8 +121,8 @@ impl VersionRecord {
 
     /// The refusal this record calls for when its layout is higher than this build's.
     pub(crate) fn refusal(&self) -> Option<LayoutRefusal> {
-        (self.layout > LAYOUT).then(|| LayoutRefusal {
-            layout: Some(self.layout),
+        (self.layout > LAYOUT).then(|| LayoutRefusal::Newer {
+            layout: self.layout,
             newest_version: self.newest_version.clone(),
         })
     }

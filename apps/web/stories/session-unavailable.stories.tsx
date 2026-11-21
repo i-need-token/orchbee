@@ -52,6 +52,18 @@ const serverDenied = {
 	reason: 'server-not-started',
 } as const;
 const serverRefused = { ioKind: 'other', osError: 216, reason: 'server-not-started' } as const;
+const windowsFolderRefused = {
+	cause: 'others-can-read',
+	path: 'D:\\Shared\\Orchbee',
+	reason: 'path-refused',
+	system: 'windows',
+} as const;
+const posixFolderRefused = {
+	cause: 'others-can-read',
+	path: '/Users/alex/.orchbee',
+	reason: 'path-refused',
+	system: 'posix',
+} as const;
 
 export const Unavailable: Story = { decorators: english };
 
@@ -87,6 +99,18 @@ export const OtherEnvironment: Story = { args: { refusal: otherEnvironment }, de
 
 export const DevelopmentBuildMismatch: Story = {
 	args: { refusal: developmentBuildMismatch },
+	decorators: english,
+};
+
+/** A refused folder names the item and the remedy, in Windows terms on Windows. */
+export const WindowsFolderRefused: Story = {
+	args: { refusal: windowsFolderRefused },
+	decorators: english,
+};
+
+/** Elsewhere the remedy is a command that holds the path. */
+export const PosixFolderRefused: Story = {
+	args: { refusal: posixFolderRefused },
 	decorators: english,
 };
 
@@ -137,5 +161,15 @@ export const SimplifiedChineseOtherEnvironment: Story = {
 
 export const SimplifiedChineseDevelopmentBuildMismatch: Story = {
 	args: { refusal: developmentBuildMismatch },
+	decorators: simplifiedChinese,
+};
+
+export const SimplifiedChineseWindowsFolderRefused: Story = {
+	args: { refusal: windowsFolderRefused },
+	decorators: simplifiedChinese,
+};
+
+export const SimplifiedChinesePosixFolderRefused: Story = {
+	args: { refusal: posixFolderRefused },
 	decorators: simplifiedChinese,
 };

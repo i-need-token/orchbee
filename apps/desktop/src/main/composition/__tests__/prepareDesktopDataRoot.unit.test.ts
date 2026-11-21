@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -11,9 +11,14 @@ import {
 import { DesktopDataRootRefusal } from '../data-root-version-record';
 import { prepareDesktopDataRoot } from '../prepareDesktopDataRoot';
 
-type DataRootDependencies = NonNullable<Parameters<typeof prepareDesktopDataRoot>[1]>;
+type DataRootDependencies = NonNullable<Parameters<typeof prepareDesktopDataRoot>[2]>;
 
 const temporaryDirectories: string[] = [];
+
+/** Stands in for the bundled Client, which leaves the root with Electron's folder. */
+function createFolders(root: string): void {
+	mkdirSync(path.join(root, 'internal', 'desktop'), { recursive: true });
+}
 
 afterEach(() => {
 	for (const directory of temporaryDirectories.splice(0)) {
@@ -80,8 +85,8 @@ describe('prepareDesktopDataRoot', () => {
 			homeOverride: undefined,
 			platform: process.platform,
 		} as const;
-		const first = prepareDesktopDataRoot(input);
-		const second = prepareDesktopDataRoot({ ...input, applicationVersion: '2.0.0' });
+		const first = prepareDesktopDataRoot(input, createFolders);
+		const second = prepareDesktopDataRoot({ ...input, applicationVersion: '2.0.0' }, createFolders);
 		expect(second).toEqual(first);
 		const internal = path.join(first.path, 'internal');
 		expect(
@@ -98,11 +103,11 @@ describe('prepareDesktopDataRoot', () => {
 			homeOverride: undefined,
 			platform: process.platform,
 		} as const;
-		const root = prepareDesktopDataRoot(input);
+		const root = prepareDesktopDataRoot(input, createFolders);
 		const record = path.join(root.path, 'internal', 'version.json');
 		writeFileSync(record, '{"layout":1,"newestVersion":"1.2.3","later":[1]}\n');
 		for (const applicationVersion of ['2.0.0-beta.2', '2.0.0', '1.9.0', '2.0.0-beta.10']) {
-			prepareDesktopDataRoot({ ...input, applicationVersion });
+			prepareDesktopDataRoot({ ...input, applicationVersion }, createFolders);
 		}
 		expect(JSON.parse(readFileSync(record, 'utf8'))).toEqual({
 			later: [1],
@@ -111,7 +116,7 @@ describe('prepareDesktopDataRoot', () => {
 		});
 		for (const text of ['{"layout":2,"newestVersion":"9.0.0"}', '{"layout":"1"}']) {
 			writeFileSync(record, text);
-			expect(() => prepareDesktopDataRoot(input)).toThrow(DesktopDataRootRefusal);
+			expect(() => prepareDesktopDataRoot(input, createFolders)).toThrow(DesktopDataRootRefusal);
 			expect(readFileSync(record, 'utf8')).toBe(text);
 		}
 	});
@@ -119,8 +124,7 @@ describe('prepareDesktopDataRoot', () => {
 	it('rejects a development marker for another checkout', () => {
 		const home = temporaryDirectory();
 		const dependencies: DataRootDependencies = {
-			chmod: vi.fn<DataRootDependencies['chmod']>(),
-			mkdir: vi.fn<DataRootDependencies['mkdir']>(),
+			exists: vi.fn<DataRootDependencies['exists']>(() => true),
 			readFile: vi.fn<DataRootDependencies['readFile']>((filePath) => {
 				if (filePath.endsWith('version.json')) throw missingFile();
 				return JSON.stringify({
@@ -146,6 +150,7 @@ describe('prepareDesktopDataRoot', () => {
 					homeOverride: undefined,
 					platform: process.platform,
 				},
+				vi.fn(),
 				dependencies,
 			),
 		).toThrow('belongs to another source checkout');
@@ -162,9 +167,9 @@ function prepareWithoutFileSystem(
 ): ReturnType<typeof prepareDesktopDataRoot> {
 	return prepareDesktopDataRoot(
 		{ applicationVersion: '1.2.3', homeOverride: undefined, ...input },
+		() => undefined,
 		{
-			chmod: () => undefined,
-			mkdir: () => undefined,
+			exists: () => false,
 			readFile: (filePath) => {
 				if (filePath.endsWith('version.json')) throw missingFile();
 				throw new Error('Unexpected marker read.');

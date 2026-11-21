@@ -9,7 +9,9 @@ import {
 	createOrchbeeIntl,
 	desktopDiagnosticsMessages,
 	desktopWindowMessages,
+	type IntlShape,
 	resolveOrchbeeLocale,
+	sessionPathRefusalMessages,
 } from '@orchbee/i18n';
 import { app, dialog, net, protocol } from 'electron';
 
@@ -62,6 +64,7 @@ import {
 	watchWindowPointer,
 	windowVersionResources,
 } from '../window-update';
+import { createDesktopFolder, DesktopFolderNotCreated } from './desktop-folder';
 import { DesktopDataRootRefusal } from './data-root-version-record';
 import { DesktopServerClientApplication } from './DesktopServerClientApplication';
 import { isPackagedDesktop } from './isPackagedDesktop';
@@ -145,41 +148,78 @@ const recordEvent: DesktopDiagnosticRecorder =
 		: () => undefined;
 
 /**
- * Prepares the data root, or, when its layout is one this version cannot open, explains why and
- * exits before anything reads or writes it.
+ * Prepares the data root, or, when its layout is one this version cannot open or the bundled Client
+ * would not create its folders, explains why and exits before anything reads or writes it.
  */
 function prepareOrRefuseDesktopDataRoot(): DesktopDataRoot {
 	try {
-		return prepareDesktopDataRoot({
-			applicationVersion: app.getVersion(),
-			distribution,
-			homeDirectory: app.getPath('home'),
-			homeOverride: process.env['ORCHBEE_HOME'],
-			platform: process.platform,
-		});
+		return prepareDesktopDataRoot(
+			{
+				applicationVersion: app.getVersion(),
+				distribution,
+				homeDirectory: app.getPath('home'),
+				homeOverride: process.env['ORCHBEE_HOME'],
+				platform: process.platform,
+			},
+			(root) =>
+				createDesktopFolder(
+					{
+						environment: resolveClientEnvironment(),
+						executable: resolveClientExecutable(),
+						platform: process.platform,
+						workingDirectory: app.getPath('home'),
+					},
+					root,
+				),
+		);
 	} catch (error: unknown) {
-		if (!(error instanceof DesktopDataRootRefusal)) throw error;
-		const intl = createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages()));
-		let message: string;
-		if (error.layout === undefined) {
-			message = intl.formatMessage(desktopWindowMessages.dataFolderUnreadable, {
-				record: error.recordPath,
-				root: error.root,
-			});
-		} else if (error.newestVersion === undefined) {
-			message = intl.formatMessage(desktopWindowMessages.dataFolderLayoutNewerUnnamed, {
-				root: error.root,
-			});
-		} else {
-			message = intl.formatMessage(desktopWindowMessages.dataFolderLayoutNewer, {
-				root: error.root,
-				version: error.newestVersion,
-			});
+		if (!(error instanceof DesktopDataRootRefusal || error instanceof DesktopFolderNotCreated)) {
+			throw error;
 		}
-		dialog.showErrorBox(intl.formatMessage(desktopWindowMessages.dataFolderRefused), message);
+		const intl = createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages()));
+		dialog.showErrorBox(
+			intl.formatMessage(desktopWindowMessages.dataFolderRefused),
+			describeDataFolderRefusal(intl, error),
+		);
 		app.exit(1);
 		throw error;
 	}
+}
+
+/**
+ * Why the data root will not open: a layout this version cannot read, or the item the bundled
+ * Client refused, in the words the TUI and CLI use.
+ */
+function describeDataFolderRefusal(
+	intl: IntlShape,
+	error: DesktopDataRootRefusal | DesktopFolderNotCreated,
+): string {
+	if (error instanceof DesktopFolderNotCreated) {
+		if (error.refusal === undefined) {
+			return intl.formatMessage(desktopWindowMessages.dataFolderNotCreated, { root: error.root });
+		}
+		return intl.formatMessage(sessionPathRefusalMessages[error.refusal.cause], {
+			// A dialog holds plain text, so a command is quoted as the CLI quotes it.
+			command: (chunks) => `"${chunks.join('')}"`,
+			path: error.refusal.path,
+			system: error.refusal.system,
+		});
+	}
+	if (error.layout === undefined) {
+		return intl.formatMessage(desktopWindowMessages.dataFolderUnreadable, {
+			record: error.recordPath,
+			root: error.root,
+		});
+	}
+	if (error.newestVersion === undefined) {
+		return intl.formatMessage(desktopWindowMessages.dataFolderLayoutNewerUnnamed, {
+			root: error.root,
+		});
+	}
+	return intl.formatMessage(desktopWindowMessages.dataFolderLayoutNewer, {
+		root: error.root,
+		version: error.newestVersion,
+	});
 }
 
 /** Shows and logs, once, that the window placement record is one this version cannot use. */

@@ -12,6 +12,7 @@ export {
 	keyboardShortcutMessages,
 	projectedTerminalMessages,
 	sessionConnectionMessages,
+	sessionPathRefusalMessages,
 	terminalSettingsMessages,
 	workbenchMessages,
 	workbenchTabMessages,

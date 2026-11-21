@@ -166,9 +166,19 @@ impl Locale {
         }
     }
 
-    /// A refused macOS or Linux data or socket folder, naming the item at fault and how to fix it.
-    fn admission_refusal(self, refusal: &orchbee_local_runtime::AdmissionRefusal) -> String {
+    /// A refused data or socket folder, or a file in one, naming the item at fault and how to fix
+    /// it in this system's terms. The desktop window says the same through the
+    /// `session.connection.unavailable.pathRefused` messages.
+    pub(super) fn admission_refusal(
+        self,
+        refusal: &orchbee_local_runtime::AdmissionRefusal,
+    ) -> String {
         use orchbee_local_runtime::RefusalReason;
+        if cfg!(windows)
+            && let Some(text) = self.windows_admission_refusal(refusal)
+        {
+            return text;
+        }
         let path = refusal.path.display();
         match (self, refusal.reason) {
             (Self::EnUs, RefusalReason::OtherOwner) => format!(
@@ -220,6 +230,54 @@ impl Locale {
                 "Orchbee 无法用 {path} 存放套接字：它属于其他用户或对其他用户开放。请删除它，然后重新启动 Orchbee。\n"
             ),
         }
+    }
+
+    /// The Windows words for what Windows admission refuses, whose remedy is the item's security
+    /// settings rather than a command; a refusal Windows never gives keeps the shared words.
+    fn windows_admission_refusal(
+        self,
+        refusal: &orchbee_local_runtime::AdmissionRefusal,
+    ) -> Option<String> {
+        use orchbee_local_runtime::RefusalReason;
+        let path = refusal.path.display();
+        Some(match (self, refusal.reason) {
+            (Self::EnUs, RefusalReason::OtherOwner) => format!(
+                "Orchbee can't use {path}: its owner is an account other than you, SYSTEM or Administrators. Make your account its owner under Properties > Security > Advanced, or set ORCHBEE_HOME to a folder you own.\n"
+            ),
+            (Self::ZhCn, RefusalReason::OtherOwner) => format!(
+                "Orchbee 无法使用 {path}：其所有者不是你、SYSTEM 或 Administrators。请在“属性 > 安全 > 高级”中将你的账户设为其所有者，或将 ORCHBEE_HOME 设为你拥有的文件夹。\n"
+            ),
+            (Self::EnUs, RefusalReason::OthersCanChange) => format!(
+                "Orchbee can't use {path}: it has no permissions, so every account can change it. Set ORCHBEE_HOME to a folder on this computer's own disk.\n"
+            ),
+            (Self::ZhCn, RefusalReason::OthersCanChange) => format!(
+                "Orchbee 无法使用 {path}：它没有权限设置，任何用户都可以修改它。请将 ORCHBEE_HOME 设为本机磁盘上的文件夹。\n"
+            ),
+            (Self::EnUs, RefusalReason::OthersCanRead) => format!(
+                "Orchbee can't use {path}: its permissions let in an account other than you, SYSTEM or Administrators. Remove that access under Properties > Security > Advanced, or set ORCHBEE_HOME to a folder only you can open.\n"
+            ),
+            (Self::ZhCn, RefusalReason::OthersCanRead) => format!(
+                "Orchbee 无法使用 {path}：其权限允许你、SYSTEM 和 Administrators 以外的用户访问。请在“属性 > 安全 > 高级”中移除该访问权限，或将 ORCHBEE_HOME 设为只有你能打开的文件夹。\n"
+            ),
+            (Self::EnUs, RefusalReason::AccessControlList) => format!(
+                "Orchbee can't use {path}: its permissions hold an entry Orchbee can't check. Remove that entry under Properties > Security > Advanced, or set ORCHBEE_HOME to a folder only you can open.\n"
+            ),
+            (Self::ZhCn, RefusalReason::AccessControlList) => format!(
+                "Orchbee 无法使用 {path}：其权限中有 Orchbee 无法核对的条目。请在“属性 > 安全 > 高级”中移除该条目，或将 ORCHBEE_HOME 设为只有你能打开的文件夹。\n"
+            ),
+            (Self::EnUs, RefusalReason::SymbolicLink) => format!(
+                "Orchbee can't use {path}: it is a link or junction. Orchbee keeps its data only in real folders; set ORCHBEE_HOME to one.\n"
+            ),
+            (Self::ZhCn, RefusalReason::SymbolicLink) => format!(
+                "Orchbee 无法使用 {path}：它是链接或联接点。Orchbee 只在真实的文件夹中保存数据；请将 ORCHBEE_HOME 设为这样的文件夹。\n"
+            ),
+            (
+                _,
+                RefusalReason::PermissionsNotKept
+                | RefusalReason::LocksUnsupported
+                | RefusalReason::UnsafeSocketFolder,
+            ) => return None,
+        })
     }
 
     const fn startup_failure_text(

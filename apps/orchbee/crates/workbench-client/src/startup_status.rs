@@ -14,8 +14,8 @@ pub enum StartupFailure {
     Terminal,
     Cohort,
     Runtime,
-    /// A macOS or Linux data or socket folder failed the ownership, permission, or file-lock
-    /// rules; the refusal names the item at fault.
+    /// A data or socket folder, or a file in one, failed the ownership, permission, link, or
+    /// file-lock rules; the refusal names the item at fault.
     Refused(Box<orchbee_local_runtime::AdmissionRefusal>),
     SocketPathTooLong,
     RecoveryRequired,

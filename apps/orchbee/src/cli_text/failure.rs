@@ -650,9 +650,8 @@ impl super::CliText {
             .and_then(|details| details.get("stage"))
             .and_then(|value| value.as_str())
             .unwrap_or("");
-        if stage == "runtime-base"
-            && let Some(refusal) = failure.refused()
-        {
+        // A refused item reads as the TUI words it, whichever step met it.
+        if let Some(refusal) = failure.refused() {
             return self
                 .locale
                 .startup_failure(&crate::local_startup::StartupFailure::Refused(Box::new(
@@ -673,6 +672,10 @@ impl super::CliText {
                 "The local session runtime directory failed its safety checks.\n".to_owned()
             }
             (Locale::ZhCn, "runtime-directory") => "本地会话运行时目录未通过安全检查。\n".to_owned(),
+            (Locale::EnUs, "data-root") => {
+                "The data folder is missing, invalid, or unsafe.\n".to_owned()
+            }
+            (Locale::ZhCn, "data-root") => "数据文件夹缺失、无效或不安全。\n".to_owned(),
             (Locale::EnUs, "probe") => {
                 "The directory is not a Git repository, or Git does not trust its owner. Run `git status` in that directory to see which.\n".to_owned()
             }
@@ -710,13 +713,17 @@ impl super::CliText {
             return self.cli_cohort_diagnostic(failure.missing_artifact());
         }
         if detail("stage") == Some("data-root") {
-            let refusal = orchbee_local_runtime::LayoutRefusal {
-                layout: failure
-                    .details
-                    .as_ref()
-                    .and_then(|details| details.get("layout"))
-                    .and_then(serde_json::Value::as_u64),
-                newest_version: detail("newestVersion").map(str::to_owned),
+            let layout = failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get("layout"))
+                .and_then(serde_json::Value::as_u64);
+            let refusal = match layout {
+                Some(layout) => orchbee_local_runtime::LayoutRefusal::Newer {
+                    layout,
+                    newest_version: detail("newestVersion").map(str::to_owned),
+                },
+                None => orchbee_local_runtime::LayoutRefusal::Unreadable,
             };
             let root = std::path::Path::new(detail("dataRoot").unwrap_or_default());
             return self.locale.data_root_layout_refusal(root, &refusal);

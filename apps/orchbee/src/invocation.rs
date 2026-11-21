@@ -863,6 +863,11 @@ pub(crate) enum Request {
     /// arranges the window store and prints nothing; hidden from help, completion and the Agent
     /// guide.
     TendWindowStore,
+    /// The window-folder helper Desktop Main runs through its bundled Client before its window
+    /// opens: creates the data root and Desktop's folder under the rule every Orchbee folder
+    /// follows, printing nothing, or a JSON failure document that names a refusal; hidden from
+    /// help, completion and the Agent guide.
+    CreateWindowFolder,
     /// `uninstall`: removes the installed release, its PATH entry, installer entries and Agent
     /// integrations; data stays unless `delete_data`.
     Uninstall {

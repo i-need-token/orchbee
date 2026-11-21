@@ -1,5 +1,9 @@
 import type { DesktopSessionRefusal } from '@orchbee/desktop-client-protocol';
-import { sessionConnectionMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import {
+	sessionConnectionMessages,
+	sessionPathRefusalMessages,
+	useOrchbeeIntl,
+} from '@orchbee/i18n';
 import { Button } from '@orchbee/ui/components';
 import type { ReactNode } from 'react';
 
@@ -14,6 +18,11 @@ export interface SessionUnavailableProps {
 /** A command the copy names stays on one line, so it reads and copies as written. */
 function command(chunks: readonly ReactNode[]): ReactNode {
 	return <code className={styles['command']}>{chunks}</code>;
+}
+
+/** A command that holds a path can outgrow a line, so it wraps instead of leaving the page. */
+function pathCommand(chunks: readonly ReactNode[]): ReactNode {
+	return <code className={styles['pathCommand']}>{chunks}</code>;
 }
 
 type ServerNotStarted = Extract<DesktopSessionRefusal, { reason: 'server-not-started' }>;
@@ -68,6 +77,12 @@ function describe(
 		case 'development-build-mismatch':
 			return intl.formatMessage(sessionConnectionMessages.unavailableDevelopmentBuildMismatch, {
 				command,
+			});
+		case 'path-refused':
+			return intl.formatMessage(sessionPathRefusalMessages[refusal.cause], {
+				command: pathCommand,
+				path: refusal.path,
+				system: refusal.system,
 			});
 	}
 }

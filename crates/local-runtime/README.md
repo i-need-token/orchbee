@@ -282,6 +282,7 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/sessions.lock`                             | Namespace lock that serializes Session activation and deletion                                                                               |
 | `internal/state/<record>.json`                       | `StateRecord`: the machine catalog                                                                                                           |
 | `internal/cache/agent-detection/`                    | Downloaded detection rules and `catalog.json`, which names the URL                                                                           |
+| `internal/desktop/`                                  | Desktop's Electron `userData`, which its bundled Client creates; [Desktop](../../apps/desktop/docs/data-root.md) owns what it holds          |
 | `internal/backups/<date>-upgrade-<version>/`         | Originals of the records one product version migrated, at their paths relative to the root; the three newest folders stay                    |
 | `internal/plugins/registry.json`                     | Plugin registry, folder assignments, and recorded cleanup                                                                                    |
 | `internal/plugins/<folder>/`                         | One plugin's `config/`, `data/`, and `source/<version>/`                                                                                     |
@@ -293,7 +294,8 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 
 On macOS and Linux each folder and file is admitted by how it behaves, never by file system name,
 and nothing is repaired: an item that breaks a rule is refused with an `AdmissionRefusal` that names
-it and the `RefusalReason`, which the TUI turns into a message saying how to fix it. The data root
+it and the `RefusalReason`, which the TUI, the CLI and Desktop turn into one message saying how to
+fix it. The data root
 is opened through its canonical path, so it and its ancestors may be symbolic links; it must belong
 to the effective user and be writable by no one else, and a root Orchbee creates is set to 0700 and
 read back. A root under the home folder also needs that folder to be the effective user's, so
@@ -306,7 +308,8 @@ cannot take effect there. Linux checks no ACL, and macOS refuses an
 extended ACL and a volume mounted to ignore ownership. `prepare_default_runtime_base` creates and
 admits the root, `internal/` and `internal/runtime/`, and returns the runtime base through the
 root's canonical path; `create_private_directory` does the same for a folder whose files a writer in
-another crate places.
+another crate places. Desktop Main has its bundled Client create `internal/desktop/` that way,
+through `DataRoot::desktop`, rather than creating any folder of the root itself.
 
 `agent_integration_may_have_been_enabled` answers `false` only when this environment's Capsule
 folder does not exist, which proves that no provider entry names this environment; an unresolved root or unreadable folder answers `true`. It runs no provider command
@@ -327,7 +330,9 @@ or cut short for a moment: `read_record` reads it again for up to one second, wh
 empty or ends before its object does, and only then does the record stand as read. Later releases
 only add entries, which every rewrite keeps. `DataRoot::admit_layout` reads only
 this record and refuses a root whose `layout` is higher than `LAYOUT`, or whose record cannot be
-read, and every process that opens a root calls it before any other read: the Client before it
+read; a record the admission rules refuse keeps that `AdmissionRefusal`, so the refusal names the
+file and the rule it breaks rather than calling it unreadable. Every process that opens a root
+calls it before any other read: the Client before it
 dispatches any command that opens the root, and the Server and Worker before their first log
 record. `DataRoot::carries_layout_record` answers whether a folder holds a readable record of any
 layout, which uninstall requires before it removes anything from the folder. The first writer of
@@ -482,7 +487,8 @@ can leave empty, and the Desktop installer's own `desktop`, `desktop.previous`, 
 Every other refusal stands, and no other existing object is repaired. A Windows refusal carries the
 shared `AdmissionRefusal` once the caller that opened the object by path names it: `OtherOwner`,
 `OthersCanRead` for a foreign allow entry, `OthersCanChange` for a missing DACL, `AccessControlList`
-for an entry kind admission cannot judge, and `SymbolicLink` for any reparse point.
+for an entry kind admission cannot judge, and `SymbolicLink` for any reparse point. The TUI, the
+CLI and Desktop word it with a Windows remedy.
 
 A writer stopped at any point leaves the published name holding a complete flushed version; only
 its staging file can be partial, and the next writer reclaims it under the lock. Two records are

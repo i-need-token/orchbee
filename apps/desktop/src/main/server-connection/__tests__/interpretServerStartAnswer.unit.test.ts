@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { interpretServerStartAnswer } from '../interpretServerStartAnswer';
 
-function restoreOf(stdout: string, failed: boolean) {
-	return interpretServerStartAnswer(stdout, failed).restore;
+function restoreOf(stdout: string, failed: boolean, platform: NodeJS.Platform = 'linux') {
+	return interpretServerStartAnswer(stdout, failed, platform).restore;
 }
 
 /** A failure envelope as `server start --format json` prints it. */
@@ -104,12 +104,30 @@ describe('interpretServerStartAnswer', () => {
 		});
 	});
 
+	it('names a refused folder with the rule it breaks under the system that refused it', () => {
+		const path = 'C:\\Shared\\Orchbee';
+		const answer = failure('check-failed', {
+			refusal: { path, reason: 'others-can-read' },
+			stage: 'runtime-base',
+		});
+		expect(restoreOf(answer, true, 'win32')).toEqual({
+			kind: 'refused',
+			refusal: { cause: 'others-can-read', path, reason: 'path-refused', system: 'windows' },
+		});
+		expect(restoreOf(answer, true, 'darwin')).toEqual({
+			kind: 'refused',
+			refusal: { cause: 'others-can-read', path, reason: 'path-refused', system: 'posix' },
+		});
+	});
+
 	it('reads any failure it cannot name, or cannot read, as a restore that may have lost everything', () => {
 		for (const answer of [
 			// A reason a newer CLI names keeps the window's general sentence.
 			failure('rejected', { reason: 'not-yet-named', stage: 'activation' }),
 			failure('service-unavailable', { stage: 'admission' }),
 			failure('incompatible', { stage: 'cohort' }),
+			failure('check-failed', { stage: 'runtime-base' }),
+			failure('check-failed', { refusal: { path: '/srv', reason: 'not-yet-named' } }),
 			admission('initiator-too-new'),
 			admission('client-too-old', { sessionVersion: '1.6.0' }),
 			admission('client-too-old', { clientVersion: 'not a version' }),
@@ -132,17 +150,26 @@ describe('interpretServerStartAnswer', () => {
 	it('names the negotiated capabilities only of a start that succeeded and lists them', () => {
 		const names = ['agent-input-area', 'compatibility-window'];
 		expect(
-			interpretServerStartAnswer(started(null, { negotiatedCapabilities: names }), false)
+			interpretServerStartAnswer(started(null, { negotiatedCapabilities: names }), false, 'linux')
 				.negotiatedCapabilities,
 		).toEqual(names);
-		expect(interpretServerStartAnswer(started(null), false).negotiatedCapabilities).toEqual([]);
 		expect(
-			interpretServerStartAnswer(admission('session-too-old', { clientVersion: '1.2.0' }), true)
-				.negotiatedCapabilities,
+			interpretServerStartAnswer(started(null), false, 'linux').negotiatedCapabilities,
+		).toEqual([]);
+		expect(
+			interpretServerStartAnswer(
+				admission('session-too-old', { clientVersion: '1.2.0' }),
+				true,
+				'linux',
+			).negotiatedCapabilities,
 		).toEqual([]);
 		// A list outside the handshake's name grammar is no answer the window can trust.
 		expect(
-			interpretServerStartAnswer(started(null, { negotiatedCapabilities: ['Not A Name'] }), false),
+			interpretServerStartAnswer(
+				started(null, { negotiatedCapabilities: ['Not A Name'] }),
+				false,
+				'linux',
+			),
 		).toEqual({ negotiatedCapabilities: [], restore: { kind: 'lost-or-unknown' } });
 	});
 });

@@ -249,6 +249,7 @@ fn main() -> ExitCode {
             Ok(invocation::Request::AutomaticUpdate) => cli::update::automatic_update(locale),
             Ok(invocation::Request::InstallerWindow) => cli::update::installer_window(locale),
             Ok(invocation::Request::TendWindowStore) => cli::update::tend_window_store(),
+            Ok(invocation::Request::CreateWindowFolder) => cli::window_folder::create(locale),
             Ok(invocation::Request::RecordClientFailure { version }) => {
                 cli::update::record_client_failure(&version)
             }

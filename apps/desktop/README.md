@@ -73,7 +73,9 @@ then ends before the page reads anything and only Main saw why: until the Sessio
 naming the process an earlier start left running when the CLI names one; because the system would
 not create the Server, with the system's `ioKind` and `osError`; or by the Session's handshake as
 the CLI reports it, with this Desktop too old, the Session too old, another environment, or a
-development build of another protocol. A version refusal carries the bundled Client's version and
+development build of another protocol; or because the Client refused a data folder or file, naming
+it and the rule it breaks, which the page words as the TUI and CLI do under this system's rules. A
+version refusal carries the bundled Client's version and
 the Session's, which a Session older than the handshake never states. Any other failure, including
 a reason a newer CLI names, announces no reason, and so does a refusal the page cannot read, so the
 page shows its general sentence.
@@ -158,9 +160,8 @@ do not start a real window. The release workflow runs the same steps on every re
 the [real-window Update check](../../docs/VERIFICATION.md#release-workflow), on a packaged Test
 window and two older stand-ins copied from it; locally,
 `node scripts/release-smoke-windows.mjs window-update <folder> --work <new folder>` (on macOS
-`release-smoke-macos.mjs`), given the folder `pnpm desktop:package:test` writes, replaces them. On
-Windows the new folder lies in the profile: the window creates the data root with the access list
-its folder passes down, and the Session admits only a private one. Use Test builds: they join the `desktop-test` Session, so the release Session is not touched. Keep
+`release-smoke-macos.mjs`), given the folder `pnpm desktop:package:test` writes, replaces them.
+Use Test builds: they join the `desktop-test` Session, so the release Session is not touched. Keep
 a terminal with a long-running command open through every step (`ping -t 127.0.0.1` on Windows,
 `sleep 600` on macOS).
 

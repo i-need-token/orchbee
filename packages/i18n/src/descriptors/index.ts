@@ -10,7 +10,7 @@ export { desktopTrayMessages } from './desktop-tray';
 export { desktopWindowMessages } from './desktop-window';
 export { keyboardShortcutMessages } from './keyboard-shortcuts';
 export { projectedTerminalMessages } from './projected-terminal';
-export { sessionConnectionMessages } from './session-connection';
+export { sessionConnectionMessages, sessionPathRefusalMessages } from './session-connection';
 
 export { terminalSettingsMessages } from './terminal-settings';
 export { workbenchMessages } from './workbench';

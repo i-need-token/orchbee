@@ -5,27 +5,41 @@ use orchbee_local_runtime::{LayoutRefusal, RecordNotice, RecordProblem, Versione
 use std::path::Path;
 
 impl Locale {
-    /// Why this version will not open the data folder at `root`, before it reads anything else.
+    /// Why this version will not open the data folder at `root`, before it reads anything else. A
+    /// record the admission rules refuse reads as every other refused item does.
     pub fn data_root_layout_refusal(self, root: &Path, refusal: &LayoutRefusal) -> String {
         let record = root.join("internal").join("version.json");
         let (root, record) = (root.display(), record.display());
-        match (self, refusal.layout, refusal.newest_version.as_deref()) {
-            (Self::EnUs, Some(_), Some(version)) => format!(
+        match (self, refusal) {
+            (locale, LayoutRefusal::Refused(refusal)) => locale.admission_refusal(refusal),
+            (
+                Self::EnUs,
+                LayoutRefusal::Newer {
+                    newest_version: Some(version),
+                    ..
+                },
+            ) => format!(
                 "{root} was last used by Orchbee {version}, which changed how the folder is laid out. This version can't open it; use Orchbee {version} or later.\n"
             ),
-            (Self::ZhCn, Some(_), Some(version)) => format!(
+            (
+                Self::ZhCn,
+                LayoutRefusal::Newer {
+                    newest_version: Some(version),
+                    ..
+                },
+            ) => format!(
                 "{root} 上次由 Orchbee {version} 使用，该版本更改了文件夹的布局。此版本无法打开它；请使用 Orchbee {version} 或更高版本。\n"
             ),
-            (Self::EnUs, Some(_), None) => format!(
+            (Self::EnUs, LayoutRefusal::Newer { .. }) => format!(
                 "{root} was last used by a newer version of Orchbee, which changed how the folder is laid out. This version can't open it; use that version or later.\n"
             ),
-            (Self::ZhCn, Some(_), None) => format!(
+            (Self::ZhCn, LayoutRefusal::Newer { .. }) => format!(
                 "{root} 上次由更新版本的 Orchbee 使用，该版本更改了文件夹的布局。此版本无法打开它；请使用该版本或更高版本。\n"
             ),
-            (Self::EnUs, None, _) => format!(
+            (Self::EnUs, LayoutRefusal::Unreadable) => format!(
                 "Orchbee can't read {record}, so it won't open {root}. Restore the file, or move the folder away to start again.\n"
             ),
-            (Self::ZhCn, None, _) => format!(
+            (Self::ZhCn, LayoutRefusal::Unreadable) => format!(
                 "Orchbee 无法读取 {record}，因此不会打开 {root}。请恢复该文件，或将文件夹移走后重新开始。\n"
             ),
         }

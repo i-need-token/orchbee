@@ -72,8 +72,8 @@ fn a_higher_or_unreadable_layout_is_refused_and_left_unchanged() {
     write_private(&root.version_file(), newer);
     assert_eq!(
         root.admit_layout(),
-        Err(LayoutRefusal {
-            layout: Some(2),
+        Err(LayoutRefusal::Newer {
+            layout: 2,
             newest_version: Some("9.0.0".into())
         })
     );
@@ -87,14 +87,27 @@ fn a_higher_or_unreadable_layout_is_refused_and_left_unchanged() {
         br#"{"newestVersion":"1.0.0"}"#,
     ] {
         write_private(&root.version_file(), unreadable);
-        assert_eq!(
-            root.admit_layout(),
-            Err(LayoutRefusal {
-                layout: None,
-                newest_version: None
-            })
-        );
+        assert_eq!(root.admit_layout(), Err(LayoutRefusal::Unreadable));
     }
+}
+
+// A record the admission rules refuse keeps that refusal, so the surface that reports it names the
+// file and the rule it breaks instead of calling a readable file unreadable.
+#[cfg(windows)]
+#[test]
+fn a_record_the_admission_rules_refuse_is_named_with_its_rule() {
+    let shared = crate::tests::SharedFolder::new();
+    let root = DataRoot::at(shared.0.join("root"));
+    // Written as a folder another account shares passes its access down.
+    fs::create_dir_all(root.internal()).unwrap();
+    fs::write(root.version_file(), br#"{"layout":1}"#).unwrap();
+    assert_eq!(
+        root.admit_layout(),
+        Err(LayoutRefusal::Refused(crate::AdmissionRefusal::new(
+            crate::RefusalReason::OthersCanRead,
+            &root.version_file()
+        )))
+    );
 }
 
 // `newestVersion` names the newest Orchbee that used the root, so it only rises, and entries a

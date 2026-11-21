@@ -23,7 +23,7 @@ export function readServerStartAnswer(
 			[...sessionArguments, 'server', 'start', '--format', 'json'],
 			{ env: environment, timeout: COMMAND_DEADLINE_MILLISECONDS, windowsHide: true },
 			(error, stdout) => {
-				resolve(interpretServerStartAnswer(stdout, error !== null));
+				resolve(interpretServerStartAnswer(stdout, error !== null, process.platform));
 			},
 		);
 	});

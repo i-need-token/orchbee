@@ -13,6 +13,7 @@ export const zhCNDesktopWindowMessages = {
 		'{root} 上次由 Orchbee {version} 使用，该版本更改了文件夹的布局。此版本无法打开它；请使用 Orchbee {version} 或更高版本。',
 	'desktop.window.dataFolderLayoutNewerUnnamed':
 		'{root} 上次由更新版本的 Orchbee 使用，该版本更改了文件夹的布局。此版本无法打开它；请使用该版本或更高版本。',
+	'desktop.window.dataFolderNotCreated': 'Orchbee 无法设置其数据文件夹 {root}。',
 	'desktop.window.dataFolderRefused': 'Orchbee 无法打开其数据文件夹',
 	'desktop.window.dataFolderUnreadable':
 		'Orchbee 无法读取 {record}，因此不会打开 {root}。请恢复该文件，或将文件夹移走后重新开始。',

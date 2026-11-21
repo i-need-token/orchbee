@@ -228,9 +228,10 @@ fn classify(failure: ActivationFailure) -> Failure {
             super::configuration::Error::from(error).failure()
         }
         Some(ActivationCause::Cohort(error)) => classify_cohort(&error),
-        Some(ActivationCause::Rendezvous(error, scope_directory)) => {
-            super::query::classify_rendezvous(error, &scope_directory)
-        }
+        Some(ActivationCause::Rendezvous(error, scope_directory)) => naming_refusal(
+            super::query::classify_rendezvous(error, &scope_directory),
+            failure.failure,
+        ),
         Some(ActivationCause::Connect(error)) => {
             if failure.failure == StartupFailure::TimedOut {
                 timeout()
@@ -242,13 +243,10 @@ fn classify(failure: ActivationFailure) -> Failure {
             if error.kind() == std::io::ErrorKind::TimedOut {
                 timeout()
             } else {
-                let failed =
-                    Failure::new(FailureKind::CheckFailed).details(stage_details("runtime-base"));
-                // A refused folder names the item at fault and how to fix it, as the TUI does.
-                match failure.failure {
-                    StartupFailure::Refused(refusal) => failed.admission_refusal(refusal),
-                    _ => failed,
-                }
+                naming_refusal(
+                    Failure::new(FailureKind::CheckFailed).details(stage_details("runtime-base")),
+                    failure.failure,
+                )
             }
         }
         // Lock/marker/probe I/O: a TimedOut kind means the shared budget
@@ -257,7 +255,7 @@ fn classify(failure: ActivationFailure) -> Failure {
             if error.kind() == std::io::ErrorKind::TimedOut {
                 timeout()
             } else {
-                Failure::new(FailureKind::InternalFailure).details(stage_details("activation"))
+                runtime_io(failure.failure)
             }
         }
         // Lock acquisition carries the rendezvous error; only its wrapped
@@ -268,7 +266,7 @@ fn classify(failure: ActivationFailure) -> Failure {
             {
                 timeout()
             } else {
-                Failure::new(FailureKind::InternalFailure).details(stage_details("activation"))
+                runtime_io(failure.failure)
             }
         }
         // A record failure around the spawn and a post-spawn liveness failure
@@ -283,6 +281,30 @@ fn classify(failure: ActivationFailure) -> Failure {
             StartupFailure::SocketPathTooLong => socket_budget(),
             _ => Failure::new(FailureKind::InternalFailure),
         },
+    }
+}
+
+/// A refused folder or file names the item at fault and how to fix it on the check failure its
+/// step reports, as the TUI words it.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn naming_refusal(failed: Failure, verdict: StartupFailure) -> Failure {
+    match verdict {
+        StartupFailure::Refused(refusal) if failed.kind == FailureKind::CheckFailed => {
+            failed.admission_refusal(refusal)
+        }
+        _ => failed,
+    }
+}
+
+/// Lock, marker, record and probe I/O that met a refused item fails the check of the Session's
+/// runtime folder, naming that item; any other is an internal runtime fault.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn runtime_io(verdict: StartupFailure) -> Failure {
+    match verdict {
+        StartupFailure::Refused(refusal) => Failure::new(FailureKind::CheckFailed)
+            .details(stage_details("runtime-directory"))
+            .admission_refusal(refusal),
+        _ => Failure::new(FailureKind::InternalFailure).details(stage_details("activation")),
     }
 }
 

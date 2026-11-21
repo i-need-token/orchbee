@@ -5,6 +5,7 @@ export {
 	DESKTOP_SERVER_CONNECTION_WINDOW_MESSAGE,
 	DESKTOP_SERVER_CONNECTION_WINDOW_REQUEST,
 	DesktopBlockingProcessSchema,
+	DesktopPathRefusalCauseSchema,
 	DesktopServerConnectionDocumentSchema,
 	DesktopServerConnectionReadSchema,
 	DesktopServerConnectionReplySchema,

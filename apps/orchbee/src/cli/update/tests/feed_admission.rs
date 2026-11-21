@@ -321,7 +321,7 @@ fn cross_build_helper_flags_keep_their_frozen_v1_spelling() {
         "{FROZEN_MESSAGE}"
     );
 
-    let cases: [(&[&str], Request, Option<OutputFormat>); 8] = [
+    let cases: [(&[&str], Request, Option<OutputFormat>); 9] = [
         (
             &["--complete-install-v1"],
             Request::CompleteInstall {
@@ -366,6 +366,11 @@ fn cross_build_helper_flags_keep_their_frozen_v1_spelling() {
             Some(OutputFormat::Json),
         ),
         (&["--tend-window-store-v1"], Request::TendWindowStore, None),
+        (
+            &["--create-window-folder-v1"],
+            Request::CreateWindowFolder,
+            Some(OutputFormat::Json),
+        ),
     ];
     for (argv, expected_request, expected_format) in cases {
         let selected = parse_selected_request(argv.iter().map(OsString::from))
