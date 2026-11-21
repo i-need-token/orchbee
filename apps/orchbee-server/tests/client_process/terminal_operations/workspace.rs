@@ -212,6 +212,7 @@ fn workspace_tab_commits_membership_before_launch_and_preserves_it_through_navig
         &committed,
         WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("While launch is pending")?,
+            project_id: None,
         },
     )?
     else {

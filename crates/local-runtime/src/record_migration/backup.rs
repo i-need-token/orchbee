@@ -33,14 +33,21 @@ pub(crate) fn persist_migration(
     original: &[u8],
     replace: impl FnOnce() -> io::Result<()>,
 ) -> io::Result<PathBuf> {
+    let copy = back_up(root, path, original)?;
+    replace()?;
+    Ok(copy)
+}
+
+/// The first half of [`persist_migration`], for a store whose own publication replaces the file
+/// afterwards: copies `original`, the file at `path` as it stands, into this version's upgrade
+/// folder at its path relative to `root` and flushes it. Answers the copy's path.
+pub(crate) fn back_up(root: &DataRoot, path: &Path, original: &[u8]) -> io::Result<PathBuf> {
     let folder = upgrade_folder(
         &root.backups(),
         &crate::diagnostic_log::local_date(),
         PRODUCT_VERSION,
     )?;
-    let copy = copy_into(root, &folder, path, original)?;
-    replace()?;
-    Ok(copy)
+    copy_into(root, &folder, path, original)
 }
 
 /// Reads the device records, the plugin registry and the records of each Session folder, or only

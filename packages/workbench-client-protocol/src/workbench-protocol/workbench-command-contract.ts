@@ -256,7 +256,14 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			tabId: WorkbenchTabIdSchema,
 		})
 		.readonly(),
-	z.strictObject({ kind: z.literal('project.create'), label: WorkbenchLabelSchema }).readonly(),
+	z
+		.strictObject({
+			kind: z.literal('project.create'),
+			label: WorkbenchLabelSchema,
+			// A random Project identity, sent only to a Server that lists `project-identity`.
+			projectId: WorkbenchProjectIdSchema.refine((id) => /^[89a-f]/u.test(id)).optional(),
+		})
+		.readonly(),
 	z
 		.strictObject({ kind: z.literal('project.dissolve'), projectId: WorkbenchProjectIdSchema })
 		.readonly(),

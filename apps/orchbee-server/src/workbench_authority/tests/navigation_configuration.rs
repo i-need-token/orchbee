@@ -176,3 +176,50 @@ fn explicit_project_order_survives_creation_regrouping_and_dissolution() {
     );
     assert!(owner.snapshot().navigation.ordered_projects().is_ok());
 }
+
+/// A Project named from elsewhere keeps its identity and comes last in the display order wherever
+/// the identity sorts; naming it again changes nothing. A Project this Session creates sorts last,
+/// or is refused when nothing is left above, so an earlier Client's prediction of it holds.
+#[test]
+fn a_named_project_comes_last_and_is_created_once() {
+    let (mut owner, grant) = authority();
+    let first = project_id(&apply(&mut owner, &grant, 1, create("First")));
+    let named = WorkbenchProjectId::parse(&identity(RANDOM_PROJECT_FLOOR | 1)).unwrap();
+    let create_named = || WorkbenchAction::ProjectCreate {
+        label: WorkbenchLabel::parse("Named").unwrap(),
+        project_id: Some(named.clone()),
+    };
+    assert_eq!(
+        project_id(&apply(&mut owner, &grant, 2, create_named())),
+        named
+    );
+    let navigation = &owner.snapshot().navigation;
+    assert_eq!(navigation.projects[0].project_id, named);
+    assert_eq!(navigation.project_order, [first.clone(), named.clone()]);
+    assert!(matches!(
+        apply(&mut owner, &grant, 3, create_named()).outcome,
+        WorkbenchCommandOutcome::Unchanged { .. }
+    ));
+    let third = project_id(&apply(&mut owner, &grant, 4, create("Third")));
+    let navigation = &owner.snapshot().navigation;
+    assert_eq!(navigation.projects.last().unwrap().project_id, third);
+    assert_eq!(navigation.project_order, [first, named, third]);
+
+    let top = WorkbenchProjectId::parse(&identity(u128::MAX)).unwrap();
+    apply(
+        &mut owner,
+        &grant,
+        5,
+        WorkbenchAction::ProjectCreate {
+            label: WorkbenchLabel::parse("Top").unwrap(),
+            project_id: Some(top),
+        },
+    );
+    assert!(matches!(
+        apply(&mut owner, &grant, 6, create("Fifth")).outcome,
+        WorkbenchCommandOutcome::Rejected {
+            reason: WorkbenchRejectionReason::IdentityExhausted,
+            ..
+        }
+    ));
+}

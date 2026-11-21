@@ -332,9 +332,11 @@ pub enum WorkbenchSetupCommit {
         workspace_id: WorkbenchWorkspaceId,
         unchanged: bool,
     },
+    // `unchanged`: the Session already had the Project the command named.
     ProjectCreated {
         revision: WorkbenchRevision,
         project_id: WorkbenchProjectId,
+        unchanged: bool,
     },
     WorkspaceCreated {
         revision: WorkbenchRevision,

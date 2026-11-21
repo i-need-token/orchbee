@@ -62,6 +62,7 @@ fn create_associated_workspace(
             &initial,
             WorkbenchAction::ProjectCreate {
                 label: WorkbenchLabel::parse("Workspace close process")?,
+                project_id: None,
             },
         ),
     )?;

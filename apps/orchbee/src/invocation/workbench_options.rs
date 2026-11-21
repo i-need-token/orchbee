@@ -7,8 +7,8 @@ use super::{
 };
 use orchbee_workbench_protocol::{
     WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
-    WorkbenchTabCloseAttemptGeneration, WorkbenchTabInsertIndex, WorkbenchTabMoveDirection,
-    WorkbenchTerminalGeometry,
+    WorkbenchProjectId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabInsertIndex,
+    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 
 /// `--label` carries a wire-ready Workbench label: non-empty and at most the
@@ -77,6 +77,33 @@ pub(super) fn directory_option(
             envelope,
         )
     })
+}
+
+/// `project create --id` carries the complete identity of another Session's Project, which is in
+/// the random form a Session gives Projects; the counter form names a Project of one Session only.
+pub(super) fn project_id_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Option<WorkbenchProjectId>, ParseFailure> {
+    let Some(value) = options.id.clone() else {
+        return Ok(None);
+    };
+    WorkbenchProjectId::parse(&value)
+        .ok()
+        .filter(WorkbenchProjectId::is_random)
+        .map(Some)
+        .ok_or_else(|| {
+            usage_with(
+                UsageReason::InvalidValue {
+                    context,
+                    option: "--id",
+                    value,
+                    expected: ExpectedValue::ProjectId,
+                },
+                envelope,
+            )
+        })
 }
 
 /// `operation resume <request-id> --generation <n>`: the explicit attempt fence —

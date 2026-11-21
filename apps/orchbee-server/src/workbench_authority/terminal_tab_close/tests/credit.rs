@@ -10,6 +10,7 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
             9000,
             WorkbenchAction::ProjectCreate {
                 label: WorkbenchLabel::parse("project").unwrap(),
+                project_id: None,
             },
         );
         let WorkbenchCommandOutcome::ProjectCreated { project_id, .. } =
@@ -57,6 +58,7 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
         let action = match operation {
             0 => WorkbenchAction::ProjectCreate {
                 label: WorkbenchLabel::parse("new").unwrap(),
+                project_id: None,
             },
             1 => WorkbenchAction::ProjectRename {
                 project_id,

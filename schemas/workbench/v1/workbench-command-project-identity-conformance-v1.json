@@ -1,0 +1,43 @@
+{
+	"contractVersion": 1,
+	"capability": "project-identity",
+	"valid": [
+		{
+			"name": "create-project-with-random-identity",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"sessionId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": "docs",
+					"projectId": "8d1f5c3a9b2e4f60a7c81d2e3f4a5b6c"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "create-project-with-identity-below-the-random-range",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"sessionId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": "docs",
+					"projectId": "7fffffffffffffffffffffffffffffff"
+				}
+			}
+		}
+	],
+	"validJson": [],
+	"invalidJson": []
+}

@@ -11,6 +11,7 @@ fn opaque_rename_request_rejects_other_actions_unchanged() {
     for action in [
         WorkbenchAction::ProjectCreate {
             label: workbench_label(),
+            project_id: None,
         },
         WorkbenchAction::ProjectRename {
             project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),

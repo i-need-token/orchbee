@@ -140,7 +140,11 @@ impl WorkbenchAuthority {
         };
         let mut candidate = self.projection.snapshot().clone();
         let mut last_identity = self.last_identity;
-        let Ok(project_id) = placement.apply(&mut candidate.navigation, &mut last_identity) else {
+        let Ok(project_id) = placement.apply(
+            &mut candidate.navigation,
+            &mut last_identity,
+            &candidate.session_id,
+        ) else {
             return WorkbenchTabCreateBegin::Ready(self.retire(&command));
         };
         let Ok(last_identity) = allocate(last_identity, 6) else {

@@ -44,6 +44,7 @@ fn command(
 fn create(label: &str) -> WorkbenchAction {
     WorkbenchAction::ProjectCreate {
         label: WorkbenchLabel::parse(label).unwrap(),
+        project_id: None,
     }
 }
 

@@ -733,6 +733,15 @@ impl super::CliText {
             Some("session-too-old") => StartupFailure::SessionTooOld(versions()),
             Some("environment-mismatch") => StartupFailure::OtherEnvironment,
             Some("fingerprint-mismatch") => StartupFailure::DevelopmentBuildMismatch,
+            Some("project-identity") => {
+                return match self.locale {
+                    Locale::EnUs => {
+                        "The running Session was started by an earlier Orchbee and cannot give a Project an ID from another Session.\n"
+                    }
+                    Locale::ZhCn => "正在运行的会话由较早的 Orchbee 启动，无法让项目使用另一个会话的 ID。\n",
+                }
+                .to_owned();
+            }
             _ => {
                 return match self.locale {
                     Locale::EnUs => {

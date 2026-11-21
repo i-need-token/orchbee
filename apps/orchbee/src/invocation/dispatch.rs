@@ -12,11 +12,11 @@ use super::{
     label_option, layouts, machines, missing_command, missing_required, mutation, named_sessions,
     operation, pane_graphics, panel_agent, panel_metadata, panel_move_destination,
     panel_relocation, panel_terminal_creation, parse_send_key, path_option, plugins,
-    profile_name_option, profile_selector, query, reject_extras, reject_extras_scope,
-    reject_filters, required, required_launch_option, resolve_help_path, schema_export, send_input,
-    stop_command, tab_move_command, target, terminal_output, terminal_run, terminal_stream,
-    terminal_target, unexpected_argument, unknown_command, usage_with, workspace_creation,
-    workspace_group_close, workspace_metadata, worktree,
+    profile_name_option, profile_selector, project_id_option, query, reject_extras,
+    reject_extras_scope, reject_filters, required, required_launch_option, resolve_help_path,
+    schema_export, send_input, stop_command, tab_move_command, target, terminal_output,
+    terminal_run, terminal_stream, terminal_target, unexpected_argument, unknown_command,
+    usage_with, workspace_creation, workspace_group_close, workspace_metadata, worktree,
 };
 
 pub(super) fn resolve_words(
@@ -424,6 +424,11 @@ pub(super) fn resolve_words(
             Ok(mutation(
                 MutationCommand::ProjectCreate {
                     label: label_option(options, UsageContext::Path("project create"), envelope)?,
+                    project_id: project_id_option(
+                        options,
+                        UsageContext::Path("project create"),
+                        envelope,
+                    )?,
                 },
                 options,
             ))

@@ -7,7 +7,8 @@ use crate::local_terminal_service::LocalTerminalService;
 #[cfg(windows)]
 use orchbee_local_runtime::RetainedChild;
 use orchbee_local_runtime::{
-    DataRoot, ModeCheckedLocalSessionRendezvous, RetainedSessionRecord, SessionStore,
+    DataRoot, LogLevel, LogValue, ModeCheckedLocalSessionRendezvous, RetainedSessionRecord,
+    SessionStore,
 };
 use orchbee_server::{MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, WorkbenchCheckpoint};
 use std::{
@@ -238,13 +239,15 @@ pub(super) fn take(
     session: &ModeCheckedLocalSessionRendezvous,
 ) -> io::Result<(RetainedSessionRecord, Kept, WorkbenchCheckpoint)> {
     let record = RetainedSessionRecord::retain(root, session)?;
-    let store = SessionStore::open(root, session, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES)?;
+    let mut store = SessionStore::open(root, session, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES)?;
     let loaded = store.read_validated(|bytes| WorkbenchCheckpoint::parse(bytes).ok())?;
     let (Some(checkpoint), None) = (loaded.checkpoint, loaded.notice) else {
         return Err(io::Error::other(
             "the exact capture is not the newest readable checkpoint",
         ));
     };
+    // Before this successor serves anything; Workers and terminals name no Project.
+    let checkpoint = upgraded(root, &mut store, checkpoint);
     let store = Arc::new(Mutex::new(store));
     let bindings = bindings::Writer::new(
         Arc::clone(&store),
@@ -270,7 +273,7 @@ fn load_from(
 )> {
     // Direct Server entry must also refuse unsupported catalog versions before store effects.
     let record = RetainedSessionRecord::retain(root, session)?;
-    let store = SessionStore::open(root, session, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES)?;
+    let mut store = SessionStore::open(root, session, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES)?;
     // After a fallback, what the held version migrated comes back before anything reads it.
     store.restore_after_fallback(
         root,
@@ -280,9 +283,55 @@ fn load_from(
     let loaded = store.read_validated(|bytes| WorkbenchCheckpoint::parse(bytes).ok())?;
     let suppress_initial_empty = loaded.checkpoint.is_none()
         && loaded.notice == Some(orchbee_local_runtime::CheckpointRestoreNotice::Empty);
-    let checkpoint = loaded.checkpoint;
     store.publish_restore_notice(&record, loaded.notice)?;
+    let checkpoint = loaded
+        .checkpoint
+        .map(|checkpoint| upgraded(root, &mut store, checkpoint));
     Ok((store, checkpoint, record, suppress_initial_empty))
+}
+
+const CHECKPOINT_UPGRADE_FAILED: &str = "checkpoint-upgrade-failed";
+
+/// Takes a checkpoint of an earlier format to this build's before anything is served: the step
+/// runs in memory with a seed from operating-system randomness, every slot is copied into this
+/// version's upgrade folder, and the new payload is published. When any of them fails, nothing is
+/// replaced, the failure is logged, and the Session runs on the checkpoint as it was, which the
+/// next start upgrades again.
+fn upgraded(
+    root: &DataRoot,
+    store: &mut SessionStore,
+    checkpoint: WorkbenchCheckpoint,
+) -> WorkbenchCheckpoint {
+    let mut seed = [0; 16];
+    if getrandom::fill(&mut seed).is_err() {
+        failed("seed", None);
+        return checkpoint;
+    }
+    let (next, encoded) = match checkpoint.upgrade(&seed) {
+        Ok(Some(upgrade)) => upgrade,
+        Ok(None) => return checkpoint,
+        Err(_) => {
+            failed("step", None);
+            return checkpoint;
+        }
+    };
+    match store.publish_upgrade(root, &encoded, |bytes| {
+        WorkbenchCheckpoint::parse(bytes).is_ok()
+    }) {
+        Ok(()) => next,
+        Err(error) => {
+            failed("publish", Some(error.kind()));
+            checkpoint
+        }
+    }
+}
+
+fn failed(stage: &'static str, error: Option<io::ErrorKind>) {
+    let mut fields = vec![("stage", LogValue::Token(stage))];
+    if let Some(error) = error {
+        fields.push(("error", LogValue::from(error)));
+    }
+    orchbee_local_runtime::log_event(LogLevel::Warning, CHECKPOINT_UPGRADE_FAILED, &fields);
 }
 
 #[cfg(test)]

@@ -356,6 +356,7 @@ fn only_a_revision_mismatch_refusal_is_submitted_again() {
     use crate::cli::stale_retry::Ended;
     let action = WorkbenchAction::ProjectCreate {
         label: orchbee_workbench_protocol::WorkbenchLabel::parse("retry").unwrap(),
+        project_id: None,
     };
     let refusal = |reason| {
         precommit_failure(

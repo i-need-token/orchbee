@@ -106,7 +106,7 @@ use target_syntax::{ZERO_IDENTITY, target, valid_typed_id};
 use wait_options::{close_wait, wait_matcher_option, wait_timeout_option};
 use workbench_options::{
     close_generation_option, directory_option, geometry_option, label_option, panel_direction,
-    panel_move_destination, path_option, tab_move_command,
+    panel_move_destination, path_option, project_id_option, tab_move_command,
 };
 pub(crate) use worktree::WorktreeCommand;
 pub(crate) use worktree::WorktreeQueryCommand;
@@ -117,7 +117,7 @@ use orchbee_agent_observation_protocol::{AgentSafeInteger, AgentSessionId};
 use orchbee_workbench_protocol::{
     LaunchOptions, LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchClientId,
     WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
-    WorkbenchRequestId, WorkbenchTabInsertIndex, WorkbenchTabMoveDirection,
+    WorkbenchProjectId, WorkbenchRequestId, WorkbenchTabInsertIndex, WorkbenchTabMoveDirection,
     WorkbenchTerminalGeometry,
 };
 
@@ -452,6 +452,8 @@ pub(crate) enum TerminalSendInput {
 pub(crate) enum MutationCommand {
     ProjectCreate {
         label: WorkbenchLabel,
+        /// `--id`: the identity another Session's Project has, so both name the same Project.
+        project_id: Option<WorkbenchProjectId>,
     },
     ProjectDissolve {
         target: Target,
@@ -978,6 +980,7 @@ struct Options {
     tab: Option<String>,
 
     label: Option<String>,
+    id: Option<String>,
     direction: Option<String>,
     order: Option<String>,
     terminal: Option<String>,

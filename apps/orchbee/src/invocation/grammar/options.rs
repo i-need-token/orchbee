@@ -1201,6 +1201,22 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
+        spelling: "--id",
+        values: &[],
+        closed_values: false,
+        string_rule: None,
+        commands: &[CommandPath::ProjectCreate],
+        role: OptionRole::Business,
+        value: Some("filter"),
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, value, _| {
+            options.id = Some(value);
+            Ok(())
+        },
+    },
+    OptionSpec {
         spelling: "--direction",
         values: super::CARDINAL_DIRECTIONS,
         closed_values: true,

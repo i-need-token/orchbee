@@ -109,15 +109,10 @@ impl SetupKnownCommit {
                 },
             ) => {
                 self.operation.organization_receipt(&self.commit)?;
-                if !navigation.project_order.is_empty() {
-                    navigation.project_order.push(project_id.clone());
-                }
-                navigation
-                    .projects
-                    .push(orchbee_workbench_protocol::Project {
-                        project_id: project_id.clone(),
-                        label: label.as_str().to_owned(),
-                    });
+                navigation.add_project(orchbee_workbench_protocol::Project {
+                    project_id: project_id.clone(),
+                    label: label.as_str().to_owned(),
+                });
                 navigation
                     .workspaces
                     .iter_mut()
@@ -141,22 +136,17 @@ impl SetupKnownCommit {
                 }
             }
             (
-                WorkbenchAction::ProjectCreate { label },
+                WorkbenchAction::ProjectCreate { label, .. },
                 WorkbenchSetupCommit::ProjectCreated { project_id, .. },
             ) => {
                 if navigation.project(project_id).is_some() {
                     return None;
                 }
                 snapshot.navigation.project(project_id)?;
-                if !navigation.project_order.is_empty() {
-                    navigation.project_order.push(project_id.clone());
-                }
-                navigation
-                    .projects
-                    .push(orchbee_workbench_protocol::Project {
-                        project_id: project_id.clone(),
-                        label: label.as_str().to_owned(),
-                    });
+                navigation.add_project(orchbee_workbench_protocol::Project {
+                    project_id: project_id.clone(),
+                    label: label.as_str().to_owned(),
+                });
             }
             (
                 WorkbenchAction::WorkspaceCreate { project_id, label },
@@ -367,15 +357,10 @@ impl SetupKnownCommit {
                 if navigation.project(project_id).is_some() {
                     return None;
                 }
-                if !navigation.project_order.is_empty() {
-                    navigation.project_order.push(project_id.clone());
-                }
-                navigation
-                    .projects
-                    .push(orchbee_workbench_protocol::Project {
-                        project_id: project_id.clone(),
-                        label: label.as_str().to_owned(),
-                    });
+                navigation.add_project(orchbee_workbench_protocol::Project {
+                    project_id: project_id.clone(),
+                    label: label.as_str().to_owned(),
+                });
             }
             navigation.directories.push(directory.clone());
             navigation

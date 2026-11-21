@@ -67,6 +67,7 @@ fn opaque_profile_requests_reject_other_actions_unchanged() {
     for action in [
         WorkbenchAction::ProjectCreate {
             label: workbench_label(),
+            project_id: None,
         },
         WorkbenchAction::TabRename {
             terminal_context_id: context_id(30),
@@ -87,6 +88,7 @@ fn opaque_profile_requests_reject_other_actions_unchanged() {
     for action in [
         WorkbenchAction::ProjectCreate {
             label: workbench_label(),
+            project_id: None,
         },
         WorkbenchAction::LaunchProfileCreate {
             name: LaunchProfileName::parse("x").unwrap(),

@@ -89,6 +89,7 @@ pub(super) fn configure_workspace(
             expected_revision: WorkbenchRevision::new(0),
             action: WorkbenchAction::ProjectCreate {
                 label: WorkbenchLabel::parse("project").unwrap(),
+                project_id: None,
             },
         },
     );

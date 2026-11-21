@@ -10,9 +10,9 @@ not authorize starting beside an unknown or living Session owner. Windows crash 
 the local Session runtime's responsibility. macOS and Linux run the same store and records through the
 [POSIX storage mapping](../README.md#private-storage-on-macos-and-linux), without the process registry.
 
-The bounded Workbench payload, durable catalog and private frame each use their current version 1
-shape. Checkpoint payloads retain shared ratios and optional Project organization with global
-Workspace/Directory identities. Catalog records require the exact PID/creation-FILETIME registry;
+The durable catalog and private frame each use their current version 1 shape; the Server owns the
+bounded Workbench payload's version and its steps. Checkpoint payloads retain shared ratios and
+optional Project organization with global Workspace/Directory identities. Catalog records require the exact PID/creation-FILETIME registry;
 there is no older-activator fence or version-dependent recovery. The
 [persisted data versions](../README.md#persisted-data-versions) rules govern versions: since the
 first automatic-update release a format change adds a migration step that is never removed, while
@@ -51,6 +51,13 @@ Pending bytes are not a committed slot. The one exception comes before loading: 
 file it cannot use from the copy a held version's upgrade backup keeps, so the Session opens as it
 was before the failed version migrated it; a replaced slot is preserved as a corrupt original
 first.
+
+A payload the Server upgrades at load, before it serves anything, goes through
+`SessionStore::publish_upgrade`: every existing slot is first copied byte for byte into this
+product version's upgrade folder at its path relative to the data root, as a writer's opening
+backs up a record, and only then is the upgraded payload published by the transitions below. A
+copy that fails publishes nothing and leaves every slot as it was. Those copies are what a held
+earlier version restores after a fallback, since that version cannot read the upgraded slot.
 
 The newest valid generation wins. Conflicting payloads with the same generation are invalid;
 identical duplicate copies do not invent a different generation. If invalid copies are present,

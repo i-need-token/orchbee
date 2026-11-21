@@ -616,8 +616,15 @@ impl Visitor<'_> for Binary64SafeIntegerVisitor {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase", deny_unknown_fields)]
 pub enum WorkbenchAction {
+    /// `project_id`, a random Project identity, names the Project to create, and one the Session
+    /// already has is answered unchanged. A Client sends it only to a Server whose `client-server`
+    /// handshake answer lists `project-identity`.
     #[serde(rename = "project.create")]
-    ProjectCreate { label: WorkbenchLabel },
+    ProjectCreate {
+        label: WorkbenchLabel,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        project_id: Option<WorkbenchProjectId>,
+    },
     #[serde(rename = "project.rename")]
     ProjectRename {
         project_id: WorkbenchProjectId,
@@ -1679,6 +1686,14 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
     let WorkbenchRequest::Command(command) = request else {
         return Ok(());
     };
+    if let WorkbenchAction::ProjectCreate {
+        project_id: Some(project_id),
+        ..
+    } = &command.action
+        && !project_id.is_random()
+    {
+        return Err(ContractError::InvalidDocument);
+    }
     if let WorkbenchAction::WorkspaceCreate { label, .. }
     | WorkbenchAction::WorkspaceLaunch { label, .. }
     | WorkbenchAction::WorkspaceRename { label, .. } = &command.action

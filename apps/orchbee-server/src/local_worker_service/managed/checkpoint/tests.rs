@@ -192,6 +192,43 @@ fn unsupported_catalog_is_rejected_before_pending_store_cleanup() {
     assert_eq!(fs::read(catalog_path).unwrap(), record);
 }
 
+/// A checkpoint of an earlier format is upgraded before anything reads it: the slot as it stood is
+/// first copied into this version's upgrade folder, where the held version finds it after a
+/// fallback, then the upgrade is published, and the next start reads that unchanged.
+#[test]
+fn an_earlier_checkpoint_is_backed_up_before_its_upgrade_is_published() {
+    let fixture = Fixture::new();
+    let session = fixture.start();
+    let slot = fixture.state(&session).join("checkpoint.json");
+    let original = fs::read(samples().join("checkpoint-v1.bin")).unwrap();
+    write_private(&slot, &original);
+    let (store, upgraded, _record, _) = load_from(&fixture.root(), &session).unwrap();
+    drop(store);
+    let upgraded = upgraded.unwrap();
+    assert!(upgraded.upgrade(&[7; 16]).unwrap().is_none());
+    let folders: Vec<_> = fs::read_dir(fixture.root().backups())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    let [folder] = folders.as_slice() else {
+        panic!("one upgrade folder: {folders:?}")
+    };
+    let relative = slot.strip_prefix(fixture.local()).unwrap();
+    assert_eq!(fs::read(folder.join(relative)).unwrap(), original);
+
+    let (_store, again, _record, _) = load_from(&fixture.root(), &session).unwrap();
+    let worker = WorkerId::parse(&format!("{:032x}", 400)).unwrap();
+    let navigation = |checkpoint: WorkbenchCheckpoint| {
+        checkpoint
+            .reconstruct(SessionId::parse(&format!("{:032x}", 300)).unwrap(), &worker)
+            .unwrap()
+            .snapshot()
+            .navigation
+            .clone()
+    };
+    assert_eq!(navigation(again.unwrap()), navigation(upgraded));
+}
+
 fn samples() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src/local_worker_service/managed/checkpoint/tests/record-samples")

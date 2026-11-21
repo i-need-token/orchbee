@@ -15,7 +15,9 @@ use orchbee_workbench_protocol::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{WorkbenchAuthority, catalog_serialized_size, identity};
+use super::{
+    ProjectIdentities, RANDOM_PROJECT_FLOOR, WorkbenchAuthority, catalog_serialized_size, identity,
+};
 use crate::workbench_projection::WorkbenchProjectionStore;
 
 mod contexts;
@@ -31,6 +33,12 @@ mod restore;
 pub use restore::{PreparedWorkbenchRestoreBinding, WorkbenchRestoreError, WorkbenchRestoreTarget};
 
 pub const MAXIMUM_WORKBENCH_CHECKPOINT_BYTES: usize = 2 * 1024 * 1024;
+
+/// The version every Project identity of which came from the Session's counter, as releases up to
+/// 0.1.0-beta.22 wrote it, and as a Session that could not move off it still writes.
+const COUNTER_PROJECTS: u32 = 1;
+/// The version this build writes: every Project identity is random.
+const VERSION: u32 = 2;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkbenchCheckpointError {
@@ -59,7 +67,7 @@ impl fmt::Display for WorkbenchCheckpointError {
             Self::InvalidDocument => formatter.write_str("invalid Workbench checkpoint document"),
             Self::UnsupportedVersion(version) => write!(
                 formatter,
-                "unsupported Workbench checkpoint version {version}; expected version 1"
+                "unsupported Workbench checkpoint version {version}; expected version {VERSION} or earlier"
             ),
             Self::InvalidProjection(error) => error.fmt(formatter),
             Self::InvalidIdentity => {
@@ -234,11 +242,15 @@ impl WorkbenchAuthority {
             })
             .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
         let last_identity = Counter::parse(&identity(self.last_identity))?;
-        validate_identities(&snapshot, &profiles, last_identity)?;
+        let version = match self.project_identities {
+            ProjectIdentities::Counter => COUNTER_PROJECTS,
+            ProjectIdentities::Random => VERSION,
+        };
+        validate_identities(&snapshot, &profiles, last_identity, version)?;
         let navigation = StoredNavigation::capture(snapshot.navigation, local_worker)?;
         let checkpoint = Checkpoint {
             schema: Schema::Workbench,
-            version: 1,
+            version,
             last_identity,
             navigation,
             terminal_contexts: snapshot
@@ -279,7 +291,7 @@ impl WorkbenchCheckpoint {
         enforce_encoded_limit(encoded)?;
         let checkpoint: Checkpoint = serde_json::from_slice(encoded)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
-        if checkpoint.version != 1 {
+        if !matches!(checkpoint.version, COUNTER_PROJECTS | VERSION) {
             return Err(WorkbenchCheckpointError::UnsupportedVersion(
                 checkpoint.version,
             ));
@@ -303,6 +315,10 @@ impl WorkbenchCheckpoint {
             .map_err(WorkbenchCheckpointError::InvalidProjection)?;
         authority.projection = parts.projection;
         authority.last_identity = self.checkpoint.last_identity.0;
+        authority.project_identities = match self.checkpoint.version {
+            COUNTER_PROJECTS => ProjectIdentities::Counter,
+            _ => ProjectIdentities::Random,
+        };
         authority.catalog = parts.catalog;
         authority.restart_outputs = self
             .checkpoint
@@ -323,6 +339,29 @@ impl WorkbenchCheckpoint {
 }
 
 impl WorkbenchCheckpoint {
+    /// The checkpoint step from version 1 to 2: a checkpoint whose Project identities came from the
+    /// Session's counter gives every Project a random one, which the Project order and each member
+    /// Workspace follow, and comes back with the payload to publish. `None` for a current one. The
+    /// caller draws `seed` from operating-system randomness, so the identities differ from every
+    /// other Session's. The result passes this build's parser; nothing is written here.
+    pub fn upgrade(
+        &self,
+        seed: &[u8],
+    ) -> Result<Option<(Self, Vec<u8>)>, WorkbenchCheckpointError> {
+        if self.checkpoint.version == VERSION {
+            return Ok(None);
+        }
+        let current = serde_json::to_vec(&self.checkpoint)
+            .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
+        let mut next: Checkpoint = serde_json::from_slice(&current)
+            .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
+        next.navigation.give_projects_random_identities(seed)?;
+        next.version = VERSION;
+        let encoded = serde_json::to_vec(&next)
+            .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
+        Ok(Some((Self::parse(&encoded)?, encoded)))
+    }
+
     /// The Session's saved Recent list, newest first; empty when the checkpoint has none.
     #[must_use]
     pub fn recent_agents(&self) -> &[AgentStartSelector] {
@@ -395,6 +434,7 @@ fn checkpoint_parts(
         projection.snapshot(),
         &checkpoint.profiles,
         checkpoint.last_identity,
+        checkpoint.version,
     )?;
     directories::validate(&checkpoint.terminal_directories, projection.snapshot())?;
     let agent_sessions = agent_sessions::validate(
@@ -502,6 +542,15 @@ impl Identities {
         Ok(())
     }
 
+    /// A random Project identity: in the range the counter never reaches, and unique.
+    fn random(&mut self, value: &str) -> Result<(), WorkbenchCheckpointError> {
+        let value = Counter::parse(value)?;
+        if value.0 < RANDOM_PROJECT_FLOOR || !self.seen.insert(value.0) {
+            return Err(WorkbenchCheckpointError::InvalidIdentity);
+        }
+        Ok(())
+    }
+
     fn presentation(
         &mut self,
         presentation: &Presentation,
@@ -540,17 +589,27 @@ impl Identities {
     }
 }
 
+/// Every identity is unique. Version 1 allocates every one from the counter, no later than
+/// `last_identity`; version 2 takes every Project's at random instead, above the counter's range.
 fn validate_identities(
     snapshot: &Snapshot,
     profiles: &[StoredProfile],
     last_identity: Counter,
+    version: u32,
 ) -> Result<(), WorkbenchCheckpointError> {
+    if last_identity.0 >= RANDOM_PROJECT_FLOOR {
+        return Err(WorkbenchCheckpointError::InvalidIdentity);
+    }
     let mut ids = Identities {
         maximum: last_identity,
         seen: BTreeSet::new(),
     };
     for project in &snapshot.navigation.projects {
-        ids.insert(project.project_id.as_str())?;
+        let project_id = project.project_id.as_str();
+        match version {
+            COUNTER_PROJECTS => ids.insert(project_id)?,
+            _ => ids.random(project_id)?,
+        }
     }
     for directory in &snapshot.navigation.directories {
         ids.insert(directory.directory_id.as_str())?;

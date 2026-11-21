@@ -187,7 +187,15 @@ parser. TypeScript validates decoded values; its transport must reject duplicate
 project.create, project.rename, workspace.create, workspace.rename,
 workspace.primary-directory.accept, tab.rename, tab.create, panel.split, tab.move, tabs.configure, tab.close,
 panel.close or panel.move. Labels retain exact text,
-including whitespace, within the existing label bound. New product identities are Server-owned.
+including whitespace, within the existing label bound. New product identities are Server-owned,
+except that `project.create` may carry the `projectId` another Session's Project has, so both
+Sessions name the same Project: only a random-form identity (first digit `8` to `f`), sent only to
+a Server whose `client-server` handshake answer lists `project-identity`, and answered `unchanged`
+when the Session already has it. Its cases live in the
+[Project identity corpus](v1/workbench-command-project-identity-conformance-v1.json), which both
+command bindings check, so the sealed command corpus keeps its bytes; the
+[checkpoint owner](../../apps/orchbee-server/docs/workbench-checkpoint.md#project-identities) owns
+how a Session draws Project identities.
 `workbench.command.result` correlates project-created, workspace-created,
 workspace-primary-directory-accepted, renamed, unchanged,
 tab-create-pending, tab-created, panel-split-pending, panel-split-created, tab-moved, tabs-configured,

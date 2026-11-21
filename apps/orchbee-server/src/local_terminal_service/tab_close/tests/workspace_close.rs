@@ -50,6 +50,7 @@ fn workspace(service: &LocalTerminalService) -> WorkbenchTerminalContextId {
             2000,
             WorkbenchAction::ProjectCreate {
                 label: WorkbenchLabel::parse("project").unwrap(),
+                project_id: None,
             },
         ),
     );

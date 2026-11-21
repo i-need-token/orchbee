@@ -96,6 +96,9 @@ pub(crate) enum ExpectedValue {
     /// The `--directory` worktree-list selector: a nonzero 32-character
     /// lowercase hexadecimal Workbench directory ID.
     DirectoryId,
+    /// The `project create --id` value: a complete Project ID in the random form, first digit
+    /// 8 to f.
+    ProjectId,
     MatchText,
     /// The `terminal wait-output --regex` operand: a nonempty UTF-8 pattern
     /// of at most 1024 bytes that compiles inside the declared budgets.

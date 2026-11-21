@@ -301,6 +301,10 @@ impl super::CliText {
                 "a nonzero 32-character lowercase hexadecimal directory ID"
             }
             (Locale::ZhCn, ExpectedValue::DirectoryId) => "非零的 32 位小写十六进制目录 ID",
+            (Locale::EnUs, ExpectedValue::ProjectId) => {
+                "a 32-character lowercase hexadecimal Project ID whose first digit is 8 to f"
+            }
+            (Locale::ZhCn, ExpectedValue::ProjectId) => "首位为 8 到 f 的 32 位小写十六进制项目 ID",
             (Locale::EnUs, ExpectedValue::CloseGeneration) => {
                 "a nonzero decimal attempt generation without a leading zero"
             }

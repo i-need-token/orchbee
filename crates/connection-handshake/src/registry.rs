@@ -62,6 +62,12 @@ pub const TERMINAL_LIMIT_REACHED: &str = "terminal-limit-reached";
 /// `confirmation-decline` Panel Agent actions. A Client without it shows nothing about them.
 pub const AGENT_CONFIRMATION: &str = "agent-confirmation";
 
+/// The `client-server` capability that marks a Server giving every new Project a random identity,
+/// unique across machines, and taking one a Client names in `project.create`'s `projectId`. A
+/// Client sends `projectId` only to a Server that lists it, and joins Projects of different Sessions
+/// only by a random identity, which no Server without it allocates.
+pub const PROJECT_IDENTITY: &str = "project-identity";
+
 /// The `worker-host` capability before a Worker may ask a Host to attach a Keeper and hold its
 /// terminals' handles there. No build offers it before the Worker uses the Keeper.
 pub const KEEPER: &str = "keeper";
@@ -145,6 +151,7 @@ impl ConnectionKind {
                 AGENT_INPUT_AREA,
                 COMPATIBILITY_WINDOW,
                 CONFIGURED_COMMAND_SOURCE_EXITED,
+                PROJECT_IDENTITY,
                 PROMPT_GATED_INPUT,
                 STREAM_OUTCOME_UNKNOWN,
                 TERMINAL_LIMIT_REACHED,

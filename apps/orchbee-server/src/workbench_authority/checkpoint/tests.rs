@@ -31,6 +31,11 @@ fn admission_validates_the_complete_graph_before_runtime_reconstruction() {
     ));
 }
 
+/// A random Project identity, the form this build gives every Project.
+fn project(value: u128) -> String {
+    identity(RANDOM_PROJECT_FLOOR | value)
+}
+
 fn session(value: u128) -> SessionId {
     SessionId::parse(&identity(value)).unwrap()
 }
@@ -53,9 +58,9 @@ fn graph(session_id: SessionId, owner: &WorkerId, bound: bool, revision: u64) ->
         "kind": "workbench.snapshot", "protocolVersion": 1,
         "sessionId": session_id, "revision": revision.to_string(),
         "navigation": {
-            "projects": [{"projectId": identity(2), "label": "项目"}],
+            "projects": [{"projectId": project(2), "label": "项目"}],
             "directories": [{"directoryId": identity(3), "workerId": owner, "path": "C:\\work space\\项目"}],
-            "workspaces": [{"workspaceId": identity(4), "projectId": identity(2), "label": "workspace", "primaryDirectoryId": identity(3), "terminalContextId": identity(5)}],
+            "workspaces": [{"workspaceId": identity(4), "projectId": project(2), "label": "workspace", "primaryDirectoryId": identity(3), "terminalContextId": identity(5)}],
             "workspaceOrder": [identity(4)]
         },
         "terminalContexts": [
@@ -231,23 +236,26 @@ fn preserves_deleted_identity_high_water_and_rejects_exhaustion() {
     let mut restored = restore(&checkpoint()).unwrap();
     let outcome = command(
         &mut restored,
-        WorkbenchAction::ProjectCreate {
-            label: WorkbenchLabel::parse("new project").unwrap(),
+        WorkbenchAction::WorkspaceCreate {
+            label: WorkbenchLabel::parse("new workspace").unwrap(),
+            project_id: None,
         },
     );
-    let WorkbenchCommandOutcome::ProjectCreated { project_id, .. } = outcome else {
-        panic!("expected project creation");
+    let WorkbenchCommandOutcome::WorkspaceCreated { workspace_id, .. } = outcome else {
+        panic!("expected Workspace creation");
     };
-    assert_eq!(project_id.as_str(), identity(41));
+    assert_eq!(workspace_id.as_str(), identity(41));
+    // The counter ends below the random Project range.
     let mut exhausted = restore(&changed(|value| {
-        value["lastIdentity"] = json!(identity(u128::MAX))
+        value["lastIdentity"] = json!(identity(RANDOM_PROJECT_FLOOR - 1))
     }))
     .unwrap();
     assert!(matches!(
         command(
             &mut exhausted,
-            WorkbenchAction::ProjectCreate {
+            WorkbenchAction::WorkspaceCreate {
                 label: WorkbenchLabel::parse("cannot allocate").unwrap(),
+                project_id: None,
             }
         ),
         WorkbenchCommandOutcome::Rejected {
@@ -313,6 +321,7 @@ fn restores_actual_committed_membership_with_new_grants_and_an_empty_journal() {
         &mut source,
         WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("retained project").unwrap(),
+            project_id: None,
         },
     );
     let mut restored = restore(&source.checkpoint(&worker(200)).unwrap()).unwrap();
@@ -357,6 +366,7 @@ fn restores_actual_committed_membership_with_new_grants_and_an_empty_journal() {
         expected_revision: WorkbenchRevision::new(0),
         action: WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("stale grant").unwrap(),
+            project_id: None,
         },
     });
     let response = restored.execute(
@@ -376,6 +386,7 @@ fn restores_actual_committed_membership_with_new_grants_and_an_empty_journal() {
             &mut restored,
             WorkbenchAction::ProjectCreate {
                 label: WorkbenchLabel::parse("fresh grant").unwrap(),
+                project_id: None,
             }
         ),
         WorkbenchCommandOutcome::ProjectCreated { .. }
@@ -473,7 +484,10 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
     );
     let encoded = String::from_utf8(checkpoint()).unwrap();
     for (needle, replacement) in [
-        ("\"version\":1", "\"version\":1,\"version\":1"),
+        (
+            "\"schema\":\"orchbee.workbench.checkpoint\"",
+            "\"schema\":\"orchbee.workbench.checkpoint\",\"schema\":\"orchbee.workbench.checkpoint\"",
+        ),
         ("\"binding\":null", "\"binding\":null,\"binding\":null"),
         (
             "\"name\":\"same name\"",
@@ -571,7 +585,7 @@ fn refuses_invalid_membership_paths_launches_and_allocation_counters() {
         ("/terminalContexts/0/tabs/0/groupId", json!(identity(900))),
         (
             "/terminalContexts/0/tabs/0/root/children/0/node/panelId",
-            json!(identity(2)),
+            json!(identity(3)),
         ),
         ("/profiles/0/counter", json!(identity(3))),
         ("/profiles/1/counter", json!(identity(30))),
@@ -581,6 +595,7 @@ fn refuses_invalid_membership_paths_launches_and_allocation_counters() {
         ("/lastIdentity", json!(identity(15))),
         ("/lastIdentity", json!(identity(0))),
         ("/lastIdentity", json!("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")),
+        ("/lastIdentity", json!(identity(RANDOM_PROJECT_FLOOR))),
         ("/lastIdentity", json!(40)),
     ] {
         let encoded = changed(|document| *document.pointer_mut(path).unwrap() = value);

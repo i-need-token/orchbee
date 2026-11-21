@@ -148,6 +148,7 @@ fn asynchronous_worktree_completion_uses_the_sources_current_project_and_regroup
         200,
         WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("current grouping").unwrap(),
+            project_id: None,
         },
     )
     else {

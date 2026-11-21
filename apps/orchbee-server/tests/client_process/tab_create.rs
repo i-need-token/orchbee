@@ -597,6 +597,7 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
         &committed,
         WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("While tab Launch is parked")?,
+            project_id: None,
         },
     );
     let project = exchange_command(

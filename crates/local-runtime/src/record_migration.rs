@@ -22,9 +22,9 @@ use std::{
 
 mod backup;
 pub use backup::inspect_records;
-pub(crate) use backup::persist_migration;
 #[cfg(test)]
 pub(crate) use backup::{KEPT_UPGRADE_FOLDERS, upgrade_folder};
+pub(crate) use backup::{back_up, persist_migration};
 
 /// A record whose format carries a top-level integer `version`. Checkpoint slots, the restore
 /// notice and kept terminal output carry theirs in their frame header instead.

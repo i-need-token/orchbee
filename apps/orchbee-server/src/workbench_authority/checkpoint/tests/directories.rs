@@ -16,7 +16,7 @@ fn checkpoint_requires_strict_directory_rows() {
                     v.as_object_mut().unwrap().remove("terminalDirectories");
                 }
                 1 => v["terminalDirectories"] = Value::Null,
-                2 => v["version"] = json!(2),
+                2 => v["version"] = json!(3),
                 3 => {
                     let row = v["terminalDirectories"][0].clone();
                     v["terminalDirectories"].as_array_mut().unwrap().push(row);

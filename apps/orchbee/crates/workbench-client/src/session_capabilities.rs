@@ -5,8 +5,8 @@
 
 use orchbee_connection_handshake::{
     AGENT_CONFIRMATION, AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CONFIGURED_COMMAND_SOURCE_EXITED,
-    CapabilitySet, PROMPT_GATED_INPUT, STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED,
-    TERMINAL_RUNTIME, UPDATE_CHECK,
+    CapabilitySet, PROJECT_IDENTITY, PROMPT_GATED_INPUT, STREAM_OUTCOME_UNKNOWN,
+    TERMINAL_LIMIT_REACHED, TERMINAL_RUNTIME, UPDATE_CHECK,
 };
 
 /// A TUI action that only a Session listing a certain capability can serve.
@@ -31,6 +31,9 @@ const NEEDED_BY: &[(&str, &[SessionAction])] = &[
     // The Server reads it itself: without it, a command from an exited Panel is refused as
     // unavailable instead of naming the exited terminal.
     (CONFIGURED_COMMAND_SOURCE_EXITED, &[]),
+    // Only a random Project identity joins Projects of different Sessions, and a Session without
+    // it allocates none; the TUI names no Project identity of its own.
+    (PROJECT_IDENTITY, &[]),
     (PROMPT_GATED_INPUT, &[SessionAction::StartInThisPanel]),
     // The connection reads it itself: without it, an intent that fails after it ran ends the
     // connection instead of closing its own stream as unknown.

@@ -125,6 +125,7 @@ describe('Workbench command contract', () => {
 			commandText,
 			corpusText,
 			terminalLimitCorpusText,
+			projectIdentityCorpusText,
 			clientViewText,
 			graphicsText,
 		] = await Promise.all([
@@ -155,6 +156,13 @@ describe('Workbench command contract', () => {
 			),
 			readFile(
 				new URL(
+					'../../../../../schemas/workbench/v1/workbench-command-project-identity-conformance-v1.json',
+					import.meta.url,
+				),
+				'utf8',
+			),
+			readFile(
+				new URL(
 					'../../../../../schemas/workbench/v1/workbench-client-view.schema.json',
 					import.meta.url,
 				),
@@ -169,7 +177,7 @@ describe('Workbench command contract', () => {
 			),
 		]);
 		// A capability's cases live in a corpus of their own, so the sealed one keeps its bytes.
-		const corpora = [corpusText, terminalLimitCorpusText].map((text) =>
+		const corpora = [corpusText, terminalLimitCorpusText, projectIdentityCorpusText].map((text) =>
 			corpusSchema.parse(JSON.parse(text)),
 		);
 		const corpus = {

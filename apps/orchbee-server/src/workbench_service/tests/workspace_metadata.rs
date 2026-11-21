@@ -71,6 +71,7 @@ fn workspace_metadata_grants_are_independent_and_reports_do_not_mutate_topology(
         1,
         WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("reports").unwrap(),
+            project_id: None,
         },
     ) else {
         panic!("project")

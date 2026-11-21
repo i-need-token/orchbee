@@ -172,6 +172,32 @@ impl SessionStore {
         Ok(())
     }
 
+    /// Publishes a checkpoint in a newer format as the persisted data versions rules persist a
+    /// migration: each slot file is first copied as it stands into this version's upgrade folder,
+    /// where the held version finds it after a fallback, and only then is `payload` published. A
+    /// failure leaves every slot as it was.
+    pub fn publish_upgrade(
+        &mut self,
+        root: &DataRoot,
+        payload: &[u8],
+        validate: impl FnMut(&[u8]) -> bool,
+    ) -> io::Result<()> {
+        self.held()?;
+        for name in SLOTS {
+            let path = self.directory.join(name);
+            let file = match permissions::open_snapshot_file(&path) {
+                Ok(file) => file,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error),
+            };
+            let mut original = Vec::new();
+            file.take((self.maximum_bytes + HEADER_BYTES + 1) as u64)
+                .read_to_end(&mut original)?;
+            crate::record_migration::back_up(root, &path, &original)?;
+        }
+        self.publish_validated(payload, validate)
+    }
+
     fn read_slots(&self) -> io::Result<([Candidate; 3], [Option<File>; 3])> {
         let mut candidates = std::array::from_fn(|_| Candidate::Missing);
         let mut pins = std::array::from_fn(|_| None);

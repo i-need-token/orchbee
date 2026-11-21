@@ -147,7 +147,10 @@ fn run(steps: &[Step]) -> Result<(), String> {
         );
         let label = |number| WorkbenchLabel::parse(&format!("label-{number}")).unwrap();
         let action = match step {
-            Step::CreateProject(n) => WorkbenchAction::ProjectCreate { label: label(n) },
+            Step::CreateProject(n) => WorkbenchAction::ProjectCreate {
+                label: label(n),
+                project_id: None,
+            },
             Step::CreateWorkspace(n) => WorkbenchAction::WorkspaceCreate {
                 project_id: Some(project),
                 label: label(n),
@@ -252,7 +255,7 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 "changed revision is not exactly next",
             )?;
             match &request.action {
-                WorkbenchAction::ProjectCreate { label } => {
+                WorkbenchAction::ProjectCreate { label, .. } => {
                     require(
                         after.navigation.projects.len() == before.navigation.projects.len() + 1
                             && after.terminal_contexts == before.terminal_contexts,

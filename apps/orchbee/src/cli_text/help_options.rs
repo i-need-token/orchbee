@@ -416,6 +416,11 @@ impl super::CliText {
                     "Popup height; applies only to popup placement.",
                     "弹出窗口高度；仅适用于 popup 布局。",
                 ),
+                "--id" => (
+                    "<id>",
+                    "The ID another Session's Project has, so both name the same Project; when this Session has it already, nothing changes.",
+                    "另一个会话中该项目的 ID，使两边指同一个项目；本会话已有此 ID 时不做任何更改。",
+                ),
                 "--include-ended" => (
                     "",
                     "Include ended Agent sessions.",

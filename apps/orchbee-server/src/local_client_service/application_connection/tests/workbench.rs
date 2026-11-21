@@ -86,6 +86,7 @@ fn a_stalled_large_snapshot_writer_releases_the_gate_before_another_connection_r
     let mut revision = 0;
     let label = "\u{1f41d}".repeat(512);
     let mut project: Option<orchbee_workbench_protocol::WorkbenchProjectId> = None;
+    let mut first_project = None;
     for id in 1_u128..=1024 {
         let action = if let Some(project_id) = &project {
             WorkbenchAction::WorkspaceCreate {
@@ -95,6 +96,7 @@ fn a_stalled_large_snapshot_writer_releases_the_gate_before_another_connection_r
         } else {
             WorkbenchAction::ProjectCreate {
                 label: WorkbenchLabel::parse(&label).unwrap(),
+                project_id: None,
             }
         };
         let command = command(id, &snapshot.session_id, revision, action);
@@ -103,6 +105,7 @@ fn a_stalled_large_snapshot_writer_releases_the_gate_before_another_connection_r
         };
         match result.outcome {
             WorkbenchCommandOutcome::ProjectCreated { project_id, .. } => {
+                first_project.get_or_insert_with(|| project_id.clone());
                 project = Some(project_id);
                 revision += 1;
             }
@@ -142,10 +145,7 @@ fn a_stalled_large_snapshot_writer_releases_the_gate_before_another_connection_r
     let active = thread::spawn(move || {
         let read = response(active_service.execute(request));
         let rename = WorkbenchAction::ProjectRename {
-            project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(
-                "00000000000000000000000000000002",
-            )
-            .unwrap(),
+            project_id: first_project.unwrap(),
             label: WorkbenchLabel::parse("Shortened").unwrap(),
         };
         let changed = response(active_service.execute(command(

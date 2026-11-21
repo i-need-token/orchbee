@@ -146,6 +146,7 @@ fn close_uses_independent_grants_and_authority_preconditions_without_host_work()
         expected_revision: before.revision,
         action: WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("Still usable").unwrap(),
+            project_id: None,
         },
     };
     assert!(matches!(

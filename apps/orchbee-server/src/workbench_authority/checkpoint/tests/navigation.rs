@@ -11,6 +11,7 @@ fn project_order_round_trips_and_is_required() {
         &mut owner,
         WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("Second").unwrap(),
+            project_id: None,
         },
     )
     else {
@@ -30,7 +31,6 @@ fn project_order_round_trips_and_is_required() {
     ));
     let bytes = owner.checkpoint(&worker(200)).unwrap();
     let value: Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(value["version"], 1);
     assert_eq!(value["navigation"]["projectOrder"], json!([second, first]));
     let restored = restore(&bytes).unwrap();
     assert_eq!(
@@ -125,7 +125,7 @@ fn current_checkpoint_preserves_nullable_organization_and_shared_directories_aft
     source["navigation"]["projects"]
         .as_array_mut()
         .unwrap()
-        .push(json!({"projectId": identity(25), "label": "retained group"}));
+        .push(json!({"projectId": project(25), "label": "retained group"}));
     source["navigation"]["directories"]
         .as_array_mut()
         .unwrap()
@@ -136,7 +136,7 @@ fn current_checkpoint_preserves_nullable_organization_and_shared_directories_aft
         .as_array_mut()
         .unwrap()
         .push(json!({
-            "workspaceId": identity(24), "projectId": identity(25), "label": "shared directory",
+            "workspaceId": identity(24), "projectId": project(25), "label": "shared directory",
             "primaryDirectoryId": identity(3), "terminalContextId": identity(28)
         }));
     source["navigation"]["workspaceOrder"] = json!([identity(24), identity(4)]);
@@ -161,7 +161,6 @@ fn current_checkpoint_preserves_nullable_organization_and_shared_directories_aft
     ));
     let bytes = owner.checkpoint(&worker(200)).unwrap();
     let value: Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(value["version"], 1);
     assert!(
         value["navigation"]["workspaces"][0]
             .get("projectId")
@@ -171,12 +170,12 @@ fn current_checkpoint_preserves_nullable_organization_and_shared_directories_aft
     assert_eq!(
         value["navigation"]["projects"],
         json!([
-            {"projectId": identity(25), "label": "retained group"}
+            {"projectId": super::project(25), "label": "retained group"}
         ])
     );
     assert_eq!(
         value["navigation"]["workspaces"][1]["projectId"],
-        json!(identity(25))
+        json!(super::project(25))
     );
     assert_eq!(
         value["navigation"]["directories"].as_array().unwrap().len(),
@@ -205,4 +204,66 @@ fn current_checkpoint_preserves_nullable_organization_and_shared_directories_aft
         "C:\\work space\\项目"
     );
     assert_eq!(restarted.checkpoint(&worker(400)).unwrap(), bytes);
+}
+
+/// The step from version 1 gives every Project a random identity rising in the registry's order,
+/// takes the Project order and membership along, and leaves a current checkpoint alone. A Session
+/// still on version 1 keeps counter identities and takes no named one.
+#[test]
+fn a_counter_checkpoint_moves_to_random_project_identities_in_the_same_order() {
+    let counter = changed(|value| {
+        value["version"] = json!(1);
+        value["navigation"]["projects"] = json!([
+            {"projectId": identity(2), "label": "项目"},
+            {"projectId": identity(35), "label": "second"}
+        ]);
+        value["navigation"]["projectOrder"] = json!([identity(35), identity(2)]);
+        value["navigation"]["workspaces"][0]["projectId"] = json!(identity(2));
+    });
+    let admitted = WorkbenchCheckpoint::parse(&counter).unwrap();
+    let mut mixed: Value = serde_json::from_slice(&counter).unwrap();
+    mixed["version"] = json!(2);
+    assert!(WorkbenchCheckpoint::parse(&serde_json::to_vec(&mixed).unwrap()).is_err());
+    let named = |project_id: &str| WorkbenchAction::ProjectCreate {
+        label: WorkbenchLabel::parse("named").unwrap(),
+        project_id: Some(
+            orchbee_workbench_protocol::WorkbenchProjectId::parse(project_id).unwrap(),
+        ),
+    };
+    let (upgraded, encoded) = admitted.upgrade(&[7; 16]).unwrap().unwrap();
+    let mut before = admitted.reconstruct(session(300), &worker(400)).unwrap();
+    assert_eq!(
+        command(&mut before, named(&project(7))),
+        WorkbenchCommandOutcome::Unavailable {
+            reason:
+                orchbee_workbench_protocol::WorkbenchCommandUnavailableReason::ServiceUnavailable
+        }
+    );
+
+    assert!(upgraded.upgrade(&[7; 16]).unwrap().is_none());
+    let value: Value = serde_json::from_slice(&encoded).unwrap();
+    assert_eq!(value["version"], json!(2));
+    let projects = value["navigation"]["projects"].as_array().unwrap();
+    let labels: Vec<_> = projects.iter().map(|project| &project["label"]).collect();
+    assert_eq!(labels, [&json!("项目"), &json!("second")]);
+    let ids: Vec<_> = projects
+        .iter()
+        .map(|project| project["projectId"].as_str().unwrap().to_owned())
+        .collect();
+    assert!(ids[0] < ids[1]);
+    assert!(ids.iter().all(|id| {
+        orchbee_workbench_protocol::WorkbenchProjectId::parse(id)
+            .unwrap()
+            .is_random()
+    }));
+    assert_eq!(value["navigation"]["projectOrder"], json!([ids[1], ids[0]]));
+    assert_eq!(
+        value["navigation"]["workspaces"][0]["projectId"],
+        json!(ids[0])
+    );
+    let mut after = upgraded.reconstruct(session(300), &worker(400)).unwrap();
+    assert!(matches!(
+        command(&mut after, named(&ids[1])),
+        WorkbenchCommandOutcome::Unchanged { .. }
+    ));
 }

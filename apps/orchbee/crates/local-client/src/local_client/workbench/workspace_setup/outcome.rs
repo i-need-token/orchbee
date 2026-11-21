@@ -129,14 +129,31 @@ pub(super) fn classify_outcome(
             ));
         }
         (
-            WorkbenchAction::ProjectCreate { .. },
+            WorkbenchAction::ProjectCreate {
+                project_id: named, ..
+            },
             WorkbenchCommandOutcome::ProjectCreated {
                 revision,
                 project_id,
             },
+        ) if named.as_ref().is_none_or(|named| *named == project_id) => {
+            WorkbenchSetupCommit::ProjectCreated {
+                revision,
+                project_id,
+                unchanged: false,
+            }
+        }
+        // The Session already has the Project the command names.
+        (
+            WorkbenchAction::ProjectCreate {
+                project_id: Some(project_id),
+                ..
+            },
+            WorkbenchCommandOutcome::Unchanged { revision },
         ) => WorkbenchSetupCommit::ProjectCreated {
             revision,
-            project_id,
+            project_id: project_id.clone(),
+            unchanged: true,
         },
         (
             WorkbenchAction::WorkspaceCreate { .. },
@@ -223,6 +240,9 @@ pub(super) fn classify_outcome(
             workspace_order: None,
             ..
         } | WorkbenchSetupCommit::ProjectRenamed {
+            unchanged: true,
+            ..
+        } | WorkbenchSetupCommit::ProjectCreated {
             unchanged: true,
             ..
         } | WorkbenchSetupCommit::WorkspaceRenamed {

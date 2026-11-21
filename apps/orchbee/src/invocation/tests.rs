@@ -1663,6 +1663,7 @@ fn accepts_every_mutation_path() {
             &["project", "create", "--label", "api"],
             MutationCommand::ProjectCreate {
                 label: label("api"),
+                project_id: None,
             },
         ),
         (

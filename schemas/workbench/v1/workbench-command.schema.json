@@ -80,6 +80,11 @@
 						},
 						"label": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+						},
+						"projectId": {
+							"type": "string",
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId",
+							"pattern": "^[89a-f]"
 						}
 					},
 					"required": ["kind", "label"],

@@ -13,6 +13,7 @@ fn setup_command(kind: usize, baseline: u64) -> WorkbenchCommand {
     let action = match kind {
         0 => WorkbenchAction::ProjectCreate {
             label: workbench_label(),
+            project_id: None,
         },
         1 => WorkbenchAction::WorkspaceCreate {
             project_id: Some(project_id),
@@ -125,6 +126,7 @@ fn setup_commits_retain_exact_created_identities() -> TestResult {
             0 => WorkbenchSetupCommit::ProjectCreated {
                 revision: WorkbenchRevision::new(8),
                 project_id: WorkbenchProjectId::parse(&id(41))?,
+                unchanged: false,
             },
             1 => WorkbenchSetupCommit::WorkspaceCreated {
                 revision: WorkbenchRevision::new(8),

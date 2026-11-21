@@ -1,9 +1,10 @@
 //! Project membership decisions at the existing canonical navigation commit boundary.
 pub(super) mod idle_dissolve;
-use super::{PlanFailure, WorkbenchAuthority, allocate, identity};
+use super::{PlanFailure, ProjectIdentities, WorkbenchAuthority, new_project_identity};
 use orchbee_workbench_protocol::{
-    MAXIMUM_PROJECTS, MAXIMUM_WORKSPACES_PER_PROJECT, Navigation, Project, WorkbenchLabel,
-    WorkbenchProjectId, WorkbenchRejectionReason, WorkbenchWorkspaceId, WorkspacePlacement,
+    MAXIMUM_PROJECTS, MAXIMUM_WORKSPACES_PER_PROJECT, Navigation, Project, SessionId,
+    WorkbenchLabel, WorkbenchProjectId, WorkbenchRejectionReason, WorkbenchWorkspaceId,
+    WorkspacePlacement,
 };
 
 /// New writes materialize display order even when an older snapshot used implicit order.
@@ -28,6 +29,7 @@ pub(super) enum PreparedPlacement {
     Create {
         label: WorkbenchLabel,
         source: Option<WorkbenchWorkspaceId>,
+        identities: ProjectIdentities,
     },
 }
 
@@ -41,17 +43,18 @@ impl PreparedPlacement {
         self,
         navigation: &mut Navigation,
         last_identity: &mut u128,
+        session_id: &SessionId,
     ) -> Result<Option<WorkbenchProjectId>, PlanFailure> {
         match self {
             Self::Existing(project_id) => Ok(project_id),
-            Self::Create { label, source } => {
-                *last_identity = allocate(*last_identity, 1)?;
-                let project_id = WorkbenchProjectId::parse(&identity(*last_identity))
-                    .map_err(|_| PlanFailure::Internal)?;
-                if !navigation.project_order.is_empty() {
-                    navigation.project_order.push(project_id.clone());
-                }
-                navigation.projects.push(Project {
+            Self::Create {
+                label,
+                source,
+                identities,
+            } => {
+                let project_id =
+                    new_project_identity(identities, navigation, last_identity, session_id)?;
+                navigation.add_project(Project {
                     project_id: project_id.clone(),
                     label: label.as_str().to_owned(),
                 });
@@ -115,6 +118,7 @@ impl WorkbenchAuthority {
             WorkspacePlacement::NewProject { label } => PreparedPlacement::Create {
                 label: label.clone(),
                 source: None,
+                identities: self.project_identities,
             },
             WorkspacePlacement::Alongside {
                 workspace_id,
@@ -137,6 +141,7 @@ impl WorkbenchAuthority {
                     PreparedPlacement::Create {
                         label: project_label.clone(),
                         source: Some(workspace_id.clone()),
+                        identities: self.project_identities,
                     }
                 }
             }

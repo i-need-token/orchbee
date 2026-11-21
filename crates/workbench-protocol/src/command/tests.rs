@@ -54,6 +54,10 @@ fn command_contract_matches_the_shared_corpus() {
             env!("CARGO_MANIFEST_DIR"),
             "/../../schemas/workbench/v1/workbench-command-terminal-limit-reached-conformance-v1.json"
         )),
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../schemas/workbench/v1/workbench-command-project-identity-conformance-v1.json"
+        )),
     ] {
         command_corpus_holds(serde_json::from_str(corpus).unwrap());
     }

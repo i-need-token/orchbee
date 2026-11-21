@@ -6,6 +6,8 @@
 mod layout_create;
 use std::collections::BTreeMap;
 
+use sha2::{Digest, Sha256};
+
 use orchbee_workbench_protocol::{
     ContractError, Directory, LaunchProfileCatalogOutcome, LaunchProfileCatalogRevision,
     LaunchProfileEntry, LaunchProfileId, LaunchProfileSelector,
@@ -300,6 +302,7 @@ impl RetainedRequest {
 pub struct WorkbenchAuthority {
     projection: WorkbenchProjectionStore,
     last_identity: u128,
+    project_identities: ProjectIdentities,
     ledger: BTreeMap<WorkbenchRequestId, RetainedRequest>,
     ledger_bytes: usize,
     /// The per-Session ephemeral Launch Profile catalog: private Server state
@@ -353,6 +356,7 @@ impl WorkbenchAuthority {
         Ok(Self {
             projection: WorkbenchProjectionStore::load(&encoded)?,
             last_identity: 1,
+            project_identities: ProjectIdentities::Random,
             ledger: BTreeMap::new(),
             ledger_bytes: 0,
             catalog: Vec::new(),
@@ -795,18 +799,33 @@ impl WorkbenchAuthority {
                         tab_id,
                     }
                 }
-                PureWorkbenchAction::ProjectCreate { label } => {
+                PureWorkbenchAction::ProjectCreate { label, project_id } => {
+                    if let Some(named) = &project_id {
+                        // A Session still on counter identities takes no named one, which
+                        // would leave it with both forms.
+                        if self.project_identities == ProjectIdentities::Counter {
+                            return Ok(self.settled(unavailable(
+                                WorkbenchCommandUnavailableReason::ServiceUnavailable,
+                            )));
+                        }
+                        if candidate.navigation.project(named).is_some() {
+                            return Ok(self.unchanged());
+                        }
+                    }
                     if candidate.navigation.projects.len() >= MAXIMUM_PROJECTS {
                         return reject(WorkbenchRejectionReason::ResourceLimit);
                     }
-                    last_identity = allocate(last_identity, 1)?;
-                    let project_id = WorkbenchProjectId::parse(&identity(last_identity))
-                        .map_err(|_error| PlanFailure::Internal)?;
+                    let project_id = match project_id {
+                        Some(project_id) => project_id,
+                        None => new_project_identity(
+                            self.project_identities,
+                            &candidate.navigation,
+                            &mut last_identity,
+                            &candidate.session_id,
+                        )?,
+                    };
                     let revision = self.next_revision()?;
-                    if !candidate.navigation.project_order.is_empty() {
-                        candidate.navigation.project_order.push(project_id.clone());
-                    }
-                    candidate.navigation.projects.push(Project {
+                    candidate.navigation.add_project(Project {
                         project_id: project_id.clone(),
                         label: label.as_str().to_owned(),
                     });
@@ -945,8 +964,13 @@ impl WorkbenchAuthority {
                     let project_id = workspace_organization::PreparedPlacement::Create {
                         label,
                         source: Some(workspace_id.clone()),
+                        identities: self.project_identities,
                     }
-                    .apply(&mut candidate.navigation, &mut last_identity)?;
+                    .apply(
+                        &mut candidate.navigation,
+                        &mut last_identity,
+                        &candidate.session_id,
+                    )?;
                     let revision = self.next_revision()?;
                     candidate.revision = revision;
                     WorkbenchCommandOutcome::WorkspaceProjectChanged {
@@ -1348,6 +1372,7 @@ enum PureWorkbenchAction {
     },
     ProjectCreate {
         label: WorkbenchLabel,
+        project_id: Option<WorkbenchProjectId>,
     },
     ProjectRename {
         project_id: WorkbenchProjectId,
@@ -1437,8 +1462,9 @@ impl PureWorkbenchAction {
                 workspace_ids: workspace_ids.clone(),
                 before_workspace_id: before_workspace_id.clone(),
             },
-            WorkbenchAction::ProjectCreate { label } => Self::ProjectCreate {
+            WorkbenchAction::ProjectCreate { label, project_id } => Self::ProjectCreate {
                 label: label.clone(),
+                project_id: project_id.clone(),
             },
             WorkbenchAction::ProjectRename { project_id, label } => Self::ProjectRename {
                 project_id: project_id.clone(),
@@ -1595,10 +1621,77 @@ pub struct LaunchProfileUse {
 fn reject<T>(reason: WorkbenchRejectionReason) -> Result<T, PlanFailure> {
     Err(PlanFailure::Rejected(reason))
 }
+/// The counter stops below the random Project range, so the two forms never meet.
 fn allocate(last: u128, count: u128) -> Result<u128, PlanFailure> {
-    last.checked_add(count).ok_or(PlanFailure::Rejected(
-        WorkbenchRejectionReason::IdentityExhausted,
-    ))
+    last.checked_add(count)
+        .filter(|next| *next < RANDOM_PROJECT_FLOOR)
+        .ok_or(PlanFailure::Rejected(
+            WorkbenchRejectionReason::IdentityExhausted,
+        ))
+}
+
+/// The least random Project identity: the top bit set.
+const RANDOM_PROJECT_FLOOR: u128 = 1 << 127;
+
+/// How a Session names the Projects it creates.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ProjectIdentities {
+    /// From its counter, as before random identities: a Session whose checkpoint could not move to
+    /// them keeps this until its next start, and takes no named identity.
+    Counter,
+    /// Above [`RANDOM_PROJECT_FLOOR`], unique across machines, or as a Client names one.
+    Random,
+}
+
+/// A Project identity above `last` in the random range, picked by `seed` and `index`: the step is
+/// up to 2^96, or up to the top when less is left. Seeds come from operating-system randomness
+/// outside this module, so the step is as unpredictable as a random draw while the transition stays
+/// deterministic, and two Sessions practically never reach the same identity. The identities one
+/// seed gives in turn increase, because the protocol keeps Projects in identity order and a Client
+/// of an earlier version predicts a Project it creates as the last one.
+fn project_identity_above(last: u128, seed: &[u8], index: u128) -> Result<u128, PlanFailure> {
+    let last = last.max(RANDOM_PROJECT_FLOOR - 1);
+    let span = (u128::MAX - last).min(1 << 96);
+    if span == 0 {
+        return Err(PlanFailure::Rejected(
+            WorkbenchRejectionReason::IdentityExhausted,
+        ));
+    }
+    let digest = Sha256::new()
+        .chain_update(seed)
+        .chain_update(index.to_be_bytes())
+        .finalize();
+    let mut step = [0; 16];
+    step.copy_from_slice(&digest[..16]);
+    Ok(last + 1 + u128::from_be_bytes(step) % span)
+}
+
+/// A new Project's identity as `identities` names them. Either way it takes the next counter value:
+/// as the identity itself, or as the index of a step above every Project of `navigation`, seeded by
+/// the Session identity, which the adapter draws from operating-system randomness. A Project this
+/// Session creates therefore always sorts last, and a deleted one's identity does not come back,
+/// since the index never repeats. When a Project named from elsewhere leaves nothing above it,
+/// creation is refused as exhausted, as the counter's is.
+fn new_project_identity(
+    identities: ProjectIdentities,
+    navigation: &Navigation,
+    last_identity: &mut u128,
+    session_id: &SessionId,
+) -> Result<WorkbenchProjectId, PlanFailure> {
+    *last_identity = allocate(*last_identity, 1)?;
+    let value = match identities {
+        ProjectIdentities::Counter => *last_identity,
+        ProjectIdentities::Random => {
+            let highest = navigation
+                .projects
+                .iter()
+                .filter_map(|project| u128::from_str_radix(project.project_id.as_str(), 16).ok())
+                .max()
+                .unwrap_or(0);
+            project_identity_above(highest, session_id.as_str().as_bytes(), *last_identity)?
+        }
+    };
+    WorkbenchProjectId::parse(&identity(value)).map_err(|_error| PlanFailure::Internal)
 }
 fn identity(value: u128) -> String {
     format!("{value:032x}")

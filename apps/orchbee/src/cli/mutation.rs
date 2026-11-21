@@ -951,9 +951,12 @@ mod workflow {
     /// semantics.
     fn action(command: &MutationCommand, snapshot: &Snapshot) -> Result<WorkbenchAction, Failure> {
         match command {
-            MutationCommand::ProjectCreate { label } => Ok(WorkbenchAction::ProjectCreate {
-                label: label.clone(),
-            }),
+            MutationCommand::ProjectCreate { label, project_id } => {
+                Ok(WorkbenchAction::ProjectCreate {
+                    label: label.clone(),
+                    project_id: project_id.clone(),
+                })
+            }
             MutationCommand::ProjectDissolve { target } => Ok(WorkbenchAction::ProjectDissolve {
                 project_id: resolve_project(snapshot, target)?.project_id.clone(),
             }),
@@ -1387,6 +1390,19 @@ mod workflow {
         resolved: Resolved,
         wake: Option<orchbee_local_ipc::LocalIo<'_>>,
     ) -> Result<Receipt, Failure> {
+        // A Session that did not list the capability would give the Project an identity of its
+        // own, so the named form is never sent to it.
+        if matches!(
+            &resolved.action,
+            WorkbenchAction::ProjectCreate {
+                project_id: Some(_),
+                ..
+            }
+        ) && !client.server_serves(orchbee_connection_handshake::PROJECT_IDENTITY)
+        {
+            return Err(Failure::new(FailureKind::Incompatible)
+                .details(stage_reason_details("capability", "project-identity")));
+        }
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: resolved.request_id.clone(),
@@ -1412,11 +1428,16 @@ mod workflow {
                     WorkbenchSetupSubmission::Committed(WorkbenchSetupCommit::ProjectCreated {
                         revision,
                         project_id,
+                        unchanged,
                     }) if matches!(&resolved.action, WorkbenchAction::ProjectCreate { .. }) => {
-                        Ok(receipt(&resolved, "project.create", "committed")
-                            .revision(revision)
-                            .id("projectId", project_id.as_str())
-                            .label(resolved_label(&resolved.action)))
+                        Ok(receipt(
+                            &resolved,
+                            "project.create",
+                            if unchanged { "unchanged" } else { "committed" },
+                        )
+                        .revision(revision)
+                        .id("projectId", project_id.as_str())
+                        .label(resolved_label(&resolved.action)))
                     }
                     WorkbenchSetupSubmission::Committed(
                         WorkbenchSetupCommit::WorkspaceCreated {

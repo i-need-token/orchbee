@@ -337,6 +337,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         &initial,
         WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("Workspace directory process")?,
+            project_id: None,
         },
     );
     let project_result = exchange_command(&mut first, &project_request)?;

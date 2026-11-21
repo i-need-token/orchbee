@@ -91,6 +91,20 @@ define_identity!(TerminalId);
 // The identity a Session stop is recorded and read under, as `server stop --request-id` names it.
 define_identity!(WorkbenchStopId);
 
+impl WorkbenchProjectId {
+    /// Whether this is a random Project identity, whose first digit is `8` to `f`: drawn at random
+    /// with its top bit set, unique across machines, and out of reach of the counter a Server
+    /// allocates every other identity from. Only these identities join Projects of different
+    /// Sessions.
+    #[must_use]
+    pub fn is_random(&self) -> bool {
+        self.0
+            .as_bytes()
+            .first()
+            .is_some_and(|digit| matches!(digit, b'8'..=b'9' | b'a'..=b'f'))
+    }
+}
+
 impl WorkbenchStopId {
     /// The 16 bytes this identity spells, most significant first; never all zero.
     ///

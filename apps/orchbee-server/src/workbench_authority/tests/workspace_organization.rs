@@ -381,7 +381,7 @@ fn full_project_refuses_new_members_but_equal_membership_is_a_noop_and_project_l
         WorkbenchCommandOutcome::Unchanged { .. }
     ));
     for index in 1..MAXIMUM_PROJECTS {
-        full.navigation.projects.push(Project {
+        full.navigation.add_project(Project {
             project_id: WorkbenchProjectId::parse(&identity(20_000 + index as u128)).unwrap(),
             label: "empty".to_owned(),
         });

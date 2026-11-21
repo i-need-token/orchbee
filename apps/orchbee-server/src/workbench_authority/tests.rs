@@ -45,6 +45,7 @@ fn command(id: u128, revision: u64, action: WorkbenchAction) -> WorkbenchCommand
 fn create(label: &str) -> WorkbenchAction {
     WorkbenchAction::ProjectCreate {
         label: WorkbenchLabel::parse(label).unwrap(),
+        project_id: None,
     }
 }
 fn submit(
@@ -702,13 +703,20 @@ fn publication_preflight_failure_precedes_ledger_byte_refusal_atomically() {
     let (mut authority, grant) = authority();
     submit(&mut authority, &grant, command(1, 0, create("Existing")));
     let before = snapshot(&mut authority, &grant);
-    // Fault injection: a broken allocator would reuse the existing Project identity.
+    // Fault injection: a broken allocator would reuse the fixture Workspace's identity.
     authority.last_identity = 1;
     authority.ledger_bytes = MAXIMUM_LEDGER_BYTES;
     let response = submit(
         &mut authority,
         &grant,
-        command(2, 1, create("Duplicate identity")),
+        command(
+            2,
+            1,
+            WorkbenchAction::WorkspaceCreate {
+                project_id: None,
+                label: WorkbenchLabel::parse("Duplicate identity").unwrap(),
+            },
+        ),
     );
     assert_eq!(
         response.outcome,

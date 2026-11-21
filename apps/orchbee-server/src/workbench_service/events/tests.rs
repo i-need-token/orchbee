@@ -281,7 +281,8 @@ fn semantic_events_real_workspace_commits_arrive_without_a_snapshot_poll() {
             &service,
             110,
             WorkbenchAction::ProjectCreate {
-                label: WorkbenchLabel::parse("project").unwrap()
+                label: WorkbenchLabel::parse("project").unwrap(),
+                project_id: None,
             }
         ),
         WorkbenchCommandOutcome::ProjectCreated { .. }

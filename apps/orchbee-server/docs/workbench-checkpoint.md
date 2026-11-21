@@ -27,7 +27,7 @@ text.
 | Operation              | Preconditions                                                                                                                    | Result and invariant                                                                                                                                              |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Capture                | Authority is not retired; committed graph is valid; every Directory and bound Presentation belongs to the supplied local Worker. | One bounded checkpoint; source authority is unchanged; process bindings and Worker identities are removed.                                                        |
-| Decode                 | Strict current version 1 document, bounded bytes, normalized navigation, valid configuration graph, counters and directories.    | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                            |
+| Decode                 | Strict version 2 document (version 1 for its step), bounded bytes, normalized navigation, valid graph, counters and directories. | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                            |
 | Reconstruct            | Caller supplies a fresh boot Session identity and its admitted local Worker.                                                     | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Session prefixes, revision 0 and empty transient owners. |
 | Allocate after restore | Restored high-water counter permits advancement.                                                                                 | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                                |
 
@@ -40,11 +40,11 @@ Names need not be unique; their existing ambiguous-selector semantics remain unc
 
 ### Current normalized navigation
 
-The writer and reader use only `orchbee.workbench.checkpoint` with numeric `version: 1`.
-All retained fields are required, including `terminalDirectories`,
-`projectOrder` and `workspaceOrder`; the exceptions are `agentSessions`, `layoutLineage` and
-`recentAgents`, described below. `checkpoint/navigation.rs` has one DTO: identity-sorted global
-`directories`, `projects` and `workspaces` arrays. Project rows contain `projectId` and `label`;
+The writer writes `orchbee.workbench.checkpoint` with numeric `version: 2`; the reader also takes
+`version: 1`, for its [step](#project-identities). All retained fields are required, including
+`terminalDirectories`, `projectOrder` and `workspaceOrder`; the exceptions are `agentSessions`,
+`layoutLineage` and `recentAgents`, described below. `checkpoint/navigation.rs` has one DTO:
+identity-sorted global `directories`, `projects` and `workspaces` arrays. Project rows contain `projectId` and `label`;
 Workspace `projectId` is required-nullable. Directory rows contain `directoryId` and `path`, with
 fresh Worker ownership supplied during reconstruction. Workspace order is a complete permutation;
 empty Project order uses canonical ID order, otherwise it is a complete permutation.
@@ -53,13 +53,47 @@ The graph permits at most 65,536 Directories, 1,024 Workspaces and 256 Workspace
 subject to the unchanged encoded bounds.
 
 Unknown, duplicate or missing fields, nested historical navigation, unsupported versions, invalid
-references and insufficient identity high-water reject the entire document. No migration or
-historical normalization occurs yet: before the first automatic-update release the repository
+references and insufficient identity high-water reject the entire document. Before the first
+automatic-update release the repository
 [data-boundary version rule](../../../docs/ARCHITECTURE.md#data-boundaries) applied, and since that
 release a format change adds a migration step that is never removed, as the local runtime's
 [persisted data versions](../../../crates/local-runtime/README.md#persisted-data-versions) describe.
-Existing files labeled versions 2–7, including the preceding writer's version 7, become unreadable;
+The first such step takes version 1 to 2 ([Project identities](#project-identities)). Files the
+pre-release writers labeled 2–7 lack the current shape and are refused as any invalid copy;
 relabeling a file is not a supported conversion. The managed recovery policy below preserves them.
+
+### Project identities
+
+Since version 2 every Project identity is in the random form: top bit set, first hex digit `8` to
+`f`, a range the allocation counter never reaches, since it stops below it. A Project keeps one
+identity on every machine that has it, which is how two Sessions name the same Project: another
+Session creates it under the same identity (`project.create` with `projectId`, answered unchanged
+when the Session has it), and two Sessions practically never pick the same one.
+
+- **New Projects.** A Session puts a new Project above its highest one by a step of at most 2^96,
+  derived from the Session identity, which the adapter draws from operating-system randomness, and
+  the next counter value. The transition stays deterministic, a deleted Project's identity does
+  not come back, and the new Project sorts last: the protocol keeps Projects in identity order, and
+  a Client of an earlier version predicts a Project it creates as the last one. A creation that
+  cannot sort last is refused as exhausted instead, which only a Project named with the very top
+  identity causes.
+- **The step from version 1.** Each Project takes a random identity rising in the registry's order,
+  so that order and an implicit display order stay as they were, and the Project order and every
+  member Workspace follow through one table; nothing else in the payload names a Project. A
+  version 2 document with a counter-form Project, or a version 1 document with a random-form one,
+  rejects the entire document.
+- **When it runs.** The managed Server runs the step with a seed from operating-system randomness
+  when it loads the store and when a restart's successor takes over, before any Client or Worker
+  is served. The store first copies every slot into this version's upgrade folder, which a held
+  earlier version restores after a fallback, then publishes the upgraded payload
+  ([storage contract](../../../crates/local-runtime/docs/windows-checkpoint-storage.md#state-and-publication)).
+  Every start is a new Session at revision 0 for every Client, so no Client folds the new
+  identities onto an old baseline.
+- **Failure.** When the seed, the step, a copy or the publication fails, nothing is replaced, and
+  `checkpoint-upgrade-failed` is logged with its `stage` (`seed`, `step` or `publish`) and the I/O
+  error kind. The Session then runs on the version 1 payload: it gives new Projects counter
+  identities, writes version 1, answers a named identity as unavailable, and the next start tries
+  again.
 
 Canonical split ratios remain retained; see [shared ratios](shared-split-ratios.md).
 `lastIdentity` and each profile `counter` are canonical nonzero 32-character lowercase hex.
@@ -136,8 +170,9 @@ final capture at stop.
 
 The encoded checkpoint limit is 2 MiB. The reconstructed Snapshot must pass the existing complete
 graph validator and 1 MiB wire bound; the catalog keeps its 64-entry and 256 KiB bounds. All owned
-structural/profile counters must be distinct and at most `lastIdentity`. References are validated
-by the Snapshot owner. A forged bound Presentation, foreign Worker during capture, invalid path,
+structural/profile counters must be distinct and at most `lastIdentity`, which stays below the
+random Project range; Project identities follow [their own rule](#project-identities). References
+are validated by the Snapshot owner. A forged bound Presentation, foreign Worker during capture, invalid path,
 missing membership, malformed launch definition or high-water counter below a retained ID rejects the whole
 operation. JSON encoding alone does not establish graph validity.
 

@@ -47,6 +47,7 @@ fn tab_create_request_is_an_opaque_action_specific_conversion() {
     for action in [
         WorkbenchAction::ProjectCreate {
             label: workbench_label(),
+            project_id: None,
         },
         WorkbenchAction::ProjectRename {
             project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),

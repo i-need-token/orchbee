@@ -419,6 +419,7 @@ fn alias_keeps_primary_revision_and_replays_after_retirement_without_runtime_loo
         10001,
         WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("later").unwrap(),
+            project_id: None,
         },
     );
     let ordinary = submit(&mut authority, &grant, rename.clone());

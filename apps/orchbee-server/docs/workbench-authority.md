@@ -221,7 +221,7 @@ missing targets, authorization and capacity while preserving the binding and fal
 
 | Action                   | Guard                                                                                         | Committed result                                                                 |
 | ------------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| project.create           | Label and projection capacity accepted                                                        | One new Project with no Workspace                                                |
+| project.create           | Label and projection capacity accepted                                                        | One new Project with no Workspace; a named one already present is unchanged      |
 | project.rename           | Exact Project exists                                                                          | Its label changes; equal text is unchanged                                       |
 | workspace.create         | Optional Project exists and context capacity accepted                                         | One new Workspace and its one empty Terminal Context                             |
 | workspace.rename         | Exact Workspace exists                                                                        | Its label changes and automatic naming clears; equal fixed text is unchanged     |
@@ -230,6 +230,10 @@ missing targets, authorization and capacity while preserving the binding and fal
 | project.dissolve         | Exact Project exists; its members have no Close fence                                         | Remove the Project and ungroup its Workspaces, preserving execution resources    |
 | tab.rename               | Exact context contains the exact Tab                                                          | Its Tab label changes and automatic naming clears; equal fixed text is unchanged |
 | panel.rename             | Exact context/Tab contains the Panel                                                          | Primary override changes or clears; equal normalized value is unchanged          |
+
+A new Project's identity is derived from the cursor and the Session identity above every Project,
+unless `project.create` names the identity another Session's Project has
+([Project identities](workbench-checkpoint.md#project-identities)).
 
 Only Panel override updates normalize whitespace. No optimistic Client commit, automatic conflict retry, focus change or terminal
 effect accompanies these operations. Reading does not occupy a command-ledger entry.

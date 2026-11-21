@@ -1,10 +1,13 @@
 //! Strict retained navigation without physical Worker authority or historical shapes.
+use std::collections::BTreeMap;
+
 use orchbee_workbench_protocol::{
     Directory, Navigation, Project, WorkbenchDirectoryId, WorkbenchDirectoryPath,
     WorkbenchProjectId, WorkbenchWorkspaceId, WorkerId, Workspace,
 };
 use serde::{Deserialize, Serialize};
 
+use super::super::{identity, project_identity_above};
 use super::WorkbenchCheckpointError;
 
 #[derive(Serialize, Deserialize)]
@@ -66,6 +69,37 @@ impl StoredNavigation {
             workspaces: navigation.workspaces,
             workspace_order: navigation.workspace_order,
         })
+    }
+
+    /// The checkpoint step to random Project identities: each Project takes a fresh one, rising in
+    /// the registry's identity order so that order and an implicit display order stay as they were,
+    /// and the Project order and every member Workspace follow it.
+    pub(super) fn give_projects_random_identities(
+        &mut self,
+        seed: &[u8],
+    ) -> Result<(), WorkbenchCheckpointError> {
+        let mut given = BTreeMap::new();
+        let mut last = 0;
+        for (index, project) in (1..).zip(&mut self.projects) {
+            last = project_identity_above(last, seed, index)
+                .map_err(|_failure| WorkbenchCheckpointError::InvalidIdentity)?;
+            let fresh = WorkbenchProjectId::parse(&identity(last))
+                .map_err(|_error| WorkbenchCheckpointError::InvalidIdentity)?;
+            given.insert(project.project_id.clone(), fresh.clone());
+            project.project_id = fresh;
+        }
+        let follow = |project_id: &mut WorkbenchProjectId| {
+            given
+                .get(project_id)
+                .cloned()
+                .map(|fresh| *project_id = fresh)
+                .ok_or(WorkbenchCheckpointError::InvalidDocument)
+        };
+        self.project_order.iter_mut().try_for_each(follow)?;
+        self.workspaces
+            .iter_mut()
+            .filter_map(|workspace| workspace.project_id.as_mut())
+            .try_for_each(follow)
     }
 
     pub(super) fn restore(

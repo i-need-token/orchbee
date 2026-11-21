@@ -65,6 +65,7 @@ fn association(service: &LocalTerminalService) -> WorkbenchCommand {
             1,
             WorkbenchAction::ProjectCreate {
                 label: WorkbenchLabel::parse("Project").unwrap(),
+                project_id: None,
             },
         ),
     );
@@ -329,6 +330,7 @@ fn revision_change_during_validation_rejects_without_rebase_or_association() {
                 4,
                 WorkbenchAction::ProjectCreate {
                     label: WorkbenchLabel::parse("Concurrent").unwrap(),
+                    project_id: None,
                 },
             ),
         );
@@ -498,6 +500,7 @@ fn workspace_launch_directory_failure_or_stale_probe_never_publishes_partial_res
                         501,
                         WorkbenchAction::ProjectCreate {
                             label: WorkbenchLabel::parse("concurrent").unwrap(),
+                            project_id: None,
                         },
                     ),
                 );

@@ -71,6 +71,7 @@ impl Fixture {
             1,
             WorkbenchAction::ProjectCreate {
                 label: WorkbenchLabel::parse("Project").unwrap(),
+                project_id: None,
             },
         ) else {
             panic!("project")

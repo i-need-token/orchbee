@@ -538,7 +538,7 @@ fn project_create_commits_under_a_fresh_request() -> TestResult {
         let command = read_command(&stream);
         assert_command_base(&command, snapshot_request.as_str());
         *seen.lock().unwrap() = command.request_id.as_str().to_owned();
-        let WorkbenchAction::ProjectCreate { label } = &command.action else {
+        let WorkbenchAction::ProjectCreate { label, .. } = &command.action else {
             panic!("expected project.create, got {:?}", command.action)
         };
         assert_eq!(label.as_str(), "平台-api");

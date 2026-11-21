@@ -400,7 +400,9 @@ record without an integer version, which the store treats as its ordinary invali
 takes no lock, and `acquire` returns the `VersionedWriter` with the opening.
 
 Earlier versions are converted by pure N to N+1 steps in `VersionedRecord::steps`, and the result
-must pass the store's parser. No step has shipped yet. Before the first automatic-update release,
+must pass the store's parser. No such step has shipped yet; the first step of any record is the
+Server's checkpoint payload's, which the store publishes through `publish_upgrade`
+([Session checkpoint store](#session-checkpoint-store)). Before the first automatic-update release,
 0.1.0-beta.14, [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries) applied and a format
 changed in place; from that release a format change adds a step instead, and steps are never
 removed, so a record that sat unopened for many releases still reads. Since no other path hands a
@@ -752,8 +754,11 @@ The store retains three versioned, integrity-checked slots, ordered by their pri
 The Server supplies whole-document validation; the newest valid payload wins. Invalid copies remain
 intact and produce an explicit recovered/empty startup notice. Unframed files and unsupported
 payloads use this same recovery policy. Missing data and invalid data remain distinct;
-filesystem/private-path admission errors still refuse startup. Current durable and checkpoint
-formats each use version 1 and reject preceding numeric versions without migration. See the
+filesystem/private-path admission errors still refuse startup. The durable record uses version 1.
+The Server owns the checkpoint payload's version and its steps; a payload it upgrades at load goes
+through `publish_upgrade`, which first copies every existing slot into this product version's
+upgrade folder, so that a held earlier version restores them after a fallback, and publishes
+nothing when a copy fails. See the
 [Windows checkpoint storage contract](docs/windows-checkpoint-storage.md).
 
 Publication writes and flushes one private `checkpoint.pending`, preserves any displaced invalid

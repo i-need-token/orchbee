@@ -333,7 +333,7 @@ fn simple_tab_capacity_precedes_identity_and_revision_exhaustion_atomically() {
 fn identity_allocation_precedes_revision_and_both_exhaustion_boundaries_are_atomic() {
     let (mut identity_limited, identity_grant) = authority();
     install_revision(&mut identity_limited, u64::MAX);
-    identity_limited.last_identity = u128::MAX - 2;
+    identity_limited.last_identity = super::super::RANDOM_PROJECT_FLOOR - 3;
     let identity_request = tab_command(&identity_limited, 20, u64::MAX, "identity");
     assert_retained_rejection(
         &mut identity_limited,
@@ -344,7 +344,7 @@ fn identity_allocation_precedes_revision_and_both_exhaustion_boundaries_are_atom
 
     let (mut revision_limited, revision_grant) = authority();
     install_revision(&mut revision_limited, u64::MAX);
-    revision_limited.last_identity = u128::MAX - 3;
+    revision_limited.last_identity = super::super::RANDOM_PROJECT_FLOOR - 4;
     let revision_request = tab_command(&revision_limited, 21, u64::MAX, "revision");
     assert_retained_rejection(
         &mut revision_limited,
@@ -872,6 +872,7 @@ fn request_classification_routes_tab_create_without_authorization_or_state_inter
     let pure_actions = [
         WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("project").unwrap(),
+            project_id: None,
         },
         WorkbenchAction::ProjectRename {
             project_id: project_id.clone(),
@@ -911,6 +912,7 @@ fn request_classification_routes_tab_create_without_authorization_or_state_inter
         expected_revision: WorkbenchRevision::new(0),
         action: WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("project").unwrap(),
+            project_id: None,
         },
     };
     let classified =
