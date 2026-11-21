@@ -1,5 +1,7 @@
-const fatal_record = @import("terminal-host-platform").fatal_record;
+const platform = @import("terminal-host-platform");
+const fatal_record = platform.fatal_record;
 const state = @import("state.zig");
+const handover_move = @import("handover_move.zig");
 const containment_ops = @import("containment.zig");
 const lifecycle_ops = @import("lifecycle.zig");
 const completion_ops = @import("completion.zig");
@@ -9,10 +11,13 @@ const writer_ops = @import("writer.zig");
 pub fn waitThread(self: *state.State) void {
     fatal_record.markThread(.@"terminal-wait");
     if (!self.startup.await()) return;
-    self.exit_result = self.process.wait() catch {
+    self.exit_result = self.process.wait() catch |err| {
+        // The terminal leaves this Host: its exit path belongs to the Host that serves it.
+        if (platform.process.waitStopped(err)) return;
         failure_ops.recordProcessObservationFailure(self);
         return;
     };
+    if (!handover_move.awaitExitTurn(self)) return;
     self.child_exited.store(true, .release);
     writer_ops.closeClientInput(self);
     lifecycle_ops.finishPtyAfterChildExit(self) catch {

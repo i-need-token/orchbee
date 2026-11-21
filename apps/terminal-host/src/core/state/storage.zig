@@ -49,6 +49,18 @@ pub fn requireTerminal(self: anytype, terminal_id: TerminalId) CoreError!*Termin
     return self.terminal_registry.find(terminal_id) orelse error.MissingResource;
 }
 
+/// Refuses runtime work on a terminal that moves between Hosts as retryable, and otherwise as its
+/// phase does.
+pub fn admitRuntimeWork(terminal: *const TerminalSession) CoreError!void {
+    if (terminal.handover != .none) return error.TerminalQuiesced;
+    if (!terminal.acceptsRuntimeWork()) return error.InvalidPhase;
+}
+
+/// Refuses a change of a terminal that moves between Hosts as retryable.
+pub fn admitChange(terminal: *const TerminalSession) CoreError!void {
+    if (terminal.handover != .none) return error.TerminalQuiesced;
+}
+
 pub fn refreshAttachmentProjectionState(self: anytype, attachment: *Attachment) void {
     if (!attachment.capabilities.read) return;
     const terminal = self.terminal_registry.get(attachment.terminal_id) orelse return;

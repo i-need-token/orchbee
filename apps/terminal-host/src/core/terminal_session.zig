@@ -54,6 +54,20 @@ pub const EngineObservation = struct {
 /// Owns every terminal-scoped semantic fact retained by the Host. Registry
 /// membership and creation-identity indexing live in TerminalRegistry; broker
 /// capabilities live in AttachmentSession.
+/// A move of the terminal between Hosts, as this Host records it.
+pub const Handover = enum {
+    none,
+    /// The old Host quiesced it: reads and read-only attachments go on, and nothing changes it.
+    quiesced,
+    /// The Keeper answered `claimed`: another Host reads it, and this Host only drops it.
+    moved,
+    /// The new Host restored it and has not claimed it: nothing reads, attaches to, or changes it.
+    restored,
+    /// A settled terminal encodes its record: nothing changes or disposes it until that ends. No
+    /// inventory names this state.
+    exporting,
+};
+
 pub const Session = struct {
     configuration_state: ConfigurationState = .{},
     creation_id: CreationId,
@@ -65,6 +79,7 @@ pub const Session = struct {
     start_geometry: ?terminal_geometry.Geometry,
     terminal_id: TerminalId,
     theme_state: terminal_theme.State,
+    handover: Handover = .none,
 
     pub fn phase(self: Session) terminal_lifecycle.Phase {
         return self.lifecycle.phase();

@@ -567,7 +567,13 @@
 				"apps/terminal-host/src/engine/runtime/handover_*.zig",
 				"apps/terminal-host/src/engine/runtime/reader_pause.zig",
 				"apps/terminal-host/src/platform/pty_posix.zig",
-				"apps/terminal-host/src/platform/pty_windows.zig"
+				"apps/terminal-host/src/platform/pty_windows.zig",
+				"apps/terminal-host/src/platform/process_windows_handover.zig",
+				"apps/terminal-host/src/engine/runtime/wait_thread.zig",
+				"apps/terminal-host/src/core/state/handover.zig",
+				"apps/terminal-host/src/control/*_handover.zig",
+				"apps/terminal-host/src/service/runtime_aggregate/handover.zig",
+				"apps/terminal-host/src/service/moves/**"
 			],
 			"requiredCoverage": [
 				"Read",

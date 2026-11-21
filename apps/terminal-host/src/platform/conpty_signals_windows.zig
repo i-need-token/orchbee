@@ -109,9 +109,26 @@ pub const Signals = struct {
         return true;
     }
 
+    /// No signal waits or is being written.
+    pub fn idle(self: *Signals) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return !self.sending and self.queue.size == null and !self.queue.clear;
+    }
+
     /// Stops the sender, cancelling a write the console has not taken, and then closes the
     /// pseudoconsole. Every call returns once it is closed; only the first one closes it.
     pub fn close(self: *Signals) void {
+        self.stop(true);
+    }
+
+    /// Stops the sender as `close` does but makes no ConPTY call, for a terminal another Host may
+    /// read: a waiting signal is dropped, and the caller closes the pseudoconsole's handles itself.
+    pub fn abandon(self: *Signals) void {
+        self.stop(false);
+    }
+
+    fn stop(self: *Signals, closes: bool) void {
         self.mutex.lock();
         switch (self.state) {
             .open => {},
@@ -149,7 +166,7 @@ pub const Signals = struct {
         self.mutex.unlock();
         self.sender.join();
         // The sender has returned, so this is the only ConPTY call on this pseudoconsole.
-        self.close_console(self.pseudo_console);
+        if (closes) self.close_console(self.pseudo_console);
         self.mutex.lock();
         self.state = .closed;
         self.condition.broadcast();

@@ -62,6 +62,9 @@ pub const HandoverInputs = @import("handover_export.zig").Inputs;
 pub const handover_pin = @import("handover_export.zig").pin;
 pub const HandoverExportError = @import("handover_export.zig").Error;
 pub const HandoverFacts = @import("handover_restore.zig").Facts;
+pub const HandoverImportPreparation = @import("handover_restore.zig").Prepared;
+pub const HandoverImportProgram = @import("handover_restore.zig").Program;
+pub const MovePark = @import("handover_move.zig").Park;
 
 pub const PreparedInput = handle.PreparedInput;
 pub const PreparedAttachment = handle.PreparedAttachment;

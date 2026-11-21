@@ -11,6 +11,7 @@ const attachments = @import("attachments.zig");
 const configuration = @import("configuration.zig");
 const creation = @import("creation.zig");
 const geometry = @import("geometry.zig");
+const handover = @import("handover.zig");
 const input_admission = @import("input_admission.zig");
 const interaction_access = @import("interaction_access.zig");
 const inventory = @import("inventory.zig");
@@ -119,6 +120,15 @@ pub const HostRuntimeAggregate = struct {
     pub const commitCreateBuild = creation.commitCreateBuild;
     pub const abandonCreateBuild = creation.abandonCreateBuild;
     pub const commitPreparedTerminal = creation.commitPreparedTerminal;
+
+    // moves between Hosts.
+    pub const exportInputs = handover.exportInputs;
+    pub const reserveImport = handover.reserveImport;
+    pub const releaseImport = handover.releaseImport;
+    pub const commitImport = handover.commitImport;
+    pub const removeMoving = handover.removeMoving;
+    pub const removeMovingAtTeardown = handover.removeMovingAtTeardown;
+    pub const setHandover = handover.setHandover;
 
     // start boundary.
     pub const prepareStartTerminal = start.prepareStartTerminal;

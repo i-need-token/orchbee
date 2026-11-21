@@ -619,6 +619,7 @@ fn connectWorker(
         build_options.host_version,
         .{ .commit = build_options.source_commit },
         build_options.environment,
+        false,
     );
     const frame = try terminal_host_handshake.encode.initiatorFrame(allocator, .{ .offer = .{
         .connection = host.connection,

@@ -8,6 +8,7 @@ const builtin = @import("builtin");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
 const platform = @import("terminal-host-platform");
 const notice = @import("notice.zig");
+const moves = @import("moves.zig");
 
 const message = keeper_protocol.message;
 const maximum_attachments = platform.keeper.maximum_attachments;
@@ -113,6 +114,49 @@ pub const Attachments = struct {
         if (comptime !is_windows) return;
         const gate = platform.keeper.gate(process) orelse return;
         for (self.slots) |slot| if (slot) |link| link.offer(gate, process, terminal);
+    }
+
+    /// How many Keepers are attached, for the moves that need the Host's one Keeper.
+    pub fn count(self: *const Attachments) usize {
+        var attached: usize = 0;
+        for (self.slots) |slot| attached += @intFromBool(slot != null);
+        return attached;
+    }
+
+    /// The Keeper of the one attachment, when exactly one is attached.
+    pub fn sole(self: *const Attachments) ?message.Process {
+        if (comptime !is_windows) return null;
+        if (self.count() != 1) return null;
+        for (self.slots) |slot| if (slot) |link| return link.keeper;
+        unreachable;
+    }
+
+    /// The Keeper whose attachment holds the terminal behind `gate`, when exactly one does.
+    pub fn holder(self: *const Attachments, gate: *platform.keeper.Gate) ?message.Process {
+        if (comptime !is_windows) return null;
+        const index = gate.heldIndex() orelse return null;
+        const link = self.slots[index] orelse return null;
+        return link.keeper;
+    }
+
+    /// Whether `keeper` is attached and its link has missed no deadline.
+    pub fn answers(self: *const Attachments, keeper: message.Process) bool {
+        if (comptime !is_windows) return false;
+        const link = self.find(keeper) orelse return false;
+        const status = link.status();
+        return status.phase == .attached and !status.detaching;
+    }
+
+    /// Queues a move request on `keeper`'s link; without one, completes it as `failed` at once.
+    pub fn submit(self: *const Attachments, keeper: message.Process, request: *moves.Request) void {
+        if (comptime !is_windows) return request.complete(.failed);
+        const link = self.find(keeper) orelse return request.complete(.failed);
+        _ = moves.submit(link, request);
+    }
+
+    fn find(self: *const Attachments, keeper: message.Process) ?*Link {
+        for (self.slots) |slot| if (slot) |link| if (link.keeper.eql(keeper)) return link;
+        return null;
     }
 
     /// Moves every posted notice into `out` and joins links whose thread returned. On a failed

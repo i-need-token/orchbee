@@ -44,14 +44,22 @@ pub const ConsoleTree = if (builtin.os.tag != .windows) void else struct {
     }
 
     /// Learns the Terminal console while the root is live, bounded, so ownership
-    /// stays readable after the root exits.
-    pub fn learnWhileLive(self: *ConsoleTree, root: windows.HANDLE) !void {
+    /// stays readable after the root exits. A set `stop` ends the learning at once.
+    pub fn learnWhileLive(self: *ConsoleTree, root: windows.HANDLE, stop: windows.HANDLE) !void {
+        const handles = [_]windows.HANDLE{ root, stop };
         for (0..learning_polls) |_| {
             if (self.learn(root)) return;
-            const state = windows_api.WaitForSingleObject(root, learning_poll_ms);
-            if (state == windows_api.WAIT_OBJECT_0) return;
+            const state = windows_api.WaitForMultipleObjects(handles.len, &handles, .FALSE, learning_poll_ms);
+            if (state == windows_api.WAIT_OBJECT_0 or state == windows_api.WAIT_OBJECT_0 + 1) return;
             if (state != windows_api.WAIT_TIMEOUT) return error.ProcessObservationFailed;
         }
+    }
+
+    /// A console reference checked elsewhere, as a claim checks a moved terminal's OpenConsole:
+    /// `host` pins it and the tree owns it from now on.
+    pub fn adoptReference(self: *ConsoleTree, pid: u32, host: windows.HANDLE) void {
+        self.host = host;
+        self.reference.store(pid, .release);
     }
 
     /// Any reading while the root is live may learn. A root that still reports its

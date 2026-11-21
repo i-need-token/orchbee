@@ -8,6 +8,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const build_options = @import("build-options");
 const handshake = @import("terminal-host-handshake");
+const platform = @import("terminal-host-platform");
 
 const host_lifecycle = @import("host_lifecycle.zig");
 
@@ -17,16 +18,10 @@ pub const product_version: []const u8 = build_options.host_version;
 pub const environment: []const u8 = build_options.environment;
 const build: message.Build = .{ .commit = build_options.source_commit };
 
-/// The Host lists only the connection kind it accepts; it takes part in no delivery.
-const connections = [_]message.ConnectionEntry{.{
-    .kind = handshake.registry.worker_host.name,
-    .generations = handshake.registry.worker_host.generations,
-    .capabilities = handshake.registry.worker_host.capabilities,
-}};
-
-/// This build's `worker-host` acceptor profile.
+/// This build's `worker-host` acceptor profile, with `handover` where its conpty can take a moved
+/// terminal.
 pub fn profile() handshake.admission.Profile {
-    return handshake.registry.workerHostProfile(product_version, build, environment);
+    return handshake.registry.workerHostProfile(product_version, build, environment, platform.keeper.takesMoves());
 }
 
 /// What a reply reports about the Host when it is composed.
@@ -98,6 +93,8 @@ pub const Reply = struct {
     kind: Kind,
     /// Whether an accepted session's answer lists `keeper`.
     keeper: bool = false,
+    /// Whether an accepted session's answer lists `handover`.
+    handover: bool = false,
 
     pub const Kind = enum {
         /// The connection continues as the Worker session.
@@ -145,6 +142,12 @@ pub fn respond(
         .control_slot_free = true,
         .state = state,
     });
+    // The Host lists only the connection kind it accepts; it takes part in no delivery.
+    const connections = [_]message.ConnectionEntry{.{
+        .kind = handshake.registry.worker_host.name,
+        .generations = handshake.registry.worker_host.generations,
+        .capabilities = host.capabilities,
+    }};
     const processes = [_]message.ProcessEntry{.{
         .role = .terminal_host,
         .product_version = product_version,
@@ -184,15 +187,20 @@ pub fn respond(
             .request, .unknown_request => .request_answered,
         },
     };
-    const keeper = switch (decision) {
-        .accept => |answer| listsKeeper(answer.capabilities),
-        else => false,
+    const negotiated: []const []const u8 = switch (decision) {
+        .accept => |answer| answer.capabilities,
+        else => &.{},
     };
-    return .{ .reply = .{ .frame = try encodeReply(allocator, reply), .kind = kind, .keeper = keeper } };
+    return .{ .reply = .{
+        .frame = try encodeReply(allocator, reply),
+        .kind = kind,
+        .keeper = lists(negotiated, "keeper"),
+        .handover = lists(negotiated, "handover"),
+    } };
 }
 
-fn listsKeeper(capabilities: []const []const u8) bool {
-    for (capabilities) |capability| if (std.mem.eql(u8, capability, "keeper")) return true;
+fn lists(capabilities: []const []const u8, name: []const u8) bool {
+    for (capabilities) |capability| if (std.mem.eql(u8, capability, name)) return true;
     return false;
 }
 

@@ -6,6 +6,7 @@ const creation_pipeline = @import("creation_pipeline.zig");
 const host_failure = @import("failure.zig");
 const host_keepers = @import("keepers.zig");
 const host_lifecycle = @import("host_lifecycle.zig");
+const host_moves = @import("moves/root.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_response = @import("response.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
@@ -72,6 +73,8 @@ pub const Context = struct {
     creations: *creation_pipeline.Pipeline,
     /// The Keeper attachments, present only for a session that negotiated `keeper`.
     keepers: ?*host_keepers.Keepers = null,
+    /// The moves between Hosts, on Windows whether or not the session negotiated `handover`.
+    moves: ?host_moves.Access = null,
 
     pub fn hostEpoch(self: *const Context) core_module.HostEpoch {
         return self.runtime_aggregate.hostEpoch();

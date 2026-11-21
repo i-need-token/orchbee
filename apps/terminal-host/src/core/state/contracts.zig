@@ -59,6 +59,7 @@ pub const TerminalThemeState = model.theme.State;
 pub const EngineObservation = terminal_session.EngineObservation;
 pub const TerminalLifecycle = terminal_lifecycle.Lifecycle;
 pub const TerminalSession = terminal_session.Session;
+pub const TerminalHandover = terminal_session.Handover;
 pub const TerminalRegistry = terminal_registry.Registry;
 pub const PreparedTerminalDefaultsUpdate = host_settings.PreparedDefaultsUpdate;
 
@@ -126,6 +127,8 @@ pub const CoreError = error{
     StaleCapabilityRevision,
     StartConflict,
     TerminalConflict,
+    /// The terminal moves between Hosts; the request may succeed once the move ends.
+    TerminalQuiesced,
     ThemeOperationConflict,
 };
 

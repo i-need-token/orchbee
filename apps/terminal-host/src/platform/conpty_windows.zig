@@ -8,6 +8,8 @@ const Create = *const fn (windows.COORD, windows.HANDLE, windows.HANDLE, windows
 const Resize = *const fn (kernel.HPCON, windows.COORD) callconv(.winapi) kernel.HRESULT;
 const Close = *const fn (kernel.HPCON) callconv(.winapi) void;
 const Clear = *const fn (kernel.HPCON, windows.BOOL) callconv(.winapi) kernel.HRESULT;
+/// `ConptyPackPseudoConsole(process, reference, signal, out)`, from the pinned conpty's winconpty.h.
+const Pack = *const fn (windows.HANDLE, windows.HANDLE, windows.HANDLE, *kernel.HPCON) callconv(.winapi) kernel.HRESULT;
 const AttributeTag = extern struct { attributes: windows.DWORD, tag: windows.DWORD };
 const max_file_bytes = 64 * 1024 * 1024;
 
@@ -28,6 +30,9 @@ pub const Api = struct {
     close: Close = kernel.ClosePseudoConsole,
     /// The bundled ConPTY's buffer clear; the system ConHost has none.
     clear: ?Clear = null,
+    /// The bundled ConPTY's pack, which wraps a held console's process, reference, and signal
+    /// handles in a new pseudoconsole without sending anything to OpenConsole; null without it.
+    pack: ?Pack = null,
     module: ?windows.HMODULE = null,
     dll_file: ?windows.HANDLE = null,
     console_file: ?windows.HANDLE = null,
@@ -78,9 +83,29 @@ pub const Api = struct {
         result.resize = @ptrCast(GetProcAddress(module, "ResizePseudoConsole") orelse return error.ConptyExportUnavailable);
         result.close = @ptrCast(GetProcAddress(module, "ClosePseudoConsole") orelse return error.ConptyExportUnavailable);
         result.clear = @ptrCast(GetProcAddress(module, "ConptyClearPseudoConsole") orelse return error.ConptyExportUnavailable);
+        // Optional: a bundle without it only moves no terminal.
+        result.pack = @ptrCast(GetProcAddress(module, "ConptyPackPseudoConsole"));
         return result;
     }
 };
+
+/// 0 before the first answer, then 1 for a bundle without the pack and 2 for one with it.
+var packs_state: std.atomic.Value(u8) = .init(0);
+
+/// Whether the bundled ConPTY exports its pack, so this Host can take a moved terminal. The first
+/// answer loads the bundle once; a bundle that fails to load answers false and is tried again.
+pub fn packs() bool {
+    switch (packs_state.load(.acquire)) {
+        1 => return false,
+        2 => return true,
+        else => {},
+    }
+    var api = Api.init() catch return false;
+    defer api.deinit();
+    const found = api.pack != null;
+    packs_state.store(if (found) 2 else 1, .release);
+    return found;
+}
 
 fn childPath(buffer: []u16, parent: []const u16, comptime suffix: []const u8) ![:0]const u16 {
     const tail = std.unicode.utf8ToUtf16LeStringLiteral(suffix);

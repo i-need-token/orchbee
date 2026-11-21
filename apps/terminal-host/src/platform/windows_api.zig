@@ -99,6 +99,22 @@ pub extern "kernel32" fn WaitForSingleObject(
     milliseconds: windows.DWORD,
 ) callconv(.winapi) windows.DWORD;
 
+pub extern "kernel32" fn WaitForMultipleObjects(
+    count: windows.DWORD,
+    handles: [*]const windows.HANDLE,
+    wait_all: windows.BOOL,
+    milliseconds: windows.DWORD,
+) callconv(.winapi) windows.DWORD;
+
+pub extern "kernel32" fn CreateEventW(
+    attributes: ?*anyopaque,
+    manual_reset: windows.BOOL,
+    initial_state: windows.BOOL,
+    name: ?[*:0]const u16,
+) callconv(.winapi) ?windows.HANDLE;
+
+pub extern "kernel32" fn SetEvent(event: windows.HANDLE) callconv(.winapi) windows.BOOL;
+
 pub extern "kernel32" fn SetHandleInformation(
     handle: windows.HANDLE,
     mask: windows.DWORD,

@@ -42,6 +42,7 @@ pub fn prepareTerminalTheme(
             return error.ThemeOperationConflict;
         }
     }
+    try storage.admitChange(terminal);
     if (!terminal.acceptsThemeUpdate()) return error.InvalidPhase;
     if (current.revision != expected_revision) return .stale;
     if (current.revision == std.math.maxInt(u64)) return error.RevisionOverflow;
@@ -105,6 +106,7 @@ pub fn updateTerminalConfiguration(
     if (!terminal_configuration.valid(configuration)) return error.InvalidConfiguration;
     if (!storage.connected(self, connection_id)) return error.MissingConnection;
     const terminal = try storage.requireTerminal(self, terminal_id);
+    try storage.admitChange(terminal);
     if (!terminal.acceptsConfigurationUpdate()) return error.InvalidPhase;
     if (terminal.effectiveConfiguration().scrollback_bytes == configuration.scrollback_bytes) {
         return .idempotent;
@@ -159,6 +161,7 @@ pub fn prepareTermination(
 ) CoreError!TerminationAdmission {
     if (!storage.connected(self, connection_id)) return error.MissingConnection;
     const terminal = try storage.requireTerminal(self, terminal_id);
+    try storage.admitChange(terminal);
     if (terminal.phase() == .awaiting_start) return error.InvalidPhase;
     std.debug.assert(request != .none);
     return terminal.lifecycle.prepareTermination(request);
@@ -244,6 +247,7 @@ pub fn validateTerminalDisposal(
 ) CoreError!TerminalDisposalAdmission {
     if (!storage.connected(self, connection_id)) return error.MissingConnection;
     const terminal = self.terminal_registry.get(terminal_id) orelse return .idempotent;
+    try storage.admitChange(terminal);
     if (terminal.retainedCleanupFailure()) |failure| {
         return .{ .cleanup_blocked = failure };
     }

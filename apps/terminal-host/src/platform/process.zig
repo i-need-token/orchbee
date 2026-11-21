@@ -19,7 +19,10 @@ pub const prepareWindowsTerminalChildren = windows_process.prepareTerminalChildr
 
 pub fn sampleProcesses(process: *Process, allocator: @import("std").mem.Allocator) @import("process_sample.zig").Error!ProcessSample {
     return switch (builtin.os.tag) {
-        .windows => @import("process_query_windows.zig").collect(allocator, process.job_handle, process.process_handle),
+        .windows => if (process.inert)
+            error.ProcessSampleUnavailable
+        else
+            @import("process_query_windows.zig").collect(allocator, process.job_handle, process.process_handle),
         .linux, .macos => process.sampleProcesses(allocator),
         else => error.ProcessSampleUnsupported,
     };
@@ -48,6 +51,30 @@ pub fn pauseRead(process: *Process) !void {
 /// Withdraws a standing pause, so the next read reads.
 pub fn resumeRead(process: *Process) !void {
     return process.pty.resumeRead();
+}
+
+/// Whether terminals can move to and from this Host: only Windows Hosts hold them in a Keeper.
+pub const moves_supported = builtin.os.tag == .windows;
+
+/// A held console whose duplicates a claim checked, as `Process.adopt` takes it.
+pub const Held = if (moves_supported) Process.Held else void;
+
+/// Wakes the terminal's wait thread without its program's end, so a terminal that leaves this Host
+/// joins it. Only a Host that moves terminals calls it.
+pub fn stopWait(process: *Process) void {
+    if (comptime !moves_supported) unreachable;
+    process.stopWait();
+}
+
+/// Whether a wait ended because `stopWait` woke it rather than because the program ended.
+pub fn waitStopped(err: anyerror) bool {
+    return err == error.Stopped;
+}
+
+/// Whether the writer may stop: the signal sender holds no resize the console has not taken.
+pub fn signalsIdle(process: *Process) bool {
+    if (comptime !moves_supported) return true;
+    return process.signalsIdle();
 }
 
 pub const testing = if (builtin.is_test) struct {

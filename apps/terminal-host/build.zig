@@ -267,6 +267,7 @@ pub fn build(builder: *std.Build) void {
     const conpty_options = builder.addOptions();
     conpty_options.addOption([]const u8, "dll_sha256", conpty_files.get("dll").?.object.get("sha256").?.string);
     conpty_options.addOption([]const u8, "console_sha256", conpty_files.get("console").?.object.get("sha256").?.string);
+    conpty_options.addOption([]const u8, "version", conpty_manifest.value.object.get("version").?.string);
     // The platform and the Keeper's test share one options module, since both link into the test.
     const conpty_options_module = conpty_options.createModule();
     platform_module.addImport("windows-conpty-options", conpty_options_module);
@@ -938,6 +939,62 @@ pub fn build(builder: *std.Build) void {
         );
         keeper_link_test_step.dependOn(&run_keeper_link_tests.step);
         test_step.dependOn(&run_keeper_link_tests.step);
+
+        // Moves between two Host processes: Host A is a service in the test, as above, and Host B
+        // and the Keeper are the built executable, which the runner stages beside the test.
+        const black_box_transport_module = builder.createModule(.{
+            .root_source_file = builder.path("src/__tests__/black_box_transport.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        black_box_transport_module.addImport("terminal-host-handshake", handshake_module);
+        black_box_transport_module.addImport("terminal-host-platform", platform_module);
+        black_box_transport_module.addImport("terminal-protocol", protocol_module);
+        black_box_transport_module.addIncludePath(builder.path("src/transport"));
+        const handover_test_module = builder.createModule(.{
+            .root_source_file = builder.path("src/service/__tests__/handover_move_test.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        handover_test_module.addImport("terminal-protocol", protocol_module);
+        handover_test_module.addImport("terminal-host-control", control_module);
+        handover_test_module.addImport("terminal-host-core", core_module);
+        handover_test_module.addImport("terminal-host-engine", engine_module);
+        handover_test_module.addImport("terminal-host-model", model_module);
+        handover_test_module.addImport("terminal-host-platform", platform_module);
+        handover_test_module.addImport("terminal-host-service", service_module);
+        handover_test_module.addImport("terminal-host-keeper-protocol", keeper_protocol_module);
+        handover_test_module.addImport("terminal-host-handshake", handshake_module);
+        handover_test_module.addImport("keeper-support", keeper_support_module);
+        handover_test_module.addImport("black-box-transport", black_box_transport_module);
+        handover_test_module.addImport("build-options", build_options_module);
+        handover_test_module.addImport("ghostty-vt", ghostty_vt_module);
+        handover_test_module.addIncludePath(builder.path("src/transport"));
+        handover_test_module.addCSourceFile(.{
+            .file = builder.path("src/transport/local_ipc_windows.c"),
+            .flags = authored_c_flags,
+        });
+        handover_test_module.linkSystemLibrary("advapi32", .{});
+        const handover_tests = builder.addTest(.{
+            .name = "terminal-host-handover-tests",
+            .root_module = handover_test_module,
+        });
+        handover_tests.root_module.link_libc = true;
+        test_compile_step.dependOn(&handover_tests.step);
+        const run_handover_tests = builder.addSystemCommand(&.{
+            "node",
+            builder.pathFromRoot("scripts/run-keeper-link-test.mjs"),
+            "--test-executable",
+        });
+        run_handover_tests.addArtifactArg(handover_tests);
+        run_handover_tests.addArg("--host-executable");
+        run_handover_tests.addArtifactArg(executable);
+        const handover_test_step = builder.step(
+            "test-handover",
+            "Run the moves between two Host processes through a real Keeper",
+        );
+        handover_test_step.dependOn(&run_handover_tests.step);
+        test_step.dependOn(&run_handover_tests.step);
     }
     const focused_cli_tests = builder.addTest(.{
         .name = "terminal-host-cli-tests",

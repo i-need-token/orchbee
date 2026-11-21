@@ -10,6 +10,7 @@ const keeper_protocol = @import("terminal-host-keeper-protocol");
 const platform = @import("terminal-host-platform");
 const connect = @import("connect_windows.zig");
 const notice = @import("notice.zig");
+const move_requests = @import("moves.zig");
 
 const message = keeper_protocol.message;
 const thread_sync = platform.thread_sync;
@@ -62,6 +63,8 @@ pub const Link = struct {
     detach_requested: bool = false,
     stop_requested: bool = false,
     notices: std.ArrayList(notice.Notice) = .empty,
+    /// Move requests the link has not made yet, in order; see `moves.zig`.
+    moves: std.ArrayList(*move_requests.Request) = .empty,
     /// Every gate slot of this attachment is settled, so its index may serve another Keeper.
     index_free: bool = false,
     /// The thread has returned or is about to; the dispatch thread joins it.
@@ -91,6 +94,7 @@ pub const Link = struct {
         self.thread.join();
         self.queue.deinit(self.allocator);
         self.notices.deinit(self.allocator);
+        self.moves.deinit(self.allocator);
         self.held.deinit(self.allocator);
         self.retained.deinit(self.allocator);
         windows.CloseHandle(self.wake);
@@ -115,6 +119,11 @@ pub const Link = struct {
 
     pub fn requestStop(self: *Link) void {
         self.request(&self.stop_requested);
+    }
+
+    /// Wakes the link thread; the caller holds `mutex`.
+    pub fn wakeThread(self: *Link) void {
+        _ = SetEvent(self.wake);
     }
 
     fn request(self: *Link, flag: *bool) void {
@@ -206,13 +215,19 @@ pub const Link = struct {
         self.setPhase(.attached, true);
         self.post(.{ .attached = self.keeper });
         while (true) {
+            // A Keeper call's wait takes the wake event and only sets `woke`, so a terminal that
+            // began ending during a call is served by another pass: the link waits only after a
+            // pass in which no call took the wake.
+            self.woke = false;
             self.cancelEnding();
             const standing = self.requests();
             if (standing.stop) return self.stop();
             self.serveReleases(standing.detach);
             if (!self.keeperEnded()) self.serveHolds(standing.detach);
+            if (!self.keeperEnded()) move_requests.serve(self);
             if (self.keeperEnded()) return self.lose(standing.detach);
             if (standing.detach) return self.detach();
+            if (self.woke) continue;
             if (!self.idle()) return self.lose(self.requests().detach);
         }
     }
@@ -320,7 +335,7 @@ pub const Link = struct {
         gate.settle(self.index);
     }
 
-    const Outcome = union(enum) {
+    pub const Outcome = union(enum) {
         reply: message.Reply.Body,
         /// This request missed its deadline or ended the connection.
         unanswered,
@@ -329,7 +344,8 @@ pub const Link = struct {
         keeper_ended,
     };
 
-    fn call(self: *Link, body: message.Request.Body) Outcome {
+    /// Makes one request on the link thread, bounded by the Keeper's reply deadline.
+    pub fn call(self: *Link, body: message.Request.Body) Outcome {
         if (self.failed) return .failed;
         const id = self.next_request;
         self.next_request +%= 1;
@@ -365,6 +381,7 @@ pub const Link = struct {
         self.mutex.unlock();
         for (self.held.items) |entry| entry.gate.settle(self.index);
         self.held.clearRetainingCapacity();
+        move_requests.completeAll(self);
     }
 
     fn closeRetained(self: *Link) void {
@@ -411,6 +428,7 @@ pub const Link = struct {
     }
 
     fn finish(self: *Link) void {
+        move_requests.completeAll(self);
         if (self.connection) |*connection| connection.close();
         self.connection = null;
         self.mutex.lock();

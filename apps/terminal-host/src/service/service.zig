@@ -14,6 +14,7 @@ const host_outgoing = @import("outgoing.zig");
 const host_request_dispatch = @import("request_dispatch.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
 const keepers_module = @import("keepers.zig");
+const moves_module = @import("moves/root.zig");
 const request_failure = @import("request_failure.zig");
 const terminal_configuration = @import("terminal-host-model").configuration;
 
@@ -48,6 +49,8 @@ pub const HostService = struct {
     /// The Keeper attachments; their links run until teardown has ended every terminal.
     keepers: keepers_module.Keepers,
     lifecycle: ServiceLifecycle = .running,
+    /// The moves between Hosts; teardown settles them before any terminal's release.
+    moves: moves_module.Moves,
     /// The `drain` and `exit` lifecycle that queries report; only the dispatch thread changes it.
     process_state: host_lifecycle.State = .ready,
     runtime_aggregate: host_runtime_aggregate.HostRuntimeAggregate,
@@ -65,6 +68,7 @@ pub const HostService = struct {
         return .{
             .allocator = allocator,
             .keepers = .init(allocator),
+            .moves = .init(allocator),
             .runtime_aggregate = .initWithDefaults(allocator, options.terminal_defaults),
             .trace_interactions = options.trace_interactions,
         };
@@ -84,8 +88,13 @@ pub const HostService = struct {
         if (self.lifecycle == .released_after_abandoned_build) return error.CreationBuildAbandoned;
         const first_attempt = self.beginShutdown();
         // A creation in progress settles first: a runtime its build made joins the terminals the
-        // aggregate's teardown contains, and no terminal record it borrows goes before it.
+        // aggregate's teardown contains, and no terminal record it borrows goes before it. A
+        // restore build stops waiting for the Keeper before that wait.
+        self.moves.closeMailbox();
         self.creations.shutdown(&self.runtime_aggregate);
+        // Moving terminals settle before any release, which would end a program the other Host
+        // serves.
+        self.moves.teardown(&self.runtime_aggregate, &self.creations, &self.keepers.attachments);
         self.keepers.releaseAll(&self.runtime_aggregate);
         try self.runtime_aggregate.deinitChecked(first_attempt);
         try self.finishTeardown();
@@ -119,6 +128,7 @@ pub const HostService = struct {
     fn finishTeardown(self: *HostService) error{CreationBuildAbandoned}!void {
         // Every terminal has ended and released first, so no link still holds one.
         self.keepers.stop();
+        self.moves.stop();
         if (self.creations.abandoned_build) {
             self.lifecycle = .released_after_abandoned_build;
             return error.CreationBuildAbandoned;
@@ -141,13 +151,15 @@ pub const HostService = struct {
             .active => |active| active.connection_id,
             .awaiting_hello, .closing => null,
         });
+        self.moves.disconnect();
         self.connection_workflow.disconnect(&self.runtime_aggregate, connection);
     }
 
-    /// A Worker session was admitted on the broker endpoint; `keeper` tells whether its handshake
-    /// negotiated that capability.
-    pub fn admitSession(self: *HostService, keeper: bool) void {
+    /// A Worker session was admitted on the broker endpoint; `keeper` and `handover` tell whether
+    /// its handshake negotiated each capability.
+    pub fn admitSession(self: *HostService, keeper: bool, handover: bool) void {
         self.keepers.admit(keeper);
+        self.moves.admit(handover);
     }
 
     /// The facts a handshake reply reports, read on the dispatch thread.
@@ -204,6 +216,7 @@ pub const HostService = struct {
         self.runtime_aggregate.synchronizeRuntimes();
         // Notices wait for a session's delivery, which may answer one of its requests.
         self.keepers.offer(&self.runtime_aggregate);
+        self.moves.advance(&self.runtime_aggregate, &self.creations, &self.keepers.attachments);
         diagnostic_log.flush();
     }
 
@@ -248,6 +261,10 @@ pub const HostService = struct {
             .active => |active| .{ .connection_id = active.connection_id, .outgoing = &outgoing },
             .awaiting_hello, .closing => null,
         });
+        self.moves.deliver(&self.runtime_aggregate, &self.creations, &self.keepers.attachments, switch (connection.*) {
+            .active => |active| .{ .connection_id = active.connection_id, .outgoing = &outgoing },
+            .awaiting_hello, .closing => null,
+        });
         return outgoing;
     }
 
@@ -286,6 +303,7 @@ pub const HostService = struct {
             host_lifecycle.terminalAdmission(self.process_state),
             &self.creations,
             self.keepers.forSession(),
+            self.moves.access(&self.keepers.attachments),
             connection,
             record,
         );

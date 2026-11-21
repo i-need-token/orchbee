@@ -94,6 +94,9 @@
 	},
 	"frozenFixtures": [
 		{
+			"path": "apps/terminal-host/src/engine/__tests__/fixtures/handover-record-1.obhr"
+		},
+		{
 			"path": "schemas/client-server/v1/client-server-conformance-v1.json",
 			"sha256": "aef9bfbe3b375efe0f3791510740aa8867183bd2274bd542ab203268ebd337c9"
 		},

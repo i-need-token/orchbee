@@ -315,6 +315,7 @@ pub const ConfigurationUpdateError = error{
     MissingConnection,
     MissingResource,
     RuntimeStateDiverged,
+    TerminalQuiesced,
     TerminalRevisionOverflow,
     TerminalRuntimeMissing,
     TerminalRuntimeUnavailable,

@@ -6,7 +6,12 @@ const process_types = @import("process_types.zig");
 const pty_module = @import("pty.zig");
 const termination_module = @import("process_windows_termination.zig");
 const ConsoleTree = @import("process_windows_console.zig").ConsoleTree;
+const handover = @import("process_windows_handover.zig");
 const windows_api = @import("windows_api.zig");
+const executable_search = @import("windows_executable_search.zig");
+const windowsExecutableCandidate = executable_search.windowsExecutableCandidate;
+const joinWindowsPath = executable_search.joinWindowsPath;
+pub const windowsSearchCandidates = executable_search.windowsSearchCandidates;
 
 const ExitResult = process_types.ExitResult;
 const Launch = process_types.Launch;
@@ -21,127 +26,6 @@ pub fn prepareTerminalChildren() !void {
     }
 }
 
-fn windowsExecutableCandidate(
-    arena: std.mem.Allocator,
-    candidate: []const u8,
-    executable: []const u8,
-) ![:0]u16 {
-    // CreateProcess supplies the implicit .exe suffix only for a bare
-    // executable name. A qualified name such as `tools\\probe` is an
-    // exact path candidate and must not silently become `tools\\probe.exe`.
-    const can_append_extension = std.mem.indexOfAny(u8, executable, "\\/") == null;
-    const with_extension = if (can_append_extension and
-        std.mem.indexOfScalar(u8, executable, '.') == null)
-        try std.fmt.allocPrint(arena, "{s}.exe", .{candidate})
-    else
-        candidate;
-    return std.unicode.utf8ToUtf16LeAllocZ(arena, with_extension);
-}
-
-fn joinWindowsPath(arena: std.mem.Allocator, directory: []const u8, name: []const u8) ![]u8 {
-    if (directory.len == 0) return arena.dupe(u8, name);
-    // A trailing drive designator keeps drive-relative syntax: `C:` joined with
-    // `probe` is `C:probe` (the drive's current directory), never `C:\probe`.
-    const separator = if (directory[directory.len - 1] == '\\' or
-        directory[directory.len - 1] == '/' or
-        directory[directory.len - 1] == ':')
-        ""
-    else
-        "\\";
-    return std.fmt.allocPrint(arena, "{s}{s}{s}", .{ directory, separator, name });
-}
-
-const WindowsPathKind = enum { empty, drive_relative, ordinary_relative, absolute };
-
-fn windowsPathKind(directory: []const u8) WindowsPathKind {
-    if (directory.len == 0) return .empty;
-    if (std.fs.path.isAbsoluteWindows(directory)) return .absolute;
-    if (directory.len >= 2 and std.ascii.isAlphabetic(directory[0]) and directory[1] == ':')
-        return .drive_relative;
-    return .ordinary_relative;
-}
-
-pub fn windowsSearchCandidates(
-    arena: std.mem.Allocator,
-    executable: []const u8,
-    application_directory: ?[]const u8,
-    parent_current_directory: ?[]const u8,
-    system_directory: ?[]const u8,
-    include_current_directory: bool,
-    path: ?[]const u8,
-) ![][:0]u16 {
-    var candidates: std.ArrayList([:0]u16) = .empty;
-    if (application_directory) |directory| {
-        try candidates.append(arena, try windowsExecutableCandidate(
-            arena,
-            try joinWindowsPath(arena, directory, executable),
-            executable,
-        ));
-    }
-    if (include_current_directory) {
-        if (parent_current_directory) |directory| {
-            try candidates.append(arena, try windowsExecutableCandidate(
-                arena,
-                try joinWindowsPath(arena, directory, executable),
-                executable,
-            ));
-        }
-    }
-    if (system_directory) |directory| {
-        try candidates.append(arena, try windowsExecutableCandidate(
-            arena,
-            try joinWindowsPath(arena, directory, executable),
-            executable,
-        ));
-        if (std.mem.lastIndexOfAny(u8, directory, "\\/")) |separator| {
-            const windows_directory = directory[0..separator];
-            try candidates.append(arena, try windowsExecutableCandidate(
-                arena,
-                try joinWindowsPath(arena, windows_directory, "System"),
-                executable,
-            ));
-            try candidates.append(arena, try windowsExecutableCandidate(
-                arena,
-                try joinWindowsPath(arena, windows_directory, executable),
-                executable,
-            ));
-        }
-    }
-    // A missing PATH contributes no PATH candidates. Its absence has no
-    // current-directory semantics of its own, so a policy-excluded current
-    // directory cannot be reintroduced through a synthesized empty component.
-    if (path) |effective_path| {
-        var iterator = std.mem.splitScalar(u8, effective_path, ';');
-        while (iterator.next()) |directory| {
-            const path_kind = windowsPathKind(directory);
-            if (path_kind == .empty) {
-                // An explicitly empty PATH component means the current
-                // directory, matching CreateProcess's PATH search. It is a
-                // supplied entry, not the policy-controlled implicit slot.
-                if (parent_current_directory) |parent| {
-                    const path_candidate = try joinWindowsPath(arena, parent, executable);
-                    try candidates.append(arena, try windowsExecutableCandidate(arena, path_candidate, executable));
-                }
-                continue;
-            }
-            const base: []const u8 = switch (path_kind) {
-                // A drive-relative entry such as `C:tools` is relative to the
-                // drive's current directory, never to the parent process
-                // current directory, so it must not be prefixed with it.
-                .drive_relative, .absolute => directory,
-                .ordinary_relative => if (parent_current_directory) |parent|
-                    try joinWindowsPath(arena, parent, directory)
-                else
-                    continue,
-                .empty => unreachable,
-            };
-            const path_candidate = try joinWindowsPath(arena, base, executable);
-            try candidates.append(arena, try windowsExecutableCandidate(arena, path_candidate, executable));
-        }
-    }
-    return candidates.toOwnedSlice(arena);
-}
-
 pub const childCurrentDirectory = @import("windows_command_line.zig").childCurrentDirectory;
 
 pub const Process = if (builtin.os.tag != .windows) void else struct {
@@ -154,6 +38,17 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
     pty: pty_module.Pty,
     termination: termination_module.Termination = .{},
     console: ConsoleTree = .{},
+    /// Manual-reset: wakes the wait thread without the program's end, so a terminal that moved to
+    /// another Host stops being watched here without any step of its end.
+    stop_event: windows.HANDLE,
+    /// A settled terminal restored from a record: no program, console, or handle here.
+    inert: bool = false,
+
+    /// A held console of a terminal moving here; see `process_windows_handover.zig`.
+    pub const Held = handover.Held;
+    pub const adopt = handover.adopt;
+    pub const drop = handover.drop;
+    pub const settled = handover.settled;
 
     pub fn spawn(allocator: std.mem.Allocator, requested: Launch) !Process {
         var environment = try process_common.environmentForLaunch(allocator, requested.environment);
@@ -187,6 +82,9 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         else
             null;
 
+        const stop_event = windows_api.CreateEventW(null, .TRUE, .FALSE, null) orelse
+            return windows.unexpectedError(windows.GetLastError());
+        errdefer windows.CloseHandle(stop_event);
         var pty = try pty_module.Pty.open(allocator, .{
             .columns = launch.columns,
             .pixel_height = try process_common.pixelExtent(launch.rows, launch.cell_pixel_height),
@@ -287,10 +185,16 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
             .interactive_shell = @import("interactive_shell.zig").isInteractive(launch.executable, launch.arguments),
             .launch_kind = @import("interactive_shell.zig").launchKind(launch.executable, launch.arguments),
             .pty = pty,
+            .stop_event = stop_event,
         };
     }
 
     pub fn deinit(self: *Process) void {
+        if (self.inert) {
+            self.* = undefined;
+            return;
+        }
+        _ = windows.CloseHandle(self.stop_event);
         // Release first: no Keeper still holds the handles closed below; after a shutdown, at once.
         self.termination.keepers.pass();
         self.console.releaseMembers(self.job_handle, self.process_handle, &self.termination);
@@ -373,19 +277,31 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         return self.console.holdsCommand(self.job_handle, self.process_handle, &self.termination);
     }
 
+    /// The program's exit, or `error.Stopped` once `stopWait` asked the wait to end without it.
     pub fn wait(self: *Process) !ExitResult {
         // Console ownership must stay readable after the root exits.
-        try self.console.learnWhileLive(self.process_handle);
-        if (windows_api.WaitForSingleObject(self.process_handle, windows_api.INFINITE) !=
-            windows_api.WAIT_OBJECT_0)
-        {
-            return error.ProcessObservationFailed;
+        try self.console.learnWhileLive(self.process_handle, self.stop_event);
+        const handles = [_]windows.HANDLE{ self.process_handle, self.stop_event };
+        switch (windows_api.WaitForMultipleObjects(handles.len, &handles, .FALSE, windows_api.INFINITE)) {
+            windows_api.WAIT_OBJECT_0 => {},
+            windows_api.WAIT_OBJECT_0 + 1 => return error.Stopped,
+            else => return error.ProcessObservationFailed,
         }
         var code: windows.DWORD = undefined;
         if (!windows_api.GetExitCodeProcess(self.process_handle, &code).toBool()) {
             return error.ProcessObservationFailed;
         }
         return windowsTerminatedExitResult(code);
+    }
+
+    /// Ends `wait` without the program's end; the program and its console are untouched.
+    pub fn stopWait(self: *Process) void {
+        _ = windows_api.SetEvent(self.stop_event);
+    }
+
+    /// No signal waits for the console or is being written.
+    pub fn signalsIdle(self: *Process) bool {
+        return self.pty.signalsIdle();
     }
 
     pub fn releaseProcessIdentity(_: *Process) !void {}

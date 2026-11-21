@@ -148,6 +148,12 @@ pub const State = struct {
     /// requested, so the reader looks for it after each batch without the lock.
     reader_pause: contracts.ReaderPause = .none,
     reader_pause_pending: std.atomic.Value(bool) = .init(false),
+    /// terminal_mutex owns the move and whether the wait thread observed the program's end, so a
+    /// move never starts after that observation and the observation waits while a move is held.
+    move: contracts.Move = .none,
+    exit_observed: bool = false,
+    /// Input cleanups of attachments that left while the terminal moved, in order.
+    deferred_input: std.ArrayList(contracts.DeferredInput) = .empty,
     // terminal_mutex protects this one-shot epoch. Failure publication advances
     // it so a frame encoded before the fence cannot commit after containment
     // makes retained read-only state available again.

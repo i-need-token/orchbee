@@ -508,9 +508,29 @@ A refusal that the Worker acts on is a `TypedFailure` that adds `reason` after `
 `prompt-unconfirmed` does. Code `move-ineligible`, non-retryable, has the reasons `not-running`,
 `unheld`, `system-console`, `unknown-console-build`, `holds-image`, `too-large`, and `two-keepers`.
 Code `move-passing`, retryable, has the reasons `input-pending`, `signal-pending`, `mid-sequence`,
-and `moving`. `AttachKeeper` fails non-retryable `keeper-unavailable` when the Keeper check fails and
-`keeper-limit` when the Host already holds two Keeper attachments. A Host keeps at most one export
-and one import at a time.
+and `moving`. Code `move-failed`, retryable, reports a step that failed: the Keeper's refusal reason,
+such as `stale-mark`; `unsupported` when the Keeper does not know the request; `unanswered` when the
+request missed the Keeper's deadline or the Keeper ended, so it may have applied; `no-keeper` when
+no Keeper link took it; `handle-failed` when the Host could not take or pull the terminal's handles;
+`claim-check` when the pulled handles do not match the record; `invalid-record` for a record the
+import refuses; and `unrepresentable` for a terminal the export cannot encode. `AttachKeeper` fails
+non-retryable `keeper-unavailable` when the Keeper check fails and `keeper-limit` when the Host
+already holds two Keeper attachments, and `DetachKeeper` fails as passing `moving` while the Keeper
+holds a mark of the Host's or gave it a restored import. A Host keeps at most one export and one
+import at a time.
+
+From its quiesce until its resume or drop, and in the new Host until its claim, a terminal refuses
+input, resizes, terminal control, termination, disposal, configuration, and theme changes with the
+retryable `terminal-quiesced`; reads and attachments stay allowed, except that a restored terminal
+admits no attachment before its claim. `ImportTerminal` and `RestoreTerminal` fail non-retryable
+`host-draining` once the Host's admission has closed. Repeats answer without effect: an
+`ImportTerminal` of the import's creation, a chunk already written, a `RestoreTerminal` of a
+restored creation, a `ResumeTerminal` of a terminal that reads, a `ClaimTerminal` of a terminal the
+Host reads, and a `DiscardImport` of an unknown import, which answers `discarded`. A
+`ReadHandoverRecord` without an export of the terminal, a `DropTerminal` of a terminal that is not
+moving or still attached, and a `RestoreTerminal` before the whole record arrived fail
+`invalid-phase`; a chunk out of order fails `invalid-field`, and one without an import
+`missing-resource`.
 
 A settled terminal exports without a mark. Its import restores it settled with its outcome already
 published, so it never sends `TerminalExited` again, and refuses `ClaimTerminal` as

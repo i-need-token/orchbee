@@ -39,6 +39,7 @@ pub fn updateTerminalConfiguration(
     if (!terminal_configuration.valid(configuration)) return error.InvalidConfiguration;
     if (self.core_state.connectionClientId(connection_id) == null) return error.MissingConnection;
     const terminal = self.core_state.findTerminal(terminal_id) orelse return error.MissingResource;
+    if (terminal.handover != .none) return error.TerminalQuiesced;
     if (!terminal.acceptsConfigurationUpdate()) return error.InvalidPhase;
     if (terminal.effectiveConfiguration().scrollback_bytes != configuration.scrollback_bytes and
         terminal.configurationRevision() == std.math.maxInt(u64))

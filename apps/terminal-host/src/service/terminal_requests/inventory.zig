@@ -77,23 +77,21 @@ pub fn handleList(
         offset,
         request.maximum_terminals,
     ) catch unreachable;
-    // A session that negotiated `keeper` reads each held terminal's `holdingId`.
-    const payload = (if (self.context.keepers != null) control_encode.terminalListHeld(
+    // A session that negotiated `keeper` reads each held terminal's `holdingId`, and one that
+    // negotiated `handover` each moving terminal's `handoverState`.
+    const payload = control_encode.terminalListHeld(
         self.context.allocator,
         inventory.host_epoch,
         inventory.generation,
         inventory.terminals,
         offset,
         request.maximum_terminals,
-        host_keepers.Holdings{ .aggregate = self.context.runtime_aggregate },
-    ) else control_encode.terminalList(
-        self.context.allocator,
-        inventory.host_epoch,
-        inventory.generation,
-        inventory.terminals,
-        offset,
-        request.maximum_terminals,
-    )) catch |err| switch (err) {
+        host_keepers.Holdings{
+            .aggregate = self.context.runtime_aggregate,
+            .keeper = self.context.keepers != null,
+            .handover = if (self.context.moves) |moves| moves.negotiated() else false,
+        },
+    ) catch |err| switch (err) {
         error.InventoryTerminalTooLarge => {
             try self.context.addFailure(
                 outgoing,

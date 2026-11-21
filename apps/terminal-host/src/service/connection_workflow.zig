@@ -8,6 +8,7 @@ const core_module = @import("terminal-host-core").state;
 const creation_pipeline = @import("creation_pipeline.zig");
 const host_failure = @import("failure.zig");
 const host_keepers = @import("keepers.zig");
+const host_moves = @import("moves/root.zig");
 const host_lifecycle = @import("host_lifecycle.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_request_context = @import("request_context.zig");
@@ -82,6 +83,7 @@ pub const Workflow = struct {
         terminal_admission: host_lifecycle.TerminalAdmission,
         creations: *creation_pipeline.Pipeline,
         keepers: ?*host_keepers.Keepers,
+        moves: ?host_moves.Access,
         connection: *ConnectionState,
         record: []const u8,
     ) !Outgoing {
@@ -226,6 +228,7 @@ pub const Workflow = struct {
             creations,
         );
         request_dispatcher.context.keepers = keepers;
+        request_dispatcher.context.moves = moves;
         try request_dispatcher.dispatch(
             request_contract,
             active_connection.connection_id,

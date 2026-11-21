@@ -1,11 +1,13 @@
-//! Restores a terminal from a handover record into a new runtime. The record is decoded and
-//! checked in full before any worker or process starts, and a refused record creates nothing.
-//! Until the Host adopts a held console, the restored runtime starts the stand-in launch its
-//! caller passes, at the record's geometry.
+//! Restores a terminal from a handover record into a new runtime, in two steps. `prepare` decodes
+//! and checks the record in full and builds the engine, which reads nothing and runs no worker, so
+//! a refused record creates nothing. `start` then adopts the held console that the claim checks
+//! passed and starts every worker behind the startup gate, which only the claim opens; a settled
+//! terminal starts nothing, since its program ended on the old Host.
 const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
 const model = @import("terminal-host-model");
 const platform = @import("terminal-host-platform");
+const pty_process = platform.process;
 const protocol = @import("terminal-protocol");
 const handover = @import("../handover/root.zig");
 const png_decoder = @import("../png_decoder.zig");
@@ -20,6 +22,7 @@ const terminal_control = @import("terminal_control.zig");
 const handover_export = @import("handover_export.zig");
 const handover_shell = @import("handover_shell.zig");
 const handover_input = @import("handover_input.zig");
+const runtime_completion = @import("../runtime_completion.zig");
 
 const EngineState = handover.EngineState;
 
@@ -35,17 +38,36 @@ pub const Facts = struct {
     held_attachments: []contracts.AttachmentId,
 };
 
-pub const Restored = struct {
+/// A restored runtime that runs no worker yet; `start` or `abandon` ends this state.
+pub const Prepared = struct {
     runtime: *state.State,
     facts: Facts,
+
+    /// Frees a prepared runtime that never started.
+    pub fn abandon(self: *Prepared) void {
+        self.release(false);
+    }
+
+    fn release(self: *Prepared, adopted: bool) void {
+        const runtime = self.runtime;
+        const allocator = runtime.allocator;
+        creation.cleanupFailedThreadStartup(runtime);
+        if (adopted) runtime.process.drop();
+        allocator.destroy(runtime);
+        allocator.free(self.facts.held_attachments);
+        self.* = undefined;
+    }
 };
 
-pub fn restore(
-    allocator: std.mem.Allocator,
-    record: []const u8,
-    launch: contracts.ProcessLaunch,
-    spawner: anytype,
-) !Restored {
+/// How a prepared terminal reaches its program.
+pub const Program = union(enum) {
+    /// A running terminal's held console, whose duplicates the claim checks passed.
+    held: pty_process.Held,
+    /// A settled terminal, whose program ended on the old Host.
+    settled,
+};
+
+pub fn prepare(allocator: std.mem.Allocator, record: []const u8) !Prepared {
     png_decoder.install();
     var decoded = try handover.decode(allocator, record, handover_export.pin);
     defer decoded.deinit();
@@ -53,17 +75,6 @@ pub fn restore(
     const engine = decoded.engine;
     const profile = try profileFrom(engine.profile);
     try checkEngine(decoded.terminal, engine);
-    var stand_in = launch;
-    stand_in.columns = geometry.columns;
-    stand_in.rows = geometry.rows;
-    stand_in.cell_pixel_width = geometry.cell_pixel_width;
-    stand_in.cell_pixel_height = geometry.cell_pixel_height;
-    const checked = try terminal_runtime_launch.prepare(allocator, stand_in, .{
-        .cell_pixel_height = geometry.cell_pixel_height,
-        .cell_pixel_width = geometry.cell_pixel_width,
-        .profile = profile,
-        .scrollback_bytes = decoded.configuration.configuration.scrollback_bytes,
-    });
 
     var reader: std.Io.Reader = .fixed(decoded.screen);
     var snapshot = ghostty_vt.snapshot.decodeExact(allocator, platform.thread_sync.io(), &reader, .{
@@ -109,7 +120,6 @@ pub fn restore(
         .scrollback_bytes = decoded.configuration.configuration.scrollback_bytes,
         .terminal = snapshot.toOwned(),
     };
-    creation.adoptTestingHooks(self, spawner);
     errdefer creation.cleanupFailedThreadStartup(self);
     // The stream resets the platform's prompt-redraw default; the record's value stands.
     const shell_redraws_prompt = self.terminal.flags.shell_redraws_prompt;
@@ -117,7 +127,6 @@ pub fn restore(
     self.terminal.flags.shell_redraws_prompt = shell_redraws_prompt;
     applyHostLimits(self);
     try install(self, engine, held_attachments);
-    try creation.startWorkers(self, checked.process_launch, spawner);
     return .{
         .runtime = self,
         .facts = .{
@@ -128,6 +137,107 @@ pub fn restore(
             .held_attachments = held_attachments,
         },
     };
+}
+
+/// Starts a prepared terminal. A running one adopts its held console and starts every worker
+/// behind the startup gate, held for the move until its claim. `start` owns the duplicates: on
+/// failure they close and nothing remains of the runtime. A settled one starts nothing.
+pub fn start(prepared: *Prepared, program: Program, spawner: anytype) !void {
+    // Only a Host that moves terminals imports one.
+    if (comptime !pty_process.moves_supported) unreachable;
+    const self = prepared.runtime;
+    switch (program) {
+        .settled => settle(self, prepared.facts.terminal),
+        .held => |held| {
+            self.process = pty_process.Process.adopt(self.allocator, held) catch |err| {
+                platform.keeper.handles.closeAll(&held.duplicates);
+                prepared.abandon();
+                return err;
+            };
+            self.move = .held;
+            creation.adoptTestingHooks(self, spawner);
+            creation.startGatedWorkers(self, spawner) catch |err| {
+                prepared.release(true);
+                return err;
+            };
+        },
+    }
+}
+
+/// A settled terminal's runtime: no process and no worker, with its outcome already reached.
+fn settle(self: *state.State, terminal: handover.TerminalFacts) void {
+    self.process = pty_process.Process.settled(terminal.launch_kind, terminal.interactive_shell);
+    self.child_exited.store(true, .release);
+    self.pty_drained.store(true, .release);
+    self.writer_stopped.store(true, .release);
+    self.writer_stop = true;
+    self.client_input_closed = true;
+    self.containment_confirmed.store(true, .release);
+    self.threads_joined = true;
+    self.startup.abort();
+    switch (terminal.inputs.lifecycle) {
+        .running => unreachable,
+        .exited => |exited| {
+            self.exit_result = exitResult(exited.result);
+            _ = self.completion_classification.markNormal();
+        },
+        // The failures that only the Host's own dispatch records, the reply admission and the
+        // termination, have no engine kind; the imported Core record carries every one.
+        .failed => |failed| if (engineFailure(failed.failure)) |kind| {
+            self.completion_classification.markFailure(kind);
+        },
+    }
+}
+
+fn engineFailure(failure: model.lifecycle.RuntimeFailure) ?runtime_completion.FailureKind {
+    return switch (failure) {
+        .apply_resize => .resize,
+        .observe_process => .process_observation,
+        .read_output => .pty_read,
+        .write_input => .pty_write,
+        .synchronize_worker => .worker_integrity,
+        .admit_terminal_reply, .dispatch_termination => null,
+    };
+}
+
+fn exitResult(result: model.lifecycle.ExitResult) pty_process.ExitResult {
+    return switch (result) {
+        .exit_code => |code| .{ .exit_code = code },
+        .signal => |signal| .{ .signal = signal },
+        .unknown => |unknown| .{ .unknown = unknown },
+    };
+}
+
+/// For tests: restores `record` with the stand-in `launch` running at the record's geometry in
+/// place of a held console, and opens the startup gate at once.
+pub fn restoreStandIn(
+    allocator: std.mem.Allocator,
+    record: []const u8,
+    launch: contracts.ProcessLaunch,
+    spawner: anytype,
+) !Prepared {
+    var prepared = try prepare(allocator, record);
+    const geometry = prepared.facts.terminal.geometry;
+    var stand_in = launch;
+    stand_in.columns = geometry.columns;
+    stand_in.rows = geometry.rows;
+    stand_in.cell_pixel_width = geometry.cell_pixel_width;
+    stand_in.cell_pixel_height = geometry.cell_pixel_height;
+    const checked = terminal_runtime_launch.prepare(allocator, stand_in, .{
+        .cell_pixel_height = geometry.cell_pixel_height,
+        .cell_pixel_width = geometry.cell_pixel_width,
+        .profile = null,
+        .scrollback_bytes = prepared.runtime.scrollback_bytes,
+    }) catch |err| {
+        prepared.abandon();
+        return err;
+    };
+    creation.adoptTestingHooks(prepared.runtime, spawner);
+    creation.startWorkers(prepared.runtime, checked.process_launch, spawner) catch |err| {
+        prepared.abandon();
+        return err;
+    };
+    return prepared;
 }
 
 /// The bounds the Host sets on every terminal and Ghostty's snapshot does not carry.

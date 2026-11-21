@@ -25,6 +25,9 @@ pub const AttachKeeper = keeper.AttachKeeper;
 pub const decodeAttachKeeper = keeper.decodeAttachKeeper;
 pub const decodeDetachKeeper = keeper.decodeDetachKeeper;
 
+/// The `handover` capability's requests.
+pub const handover = @import("decode_handover.zig");
+
 pub const CreateTerminal = terminal.CreateTerminal;
 pub const StartTerminal = terminal.StartTerminal;
 pub const UpdateTerminalConfiguration = terminal.UpdateTerminalConfiguration;

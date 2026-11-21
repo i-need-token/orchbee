@@ -432,6 +432,8 @@ pub const Maintenance = struct {
         runtime: *terminal_runtime.TerminalRuntime,
     ) void {
         const retained_terminal = core.findTerminal(terminal_id) orelse return;
+        // A moving terminal takes no lifecycle step: its exit waits for the move's result.
+        if (retained_terminal.handover != .none) return;
         switch (retained_terminal.retainedCleanup()) {
             .inactive => {},
             .blocked => {

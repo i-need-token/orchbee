@@ -69,6 +69,8 @@ pub const writeSelectionExportFinished = interaction.writeSelectionExportFinishe
 pub const KeeperProcess = @import("encode_keeper.zig").KeeperProcess;
 pub const keeperNamed = @import("encode_keeper.zig").keeperNamed;
 pub const terminalUnheld = @import("encode_keeper.zig").terminalUnheld;
+/// The `handover` capability's answers.
+pub const handover = @import("encode_handover.zig");
 pub const processInfo = @import("encode_process.zig").processInfo;
 pub const writeProcessInfo = @import("encode_process.zig").writeProcessInfo;
 pub const processInfoWithLaunchKind = @import("encode_process.zig").processInfoWithLaunchKind;

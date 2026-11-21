@@ -11,6 +11,7 @@ const projection = @import("projection.zig");
 const storage = @import("storage.zig");
 const terminal_creation = @import("terminal_creation.zig");
 const terminals = @import("terminals.zig");
+const handover = @import("handover.zig");
 
 const AttachmentId = contracts.AttachmentId;
 const BrokerSession = broker_session.Session;
@@ -187,6 +188,13 @@ pub const HostCore = struct {
     pub const terminalKeys = terminals.terminalKeys;
     pub const terminalValues = terminals.terminalValues;
     pub const inventoryGeneration = terminals.inventoryGeneration;
+
+    // Moves between Hosts.
+    pub const commitHandover = handover.commitHandover;
+    pub const validateMoveRemoval = handover.validateMoveRemoval;
+    pub const commitMoveRemoval = handover.commitMoveRemoval;
+    pub const validateImportAdmission = handover.validateImportAdmission;
+    pub const commitImport = handover.commitImport;
 
     // Attachments boundary.
     pub const attach = attachments.attach;

@@ -129,11 +129,18 @@ pub fn destroy(self: *state.State) void {
 pub fn destroyAfterShutdown(self: *state.State) void {
     std.debug.assert(self.threads_joined);
     std.debug.assert(self.containment_confirmed.load(.acquire));
+    self.process.deinit();
+    free(self);
+}
+
+/// Frees the runtime once every worker is joined and its process record is released.
+pub fn free(self: *state.State) void {
+    std.debug.assert(self.threads_joined);
     graphics_media.deinit(self);
     self.stream.deinit();
     self.stream_allocator.deinit();
     feedback_ops.deinit(self);
-    self.process.deinit();
+    self.deferred_input.deinit(self.allocator);
     self.history.deinit(&self.terminal);
     self.terminal.deinit(self.allocator);
     if (self.kitty_temp_directory) |path| self.allocator.free(path);

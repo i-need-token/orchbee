@@ -23,6 +23,17 @@ pub const worker_host = struct {
         &.{ "keeper", "prompt-gated-input", "screen-gated-input" }
     else
         &.{ "prompt-gated-input", "screen-gated-input" };
+    /// `capabilities` with `handover`, on Windows only: this Host moves running terminals to and
+    /// from another Host through the Keeper.
+    pub const capabilities_with_handover: []const []const u8 = if (builtin.os.tag == .windows)
+        &.{ "handover", "keeper", "prompt-gated-input", "screen-gated-input" }
+    else
+        capabilities;
+
+    /// What this Host offers; `handover` only where its conpty can take a moved terminal.
+    pub fn offered(handover: bool) []const []const u8 {
+        return if (handover) capabilities_with_handover else capabilities;
+    }
     pub const development_fingerprint: []const u8 = options.worker_host_fingerprint;
 };
 
@@ -41,8 +52,11 @@ pub fn workerHostProfile(
     product_version: []const u8,
     build: message.Build,
     environment: []const u8,
+    handover: bool,
 ) admission.Profile {
-    return profile(worker_host, product_version, build, environment);
+    var result = profile(worker_host, product_version, build, environment);
+    result.capabilities = worker_host.offered(handover);
+    return result;
 }
 
 /// This build's acceptor profile for `keeper`, on the same terms.

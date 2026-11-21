@@ -112,9 +112,9 @@ pub fn validateAttachmentAdmission(
     if (admission == .replay) return .replay;
 
     const terminal = try storage.requireTerminal(self, terminal_id);
-    if ((capabilities.input or capabilities.resize) and !terminal.acceptsRuntimeWork()) {
-        return error.InvalidPhase;
-    }
+    // A restored terminal reads nothing until its claim, so nothing attaches to it.
+    if (terminal.handover == .restored) return error.TerminalQuiesced;
+    if (capabilities.input or capabilities.resize) try storage.admitRuntimeWork(terminal);
     if (capabilities.read and !terminal.hasReadableRuntimeState()) {
         return error.InvalidPhase;
     }
@@ -161,7 +161,7 @@ pub fn claimResizeLease(
     const attachment = broker.find(attachment_id) orelse return error.MissingResource;
     if (!attachment.capabilities.resize) return error.ResizeLeaseDenied;
     const terminal = try storage.requireTerminal(self, attachment.terminal_id);
-    if (!terminal.acceptsRuntimeWork()) return error.InvalidPhase;
+    try storage.admitRuntimeWork(terminal);
     if (attachment.resize_lease) {
         return .{
             .outcome = .idempotent,
@@ -191,7 +191,7 @@ pub fn authorizeInput(
     }
     if (!attachment.capabilities.input) return error.CapabilityUnavailable;
     const terminal = try storage.requireTerminal(self, attachment.terminal_id);
-    if (!terminal.acceptsRuntimeWork()) return error.InvalidPhase;
+    try storage.admitRuntimeWork(terminal);
     return attachment;
 }
 
@@ -205,7 +205,7 @@ pub fn authorizeCurrentInput(
 ) CoreError!*const Attachment {
     const attachment = try self.resolveAttachment(connection_id, attachment_id, .input);
     const terminal = try storage.requireTerminal(self, attachment.terminal_id);
-    if (!terminal.acceptsRuntimeWork()) return error.InvalidPhase;
+    try storage.admitRuntimeWork(terminal);
     return attachment;
 }
 
@@ -231,10 +231,10 @@ pub fn validateAttachmentInputCapabilityUpdate(
         return error.StaleCapabilityRevision;
     }
     if (input == attachment.capabilities.input) return error.CapabilityRevisionConflict;
-    if (input) {
-        const terminal = try storage.requireTerminal(self, attachment.terminal_id);
-        if (!terminal.acceptsRuntimeWork()) return error.InvalidPhase;
-    }
+    const terminal = try storage.requireTerminal(self, attachment.terminal_id);
+    // Giving input up releases what the attachment holds, which writes to the program.
+    try storage.admitChange(terminal);
+    if (input) try storage.admitRuntimeWork(terminal);
     return .apply;
 }
 
@@ -266,7 +266,7 @@ pub fn resize(
         return error.ResizeLeaseDenied;
     }
     const terminal = try storage.requireTerminal(self, attachment.terminal_id);
-    if (!terminal.acceptsRuntimeWork()) return error.InvalidPhase;
+    try storage.admitRuntimeWork(terminal);
     const geometry = terminal.observedGeometry();
     if (geometry.columns == columns and geometry.rows == rows) return .idempotent;
     return .applied;

@@ -17,7 +17,7 @@ pub const AttachKeeper = struct {
     endpoint_id: [32]u8,
 };
 
-const WireProcess = struct {
+pub const WireProcess = struct {
     pid: u32,
     creationTime: []const u8,
 };
@@ -52,7 +52,7 @@ pub fn decodeDetachKeeper(
     return .{ .parsed = parsed, .value = try process(parsed.value.keeper) };
 }
 
-fn process(wire: WireProcess) error{InvalidField}!KeeperProcess {
+pub fn process(wire: WireProcess) error{InvalidField}!KeeperProcess {
     if (wire.pid == 0) return error.InvalidField;
     return .{ .pid = wire.pid, .created = try decode_common.parsePositiveCanonicalU64(wire.creationTime) };
 }

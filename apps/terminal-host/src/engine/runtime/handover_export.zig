@@ -54,10 +54,25 @@ pub fn exportRecord(self: *state.State, allocator: std.mem.Allocator, inputs: In
     self.input_mutex.lock();
     defer self.input_mutex.unlock();
     if (self.input_queue.entries.items.len != 0) return error.InputPending;
+    return encodeLocked(self, allocator, inputs, .running);
+}
 
+/// Encodes a settled terminal's record. Its program ended and its output was read to the end, so
+/// no byte follows: what the program was last told of keys and buttons is not carried, and a
+/// sequence the output ended inside can never complete, so it is not carried either.
+pub fn exportSettledRecord(self: *state.State, allocator: std.mem.Allocator, inputs: Inputs) Error![]u8 {
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    if (holdsImage(self)) return error.HoldsImage;
+    return encodeLocked(self, allocator, inputs, .settled);
+}
+
+const Kind = enum { running, settled };
+
+fn encodeLocked(self: *state.State, allocator: std.mem.Allocator, inputs: Inputs, kind: Kind) Error![]u8 {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
-    const engine = try engineState(self, arena.allocator());
+    const engine = try engineState(self, arena.allocator(), kind);
     var screen: std.Io.Writer.Allocating = .init(allocator);
     defer screen.deinit();
     ghostty_vt.snapshot.encode(allocator, &screen.writer, &self.terminal, .{ .continuation = .ground }) catch |err|
@@ -103,7 +118,7 @@ fn holdsImage(self: *const state.State) bool {
     return false;
 }
 
-fn engineState(self: *state.State, arena: std.mem.Allocator) error{ InputPending, OutOfMemory }!handover.EngineState {
+fn engineState(self: *state.State, arena: std.mem.Allocator, kind: Kind) error{ InputPending, OutOfMemory }!handover.EngineState {
     const now = clock.monotonicTimeNanoseconds(self);
     const profile = &self.profile;
     const features = try arena.alloc(u16, profile.device_primary_features.len);
@@ -151,7 +166,10 @@ fn engineState(self: *state.State, arena: std.mem.Allocator) error{ InputPending
         .mouse_input_epoch = self.mouse_input_epoch,
         .mouse_input_epoch_exhausted = self.mouse_input_epoch_exhausted,
         .typed_input_sequence = self.typed_input_sequence,
-        .held_input = try handover_input.exportHeld(&self.input_ownership, arena),
+        .held_input = switch (kind) {
+            .running => try handover_input.exportHeld(&self.input_ownership, arena),
+            .settled => &.{},
+        },
         .prompt_gate = handover_shell.exportPromptGate(self, now),
         .command_observation = handover_shell.exportCommandObservation(self),
         .scanner_partial_state = "",

@@ -3,6 +3,7 @@ const target_builtin = @import("builtin");
 const monotonic = @import("terminal-host-platform").monotonic;
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
+const handover_move = @import("handover_move.zig");
 
 pub fn processTreeAlreadyContained(self: *state.State) !bool {
     self.containment_mutex.lock();
@@ -20,6 +21,8 @@ pub fn processTreeAlreadyContained(self: *state.State) !bool {
 
 pub fn containProcessTree(self: *state.State) !void {
     if (self.containment_confirmed.load(.acquire)) return;
+    // Another Host serves, or may serve, a moving terminal's program.
+    if (handover_move.moving(self)) return error.TerminalMoving;
     self.containment_mutex.lock();
     defer self.containment_mutex.unlock();
     if (self.containment_confirmed.load(.acquire)) return;

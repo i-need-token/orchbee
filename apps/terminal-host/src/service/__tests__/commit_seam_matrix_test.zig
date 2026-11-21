@@ -36,6 +36,10 @@ const Seam = enum(u8) {
     keeper_release,
     handover_export,
     handover_restore,
+    keeper_mark,
+    claim_preparation,
+    keeper_claim,
+    keeper_resume,
 };
 
 const Disposition = enum {
@@ -103,6 +107,10 @@ const matrix = [_]Entry{
     entry(.keeper_release, "CS-032", "KeeperRelease", .contain_and_retain, .native_boundary, "src/service/__tests__/keeper_link_test.zig", "keeper release the Keeper leaves unanswered holds the end until its deadline and fails the link at once"),
     entry(.handover_export, "CS-033", "HandoverExport", .rollback, .allocation_index, "src/engine/__tests__/handover_test.zig", "a failed handover export is discarded and the reader reads on"),
     entry(.handover_restore, "CS-034", "HandoverRestore", .reject_without_commit, .allocation_index, "src/engine/__tests__/handover_test.zig", "a failed handover import is discarded and creates nothing"),
+    entry(.keeper_mark, "CS-035", "KeeperMark", .rollback, .native_boundary, "src/service/__tests__/handover_move_test.zig", "a mark the Keeper refuses leaves the terminal reading on its old Host with nothing lost"),
+    entry(.claim_preparation, "CS-036", "ClaimPreparation", .reject_without_commit, .native_boundary, "src/service/__tests__/handover_move_test.zig", "a record of an earlier quiesce is refused as stale-mark and the terminal reads on"),
+    entry(.keeper_claim, "CS-037", "KeeperClaim", .reject_without_commit, .native_boundary, "src/service/__tests__/handover_move_test.zig", "a claim the Keeper refuses never lets the new Host read"),
+    entry(.keeper_resume, "CS-038", "KeeperResume", .contain_and_retain, .native_boundary, "src/service/__tests__/handover_move_test.zig", "a resume left unanswered keeps the terminal stopped until the Worker resumes it without the Keeper"),
 };
 
 test "commit seam matrix is exhaustive unique documented and backed by named tests" {

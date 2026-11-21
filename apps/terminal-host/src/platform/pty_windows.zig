@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const conpty_builds = @import("conpty_builds.zig");
 const conpty_signals = @import("conpty_signals_windows.zig");
 const process_types = @import("process_types.zig");
 const thread_sync = @import("thread_sync.zig");
@@ -86,6 +87,61 @@ pub const WindowsPty = if (builtin.os.tag != .windows) void else struct {
             .output = output,
             .signals = signals,
         };
+    }
+
+    /// A held console's handles, each this Host's own duplicate.
+    pub const Held = struct {
+        input: windows.HANDLE,
+        output: windows.HANDLE,
+        console: windows.HANDLE,
+        reference: windows.HANDLE,
+        signal: windows.HANDLE,
+    };
+
+    /// Wraps a held console in a pseudoconsole that the bundled conpty packs from its process,
+    /// reference, and signal handles, which sends nothing to OpenConsole and keeps the handles as
+    /// they are. On failure the caller still owns every handle; a packed block that a later step
+    /// abandons stays allocated, since it names the caller's handles.
+    pub fn adopt(allocator: std.mem.Allocator, held: Held) !WindowsPty {
+        var conpty = try windows_conpty.Api.init();
+        errdefer conpty.deinit();
+        const pack = conpty.pack orelse return error.ConptyPackUnavailable;
+        var pseudo_console: windows_api.HPCON = undefined;
+        if (pack(held.console, held.reference, held.signal, &pseudo_console) != windows_api.S_OK) {
+            return error.ConptyPackFailed;
+        }
+        const signals = try conpty_signals.Signals.start(allocator, &conpty, pseudo_console);
+        return .{
+            .allocator = allocator,
+            .conpty = conpty,
+            .input = held.input,
+            .output = held.output,
+            .signals = signals,
+        };
+    }
+
+    /// Lets the console go to another Host without touching it: the signal sender stops without
+    /// a signal, and only this Host's handles close, the three inside the pseudoconsole read
+    /// through the pinned layout. No ConPTY call runs, so OpenConsole sees nothing; the
+    /// pseudoconsole's small block stays until the Host exits. The reader must have ended.
+    pub fn drop(self: *WindowsPty) void {
+        std.debug.assert(self.conpty.module != null);
+        self.signals.abandon();
+        const block: [*]const u8 = @ptrCast(self.signals.pseudo_console);
+        const layout = conpty_builds.own_layout;
+        for ([_]usize{ layout.signal, layout.reference, layout.console }) |offset| {
+            _ = windows.CloseHandle(@as(*align(1) const windows.HANDLE, @ptrCast(block + offset)).*);
+        }
+        self.signals.destroy(self.allocator);
+        _ = windows.CloseHandle(self.input);
+        _ = windows.CloseHandle(self.output);
+        self.conpty.deinit();
+        self.* = undefined;
+    }
+
+    /// No signal waits for the console or is being written.
+    pub fn signalsIdle(self: *WindowsPty) bool {
+        return self.signals.idle();
     }
 
     pub fn deinit(self: *WindowsPty) void {

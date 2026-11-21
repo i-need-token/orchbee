@@ -154,7 +154,6 @@ pub const Dispatcher = struct {
             => if (self.context.keepers) |keepers| {
                 try keepers.handle(&self.context, request_contract.operation, connection_id, envelope, correlation_id, outgoing);
             } else try self.notNegotiated(correlation_id, outgoing),
-            // This Host does not offer `handover`, so no connection negotiated it.
             .quiesce_terminal,
             .read_handover_record,
             .resume_terminal,
@@ -164,7 +163,9 @@ pub const Dispatcher = struct {
             .restore_terminal,
             .claim_terminal,
             .discard_import,
-            => try self.notNegotiated(correlation_id, outgoing),
+            => if (self.context.moves) |moves| if (moves.negotiated()) {
+                try moves.handle(&self.context, request_contract.operation, connection_id, envelope, correlation_id, outgoing);
+            } else try self.notNegotiated(correlation_id, outgoing) else try self.notNegotiated(correlation_id, outgoing),
         }
     }
 

@@ -5,7 +5,9 @@ import path from 'node:path';
 import { stageConptyBundle, verifyConptyBundle } from './windows-conpty.mjs';
 
 const temporaryPrefix = 'orchbee-keeper-link-test-';
-const witnessTimeoutMilliseconds = 300_000;
+const witnessTimeoutMilliseconds = 600_000;
+const usage =
+	'Usage: run-keeper-link-test.mjs --test-executable TEST_EXECUTABLE [--host-executable HOST_EXECUTABLE]';
 
 function removeOwnedTemporary(directory, parent) {
 	const actual = realpathSync(directory);
@@ -17,24 +19,39 @@ function removeOwnedTemporary(directory, parent) {
 	rmSync(actual, { recursive: true, maxRetries: 20, retryDelay: 250 });
 }
 
+const options = process.argv.slice(2);
 if (
 	process.platform !== 'win32' ||
 	process.arch !== 'x64' ||
-	process.argv.length !== 4 ||
-	process.argv[2] !== '--test-executable'
+	(options.length !== 2 && options.length !== 4) ||
+	options[0] !== '--test-executable' ||
+	(options.length === 4 && options[2] !== '--host-executable')
 ) {
-	throw new Error('Usage: run-keeper-link-test.mjs --test-executable TEST_EXECUTABLE');
+	throw new Error(usage);
 }
 
-const source = realpathSync(process.argv[3]);
+const source = realpathSync(options[1]);
 if (!lstatSync(source).isFile()) throw new Error('Keeper link test executable is not a file');
+const hostSource = options.length === 4 ? realpathSync(options[3]) : undefined;
+if (hostSource !== undefined && !lstatSync(hostSource).isFile()) {
+	throw new Error('Host executable is not a file');
+}
 const temporaryParent = realpathSync(os.tmpdir());
 const temporary = mkdtempSync(path.join(temporaryParent, temporaryPrefix));
 let failure;
 try {
 	// The Host's service runs in the test, so its terminals use the pinned conpty beside it.
-	const executable = path.join(temporary, 'terminal-host-keeper-link-tests.exe');
+	const executable = path.join(temporary, path.basename(source));
 	copyFileSync(source, executable, constants.COPYFILE_EXCL);
+	if (hostSource !== undefined) {
+		// A test of moves between two Hosts starts the built Host beside it, where its terminals use
+		// the same pinned conpty.
+		copyFileSync(
+			hostSource,
+			path.join(temporary, path.basename(hostSource)),
+			constants.COPYFILE_EXCL,
+		);
+	}
 	const bundle = path.join(temporary, 'conpty');
 	await stageConptyBundle(bundle);
 	verifyConptyBundle(bundle);

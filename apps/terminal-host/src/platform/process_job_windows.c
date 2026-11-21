@@ -89,3 +89,18 @@ BOOL ob_windows_terminal_job_active_processes(HANDLE job, DWORD *active_processe
     *active_processes = accounting.ActiveProcesses;
     return TRUE;
 }
+
+BOOL ob_windows_terminal_job_kills_on_close(HANDLE job, BOOL *kills) {
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {0};
+    if (!QueryInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            &limits,
+            sizeof(limits),
+            NULL
+        )) {
+        return FALSE;
+    }
+    *kills = (limits.BasicLimitInformation.LimitFlags & JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE) != 0;
+    return TRUE;
+}

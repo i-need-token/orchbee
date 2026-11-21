@@ -130,6 +130,7 @@ pub fn fromCore(err: CoreFailure) Details {
         error.StaleCapabilityRevision => .{ .code = "stale-capability-revision", .message = "capability revision is stale or out of order", .retryable = false },
         error.StartConflict => .{ .code = "start-conflict", .message = "terminal was already started with different geometry", .retryable = false },
         error.TerminalConflict => .{ .code = "terminal-conflict", .message = "TerminalId conflicts with retained state", .retryable = true },
+        error.TerminalQuiesced => .{ .code = "terminal-quiesced", .message = "the terminal is moving between Hosts", .retryable = true },
         error.ThemeOperationConflict => .{ .code = "theme-operation-conflict", .message = "theme operation identifier conflicts with retained state", .retryable = false },
         error.OutOfMemory => .{ .code = "resource-exhausted", .message = "Host could not retain bounded state", .retryable = true },
     };

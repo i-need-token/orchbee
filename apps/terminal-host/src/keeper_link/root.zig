@@ -12,3 +12,5 @@ pub const Detach = attachments.Detach;
 pub const Notice = notice_module.Notice;
 pub const Unheld = notice_module.Unheld;
 pub const Keeper = notice_module.Keeper;
+/// Move requests on a link, for the `handover` requests.
+pub const moves = @import("moves.zig");

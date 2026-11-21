@@ -12,6 +12,7 @@ const keeper_link = @import("terminal-host-keeper-link");
 const platform = @import("terminal-host-platform");
 const protocol = @import("terminal-protocol");
 
+const host_moves = @import("moves/root.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_request_context = @import("request_context.zig");
 const host_response = @import("response.zig");
@@ -151,6 +152,10 @@ pub const Keepers = struct {
                     return context.rejectControlDecode(outgoing, correlation_id, err, "DetachKeeper payload is invalid");
                 defer decoded.deinit();
                 const keeper: Keeper = .{ .pid = decoded.value.pid, .created = decoded.value.created };
+                // A Keeper that holds a mark of this Host's, or gave it a restored import, stays
+                // until that move ends: it alone arbitrates the move.
+                if (context.moves) |moves| if (moves.moves.holdsKeeper(keeper))
+                    return host_response.appendFailure(context.allocator, outgoing, host_moves.refusal.moving, delivery);
                 switch (self.attachments.detach(keeper)) {
                     .done => try answerDetach(outgoing, delivery),
                     .pending => self.pending.appendAssumeCapacity(.{
@@ -176,7 +181,8 @@ pub const Keepers = struct {
         }
         const epoch = aggregate.hostEpoch();
         for (aggregate.coreRead().terminalValues()) |session| {
-            if (session.phase() != .running or session.terminateRequested()) continue;
+            // A moving terminal's holding belongs to its move.
+            if (session.phase() != .running or session.terminateRequested() or session.handover != .none) continue;
             const runtime = aggregate.runtimeFor(session.terminal_id) orelse continue;
             self.attachments.offer(runtime.keeperSubject(), .{
                 .creation_id = session.creation_id.bytes,
@@ -284,14 +290,35 @@ fn answerDetach(outgoing: *Outgoing, delivery: host_outgoing.Delivery) !void {
     _ = try host_response.appendControlSuccess(outgoing, .{ .kind = MessageKind.detach_keeper }, control.encode.empty_control, delivery);
 }
 
-/// Each held terminal's holding id, for the inventory of a session that negotiated `keeper`.
+/// What an inventory summary adds for the capabilities its session negotiated: each held terminal's
+/// holding id with `keeper`, and each moving terminal's state with `handover`.
 pub const Holdings = struct {
     aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
+    keeper: bool,
+    handover: bool,
 
+    /// A held terminal's holding id; a moving one keeps naming its holding while no slot holds it.
     pub fn holdingId(self: Holdings, terminal_id: core_module.TerminalId) ?[16]u8 {
         if (comptime builtin.os.tag != .windows) return null;
+        if (!self.keeper) return null;
+        const session = self.aggregate.coreRead().findTerminal(terminal_id) orelse return null;
         const gate = gateOf(self.aggregate, terminal_id) orelse return null;
-        return gate.heldId();
+        return switch (session.handover) {
+            .none, .exporting => gate.heldId(),
+            .quiesced, .moved, .restored => gate.knownId(),
+        };
+    }
+
+    /// The move state a summary names; a settled terminal's export changes nothing it reports.
+    pub fn handoverState(self: Holdings, terminal_id: core_module.TerminalId) ?[]const u8 {
+        if (!self.handover) return null;
+        const session = self.aggregate.coreRead().findTerminal(terminal_id) orelse return null;
+        return switch (session.handover) {
+            .none, .exporting => null,
+            .quiesced => "quiesced",
+            .moved => "moved",
+            .restored => "restored",
+        };
     }
 };
 

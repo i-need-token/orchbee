@@ -197,6 +197,10 @@ pub fn writeTerminalConfigurationAccepted(writer: *std.Io.Writer, update: anytyp
 pub const no_holdings: NoHoldings = .{};
 
 const NoHoldings = struct {
+    pub fn handoverState(_: NoHoldings, _: anytype) ?[]const u8 {
+        return null;
+    }
+
     pub fn holdingId(_: NoHoldings, _: anytype) ?[16]u8 {
         return null;
     }
@@ -234,7 +238,13 @@ pub fn terminalListHeld(
     }
     var summaries_bytes: usize = 0;
     for (terminals[offset .. offset + requested_length]) |terminal| {
-        const summary = try terminalSummaryHeld(allocator, host_epoch, terminal, holdings.holdingId(terminal.terminal_id));
+        const summary = try terminalSummaryHeld(
+            allocator,
+            host_epoch,
+            terminal,
+            holdings.holdingId(terminal.terminal_id),
+            holdings.handoverState(terminal.terminal_id),
+        );
         errdefer allocator.free(summary);
         const candidate_end = offset + summaries.items.len + 1;
         const framing_bytes = terminalListFramingLength(
@@ -316,7 +326,7 @@ pub fn terminalSummary(
     host_epoch: anytype,
     terminal: anytype,
 ) ![]u8 {
-    return terminalSummaryHeld(allocator, host_epoch, terminal, null);
+    return terminalSummaryHeld(allocator, host_epoch, terminal, null, null);
 }
 
 /// `terminalSummary` with `holdingId` while `holding_id` names the terminal's holding.
@@ -325,7 +335,13 @@ pub fn terminalSummaryHeld(
     host_epoch: anytype,
     terminal: anytype,
     holding_id: ?[16]u8,
+    handover_state: ?[]const u8,
 ) ![]u8 {
+    var handover_member: [32]u8 = undefined;
+    const handover_json: []const u8 = if (handover_state) |state|
+        std.fmt.bufPrint(&handover_member, ",\"handoverState\":\"{s}\"", .{state}) catch unreachable
+    else
+        "";
     var holding_buffer: [32]u8 = undefined;
     var holding_member: [48]u8 = undefined;
     const holding_json: []const u8 = if (holding_id) |bytes|
@@ -361,7 +377,7 @@ pub fn terminalSummaryHeld(
     defer allocator.free(theme_json);
     return std.fmt.allocPrint(
         allocator,
-        "{{\"columns\":{s},\"configuration\":{{\"scrollbackBytes\":{d}}},\"configurationRevision\":\"{d}\",\"exit\":{s},\"failure\":{s},\"failureContainment\":{s}{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"process\":{s},\"revision\":\"{d}\",\"rows\":{s},\"terminateRequested\":{},\"theme\":{s}}}",
+        "{{\"columns\":{s},\"configuration\":{{\"scrollbackBytes\":{d}}},\"configurationRevision\":\"{d}\",\"exit\":{s},\"failure\":{s},\"failureContainment\":{s}{s}{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"process\":{s},\"revision\":\"{d}\",\"rows\":{s},\"terminateRequested\":{},\"theme\":{s}}}",
         .{
             columns_json,
             configuration.scrollback_bytes,
@@ -369,6 +385,7 @@ pub fn terminalSummaryHeld(
             exit_json,
             failure_json,
             containment_json,
+            handover_json,
             holding_json,
             identifierText(terminal.creation_id, &creation_buffer),
             identifierText(host_epoch, &epoch_buffer),

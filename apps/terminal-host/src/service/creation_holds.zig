@@ -106,7 +106,7 @@ fn dependenceOf(allocator: std.mem.Allocator, record: []const u8) Dependence {
     const contract = protocol.messageContract(envelope.kind) orelse return .{};
     const request = contract.request orelse return .{};
     return switch (request.operation) {
-        .create_terminal, .stage_terminal_output, .set_terminal_defaults => .{ .creation = true },
+        .create_terminal, .stage_terminal_output, .set_terminal_defaults, .restore_terminal => .{ .creation = true },
         .start_terminal => .{
             .creation = true,
             .terminal = control.decode.namedTerminal(allocator, envelope.payload),
@@ -117,6 +117,13 @@ fn dependenceOf(allocator: std.mem.Allocator, record: []const u8) Dependence {
         .attach_terminal,
         .update_terminal_configuration,
         .apply_terminal_theme,
+        .quiesce_terminal,
+        .resume_terminal,
+        .drop_terminal,
+        .claim_terminal,
+        // Only a `DiscardImport` that names the restored terminal; the import's moves owner holds
+        // one that names the import until the restore's build ends.
+        .discard_import,
         => .{ .terminal = control.decode.namedTerminal(allocator, envelope.payload) },
         // Attachment-scoped requests cannot name a creation: no attachment admits a terminal
         // that is not yet running.

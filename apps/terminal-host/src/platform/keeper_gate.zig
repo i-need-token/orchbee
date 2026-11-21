@@ -180,4 +180,58 @@ pub const Gate = if (builtin.os.tag != .windows) void else struct {
         for (self.slots) |slot| if (slot.state == .held) return self.holding_id;
         return null;
     }
+
+    /// The slot of the one attachment that holds the terminal; null when none or both do.
+    pub fn heldIndex(self: *Gate) ?usize {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        var found: ?usize = null;
+        for (self.slots, 0..) |slot, index| if (slot.state == .held) {
+            if (found != null) return null;
+            found = index;
+        };
+        return found;
+    }
+
+    /// Whether no slot is active, so no link touches this gate again: a moving terminal leaves only
+    /// then, without the release `pass` would start.
+    pub fn idle(self: *Gate) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return !self.anyActive();
+    }
+
+    /// Waits until no slot is active, for the Host's teardown alone.
+    pub fn awaitIdle(self: *Gate) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (self.anyActive()) self.condition.wait(&self.mutex);
+    }
+
+    /// The holding id the terminal was ever held under, held now or not: a moving terminal keeps
+    /// naming it while no slot holds it.
+    pub fn knownId(self: *Gate) ?[16]u8 {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.holding_id;
+    }
+
+    /// A restored terminal takes its record's holding id before any claim, so it names the
+    /// holding it may claim and a later hold keeps the same id.
+    pub fn name(self: *Gate, holding: [16]u8) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        std.debug.assert(!self.anyActive());
+        self.holding_id = holding;
+    }
+
+    /// Records the holding a claim moved to this terminal: slot `index`, of the attachment
+    /// `serial`, holds it under the record's holding id. A restored terminal has no active slot.
+    pub fn adopt(self: *Gate, index: usize, serial: u64, wake: windows.HANDLE, holding: [16]u8) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        std.debug.assert(!self.ending and !self.anyActive());
+        self.holding_id = holding;
+        self.slots[index] = .{ .serial = serial, .state = .held, .wake = wake };
+    }
 };

@@ -215,11 +215,11 @@ const PosixClient = if (builtin.os.tag == .windows) void else struct {
         self.stream.close(self.io);
     }
 
-    fn read(self: *PosixClient, bytes: []u8) !usize {
+    pub fn read(self: *PosixClient, bytes: []u8) !usize {
         return std.posix.read(self.stream.socket.handle, bytes);
     }
 
-    fn waitReadable(self: *PosixClient) !bool {
+    pub fn waitReadable(self: *PosixClient) !bool {
         var descriptors = [_]std.posix.pollfd{.{
             .fd = self.stream.socket.handle,
             .events = std.posix.POLL.IN,
@@ -270,7 +270,7 @@ const WindowsClient = if (builtin.os.tag != .windows) void else struct {
         windows_c.ob_windows_local_test_client_close(self.handle);
     }
 
-    fn read(self: *WindowsClient, bytes: []u8) !usize {
+    pub fn read(self: *WindowsClient, bytes: []u8) !usize {
         var read_bytes: u32 = 0;
         try requireWindowsStatus(windows_c.ob_windows_local_test_client_read(
             self.handle,
@@ -282,7 +282,7 @@ const WindowsClient = if (builtin.os.tag != .windows) void else struct {
         return read_bytes;
     }
 
-    fn waitReadable(self: *WindowsClient) !bool {
+    pub fn waitReadable(self: *WindowsClient) !bool {
         var available: u32 = 0;
         try requireWindowsStatus(windows_c.ob_windows_local_test_client_peek(
             self.handle,

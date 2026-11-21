@@ -10,6 +10,7 @@ const std = @import("std");
 const builds = @import("conpty_builds.zig");
 const LaunchKind = @import("process_types.zig").LaunchKind;
 const Process = @import("process_windows.zig").Process;
+const handles = @import("keeper_handles_windows.zig");
 
 const windows = std.os.windows;
 const HANDLE = windows.HANDLE;
@@ -18,11 +19,7 @@ const DUPLICATE_SAME_ACCESS: windows.DWORD = 0x2;
 /// job, program, console, signal, reference, input, output.
 pub const role_count = 7;
 
-pub const Identity = struct {
-    pid: u32,
-    /// The process's creation time as a `FILETIME`.
-    created: u64,
-};
+pub const Identity = handles.Identity;
 
 pub const Snapshot = struct {
     handles: [role_count]HANDLE,
@@ -43,8 +40,6 @@ pub const Error = error{
     HoldFailed,
 };
 
-const FileTime = extern struct { low: windows.DWORD, high: windows.DWORD };
-
 extern "kernel32" fn GetCurrentProcess() callconv(.winapi) HANDLE;
 extern "kernel32" fn DuplicateHandle(
     source_process: HANDLE,
@@ -55,15 +50,6 @@ extern "kernel32" fn DuplicateHandle(
     inherit: windows.BOOL,
     options: windows.DWORD,
 ) callconv(.winapi) windows.BOOL;
-extern "kernel32" fn GetProcessId(process: HANDLE) callconv(.winapi) windows.DWORD;
-extern "kernel32" fn GetProcessTimes(
-    process: HANDLE,
-    creation: *FileTime,
-    exit: *FileTime,
-    kernel: *FileTime,
-    user: *FileTime,
-) callconv(.winapi) windows.BOOL;
-
 /// Takes the snapshot. The caller's gate slot must be active, so no handle closes meanwhile.
 pub fn take(process: *Process) Error!Snapshot {
     if (process.pty.conpty.module == null) return error.SystemConsole;
@@ -93,17 +79,28 @@ pub fn take(process: *Process) Error!Snapshot {
     return snapshot;
 }
 
+/// Whether the terminal runs on the system ConHost, whose terminals are never held or moved.
+pub fn onSystemConsole(process: *const Process) bool {
+    return process.pty.conpty.module == null;
+}
+
+/// The program and console identities a record carries, read through the terminal's own handles.
+pub const Facts = struct { program: Identity, console: Identity };
+
+/// Reads the facts of a terminal on the bundled OpenConsole. The caller keeps its handles open.
+pub fn facts(process: *Process) Error!Facts {
+    if (process.pty.conpty.module == null) return error.SystemConsole;
+    const pseudo_console: [*]const u8 = @ptrCast(process.pty.signals.pseudo_console);
+    return .{
+        .program = try identity(process.process_handle),
+        .console = try identity(member(pseudo_console, builds.own_layout.console)),
+    };
+}
+
 fn member(pseudo_console: [*]const u8, offset: usize) HANDLE {
     return @as(*align(1) const HANDLE, @ptrCast(pseudo_console + offset)).*;
 }
 
 fn identity(process: HANDLE) Error!Identity {
-    var creation: FileTime = undefined;
-    var exit: FileTime = undefined;
-    var kernel: FileTime = undefined;
-    var user: FileTime = undefined;
-    if (!GetProcessTimes(process, &creation, &exit, &kernel, &user).toBool()) return error.HoldFailed;
-    const pid = GetProcessId(process);
-    if (pid == 0) return error.HoldFailed;
-    return .{ .pid = pid, .created = (@as(u64, creation.high) << 32) | creation.low };
+    return handles.processIdentity(process) orelse error.HoldFailed;
 }

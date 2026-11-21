@@ -1,6 +1,8 @@
 const contracts = @import("contracts.zig");
 
 pub const TerminalIdentity = contracts.TerminalIdentity;
+pub const ImportSlot = @import("handover.zig").ImportSlot;
+pub const RecordIds = @import("handover.zig").RecordIds;
 pub const TerminalExitNotice = contracts.TerminalExitNotice;
 pub const TerminalFailureNotice = contracts.TerminalFailureNotice;
 pub const TerminalOutcomeNotice = contracts.TerminalOutcomeNotice;

@@ -13,12 +13,13 @@
 //! unanswered, so the aggregate's teardown contains it with every other terminal and keeps it
 //! under THDD-001 while its process tree stays unconfirmed; a failed build releases what its
 //! creation acquired. A build that never returns is abandoned with everything it reads, and
-//! teardown then fails. A later stage that imports a terminal instead of spawning one joins at
-//! the build and keeps the same commit and teardown contract.
+//! teardown then fails. A restore builds a terminal from a handover record instead of spawning
+//! one: its job, which the moves owner keeps, decides its commit, its failure, and its teardown,
+//! where a runtime it built is discarded rather than contained, since its program belongs to the
+//! Host that holds it.
 const std = @import("std");
 const target_builtin = @import("builtin");
 
-const control = @import("terminal-host-control");
 const core_module = @import("terminal-host-core").state;
 const platform = @import("terminal-host-platform");
 const fatal_record = platform.fatal_record;
@@ -28,9 +29,11 @@ const pty_process = platform.process;
 const thread_sync = platform.thread_sync;
 const terminal_runtime = @import("terminal-host-engine").runtime;
 const identifiers = @import("terminal-host-model").identifiers;
-const protocol = @import("terminal-protocol");
+const creation_failure = @import("creation_failure.zig");
 const creation_holds = @import("creation_holds.zig");
+const restore_build = @import("moves/restore_build.zig");
 const host_outgoing = @import("outgoing.zig");
+const host_response = @import("response.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
 
 const Aggregate = host_runtime_aggregate.HostRuntimeAggregate;
@@ -40,8 +43,6 @@ const WireIdentifier = identifiers.IdentifierBytes;
 
 /// How long Host teardown waits for a build in progress before it abandons the build.
 const teardown_build_wait_ns: u64 = 5 * std.time.ns_per_s;
-
-const failure_record_bytes = protocol.transport_envelope_header_bytes + 512;
 
 pub const BeginError = error{
     CreationInProgress,
@@ -78,24 +79,18 @@ pub const Reply = union(enum) {
     }
 };
 
-/// A complete typed-failure record, encoded without allocation.
-pub const FailureRecord = struct {
-    storage: [failure_record_bytes]u8,
-    len: usize,
-
-    pub fn bytes(self: *const FailureRecord) []const u8 {
-        return self.storage[0..self.len];
-    }
-};
+pub const FailureRecord = creation_failure.FailureRecord;
 
 const Work = union(enum) {
     create: host_runtime_aggregate.CreateBuild,
     start: host_runtime_aggregate.StartBuild,
+    restore: *restore_build.Job,
 
     fn terminalId(self: *const Work) core_module.TerminalId {
         return switch (self.*) {
             .create => |*build| build.pending.terminal_id,
             .start => |*build| build.pending.identity.terminal_id,
+            .restore => |job| job.slot.terminal_id,
         };
     }
 };
@@ -104,8 +99,6 @@ const BuildOutcome = union(enum) {
     built: *TerminalRuntime,
     failed: anyerror,
 };
-
-const BuildFailure = enum { allocation, spawn, missing_launch };
 
 const BuildGate = if (target_builtin.is_test) struct {
     mutex: thread_sync.Mutex = .{},
@@ -226,6 +219,17 @@ pub const Pipeline = struct {
         self.in_progress = creation;
     }
 
+    /// Starts restoring the terminal `job` builds from a handover record. On error the job is
+    /// unchanged and the caller still owns `request.reply`.
+    pub fn beginRestore(self: *Pipeline, aggregate: *Aggregate, request: Request, job: *restore_build.Job) BeginError!void {
+        if (self.in_progress != null) return error.CreationInProgress;
+        const creation = try aggregate.allocator.create(Creation);
+        errdefer aggregate.allocator.destroy(creation);
+        creation.* = initCreation(aggregate.allocator, request, .{ .restore = job });
+        self.launchCreator(creation) catch return error.CreatorUnavailable;
+        self.in_progress = creation;
+    }
+
     /// Settles the creation once its build has returned. `session` is the active connection: a
     /// creation it requested is answered there, and one whose requester left settles unanswered
     /// from any caller, maintenance without a session included.
@@ -302,6 +306,7 @@ pub const Pipeline = struct {
             .failed => switch (creation.work) {
                 .create => |*build| aggregate.abandonCreateBuild(build),
                 .start => {},
+                .restore => |job| job.abandon(aggregate),
             },
         }
     }
@@ -314,7 +319,7 @@ pub const Pipeline = struct {
     fn abandon(self: *Pipeline, creation: *Creation) void {
         creation.creator.detach();
         switch (creation.work) {
-            .create => {},
+            .create, .restore => {},
             .start => |*build| build.retained.start_preparation = null,
         }
         self.abandoned_build = true;
@@ -353,11 +358,11 @@ fn runBuild(creation: *Creation) void {
     if (comptime target_builtin.is_test) {
         if (creation.build_gate) |gate| gate.pass();
     }
-    const outcome: BuildOutcome = if (TerminalRuntime.createWithOptions(
-        creation.allocator,
-        creation.launch,
-        creation.options,
-    )) |runtime| .{ .built = runtime } else |err| .{ .failed = err };
+    const built = switch (creation.work) {
+        .restore => |job| job.run(),
+        .create, .start => TerminalRuntime.createWithOptions(creation.allocator, creation.launch, creation.options),
+    };
+    const outcome: BuildOutcome = if (built) |runtime| .{ .built = runtime } else |err| .{ .failed = err };
     creation.mutex.lock();
     creation.outcome = outcome;
     creation.finished.broadcast();
@@ -381,46 +386,36 @@ fn settleOutcome(aggregate: *Aggregate, creation: *Creation, outcome: BuildOutco
                     std.log.err("terminal start found its awaiting terminal gone after building", .{});
                     runtime.destroy();
                     creation.reply.deinit();
-                    return failureReply(creation, .missing_launch);
+                    return failureReply(creation, creation_failure.details(.missing_launch));
                 }
+            },
+            .restore => |job| {
+                job.commit(aggregate, runtime);
+                return .{ .records = creation.reply };
             },
         },
         .failed => |err| {
+            creation.reply.deinit();
+            switch (creation.work) {
+                .restore => |job| {
+                    const failure = job.failure();
+                    job.abandon(aggregate);
+                    return failureReply(creation, failure);
+                },
+                .create => |*create_build| aggregate.abandonCreateBuild(create_build),
+                .start => {},
+            }
             std.log.warn(
                 "terminal creation failed to build its process and engine: {s}",
                 .{@errorName(err)},
             );
-            switch (creation.work) {
-                .create => |*create_build| aggregate.abandonCreateBuild(create_build),
-                .start => {},
-            }
-            creation.reply.deinit();
-            return failureReply(creation, if (err == error.OutOfMemory) .allocation else .spawn);
+            return failureReply(creation, creation_failure.details(if (err == error.OutOfMemory) .allocation else .spawn));
         },
     }
 }
 
-fn failureReply(creation: *const Creation, failure: BuildFailure) Reply {
-    const code: []const u8, const message: []const u8, const retryable = switch (failure) {
-        .allocation => .{ "resource-exhausted", "Host could not allocate terminal runtime state", true },
-        .spawn => .{ "spawn-failed", "PTY or child creation failed", true },
-        .missing_launch => .{ "internal-error", "deferred terminal launch state is missing", false },
-    };
-    var record: FailureRecord = .{ .storage = undefined, .len = 0 };
-    var payload: std.Io.Writer = .fixed(record.storage[protocol.transport_envelope_header_bytes..]);
-    // The Host's own fixed failures always fit the record.
-    control.encode.writeTypedFailure(&payload, code, message, retryable) catch unreachable;
-    record.len = (protocol.finalizeTransportEnvelope(
-        &record.storage,
-        protocol.MessageKind.typed_failure,
-        .control_json,
-        payload.buffered().len,
-        creation.correlation_id,
-        creation.host_epoch.bytes,
-        true,
-        false,
-    ) catch unreachable).len;
-    return .{ .failure = record };
+fn failureReply(creation: *const Creation, failure: host_response.FailureDetails) Reply {
+    return .{ .failure = creation_failure.encode(failure, creation.correlation_id, creation.host_epoch) };
 }
 
 /// The build's outcome once it returns within `timeout_ns`, or null.
@@ -449,6 +444,7 @@ fn commitAtTeardown(aggregate: *Aggregate, creation: *Creation, runtime: *Termin
             std.log.err("terminal start found its awaiting terminal gone at teardown", .{});
             runtime.destroy();
         },
+        .restore => |job| job.discardBuilt(aggregate, runtime),
     }
 }
 

@@ -36,6 +36,9 @@ pub const known = [_]Build{
     },
 };
 
+/// The pinned conpty package's version, which a record names.
+pub const own_version: []const u8 = pins.version;
+
 /// The entry of the Host's own pinned OpenConsole.
 pub const own: Build = ownBuild();
 pub const own_layout: Layout = own.layout.?;

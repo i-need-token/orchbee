@@ -31,6 +31,15 @@ pub const Gate = struct {
         self.finish(.aborted);
     }
 
+    /// Aborts a gate that neither opened nor aborted yet, as a discarded import's gate is.
+    pub fn abortIfPending(self: *Gate) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.state != .pending) return;
+        self.state = .aborted;
+        self.condition.broadcast();
+    }
+
     pub fn await(self: *Gate) bool {
         self.mutex.lock();
         defer self.mutex.unlock();

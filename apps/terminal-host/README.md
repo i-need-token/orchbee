@@ -215,6 +215,11 @@ The runtime directory and endpoint are the Keeper's own. Nothing starts a Keeper
 [runtime model](docs/runtime-model.md#keeper) owns its behavior and exit codes; it writes
 `keeper-fatal.json` and `keeper-diagnostics.jsonl` in the Host's formats with the role `keeper`.
 
+A Windows Host offers the `keeper` and `handover` capabilities, which hold its running terminals in
+a Keeper and move a terminal to another Host of the same Worker. No Worker offers either yet, so
+every terminal runs as before; the runtime model owns the [Keeper link](docs/runtime-model.md#keeper-link)
+and [moves between Hosts](docs/runtime-model.md#moves-between-hosts).
+
 A POSIX Host reads its managed zsh and bash startup from `shell-integration/` beside the binary:
 `zsh/.zshenv`, `zsh/orchbee.zsh` and `bash/orchbee.bash`, the sources in this package's
 `shell-integration/` directory. `zig build` installs them there for every non-Windows target, the

@@ -88,6 +88,24 @@ pub const ReaderParkWait = enum {
     stopped,
 };
 
+/// A move of the terminal between Hosts; terminal_mutex owns it.
+pub const Move = enum {
+    none,
+    /// Quiesced in the old Host, or restored behind the startup gate in the new one: no step
+    /// ends or contains the terminal, and an observed program exit waits for the move's result.
+    held,
+    /// The terminal leaves this Host: every worker ends without its exit path.
+    dropping,
+};
+
+/// An attachment's input cleanup that waits for the end of a move, because it writes to the
+/// program; the dispatch thread owns the list.
+pub const DeferredInput = struct {
+    attachment_id: identifiers.AttachmentId,
+    /// Detach removes the attachment's held input; reset keeps the attachment.
+    detach: bool,
+};
+
 pub const ScrollbackCompressionOutcome = enum {
     complete,
     dormant,

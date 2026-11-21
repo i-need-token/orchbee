@@ -187,6 +187,17 @@ pub fn startWorkers(self: *state.State, launch: pty_process.Launch, spawner: any
     self.startup.ready();
 }
 
+/// Starts the workers of a runtime whose process is already adopted, behind the startup gate,
+/// which stays shut until the caller opens it. On failure the caller runs
+/// `cleanupFailedThreadStartup` and then releases the process.
+pub fn startGatedWorkers(self: *state.State, spawner: anytype) !void {
+    self.wait_thread = try spawner.spawn(wait_thread_ops.waitThread, self);
+    self.reader_thread = try spawner.spawn(output_ops.readerThread, self);
+    self.writer_thread = try spawner.spawn(writer_ops.writerThread, self);
+    self.animation_thread = try spawner.spawn(animation_ops.animationThread, self);
+    self.process.registerReaderThread(self.reader_thread.?.getHandle());
+}
+
 pub fn cleanupFailedThreadStartup(self: *state.State) void {
     // Workers are deliberately gated before process creation. A failed
     // thread start or process spawn therefore has no child owned by this
