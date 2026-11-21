@@ -40,6 +40,7 @@ fn cropped_raster_uses_the_same_source_offsets_and_keeps_the_indicator_clear() {
         },
         &rgba(&metadata, RED_BLUE),
         None,
+        ColorLevel::Truecolor,
         &mut [false; 12],
     );
     assert_eq!(buffer[(2, 3)].symbol(), "▀");
@@ -93,6 +94,7 @@ fn negative_images_composite_in_z_order_without_stealing_a_terminal_half_block()
         area,
         &rgba(&metadata, RED_BLUE),
         None,
+        ColorLevel::Truecolor,
         &mut painted,
     );
     assert_eq!(buffer[(0, 0)].fg, Color::White);
@@ -108,6 +110,7 @@ fn negative_images_composite_in_z_order_without_stealing_a_terminal_half_block()
             &[0, 255, 0, 255, 0, 255, 0, 255],
         ),
         None,
+        ColorLevel::Truecolor,
         &mut painted,
     );
     assert_eq!(buffer[(0, 0)].fg, Color::White);
@@ -426,10 +429,39 @@ fn measured_physical_aspect_controls_natural_fit_and_each_omitted_axis() {
         area,
         &rgba(&square, &pixels),
         Some(&wide_cell),
+        ColorLevel::Truecolor,
         &mut vec![false; 800],
     );
     assert_eq!(buffer[(7, 17)].symbol(), "▀");
     assert_eq!(buffer[(7, 17)].bg, Color::Rgb(0, 0, 255));
     assert_eq!(buffer[(8, 17)].symbol(), " ");
     assert_eq!(buffer[(0, 18)].symbol(), " ");
+}
+
+/// A 256-color host receives the raster in its palette, never a true color it would misdraw.
+#[test]
+fn raster_on_a_256_color_host_uses_the_palette() {
+    let area = Rect::new(0, 0, 1, 1);
+    let mut buffer = Buffer::empty(area);
+    let metadata = layer(
+        0,
+        PaneGraphicsPlacement {
+            grid_columns: 1,
+            grid_rows: 1,
+            ..Default::default()
+        },
+    );
+    paint_layers(
+        &mut buffer,
+        area,
+        &rgba(&metadata, RED_BLUE),
+        None,
+        ColorLevel::Ansi256,
+        &mut [false],
+    );
+    let cell = &buffer[(0, 0)];
+    assert_eq!(cell.symbol(), "▀");
+    assert!(matches!(cell.fg, Color::Indexed(_)), "{:?}", cell.fg);
+    assert!(matches!(cell.bg, Color::Indexed(_)), "{:?}", cell.bg);
+    assert_ne!(cell.fg, cell.bg);
 }

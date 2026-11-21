@@ -1,5 +1,6 @@
-//! Cell raster images are retained content, clipped to one real Panel body.
-use crate::{pane_canvas::Layer, workbench_client::PaneGraphicsCanvas};
+//! Cell raster images are retained content, clipped to one real Panel body. Their colors follow the
+//! host's detected color level, as the theme's do.
+use crate::{pane_canvas::Layer, tui_theme::ColorLevel, workbench_client::PaneGraphicsCanvas};
 use orchbee_workbench_protocol::PaneGraphicsCellPixels;
 #[cfg(test)]
 use orchbee_workbench_protocol::PaneGraphicsLayer;
@@ -15,10 +16,18 @@ pub(super) fn render(
     area: Rect,
     canvas: &PaneGraphicsCanvas,
     cell_pixels: Option<&PaneGraphicsCellPixels>,
+    level: ColorLevel,
 ) {
     let mut painted = vec![false; usize::from(area.width) * usize::from(area.height)];
     for layer in canvas.layers() {
-        paint_layers(frame.buffer_mut(), area, layer, cell_pixels, &mut painted);
+        paint_layers(
+            frame.buffer_mut(),
+            area,
+            layer,
+            cell_pixels,
+            level,
+            &mut painted,
+        );
     }
 }
 
@@ -30,6 +39,7 @@ pub(super) fn render_cropped(
     cell_pixels: Option<&PaneGraphicsCellPixels>,
     crop: crate::terminal_live_view::LiveView,
     source_size: (u16, u16),
+    level: ColorLevel,
 ) {
     let area = crop.content(area);
     let mut painted = vec![false; usize::from(area.width) * usize::from(area.height)];
@@ -39,7 +49,14 @@ pub(super) fn render_cropped(
         origin: (crop.column, crop.row),
     };
     for layer in canvas.layers() {
-        paint_layers_at(frame.buffer_mut(), view, layer, cell_pixels, &mut painted);
+        paint_layers_at(
+            frame.buffer_mut(),
+            view,
+            layer,
+            cell_pixels,
+            level,
+            &mut painted,
+        );
     }
 }
 
@@ -66,6 +83,7 @@ fn paint(buffer: &mut Buffer, area: Rect, layer: &PaneGraphicsLayer, rgba: &[u8]
         area,
         &Layer::new(layer.clone(), rgba.to_vec()).expect("valid RGBA fixture"),
         None,
+        ColorLevel::Truecolor,
         &mut vec![false; usize::from(area.width) * usize::from(area.height)],
     );
 }
@@ -75,6 +93,7 @@ fn paint_layers(
     area: Rect,
     layer: &Layer,
     cell_pixels: Option<&PaneGraphicsCellPixels>,
+    level: ColorLevel,
     painted: &mut [bool],
 ) {
     paint_layers_at(
@@ -86,6 +105,7 @@ fn paint_layers(
         },
         layer,
         cell_pixels,
+        level,
         painted,
     );
 }
@@ -95,9 +115,12 @@ fn paint_layers_at(
     view: RasterView,
     source: &Layer,
     cell_pixels: Option<&PaneGraphicsCellPixels>,
+    level: ColorLevel,
     painted: &mut [bool],
 ) {
     let area = view.area;
+    // Blending reads the observed RGB destination; only the written color is quantized.
+    let quantize = |color| crate::tui_theme::quantize_color(color, level);
     if area.is_empty() {
         return;
     }
@@ -138,7 +161,7 @@ fn paint_layers_at(
             let index = (y - i64::from(area.y)) as usize * usize::from(area.width)
                 + (x - i64::from(area.x)) as usize;
             if layer.z_index < 0 && cell.symbol() != " " && !painted[index] {
-                cell.bg = blend(average(upper, lower), cell.bg);
+                cell.bg = quantize(blend(average(upper, lower), cell.bg));
                 continue;
             }
             let upper_base = if cell.symbol() == "▀" {
@@ -146,8 +169,8 @@ fn paint_layers_at(
             } else {
                 cell.bg
             };
-            let upper = blend(upper, upper_base);
-            let lower = blend(lower, cell.bg);
+            let upper = quantize(blend(upper, upper_base));
+            let lower = quantize(blend(lower, cell.bg));
             cell.set_symbol("▀").set_fg(upper).set_bg(lower);
             cell.modifier = Modifier::empty();
             painted[index] = true;

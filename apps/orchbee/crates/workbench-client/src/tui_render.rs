@@ -1602,7 +1602,14 @@ fn render_native_workbench(
                     continue;
                 }
                 if graphics_uncovered {
-                    render_panel_graphics(frame, leaf.content, panel, native, graphics_draws);
+                    render_panel_graphics(
+                        frame,
+                        leaf.content,
+                        panel,
+                        native,
+                        theme.color_level(),
+                        graphics_draws,
+                    );
                 }
                 let link_source = native.painted_link_source(panel.panel_id());
                 let retained_history = native.pane_viewport(panel.panel_id()).is_some()
@@ -1940,7 +1947,14 @@ fn render_native_workbench(
             active_tab.and_then(|tab| tab.active_panel().and_then(|i| tab.panel(i)))
             && graphics_uncovered
         {
-            render_panel_graphics(frame, content_area, panel, native, graphics_draws);
+            render_panel_graphics(
+                frame,
+                content_area,
+                panel,
+                native,
+                theme.color_level(),
+                graphics_draws,
+            );
         }
         if let Some(panel) =
             active_tab.and_then(|tab| tab.active_panel().and_then(|i| tab.panel(i)))
@@ -1964,6 +1978,7 @@ fn render_panel_graphics(
     area: Rect,
     panel: &crate::workbench_projection::ClientPanel,
     native: &WorkbenchClientView<'_>,
+    level: crate::tui_theme::ColorLevel,
     draws: &mut Vec<crate::workbench_client::PaneGraphicsDraw>,
 ) {
     if area.is_empty()
@@ -1985,18 +2000,33 @@ fn render_panel_graphics(
             .map(|source| (source.geometry.columns, source.geometry.rows)),
     );
     let cell_pixels = native.graphics_cell_pixels();
+    // Below 256 colors a raster would draw the picture from the wrong colors, so the Panel keeps
+    // its text, as on a host that shows no image, and reports no raster draw.
+    let raster = matches!(
+        level,
+        crate::tui_theme::ColorLevel::Truecolor | crate::tui_theme::ColorLevel::Ansi256
+    );
     // Program-printed images sit below the Session's image layers, through the same renderers.
     let terminal = native.terminal_graphics(panel);
+    let mut terminal_drawn = false;
     for canvas in &terminal {
         let physical = crop
             .is_none()
             .then(|| native.physical_terminal_graphics(canvas, area))
             .flatten();
-        if physical.is_none() {
-            render_raster(frame, area, canvas, cell_pixels.as_ref(), raster_crop);
+        if physical.is_none() && raster {
+            render_raster(
+                frame,
+                area,
+                canvas,
+                cell_pixels.as_ref(),
+                raster_crop,
+                level,
+            );
         }
+        terminal_drawn |= physical.is_some() || raster;
     }
-    if !terminal.is_empty() {
+    if terminal_drawn {
         draws.push(native.terminal_graphics_draw(panel));
     }
     let physical = crop
@@ -2004,11 +2034,21 @@ fn render_panel_graphics(
         .then(|| native.physical_graphics(panel, area))
         .flatten();
     if physical.is_none()
+        && raster
         && let Some(canvas) = native.panel_graphics(panel)
     {
-        render_raster(frame, area, canvas, cell_pixels.as_ref(), raster_crop);
+        render_raster(
+            frame,
+            area,
+            canvas,
+            cell_pixels.as_ref(),
+            raster_crop,
+            level,
+        );
     }
-    if let Some(draw) = native.graphics_draw(panel) {
+    if (physical.is_some() || raster)
+        && let Some(draw) = native.graphics_draw(panel)
+    {
         draws.push(match physical {
             Some(choice) => draw.physical(choice.revision),
             None => draw,
@@ -2023,12 +2063,19 @@ fn render_raster(
     canvas: &crate::workbench_client::PaneGraphicsCanvas,
     cell_pixels: Option<&orchbee_workbench_protocol::PaneGraphicsCellPixels>,
     crop: Option<(crate::terminal_live_view::LiveView, (u16, u16))>,
+    level: crate::tui_theme::ColorLevel,
 ) {
     match crop {
-        Some((crop, source_size)) => {
-            pane_graphics::render_cropped(frame, area, canvas, cell_pixels, crop, source_size);
-        }
-        None => pane_graphics::render(frame, area, canvas, cell_pixels),
+        Some((crop, source_size)) => pane_graphics::render_cropped(
+            frame,
+            area,
+            canvas,
+            cell_pixels,
+            crop,
+            source_size,
+            level,
+        ),
+        None => pane_graphics::render(frame, area, canvas, cell_pixels, level),
     }
 }
 

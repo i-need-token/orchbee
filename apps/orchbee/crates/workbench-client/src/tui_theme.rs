@@ -880,6 +880,10 @@ impl Theme {
         self.no_color
     }
 
+    pub(crate) const fn color_level(&self) -> ColorLevel {
+        self.color_level
+    }
+
     /// Mixed-role controls keep one displayed background despite different content foregrounds.
     /// A reverse-video fallback would turn every token foreground into its own background patch.
     /// Pair that fallback with primary text on chrome, reversed, so ordinary text forms one band:
@@ -1661,7 +1665,7 @@ fn quantize_style(style: Style, level: ColorLevel) -> Style {
     // field must be quantized at the same level here.
     out
 }
-fn quantize_color(color: Color, level: ColorLevel) -> Color {
+pub(crate) fn quantize_color(color: Color, level: ColorLevel) -> Color {
     match level {
         ColorLevel::Monochrome => Color::Reset,
         ColorLevel::Truecolor => color,
