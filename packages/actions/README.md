@@ -64,11 +64,9 @@ An owner-defined Action catalog is effective only when the same `createTypedActi
 
 `replace-latest` records the replacement as the current execution before requesting cancellation of the previous one. If an abort callback or execution observer synchronously starts a newer invocation, that newer invocation remains current and supersedes the intermediate invocation before its handler starts.
 
-Registry and execution publications capture a fixed observer set. A callback is visited at most
-once per publication, even if it removes and re-adds itself; callbacks removed before their turn
-are skipped. Observer exceptions remain isolated from registration, execution and completion.
-The [runtime subscription traces](src/runtime/__tests__/action-runtime.unit.test.ts) cover both
-publication owners through their public APIs, including cancellation and replacement reentry.
+Registry and execution publications capture a fixed observer set. A callback is visited at most once
+per publication, even if it removes and re-adds itself; callbacks removed before their turn are
+skipped. Observer exceptions remain isolated from registration, execution and completion.
 
 `notifyChanged()` is an availability refresh hint. After disposal it is a no-op, including hints
 already queued by a mounted adapter; it cannot revive registrations or publish to retired observers.
