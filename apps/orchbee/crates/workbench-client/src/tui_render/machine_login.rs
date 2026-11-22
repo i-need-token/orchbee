@@ -1,8 +1,7 @@
 //! Paints the login overlay: the Machine, `ssh`'s own prompt escaped and bounded, Orchbee's line
 //! for the question, and the field; or how a login that ended without the person ended. A secret
 //! field shows one mask glyph per typed character and nothing of the characters; the painter reads
-//! only their count, or a new host's typed text while it begins `yes`. A remote pane whose link
-//! was lost carries one line offering Enter to log in again.
+//! only their count, or a new host's typed text while it begins `yes`.
 
 mod remember;
 
@@ -10,59 +9,18 @@ use super::controls::ActionKind;
 use super::modal::{
     Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, FieldTone, ModalAction,
     NAME_FIELD_WIDTH, dialog_layout, field_value_area, modal_key_label, paint_dialog, paint_field,
-    status_line,
 };
 use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::localization::{Locale, LoginLabel, MachineQuestion, RememberText};
 use crate::machine_login::{AskNotice, Ending};
-use crate::machine_picker::{LoginControl, LoginOverlay, Picker};
+use crate::machine_picker::{LoginControl, LoginOverlay};
 use crate::machine_question::{CUT, shown_lines};
-use crate::terminal_text::{display_width, sanitize_terminal_text, truncate_display};
+use crate::terminal_text::{display_width, sanitize_terminal_text};
 use crate::tui_hit_map::{HitMapBuilder, HitTarget};
 use crate::tui_theme::{Role, Theme};
 use orchbee_machine_protocol::hub::LoginEnd;
-use ratatui::{
-    Frame,
-    layout::Rect,
-    widgets::{Clear, Paragraph},
-};
+use ratatui::{Frame, widgets::Clear};
 use std::borrow::Cow;
-
-impl Picker {
-    /// Paints the lost-link line across the middle of the remote pane's `panel`, while nothing of
-    /// the picker covers it.
-    pub fn render_lost_link(
-        &self,
-        frame: &mut Frame<'_>,
-        panel: Rect,
-        locale: Locale,
-        theme: &Theme,
-    ) {
-        if !self.lost_link || self.captures() || panel.width < 4 || panel.height == 0 {
-            return;
-        }
-        let bullet = display_width(theme.glyphs.status_bullet) + 1;
-        let text = truncate_display(
-            locale.machine_link_lost(),
-            usize::from(panel.width).saturating_sub(bullet),
-            theme.glyphs.ellipsis,
-        );
-        let width = u16::try_from(display_width(&text) + bullet)
-            .unwrap_or(u16::MAX)
-            .min(panel.width);
-        let line = Rect::new(
-            panel.x + (panel.width - width) / 2,
-            panel.y + panel.height / 2,
-            width,
-            1,
-        );
-        frame.render_widget(Clear, line);
-        frame.render_widget(
-            Paragraph::new(status_line(text, Role::StatusWarning, theme)),
-            line,
-        );
-    }
-}
 
 /// Paints `login` over the whole viewport for the Machine named `label`, and says whether the
 /// whole question was shown: Orchbee's asking sentence and a new host's fingerprint whole, `ssh`'s

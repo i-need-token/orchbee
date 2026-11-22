@@ -702,8 +702,10 @@ impl Picker {
         if !self.available || !self.spaces.visible() || self.open {
             return None;
         }
+        // A Workspace of a machine that is not connected is chosen too: its card shows.
         self.workspace_rows.iter().position(|r| {
-            self.workspace_row_available(r)
+            (self.workspace_row_available(r)
+                || (r.enabled && self.unconnected_state(&r.choice).is_some()))
                 && r.context.is_some()
                 && &r.selection() == selected
                 && r.sidebar_target().is_some_and(|target| {
@@ -723,6 +725,7 @@ impl Picker {
         // Selecting the displayed A while B is pending must retain the new A intent.
         self.cancel_sidebar_scroll();
         self.request = Some(selected.clone());
+        self.note_choice(selected);
         self.error = None;
 
         true

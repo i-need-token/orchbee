@@ -169,6 +169,11 @@ pub enum HitTarget {
         token: u64,
         confirm: bool,
     },
+    /// Not now or the action of the card painted over a machine that is not connected.
+    MachineCard {
+        token: u64,
+        act: bool,
+    },
     /// A control actually painted by the Workspace setup owner.
     Setup {
         token: crate::workbench_state::workspace_setup::SetupToken,

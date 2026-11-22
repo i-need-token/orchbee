@@ -212,6 +212,7 @@ impl Picker {
         // is a new return intent, even while the sidebar still marks A current.
         self.cancel_sidebar_scroll();
         self.request = Some(selected.clone());
+        self.note_choice(selected);
         self.error = None;
 
         true

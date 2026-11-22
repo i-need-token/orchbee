@@ -467,6 +467,9 @@ impl PointerState {
             Some(ControlTarget::Move(token, confirm)) => {
                 view.machines.move_control(token, confirm);
             }
+            Some(ControlTarget::Card(token, act)) => {
+                view.machines.card_control(token, act);
+            }
             Some(_) => {}
             None => self.modal_projection.clear_transport(),
         }

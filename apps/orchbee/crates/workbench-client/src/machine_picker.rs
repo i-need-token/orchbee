@@ -11,6 +11,7 @@ use crate::workbench_projection::{ClientContextTarget, ClientMemberTarget};
 use std::{num::NonZeroU64, sync::Arc};
 
 mod agents;
+mod card;
 mod forget;
 mod login;
 mod manage;
@@ -370,8 +371,8 @@ pub struct Picker {
     waiting_deferred: Option<String>,
     /// A Workspace's move: the question it asks, whether it runs, and the notice it leaves.
     moving: moving::Moving,
-    /// The current remote Machine's link was lost: its pane offers Enter to log in again.
-    pub lost_link: bool,
+    /// The card over the terminals of a machine that is not connected.
+    cards: card::Cards,
     /// The management pages, the Add row and the outcomes of managing saved Machines.
     manage: manage::Manage,
 }
@@ -439,7 +440,7 @@ impl Default for Picker {
             waiting: None,
             waiting_deferred: None,
             moving: moving::Moving::default(),
-            lost_link: false,
+            cards: card::Cards::default(),
             manage: manage::Manage::default(),
         }
     }
@@ -786,6 +787,7 @@ impl Picker {
         true
     }
     fn begin_selection(&mut self, origin: SelectionOrigin) -> bool {
+        // Any new choice puts a chosen machine's card away; a sidebar choice notes its own.
         self.cancel_selection();
         self.held_switch = None;
         let Some(generation) = self.selection_generation.checked_add(1) else {
@@ -807,12 +809,16 @@ impl Picker {
         self.selection_scope = None;
         self.request = None;
         self.pending_navigation = None;
+        self.cards.chosen = None;
     }
     /// A selection ended without its Machine: an open picker stays on screen in a new episode and
     /// says why, since a picker without its selection draws nothing yet holds the keys.
     pub fn selection_failed(&mut self, error: &'static str) {
         let shown = self.open && self.picker_source().is_some();
+        // A choice of a machine that is not connected keeps its card, which says why.
+        let chosen = self.cards.chosen.take();
         self.cancel_selection();
+        self.cards.chosen = chosen;
         if shown && !self.begin_selection(SelectionOrigin::Picker) {
             self.open = false;
         }
@@ -831,19 +837,6 @@ impl Picker {
         self.error = None;
         true
     }
-    /// Starts a selection of the current remote Machine again, as Enter on its pane does once
-    /// its link was lost.
-    pub(crate) fn relogin(&mut self) -> bool {
-        if !self.lost_link
-            || !matches!(self.current, Choice::Remote(_))
-            || !self.begin_selection(SelectionOrigin::Sidebar)
-        {
-            return false;
-        }
-        self.request = Some(Selection::from(self.current.clone()));
-        self.error = None;
-        true
-    }
     pub fn direct_selection_pending(&self) -> bool {
         self.selection_scope
             .is_some_and(|scope| scope.origin == SelectionOrigin::Sidebar)
@@ -854,6 +847,7 @@ impl Picker {
         if self.login_key(key)
             || self.waiting_key(key)
             || self.move_key(key)
+            || self.card_key(key)
             || key.kind == KeyKind::Release
         {
             return;

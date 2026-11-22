@@ -962,7 +962,8 @@ impl InputDispatcher {
             let mut regions_changed = false;
             let login = view.machines.login().is_some()
                 || view.machines.waiting_shown()
-                || view.machines.move_shown();
+                || view.machines.move_shown()
+                || view.machines.card_shown();
             match item.kind {
                 DecodedKind::Key(key) => {
                     // Keyboard input settles at most one exposed wheel chunk
@@ -2327,21 +2328,6 @@ impl InputDispatcher {
             // their keys keep the ordinary byte path untouched. The history
             // search key opens copy mode there, which then owns input as
             // its command entry does: the rest of this packet is captured.
-            // A remote pane whose link was lost takes Enter as the way to log in again.
-            DecodedKind::Key(event)
-                if view.machines.lost_link
-                    && event.kind != KeyKind::Release
-                    && event.normalized() == (KeyCode::Char('m'), Modifiers::NONE.with_ctrl()) =>
-            {
-                self.flush_pending(view, port);
-                if view.machines.relogin() {
-                    self.machine_packet = true;
-                    self.keys.capture_pending();
-                    self.pointer.invalidate_map_with_port(port);
-                } else {
-                    self.pending.extend_from_slice(&item.raw);
-                }
-            }
             DecodedKind::Key(event)
                 if event.kind != KeyKind::Release
                     && port.pane_input(PaneInput::HistoryKey(&event))

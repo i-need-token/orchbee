@@ -1357,11 +1357,11 @@ fn render_machine_surface(
     // The preview's persistent status owns this tail until the gesture ends.
     if preview_painted || capture_owner == Some(crate::tui_composition::CaptureOwner::Copy) {
     } else {
-        // A remote pane whose link was lost says so, under any overlay.
+        // A machine that is not connected shows its card in place of terminals, under any overlay.
         let panel = crate::tui_layout::project_shell_areas(frame.area(), view.sidebar_surface());
         if panel.tier != crate::tui_layout::ViewportTier::TooSmall {
             view.machines
-                .render_lost_link(frame, panel.panel, chrome.locale, chrome.theme);
+                .render_card(frame, panel.panel, chrome.locale, chrome.theme, hits);
         }
         view.machines
             .render(frame, chrome.locale, chrome.theme, hits);

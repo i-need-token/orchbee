@@ -40,6 +40,7 @@ pub(crate) enum ControlTarget {
         crate::machine_picker::WaitingControl,
     ),
     Move(u64, bool),
+    Card(u64, bool),
 }
 
 impl ControlTarget {
@@ -56,6 +57,7 @@ impl ControlTarget {
             HitTarget::MachineLogin { token, control } => Self::Login(*token, *control),
             HitTarget::MachineWaiting { login, control } => Self::Waiting(*login, *control),
             HitTarget::MachineMove { token, confirm } => Self::Move(*token, *confirm),
+            HitTarget::MachineCard { token, act } => Self::Card(*token, *act),
             _ => return None,
         })
     }
@@ -82,7 +84,10 @@ pub(crate) fn accepts_find(target: &ControlTarget) -> bool {
 pub(crate) fn accepts_login(target: &ControlTarget) -> bool {
     matches!(
         target,
-        ControlTarget::Login(..) | ControlTarget::Waiting(..) | ControlTarget::Move(..)
+        ControlTarget::Login(..)
+            | ControlTarget::Waiting(..)
+            | ControlTarget::Move(..)
+            | ControlTarget::Card(..)
     )
 }
 

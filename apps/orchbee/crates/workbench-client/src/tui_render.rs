@@ -84,6 +84,7 @@ mod divider_resize;
 mod environment_marker;
 mod find_bar;
 mod held_restore;
+mod machine_card;
 mod machine_login;
 mod machine_move;
 mod machine_picker;

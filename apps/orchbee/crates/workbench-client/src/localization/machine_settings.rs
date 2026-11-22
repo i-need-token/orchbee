@@ -231,6 +231,49 @@ impl Locale {
         }
     }
 
+    /// The title of the card over the terminals of `machine`, which is not connected.
+    pub(crate) fn machine_card_title(self, machine: &Machine) -> String {
+        let label = sanitize_terminal_text(&machine.label);
+        match (self, machine.state) {
+            (Self::EnUs, State::Reconnecting) => "Connection lost".to_owned(),
+            (Self::ZhCn, State::Reconnecting) => "连接已断开".to_owned(),
+            (Self::EnUs, State::Offline) => format!("{label} is offline"),
+            (Self::ZhCn, State::Offline) => format!("{label} 离线了"),
+            (Self::EnUs, State::NeedsLogin) => format!("{label} needs login"),
+            (Self::ZhCn, State::NeedsLogin) => format!("{label} 需要登录"),
+            (Self::EnUs, State::Connecting | State::Online) => format!("Connecting to {label}…"),
+            (Self::ZhCn, State::Connecting | State::Online) => format!("正在连接 {label}…"),
+            (Self::EnUs, _) => format!("{label} isn't connected"),
+            (Self::ZhCn, _) => format!("{label} 没有连接"),
+        }
+    }
+
+    /// The lines under the card's title: a lost connection says it is being made again and that
+    /// the terminals keep running; any other state says what its Status sentence says.
+    pub(crate) fn machine_card_lines(self, machine: &Machine) -> Vec<String> {
+        let label = sanitize_terminal_text(&machine.label);
+        match (self, machine.state) {
+            (_, State::Connecting | State::Online) => Vec::new(),
+            (Self::EnUs, State::Reconnecting) => vec![
+                format!("Reconnecting to {label}…"),
+                format!("Terminals on {label} keep running."),
+            ],
+            (Self::ZhCn, State::Reconnecting) => vec![
+                format!("正在重新连接 {label}…"),
+                format!("{label} 上的终端继续运行。"),
+            ],
+            _ => vec![self.machine_status(machine)],
+        }
+    }
+
+    /// The card's button that puts it away.
+    pub(crate) const fn machine_card_not_now(self) -> &'static str {
+        match self {
+            Self::EnUs => "Not now",
+            Self::ZhCn => "暂不",
+        }
+    }
+
     /// What a machine that is not connected cannot do now, as Quit All names it.
     pub(crate) fn machine_not_connected(self, label: &str) -> String {
         let label = sanitize_terminal_text(label);

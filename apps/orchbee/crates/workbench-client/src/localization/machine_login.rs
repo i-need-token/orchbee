@@ -212,14 +212,6 @@ impl Locale {
         }
     }
 
-    /// A remote pane whose Machine's link was lost.
-    pub(crate) const fn machine_link_lost(self) -> &'static str {
-        match self {
-            Self::EnUs => "connection lost · Enter to log in again",
-            Self::ZhCn => "连接已断开 · Enter 重新登录",
-        }
-    }
-
     /// The selected row's explanation of a login state: what happened; the action offered beside
     /// it says what the person can do. Each line fits the 70-column picker.
     pub(crate) fn machine_login_detail(self, state: &LoginState) -> Vec<String> {

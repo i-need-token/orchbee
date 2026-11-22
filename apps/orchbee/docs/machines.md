@@ -1458,9 +1458,20 @@ Disconnect reads `offline` without a cause, or `needs-login` with cause `disconn
 something asks for the Machine. The reattachment is the connection the person's Enter would start,
 targeted at that Workspace: it asks nothing, shows no selection running, starts once while the
 Machine reads `online`, and replaces the surface only once nothing else holds the keyboard; a
-selection the person makes ends it, and one that fails leaves the surface disconnected for Enter. A
-cached remote surface whose Client has not noticed the loss comes back the same way once it is
-shown again; one whose Client retired while hidden is replaced by the selection's own connection.
+selection the person makes ends it, and one that fails leaves the machine's card. A cached remote
+surface whose Client has not noticed the loss comes back the same way once it is shown again; one
+whose Client retired while hidden is replaced by the selection's own connection.
+
+While the machine on screen reads `reconnecting`, `offline`, `needs-login` or `login-failed`, a
+card replaces its terminals in the terminal area: a title for the state (`Connection lost`,
+`devbox is offline`, `devbox needs login`), what Settings › Machines says of it (a lost connection
+says it is being made again and that its terminals keep running), the state's action (`Retry now`,
+`Retry` or `Log in`, on Enter) and `Not now` (Esc), which keeps the terminals in view until the
+state changes. The action chooses the machine again, so the hub tries at once and a login asks this
+TUI. Choosing a Workspace or Agent of a machine that is not connected shows the same card for that
+machine, `Connecting to devbox…` while the hub connects it, until the choice lands, another choice
+is made, or `Not now` gives it up; a choice that fails keeps the card. While the card shows it
+holds the keyboard and the pointer, and no key reaches the terminals beneath it.
 
 Local Panels use their own connection and are untouched. Each connection's threads, credit and pipe
 are its own, and the UI loop never reads a channel, so one slow remote never stalls input or drawing

@@ -472,15 +472,14 @@ impl Manager {
         change.redraw |= view
             .machines
             .exchange_waiting(&mut self.discovery, held, now);
-        // The current remote Machine needs a login again: its pane offers Enter to log in.
-        let lost_link = self
-            .current
-            .as_ref()
-            .is_some_and(|profile| self.discovery.login_needed(profile));
-        if view.machines.lost_link != lost_link {
-            view.machines.lost_link = lost_link;
-            change.redraw = true;
-        }
+        // The card of a machine that is not connected says its state as Settings › Machines does.
+        let card = view.machines.card_machine().and_then(|id| {
+            self.settings
+                .machines(&mut self.discovery, &self.profiles, |_| None, now)
+                .into_iter()
+                .find(|machine| machine.id == id.as_str())
+        });
+        change.redraw |= view.machines.observe_card(card);
         // The status line says why no hub is reached, without hiding another message or a
         // selection in progress.
         let hub_message = self.discovery.hub_message();
