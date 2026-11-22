@@ -22,7 +22,7 @@ use crate::{
 };
 use orchbee_local_runtime::{SidebarTokenStyle, SpaceSidebarToken, SpaceSidebarTokenKind as Kind};
 use ratatui::style::Modifier;
-use sidebar_text::{fit, machine_label, state_role};
+use sidebar_text::{fit, machine_label, marker_cells, state_role, truncate_machine_name};
 pub(super) mod agent_tokens;
 mod layout;
 
@@ -315,14 +315,9 @@ fn lines(
     let context = Context::new(view, row, locale);
     let identity_width = width.saturating_sub(shape.disclosure);
     let text_style = |role| theme.workspace_token_style(role, Default::default(), false, false);
-    let machine = if view.machines.rows.iter().filter(|m| m.enabled).count() > 1 {
-        format!(
-            "{} / ",
-            truncate_display(&machine_label(view, row, locale), 8, theme.glyphs.ellipsis)
-        )
-    } else {
-        String::new()
-    };
+    // A Workspace on another machine names it after its own name, as `api @devbox`.
+    let marker = (row.choice != crate::machine_picker::Choice::Local)
+        .then(|| machine_label(view, row, locale));
     // Metadata keeps one blank cell before it; the identity line also leaves the unread cells.
     let slot = |metadata: usize| match metadata {
         0 => 0,
@@ -334,7 +329,6 @@ fn lines(
     let mut slots = Vec::new();
     let mut names = Vec::new();
     let mut folder = None;
-    let identity = machine.clone();
     for tokens in view.machines.space_settings().rows() {
         // A Workspace row has no state column, so a configured state icon paints nothing; Git
         // counts move to the trailing slot.
@@ -376,11 +370,32 @@ fn lines(
             .collect();
         let separators = resolved.len().saturating_sub(1) * 3;
         let mut remaining = if lines.is_empty() {
-            identity_width.saturating_sub(display_width(&identity))
+            identity_width
         } else {
             width
         }
         .saturating_sub(separators + line_slot);
+        // The marker takes one blank cell and `@` beside the Workspace name on the first line.
+        let marker = marker
+            .as_deref()
+            .filter(|_| lines.is_empty())
+            .and_then(|label| {
+                let name = resolved
+                    .iter()
+                    .position(|(kind, _, _)| *kind == Kind::Workspace)?;
+                let available = remaining.saturating_sub(2);
+                let cells = marker_cells(
+                    display_width(label),
+                    desired.iter().sum(),
+                    desired[name].min(4),
+                    available,
+                );
+                remaining = available.saturating_sub(cells);
+                Some(format!(
+                    " @{}",
+                    truncate_machine_name(label, cells, theme.glyphs.ellipsis)
+                ))
+            });
         let mut budgets = vec![0; resolved.len()];
         // Distribute bounded text cells fairly after the trailing slot is reserved.
         loop {
@@ -438,6 +453,15 @@ fn lines(
                 text,
                 theme.workspace_token_style(role, style, false, false),
             ));
+            if kind == Kind::Workspace
+                && let Some(marker) = marker.as_ref()
+            {
+                // Regular weight: the name alone reads bold on the current row.
+                spans.push(Span::styled(
+                    marker.clone(),
+                    text_style(Role::TextPrimary).remove_modifier(Modifier::BOLD),
+                ));
+            }
         }
         // Configured tracks keep their height while asynchronous metadata arrives.
         if context.keeps(tokens, lines.is_empty()) {
@@ -479,12 +503,6 @@ fn lines(
             slots.push(0);
         }
     }
-    if let Some(part) = folder.as_mut().filter(|part| part.line == 0) {
-        part.start += display_width(&identity);
-    }
-    lines[0]
-        .spans
-        .insert(0, Span::styled(identity, text_style(Role::TextSecondary)));
     lines[0] = fit(
         std::mem::take(&mut lines[0]),
         identity_width.saturating_sub(slots[0]),
@@ -1133,19 +1151,9 @@ fn group_heading(name: &str, width: usize, theme: &Theme) -> Line<'static> {
     ))
 }
 
-/// A Project or Recents heading's label, after the Machine when several are enabled.
-fn group_label(view: &ClientView, row: &SidebarRow<'_>, locale: Locale) -> String {
-    let machine = if view.machines.rows.iter().filter(|row| row.enabled).count() > 1 {
-        view.machines
-            .rows
-            .iter()
-            .find(|machine| &machine.choice == row.target().machine())
-            .map(|machine| format!("{} / ", machine_label(view, machine, locale)))
-            .unwrap_or_default()
-    } else {
-        String::new()
-    };
-    display_label(&format!("{machine}{}", label(row, locale)))
+/// A Project or Recents heading's label; a heading groups every machine's Workspaces.
+fn group_label(row: &SidebarRow<'_>, locale: Locale) -> String {
+    display_label(&label(row, locale))
 }
 
 /// Paints the list into `area`. With `halos`, the list is spaced for touch: each entry owns one
@@ -1455,7 +1463,7 @@ pub(super) fn render(
         let continuation_width = usize::from(tracks.text_width(false));
         let mut projected_lines = match row {
             SidebarRow::Project { .. } | SidebarRow::Recents { .. } => {
-                let label = group_label(view, row, locale);
+                let label = group_label(row, locale);
                 ProjectedSidebarLines::new(vec![group_heading(&label, text_width, theme)])
                     .with_names(vec![(0, full_name(sanitize_terminal_text(&label)))])
             }

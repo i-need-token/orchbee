@@ -654,21 +654,24 @@ impl Picker {
                 .or_insert_with(Vec::new)
                 .push(row);
         }
-        let mut entries = Vec::new();
+        // Projects come first and merge across machines by ID; the copy on the first enabled
+        // machine in picker order (this computer, then catalog order) names and represents one.
+        // Inside a Project, this computer's Workspaces come first, then each machine's.
+        let mut projects = Vec::new();
+        let mut ungrouped = Vec::new();
+        let mut known = std::collections::BTreeSet::new();
+        let mut children = std::collections::BTreeMap::new();
         for machine in self.rows.iter().filter(|machine| machine.enabled) {
-            let mut projects = Vec::new();
-            let mut ungrouped = Vec::new();
-            let mut known = std::collections::BTreeSet::new();
-            let mut children = std::collections::BTreeMap::new();
             if let Some(checkpoint) = self.space_checkpoint(&machine.choice) {
                 for project in checkpoint.projects.iter() {
-                    known.insert((checkpoint.session_id.as_str(), project.project_id.as_str()));
-                    projects.push((
-                        &machine.choice,
-                        &checkpoint.session_id,
-                        &project.project_id,
-                        project.label.as_str(),
-                    ));
+                    if known.insert(project.project_id.as_str()) {
+                        projects.push((
+                            &machine.choice,
+                            &checkpoint.session_id,
+                            &project.project_id,
+                            project.label.as_str(),
+                        ));
+                    }
                 }
             }
             for row in self
@@ -680,13 +683,13 @@ impl Picker {
                     continue;
                 };
                 match &context.project_id {
-                    None => {
-                        ungrouped.push(row);
-                    }
+                    None => ungrouped.push(row),
                     Some(project_id) => {
-                        let key = (context.target.session_id.as_str(), project_id.as_str());
-                        children.entry(key).or_insert_with(Vec::new).push(row);
-                        if known.insert(key) {
+                        children
+                            .entry(project_id.as_str())
+                            .or_insert_with(Vec::new)
+                            .push(row);
+                        if known.insert(project_id.as_str()) {
                             projects.push((
                                 &machine.choice,
                                 &context.target.session_id,
@@ -697,66 +700,48 @@ impl Picker {
                     }
                 }
             }
-            for (machine, session_id, project_id, label) in projects {
-                let target = SidebarTarget::Project {
-                    machine: machine.clone(),
-                    session_id: session_id.clone(),
-                    project_id: project_id.clone(),
-                };
-                let expanded = self.sidebar_group_expanded(&target);
-                entries.push(SidebarRow::Project {
-                    machine,
-                    session_id,
-                    project_id,
-                    label,
-                });
-                if expanded
-                    && let SidebarTarget::Project {
-                        session_id,
-                        project_id,
-                        ..
-                    } = &target
-                    && let Some(rows) = children.get(&(session_id.as_str(), project_id.as_str()))
-                {
-                    for row in rows {
-                        append_context(
-                            &self.navigation,
-                            self.reorder_held.as_ref(),
-                            &agent_children,
-                            &mut entries,
-                            row,
-                        );
-                    }
+        }
+        let mut entries = Vec::new();
+        for (machine, session_id, project_id, label) in projects {
+            let target = SidebarTarget::Project {
+                machine: machine.clone(),
+                session_id: session_id.clone(),
+                project_id: project_id.clone(),
+            };
+            let expanded = self.sidebar_group_expanded(&target);
+            entries.push(SidebarRow::Project {
+                machine,
+                session_id,
+                project_id,
+                label,
+            });
+            if expanded && let Some(rows) = children.get(project_id.as_str()) {
+                for row in rows {
+                    append_context(
+                        &self.navigation,
+                        self.reorder_held.as_ref(),
+                        &agent_children,
+                        &mut entries,
+                        row,
+                    );
                 }
             }
-            // Workspaces outside any Project always come last, under one Recents heading per Session.
-            let mut sessions = Vec::new();
-            for row in &ungrouped {
-                let session_id = &row
+        }
+        // Workspaces outside any Project come last, under one heading for every machine.
+        if let Some(first) = ungrouped.first() {
+            let heading = SidebarRow::Recents {
+                machine: &first.choice,
+                session_id: &first
                     .context
                     .as_ref()
                     .expect("an ungrouped sidebar row has Context data")
                     .target
-                    .session_id;
-                if !sessions.contains(&session_id) {
-                    sessions.push(session_id);
-                }
-            }
-            for session_id in sessions {
-                let heading = SidebarRow::Recents {
-                    machine: &machine.choice,
-                    session_id,
-                };
-                let expanded = self.sidebar_group_expanded(&heading.target());
-                entries.push(heading);
-                if !expanded {
-                    continue;
-                }
-                for row in ungrouped.iter().filter(|row| {
-                    row.context
-                        .as_ref()
-                        .is_some_and(|context| &context.target.session_id == session_id)
-                }) {
+                    .session_id,
+            };
+            let expanded = self.sidebar_group_expanded(&heading.target());
+            entries.push(heading);
+            if expanded {
+                for row in ungrouped {
                     append_context(
                         &self.navigation,
                         self.reorder_held.as_ref(),
@@ -768,6 +753,64 @@ impl Picker {
             }
         }
         entries
+    }
+
+    /// The heading target that represents a Project merged across machines: its copy on the first
+    /// enabled machine in picker order that holds it, as `sidebar_navigation_rows` draws it.
+    fn merged_project_target(&self, project_id: &WorkbenchProjectId) -> Option<SidebarTarget> {
+        self.rows
+            .iter()
+            .filter(|machine| machine.enabled)
+            .find_map(|machine| {
+                let session_id = self
+                    .space_checkpoint(&machine.choice)
+                    .filter(|checkpoint| {
+                        checkpoint
+                            .projects
+                            .iter()
+                            .any(|project| &project.project_id == project_id)
+                    })
+                    .map(|checkpoint| checkpoint.session_id.clone())
+                    .or_else(|| {
+                        self.workspace_rows.iter().find_map(|row| {
+                            row.context
+                                .as_ref()
+                                .filter(|context| {
+                                    row.enabled
+                                        && row.choice == machine.choice
+                                        && context.project_id.as_ref() == Some(project_id)
+                                })
+                                .map(|context| context.target.session_id.clone())
+                        })
+                    })?;
+                Some(SidebarTarget::Project {
+                    machine: machine.choice.clone(),
+                    session_id,
+                    project_id: project_id.clone(),
+                })
+            })
+    }
+
+    /// The one heading over every machine's Workspaces outside a Project, as drawn.
+    fn merged_recents_target(&self) -> Option<SidebarTarget> {
+        self.rows
+            .iter()
+            .filter(|machine| machine.enabled)
+            .find_map(|machine| {
+                self.workspace_rows.iter().find_map(|row| {
+                    row.context
+                        .as_ref()
+                        .filter(|context| {
+                            row.enabled
+                                && row.choice == machine.choice
+                                && context.project_id.is_none()
+                        })
+                        .map(|context| SidebarTarget::Recents {
+                            machine: machine.choice.clone(),
+                            session_id: context.target.session_id.clone(),
+                        })
+                })
+            })
     }
 
     /// Captures only the live semantics that can change a Sidebar target's release result.
@@ -935,34 +978,11 @@ impl Picker {
                         .as_ref()
                         .is_some_and(|context| &context.target == target)
             }),
-            SidebarTarget::Project {
-                machine,
-                session_id,
-                project_id,
-            } => {
-                self.space_checkpoint(machine).is_some_and(|checkpoint| {
-                    &checkpoint.session_id == session_id
-                        && checkpoint
-                            .projects
-                            .iter()
-                            .any(|project| &project.project_id == project_id)
-                }) || self.workspace_rows.iter().any(|row| {
-                    &row.choice == machine
-                        && row.context.as_ref().is_some_and(|context| {
-                            &context.target.session_id == session_id
-                                && context.project_id.as_ref() == Some(project_id)
-                        })
-                })
+            // A heading exists only as the copy that represents its merged group.
+            SidebarTarget::Project { project_id, .. } => {
+                self.merged_project_target(project_id).as_ref() == Some(target)
             }
-            SidebarTarget::Recents {
-                machine,
-                session_id,
-            } => self.workspace_rows.iter().any(|row| {
-                &row.choice == machine
-                    && row.context.as_ref().is_some_and(|context| {
-                        &context.target.session_id == session_id && context.project_id.is_none()
-                    })
-            }),
+            SidebarTarget::Recents { .. } => self.merged_recents_target().as_ref() == Some(target),
             SidebarTarget::Agent { machine, target } => {
                 self.workspace_rows.iter().any(|row| {
                     row.enabled
@@ -1022,17 +1042,10 @@ impl Picker {
                         .as_ref()
                         .filter(|context| &row.choice == machine && &context.target == target)
                 })?;
-                Some(match &context.project_id {
-                    Some(project_id) => SidebarTarget::Project {
-                        machine: machine.clone(),
-                        session_id: target.session_id.clone(),
-                        project_id: project_id.clone(),
-                    },
-                    None => SidebarTarget::Recents {
-                        machine: machine.clone(),
-                        session_id: target.session_id.clone(),
-                    },
-                })
+                match &context.project_id {
+                    Some(project_id) => self.merged_project_target(project_id),
+                    None => self.merged_recents_target(),
+                }
             }
             SidebarTarget::Project { .. } | SidebarTarget::Recents { .. } => None,
         }

@@ -735,7 +735,7 @@ fn agent_join_uses_choice_session_and_full_context_location_across_colliding_ids
 }
 
 #[test]
-fn complete_checkpoints_preserve_empty_projects_and_machine_session_identity() {
+fn complete_checkpoints_merge_projects_by_id_and_keep_empty_ones() {
     let mut picker = picker();
     let a = profile(1, "same machine", true);
     let b = profile(2, "same machine", true);
@@ -750,17 +750,14 @@ fn complete_checkpoints_preserve_empty_projects_and_machine_session_identity() {
         .iter()
         .map(SidebarRow::target)
         .collect();
-    assert_eq!(
-        targets.len(),
-        9,
-        "each Machine has two Projects and one Workspace"
-    );
+    // The two Projects every machine has show once each; the first holds each machine's
+    // Workspace, the second stays though it is empty.
     assert_eq!(
         targets
             .iter()
-            .filter(|target| matches!(target, SidebarTarget::Project { .. }))
-            .count(),
-        6
+            .map(|target| matches!(target, SidebarTarget::Project { .. }))
+            .collect::<Vec<_>>(),
+        [true, false, false, false, true]
     );
     assert!(
         targets
@@ -768,7 +765,7 @@ fn complete_checkpoints_preserve_empty_projects_and_machine_session_identity() {
             .enumerate()
             .all(|(i, target)| !targets[..i].contains(target))
     );
-    let empty = targets[2].clone();
+    let empty = targets[4].clone();
     assert!(picker.focus_sidebar_target(&empty));
     assert_eq!(key(&mut picker, KeyCode::Enter), SidebarIntent::None);
     assert_eq!(

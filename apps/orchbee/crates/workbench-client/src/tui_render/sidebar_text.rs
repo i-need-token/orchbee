@@ -7,6 +7,45 @@ use crate::{
 use orchbee_workbench_protocol::MetadataState;
 use ratatui::style::Style;
 
+/// A machine name shortens in its middle and keeps its last three cells, because fleet names
+/// differ at their end: `gpu-render-farm-07` becomes `gpu-ren…-07`, never `gpu-render-…`.
+pub(super) fn truncate_machine_name(name: &str, budget: usize, ellipsis: &str) -> String {
+    const TAIL: usize = 3;
+    if crate::terminal_text::display_width(name) <= budget {
+        return name.to_owned();
+    }
+    let tail = TAIL + crate::terminal_text::display_width(ellipsis);
+    if budget <= tail {
+        return truncate_display(name, budget, ellipsis);
+    }
+    let mut text = truncate_display(name, budget - tail, "");
+    text.push_str(&crate::terminal_text::truncate_display_start(
+        name, tail, ellipsis,
+    ));
+    text
+}
+
+/// Cells a remote Workspace's machine name gets beside its name, in the marker's order of
+/// giving way: both whole; a machine name over twelve cells shortens first, to twelve; then the
+/// Workspace name, to four cells; then the machine name again, to four cells. `text` is what
+/// the line's other text wants and `text_floor` the cells its Workspace name keeps.
+pub(super) fn marker_cells(full: usize, text: usize, text_floor: usize, available: usize) -> usize {
+    const CAP: usize = 12;
+    const FLOOR: usize = 4;
+    let cap = full.min(CAP);
+    if text + full <= available {
+        full
+    } else if text + cap <= available {
+        available - text
+    } else if text_floor + cap <= available {
+        cap
+    } else {
+        available
+            .saturating_sub(text_floor)
+            .clamp(full.min(FLOOR), cap)
+    }
+}
+
 fn semantic_role(style: Style, theme: &Theme) -> Option<Role> {
     [
         Role::TextPrimary,

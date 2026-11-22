@@ -531,8 +531,15 @@ Tabs and content follow the installed Session selection. Pending, superseded and
 cancelled requests follow [machine navigation](machines.md#cross-machine-workspace-navigation).
 
 The native sidebar renders Workspaces and optional Project groups from complete Machine
-checkpoints and the active Client's canonical snapshot. For each Machine, Projects and their
-children come first, followed by a Recents heading over the Workspaces outside any Project.
+checkpoints and the active Client's canonical snapshot. Projects come first and merge across
+machines by Project ID: the copy on the first enabled machine in picker order (this computer,
+then catalog order) names the Project and is its heading target, and inside it this computer's
+Workspaces come first, then each machine's. One Recents heading follows over every machine's
+Workspaces outside any Project, in the same machine order. A Workspace on another machine shows
+`@` and the machine's name one blank cell after its own name, in regular weight; when the line is
+short, a machine name over twelve cells shortens first, then the Workspace name down to four
+cells, then the machine name down to `@` and four cells, always in its middle so that its last
+three cells stay. Row and heading menus and drags stay with targets of the machine on screen.
 Grouped ordinary and Git-worktree-backed Workspaces share the same level; every Workspace
 owns its Agent children. `machine_spaces::Checkpoint` retains Project IDs and labels from
 the same fenced Snapshot as Workspaces, including empty Projects with their own menu and
