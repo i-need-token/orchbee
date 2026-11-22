@@ -12,6 +12,8 @@ use std::{
 pub(super) struct CloseRead {
     targets: Vec<ProcessObservationTarget>,
     facts: Arc<Mutex<Vec<CloseFacts>>>,
+    /// Read every target within the budget, rather than stop at the first one that asks.
+    every: bool,
 }
 
 pub(super) type Requests = on_demand::Requests<CloseRead, ()>;
@@ -24,10 +26,30 @@ impl LocalTerminalService {
         targets: Vec<ProcessObservationTarget>,
         deadline: Instant,
     ) -> Vec<CloseFacts> {
+        self.request_facts(targets, deadline, false)
+    }
+
+    /// As `request_close_facts`, reading past a terminal that asks, so the idle check can name
+    /// every terminal that keeps a Workspace from closing unasked.
+    pub(in crate::local_terminal_service) fn request_every_close_fact(
+        &self,
+        targets: Vec<ProcessObservationTarget>,
+        deadline: Instant,
+    ) -> Vec<CloseFacts> {
+        self.request_facts(targets, deadline, true)
+    }
+
+    fn request_facts(
+        &self,
+        targets: Vec<ProcessObservationTarget>,
+        deadline: Instant,
+        every: bool,
+    ) -> Vec<CloseFacts> {
         let facts = Arc::new(Mutex::new(vec![CloseFacts::default(); targets.len()]));
         let read = CloseRead {
             targets,
             facts: Arc::clone(&facts),
+            every,
         };
         // The answer itself carries nothing: every fact the read reached is already published.
         let _ = self.request_on_demand(
@@ -60,7 +82,7 @@ impl CloseRead {
 }
 
 /// Reads the waiting close's targets in order and stops at the first terminal that asks: the
-/// close then asks whatever the others would say.
+/// close then asks whatever the others would say. The idle check reads every target instead.
 pub(super) fn serve(service: &LocalTerminalService, wake: &Wake) {
     on_demand::serve(service, wake, &wake.closes, |job| {
         let read = &job.parameters;
@@ -76,7 +98,7 @@ pub(super) fn serve(service: &LocalTerminalService, wake: &Wake) {
                 read.publish(index, CloseFacts::default());
                 return (None, pending);
             }
-            if !read.runs_nothing(index) {
+            if !read.every && !read.runs_nothing(index) {
                 break;
             }
         }

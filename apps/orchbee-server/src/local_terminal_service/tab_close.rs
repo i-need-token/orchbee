@@ -23,6 +23,7 @@ use crate::{
 const CANDIDATE_RETRY: Duration = Duration::from_millis(250);
 pub(in crate::local_terminal_service) mod evidence;
 pub(in crate::local_terminal_service) mod idle;
+mod idle_read;
 
 #[cfg(test)]
 mod tests;

@@ -1,6 +1,7 @@
 use super::*;
 use crate::terminal_coordinator::{CreateInputs, LaunchCapture};
 mod idle;
+mod idle_read;
 use crate::session_coordinator::PendingTerminalTabCreate;
 use orchbee_client_server_protocol::RequestId;
 use orchbee_server::WorkbenchGrant;

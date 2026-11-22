@@ -168,7 +168,7 @@ impl LocalTerminalService {
 
     /// Walks the inventory page by page until it ends, or reports nothing once `deadline` passes.
     /// A page is accepted only when it advances from its request's cursor, so the walk always ends.
-    fn inspect_close_target(
+    pub(super) fn inspect_close_target(
         &self,
         handle: &WorkerRequestHandle,
         close_id: &WorkbenchRequestId,

@@ -40,6 +40,7 @@ pub(crate) use panel_create::PendingTerminalPanelCreate;
 pub(crate) use panel_create::PreparedTerminalPanelCreate;
 mod terminal_selection;
 mod workspace_directory;
+mod workspace_idle;
 mod worktree_restore;
 pub(crate) use terminal_selection::{
     BindingViewerPreparationError, PreparedBindingViewer, PreparedSendTarget,

@@ -42,6 +42,11 @@ import {
 	TerminalRuntimeResultSchema,
 } from './workbench-terminal-runtime-contract';
 import {
+	WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_IDLE_RESULT_BYTES,
+	WorkspaceIdleRequestSchema,
+	WorkspaceIdleResultSchema,
+} from './workbench-workspace-idle-contract';
+import {
 	AgentIntegrationRequestSchema,
 	AgentIntegrationResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES,
@@ -681,6 +686,7 @@ export const WorkbenchRequestSchema = z
 		CurrentDirectoryRequestSchema,
 		AgentCatalogRequestSchema,
 		TerminalRuntimeRequestSchema,
+		WorkspaceIdleRequestSchema,
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
 		CloseOperationReadSchema,
@@ -821,6 +827,7 @@ export const WorkbenchResponseSchema = z
 		CurrentDirectoryResultSchema,
 		AgentCatalogResultSchema,
 		TerminalRuntimeResultSchema,
+		WorkspaceIdleResultSchema,
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
 		CloseOperationResultSchema,
@@ -883,6 +890,8 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES;
 		} else if (value.kind === 'workbench.workspace-close.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES;
+		} else if (value.kind === 'workbench.workspace-idle.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_IDLE_RESULT_BYTES;
 		} else if (value.kind === 'workbench.worktree-list.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES;
 		} else if (value.kind === 'workbench.current-directory.result') {

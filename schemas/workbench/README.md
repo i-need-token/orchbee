@@ -908,6 +908,22 @@ vocabulary and the revision bounds in Rust, TypeScript and JSON Schema; the requ
 the 16 KiB intent cap. The [Server](../../apps/orchbee-server/README.md#terminal-runtime) owns the
 state.
 
+## Workspace idle reads
+
+[`workbench-workspace-idle.schema.json`](v1/workbench-workspace-idle.schema.json) owns
+`workbench.workspace-idle` and its `.result`, OBWP kinds 81/82: whether a conditional Close of one
+Workspace would ask first, without closing anything. The request names the Session and the
+Workspace. An outcome is `idle`, `busy` with the `members` that keep the Workspace from closing
+unasked, or `failed` with `denied`, `not-found` or `unavailable`. A member names its Tab, Panel and
+Presentation and a `reason`, `running` or `unknown`; members are distinct Presentations, at least
+one and at most one per Panel node a Context admits. A Client sends the read only to a Server whose
+`client-server` answer lists the
+[`workspace-idle` capability](../connection/README.md#generation-registry). The
+[shared corpus](v1/workbench-workspace-idle-conformance-v1.json) checks closed shapes, the
+vocabulary, the member bounds and distinct Presentations in Rust, TypeScript and JSON Schema; the
+request keeps the 16 KiB intent cap and the result its exact bound for the most members. The
+[Server](../../apps/orchbee-server/docs/terminal-tab-close.md#workspace-idle-check) owns the evidence.
+
 ## Agent integration jobs
 
 [`workbench-agent-integration.schema.json`](v1/workbench-agent-integration.schema.json) owns

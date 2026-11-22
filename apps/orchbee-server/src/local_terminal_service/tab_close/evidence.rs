@@ -151,6 +151,12 @@ impl CloseFacts {
             | (ShellReport::AtPrompt, CloseSample::Unknown) => true,
         }
     }
+
+    /// Whether the read showed a command or program running, rather than leaving it untold.
+    pub(in crate::local_terminal_service) const fn shows_running(self) -> bool {
+        matches!(self.report, Some(ShellReport::Running))
+            || matches!(self.sample, Some(CloseSample::Program))
+    }
 }
 
 #[cfg(test)]

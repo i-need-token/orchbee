@@ -1,0 +1,124 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.workspace.close-preview",
+	"title": "Workspace close preview",
+	"description": "What closing one Workspace with --confirm would end: its terminals as orchbee.terminal.list lists them, and whether each runs a program, by the evidence a Workspace close that asks first reads. Nothing is submitted.",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.workspace.close-preview" },
+		"version": { "const": 1 },
+		"source": { "$ref": "#/$defs/snapshotSource" },
+		"result": {
+			"type": "object",
+			"required": ["workspace", "evidence", "idle", "terminals"],
+			"additionalProperties": false,
+			"properties": {
+				"workspace": {
+					"type": "object",
+					"required": ["workspaceId", "label"],
+					"additionalProperties": false,
+					"properties": {
+						"workspaceId": { "$ref": "#/$defs/id" },
+						"label": { "type": "string", "minLength": 1 }
+					}
+				},
+				"evidence": {
+					"description": "read when the machine read what runs in the terminals; unavailable when it could not, as when its Session lacks the check or does not answer in time, and then every terminal is unknown.",
+					"enum": ["read", "unavailable"]
+				},
+				"idle": {
+					"description": "true only when the evidence was read and no terminal runs a program.",
+					"type": "boolean"
+				},
+				"terminals": { "type": "array", "items": { "$ref": "#/$defs/terminal" } }
+			},
+			"if": { "properties": { "evidence": { "const": "unavailable" } } },
+			"then": { "properties": { "idle": { "const": false } } }
+		}
+	},
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"terminal": {
+			"type": "object",
+			"required": ["terminalId", "workerId", "boundTo", "observation", "activity"],
+			"additionalProperties": false,
+			"properties": {
+				"terminalId": { "$ref": "#/$defs/id" },
+				"workerId": { "$ref": "#/$defs/id" },
+				"boundTo": {
+					"type": "object",
+					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
+					"additionalProperties": false,
+					"properties": {
+						"presentationId": { "$ref": "#/$defs/id" },
+						"panelId": { "$ref": "#/$defs/id" },
+						"tabId": { "$ref": "#/$defs/id" },
+						"terminalContextId": { "$ref": "#/$defs/id" }
+					}
+				},
+				"observation": {
+					"oneOf": [
+						{ "$ref": "#/$defs/observed" },
+						{ "$ref": "#/$defs/frameUnavailable" },
+						{ "$ref": "#/$defs/notSampled" },
+						{ "$ref": "#/$defs/unsupported" }
+					]
+				},
+				"activity": {
+					"description": "running when the shell reported a running command or another program holds its console; unknown when that could not be read or did not tell; idle otherwise.",
+					"enum": ["idle", "running", "unknown"]
+				}
+			}
+		},
+		"observed": {
+			"type": "object",
+			"required": ["kind", "title", "cwd", "agent", "state"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "observed" },
+				"title": { "type": ["string", "null"] },
+				"cwd": { "type": ["string", "null"] },
+				"agent": { "type": ["string", "null"] },
+				"state": { "$ref": "#/$defs/agentState" }
+			}
+		},
+		"frameUnavailable": {
+			"type": "object",
+			"required": ["kind", "agent", "state"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "frame-unavailable" },
+				"agent": { "type": ["string", "null"] },
+				"state": { "$ref": "#/$defs/agentState" }
+			}
+		},
+		"notSampled": {
+			"description": "Observations are best effort. A row is not sampled beyond the 64-row prefix, when its observation did not finish before the deadline, or when it could not be verified against the snapshot whose rows the result returns.",
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": { "kind": { "const": "not-sampled" } }
+		},
+		"agentState": {
+			"enum": ["idle", "working", "blocked", "done", "error", "unknown", "opening", null]
+		},
+		"unsupported": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": { "kind": { "const": "unsupported" } }
+		},
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "sessionId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "workbench-snapshot" },
+				"sessionId": { "$ref": "#/$defs/id" },
+				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+			}
+		}
+	}
+}

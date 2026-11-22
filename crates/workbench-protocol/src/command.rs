@@ -188,6 +188,11 @@ pub use terminal_runtime::{
     TerminalRuntimeFailure, TerminalRuntimeOutcome, TerminalRuntimeRequest, TerminalRuntimeResult,
     TerminalRuntimeState, WorkbenchTerminalRuntime,
 };
+mod workspace_idle;
+pub use workspace_idle::{
+    MAXIMUM_ENCODED_WORKSPACE_IDLE_RESULT_BYTES, WorkspaceIdleFailure, WorkspaceIdleMember,
+    WorkspaceIdleOutcome, WorkspaceIdleReason, WorkspaceIdleRequest, WorkspaceIdleResult,
+};
 mod current_directory;
 pub use current_directory::{
     CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryPanel,
@@ -1129,6 +1134,8 @@ pub enum WorkbenchRequest {
     AgentCatalog(AgentCatalogRequest),
     #[serde(rename = "workbench.terminal-runtime")]
     TerminalRuntime(TerminalRuntimeRequest),
+    #[serde(rename = "workbench.workspace-idle")]
+    WorkspaceIdle(WorkspaceIdleRequest),
     #[serde(rename = "workbench.client-view")]
     ClientView(WorkbenchClientViewRequest),
     #[serde(rename = "workbench.workspace-group-close")]
@@ -1578,6 +1585,8 @@ pub enum WorkbenchResponse {
     AgentCatalog(AgentCatalogResult),
     #[serde(rename = "workbench.terminal-runtime.result")]
     TerminalRuntime(TerminalRuntimeResult),
+    #[serde(rename = "workbench.workspace-idle.result")]
+    WorkspaceIdle(WorkspaceIdleResult),
     #[serde(rename = "workbench.client-view.result")]
     ClientView(WorkbenchClientViewResult),
     #[serde(rename = "workbench.workspace-group-close.result")]
@@ -1955,6 +1964,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
             result.validate()
         }
         WorkbenchResponse::TerminalRuntime(result) => result.validate(),
+        WorkbenchResponse::WorkspaceIdle(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKSPACE_IDLE_RESULT_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::WorkspaceMetadata(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKSPACE_METADATA_RESULT_BYTES)?;
             result.validate()

@@ -89,6 +89,8 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
         // A refresh only renews the cached lookup of what this machine has installed.
         | WorkbenchRequest::AgentCatalog(_)
         | WorkbenchRequest::TerminalRuntime(_)
+        // It reads each terminal's evidence and closes, reserves and retains nothing.
+        | WorkbenchRequest::WorkspaceIdle(_)
         | WorkbenchRequest::WorktreeQuery(_)
         | WorkbenchRequest::SnapshotRead(_)
         | WorkbenchRequest::TabCloseRead(_)

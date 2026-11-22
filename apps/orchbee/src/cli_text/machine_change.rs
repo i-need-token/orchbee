@@ -1,6 +1,6 @@
 //! What `workspace set-machine` says: where the Workspace now runs, what a dry run would do, and
 //! why a change stopped. Every line names the Workspace and machines as the person knows them.
-use super::{Locale, escape::unquoted};
+use super::{Locale, Stops, escape::unquoted};
 
 /// A machine as `workspace set-machine` names it: this computer, or a saved machine's name.
 #[derive(Clone, Copy)]
@@ -48,18 +48,24 @@ pub(crate) enum ChangeLine<'a> {
     CreateFailed { workspace: &'a str },
     /// The new Workspace runs, and the old one could not be closed.
     CloseFailed { workspace: &'a str, id: &'a str },
+    /// Without `--confirm` nothing moves; says what the move would stop.
+    Unconfirmed {
+        workspace: &'a str,
+        to: Place<'a>,
+        stops: Stops<'a>,
+    },
 }
 
 impl super::CliText {
     pub(crate) fn cli_set_machine_help(self) -> super::HelpDetails {
         super::HelpDetails::new(
-            "orchbee workspace set-machine <target> --to <machine> (--confirm | --dry-run) [--format text|json]",
+            "orchbee workspace set-machine <target> --to <machine> [--confirm | --dry-run] [--format text|json]",
             match self.locale {
                 Locale::EnUs => {
-                    "Move a workspace to another machine: it is created there with the same name and Project, then closed where it ran, which ends its terminals and the processes and Agents running in them. Files are not moved: the new workspace starts in the same folder relative to home when that folder exists there, otherwise in home, with one tab and one shell. --to names where it goes; the global --machine option, which never routes this command, names the machine that holds the workspace, this computer when omitted. Both must be connected or waiting for a login; for a login the move waits until someone logs in where Orchbee asks, and it connects no machine itself. A workspace in a linked worktree stays with its repository. --dry-run lists the terminals the move would end and changes nothing. The old workspace closes only once the new one runs, and a step that fails says what changed. '--format json' emits orchbee.workspace.set-machine."
+                    "Move a workspace to another machine: it is created there with the same name and Project, then closed where it ran, which ends its terminals and the processes and Agents running in them. Files are not moved: the new workspace starts in the same folder relative to home when that folder exists there, otherwise in home, with one tab and one shell. --to names where it goes; the global --machine option, which never routes this command, names the machine that holds the workspace, this computer when omitted. Both must be connected or waiting for a login; for a login the move waits until someone logs in where Orchbee asks, and it connects no machine itself. A workspace in a linked worktree stays with its repository. --dry-run lists the terminals the move would end and which of them may be running a program, and changes nothing. Without --confirm or --dry-run the command says what the move would stop and refuses. The old workspace closes only once the new one runs, and a step that fails says what changed. '--format json' emits orchbee.workspace.set-machine."
                 }
                 Locale::ZhCn => {
-                    "把工作区移到另一台机器：先在那台机器上以相同的名称和项目新建，再在原来的机器上关闭，这会结束其中的终端及其中运行的进程和智能体。文件不会被移动：那台机器上存在相对主目录的同一文件夹时，新工作区从该文件夹开始，否则从主目录开始，带一个标签页和一个 shell。--to 指定要移到的机器；全局选项 --machine 不会转发这条命令，而是指定工作区当前所在的机器，省略时为这台电脑。两台机器都须已连接或正在等待登录；需要登录时，移动会等到有人在 Orchbee 提示的地方登录后再继续，它本身不连接任何机器。链接工作树中的工作区跟着它的仓库，不能换机器。--dry-run 列出这次移动将结束的终端，不做任何更改。只有新工作区运行后才会关闭原来的工作区；某一步失败时会说明已改变了什么。'--format json' 输出 orchbee.workspace.set-machine。"
+                    "把工作区移到另一台机器：先在那台机器上以相同的名称和项目新建，再在原来的机器上关闭，这会结束其中的终端及其中运行的进程和智能体。文件不会被移动：那台机器上存在相对主目录的同一文件夹时，新工作区从该文件夹开始，否则从主目录开始，带一个标签页和一个 shell。--to 指定要移到的机器；全局选项 --machine 不会转发这条命令，而是指定工作区当前所在的机器，省略时为这台电脑。两台机器都须已连接或正在等待登录；需要登录时，移动会等到有人在 Orchbee 提示的地方登录后再继续，它本身不连接任何机器。链接工作树中的工作区跟着它的仓库，不能换机器。--dry-run 列出这次移动将结束的终端及其中哪些可能正在运行程序，不做任何更改。既没有 --confirm 也没有 --dry-run 时，命令会说明这次移动将停止什么，然后拒绝执行。只有新工作区运行后才会关闭原来的工作区；某一步失败时会说明已改变了什么。'--format json' 输出 orchbee.workspace.set-machine。"
                 }
             },
         )
@@ -203,6 +209,57 @@ impl super::CliText {
                 "{} 已新建为工作区 {id}，但原来的工作区没能关闭。\n",
                 unquoted(workspace)
             ),
+            (
+                Locale::EnUs,
+                ChangeLine::Unconfirmed {
+                    workspace,
+                    to,
+                    stops,
+                },
+            ) => {
+                let moving = format!("Moving {} to {}", unquoted(workspace), en(*to));
+                let facts = match stops {
+                    Stops::Busy(names) => format!(
+                        "{moving} closes {} {}: {}.",
+                        names.len(),
+                        if names.len() == 1 {
+                            "terminal"
+                        } else {
+                            "terminals"
+                        },
+                        self.stop_names(names)
+                    ),
+                    Stops::Idle => {
+                        format!("{moving} closes its terminals; none of them is running a program.")
+                    }
+                    Stops::Unread => format!(
+                        "{moving} closes its terminals; Orchbee couldn't check whether programs are running in them."
+                    ),
+                };
+                format!("{facts}\nFiles are not moved. Add --confirm to move it.\n")
+            }
+            (
+                Locale::ZhCn,
+                ChangeLine::Unconfirmed {
+                    workspace,
+                    to,
+                    stops,
+                },
+            ) => {
+                let moving = format!("将 {} 移到{}", unquoted(workspace), zh(*to));
+                let facts = match stops {
+                    Stops::Busy(names) => format!(
+                        "{moving}会关闭 {} 个终端：{}。",
+                        names.len(),
+                        self.stop_names(names)
+                    ),
+                    Stops::Idle => format!("{moving}会关闭其中的终端；它们都没有在运行程序。"),
+                    Stops::Unread => {
+                        format!("{moving}会关闭其中的终端；Orchbee 无法确认其中是否有程序在运行。")
+                    }
+                };
+                format!("{facts}\n文件不会被移动。加上 --confirm 才会移动。\n")
+            }
         };
         match self.locale {
             Locale::EnUs => text,

@@ -4,8 +4,7 @@
 
 use super::{
     ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource,
-    UsageContext, UsageReason, check_scope, machines::valid_selector, missing_required, required,
-    target, usage_with,
+    UsageContext, UsageReason, check_scope, machines::valid_selector, required, target, usage_with,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -16,8 +15,11 @@ pub(crate) struct SetMachine {
     pub(crate) to: String,
     /// The `--machine` prefix: the machine that holds the Workspace; `None` is this computer.
     pub(crate) from: Option<String>,
-    /// `--dry-run`: names what would close and changes nothing; otherwise `--confirm` was given.
+    /// `--dry-run`: names what would close and changes nothing.
     pub(crate) dry_run: bool,
+    /// `--confirm`: the move may end the Workspace's terminals. Without it or `--dry-run` the
+    /// command reads what the move would stop, says so, and refuses.
+    pub(crate) confirm: bool,
     pub(crate) format: OutputFormat,
 }
 
@@ -42,16 +44,14 @@ pub(super) fn parse(
             envelope,
         ));
     }
-    // As with `workspace close`, a dry run discards nothing and needs no `--confirm`; the change
-    // itself ends the Workspace's terminals here.
-    if !options.dry_run && !options.confirm {
-        return Err(missing_required(context, "'--confirm'", envelope));
-    }
+    // A missing `--confirm` is refused only after the machine that holds the Workspace says what
+    // the move would stop, so the refusal can name it.
     Ok(Request::WorkspaceSetMachine(SetMachine {
         workspace: value.to_owned(),
         to,
         from: None,
         dry_run: options.dry_run,
+        confirm: options.confirm,
         format: options.format.unwrap_or(OutputFormat::Text),
     }))
 }

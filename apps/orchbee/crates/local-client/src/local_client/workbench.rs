@@ -23,6 +23,7 @@ mod settings;
 mod terminal_runtime;
 mod window_title;
 mod workspace_git;
+mod workspace_idle;
 pub(crate) mod workspace_metadata;
 use orchbee_local_ipc::LocalIo as BorrowedFd;
 use std::{fmt, io, time::Instant};
@@ -79,6 +80,7 @@ pub use workspace_close::{
 };
 pub use workspace_git::WorkspaceGitError;
 pub use workspace_group_close::GroupCloseExchangeError;
+pub use workspace_idle::WorkspaceIdleReadError;
 pub use worktree_operation::WorktreeExchangeError;
 
 impl LocalClient {

@@ -14,7 +14,17 @@
 		},
 		"result": {
 			"type": "object",
-			"required": ["dryRun", "workspace", "from", "to", "folder", "created", "terminals"],
+			"required": [
+				"dryRun",
+				"workspace",
+				"from",
+				"to",
+				"folder",
+				"created",
+				"terminals",
+				"idle",
+				"evidence"
+			],
 			"additionalProperties": false,
 			"properties": {
 				"dryRun": {
@@ -68,18 +78,36 @@
 					]
 				},
 				"terminals": {
-					"description": "In a dry run, the terminals the change would end, as the result.terminals items of orchbee.terminal.list; otherwise null.",
+					"description": "In a dry run, the terminals the change would end, as the result.terminals items of orchbee.workspace.close-preview; otherwise null.",
 					"anyOf": [{ "type": "array", "items": { "type": "object" } }, { "type": "null" }]
+				},
+				"idle": {
+					"description": "In a dry run, true only when the machine that holds the Workspace read that none of its terminals runs a program; otherwise null.",
+					"anyOf": [{ "type": "boolean" }, { "type": "null" }]
+				},
+				"evidence": {
+					"description": "In a dry run, read when the machine that holds the Workspace read what runs in its terminals, unavailable when it could not and every terminal is unknown; otherwise null.",
+					"anyOf": [{ "enum": ["read", "unavailable"] }, { "type": "null" }]
 				}
 			},
 			"if": {
 				"properties": { "dryRun": { "const": true } }
 			},
 			"then": {
-				"properties": { "created": { "type": "null" }, "terminals": { "type": "array" } }
+				"properties": {
+					"created": { "type": "null" },
+					"terminals": { "type": "array" },
+					"idle": { "type": "boolean" },
+					"evidence": { "type": "string" }
+				}
 			},
 			"else": {
-				"properties": { "created": { "type": "object" }, "terminals": { "type": "null" } }
+				"properties": {
+					"created": { "type": "object" },
+					"terminals": { "type": "null" },
+					"idle": { "type": "null" },
+					"evidence": { "type": "null" }
+				}
 			}
 		}
 	},

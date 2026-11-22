@@ -4,7 +4,10 @@
 //! Workspace, then the first machine again to close the old one. Files never move: the new
 //! Workspace starts in the same folder relative to home when that folder exists there, otherwise in
 //! home. Nothing closes unless the new Workspace was created, and a step that fails says what
-//! changed.
+//! changed. Without `--confirm` nothing moves: the command says what the move would stop, as the
+//! machine that holds the Workspace reads it, and refuses.
+
+mod facts;
 
 use super::{Context, Error, list, routing};
 use crate::{
@@ -18,6 +21,7 @@ use crate::{
     localization::Locale,
     machines::{Catalog, Error as CatalogError, Profile, Store, names_this_computer},
 };
+use facts::Facts;
 use orchbee_local_runtime::{CommandFailure, CommandOutput};
 use orchbee_machine_protocol::hub::MachineState;
 use orchbee_workbench_protocol::WorkbenchProjectId;
@@ -80,6 +84,8 @@ struct Refused {
     step: Option<Answer>,
     /// The Workspace the change already created on the other machine.
     created: Option<String>,
+    /// What the move would stop, when it refused for want of `--confirm`.
+    facts: Option<Facts>,
 }
 
 impl Refused {
@@ -98,6 +104,7 @@ impl Refused {
             state: None,
             step: None,
             created: None,
+            facts: None,
         })
     }
     /// A step that answered with a failure; its kind is the change's.
@@ -117,19 +124,23 @@ impl Refused {
                 "reason": answer.reason().map_or(Value::Null, |reason| json!(reason)),
             })
         });
-        let details = Map::from_iter([
-            ("stage".to_owned(), json!(self.stage)),
-            ("reason".to_owned(), json!(self.reason)),
-            ("machine".to_owned(), json!(self.machine)),
-            ("state".to_owned(), json!(self.state)),
-            ("step".to_owned(), step.unwrap_or(Value::Null)),
-            (
-                "created".to_owned(),
-                self.created
-                    .as_ref()
-                    .map_or(Value::Null, |id| json!({"workspaceId": id})),
-            ),
-        ]);
+        let facts =
+            Facts::members(self.facts.as_ref()).map(|(name, value)| (name.to_owned(), value));
+        let details = Map::from_iter(
+            facts.into_iter().chain([
+                ("stage".to_owned(), json!(self.stage)),
+                ("reason".to_owned(), json!(self.reason)),
+                ("machine".to_owned(), json!(self.machine)),
+                ("state".to_owned(), json!(self.state)),
+                ("step".to_owned(), step.unwrap_or(Value::Null)),
+                (
+                    "created".to_owned(),
+                    self.created
+                        .as_ref()
+                        .map_or(Value::Null, |id| json!({"workspaceId": id})),
+                ),
+            ]),
+        );
         let mut result = cli::failure_output(
             Failure::new(self.kind)
                 .failure_schema(FAILURE_ID)
@@ -334,71 +345,103 @@ fn execute(
     let folder = parts
         .as_ref()
         .map_or_else(|| "~".to_owned(), |parts| format!("~/{}", parts.join("/")));
-    let summary = |folder: &str, created: Option<(&str, &str)>, terminals: Option<Value>| {
-        json!({
-            "schema": RESULT_ID,
-            "version": 1,
-            "result": {
-                "dryRun": change.dry_run,
-                "workspace": {
+    let summary = |folder: &str, created: Option<(&str, &str)>, facts: Option<&Facts>| {
+        let mut result = Map::from_iter([
+            ("dryRun".to_owned(), json!(change.dry_run)),
+            (
+                "workspace".to_owned(),
+                json!({
                     "workspaceId": source.id,
                     "label": source.label,
                     "projectId": source.project.as_ref().map(|(project, _)| project),
-                },
-                "from": from.json(),
-                "to": to.json(),
-                "folder": folder,
-                "created": created.map(|(id, path)| json!({"workspaceId": id, "path": path})),
-                "terminals": terminals,
-            },
-        })
+                }),
+            ),
+            ("from".to_owned(), from.json()),
+            ("to".to_owned(), to.json()),
+            ("folder".to_owned(), json!(folder)),
+            (
+                "created".to_owned(),
+                json!(created.map(|(id, path)| json!({"workspaceId": id, "path": path}))),
+            ),
+        ]);
+        result.extend(
+            Facts::members(facts)
+                .into_iter()
+                .map(|(name, value)| (name.to_owned(), value)),
+        );
+        json!({"schema": RESULT_ID, "version": 1, "result": result})
     };
-    if change.dry_run {
-        let format = match change.format {
-            OutputFormat::Json => "json",
-            OutputFormat::Text => "text",
-        };
-        // The terminals closing the Workspace ends, as `workspace close --dry-run` lists them.
+    if change.dry_run || !change.confirm {
+        // What closing the Workspace would stop, as `workspace close --dry-run` reads it there.
         let preview = step(
             &from,
             &[
-                "terminal",
-                "list",
-                "--workspace",
+                "workspace",
+                "close",
                 &source.id,
+                "--dry-run",
                 "--format",
-                format,
+                "json",
             ],
-            change.format,
+            OutputFormat::Json,
             locale,
             context,
         );
+        let line = || words.cli_set_machine(&ChangeLine::SourceFailed { workspace });
         if preview.status != 0 {
-            return Err(Refused::step(
-                "source",
-                preview,
-                words.cli_set_machine(&ChangeLine::SourceFailed { workspace }),
-            ));
+            return Err(Refused::step("source", preview, line()));
+        }
+        let Some(facts) = Facts::of(&preview) else {
+            return Err(Refused::step("source", preview, line()));
+        };
+        let names = facts.names(locale);
+        if !change.dry_run {
+            let mut refused = Refused::new(
+                "confirm",
+                "confirmation-required",
+                FailureKind::InvalidUsage,
+                words.cli_set_machine(&ChangeLine::Unconfirmed {
+                    workspace,
+                    to: to.place(),
+                    stops: facts.stops(&names),
+                }),
+            );
+            refused.facts = Some(facts);
+            return Err(refused);
         }
         return Ok(match change.format {
             OutputFormat::Json => emit(
-                output::encode_document(&summary(
-                    &folder,
-                    None,
-                    preview.at("/result/terminals").cloned(),
-                )),
+                output::encode_document(&summary(&folder, None, Some(&facts))),
                 change.format,
                 locale,
             ),
             OutputFormat::Text => {
-                let mut text = words
-                    .cli_set_machine(&ChangeLine::Preview {
-                        workspace,
-                        from: from.place(),
-                        to: to.place(),
-                    })
-                    .into_bytes();
-                text.extend_from_slice(&preview.stdout);
+                // The terminals as `terminal list` shows them there.
+                let table = step(
+                    &from,
+                    &[
+                        "terminal",
+                        "list",
+                        "--workspace",
+                        &source.id,
+                        "--format",
+                        "text",
+                    ],
+                    OutputFormat::Text,
+                    locale,
+                    context,
+                );
+                if table.status != 0 {
+                    return Err(Refused::step("source", table, line()));
+                }
+                let mut text = words.cli_set_machine(&ChangeLine::Preview {
+                    workspace,
+                    from: from.place(),
+                    to: to.place(),
+                });
+                text.push_str(&words.cli_close_facts(facts.stops(&names)));
+                let mut text = text.into_bytes();
+                text.extend_from_slice(&table.stdout);
                 emit(Ok(text), change.format, locale)
             }
         });

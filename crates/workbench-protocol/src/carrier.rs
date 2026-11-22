@@ -89,6 +89,7 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::WorkspaceIdle(_) => 81,
         WorkbenchRequest::TerminalRuntime(_) => 77,
         WorkbenchRequest::AgentCatalog(_) => 75,
         WorkbenchRequest::SessionStop(_) => 73,
@@ -145,6 +146,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
 
 fn response_kind(response: &WorkbenchResponse) -> u16 {
     match response {
+        WorkbenchResponse::WorkspaceIdle(_) => 82,
         WorkbenchResponse::TerminalRuntime(_) => 78,
         WorkbenchResponse::AgentCatalog(_) => 76,
         WorkbenchResponse::SessionStop(_) => 74,
@@ -239,6 +241,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 75
                     | 77
                     | 79
+                    | 81
             ))
         || (!request
             && !matches!(
@@ -279,6 +282,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 76
                     | 78
                     | 80
+                    | 82
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);
@@ -347,6 +351,8 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         crate::MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES
     } else if kind == 16 {
         crate::MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES
+    } else if kind == 82 {
+        crate::MAXIMUM_ENCODED_WORKSPACE_IDLE_RESULT_BYTES
     } else {
         MAXIMUM_ENCODED_INTENT_BYTES
     };

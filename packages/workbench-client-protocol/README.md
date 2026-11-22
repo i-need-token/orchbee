@@ -452,6 +452,17 @@ read through the parsed response union. It consumes the
 [schema](../../schemas/workbench/v1/workbench-terminal-runtime.schema.json) with the independent
 Rust binding. The [Server](../../apps/orchbee-server/README.md#terminal-runtime) owns the state.
 
+## Workspace idle reads
+
+`workbench-workspace-idle-contract.ts` joins the main request/response unions with
+`workbench.workspace-idle`, which names the Session and the Workspace, and its `idle`, `busy` and
+`failed` outcomes. A `busy` outcome lists distinct Presentations, each with its Tab, Panel and a
+`running` or `unknown` reason, and
+`WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_IDLE_RESULT_BYTES` is the result's exact bound. It consumes
+the [shared corpus](../../schemas/workbench/v1/workbench-workspace-idle-conformance-v1.json) and
+[schema](../../schemas/workbench/v1/workbench-workspace-idle.schema.json) with the independent Rust
+binding. The [Server](../../apps/orchbee-server/docs/terminal-tab-close.md#workspace-idle-check) owns the evidence.
+
 ## Agent integration jobs
 
 `workbench-agent-integration-contract.ts` joins the main request/response unions with the job

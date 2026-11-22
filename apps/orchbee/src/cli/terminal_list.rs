@@ -57,16 +57,40 @@ enum Attempt {
     Unverified,
 }
 
+/// How long `terminal list` reads and observes.
+pub(crate) const LISTING: Duration = Duration::from_secs(5);
+
+/// A listing with the connection and the snapshot that answered it.
+pub(crate) type Observed = (
+    LocalClient,
+    Snapshot,
+    Vec<results::TerminalRow>,
+    Vec<TerminalListDetails>,
+);
+
 fn sampled_rows(rows: &[results::TerminalRow]) -> &[results::TerminalRow] {
     &rows[..rows.len().min(MAXIMUM_ENRICHED_TERMINALS)]
 }
 
 pub(crate) fn run(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
+    inspect(format, locale, |signals| {
+        let (_, snapshot, rows, details) = observed(&command, LISTING, signals)?;
+        let (source, projection) = listing(&snapshot, rows, details);
+        Ok(success_output(projection, source, &command, format, locale))
+    })
+}
+
+/// Runs `body` as one admitted Workbench inspection with interrupts armed; a cancellation or a
+/// local fault answers instead of what `body` returned.
+pub(crate) fn inspect(
+    format: OutputFormat,
+    locale: Locale,
+    body: impl FnOnce(&mut ArmedSignals) -> Result<Output, Failure>,
+) -> Output {
     if let Err(failure) = super::execution::admit(super::execution::Capability::WorkbenchInspection)
     {
         return failure_output(failure, Some(format), locale);
     }
-    let deadline = Instant::now() + Duration::from_secs(5);
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
         Err(_) => {
@@ -77,7 +101,7 @@ pub(crate) fn run(command: QueryCommand, format: OutputFormat, locale: Locale) -
             );
         }
     };
-    let result = execute(&command, deadline, &mut signals);
+    let result = body(&mut signals);
     let mut finalization = None;
     let result = match signals.finish() {
         Ok(Finish::Clear) => result,
@@ -90,18 +114,21 @@ pub(crate) fn run(command: QueryCommand, format: OutputFormat, locale: Locale) -
         Err(_) => Err(Failure::new(FailureKind::InternalFailure)),
     };
     let mut output = match result {
-        Ok((source, projection)) => success_output(projection, source, &command, format, locale),
+        Ok(output) => output,
         Err(error) => failure_output(error, Some(format), locale),
     };
     output.finalization = finalization;
     output
 }
 
-fn execute(
+/// The listing `command` answers, observed within `budget`, with the connection and the snapshot
+/// that answered it.
+pub(crate) fn observed(
     command: &QueryCommand,
-    deadline: Instant,
+    budget: Duration,
     signals: &mut ArmedSignals,
-) -> Result<(serde_json::Value, Projection), Failure> {
+) -> Result<Observed, Failure> {
+    let deadline = Instant::now() + budget;
     let (mut client, mut snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
     check_cancelled(signals)?;
     let (mut rows, mut details) = list(command, &snapshot)?;
@@ -115,7 +142,7 @@ fn execute(
             deadline,
             signals,
         )? {
-            Attempt::Verified(observed) => return Ok(listing(&snapshot, rows, observed)),
+            Attempt::Verified(observed) => return Ok((client, snapshot, rows, observed)),
             Attempt::Changed(Some(newer)) => {
                 // A newer snapshot that no longer answers a filter keeps the last one that did.
                 let Ok((newer_rows, newer_details)) = list(command, &newer) else {
@@ -130,7 +157,7 @@ fn execute(
         }
     }
     let details = unobserved(rows.len(), details);
-    Ok(listing(&snapshot, rows, details))
+    Ok((client, snapshot, rows, details))
 }
 
 fn list(
@@ -148,7 +175,7 @@ fn list(
     }
 }
 
-fn listing(
+pub(crate) fn listing(
     snapshot: &Snapshot,
     rows: Vec<results::TerminalRow>,
     details: Vec<TerminalListDetails>,

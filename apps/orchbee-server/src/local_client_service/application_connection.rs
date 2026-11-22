@@ -217,6 +217,8 @@ impl ApplicationRequest {
             {
                 false
             }
+            // Each evaluation would read every terminal of the Workspace again; it stays one-shot.
+            ApplicationRequestKind::Workbench(WorkbenchRequest::WorkspaceIdle(_)) => false,
             // Each evaluation of a refresh would ask for another lookup; a stream reads `current`.
             ApplicationRequestKind::Workbench(WorkbenchRequest::AgentCatalog(request))
                 if matches!(

@@ -183,6 +183,34 @@ the complete primary/child/Project-member extractor, concrete pending entries an
 cross-language decoding, or fresh Client draw and request-ID escalation. The implementation and Session
 witnesses above carry those obligations separately; native process and prompt behavior additionally require the Host regressions and real TUI witnesses.
 
+### Workspace idle check
+
+`workbench.workspace-idle {workspaceId}`, behind the `workspace-idle` capability, answers whether a
+conditional Workspace Close would ask, so a Client can decide before an action that ends the
+Workspace's terminals some other way, such as moving the Workspace to another machine:
+
+- The answer is `idle` exactly when a conditional Workspace Close admitted at that moment would
+  accept, and `busy` otherwise, because a move or a close must not end a program unasked where the
+  other would ask. Members come from the same complete Presentation membership, each with the same
+  `Uncreated`, `QuietRuntime` or runtime evidence, the same read-only inventory walk and the same
+  process-observer read, within one four-second budget.
+- `busy` names every member that keeps the Workspace from closing unasked, with `running` when its
+  shell reported a running command or a program holds its console and `unknown` when the evidence
+  could not be read or did not tell. Unlike a Close, which stops at the first member that asks,
+  the check reads every member, so a confirmation can name them all.
+- The check is a read. It admits, reserves, fences and retains nothing, and it never enters the
+  Close ledger, because a refused conditional Close retains its rejection and a read must not.
+  Nothing it answered binds a later Close, which reads its own evidence again; a program started
+  between the two is the same window an asked confirmation has.
+- A request whose Session is not this one is `denied`, an unknown Workspace is `not-found`, and a
+  Session without a Workbench is `unavailable`. A Client whose Server lacks the capability, or that
+  gets no answer in time, treats every terminal as unknown, never idle.
+
+The [Session test](../src/local_terminal_service/tab_close/tests/workspace_close/idle_read.rs)
+reads a two-Tab Workspace under the evidence the Workspace owner test uses: a running shell is
+named with the quiet one still read, a silent shell and a missing member are unknown, an ended
+member needs no read, and the snapshot is unchanged.
+
 ### Tab and Panel
 
 `tab.close-if-idle {terminalContextId, tabId}` and `panel.close-if-idle {terminalContextId,

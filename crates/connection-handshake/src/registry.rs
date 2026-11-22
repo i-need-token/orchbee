@@ -41,6 +41,11 @@ pub const TERMINAL_RUNTIME: &str = "terminal-runtime";
 /// unavailable on a Session without it.
 pub const UPDATE_CHECK: &str = "update-check";
 
+/// The `client-server` capability before a Client may send `workbench.workspace-idle`, which reads
+/// whether closing a Workspace would ask first. A Client whose Server lacks it says it could not
+/// check what runs in the Workspace, and asks.
+pub const WORKSPACE_IDLE: &str = "workspace-idle";
+
 /// The `client-server` capability before a Server may close one request stream with the OBWP
 /// `OutcomeUnknown` reason, for an intent that failed after it ran or whose result it could not
 /// deliver, instead of ending the connection. A Client without it keeps the connection-ending
@@ -157,6 +162,7 @@ impl ConnectionKind {
                 TERMINAL_LIMIT_REACHED,
                 TERMINAL_RUNTIME,
                 UPDATE_CHECK,
+                WORKSPACE_IDLE,
             ],
             Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_SEND],
             Self::MachineHub | Self::MachineLink => &[CAPACITY],

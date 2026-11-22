@@ -411,6 +411,19 @@ request/Session correlation is mandatory, and the read changes no Workbench stat
 both Rust and TypeScript; the [Server](../../apps/orchbee-server/README.md#terminal-runtime) owns
 the state.
 
+## Workspace idle reads
+
+`WorkspaceIdleRequest`/`WorkspaceIdleResult` add `workbench.workspace-idle` and its `.result`, OBWP
+kinds 81/82. The request names the Session and the Workspace; a `WorkspaceIdleOutcome` is `Idle`,
+`Busy` with `WorkspaceIdleMember`s (Tab, Panel, Presentation and a `WorkspaceIdleReason` of
+`running` or `unknown`) or `Failed` with a `WorkspaceIdleFailure` of `denied`, `not-found` or
+`unavailable`. `WorkspaceIdleResult::validate` refuses an empty or oversized member list and a
+Presentation named twice, and `MAXIMUM_ENCODED_WORKSPACE_IDLE_RESULT_BYTES` is the exact encoding
+of the most members, which the integration test constructs. Exact request, Session and Workspace
+correlation is mandatory, and the read changes no Workbench state. The
+[schema and shared corpus](../../schemas/workbench/README.md#workspace-idle-reads) cover both Rust
+and TypeScript; the [Server](../../apps/orchbee-server/docs/terminal-tab-close.md#workspace-idle-check) owns the evidence.
+
 ## Plugin overlay observation and Client return identity
 
 Read-only `PanelObserve` carries exact `PluginPaneInfo`; `PanelObserved` echoes it with a nonzero canonical revision and a boolean settlement fact. Correlation includes selector, context/Tab/Panel/Presentation and binding. It grants no lifecycle mutation. Private Client `Overlay` control carries the created bound member, exact nullable return member and previous zoom. Validation rejects self-return identities; Applied requires the requested focused member, zoom and multiple leaves. Required nullability and semantic failures share the Rust/TypeScript corpus. [Windows plugins](../../apps/orchbee/docs/windows-plugins.md#overlay-lifecycle-model) owns runtime records, observation cleanup and canonical Close. These extensions require the matched native cohort and add no Desktop command.

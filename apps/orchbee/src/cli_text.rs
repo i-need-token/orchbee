@@ -6,6 +6,8 @@
 
 mod client_control;
 mod client_layout;
+mod close_facts;
+pub(crate) use close_facts::Stops;
 mod help;
 mod help_arguments;
 mod help_options;

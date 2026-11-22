@@ -57,6 +57,10 @@ pub use command::{
     WorkspaceGitRequest, WorkspaceGitResult,
 };
 pub use command::{
+    MAXIMUM_ENCODED_WORKSPACE_IDLE_RESULT_BYTES, WorkspaceIdleFailure, WorkspaceIdleMember,
+    WorkspaceIdleOutcome, WorkspaceIdleReason, WorkspaceIdleRequest, WorkspaceIdleResult,
+};
+pub use command::{
     MAXIMUM_EVENT_FILTERS, MAXIMUM_EVENT_PAGE, MAXIMUM_EVENTS_BYTES, SemanticEvent,
     SemanticEventCursor, SemanticEventData, SemanticEventFilter, SemanticEventGap,
     SemanticEventKind, SemanticEventMatch, SemanticEventPosition, SemanticEventScope,

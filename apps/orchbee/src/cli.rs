@@ -65,6 +65,7 @@ pub(crate) mod channel;
 mod completion;
 mod terminal_clear;
 mod terminal_list;
+mod workspace_close_preview;
 pub(crate) use terminal_clear::run as clear_terminal;
 pub(crate) mod config;
 mod configuration;

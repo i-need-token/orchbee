@@ -149,7 +149,7 @@ impl WorkbenchService {
                 | orchbee_workbench_protocol::PanelAgentAction::ConfirmationChoose { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::ConfirmationDecline { .. } => self.policy.manage_navigation,
             },
-            WorkbenchRequest::WorkspaceGit(_) | WorkbenchRequest::CurrentDirectory(_) | WorkbenchRequest::AgentCatalog(_) | WorkbenchRequest::TerminalRuntime(_) => self.policy.read,
+            WorkbenchRequest::WorkspaceGit(_) | WorkbenchRequest::CurrentDirectory(_) | WorkbenchRequest::AgentCatalog(_) | WorkbenchRequest::TerminalRuntime(_) | WorkbenchRequest::WorkspaceIdle(_) => self.policy.read,
             WorkbenchRequest::WorkspaceMetadata(request) => match request.action {
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Read { .. } => self.policy.read,
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Report { .. } => self.policy.manage_navigation,
@@ -303,6 +303,11 @@ impl WorkbenchService {
             WorkbenchRequest::TerminalRuntime(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::TerminalRuntime(
                     self.terminals.execute_terminal_runtime(request.clone()),
+                ));
+            }
+            WorkbenchRequest::WorkspaceIdle(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceIdle(
+                    self.terminals.read_workspace_idle(request.clone()),
                 ));
             }
             WorkbenchRequest::WorkspaceMetadata(request) => {
@@ -777,6 +782,21 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                         orchbee_workbench_protocol::TerminalRuntimeFailure::Denied
                     } else {
                         orchbee_workbench_protocol::TerminalRuntimeFailure::Unavailable
+                    },
+                },
+            })
+        }
+        WorkbenchRequest::WorkspaceIdle(request) => {
+            WorkbenchResponse::WorkspaceIdle(orchbee_workbench_protocol::WorkspaceIdleResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                session_id: request.session_id,
+                workspace_id: request.workspace_id,
+                outcome: orchbee_workbench_protocol::WorkspaceIdleOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::WorkspaceIdleFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::WorkspaceIdleFailure::Unavailable
                     },
                 },
             })

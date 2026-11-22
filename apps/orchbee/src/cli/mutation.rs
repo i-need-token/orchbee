@@ -908,14 +908,15 @@ mod workflow {
     }
 
     /// `--dry-run`: the terminal list of the member a close would end,
-    /// opened in text with what confirming would do. Nothing is submitted.
+    /// opened in text with what confirming would do. A Workspace's also says
+    /// which of its terminals run a program. Nothing is submitted.
     fn close_preview(command: &MutationCommand, format: OutputFormat, locale: Locale) -> Output {
         let (filter, resource) = match command {
             MutationCommand::TabClose { target, .. } => {
                 (TerminalListFilter::Tab(target.clone()), "tab")
             }
             MutationCommand::WorkspaceClose { target, .. } => {
-                (TerminalListFilter::Workspace(target.clone()), "workspace")
+                return super::super::workspace_close_preview::run(target, format, locale);
             }
             _ => unreachable!("only closes preview"),
         };

@@ -23,6 +23,8 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
         WorkbenchRequest::AgentCatalog(_) => true,
         // The state publishes its own revisions.
         WorkbenchRequest::TerminalRuntime(_) => true,
+        // It reads evidence and changes nothing.
+        WorkbenchRequest::WorkspaceIdle(_) => true,
         WorkbenchRequest::Configuration(request) => {
             matches!(request.action, ConfigurationAction::Current)
         }

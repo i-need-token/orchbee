@@ -62,8 +62,8 @@ impl super::CliText {
             ),
             (CommandPath::WorkspaceSetMachine, "--dry-run") => (
                 "",
-                "List the terminals the move would end, and change nothing.",
-                "列出这次移动将结束的终端，不做任何更改。",
+                "List the terminals the move would end and which of them may be running a program, and change nothing.",
+                "列出这次移动将结束的终端及其中哪些可能正在运行程序，不做任何更改。",
             ),
             (CommandPath::MachineRemove, "--confirm") => (
                 "",

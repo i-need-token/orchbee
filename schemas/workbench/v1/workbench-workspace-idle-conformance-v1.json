@@ -1,0 +1,235 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-idle",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000002"
+			}
+		},
+		{
+			"name": "idle",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-idle.result",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "idle"
+				}
+			}
+		},
+		{
+			"name": "busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-idle.result",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "busy",
+					"members": [
+						{
+							"tabId": "00000000000000000000000000000011",
+							"panelId": "00000000000000000000000000000021",
+							"presentationId": "00000000000000000000000000000031",
+							"reason": "running"
+						},
+						{
+							"tabId": "00000000000000000000000000000012",
+							"panelId": "00000000000000000000000000000022",
+							"presentationId": "00000000000000000000000000000032",
+							"reason": "unknown"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-idle.result",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "denied"
+				}
+			}
+		},
+		{
+			"name": "not-found",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-idle.result",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "not-found"
+				}
+			}
+		},
+		{
+			"name": "unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-idle.result",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "unavailable"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "read-without-workspace",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-idle",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001"
+			}
+		},
+		{
+			"name": "read-with-zero-workspace",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-idle",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000000"
+			}
+		},
+		{
+			"name": "busy-without-members",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-idle.result",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "busy",
+					"members": []
+				}
+			}
+		},
+		{
+			"name": "busy-with-unknown-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-idle.result",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "busy",
+					"members": [
+						{
+							"tabId": "00000000000000000000000000000011",
+							"panelId": "00000000000000000000000000000021",
+							"presentationId": "00000000000000000000000000000031",
+							"reason": "idle"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "busy-with-one-presentation-twice",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.workspace-idle.result",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "busy",
+					"members": [
+						{
+							"tabId": "00000000000000000000000000000011",
+							"panelId": "00000000000000000000000000000021",
+							"presentationId": "00000000000000000000000000000031",
+							"reason": "running"
+						},
+						{
+							"tabId": "00000000000000000000000000000012",
+							"panelId": "00000000000000000000000000000022",
+							"presentationId": "00000000000000000000000000000031",
+							"reason": "unknown"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "idle-with-members",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-idle.result",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "idle",
+					"members": [
+						{
+							"tabId": "00000000000000000000000000000011",
+							"panelId": "00000000000000000000000000000021",
+							"presentationId": "00000000000000000000000000000031",
+							"reason": "running"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "failed-with-unknown-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-idle.result",
+				"protocolVersion": 1,
+				"requestId": "0000000000000000000000000000000a",
+				"sessionId": "00000000000000000000000000000001",
+				"workspaceId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "busy"
+				}
+			}
+		}
+	]
+}

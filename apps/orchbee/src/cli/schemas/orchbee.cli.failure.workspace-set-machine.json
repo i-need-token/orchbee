@@ -40,11 +40,21 @@
 				},
 				"details": {
 					"type": "object",
-					"required": ["stage", "reason", "machine", "state", "step", "created"],
+					"required": [
+						"stage",
+						"reason",
+						"machine",
+						"state",
+						"step",
+						"created",
+						"terminals",
+						"idle",
+						"evidence"
+					],
 					"additionalProperties": false,
 					"properties": {
 						"stage": {
-							"enum": ["machine", "source", "project", "create", "close"]
+							"enum": ["machine", "source", "confirm", "project", "create", "close"]
 						},
 						"reason": {
 							"enum": [
@@ -62,6 +72,7 @@
 								"project-not-shareable",
 								"target-too-old",
 								"step-failed",
+								"confirmation-required",
 								"cancelled"
 							]
 						},
@@ -108,6 +119,18 @@
 								},
 								{ "type": "null" }
 							]
+						},
+						"terminals": {
+							"description": "With confirmation-required: the terminals the move would end, as the result.terminals items of orchbee.workspace.close-preview; otherwise null.",
+							"anyOf": [{ "type": "array", "items": { "type": "object" } }, { "type": "null" }]
+						},
+						"idle": {
+							"description": "With confirmation-required: true only when the machine that holds the Workspace read that none of its terminals runs a program; otherwise null.",
+							"anyOf": [{ "type": "boolean" }, { "type": "null" }]
+						},
+						"evidence": {
+							"description": "With confirmation-required: read when the machine that holds the Workspace read what runs in its terminals, unavailable when it could not and every terminal is unknown; otherwise null.",
+							"anyOf": [{ "enum": ["read", "unavailable"] }, { "type": "null" }]
 						}
 					}
 				}

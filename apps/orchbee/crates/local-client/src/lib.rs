@@ -44,7 +44,8 @@ pub mod workbench {
         WorkbenchWorkspaceCloseNotSubmitted, WorkbenchWorkspaceClosePrecommit,
         WorkbenchWorkspaceCloseReadError, WorkbenchWorkspaceCloseRequest,
         WorkbenchWorkspaceCloseResumeSubmission, WorkbenchWorkspaceCloseSubmission,
-        WorkspaceGitError, WorktreeExchangeError, WorktreeListReadError, WorktreeListReadFailure,
+        WorkspaceGitError, WorkspaceIdleReadError, WorktreeExchangeError, WorktreeListReadError,
+        WorktreeListReadFailure,
     };
 
     pub mod agent_integration {
