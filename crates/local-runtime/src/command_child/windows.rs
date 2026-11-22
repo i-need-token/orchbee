@@ -87,11 +87,18 @@ impl CommandChild {
     }
 
     /// Runs only on the retained command owner thread. A root exit is not completion
-    /// until the owned Job has settled, even when a descendant holds output open.
+    /// until the owned Job has settled, even when a descendant holds output open. After a failed
+    /// [`settle`](Self::settle) it ends the Job's members again and looks once without waiting:
+    /// an empty Job completes the command, and one that still holds a member stays unknown.
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         match self.settlement {
             Settlement::Complete(status) => return Ok(Some(status)),
-            Settlement::Failed => return Err(unknown_settlement()),
+            Settlement::Failed => {
+                self.child.start_kill()?;
+                let status = self.child.try_wait()?.ok_or_else(unknown_settlement)?;
+                self.settlement = Settlement::Complete(status);
+                return Ok(Some(status));
+            }
             Settlement::Running => {}
         }
         // Root polling never consumes the private completion port. We terminate
@@ -126,14 +133,13 @@ impl CommandChild {
     }
 
     /// Terminates remaining members, then observes the corrected wrapper's
-    /// root-and-Job completion with a bounded cleanup budget.
+    /// root-and-Job completion with a bounded cleanup budget. A call after a failed one tries
+    /// again, since only the Job's own completion, never a cached root exit, counts as settled.
     pub fn settle(&mut self) -> io::Result<ExitStatus> {
-        match self.settlement {
-            Settlement::Complete(status) => return Ok(status),
-            Settlement::Failed => return Err(unknown_settlement()),
-            Settlement::Running => {}
+        if let Settlement::Complete(status) = self.settlement {
+            return Ok(status);
         }
-        // A failed attempt must never become success on a later cached-root read.
+        // Until the Job is seen complete, the command's settlement stays unknown.
         self.settlement = Settlement::Failed;
         self.child.start_kill()?;
         let deadline = Instant::now() + Duration::from_secs(5);

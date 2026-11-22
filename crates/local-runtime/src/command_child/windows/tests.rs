@@ -2,12 +2,7 @@ use super::*;
 use crate::CommandFailure;
 use std::{
     io::{Read, Write},
-    os::windows::process::ExitStatusExt,
     process::Stdio,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
     thread,
     time::{Duration, Instant},
 };
@@ -184,44 +179,6 @@ fn root_exit_and_cancellation_wait_for_retained_descendant_identity() {
         assert_eq!(child.try_wait().unwrap(), Some(status));
         assert_eq!(child.settle().unwrap(), status);
     }
-}
-
-#[derive(Debug)]
-struct FailedJobWait(Arc<AtomicUsize>);
-
-impl ChildWrapper for FailedJobWait {
-    fn inner(&self) -> &dyn ChildWrapper {
-        self
-    }
-    fn inner_mut(&mut self) -> &mut dyn ChildWrapper {
-        self
-    }
-    fn into_inner(self: Box<Self>) -> Box<dyn ChildWrapper> {
-        self
-    }
-    fn start_kill(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-    fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
-        if self.0.fetch_add(1, Ordering::Relaxed) == 0 {
-            Err(io::Error::other("Job wait failed after caching root exit"))
-        } else {
-            Ok(Some(ExitStatus::from_raw(0)))
-        }
-    }
-}
-
-#[test]
-fn failed_job_wait_never_becomes_cached_root_success_on_retry() {
-    let calls = Arc::new(AtomicUsize::new(0));
-    let mut child = CommandChild {
-        child: Box::new(FailedJobWait(Arc::clone(&calls))),
-        settlement: Settlement::Running,
-    };
-    assert!(child.settle().is_err());
-    assert!(child.settle().is_err());
-    assert!(child.try_wait().is_err());
-    assert_eq!(calls.load(Ordering::Relaxed), 1);
 }
 
 #[derive(Debug)]

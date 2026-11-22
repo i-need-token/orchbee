@@ -18,10 +18,13 @@ use windows::Win32::{
 use crate::{
 	ChildExitStatus,
 	windows::{
-		JobPort, job_creation_flags_for, make_job_object_with_breakaway, resume_threads,
-		terminate_job, wait_on_job,
+		JobPort, Termination, job_creation_flags_for, job_is_empty, make_job_object_with_breakaway,
+		resume_threads, terminate_job, terminate_job_observed, wait_on_job,
 	},
 };
+
+/// How long a blocking wait reads the completion port before it looks at the job's count again.
+const JOB_RECHECK: Duration = Duration::from_millis(50);
 
 #[cfg(feature = "creation-flags")]
 use super::CreationFlags;
@@ -183,6 +186,9 @@ pub struct JobObjectChild {
 	inner: Box<dyn ChildWrapper>,
 	exit_status: ChildExitStatus,
 	job_port: JobPort,
+	/// The members every [`start_kill`](ChildWrapper::start_kill) ended, so that their exit can be
+	/// seen when the completion notice never arrives.
+	terminated: Option<Termination>,
 }
 
 impl JobObjectChild {
@@ -192,7 +198,18 @@ impl JobObjectChild {
 			inner,
 			exit_status: ChildExitStatus::Running,
 			job_port,
+			terminated: None,
 		}
+	}
+
+	/// Whether every member has exited although the port holds no completion: Windows does not
+	/// guarantee to deliver it. A member that left by itself is counted out of the job only after it
+	/// exited; a terminated one is counted out at once, so its retained handle must show the exit.
+	fn ended_without_notice(&self) -> Result<bool> {
+		if !job_is_empty(self.job_port.job)? {
+			return Ok(false);
+		}
+		Ok(self.terminated.as_ref().is_none_or(Termination::observed))
 	}
 }
 
@@ -218,7 +235,12 @@ impl ChildWrapper for JobObjectChild {
 
 	#[cfg_attr(feature = "tracing", instrument(level = "debug", skip(self)))]
 	fn start_kill(&mut self) -> Result<()> {
-		terminate_job(self.job_port.job, 1)
+		let termination = terminate_job_observed(self.job_port.job, 1)?;
+		match &mut self.terminated {
+			Some(terminated) => terminated.merge(termination),
+			None => self.terminated = Some(termination),
+		}
+		Ok(())
 	}
 
 	#[cfg_attr(feature = "tracing", instrument(level = "debug", skip(self)))]
@@ -231,11 +253,13 @@ impl ChildWrapper for JobObjectChild {
 		// it's likely that all its children have already exited.
 		let status = self.inner.wait()?;
 
-		// nevertheless, now wait and make sure we reap all children.
-		let JobPort {
-			completion_port, ..
-		} = self.job_port;
-		let _ = wait_on_job(completion_port, None)?;
+		// nevertheless, now wait and make sure we reap all children. The completion notice may
+		// never arrive, so the wait looks at the members itself between bounded reads.
+		while wait_on_job(self.job_port.completion_port, Some(JOB_RECHECK))?.is_continue() {
+			if self.ended_without_notice()? {
+				break;
+			}
+		}
 		self.exit_status = ChildExitStatus::Exited(status);
 		Ok(status)
 	}
@@ -248,7 +272,9 @@ impl ChildWrapper for JobObjectChild {
 		let Some(status) = self.inner.try_wait()? else {
 			return Ok(None);
 		};
-		if wait_on_job(self.job_port.completion_port, Some(Duration::ZERO))?.is_continue() {
+		if wait_on_job(self.job_port.completion_port, Some(Duration::ZERO))?.is_continue()
+			&& !self.ended_without_notice()?
+		{
 			return Ok(None);
 		}
 		self.exit_status = ChildExitStatus::Exited(status);

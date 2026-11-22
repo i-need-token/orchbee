@@ -12,7 +12,8 @@ a second Windows binding version. The manifest keeps the upstream dependencies a
 `publish = false`; its `job-object` feature takes the `windows` bindings that
 [thread resume](#thread-resume) needs in place of the Tool Help binding. Upstream test fixtures
 and development artifacts are not copied. Unsafe FFI is the upstream implementation apart from
-thread resume, where each call states the conditions it relies on. The corrections do not change
+thread resume and the [completion](#completion-contract) fallback, where each call states the
+conditions it relies on. The corrections do not change
 the authored unsafe-code policy, which this crate stays outside.
 
 ## Completion contract
@@ -25,6 +26,19 @@ still reads the notifications already queued, up to a bound of 64, so one nonblo
 observes a completion that is already queued behind process start and exit notices. The standard child caches its exit status only after
 that event. Its nonblocking poll reports `None` until root and Job exit both hold,
 then returns the retained result without consuming another notification.
+
+Windows does not guarantee delivery of Job notifications to the completion port, so a missing
+`JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO` does not mean the Job still runs. Whenever the root has exited
+and the port holds no completion, the standard child also settles once the Job's
+`JOBOBJECT_BASIC_ACCOUNTING_INFORMATION` counts no active process and every member it terminated
+has exited. A member that leaves by itself is counted out only after its exit, but
+`TerminateJobObject` counts every member out at once: on the development machine (2026-11-22) the
+count and the member list read zero 0.4 ms after the call while the root still ran, and the notice
+came 3 ms later, after every member's exit. `start_kill` therefore lists the members first, opens a
+synchronize handle to each one still in the Job, then terminates; when the Job's total process count
+changed between that listing and the termination, a member may be untracked and only the notice
+settles that child. The blocking wait reads the port in 50 ms slices and checks the same fact
+between them, so a lost notice can no longer hold it forever.
 
 The upstream `src/windows.rs` SHA-256 before correction is
 `76214e10c89af6589af8fc9c2ae1d4c319596a07b2a2945afbc4a23b1d52a2b9`.
@@ -77,8 +91,7 @@ its Job (`PROC_THREAD_ATTRIBUTE_JOB_LIST`) needs `ProcThreadAttributeList`; both
 The shared runtime owns native completion evidence in
 [`command_child/windows/tests.rs`](../../crates/local-runtime/src/command_child/windows/tests.rs):
 retain a live descendant's handle, release the root or cancel the Job, and require
-the descendant handle already signaled at return. Its failure fixture also proves that
-a failed Job wait cannot become cached root-exit success on retry. A separate native
+the descendant handle already signaled at return. A separate native
 oracle retains root and descendant process handles, verifies both are alive, drops a
 `KillOnJobClose` wrapper without calling `start_kill`, and requires both handles to
 signal within its bounded wait; its command starts suspended, so it also covers thread
@@ -90,4 +103,6 @@ Rebase against an explicitly reviewed upstream release; compare the complete sou
 diff, keep licenses, and rerun the native handle oracle. Remove this directory and
 root patch when an upstream release provides equivalent completion semantics and
 thread resume and passes those tests. Root-process exit, successful termination
-initiation and an empty member list are not substitutes for the completion event.
+initiation, an empty member list and a zero active count after a termination are not
+substitutes for the completion event; the fallback above combines the count with each
+terminated member's own exit.

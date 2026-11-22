@@ -11,7 +11,8 @@ use tracing::{debug, instrument};
 use windows::{
 	Win32::{
 		Foundation::{
-			CloseHandle, ERROR_NO_MORE_ITEMS, ERROR_SUCCESS, HANDLE, INVALID_HANDLE_VALUE,
+			CloseHandle, ERROR_INVALID_PARAMETER, ERROR_MORE_DATA, ERROR_NO_MORE_ITEMS,
+			ERROR_SUCCESS, HANDLE, INVALID_HANDLE_VALUE, WAIT_OBJECT_0,
 		},
 		System::{
 			Diagnostics::ProcessSnapshotting::{
@@ -21,20 +22,24 @@ use windows::{
 			},
 			IO::{CreateIoCompletionPort, GetQueuedCompletionStatus, OVERLAPPED},
 			JobObjects::{
-				AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_BREAKAWAY_OK,
-				JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK,
-				JOBOBJECT_ASSOCIATE_COMPLETION_PORT, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-				JobObjectAssociateCompletionPortInformation, JobObjectExtendedLimitInformation,
+				AssignProcessToJobObject, CreateJobObjectW, IsProcessInJob,
+				JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+				JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK, JOBOBJECT_ASSOCIATE_COMPLETION_PORT,
+				JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_BASIC_PROCESS_ID_LIST,
+				JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectAssociateCompletionPortInformation,
+				JobObjectBasicAccountingInformation, JobObjectBasicProcessIdList,
+				JobObjectExtendedLimitInformation, QueryInformationJobObject,
 				SetInformationJobObject, TerminateJobObject,
 			},
 			Threading::{
 				CREATE_SUSPENDED, GetCurrentProcess, GetProcessId, GetProcessIdOfThread, INFINITE,
-				OpenThread, PROCESS_CREATION_FLAGS, ResumeThread, THREAD_QUERY_LIMITED_INFORMATION,
-				THREAD_SUSPEND_RESUME,
+				OpenProcess, OpenThread, PROCESS_CREATION_FLAGS, PROCESS_QUERY_LIMITED_INFORMATION,
+				PROCESS_SYNCHRONIZE, ResumeThread, THREAD_QUERY_LIMITED_INFORMATION,
+				THREAD_SUSPEND_RESUME, WaitForSingleObject,
 			},
 		},
 	},
-	core::HRESULT,
+	core::{BOOL, HRESULT},
 };
 
 #[derive(Debug)]
@@ -342,6 +347,170 @@ pub(crate) fn resume_threads(child_process: HANDLE) -> Result<()> {
 #[cfg_attr(feature = "tracing", instrument(level = "debug"))]
 pub(crate) fn terminate_job(job: JobHandle, exit_code: u32) -> Result<()> {
 	unsafe { TerminateJobObject(job.0, exit_code) }.map_err(Error::other)
+}
+
+/// Whether the job counts no active process. A member that leaves by itself is counted out only
+/// after it has exited, but [`terminate_job`] counts every member out at once, before any has
+/// exited, so after a termination only [`Termination::observed`] completes this fact.
+#[cfg_attr(feature = "tracing", instrument(level = "debug"))]
+pub(crate) fn job_is_empty(job: JobHandle) -> Result<bool> {
+	Ok(accounting(job)?.ActiveProcesses == 0)
+}
+
+fn accounting(job: JobHandle) -> Result<JOBOBJECT_BASIC_ACCOUNTING_INFORMATION> {
+	let mut accounting = JOBOBJECT_BASIC_ACCOUNTING_INFORMATION::default();
+	// SAFETY: `job` is the open job handle the caller owns, and the buffer is the accounting
+	// structure this information class fills, passed with its exact size.
+	unsafe {
+		QueryInformationJobObject(
+			Some(job.0),
+			JobObjectBasicAccountingInformation,
+			(&mut accounting) as *mut _ as _,
+			std::mem::size_of_val(&accounting)
+				.try_into()
+				.expect("cannot safely cast to DWORD"),
+			None,
+		)
+	}
+	.map_err(Error::other)?;
+	Ok(accounting)
+}
+
+/// The IDs of the processes the job still counts as active.
+fn member_ids(job: JobHandle) -> Result<Vec<u32>> {
+	let header =
+		std::mem::offset_of!(JOBOBJECT_BASIC_PROCESS_ID_LIST, ProcessIdList) / size_of::<usize>();
+	let mut capacity = 32;
+	for _ in 0..8 {
+		let mut buffer = vec![0usize; header + capacity];
+		let bytes = u32::try_from(buffer.len() * size_of::<usize>()).map_err(Error::other)?;
+		// SAFETY: the buffer is aligned for and at least as large as the list header, and `bytes`
+		// is its exact size, so the call writes only inside it.
+		let queried = unsafe {
+			QueryInformationJobObject(
+				Some(job.0),
+				JobObjectBasicProcessIdList,
+				buffer.as_mut_ptr().cast(),
+				bytes,
+				None,
+			)
+		};
+		// SAFETY: the header lies inside the buffer, which the call filled or left zeroed.
+		let (assigned, listed) = unsafe {
+			let list = buffer.as_ptr().cast::<JOBOBJECT_BASIC_PROCESS_ID_LIST>();
+			(
+				(*list).NumberOfAssignedProcesses as usize,
+				(*list).NumberOfProcessIdsInList as usize,
+			)
+		};
+		match queried {
+			Ok(()) if assigned == listed && listed <= capacity => {
+				return Ok(buffer[header..header + listed]
+					.iter()
+					.map(|&id| id as u32)
+					.collect());
+			}
+			Ok(()) => {}
+			Err(error) if error.code() == ERROR_MORE_DATA.to_hresult() => {}
+			Err(error) => return Err(Error::other(error)),
+		}
+		capacity = assigned.max(capacity) * 2;
+	}
+	Err(Error::other(
+		"the job's members kept changing while they were listed",
+	))
+}
+
+#[derive(Debug)]
+struct MemberHandle(OwnedHandle);
+
+// SAFETY: a process handle names a kernel object of this process, usable from any thread.
+unsafe impl Send for MemberHandle {}
+unsafe impl Sync for MemberHandle {}
+
+/// The members a job held when it was terminated. Windows counts a terminated member out of the
+/// job at once, before it has exited, and only the completion notice, which it does not guarantee
+/// to deliver, waits for that exit; a handle to each member lets the exit be seen without it.
+#[derive(Debug)]
+pub(crate) struct Termination {
+	members: Vec<MemberHandle>,
+	/// Whether every process the job counted when it was terminated is in `members`.
+	complete: bool,
+}
+
+impl Termination {
+	/// Whether every member each termination ended has exited.
+	pub(crate) fn observed(&self) -> bool {
+		self.complete
+			&& self.members.iter().all(|member| {
+				// SAFETY: the handle is open and owned by `member`.
+				let state = unsafe { WaitForSingleObject(member.0.0, 0) };
+				state == WAIT_OBJECT_0
+			})
+	}
+
+	/// Adds the members a later termination ended.
+	pub(crate) fn merge(&mut self, later: Self) {
+		self.complete &= later.complete;
+		self.members.extend(later.members);
+	}
+}
+
+/// Terminates the job as [`terminate_job`] does, first keeping a handle to each member. A process
+/// that joined while the members were read, or before the termination, leaves the result
+/// incomplete, since its exit could then not be seen.
+#[cfg_attr(feature = "tracing", instrument(level = "debug"))]
+pub(crate) fn terminate_job_observed(job: JobHandle, exit_code: u32) -> Result<Termination> {
+	let mut joined = accounting(job)?.TotalProcesses;
+	let mut members = Vec::new();
+	let mut complete = false;
+	for _ in 0..8 {
+		let (opened, all) = open_members(job)?;
+		members = opened;
+		let now = accounting(job)?.TotalProcesses;
+		if now == joined {
+			complete = all;
+			break;
+		}
+		joined = now;
+	}
+	terminate_job(job, exit_code)?;
+	let complete = complete && accounting(job)?.TotalProcesses == joined;
+	Ok(Termination { members, complete })
+}
+
+/// A handle to each process the job counts as active, and whether every one opened. A process
+/// that no longer exists, or whose ID another process outside the job took since, has already
+/// left the job.
+fn open_members(job: JobHandle) -> Result<(Vec<MemberHandle>, bool)> {
+	let mut members = Vec::new();
+	let mut all = true;
+	for id in member_ids(job)? {
+		// SAFETY: the call takes no pointer; a returned handle is owned by the wrapper at once.
+		let opened = unsafe {
+			OpenProcess(
+				PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
+				false,
+				id,
+			)
+		};
+		let process = match opened {
+			Ok(process) => OwnedHandle(process),
+			Err(error) if error.code() == ERROR_INVALID_PARAMETER.to_hresult() => continue,
+			Err(_) => {
+				all = false;
+				continue;
+			}
+		};
+		let mut in_job = BOOL(0);
+		// SAFETY: both handles are open, and `in_job` outlives the call.
+		match unsafe { IsProcessInJob(process.0, Some(job.0), &mut in_job) } {
+			Ok(()) if in_job.as_bool() => members.push(MemberHandle(process)),
+			Ok(()) => {}
+			Err(_) => all = false,
+		}
+	}
+	Ok((members, all))
 }
 
 /// Wait for a job to complete.
