@@ -21,7 +21,7 @@ import type {
 	WorkbenchAgentStartPlace,
 	WorkbenchAgentStartWorkspace,
 } from '../../types/workbench-agent-start';
-import { AgentProviderIcon } from '../../../agent-provider-icon';
+import { AgentProviderMark } from '../../../agent-provider-mark';
 import {
 	useWorkbenchAgentStartDialog,
 	type WorkbenchAgentStartProviderRowView,
@@ -60,12 +60,10 @@ export function WorkbenchAgentStartDialog({
 			onClick={row.onClick}
 			onDoubleClick={row.onDoubleClick}
 		>
-			<span aria-hidden='true' className={styles['icon']}>
-				<AgentProviderIcon
-					agents={[row.providerId]}
-					gradientPrefix={`${view.gradientPrefix}-${row.providerId}`}
-				/>
-			</span>
+			<AgentProviderMark
+				gradientPrefix={`${view.gradientPrefix}-${row.providerId}`}
+				providerId={row.providerId}
+			/>
 			<span className={styles['name']}>{row.name}</span>
 			<span className={styles['detail']}>{row.detail}</span>
 		</div>
@@ -155,7 +153,7 @@ export function WorkbenchAgentStartDialog({
 					{view.status?.message ?? '\u00A0'}
 				</p>
 				<DialogFooter className={styles['footer']}>
-					{view.destination === null ? (
+					{workspace === undefined ? (
 						<span className={styles['place']}>
 							<label className={styles['placeLabel']} htmlFor={view.placeId}>
 								{view.opensInLabel}
@@ -179,8 +177,10 @@ export function WorkbenchAgentStartDialog({
 							</Select>
 						</span>
 					) : (
+						// A Workspace's Start Agent always opens a new Tab there, so its place is plain text.
 						<span className={styles['place']}>
-							<span className={styles['placeLabel']}>{view.destination}</span>
+							<span className={styles['placeLabel']}>{view.opensInLabel}</span>
+							<span className={styles['placeValue']}>{view.places[0]?.label}</span>
 						</span>
 					)}
 					<Button className={styles['action']} type='button' variant='outline' onClick={onClose}>

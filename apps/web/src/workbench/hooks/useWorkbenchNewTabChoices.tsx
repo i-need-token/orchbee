@@ -6,13 +6,11 @@ import type {
 } from '@orchbee/workbench-client-protocol';
 import * as React from 'react';
 
-import { projectWorkbenchAgentStartRows } from '../components/workbench-agent-start-dialog/model/projectWorkbenchAgentStartRows';
+import { AgentProviderMark } from '../../agent-provider-mark';
+import { projectWorkbenchAgentShortlist } from '../components/workbench-agent-start-dialog/model/projectWorkbenchAgentShortlist';
 import type { WorkbenchAgentCatalogSource } from '../types/workbench-agent-start';
 import type { WorkbenchLaunchProfiles } from '../types/workbench-authority';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
-
-/** As many Agents as the TUI's New Tab menu lists before More Agents…. */
-const AGENT_LIMIT = 4;
 
 interface UseWorkbenchNewTabChoicesOptions {
 	/** Absent where no Server publishes the Session's Agent catalog. */
@@ -45,6 +43,7 @@ export function useWorkbenchNewTabChoices({
 	startAgentShortcutLabel,
 }: UseWorkbenchNewTabChoicesOptions): readonly TabStripNewTabSection[] | undefined {
 	const intl = useOrchbeeIntl();
+	const markPrefix = React.useId();
 	const readProfiles = () => launchProfiles?.getSnapshot();
 	const profileCatalog = React.useSyncExternalStore(
 		launchProfiles?.subscribe ?? subscribeToNothing,
@@ -86,22 +85,20 @@ export function useWorkbenchNewTabChoices({
 		const productNames = new Map(
 			agents.agents.map((entry) => [entry.providerId, entry.productName] as const),
 		);
-		// A provider still being checked or not found is never listed.
-		const agentChoices = projectWorkbenchAgentStartRows(agents, '', false)
-			.rows.flatMap((row) =>
-				row.kind === 'provider' && (row.group === 'recent' || row.group === 'installed')
-					? [row.providerId]
-					: [],
-			)
-			.slice(0, AGENT_LIMIT)
-			.map(
-				(providerId): TabStripNewTabChoice => ({
-					icon: 'agent',
-					id: `agent:${providerId}`,
-					label: productNames.get(providerId) ?? providerId,
-					select: () => startAgentInNewTab(providerId),
-				}),
-			);
+		const agentChoices = projectWorkbenchAgentShortlist(agents).map(
+			(providerId): TabStripNewTabChoice => ({
+				icon: 'agent',
+				id: `agent:${providerId}`,
+				label: productNames.get(providerId) ?? providerId,
+				leadingMark: (
+					<AgentProviderMark
+						gradientPrefix={`${markPrefix}-${providerId}`}
+						providerId={providerId}
+					/>
+				),
+				select: () => startAgentInNewTab(providerId),
+			}),
+		);
 		sections.push({
 			choices: [
 				...agentChoices,
@@ -122,6 +119,7 @@ export function useWorkbenchNewTabChoices({
 		createTab,
 		inWorkspace,
 		intl,
+		markPrefix,
 		openAgentStart,
 		profileCatalog,
 		startAgentInNewTab,

@@ -35,7 +35,7 @@ export function TabStripNewTabMenuItems({
 				{section.label === undefined ? null : <ContextMenuLabel>{section.label}</ContextMenuLabel>}
 				{section.choices.map((choice) => (
 					<ContextMenuItem key={choice.id} onClick={() => onChoose(choice)}>
-						<ProductIcon name={choice.icon} size='menu-leading' />
+						{choice.leadingMark ?? <ProductIcon name={choice.icon} size='menu-leading' />}
 						{choice.label}
 						{choice.note === undefined ? null : (
 							<ContextMenuShortcut>{choice.note}</ContextMenuShortcut>

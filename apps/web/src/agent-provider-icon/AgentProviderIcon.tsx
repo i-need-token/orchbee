@@ -24,6 +24,8 @@ export function AgentProviderIcon({ agents, gradientPrefix }: AgentProviderIconP
 			<svg
 				aria-hidden='true'
 				data-agent-provider-icon={agent}
+				// A monochrome mark takes the text color, so it stays visible in a dark theme.
+				fill='currentColor'
 				focusable='false'
 				height='1em'
 				viewBox={viewBox}

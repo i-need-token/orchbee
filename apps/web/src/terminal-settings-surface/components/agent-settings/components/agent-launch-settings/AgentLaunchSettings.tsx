@@ -3,7 +3,7 @@ import {
 	useOrchbeeIntl,
 	type MessageDescriptor,
 } from '@orchbee/i18n';
-import { Button, Input, ProductIcon, Switch } from '@orchbee/ui/components';
+import { Button, Input, Switch } from '@orchbee/ui/components';
 import {
 	AGENT_YOLO_PROVIDERS,
 	agentArgumentsKey,
@@ -12,11 +12,12 @@ import {
 	agentYoloKey,
 	parseAgentArguments,
 	type AgentYoloProvider,
+	type SettingsSnapshot,
 	type WorkbenchAgentCatalog,
 } from '@orchbee/workbench-client-protocol';
 import { useId, useState, useSyncExternalStore, type ReactNode } from 'react';
 
-import { AgentProviderIcon } from '../../../../../agent-provider-icon';
+import { AgentProviderMark } from '../../../../../agent-provider-mark';
 import { readSetting, type UserSettingsControl } from '../../../../../user-settings';
 import { useSetting } from '../../../../hooks/useSetting';
 import { useSettingDraft } from '../../../../hooks/useSettingDraft';
@@ -27,6 +28,7 @@ import { SettingFailure } from '../../../setting-failure/SettingFailure';
 import { SettingsChildPage } from '../../../settings-child-page/SettingsChildPage';
 import { SettingsGroup } from '../../../settings-group/SettingsGroup';
 import { SettingsListFilter } from '../../../settings-list-filter/SettingsListFilter';
+import { SettingsListFilterEmpty } from '../../../settings-list-filter-empty/SettingsListFilterEmpty';
 import { SettingsRow } from '../../../settings-row/SettingsRow';
 import styles from './AgentLaunchSettings.module.css';
 
@@ -45,7 +47,28 @@ interface AgentLaunchSettingsProps {
 	readonly userSettings: UserSettingsControl;
 }
 
-/** The provider catalog and one immediately committed editor per Agent. */
+/**
+ * The command a new conversation of one Agent runs: its command, its YOLO flag while YOLO mode is on
+ * and the custom arguments leave the permission mode to it, then the custom arguments as written.
+ */
+function launchCommand(agent: Agent, snapshot: SettingsSnapshot | null): string {
+	const value = snapshot?.values[agentArgumentsKey(agent.providerId)];
+	const written = typeof value === 'string' ? value : '';
+	const parsed = parseAgentArguments(written);
+	const yolo = AGENT_YOLO_PROVIDERS.find((provider) => provider === agent.providerId);
+	const yoloOn =
+		yolo !== undefined &&
+		!(parsed.valid && agentOverridesYolo(yolo, parsed.words)) &&
+		readSetting(snapshot, agentYoloKey(yolo));
+	return [agent.command, yoloOn ? agentYoloFlag(yolo) : '', written]
+		.filter((part) => part !== '')
+		.join(' ');
+}
+
+/**
+ * One row per Agent, named with its product mark and described by the command it starts with; Edit
+ * opens that Agent's launch options on a child page, as a launch profile's Edit does.
+ */
 export function AgentLaunchSettings({
 	catalog,
 	query,
@@ -59,6 +82,7 @@ export function AgentLaunchSettings({
 	const [filter, setFilter] = useState('');
 	const [selected, setSelected] = useState<Agent | null>(null);
 	const groupLabel = intl.formatMessage(messages.pageAgentLaunchGroup);
+	const editLabel = intl.formatMessage(messages.pageAgentLaunchEdit);
 	const description = intl.formatMessage(messages.pageAgentLaunchDescription);
 	const offered = (agents?.agents ?? [])
 		.filter((agent) => snapshot?.values[agentArgumentsKey(agent.providerId)] !== undefined)
@@ -95,23 +119,31 @@ export function AgentLaunchSettings({
 						value={filter}
 					/>
 				) : null}
+				{canFilter && shown.length === 0 ? <SettingsListFilterEmpty /> : null}
 				{shown.map((agent) => (
-					<Button
-						className={styles['launchEntry']}
-						data-settings-row
+					<SettingsRow
 						key={agent.providerId}
-						type='button'
-						variant='ghost'
-						onClick={() => setSelected(agent)}
+						description={launchCommand(agent, snapshot)}
+						icon={
+							<AgentProviderMark
+								gradientPrefix={`${icons}-${agent.providerId}`}
+								providerId={agent.providerId}
+							/>
+						}
+						label={agent.productName}
+						query=''
+						settingId={`agents.launch.${agent.providerId}`}
 					>
-						<AgentProviderIcon
-							agents={[agent.providerId]}
-							gradientPrefix={`${icons}-${agent.providerId}`}
-						/>
-						<span>{agent.productName}</span>
-						<code>{agent.command}</code>
-						<ProductIcon name='chevron-right' size='disclosure' />
-					</Button>
+						<Button
+							aria-label={`${editLabel}: ${agent.productName}`}
+							size='sm'
+							type='button'
+							variant='outline'
+							onClick={() => setSelected(agent)}
+						>
+							{editLabel}
+						</Button>
+					</SettingsRow>
 				))}
 			</SettingsGroup>
 			{selected === null ? null : (
@@ -144,11 +176,7 @@ function AgentLaunchEditor({
 	const yolo = AGENT_YOLO_PROVIDERS.find((provider) => provider === agent.providerId);
 	const saved = parseAgentArguments(argumentsSetting.value);
 	const overridden = yolo !== undefined && saved.valid && agentOverridesYolo(yolo, saved.words);
-	const yoloEnabled =
-		yolo !== undefined && !overridden && readSetting(settings.snapshot, agentYoloKey(yolo));
-	const command = [agent.command, yoloEnabled ? agentYoloFlag(yolo) : '', argumentsSetting.value]
-		.filter((part) => part !== '')
-		.join(' ');
+	const command = launchCommand(agent, settings.snapshot);
 	const readOnly = argumentsSetting.readOnly || !settings.available;
 	const commit = (): void => {
 		const next = parseAgentArguments(draft);

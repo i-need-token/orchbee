@@ -16,18 +16,21 @@
 	font: var(--ob-sys-typography-body-sm);
 }
 
-/* One column set for every row, so names and details line up. */
+/* One column set for every row, so names line up and each command ends at the row's end. The edge
+   columns size to their content, because a row's padding joins them; a fixed mark column would lose
+   the gap after the mark. The list shows about nine rows and scrolls the rest, so a long catalog
+   never stretches the dialog. */
 .list {
 	display: grid;
 	min-height: var(--ob-ref-space-0);
+	max-height: calc(9 * var(--ob-ref-size-control-md));
 	flex: 1;
-	grid-template-columns:
-		var(--ob-ref-size-icon-sm) max-content
-		minmax(var(--ob-ref-space-0), 1fr);
+	grid-template-columns: auto minmax(var(--ob-ref-space-0), 1fr) auto;
 	align-content: start;
 	column-gap: var(--ob-ref-space-2);
 	overflow-x: hidden;
 	overflow-y: auto;
+	scrollbar-gutter: stable;
 }
 
 .group {
@@ -69,23 +72,15 @@
 	background: var(--ob-sys-color-surface-selected-hover);
 }
 
-.icon {
-	display: inline-flex;
-	width: var(--ob-ref-size-icon-sm);
-	height: var(--ob-ref-size-icon-sm);
-	align-items: center;
-	justify-content: center;
-	font: var(--ob-sys-typography-label-lg);
-}
-
 .name {
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
 .detail {
-	overflow: hidden;
 	color: var(--ob-sys-color-text-muted);
-	text-overflow: ellipsis;
+	font: var(--ob-sys-typography-label-sm);
 	white-space: nowrap;
 }
 
@@ -124,6 +119,11 @@
 
 .placeLabel {
 	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.placeValue {
+	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-label-sm);
 }
 

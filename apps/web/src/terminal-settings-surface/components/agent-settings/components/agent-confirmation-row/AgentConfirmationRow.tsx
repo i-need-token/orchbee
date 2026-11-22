@@ -1,7 +1,8 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import { Switch } from '@orchbee/ui/components';
-import type * as React from 'react';
+import * as React from 'react';
 
+import { AgentProviderMark } from '../../../../../agent-provider-mark';
 import type { UserSettingsControl } from '../../../../../user-settings';
 import { useSetting } from '../../../../hooks/useSetting';
 import { SettingFailure } from '../../../setting-failure/SettingFailure';
@@ -17,6 +18,8 @@ type AgentConfirmationSetting =
 interface AgentConfirmationRowProps {
 	/** The Agent type's name, which is the row's label. */
 	readonly label: string;
+	/** The Agent's start provider, whose product mark leads the row. */
+	readonly providerId: string;
 	readonly query: string;
 	/** The row's stable identifier in the settings page. */
 	readonly settingId: string;
@@ -27,6 +30,7 @@ interface AgentConfirmationRowProps {
 /** The switch that lets Orchbee answer routine confirmations for every run of one Agent type. */
 export function AgentConfirmationRow({
 	label,
+	providerId,
 	query,
 	settingId,
 	settingKey,
@@ -34,11 +38,13 @@ export function AgentConfirmationRow({
 }: AgentConfirmationRowProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const allow = useSetting(userSettings, settingKey);
+	const markPrefix = React.useId();
 	return (
 		<SettingsRow
 			description={intl.formatMessage(
 				terminalSettingsMessages.pageAgentConfirmationsRowDescription,
 			)}
+			icon={<AgentProviderMark gradientPrefix={markPrefix} providerId={providerId} />}
 			label={label}
 			modified={allow.modified}
 			query={query}

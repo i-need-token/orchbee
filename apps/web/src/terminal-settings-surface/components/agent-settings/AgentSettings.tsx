@@ -18,7 +18,7 @@ interface AgentSettingsProps {
 	readonly userSettings: UserSettingsControl;
 }
 
-/** For which Agent types Orchbee answers routine confirmations: one switch for each type. */
+/** For which Agent types Orchbee answers routine confirmations, and each Agent's launch options. */
 export function AgentSettings({
 	catalog,
 	query,
@@ -29,7 +29,6 @@ export function AgentSettings({
 	const request = intl.formatMessage(terminalSettingsMessages.pageAgentConfirmationsRequest);
 	return (
 		<>
-			<AgentLaunchSettings catalog={catalog} query={query} userSettings={userSettings} />
 			<SettingsGroup
 				description={intl.formatMessage(terminalSettingsMessages.pageAgentConfirmationsDescription)}
 				label={intl.formatMessage(terminalSettingsMessages.pageGroupAgentConfirmations)}
@@ -54,6 +53,7 @@ export function AgentSettings({
 				<AgentConfirmationRow
 					label={intl.formatMessage(agentObservationMessages.providerClaudeCode)}
 					query={query}
+					providerId='claude-code'
 					settingId='agents.auto-allow.claude'
 					settingKey='agents.auto_allow.claude'
 					userSettings={userSettings}
@@ -61,6 +61,7 @@ export function AgentSettings({
 				<AgentConfirmationRow
 					label={intl.formatMessage(agentObservationMessages.providerCodex)}
 					query={query}
+					providerId='codex'
 					settingId='agents.auto-allow.codex'
 					settingKey='agents.auto_allow.codex'
 					userSettings={userSettings}
@@ -68,6 +69,7 @@ export function AgentSettings({
 				<AgentConfirmationRow
 					label={intl.formatMessage(agentObservationMessages.providerGeminiCli)}
 					query={query}
+					providerId='gemini'
 					settingId='agents.auto-allow.gemini'
 					settingKey='agents.auto_allow.gemini'
 					userSettings={userSettings}
@@ -75,11 +77,14 @@ export function AgentSettings({
 				<AgentConfirmationRow
 					label={intl.formatMessage(agentObservationMessages.providerOpenCode)}
 					query={query}
+					providerId='opencode'
 					settingId='agents.auto-allow.opencode'
 					settingKey='agents.auto_allow.opencode'
 					userSettings={userSettings}
 				/>
 			</SettingsGroup>
+			{/* Last, since it lists every Agent and would push the switches above out of view. */}
+			<AgentLaunchSettings catalog={catalog} query={query} userSettings={userSettings} />
 		</>
 	);
 }

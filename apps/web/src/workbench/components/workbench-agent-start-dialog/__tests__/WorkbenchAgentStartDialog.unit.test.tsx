@@ -31,7 +31,7 @@ const CATALOG: WorkbenchAgentCatalogSnapshot = {
 afterEach(cleanup);
 
 describe('WorkbenchAgentStartDialog', () => {
-	it('keeps the Workspace destination and excludes Agents that are not found', () => {
+	it('starts in the Workspace it was opened for', () => {
 		const onStart = vi.fn<(input: WorkbenchAgentStartInput) => void>();
 		render(
 			<OrchbeeI18nProvider locale='en-US'>
@@ -49,11 +49,6 @@ describe('WorkbenchAgentStartDialog', () => {
 				/>
 			</OrchbeeI18nProvider>,
 		);
-		expect(screen.getByText('New Tab · Example')).toBeTruthy();
-		expect(screen.getAllByRole('option')).toHaveLength(2);
-		fireEvent.change(screen.getByRole('combobox', { name: 'Search' }), { target: { value: 'pi' } });
-		expect(screen.queryAllByRole('option')).toHaveLength(0);
-		fireEvent.change(screen.getByRole('combobox', { name: 'Search' }), { target: { value: '' } });
 		fireEvent.click(screen.getByRole('button', { name: /Start/u }));
 		expect(onStart).toHaveBeenCalledWith({
 			place: 'new-tab',

@@ -1,17 +1,3 @@
-.launchEntry {
-	display: flex;
-	width: 100%;
-	justify-content: flex-start;
-	padding-inline: var(--ob-ref-space-3);
-	border-radius: 0;
-}
-
-.launchEntry code {
-	margin-inline-start: auto;
-	color: var(--ob-sys-color-text-muted);
-	font: var(--ob-sys-typography-code-sm);
-}
-
 .launchArguments {
 	inline-size: var(--ob-ref-container-3xs);
 	max-inline-size: 100%;

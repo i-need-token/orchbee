@@ -15,6 +15,8 @@ interface SettingsRowProps {
 	readonly effect?: 'new-terminals' | 'next-restart' | undefined;
 	/** Supporting text beside the name, such as a command path. */
 	readonly detail?: string | null | undefined;
+	/** A mark before the name, such as an Agent's product mark; the description lines up after it. */
+	readonly icon?: React.ReactNode;
 	readonly label: string;
 	readonly modified?: boolean | undefined;
 	readonly onRestore?: (() => void) | undefined;
@@ -47,6 +49,7 @@ export function SettingsRow({
 	descriptionTone,
 	detail,
 	effect,
+	icon,
 	label,
 	modified = false,
 	onRestore,
@@ -90,12 +93,14 @@ export function SettingsRow({
 			data-preview={preview === undefined ? undefined : true}
 			data-settings-row
 			data-setting-id={settingId}
+			data-icon={icon === undefined ? undefined : true}
 			data-two-line={description === null || description === undefined ? undefined : true}
 			id={settingId}
 			tabIndex={settingId === undefined ? undefined : -1}
 		>
 			<div className={styles['copy']}>
 				<div className={styles['nameLine']}>
+					{icon === undefined ? null : <span className={styles['icon']}>{icon}</span>}
 					<span className={styles['name']}>{label}</span>
 					{detail === null || detail === undefined ? null : (
 						<span className={styles['detail']}>{detail}</span>

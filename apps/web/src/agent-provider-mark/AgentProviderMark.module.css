@@ -1,0 +1,15 @@
+/* A leading mark takes a menu icon's box and draws a little inside it, as a codicon's glyph does. */
+.mark {
+	display: inline-flex;
+	width: var(--ob-ref-size-icon-md);
+	height: var(--ob-ref-size-icon-md);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	color: var(--ob-sys-color-text-primary);
+}
+
+.mark > svg {
+	width: var(--ob-ref-size-icon-sm);
+	height: var(--ob-ref-size-icon-sm);
+}

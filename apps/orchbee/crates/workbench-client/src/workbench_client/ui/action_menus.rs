@@ -1983,9 +1983,21 @@ impl WorkbenchClientUi {
             && let Target::Workspace { location, .. } = intent.target()
         {
             let location = location.clone();
+            let name = self
+                .state
+                .as_ref()
+                .and_then(|state| {
+                    state
+                        .cache()
+                        .navigation()
+                        .iter()
+                        .find(|context| context.location == location)
+                        .map(workspace_title)
+                })
+                .unwrap_or_default();
             self.menus.menu.take()?;
             self.menus.end();
-            self.open_workspace_agent_picker(location);
+            self.open_workspace_agent_picker(location, name);
             return None;
         }
         // The Server answers on a later turn; nothing here waits for it.

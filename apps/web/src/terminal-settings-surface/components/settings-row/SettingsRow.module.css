@@ -54,6 +54,17 @@
 	gap: var(--ob-ref-space-2);
 }
 
+/* A leading mark sits on the name's center line; the description starts under the name. */
+.icon {
+	display: inline-flex;
+	flex: none;
+	align-self: center;
+}
+
+.root[data-icon] .description {
+	padding-inline-start: calc(var(--ob-ref-size-icon-md) + var(--ob-ref-space-2));
+}
+
 .name {
 	flex: none;
 	max-width: 100%;

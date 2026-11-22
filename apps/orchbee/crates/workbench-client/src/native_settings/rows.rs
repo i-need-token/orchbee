@@ -435,7 +435,7 @@ impl Row {
                     ),
                     _ => setting.described(
                         "Start the Agent with its native automatic approval mode.",
-                        "启动时使用该 Agent 自带的自动批准模式。",
+                        "启动时使用该智能体自带的自动批准模式。",
                     ),
                 }
             }

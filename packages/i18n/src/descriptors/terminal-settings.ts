@@ -244,6 +244,7 @@ export const terminalSettingsMessages = defineMessages({
 	pageAgentLaunchGroup: message('terminal.settings.page.agentLaunch.group'),
 	pageAgentLaunchDescription: message('terminal.settings.page.agentLaunch.description'),
 	pageAgentLaunchFilter: message('terminal.settings.page.agentLaunch.filter'),
+	pageAgentLaunchEdit: message('terminal.settings.page.agentLaunch.edit'),
 	pageAgentLaunchYolo: message('terminal.settings.page.agentLaunch.yolo'),
 	pageAgentLaunchYoloDescription: message('terminal.settings.page.agentLaunch.yoloDescription'),
 	pageAgentLaunchYoloClaude: message('terminal.settings.page.agentLaunch.yoloClaude'),

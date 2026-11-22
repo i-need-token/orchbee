@@ -104,6 +104,8 @@ export type TabStripChangeCallback = (
 /** One way the New Tab button's menu offers to start a Tab, such as a saved launch profile. */
 export interface TabStripNewTabChoice {
 	readonly icon: ProductIconName;
+	/** A mark drawn in the icon's place, such as an Agent's product mark, in the icon's box. */
+	readonly leadingMark?: ReactNode;
 	readonly id: string;
 	readonly label: string;
 	/** Trailing words, such as the mark on the choice the button's own click already makes. */

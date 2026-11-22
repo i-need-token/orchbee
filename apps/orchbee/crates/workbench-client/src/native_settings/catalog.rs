@@ -70,7 +70,8 @@ impl Category {
             ],
             Self::Notifications => &[Group::WhenToNotify, Group::SoundDelivery],
             Self::Keyboard => &[Group::Prefix],
-            Self::Agents => &[Group::AgentLaunch, Group::AgentConfirmations],
+            // Launch options list every Agent, so they come last, as in the window's Settings.
+            Self::Agents => &[Group::AgentConfirmations, Group::AgentLaunch],
             Self::Machines => &[Group::MachineList],
             Self::About => &[Group::About],
         }

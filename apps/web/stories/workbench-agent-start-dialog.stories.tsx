@@ -94,6 +94,14 @@ export const ListedChinese: Story = {
 	),
 };
 
+/** Opened from a Workspace row: the title names the Workspace and the Agent opens in a new Tab there. */
+export const InWorkspace: Story = {
+	args: {
+		places: ['new-tab'],
+		workspace: { id: 'workspace-orchbee', name: 'orchbee' },
+	},
+};
+
 /** No lookup gave a result: every Agent stays startable, listed as not checked, with a warning. */
 export const FailedLookup: Story = {
 	args: {

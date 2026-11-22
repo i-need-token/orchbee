@@ -238,6 +238,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.agentLaunch.description':
 		'Applies to new conversations started by Orchbee.',
 	'terminal.settings.page.agentLaunch.filter': 'Find an Agent',
+	'terminal.settings.page.agentLaunch.edit': 'Edit',
 	'terminal.settings.page.agentLaunch.yolo': 'YOLO mode',
 	'terminal.settings.page.agentLaunch.yoloDescription':
 		'Start the Agent with its native automatic approval mode.',

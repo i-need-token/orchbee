@@ -27,5 +27,5 @@ export const zhCNAgentStartMessages = {
 	'agentStart.status.noInstalled': '未找到已安装的智能体。',
 	'agentStart.status.unsupported': '此平台尚不支持启动智能体。',
 	'agentStart.title': '启动智能体',
-	'agentStart.workspaceDestination': '新标签页 · {name}',
+	'agentStart.titleInWorkspace': '在 {name} 中启动智能体',
 } as const satisfies Readonly<Record<AgentStartMessageId, string>>;

@@ -89,15 +89,15 @@ export const agentStartMessages = defineMessages({
 	),
 	statusNoInstalled: message(
 		'agentStart.status.noInstalled',
-		'The Workspace launch menu and picker found no installed Agent.',
+		'The Workspace row’s Start Agent menu found no installed Agent.',
 	),
 	statusUnsupported: message(
 		'agentStart.status.unsupported',
 		'Status line when the Session’s machine cannot start Agents at all.',
 	),
 	title: message('agentStart.title', 'Title of the Start Agent dialog and name of its action.'),
-	workspaceDestination: message(
-		'agentStart.workspaceDestination',
-		'Fixed destination of a Workspace Agent picker. {name} is the Workspace name.',
+	titleInWorkspace: message(
+		'agentStart.titleInWorkspace',
+		'Title of Start Agent opened from a Workspace row, which starts in a new Tab there. {name} is the Workspace name.',
 	),
 });

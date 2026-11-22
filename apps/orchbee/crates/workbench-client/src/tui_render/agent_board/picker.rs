@@ -2,6 +2,8 @@
 //! grouped provider list and one hint row. The picker owner keeps its episode and capture; this
 //! file only paints the picker rows and publishes their exact targets.
 
+use std::borrow::Cow;
+
 use ratatui::{
     Frame,
     layout::Rect,
@@ -24,7 +26,7 @@ use crate::agent_board::{AgentBoardControl, AgentBoardDraw, AgentBoardView};
 use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::localization::ShellText;
 use crate::session_capabilities::SessionAction;
-use crate::terminal_text::{display_width, truncate_display};
+use crate::terminal_text::{display_width, sanitize_terminal_text, truncate_display};
 use crate::tui_hit_map::{
     HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, ListScrollTarget,
     PrimaryContract,
@@ -84,12 +86,7 @@ pub(super) fn render(
                 .iter()
                 .any(|item| matches!(item, Item::Provider { .. } | Item::Fold { .. })) =>
         {
-            let message = if picker.targets_workspace() && picker.query().trim().is_empty() {
-                copy.no_installed
-            } else {
-                copy.no_match
-            };
-            Some(DialogRow::Item(message.into(), Role::TextSecondary))
+            Some(DialogRow::Item(copy.no_match.into(), Role::TextSecondary))
         }
         // With nothing to report the list takes the row, so no blank row sits under a list
         // that has more rows below.
@@ -107,11 +104,20 @@ pub(super) fn render(
         KeyHint::new(&vertical, text.board.select_hint),
         KeyHint::new(&tab, copy.place_hint),
     ];
-    let hints = if picker.targets_workspace() {
+    // A Workspace's picker always opens a new Tab there, so it names the Workspace in its title,
+    // and its place is plain text that Tab does not change.
+    let workspace = picker.workspace_name();
+    let hints = if workspace.is_some() {
         &hints[..3]
     } else {
         &hints[..]
     };
+    let title = workspace.map_or(Cow::Borrowed(copy.title), |name| {
+        Cow::Owned(
+            copy.title_in_workspace
+                .replace("{name}", &sanitize_terminal_text(name)),
+        )
+    });
     // The dialog pads below its title and above its footer itself. The place row is required:
     // Enter starts where it says, so height pressure never removes it.
     let mut rows = vec![
@@ -125,7 +131,7 @@ pub(super) fn render(
     ];
     rows.extend(status);
     let dialog = Dialog {
-        title: copy.title,
+        title: &title,
         class: DialogClass::Medium,
         rows,
         footer: DialogFooter::Hints(hints),
@@ -165,7 +171,7 @@ pub(super) fn render(
     );
     // The owner's close publishes the interaction its pointer lane routes.
     let _ = render_header_close(frame, layout.area, &draw, theme, hits);
-    if let Some(row) = layout.row(PLACE) {
+    if let Some(row) = layout.row(PLACE).filter(|_| workspace.is_none()) {
         let role = if place_unavailable.is_some() {
             Role::TextDisabled
         } else {

@@ -87,10 +87,14 @@ impl WorkbenchClientUi {
         self.board.open_picker_in_new_tab(focus.as_ref(), worktree);
     }
 
-    pub(super) fn open_workspace_agent_picker(&mut self, location: ClientContextLocation) {
+    pub(super) fn open_workspace_agent_picker(
+        &mut self,
+        location: ClientContextLocation,
+        name: String,
+    ) {
         if self.retirement_failure.is_none() && !self.board.is_open() && !self.modal_owns_input() {
             self.observe_session_capabilities();
-            self.board.open_workspace_picker(location);
+            self.board.open_workspace_picker(location, name);
         }
     }
 

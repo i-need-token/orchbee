@@ -25,7 +25,7 @@ export const enUSAgentStartMessages = {
 	'agentStart.status.noInstalled': 'No installed Agents found.',
 	'agentStart.status.unsupported': 'Starting an Agent is not supported on this platform.',
 	'agentStart.title': 'Start Agent',
-	'agentStart.workspaceDestination': 'New Tab · {name}',
+	'agentStart.titleInWorkspace': 'Start Agent in {name}',
 } as const;
 
 export type AgentStartMessageId = keyof typeof enUSAgentStartMessages;

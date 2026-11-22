@@ -216,18 +216,9 @@ fn by_product(rows: &mut [Row<'_>]) {
 /// one failed or cannot run, it is one Not checked group, then Not found. A provider whose check
 /// is still running is never listed, and the fold waits for every check.
 pub(crate) fn items(sources: &Sources<'_>, query: &str, expanded: bool) -> Vec<Item> {
-    projected_items(sources, query, expanded, false)
-}
-
-fn projected_items(
-    sources: &Sources<'_>,
-    query: &str,
-    expanded: bool,
-    installed_only: bool,
-) -> Vec<Item> {
     use AgentCatalogEntryState as State;
     let query = query.trim().to_lowercase();
-    let unchecked = !installed_only && sources.unchecked();
+    let unchecked = sources.unchecked();
     let startable = |row: &Row<'_>| {
         if unchecked {
             !matches!(row.state, State::NotFound | State::Checking)
@@ -241,11 +232,7 @@ fn projected_items(
         .filter_map(|id| sources.rows.iter().find(|row| row.id == *id))
         .copied()
         .filter(startable)
-        .take(if installed_only {
-            usize::MAX
-        } else {
-            RECENT_LIMIT
-        })
+        .take(RECENT_LIMIT)
         .collect();
     let mut rest: Vec<Row<'_>> = sources
         .rows
@@ -295,9 +282,6 @@ fn projected_items(
         group(&mut rows, Group::NotFound, &unavailable);
     } else {
         group(&mut rows, Group::Installed, &rest);
-        if installed_only {
-            return rows;
-        }
         if query.is_empty() && !expanded {
             // While a check runs the count is not known; the status row says so instead.
             if !unavailable.is_empty() && !sources.checking() {
@@ -364,7 +348,14 @@ pub(crate) struct Picker {
     /// Holds while the picker stays open; a query change never resets it.
     place: StartPlace,
     revision: u64,
-    workspace: Option<ClientContextLocation>,
+    workspace: Option<PickerWorkspace>,
+}
+
+/// The Workspace a picker opened from a Workspace row starts in: always a new Tab there.
+struct PickerWorkspace {
+    location: ClientContextLocation,
+    /// The name its sidebar row showed, which the title repeats.
+    name: String,
 }
 
 impl Picker {
@@ -383,6 +374,10 @@ impl Picker {
     }
 
     fn cycle_place(&mut self, forward: bool) {
+        // A Workspace's picker always opens a new Tab there.
+        if self.workspace.is_some() {
+            return;
+        }
         self.place = self.places.next(&self.place, forward);
         self.touch();
     }
@@ -395,8 +390,11 @@ impl Picker {
         self.query.text()
     }
 
-    pub(crate) const fn targets_workspace(&self) -> bool {
-        self.workspace.is_some()
+    /// The Workspace the picker starts in, by the name its sidebar row showed.
+    pub(crate) fn workspace_name(&self) -> Option<&str> {
+        self.workspace
+            .as_ref()
+            .map(|workspace| workspace.name.as_str())
     }
 
     pub(crate) fn query_cursor(&self) -> usize {
@@ -560,12 +558,7 @@ impl AgentBoard {
             return Vec::new();
         };
         self.sources().map_or_else(Vec::new, |sources| {
-            projected_items(
-                &sources,
-                picker.query(),
-                picker.expanded,
-                picker.workspace.is_some(),
-            )
+            items(&sources, picker.query(), picker.expanded)
         })
     }
 
@@ -646,11 +639,12 @@ impl AgentBoard {
         }
     }
 
-    /// Starts an installed Agent in a new Tab of this exact Workspace.
-    pub(crate) fn open_workspace_picker(&mut self, location: ClientContextLocation) {
+    /// A Workspace row's Start Agent: the picker whose start opens a new Tab of that Workspace.
+    pub(crate) fn open_workspace_picker(&mut self, location: ClientContextLocation, name: String) {
         self.open_picker(None, false);
         if let Some(picker) = self.picker.as_mut() {
-            picker.workspace = Some(location);
+            picker.place = StartPlace::NewTab;
+            picker.workspace = Some(PickerWorkspace { location, name });
         }
     }
 
@@ -763,7 +757,10 @@ impl AgentBoard {
                     StartPlace::ThisPanel(panel) if self.start.guards(panel) => StartPlace::NewTab,
                     place => place.clone(),
                 };
-                let workspace = picker.workspace.clone();
+                let workspace = picker
+                    .workspace
+                    .as_ref()
+                    .map(|workspace| workspace.location.clone());
                 // The New Worktree form opens over the picker, which keeps its query, cursor and
                 // place for the form's cancellation; the form's submission closes it.
                 if place != StartPlace::NewWorktree {
