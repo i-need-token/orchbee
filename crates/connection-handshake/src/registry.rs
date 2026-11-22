@@ -76,7 +76,7 @@ pub const PROJECT_IDENTITY: &str = "project-identity";
 /// The `client-server` capability of a Client that copes with its Server being replaced, by coming
 /// back on its own or by ending with its lost-connection outcome. A Server restart waits while a
 /// connected Client lacks it, and a held Server refuses such a Client's connection as stopping, so
-/// the Client tries again and joins whichever Server serves next. No build offers it yet.
+/// the Client tries again and joins whichever Server serves next.
 pub const RECONNECT: &str = "reconnect";
 
 /// The `worker-host` capability before a Worker may ask a Host to attach a Keeper and hold its
@@ -169,6 +169,7 @@ impl ConnectionKind {
                 CONFIGURED_COMMAND_SOURCE_EXITED,
                 PROJECT_IDENTITY,
                 PROMPT_GATED_INPUT,
+                RECONNECT,
                 STREAM_OUTCOME_UNKNOWN,
                 TERMINAL_LIMIT_REACHED,
                 TERMINAL_RUNTIME,

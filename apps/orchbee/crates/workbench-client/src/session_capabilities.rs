@@ -5,7 +5,7 @@
 
 use orchbee_connection_handshake::{
     AGENT_CONFIRMATION, AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CONFIGURED_COMMAND_SOURCE_EXITED,
-    CapabilitySet, PROJECT_IDENTITY, PROMPT_GATED_INPUT, STREAM_OUTCOME_UNKNOWN,
+    CapabilitySet, PROJECT_IDENTITY, PROMPT_GATED_INPUT, RECONNECT, STREAM_OUTCOME_UNKNOWN,
     TERMINAL_LIMIT_REACHED, TERMINAL_RUNTIME, UPDATE_CHECK, WORKSPACE_IDLE,
 };
 
@@ -35,6 +35,8 @@ const NEEDED_BY: &[(&str, &[SessionAction])] = &[
     // it allocates none; the TUI names no Project identity of its own.
     (PROJECT_IDENTITY, &[]),
     (PROMPT_GATED_INPUT, &[SessionAction::StartInThisPanel]),
+    // The Server reads it itself: without it, a restart refuses while this Client is connected.
+    (RECONNECT, &[]),
     // The connection reads it itself: without it, an intent that fails after it ran ends the
     // connection instead of closing its own stream as unknown.
     (STREAM_OUTCOME_UNKNOWN, &[]),

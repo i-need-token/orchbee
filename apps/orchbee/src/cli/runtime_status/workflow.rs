@@ -106,7 +106,9 @@ pub(super) fn server(deadline: Instant, signals: &ArmedSignals) -> Result<Report
                         io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
                     ) =>
                 {
-                    Server::Absent(Absence::Endpoint)
+                    Server::Absent(Absence::Endpoint {
+                        moved_to: moved_to(session.runtime_directory()),
+                    })
                 }
                 Err(error) => return Err(super::classify_query(error)),
             };
@@ -154,4 +156,13 @@ fn cohort_issue(kind: io::ErrorKind) -> CohortIssue {
         io::ErrorKind::TimedOut => CohortIssue::TimedOut,
         _ => CohortIssue::Io,
     }
+}
+
+/// The store's active version the idle move ended the Session in `runtime` to run, when its record
+/// says so; anything unreadable reads as none.
+fn moved_to(runtime: &std::path::Path) -> Option<String> {
+    let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name)).ok()?;
+    orchbee_local_runtime::session_moved_to(&root, runtime)
+        .ok()
+        .flatten()
 }

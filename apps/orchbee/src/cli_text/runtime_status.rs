@@ -49,6 +49,7 @@ impl super::CliText {
             "role-terminal-host" => ("Terminal Host process", "Terminal Host 进程"),
             "role-unknown" => ("Unknown process", "未知进程"),
             "restartKeepsTerminals" => ("Restart keeps terminals", "重启保留终端"),
+            "movedTo" => ("Moved to version", "已迁移到版本"),
             "platform" => ("Platform", "平台"),
             "architecture" => ("Architecture", "架构"),
             "profile" => ("Build profile", "构建类型"),

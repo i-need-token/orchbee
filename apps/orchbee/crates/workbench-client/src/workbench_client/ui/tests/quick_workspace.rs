@@ -329,6 +329,7 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                     origin: None,
                     recovery_shutdown: None,
                     updater: None,
+                    local_runtime: None,
                 };
                 let mut view = ClientView::new(width);
                 let transition = view.decide_action(ClientAction::CreateTab);

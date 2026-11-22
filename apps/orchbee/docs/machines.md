@@ -1467,6 +1467,14 @@ selection the person makes ends it, and one that fails leaves the machine's card
 surface whose Client has not noticed the loss comes back the same way once it is shown again; one
 whose Client retired while hidden is replaced by the selection's own connection.
 
+The local surface comes back by itself too once its Server connection ends. For up to 150 seconds
+the TUI connects only, starting nothing, and opens the Workspace it showed once a Server serves the
+Session again: the one a restart handed it to, or one someone started. The status line reads
+Reconnecting… meanwhile. A Session the automatic update's idle move ended names the version it moved
+to: a TUI whose update to that version is ready leaves for it as a click on Update does, and any
+other starts the Session within 20 seconds. A person's stop, or a crash nobody follows with a start,
+leaves the lost connection's status once the wait ends; a selection the person makes ends it.
+
 While the machine on screen reads `reconnecting`, `offline`, `needs-login` or `login-failed`, a
 card replaces its terminals in the terminal area: a title for the state (`Connection lost`,
 `devbox is offline`, `devbox needs login`), what Settings › Machines says of it (a lost connection

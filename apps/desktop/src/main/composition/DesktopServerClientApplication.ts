@@ -5,6 +5,7 @@ import {
 	DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
 	DESKTOP_SERVER_CONNECTION_PORT_ROLES,
 	DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL,
+	DESKTOP_SESSION_REJOIN_MILLISECONDS,
 	DESKTOP_WINDOW_CAPTION_IPC_CHANNEL,
 	DESKTOP_WINDOW_FAULT_IPC_CHANNEL,
 	DesktopServerConnectionDocumentSchema,
@@ -41,7 +42,11 @@ import {
 	DesktopProjectFolderAcquisitionBroker,
 	DesktopProjectFolderAcquisitionRuntime,
 } from '../project-folder-acquisition';
-import { ServerConnectionRelay, readServerStartAnswer } from '../server-connection';
+import {
+	ServerConnectionRelay,
+	readServerStartAnswer,
+	readServerState,
+} from '../server-connection';
 import type { DesktopWindowStateAttachment, DesktopWindowStateOwner } from '../window-state';
 import type { DesktopWindowUpdateFocus, DesktopWindowUpdatePort } from '../window-update';
 import { followRendererCrashes } from './followRendererCrashes';
@@ -83,6 +88,10 @@ export interface DesktopServerClientApplicationOptions {
 	readonly windowUpdate: {
 		readonly offersUpdates: boolean;
 		serve(port: DesktopWindowUpdatePort, focus: DesktopWindowUpdateFocus): { close(): void };
+		/** The place the window being switched shows, which the relaunched window opens at. */
+		askPlace(): Promise<DesktopRelaunchPlace | null>;
+		/** Switches to an offered newer version whose Client joins the Session; true once started. */
+		switchIfOffered(resolvePlace: () => Promise<DesktopRelaunchPlace | null>): Promise<boolean>;
 	};
 }
 
@@ -90,6 +99,8 @@ const MACOS_TRAFFIC_LIGHT_POSITION = { x: 12, y: 12 } as const;
 /** The Windows caption buttons show the page's chrome beneath them, in whatever theme it has. */
 const WINDOWS_CAPTION_BACKGROUND = '#00000000';
 const HIDDEN_WINDOW_BOUNDS = { height: 720, width: 1100 } as const;
+/** How often a window whose Server ended reads its Session while it waits for one. */
+const REJOIN_READ_INTERVAL_MILLISECONDS = 1_000;
 /** What a terminal link may open, as the page's own link policy permits. */
 const EXTERNAL_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 
@@ -468,6 +479,37 @@ export class DesktopServerClientApplication {
 		return end;
 	}
 
+	/**
+	 * The document's Server ended its connection. For `DESKTOP_SESSION_REJOIN_MILLISECONDS` Main reads
+	 * the Session, starting nothing, and reloads the window once a Server serves it again: the one a
+	 * restart handed it to, or one someone started. A Session the automatic update ended to run a
+	 * newer installed version is started again, by that version's window when it joins, as a click on
+	 * Update does. A person's stop or a crash that nobody follows with a start leaves the window
+	 * Disconnected. A newer document, which a person's Reconnect loads, ends the wait.
+	 */
+	async #rejoin(window: BrowserWindow, document: DocumentConnection): Promise<void> {
+		const options = this.#options;
+		const until = Date.now() + DESKTOP_SESSION_REJOIN_MILLISECONDS;
+		const current = (): boolean => !window.isDestroyed() && this.#document === document;
+		while (current() && Date.now() < until) {
+			const state = await readServerState(
+				options.clientExecutable,
+				options.sessionArguments,
+				options.clientEnvironment,
+			);
+			if (!current()) return;
+			if (state === 'moved') {
+				const update = options.windowUpdate;
+				if (await update.switchIfOffered(() => update.askPlace())) return;
+			}
+			if (state !== 'absent') {
+				if (current()) window.webContents.reload();
+				return;
+			}
+			await new Promise((resolve) => setTimeout(resolve, REJOIN_READ_INTERVAL_MILLISECONDS));
+		}
+	}
+
 	/** Connects one document; what a failure had already started is ended before it rethrows. */
 	#connect(window: BrowserWindow, reply: DesktopServerConnectionReply): DocumentConnection {
 		const options = this.#options;
@@ -480,7 +522,13 @@ export class DesktopServerClientApplication {
 		const folders = new MessageChannelMain();
 		const backgroundStatus = new MessageChannelMain();
 		const windowUpdate = new MessageChannelMain();
-		const relay = new ServerConnectionRelay(relayProcess, connection.port1, options.recordEvent);
+		let lost = (): void => undefined;
+		const relay = new ServerConnectionRelay(
+			relayProcess,
+			connection.port1,
+			options.recordEvent,
+			() => lost(),
+		);
 		const folderAcquisition = new DesktopProjectFolderAcquisitionBroker(
 			folders.port1,
 			new DesktopProjectFolderAcquisitionRuntime(window),
@@ -512,11 +560,17 @@ export class DesktopServerClientApplication {
 			folderAcquisition.dispose();
 			throw error;
 		}
-		return {
+		const document: DocumentConnection = {
 			backgroundStatus: backgroundStatusPort,
 			folderAcquisition,
 			relay,
 			windowUpdate: windowUpdatePort,
 		};
+		lost = () => {
+			void this.#rejoin(window, document).catch(() => {
+				options.recordEvent('error', 'session-rejoin-failed');
+			});
+		};
+		return document;
 	}
 }

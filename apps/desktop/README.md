@@ -52,6 +52,14 @@ under an identity the reply must repeat: a reload can hand the next document wha
 last one, and a load event cannot tell them apart. Its asking ends the previous document's
 connection, and closing the process's standard input ends it.
 
+A connection the process ends before Main or the page closed it, because its Server ended, is
+waited on for `DESKTOP_SESSION_REJOIN_MILLISECONDS`, as the TUI waits. Main runs `status server`
+about once a second, which starts nothing, and reloads the window once a Server serves the Session
+again. A Session the automatic update's idle move ended reports `movedTo`: Main switches to the
+newer window as a click on Update does when its Client joins, and otherwise reloads, which starts
+the Session. The page reads Reconnecting… meanwhile and Disconnected after it; the person's
+Reconnect reloads at any time, and a newer document ends the wait.
+
 One window, connection, message, or request never ends Main. A document whose connection cannot be
 made gets none, and a reload asks again; a throw or rejection that nothing else handled is
 recorded as `main-fault-contained` and Main goes on, because every fault Main can meet belongs to

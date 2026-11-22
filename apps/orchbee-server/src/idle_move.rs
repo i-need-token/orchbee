@@ -1,7 +1,8 @@
 //! The idle move: a Server older than its store's active version ends its Session through the
 //! ordinary stop once the Session has stayed idle for one quiet minute, so the next Client start
-//! runs the active version. This rule owns only the countdown and the order of the closing checks;
-//! the managed Session looks, asks and stops.
+//! runs the active version. A connected Client does not keep the Session: its record names the
+//! version the Session moved to, and the Client starts that version. This rule owns only the
+//! countdown and the order of the closing checks; the managed Session looks, asks and stops.
 use std::{
     cmp::Ordering,
     time::{Duration, Instant},
@@ -15,8 +16,6 @@ pub(crate) const QUIET: Duration = Duration::from_secs(60);
 pub(crate) struct Activity {
     /// A terminal runs, or a launch has not settled.
     pub(crate) terminal: bool,
-    /// A Client connection is open, or one opened since the previous look.
-    pub(crate) client: bool,
     /// The update helper runs.
     pub(crate) helper: bool,
     /// A Workbench operation is pending.

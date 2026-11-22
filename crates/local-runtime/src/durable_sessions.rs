@@ -28,6 +28,9 @@ const MAXIMUM_BYTES: usize = 8192;
 const MAXIMUM_SESSIONS: usize = 256;
 /// The `extensions` member an `exit` writes: the activation identifier of the generation it ended.
 const EXITED: &str = "exited";
+/// The `extensions` member a stop the idle move began writes with `Stopped`: the store's active
+/// version the Session moved to.
+const MOVED_TO: &str = "moved_to";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "kebab-case", deny_unknown_fields)]
@@ -537,6 +540,30 @@ pub struct RetainedSessionRecord {
     scope: String,
     active: Record,
 }
+/// The store's active version the Session whose runtime folder is `runtime` moved to, while its
+/// record says the idle move stopped it; a later activation's record names none. Reading takes no
+/// lock: a Client that lost its Server asks this while it waits to come back.
+pub fn session_moved_to(root: &DataRoot, runtime: &Path) -> io::Result<Option<String>> {
+    let scope = runtime
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or(io::ErrorKind::InvalidInput)?;
+    let Some(directory) = Directory::open(root)? else {
+        return Ok(None);
+    };
+    let Some(record) = directory.read(scope)? else {
+        return Ok(None);
+    };
+    if !matches!(record.lifecycle, Lifecycle::Stopped { .. }) || !record.uses_runtime(runtime) {
+        return Ok(None);
+    }
+    Ok(record
+        .extensions
+        .get(MOVED_TO)
+        .and_then(|value| value.as_str())
+        .map(str::to_owned))
+}
+
 /// What [`RetainedSessionRecord::host_presence`] observed of a generation's Terminal Host.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum HostPresence {
@@ -670,6 +697,15 @@ impl RetainedSessionRecord {
     }
     /// Only after confirmed child exit and listener cleanup, before the runtime stop receipt.
     pub fn complete(&mut self, request_id: [u8; 16]) -> io::Result<()> {
+        self.complete_moving(request_id, None)
+    }
+    /// [`Self::complete`] for a stop the idle move began, which names `moved_to`, the store's
+    /// active version the Session moves to.
+    pub fn complete_moving(
+        &mut self,
+        request_id: [u8; 16],
+        moved_to: Option<&str>,
+    ) -> io::Result<()> {
         if request_id == [0; 16] {
             return Err(io::ErrorKind::InvalidInput.into());
         }
@@ -692,6 +728,16 @@ impl RetainedSessionRecord {
             return Err(io::ErrorKind::InvalidData.into());
         }
         current.lifecycle = Lifecycle::Stopped { request_id };
+        match moved_to {
+            Some(version) => {
+                current
+                    .extensions
+                    .insert(MOVED_TO.to_owned(), version.to_owned().into());
+            }
+            None => {
+                current.extensions.remove(MOVED_TO);
+            }
+        }
         self.directory.publish(&self.scope, &current)
     }
     /// Records that an `exit` ended the retained generation, after its Worker is gone, so the next

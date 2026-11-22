@@ -35,8 +35,6 @@ struct Control {
 #[derive(Default)]
 struct Streams {
     open: Vec<(u64, UnixStream)>,
-    /// The identity of the last connection opened; 0 before the first.
-    opened: u64,
 }
 
 /// Closing this owner wakes idle Clients; success proves the listener and handlers have joined.
@@ -69,19 +67,6 @@ impl ManagedClients {
                 .map_err(|_| io::Error::other("Client listener panicked"))??;
         }
         Ok(())
-    }
-
-    /// The idle move's view of Client connections: `None` while any is open, admitted or still in
-    /// its handshake, otherwise the identity of the last one opened. Two equal marks prove that no
-    /// connection opened between the two reads.
-    #[cfg(any(windows, target_os = "macos"))]
-    pub(crate) fn idle_mark(&self) -> Option<u64> {
-        let streams = self
-            .control
-            .streams
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        streams.open.is_empty().then_some(streams.opened)
     }
 
     /// Whether every admitted Client connection copes with this Server being replaced: its Client
@@ -260,7 +245,6 @@ fn start_with(
                             let mut streams =
                                 owner.streams.lock().unwrap_or_else(|e| e.into_inner());
                             streams.open.push((id, cloned));
-                            streams.opened = id;
                         }
                         let registration = Registration {
                             control: Arc::clone(&owner),

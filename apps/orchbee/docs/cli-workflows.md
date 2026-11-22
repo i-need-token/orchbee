@@ -148,8 +148,7 @@ workflow, in phase order:
 - The fixed deadline covers the whole command; a timed-out wait (exit 7) leaves the restart running.
 - Ctrl+C stops the wait only (exit 130); the restart continues by itself, and its successor or the
   running Server clears its entry.
-- Until Clients reconnect to a new Server by themselves (a later release), a connected Client
-  refuses the restart (`clients`).
+- A connected Client too old to come back to a new Server by itself refuses the restart (`clients`).
 
 ## 2. Create a Project, Workspace, and directory
 

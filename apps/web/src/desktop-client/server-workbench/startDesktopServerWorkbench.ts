@@ -433,7 +433,8 @@ async function run(
 	reactRoot.render(
 		createElement(DesktopWorkbench, {
 			applicationLocaleSource: applicationLocaleController,
-			// Reconnecting is a reload: Main starts the Session again when it stopped, then connects.
+			// Main reloads the window once a Server serves the Session again; the person's Reconnect is a
+			// reload too, which starts the Session again when it stopped, then connects.
 			connectionStatus: createElement(SessionDisconnectedStatus, {
 				ended: {
 					getSnapshot: () => session.ended !== null,

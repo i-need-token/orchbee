@@ -151,6 +151,8 @@ pub struct WorkbenchClient {
     recovery_shutdown: Option<connection::RecoveryShutdown>,
     /// The Update control; only a local TUI that the application gave a manifest reader has one.
     updater: Option<crate::release_update::Updater>,
+    /// The local Session's runtime folder, for a Client started on this computer's Session.
+    local_runtime: Option<std::path::PathBuf>,
 }
 
 impl WorkbenchClient {
@@ -310,6 +312,7 @@ impl WorkbenchClient {
             .next();
         let mut workbench_client = Self::start_with_context(client, geometry, context)?;
         workbench_client.position_writer = writer;
+        workbench_client.local_runtime = Some(runtime.to_owned());
         workbench_client.position_startup = Some(crate::startup_preference::Startup {
             record,
             fallback,
@@ -394,6 +397,7 @@ impl WorkbenchClient {
             origin: Some(origin),
             recovery_shutdown: None,
             updater: None,
+            local_runtime: None,
         })
     }
 
@@ -489,6 +493,54 @@ impl WorkbenchClient {
     /// Gives this TUI its Update control, which watches the release store from now on.
     pub fn offer_updates(&mut self, updater: crate::release_update::Updater) {
         self.updater = Some(updater);
+    }
+
+    /// A Client for the local Session in `runtime` after its Server was replaced: it opens
+    /// `context`, the Workspace the lost Client showed, and remembers positions as a local start
+    /// does.
+    pub fn rejoin_local(
+        client: LocalClient,
+        geometry: Geometry,
+        runtime: &std::path::Path,
+        context: Option<ClientStartupTarget>,
+    ) -> io::Result<Self> {
+        let writer = if crate::tui_capabilities::Capability::PositionStorage.available() {
+            crate::startup_preference::store::Preferences::load(runtime)
+                .writer()
+                .ok()
+                .flatten()
+        } else {
+            None
+        };
+        let mut workbench_client = Self::start_with_context(client, geometry, context)?;
+        workbench_client.position_writer = writer;
+        workbench_client.local_runtime = Some(runtime.to_owned());
+        Ok(workbench_client)
+    }
+
+    /// The local Session's runtime folder, for a Client started on this computer's Session.
+    pub fn local_runtime(&self) -> Option<&std::path::Path> {
+        self.local_runtime.as_deref()
+    }
+
+    /// Hands the update offer to the Client that replaces this one.
+    pub fn take_updater(&mut self) -> Option<crate::release_update::Updater> {
+        self.updater.take()
+    }
+
+    /// Leaves for the store's active version when this Client is older, as a click on Update does,
+    /// once the idle move ended its Session to run that version.
+    pub fn leave_for_moved_session(&mut self) -> bool {
+        self.updater
+            .as_mut()
+            .is_some_and(crate::release_update::Updater::leave_for_move)
+    }
+
+    /// Whether the lost connection's status says it is coming back; true when that changed.
+    pub fn set_rejoining(&mut self, rejoining: bool) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.set_rejoining(rejoining))
     }
 
     /// Whether a click on Update chose to leave for a newer version.

@@ -516,6 +516,7 @@ pub(super) fn workbench_client_with_identity(
             origin: Some(origin),
             recovery_shutdown: None,
             updater: None,
+            local_runtime: None,
         },
         mailbox,
     ))

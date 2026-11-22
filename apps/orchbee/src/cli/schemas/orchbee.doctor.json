@@ -1654,6 +1654,10 @@
 								},
 								"reason": {
 									"enum": ["runtime-absent", "endpoint-absent"]
+								},
+								"movedTo": {
+									"type": "string",
+									"minLength": 1
 								}
 							}
 						},

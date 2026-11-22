@@ -188,6 +188,13 @@ export const DESKTOP_SERVER_CONNECTION_PORT_ROLES = [
 export type DesktopServerConnectionPortRole = (typeof DESKTOP_SERVER_CONNECTION_PORT_ROLES)[number];
 
 /**
+ * How long a window waits for a Server to serve its Session again once its connection ended without
+ * Main or the page closing it, as the TUI does. Main reads the Session, starting nothing, and
+ * reloads the window once a Server answers; the page says Reconnecting meanwhile, then Disconnected.
+ */
+export const DESKTOP_SESSION_REJOIN_MILLISECONDS = 150_000;
+
+/**
  * The page's one message on the `server-connection` port that is not connection bytes: it has read
  * `byteLength` more bytes of what Main relayed, once each chunk's handling returns. Main relays
  * output only while what the page has not yet read stays under its bound, so a page that reads

@@ -48,6 +48,17 @@ impl WorkbenchClientView<'_> {
     /// Select one current status without changing the retained operation or its outcome.
     pub(crate) fn status(&self, locale: Locale, columns: u16) -> NativeStatus {
         let view = self;
+        // A lost local connection the shell is bringing back says so until it returns or gives up.
+        if view.rejoining() {
+            let reconnecting = locale.status().reconnecting.to_owned();
+            return NativeStatus {
+                text: reconnecting.clone(),
+                persistent: Some(PersistentStatus::Reconnecting),
+                ordinary: false,
+                shorter: vec![reconnecting],
+                notice: false,
+            };
+        }
         // The Server's state speaks for every terminal ahead of any one operation's.
         if view.retirement().is_none() {
             match view.terminal_runtime() {

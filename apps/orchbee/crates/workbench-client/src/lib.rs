@@ -170,9 +170,9 @@ pub mod application {
 
     pub mod local_activation {
         pub use crate::local_activation::{
-            ActivationCause, ActivationFailure, StartedSession, StartupFailure,
-            activate_local_session, check_deadline, pause, refusal, runtime_base_unstarted,
-            runtime_location, selected_session_name, target_session_name,
+            ActivationCause, ActivationFailure, Rejoined, StartedSession, StartupFailure,
+            activate_local_session, check_deadline, pause, refusal, rejoin_local_session,
+            runtime_base_unstarted, runtime_location, selected_session_name, target_session_name,
         };
         pub use crate::local_activation::{
             activate_named_session, inside_selected_session, select_session,

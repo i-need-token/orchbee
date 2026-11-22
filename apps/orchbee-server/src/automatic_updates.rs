@@ -157,18 +157,16 @@ impl AutomaticUpdates {
         self.helper.load(Ordering::Acquire)
     }
 
-    /// Whether the store's active version, found as a run and the next Client start find it, is
+    /// The store's active version, found as a run and the next Client start find it, when it is
     /// newer than the version folder this Server runs from. A store whose active version cannot be
-    /// read answers false.
-    pub(crate) fn superseded(&self) -> bool {
-        let Ok(root) = orchbee_local_runtime::release_store_root(|name| std::env::var_os(name))
-        else {
-            return false;
-        };
-        matches!(
-            orchbee_local_runtime::active_release(&root),
-            Ok(Some(active)) if crate::idle_move::older(&self.own_version, &active.version)
-        )
+    /// read answers `None`.
+    pub(crate) fn superseding(&self) -> Option<String> {
+        let root = orchbee_local_runtime::release_store_root(|name| std::env::var_os(name)).ok()?;
+        orchbee_local_runtime::active_release(&root)
+            .ok()
+            .flatten()
+            .map(|active| active.version)
+            .filter(|version| crate::idle_move::older(&self.own_version, version))
     }
 }
 

@@ -19,12 +19,17 @@ use crate::{
 };
 use std::{
     io,
+    path::{Path, PathBuf},
     sync::{Arc, mpsc},
     time::{Duration, Instant},
 };
 
 /// The picker messages that say why no hub is reached; the hub's own state replaces them.
 const HUB_MESSAGES: [&str; 3] = ["hub", "hub-message-stopped", "hub-message-blocked"];
+/// How long the local surface waits for a Server to serve its Session again.
+const REJOIN: Duration = Duration::from_secs(150);
+/// How long starting the local Session again may take, as a TUI start may.
+const REJOIN_START: Duration = Duration::from_secs(20);
 
 struct Attempt {
     profile: Option<Profile>,
@@ -69,6 +74,33 @@ enum PreparedSelection {
         target: Box<crate::machine_agents::Target>,
         deadline: Instant,
     },
+    /// The idle move ended the local Session to run the store's active version.
+    Moved,
+}
+
+/// The local Session's way back: waits, connecting only, for a Server to serve it again, or starts
+/// it when `start`, once the idle move ended it.
+fn rejoin(
+    runtime: &Path,
+    deadline: Instant,
+    start: bool,
+    cancel: &OwnedCancellation,
+) -> io::Result<PreparedSelection> {
+    let lost = |_| io::Error::other("the local Session did not come back");
+    if start {
+        return crate::local_activation::activate_local_session(deadline)
+            .map(|started| PreparedSelection::Connection(started.client))
+            .map_err(lost);
+    }
+    match crate::local_activation::rejoin_local_session(runtime, deadline, &|| {
+        cancel.is_cancelled()
+    }) {
+        Ok(crate::local_activation::Rejoined::Joined(client)) => {
+            Ok(PreparedSelection::Connection(client))
+        }
+        Ok(crate::local_activation::Rejoined::Moved) => Ok(PreparedSelection::Moved),
+        Err(failure) => Err(lost(failure)),
+    }
 }
 impl Drop for Attempt {
     fn drop(&mut self) {
@@ -106,11 +138,19 @@ struct Queued {
 enum Destination {
     Startup(Option<ClientStartupTarget>),
     VerifiedAgent(Box<crate::machine_agents::Target>),
+    /// The local surface on screen lost its Server: it comes back on `context`, starting the
+    /// Session when `start`.
+    Rejoin {
+        context: Option<ClientStartupTarget>,
+        start: bool,
+    },
 }
 #[derive(Default)]
 pub(super) struct Change {
     pub(super) redraw: bool,
     pub(super) switched: bool,
+    /// The TUI leaves for the version the idle move ended its local Session to run.
+    pub(super) leave: bool,
 }
 pub(super) struct Manager {
     profiles: Vec<Profile>,
@@ -130,8 +170,11 @@ pub(super) struct Manager {
     /// screen, not a selection: it shows nothing and never asks the person.
     reattach: bool,
     /// The remote surface on screen started its one reconnect while the hub reads its Machine
-    /// online; the hub reading it not online, or another Machine on screen, renews it.
+    /// online; the hub reading it not online, or another Machine on screen, renews it. The local
+    /// surface's one wait for its Server is renewed once a connection serves it again.
     reattach_spent: bool,
+    /// The local Session's runtime folder, read from the surface that started it.
+    local_runtime: Option<PathBuf>,
     discovery: Discovery,
     /// Settings › Machines' requests and what is still under way of them.
     settings: crate::machine_settings_exchange::Exchange,
@@ -243,6 +286,7 @@ impl Manager {
             held: false,
             reattach: false,
             reattach_spent: false,
+            local_runtime: None,
             discovery: Discovery::new(wakeup.clone()),
             settings: crate::machine_settings_exchange::Exchange::default(),
             moves: moving::Mover::default(),
@@ -297,6 +341,7 @@ impl Manager {
     /// for the person to choose the Machine again.
     fn reattach(&mut self, surface: &dyn TerminalSurface, now: Instant) {
         let Some(profile) = self.current.clone() else {
+            self.rejoin_local(surface, now);
             return;
         };
         self.held |= self.discovery.disconnected(&profile);
@@ -329,6 +374,39 @@ impl Manager {
                 active_context(surface).map(ClientStartupTarget::Context),
             ),
             deadline: now + Duration::from_secs(60),
+            paused: None,
+        });
+    }
+    /// The local surface on screen lost its Server, so its Client retired. It waits [`REJOIN`],
+    /// connecting only, for a Server to serve the Session again: the one a restart handed it to,
+    /// or one someone started. A Session the idle move ended to run the store's active version is
+    /// started again instead. Once per loss: a wait that ends without a Server stays Disconnected.
+    fn rejoin_local(&mut self, surface: &dyn TerminalSurface, now: Instant) {
+        if self.local_runtime.is_none() {
+            self.local_runtime = surface.local_runtime();
+        }
+        if surface.reusable_machine() {
+            self.reattach_spent = false;
+            return;
+        }
+        if self.local_runtime.is_none()
+            || self.reattach_spent
+            || self.selection_scope.is_some()
+            || self.queued.is_some()
+            || self.attempt.is_some()
+            || self.candidate.is_some()
+        {
+            return;
+        }
+        self.reattach = true;
+        self.reattach_spent = true;
+        self.queued = Some(Queued {
+            profile: None,
+            destination: Destination::Rejoin {
+                context: active_context(surface).map(ClientStartupTarget::Context),
+                start: false,
+            },
+            deadline: now + REJOIN,
             paused: None,
         });
     }
@@ -682,17 +760,41 @@ impl Manager {
                             paused: None,
                         });
                     }
+                    Ok(PreparedSelection::Moved) => {
+                        // An older TUI leaves for the version the Session moved to, as a click on
+                        // Update does; any other starts the Session, which runs that version.
+                        if surface.active().leave_for_moved_session() {
+                            change.leave = true;
+                        } else {
+                            self.queued = Some(Queued {
+                                profile: None,
+                                destination: Destination::Rejoin {
+                                    context: attempt.context.clone(),
+                                    start: true,
+                                },
+                                deadline: now + REJOIN_START,
+                                paused: None,
+                            });
+                        }
+                    }
                     Ok(PreparedSelection::Connection(mut client)) => {
                         let startup_deadline = now + Duration::from_secs(30);
+                        let rejoin = self
+                            .local_runtime
+                            .as_deref()
+                            .filter(|_| self.reattach && attempt.profile.is_none());
                         let candidate = (|| {
                             let geometry = terminal_geometry(dimensions, &self.template)?
                                 .ok_or_else(|| io::Error::other("viewport too small"))?;
                             client.set_submission_deadline(Some(startup_deadline));
-                            match attempt.context.clone() {
-                                Some(context) => {
+                            match (rejoin, attempt.context.clone()) {
+                                (Some(runtime), context) => WorkbenchClient::rejoin_local(
+                                    client, geometry, runtime, context,
+                                ),
+                                (None, Some(context)) => {
                                     WorkbenchClient::start_target(client, context, geometry)
                                 }
-                                None => WorkbenchClient::start(client, geometry),
+                                (None, None) => WorkbenchClient::start(client, geometry),
                             }
                         })();
                         match candidate {
@@ -787,12 +889,37 @@ impl Manager {
                         }
                     }
                 }
+            } else if let Destination::Rejoin { context, start } = &queued.destination {
+                let (context, start, deadline) = (context.clone(), *start, queued.deadline);
+                match self
+                    .local_runtime
+                    .clone()
+                    .ok_or_else(|| io::Error::other("no local Session"))
+                    .and_then(|runtime| {
+                        let cancel = Arc::new(OwnedCancellation::new()?);
+                        let worker_cancel = cancel.clone();
+                        let (task, result) = spawn_attempt(self.wakeup.clone(), move || {
+                            rejoin(&runtime, deadline, start, &worker_cancel)
+                        })?;
+                        Ok((cancel, task, result))
+                    }) {
+                    Ok((cancel, task, result)) => {
+                        self.attempt = Some(Attempt {
+                            profile: None,
+                            context,
+                            cancel,
+                            task,
+                            result,
+                        })
+                    }
+                    Err(_) => self.fail_selection(view, "failed"),
+                }
             } else if let Some(connection) = match &queued.profile {
                 Some(profile) => self.discovery.connection(profile, now),
                 None => self.local_source(surface),
             } {
                 let Destination::Startup(context) = queued.destination else {
-                    unreachable!("verified Agent destinations are handled without a new Session");
+                    unreachable!("verified Agent and rejoin destinations start no selection here");
                 };
                 let direct_agent = self
                     .selection_scope
@@ -901,6 +1028,13 @@ impl Manager {
                 candidate
                     .session
                     .configure_agent_notifications(0, self.template.notifications.policy());
+                // The local surface that comes back keeps offering updates.
+                if self.reattach
+                    && candidate.profile.is_none()
+                    && let Some(updater) = surface.active().take_updater()
+                {
+                    candidate.session.offer_updates(updater);
+                }
                 let next = Cached {
                     profile: candidate.profile,
                     surface: Box::new(candidate.session),
@@ -913,6 +1047,9 @@ impl Manager {
                 self.candidate = Some(candidate);
             }
         }
+        change.redraw |= surface
+            .active()
+            .set_rejoining(self.current.is_none() && self.reattaching());
         let busy = self.selection_current(view)
             && (self.attempt.is_some() || self.candidate.is_some() || self.queued.is_some());
         change.redraw |= busy != view.machines.busy || change.switched;
@@ -943,7 +1080,7 @@ impl Manager {
                     Destination::Startup(Some(ClientStartupTarget::Context(target))) => target,
                     Destination::Startup(Some(ClientStartupTarget::Agent(target)))
                     | Destination::VerifiedAgent(target) => target.destination(),
-                    Destination::Startup(_) => return None,
+                    Destination::Startup(_) | Destination::Rejoin { .. } => return None,
                 },
             ),
             (None, Some(attempt)) => (

@@ -166,7 +166,9 @@ mod registered_child;
 pub use activation_record::{ActivationState, RetainedActivationRecord};
 pub use registered_child::{SessionChild, SessionChildStep, spawn_session_child};
 mod durable_sessions;
-pub use durable_sessions::{Fenced, HostPresence, RetainedSessionRecord, Successor};
+pub use durable_sessions::{
+    Fenced, HostPresence, RetainedSessionRecord, Successor, session_moved_to,
+};
 #[cfg(windows)]
 mod exact_process;
 #[cfg(windows)]

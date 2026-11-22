@@ -267,6 +267,16 @@ impl Updater {
         UpdateSwitch::Leave
     }
 
+    /// Leaves for the store's active version when it is newer than this Client, as a click does,
+    /// once the Session this Client showed moved to it: no Session is left to join.
+    pub(crate) fn leave_for_move(&mut self) -> bool {
+        let UpdateControl::Ready { version } = &self.control else {
+            return false;
+        };
+        self.leaving.set(version.clone());
+        true
+    }
+
     /// Where a click records the version it leaves for.
     pub fn departure(&self) -> UpdateDeparture {
         self.leaving.clone()

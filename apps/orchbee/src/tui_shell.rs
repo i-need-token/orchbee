@@ -979,6 +979,11 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                     dispatcher.invalidate_hit_map(old);
                 });
                 redraw |= change.redraw;
+                if change.leave {
+                    // The idle move ended the local Session to run a newer version, which this
+                    // TUI leaves for as a click on Update does.
+                    return Ok(LoopExit::User);
+                }
                 if change.switched {
                     surface.active().set_ui_wakeup(Some(wakeup.clone()));
                     dispatcher.machine_surface_changed();
@@ -1562,6 +1567,23 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
         true
     }
 
+    /// The local Session's runtime folder, for a surface started on this computer's Session.
+    fn local_runtime(&self) -> Option<std::path::PathBuf> {
+        None
+    }
+    /// Whether the lost connection's status says it is coming back; true when that changed.
+    fn set_rejoining(&mut self, _rejoining: bool) -> bool {
+        false
+    }
+    /// Leaves for the store's active version once the idle move ended this surface's Session.
+    fn leave_for_moved_session(&mut self) -> bool {
+        false
+    }
+    /// Hands the update offer to the surface that replaces this one.
+    fn take_updater(&mut self) -> Option<crate::release_update::Updater> {
+        None
+    }
+
     /// Whether the user exit leaves for a newer version, which names its own next step.
     fn leaves_for_update(&self) -> bool {
         false
@@ -1644,6 +1666,18 @@ impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     fn leaves_for_update(&self) -> bool {
         crate::workbench_client::WorkbenchClient::leaves_for_update(self)
+    }
+    fn local_runtime(&self) -> Option<std::path::PathBuf> {
+        crate::workbench_client::WorkbenchClient::local_runtime(self).map(std::path::Path::to_owned)
+    }
+    fn set_rejoining(&mut self, rejoining: bool) -> bool {
+        crate::workbench_client::WorkbenchClient::set_rejoining(self, rejoining)
+    }
+    fn leave_for_moved_session(&mut self) -> bool {
+        crate::workbench_client::WorkbenchClient::leave_for_moved_session(self)
+    }
+    fn take_updater(&mut self) -> Option<crate::release_update::Updater> {
+        crate::workbench_client::WorkbenchClient::take_updater(self)
     }
     fn navigate_agent(
         &mut self,

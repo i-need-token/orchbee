@@ -36,6 +36,7 @@ const PENDING_INPUT_LIMIT_BYTES = 64 * 1024 * 1024;
  * Client then decides; a process that stops taking input past its bound ends this connection alone.
  */
 export class ServerConnectionRelay {
+	readonly #onLost: () => void;
 	readonly #port: ServerConnectionPort;
 	readonly #process: ServerConnectProcess;
 	readonly #recordEvent: DesktopDiagnosticRecorder;
@@ -44,11 +45,14 @@ export class ServerConnectionRelay {
 	#refusalRecorded = false;
 	#unreadOutput = 0;
 
+	/** `onLost` runs once when the process ends the connection before Main or the page closed it. */
 	constructor(
 		process: ServerConnectProcess,
 		port: ServerConnectionPort,
 		recordEvent: DesktopDiagnosticRecorder,
+		onLost: () => void = () => undefined,
 	) {
+		this.#onLost = onLost;
 		this.#port = port;
 		this.#process = process;
 		this.#recordEvent = recordEvent;
@@ -67,7 +71,11 @@ export class ServerConnectionRelay {
 		);
 		port.on('close', () => this.close());
 		process.stdout.on('data', (chunk: Buffer) => this.#relayOutput(chunk));
-		process.stdout.once('close', () => this.close());
+		process.stdout.once('close', () => {
+			if (this.#closed) return;
+			this.close();
+			this.#onLost();
+		});
 		process.stdout.on('error', () => this.close());
 		process.stdin.on('error', () => this.close());
 		process.once('error', () => this.close());

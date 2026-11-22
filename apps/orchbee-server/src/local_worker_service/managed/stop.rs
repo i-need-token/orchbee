@@ -160,7 +160,7 @@ pub(super) fn run(
             return handover::leave(owners, clients, &shutdown);
         };
         #[cfg(target_os = "macos")]
-        let work = next_work(&mut owners, &shutdown, own, &clients, &mut idle, watch);
+        let work = next_work(&mut owners, &shutdown, own, &mut idle, watch);
         #[cfg(all(unix, not(target_os = "macos")))]
         let work = next_work(&mut owners, &shutdown, own, watch);
         let attempt = match work {
@@ -224,7 +224,15 @@ pub(super) fn run(
         if Instant::now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());
         }
-        owners.session_record.complete(attempt.id.bytes())?;
+        // A stop the idle move began names the version the Session moved to, so a Client that
+        // lost this Server starts that version.
+        #[cfg(any(windows, target_os = "macos"))]
+        let moved_to = idle.moved_to(attempt.id);
+        #[cfg(all(unix, not(target_os = "macos")))]
+        let moved_to = None;
+        owners
+            .session_record
+            .complete_moving(attempt.id.bytes(), moved_to)?;
         owners.record.complete(attempt.id.bytes())?;
         drop(owners.lifetime);
         #[cfg(unix)]
@@ -516,7 +524,7 @@ fn next_work(
         {
             shutdown.begin(id);
         }
-        idle.tick(owners, shutdown, clients);
+        idle.tick(owners, shutdown);
     }
 }
 
@@ -528,7 +536,6 @@ fn next_work(
     owners: &mut Owners,
     shutdown: &SessionShutdown,
     own: StopId,
-    #[cfg(target_os = "macos")] clients: &local_client_service::ManagedClients,
     #[cfg(target_os = "macos")] idle: &mut idle::IdleMove,
     mut watch: Watch<'_>,
 ) -> Work {
@@ -540,7 +547,7 @@ fn next_work(
             begin_own(shutdown, own);
         }
         #[cfg(target_os = "macos")]
-        idle.tick(owners, shutdown, clients);
+        idle.tick(owners, shutdown);
     }
 }
 

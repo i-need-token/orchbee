@@ -74,7 +74,11 @@ impl Cohort {
 }
 pub(super) enum Absence {
     Runtime,
-    Endpoint,
+    /// No Server answers; `moved_to` is the store's active version the idle move ended the
+    /// Session to run, when its record says so.
+    Endpoint {
+        moved_to: Option<String>,
+    },
 }
 pub(super) enum Server {
     Observed(QueryResult),
@@ -187,10 +191,17 @@ impl Report {
             }),
             Self::Server(report) => {
                 let server = match &report.server {
-                    Server::Absent(reason) => json!({"state":"not-running","reason":match reason {
-                        Absence::Runtime => "runtime-absent",
-                        Absence::Endpoint => "endpoint-absent",
-                    }}),
+                    Server::Absent(Absence::Runtime) => {
+                        json!({"state":"not-running","reason":"runtime-absent"})
+                    }
+                    Server::Absent(Absence::Endpoint { moved_to: None }) => {
+                        json!({"state":"not-running","reason":"endpoint-absent"})
+                    }
+                    Server::Absent(Absence::Endpoint {
+                        moved_to: Some(version),
+                    }) => {
+                        json!({"state":"not-running","reason":"endpoint-absent","movedTo":version})
+                    }
                     Server::Observed(result) => json!({"state":"running",
                         "restartKeepsTerminals":result.restart_keeps_terminals(),
                         "processes":result.processes().iter().map(|entry| process(entry, true)).collect::<Vec<_>>()}),
@@ -249,6 +260,9 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
                         ("scope", &value["scope"]),
                         ("endpoint", &value["endpoint"]),
                     ];
+                    if value["server"]["movedTo"].is_string() {
+                        entries.push(("movedTo", &value["server"]["movedTo"]));
+                    }
                     entries.extend(processes.iter().map(|(label, value)| (*label, value)));
                     if !processes.is_empty() {
                         entries.push((

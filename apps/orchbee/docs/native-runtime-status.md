@@ -113,7 +113,8 @@ successful response lists the processes the responding same-user Server reports,
 from the querying Client or inferred from a pipe name. `orchbee.status.server` holds the scope,
 runtime directory, endpoint, the querying Client's `clientVersion`, and `server`: `not-running`
 with reason `runtime-absent` or `endpoint-absent`, or `running` with `restartKeepsTerminals` and
-`processes`. On Windows the scope is the Session name, the name of its runtime folder, and the read
+`processes`. A `not-running` Session the automatic update's idle move ended carries `movedTo`, the
+installed version it moved to, which the next start runs; a person's stop or a crash carries none. On Windows the scope is the Session name, the name of its runtime folder, and the read
 does not activate a missing named Session.
 
 | Field      | Contract                                                                                                                                                                                                               |

@@ -23,10 +23,13 @@ use orchbee_local_runtime::{
 };
 use std::{
     io,
-    path::PathBuf,
+    path::{Path, PathBuf},
     thread,
     time::{Duration, Instant},
 };
+
+/// How often a Client that lost its local Server tries again while it waits for one.
+const REJOIN_PAUSE: Duration = Duration::from_millis(250);
 
 /// How long an activation that met a Server ending by a stop waits before it looks again. The stop
 /// refuses every look until it ends, so a shorter pause would only add work to the ending Server.
@@ -326,6 +329,61 @@ fn activate(
             runtime_directory: session.runtime_directory().to_owned(),
             restore_notice,
         });
+    }
+}
+
+/// What a Client that lost its local Server found while it waited.
+pub enum Rejoined {
+    /// A Server serves the Session again: the one a restart handed it to, or one someone started.
+    Joined(LocalClient),
+    /// The idle move ended the Server to move the Session to the store's active version, and no
+    /// Server serves it until a Client starts one.
+    Moved,
+}
+
+/// Waits until `deadline` for a Server to serve the local Session whose runtime folder is
+/// `runtime` again, connecting only: it never starts one. A Session the idle move ended answers
+/// [`Rejoined::Moved`], so the caller starts the store's active version. `cancelled` ends the wait.
+pub fn rejoin_local_session(
+    runtime: &Path,
+    deadline: Instant,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Rejoined, ActivationFailure> {
+    let cohort = Cohort::current_with_diagnostic(deadline).map_err(|error| {
+        ActivationFailure::caused(
+            failure(error.kind(), StartupFailure::Cohort),
+            ActivationCause::Cohort(error),
+        )
+    })?;
+    let (Some(base), Some(scope)) = (
+        runtime.parent(),
+        runtime.file_name().and_then(|name| name.to_str()),
+    ) else {
+        return Err(ActivationFailure::bare(StartupFailure::Runtime));
+    };
+    let scope =
+        SessionScope::parse(scope).map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
+    let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+        .map_err(|_| runtime_location_failure(io::ErrorKind::NotFound.into()))?;
+    loop {
+        if cancelled() {
+            return Err(ActivationFailure::bare(StartupFailure::TimedOut));
+        }
+        check_deadline(deadline)?;
+        // A runtime folder that cannot be admitted now reads as no Server yet.
+        if let Ok(session) =
+            ModeCheckedLocalSessionRendezvous::validate_mode_checked(base, scope.clone())
+            && let Reached::Client(client) = connect(&session, &cohort, deadline)?
+        {
+            return Ok(Rejoined::Joined(client));
+        }
+        if matches!(
+            orchbee_local_runtime::session_moved_to(&root, runtime),
+            Ok(Some(_))
+        ) {
+            return Ok(Rejoined::Moved);
+        }
+        wait(deadline, REJOIN_PAUSE)?;
     }
 }
 

@@ -193,21 +193,20 @@ fn a_signal_begins_the_own_stop_or_retries_the_failed_one_whoever_recorded_it() 
 #[test]
 fn an_idle_stop_begins_only_with_nothing_admitted() {
     let id = StopId::new([9; 16]).unwrap();
-    // An admitted record, a Client the check sees, or a drain each refuse the idle stop.
+    // An admitted record or a drain each refuse the idle stop.
     let state = SessionShutdown::default();
     let record = state.enter().unwrap();
-    assert!(!state.begin_idle(id, || true));
+    assert!(!state.begin_idle(id));
     drop(record);
-    assert!(!state.begin_idle(id, || false));
     let drained = SessionShutdown::default();
     drained.drain();
-    assert!(!drained.begin_idle(id, || true));
+    assert!(!drained.begin_idle(id));
     // Once begun, the stop is the owner's next work and every later Client is refused.
-    assert!(state.begin_idle(id, || true));
+    assert!(state.begin_idle(id));
     assert!(state.enter().is_none());
     assert_eq!(attempt(&state).id, id);
     // An idle stop never replaces a stop already recorded.
-    assert!(!state.begin_idle(StopId::new([8; 16]).unwrap(), || true));
+    assert!(!state.begin_idle(StopId::new([8; 16]).unwrap()));
 }
 
 #[test]
@@ -233,7 +232,7 @@ fn a_restart_hold_refuses_stops_intents_and_clients_that_do_not_reconnect() {
     assert!(state.enter_client(true).is_some());
     let terminal = state.enter().unwrap();
     assert!(state.enter_read().is_some());
-    assert!(!state.begin_idle(StopId::new([9; 16]).unwrap(), || true));
+    assert!(!state.begin_idle(StopId::new([9; 16]).unwrap()));
     let start = request(10, StopAction::Start);
     assert_eq!(state.request(&start).status, SessionStopStatus::NotRecorded);
     assert!(!state.stopping());

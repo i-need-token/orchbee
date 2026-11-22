@@ -344,6 +344,8 @@ pub struct WorkbenchClientView<'a> {
     projection_status: ClientProjectionStatus,
     retirement: Option<DisplayRetirement>,
     retirement_requested: bool,
+    /// The shell is bringing the retired local connection back.
+    rejoining: bool,
     board: Option<AgentBoardView<'a>>,
     worktree: Option<&'a crate::workbench_state::worktree_launch::Launcher>,
     copy_mode: Option<&'a super::copy_episode::CopyModeEpisodes>,
@@ -1298,6 +1300,11 @@ impl<'a> WorkbenchClientView<'a> {
         self.retirement
     }
 
+    /// Whether the shell is bringing this retired local connection back.
+    pub(crate) const fn rejoining(&self) -> bool {
+        self.rejoining && self.retirement.is_some()
+    }
+
     /// The Start Agent picker's read handle — `Some` only while the picker is
     /// open, so a closed picker never paints and never claims hits.
     pub const fn agent_board(&self) -> Option<&AgentBoardView<'a>> {
@@ -1358,6 +1365,7 @@ impl<'a> WorkbenchClientView<'a> {
             projection_status: ClientProjectionStatus::Empty,
             retirement: None,
             retirement_requested: false,
+            rejoining: false,
             board: None,
             copy_mode: None,
             attention: None,
@@ -1405,6 +1413,7 @@ impl<'a> WorkbenchClientView<'a> {
             projection_status,
             retirement: None,
             retirement_requested: false,
+            rejoining: false,
             board: None,
             copy_mode: None,
             attention: None,
@@ -1606,6 +1615,8 @@ pub(super) struct WorkbenchClientUi {
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
     retirement: Option<DisplayRetirement>,
+    /// The shell is bringing this retired local connection back.
+    rejoining: bool,
     retired_mailbox_seed: Option<super::mailbox::RetiredMailboxSeed>,
     retirement_poll_serial: Option<u64>,
     retired_peer: Option<crate::workbench_state::retired_membership::RetiredMembershipOrigin>,
@@ -1766,6 +1777,7 @@ impl WorkbenchClientUi {
             update_version: None,
             retirement_finalized: false,
             retirement: None,
+            rejoining: false,
             retired_mailbox_seed: None,
             retirement_poll_serial: None,
             retired_peer: None,
@@ -1810,6 +1822,7 @@ impl WorkbenchClientUi {
             projection_status: focus_status,
             retirement: self.retirement,
             retirement_requested: self.retirement_failure.is_some(),
+            rejoining: self.rejoining,
             board: self.agent_board_view(),
             copy_mode: Some(&self.copy_mode),
             attention: Some(&self.attention),
@@ -1979,6 +1992,13 @@ impl WorkbenchClientUi {
                             | ClientPhaseKind::RetryableAttachUnavailable
                     )
                 }))
+    }
+
+    /// Whether the lost connection's status says it is coming back; true when that changed.
+    pub(super) fn set_rejoining(&mut self, rejoining: bool) -> bool {
+        let changed = self.rejoining != rejoining;
+        self.rejoining = rejoining;
+        changed && self.retirement.is_some()
     }
 
     pub(super) const fn retirement_requested(&self) -> bool {

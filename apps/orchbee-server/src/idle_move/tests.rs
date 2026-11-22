@@ -66,9 +66,8 @@ fn the_stop_begins_after_one_unbroken_idle_minute_and_each_condition_restarts_it
     let mut checks = Checks::new(true, true, true);
     assert_eq!(run(&mut countdown, &mut checks, start, 0..=60, idle), [60]);
 
-    let found: [fn(&mut Activity); 4] = [
+    let found: [fn(&mut Activity); 3] = [
         |activity| activity.terminal = true,
-        |activity| activity.client = true,
         |activity| activity.helper = true,
         |activity| activity.operation = true,
     ];
@@ -94,7 +93,7 @@ fn the_stop_begins_after_one_unbroken_idle_minute_and_each_condition_restarts_it
 #[test]
 fn a_late_arrival_or_a_busy_worker_waits_a_new_minute_and_a_server_not_older_never_moves() {
     let start = Instant::now();
-    // A Client or record arriving after the last look refuses the begin; the next try is a full
+    // A record or launch arriving after the last look refuses the begin; the next try is a full
     // minute later.
     let mut countdown = Countdown::default();
     let mut checks = Checks::new(true, true, false);

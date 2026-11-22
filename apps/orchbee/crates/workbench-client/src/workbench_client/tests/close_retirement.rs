@@ -94,6 +94,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         origin: Some(origin),
         recovery_shutdown: None,
         updater: None,
+        local_runtime: None,
     };
     assert!(spin_with_draw(
         &mut workbench_client,

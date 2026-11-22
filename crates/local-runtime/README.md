@@ -460,11 +460,13 @@ a generation that adopts a running Host
 ([cold adoption](docs/windows-crash-recovery.md#cold-adoption)).
 
 Each store keeps an `extensions` object it reads as opaque and writes back unchanged, so a later
-release adds an optional field there without a migration. `session.json` reads two members itself:
-`exited`, the activation identifier that `RetainedSessionRecord::record_exit` writes for a Server
-`exit` once its Worker is gone, and `successor`, a restart's
-[successor entry](docs/windows-crash-recovery.md#successor-entry); a fresh generation starts
-without either. A record migrates only in a
+release adds an optional field there without a migration. `session.json` reads three members
+itself: `exited`, the activation identifier that `RetainedSessionRecord::record_exit` writes for a
+Server `exit` once its Worker is gone; `successor`, a restart's
+[successor entry](docs/windows-crash-recovery.md#successor-entry); and `moved_to`, the store's
+active version that `RetainedSessionRecord::complete_moving` writes with `Stopped` for a stop the
+idle move began, which `session_moved_to` reads without a lock for a Client that lost its Server. A
+fresh generation starts without any of them. A record migrates only in a
 process that writes it: the plugin registry when a writer changes it, and `session.json` when it is
 published, which outside the Server happens only after proving no Server of the Session runs.
 Workbench Client owns the machine and TUI position records, kept through `VersionedFile`, with the
