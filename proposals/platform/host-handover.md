@@ -1305,13 +1305,15 @@ evidence index.
   Worker it waits for the replacement's adoption.
 - A Session whose activator's Job refuses breakaway runs inside that Job, whose end ends every
   program, Keeper or not, as it does today.
-- A lower-integrity process of the same user can open the Keeper's pipe for reading and fill its
-  unadmitted connections 2 seconds at a time. That can delay an attach and leave terminals unheld,
-  but it sends no frame and ends no program.
-- No test runs a peer as another user beyond the anonymous token, or an elevated Session, which CI
-  does not run; the Keeper shares the pipe's DACL, label, and same-user check with the Host's
-  endpoint. Probe P1 and prototype 1 ran on one Windows build, so S6 and S8 repeat their checks
-  under a blocked read wherever their Windows suites run.
+- In a Session that is not elevated, a lower-integrity process of the same user can open the
+  Keeper's pipe for reading and fill its unadmitted connections 2 seconds at a time. That can delay
+  an attach and leave terminals unheld, but it sends no frame and ends no program.
+- No test runs a peer as another user beyond the anonymous token; the Keeper shares the pipe's DACL,
+  label, and same-user check with the Host's endpoint. The elevated Session is CI's: GitHub's
+  Windows runner runs elevated, where the Keeper's Low-integrity probe finds even a read-only open
+  denied by the High label, and the Keeper, link, and move witnesses pass there. Probe P1 and
+  prototype 1 ran on one Windows build, so S6 and S8 repeat their checks under a blocked read
+  wherever their Windows suites run.
 - H1's release freezes what an H1 Host does with a Keeper and as the old Host, because every later
   Keeper and Worker must serve H1's Hosts: its `keeper` offer, frames, and 2-second reply bound;
   `hello`, `hold` with its facts and handle encoding, `release`, `mark`, and `resume` with the

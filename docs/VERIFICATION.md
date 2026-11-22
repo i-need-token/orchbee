@@ -219,8 +219,8 @@ results remain unchanged.
   workstation, and none of those GitHub's Windows runner names in its log took over 25 s, so the
   bound leaves more than four times that. A 25-minute deadline bounds the whole `zig build test`
   run, including compilation and the native witnesses outside Zig's test runner. That runner is the
-  slowest host: with the moves between Hosts, its run took 15.0 to 17.7 minutes, and 18.9 with
-  their black-box run, so the bound leaves over six minutes above the slowest run. It stays inside
+  slowest host: with the moves between Hosts and their black-box run, seven runs took 10.9 to 16.8
+  minutes, so the bound leaves over eight minutes above the slowest run. It stays inside
   the CI job limits (30 minutes for `terminal-host-native`, whose earlier steps take about 2
   minutes, and 60 for the macOS `client-commands` job, which runs the tests after its Rust part) so
   the gate reports before CI cancels the job. Measurements: `windows-latest` and that workstation,
