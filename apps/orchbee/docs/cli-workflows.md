@@ -145,6 +145,11 @@ workflow, in phase order:
   Session back. The phase comes from the successor entry the command clears, the only trace a
   successor that was ended leaves: an entry that names a Worker means the running Server may have
   held the Session.
+- Run from a store version folder within ten minutes of a move, the command records the reserved
+  generation's start for the
+  [fallback after a failed move](../../../proposals/platform/automatic-updates.md#what-counts-and-who-records-it),
+  and after `takeover` or `open` that generation's failure: the new version could not take the
+  Session over or open it. A refusal, a failure in `check` and a timed-out wait count nothing.
 - The fixed deadline covers the whole command; a timed-out wait (exit 7) leaves the restart running.
 - Ctrl+C stops the wait only (exit 130); the restart continues by itself, and its successor or the
   running Server clears its entry.

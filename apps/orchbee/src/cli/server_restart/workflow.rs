@@ -9,16 +9,18 @@
 //! taking back the Session, or with no Server serving it. Only an endpoint found gone proves that
 //! no Server serves: one that does not answer in time may still have its Server. Cancelled or out of
 //! time once the successor runs, it stops waiting and leaves the restart to finish or fail by
-//! itself.
+//! itself. Run from a store version folder, it records the reserved generation's start and, when the
+//! new pair failed to take over or open, its failure for the fallback after a failed move.
 
 use super::{FailedPhase, Refusal, Restart};
 use crate::cli::console_interrupt::ArmedSignals;
 use orchbee_connection_handshake::{EnvironmentName, ProcessRole, ProcessState, QueryResult};
 use orchbee_local_client_protocol::ConnectClientError;
 use orchbee_local_runtime::{
-    Cohort, CohortArtifact, DataRoot, JobPlacement, LockAttempt, LogLevel, LogValue,
-    ModeCheckedLocalSessionRendezvous as Rendezvous, ModeCheckedSessionLock, RendezvousError,
-    RestartCleared, RestartRefusal, RestartReservation, SessionCatalog, SessionScope,
+    Cohort, CohortArtifact, DataRoot, FallbackEvent, FallbackRecorder, JobPlacement, LockAttempt,
+    LogLevel, LogValue, ModeCheckedLocalSessionRendezvous as Rendezvous, ModeCheckedSessionLock,
+    RendezvousError, RestartCleared, RestartRefusal, RestartReservation, SessionCatalog,
+    SessionScope, activation_text,
 };
 use std::{
     ffi::OsStr,
@@ -112,6 +114,12 @@ pub(super) fn restart(deadline: Instant, signals: &mut ArmedSignals) -> Restart 
         Err(_) => return Restart::Failed(FailedPhase::Start),
     };
     record_server_job(placement);
+    // The reserved generation is a start of this version, so its failure can count toward the
+    // fallback after a move; see `counts_as_failure`.
+    let generation = activation_text(&start.reservation.activation_id);
+    record_fallback(FallbackEvent::SessionStart {
+        activation: &generation,
+    });
     let pid = successor.id();
     let mut ask = Instant::now();
     loop {
@@ -124,7 +132,13 @@ pub(super) fn restart(deadline: Instant, signals: &mut ArmedSignals) -> Restart 
                 .code()
                 .and_then(|code| u32::try_from(code).ok())
                 .and_then(RestartRefusal::from_code);
-            return ended(&start, &session, &environment, &activation, refusal);
+            let outcome = ended(&start, &session, &environment, &activation, refusal);
+            if counts_as_failure(&outcome) {
+                record_fallback(FallbackEvent::SessionFailure {
+                    activation: &generation,
+                });
+            }
+            return outcome;
         }
         if Instant::now() >= deadline {
             return Restart::TimedOut;
@@ -367,6 +381,26 @@ fn ended(
         // the record cannot be read. The running Server serves either way.
         _ => FailedPhase::Takeover,
     })
+}
+
+/// Whether a successor's end counts as a failure of the reserved generation: it ended without
+/// naming a refusal, which it does only before the running Server prepared, and after it had started
+/// its Worker or committed, so the new version failed to take the Session over or to open it. A
+/// successor still running at the deadline counts nothing, and the store counts one generation's
+/// failure once, whoever else records it.
+fn counts_as_failure(outcome: &Restart) -> bool {
+    matches!(
+        outcome,
+        Restart::Failed(FailedPhase::Takeover | FailedPhase::Open)
+    )
+}
+
+/// Records `event` for the store this program runs from; a program outside a store version folder
+/// records nothing.
+fn record_fallback(event: FallbackEvent<'_>) {
+    if let Some(recorder) = FallbackRecorder::for_current_executable() {
+        recorder.record(event);
+    }
 }
 
 /// The namespace owner, waited for until `deadline`.
