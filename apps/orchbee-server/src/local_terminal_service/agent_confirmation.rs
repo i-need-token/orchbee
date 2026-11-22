@@ -123,22 +123,12 @@ pub(super) struct AgentConfirmations {
 }
 impl Default for AgentConfirmations {
     fn default() -> Self {
-        // A release build withholds automatic confirmation until it ships, as its registry
-        // withholds the settings: without layouts it reads no dialog, so it offers, shows and
-        // presses nothing, and every choice is refused as unavailable.
-        let layouts = if orchbee_local_runtime::is_release() {
-            None
-        } else {
-            let layouts = Layouts::bundled();
-            if layouts.is_err() {
-                eprintln!(
-                    "orchbee-server diagnostic component=agent-confirmation outcome=no-layouts"
-                );
-            }
-            layouts.ok()
-        };
+        let layouts = Layouts::bundled();
+        if layouts.is_err() {
+            eprintln!("orchbee-server diagnostic component=agent-confirmation outcome=no-layouts");
+        }
         Self {
-            layouts,
+            layouts: layouts.ok(),
             home: std::env::home_dir().and_then(|home| home.to_str().map(str::to_owned)),
             runs: Mutex::default(),
             changes: SessionChangeSource::default(),

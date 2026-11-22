@@ -72,15 +72,6 @@ export function readSetting<Key extends SettingKey>(
 	return snapshot === null ? settingDefault(key) : readSettingValue(snapshot.values, key);
 }
 
-/**
- * Whether the Server's build offers `key`: a release build withholds the keys of a feature it does
- * not ship yet and publishes no value for them, so a row for such a key is left out. Unknown, and
- * so left out, until the first snapshot arrives.
- */
-export function isSettingOffered(snapshot: SettingsSnapshot | null, key: SettingKey): boolean {
-	return snapshot !== null && Object.hasOwn(snapshot.values, key);
-}
-
 /** Whether the file itself sets `key`, which is what the changed-setting dot shows. */
 export function isSettingSet(snapshot: SettingsSnapshot | null, key: string): boolean {
 	return snapshot?.set.includes(key) ?? false;

@@ -105,8 +105,7 @@ confirmations the Server can answer, named by the Agent's product name: `agents.
 for Claude Code, `agents.auto_allow.codex` for Codex, `agents.auto_allow.gemini` for Gemini CLI,
 and `agents.auto_allow.opencode` for OpenCode. A switch reads and edits its key through the window's settings control and has no
 capability gate; the Server applies a change at once, and Off also stops an answer it had already
-decided. A Server whose build withholds the feature publishes no value for these keys, and the
-group is left out, as it is before the first snapshot. The group's closing line asks for more Agents in a GitHub issue and opens the project's
+decided. The group's closing line asks for more Agents in a GitHub issue and opens the project's
 issue page where the host wires an external browser; elsewhere it is text. The
 [Server contract](../../orchbee-server/docs/agent-confirmation.md) owns what is answered.
 

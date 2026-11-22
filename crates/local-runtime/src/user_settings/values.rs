@@ -2,7 +2,7 @@
 //! builds and a Client holding a copy of the file's values builds the same way.
 use super::{
     Scalar,
-    registry::{current_platform, find_setting, offered_settings},
+    registry::{SETTING_KEYS, current_platform, find_setting},
 };
 use orchbee_workbench_protocol::{
     SettingChange, SettingEntry, SettingEntryValue, SettingPath, SettingValue, SettingsSnapshot,
@@ -164,7 +164,7 @@ pub fn value_changes(
             None => {}
         }
     };
-    for setting in offered_settings() {
+    for setting in SETTING_KEYS {
         let Some(field) = UserSettingsField::carried_by(setting.path) else {
             continue;
         };
@@ -259,7 +259,7 @@ pub fn settings_values(
     let Ok(mut values) = serde_json::to_value(&defaults) else {
         return defaults;
     };
-    for setting in offered_settings() {
+    for setting in SETTING_KEYS {
         let Some(field) = UserSettingsField::carried_by(setting.path) else {
             continue;
         };

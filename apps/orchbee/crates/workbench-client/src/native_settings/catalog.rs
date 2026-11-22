@@ -323,18 +323,13 @@ impl Filter<'_> {
             Row::Foreground | Row::Background => self.custom_colors,
             Row::CompletionThreshold => self.completion_reminders,
             Row::AutomaticUpdates => self.unlisted || on_page("update.automatic"),
-            Row::AutoAllowClaude => self.unlisted || on_page("agents.auto_allow.claude"),
-            Row::AutoAllowCodex => self.unlisted || on_page("agents.auto_allow.codex"),
-            Row::AutoAllowGemini => self.unlisted || on_page("agents.auto_allow.gemini"),
-            Row::AutoAllowOpenCode => self.unlisted || on_page("agents.auto_allow.opencode"),
             _ => true,
         }
     }
 }
 
-/// Whether the settings registry marks `path` for the settings page in this build. A row that
-/// waits on its mark stays hidden until the key's feature ships, and a release build hides the
-/// rows of keys it withholds.
+/// Whether the settings registry marks `path` for the settings page. A row that waits on its mark
+/// stays hidden until the key's feature ships.
 fn on_page(path: &str) -> bool {
     let segments: Vec<&str> = path.split('.').collect();
     orchbee_local_runtime::find_setting(&segments).is_some_and(|setting| setting.page)

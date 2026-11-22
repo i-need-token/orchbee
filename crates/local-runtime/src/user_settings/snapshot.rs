@@ -3,9 +3,7 @@
 use super::{
     DiagnosticsCollector, Scalar, SettingsDiagnosticDisposition, SettingsDiagnostics,
     UserSettingsLoad,
-    registry::{
-        SETTING_PLATFORMS, SettingDefault, SettingValue, current_platform, offered_settings,
-    },
+    registry::{SETTING_KEYS, SETTING_PLATFORMS, SettingDefault, SettingValue, current_platform},
     user_config_has_child,
 };
 use orchbee_workbench_protocol::{
@@ -72,10 +70,10 @@ fn concrete(pattern: &str) -> bool {
     !pattern.contains('*') && !pattern.contains("<action>") && !pattern.contains("[]")
 }
 
-/// Every concrete path of a registered scalar key, `<platform>` spelled out for each platform. A
-/// key this build does not offer has no value, which tells a Client to show no row for it.
+/// Every concrete path of a registered scalar key, `<platform>` spelled out for each platform.
 fn scalar_paths() -> impl Iterator<Item = (String, &'static SettingDefault)> {
-    offered_settings()
+    SETTING_KEYS
+        .iter()
         .filter(|setting| {
             concrete(setting.path) && !matches!(setting.value, SettingValue::Structured(_))
         })

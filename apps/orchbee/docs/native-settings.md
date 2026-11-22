@@ -27,7 +27,7 @@ for the page, which the
 its slice 1 switch. Agents holds the resume switch and the Allow routine confirmations group: a
 described heading, one switch for each Agent type the Server can answer for
 (`agents.auto_allow.<agent>`), and a closing line inside the frame that asks for more Agents in a
-GitHub issue; a release build, whose registry withholds those keys, leaves the group out. The page's last line names More options in `config.toml` and
+GitHub issue. The page's last line names More options in `config.toml` and
 its path; a path too long for the line drops its leading folders first, so the file name stays.
 Text that does not fit its cells ends in the ellipsis at a grapheme boundary, counted in display
 cells, and every TUI description fits its row in a dialog 100 columns wide inside, which a window

@@ -4,7 +4,6 @@ export {
 	launchProfileRestore,
 } from './launch-profile-settings';
 export {
-	isSettingOffered,
 	isSettingSet,
 	isSettingsFileReadOnly,
 	readSetting,
