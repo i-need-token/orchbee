@@ -423,6 +423,11 @@ person's input behind. It counts whether or not it encodes to bytes: a click a p
 track still shows a person at the terminal. The Host records the content revision and its own
 monotonic time of the latest one.
 
+Pointer motion with no button held that encodes to bytes reaches a program that tracks the
+pointer. It is not a person's input, but such a program may move a highlight under the pointer
+without changing any text, so the frame a sender read may not yet show what the motion changed.
+The Host records its own monotonic time of the latest such motion when it is queued.
+
 The Host types the key only when all of these hold:
 
 1. The terminal runs and takes client input.
@@ -433,9 +438,12 @@ The Host types the key only when all of these hold:
 4. No screen-gated key was typed on this revision.
 5. No other client queue entry is pending. Host terminal replies do not count.
 6. No person's input was recorded at or after the first-seen revision.
-7. The latest person's input is at least the quiet time old on the Host's clock:
-   `screen_gate_quiet_milliseconds` in the constant registry's `protocol_limits`, 3000 ms. The
-   sender cannot shorten it, and the Host never waits for it.
+7. The latest person's input, and the latest pointer motion that reached the program, are each at
+   least the quiet time old on the Host's clock: `screen_gate_quiet_milliseconds` in the constant
+   registry's `protocol_limits`, 3000 ms. The sender cannot shorten it, and the Host never waits
+   for it. Within the quiet time a program has drawn what the motion changed, so a key decided on
+   a frame read before that is refused, and the sender reads a later frame and decides again; the
+   motion never makes the prompt a person's.
 
 Rules 3 to 7 are checked at preparation and again at publication, under the terminal and input
 locks that also order output commits and input writes, so no output and no input fits between the

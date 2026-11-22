@@ -237,10 +237,9 @@ test "screen gate: a click that encodes to nothing is a person; a focus report a
         var fixture: Fixture = .{};
         try fixture.init();
         defer fixture.deinit();
-        // Focus reporting and any-motion tracking are on, so both reach the program.
-        try fixture.output("\x1b[?1004h\x1b[?1003h\x1b[?1006h");
+        // Focus reporting is on, so the report reaches the program.
+        try fixture.output("\x1b[?1004h");
         try std.testing.expect(try fixture.runtime.enqueueFocusInput(true) > 0);
-        try std.testing.expect(try fixture.pointer(.{ .motion = .hover }) > 0);
         try waitForEmptyQueue(fixture.runtime);
         try fixture.expectTyped(fixture.freshKey());
     }
@@ -253,6 +252,26 @@ test "screen gate: a click that encodes to nothing is a person; a focus report a
         try std.testing.expectEqual(@as(usize, 0), try fixture.pointer(.{ .motion = .hover }));
         try fixture.expectTyped(fixture.freshKey());
     }
+}
+
+// OpenCode tracks every pointer move and moves its highlight to the option under the pointer
+// without changing the dialog's text. A move that reached it just before Orchbee's Enter turned
+// that Enter into "Allow always" on a frame the sender had read with "Allow once" highlighted.
+test "screen gate: a bare pointer move that reaches the program waits out the quiet time, but is no person" {
+    var fixture: Fixture = .{};
+    try fixture.init();
+    defer fixture.deinit();
+    try fixture.output("\x1b[?1003h\x1b[?1006h");
+    const first_seen = fixture.revision();
+    try std.testing.expect(try fixture.pointer(.{ .motion = .hover }) > 0);
+    try waitForEmptyQueue(fixture.runtime);
+    // The frame the sender read may not show yet what the move changed.
+    fixture.after(quiet - 1);
+    try fixture.expectRefused(error.ScreenPersonRecent, fixture.key(first_seen));
+    // By now the program has drawn it. The move changed nothing, and as it is no person's input
+    // the prompt is still the sender's.
+    fixture.after(1);
+    try fixture.expectTyped(fixture.key(first_seen));
 }
 
 // Every send ends by detaching its own attachment, a refused screen-gated send included. When
@@ -343,6 +362,20 @@ test "screen gate: publication repeats the rules against output and input after 
             return error.TestExpectedRefusal;
         } else |refusal| try std.testing.expect(refusal == error.ScreenInputPending or
             refusal == error.ScreenPersonInput);
+    }
+    {
+        var fixture: Fixture = .{};
+        try fixture.init();
+        defer fixture.deinit();
+        try fixture.output("\x1b[?1003h\x1b[?1006h");
+        var prepared = try fixture.runtime.prepareScreenGatedKeyInput(fixture.freshKey(), std.math.maxInt(usize));
+        defer prepared.deinit();
+        try std.testing.expect(try fixture.pointer(.{ .motion = .hover }) > 0);
+        // The move is still queued or already written; either way the key is refused.
+        if (prepared.commit()) |_| {
+            return error.TestExpectedRefusal;
+        } else |refusal| try std.testing.expect(refusal == error.ScreenInputPending or
+            refusal == error.ScreenPersonRecent);
     }
 }
 

@@ -2819,10 +2819,14 @@ capability names for it: `screen-gated-input`, which the Hosts of 0.1.0-beta.22 
 only name a Worker sends the key under.
 
 The input mutex owns the input record: the revision and monotonic time of the latest person's
-input, and the revision the last gated key was typed on. Publication of a client entry writes the
-record under the same lock that queues the entry, and a client input that encodes to no bytes
-writes it when it commits. A focus report and pointer motion with no button held leave it alone;
-a gated key records only where it was typed. The cleanup of an attachment that goes away is the
+input, the monotonic time of the latest pointer motion that reached the program, and the revision
+the last gated key was typed on. Publication of a client entry writes the record under the same
+lock that queues the entry, and a client input that encodes to no bytes writes it when it commits.
+A focus report leaves it alone. Pointer motion with no button held records only its time, and
+only when it encodes to bytes: it is no person's input, but a program that tracks the pointer may
+move a highlight under it, and the motion carries no revision of the frame it reached, so the
+quiet time after it refuses a key whatever frame that key names. A gated key records only where it
+was typed. The cleanup of an attachment that goes away is the
 Host's own bookkeeping, and every send ends with one, a refused gated key included: it writes the
 record only when it releases a key or a mouse button the attachment still held, and the focus
 report it may carry never does. A runtime that this Host launched starts with no
@@ -2833,7 +2837,7 @@ first-seen revision at or before the arrival screen, and rule 6 refuses it howev
 arrives; a prompt first seen after the arrival is answered once the quiet time since the arrival
 has passed. The old Host's record does not travel: every person's input there came before its
 quiesce and at or before the arrival revision, so the arrival record refuses at least every key
-the old record refused.
+the old record refused, its pointer motion included.
 
 Preparation samples the terminal's processes before it takes a lock, because a sample is too
 slow to hold the terminal mutex for; a failed sample refuses like a missing process. It then

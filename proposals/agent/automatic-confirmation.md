@@ -114,8 +114,9 @@ process id and creation time. The Host requires all of:
 4. No screen-gated key was already written on this revision.
 5. No other client input is queued.
 6. No person input was published at or after the first-seen revision.
-7. No person input was published in the last three seconds, by the Host's own clock. The quiet
-   time is a constant of the Host in the protocol's constant registry; a sender cannot shorten it.
+7. No person input, and no pointer motion that reached the program, was published in the last
+   three seconds, by the Host's own clock. The quiet time is a constant of the Host in the
+   protocol's constant registry; a sender cannot shorten it.
 
 Rules 3 to 7 are checked when the key is prepared and again at publication, in the same locked
 step as the write.
@@ -128,6 +129,20 @@ changing screen stop every later key for the same prompt. An input that encodes 
 whose program does not track the pointer: it shows a person is at this terminal. The Host owns
 this definition and the record of the last person input, its revision and its time. The Server
 keeps no record of its own and learns that a person was there from the refusal.
+
+**Pointer motion is not person input**, but it delays the key. OpenCode tracks every pointer move
+and moves its highlight to the option under the pointer without changing any text, so a move that
+reached it just before Orchbee's Enter could turn that Enter into "Always allow" on a frame the
+Server had read with "Allow once" highlighted. The Host therefore refuses a key while pointer
+motion that encoded to bytes reached the program within the quiet time, with the same refusal as
+a recent person input; the Server reads a later frame and decides again, and the prompt stays
+Orchbee's to answer. A rule on the frame alone, refusing only motion delivered at or after the
+revision the key names, would miss motion delivered just before that frame and drawn just after
+it, which the model's counterexample showed, and it would refuse every later key on a frame the
+motion did not change. Within the quiet time an Agent draws what a pointer move changed; this is
+the model's third assumption, and a layout is admitted only for an Agent that keeps it. Claude
+Code, Gemini CLI and Codex on Windows, as captured, do not ask for bare pointer motion, so for
+them the rule never fires.
 
 A refusal writes nothing, reserves nothing, and names the first rule that failed. The Server never
 resends a refused key. What it does next depends on the rule:
@@ -205,32 +220,39 @@ checks:
 | Once per prompt   | At most one key is written for one prompt the Agent raised                                                                                                                             |
 | Person first      | No key is written once a person typed or clicked after the prompt was first seen, or behind a person's key the Agent has not read                                                      |
 | Accept key only   | Every key Orchbee wrote is the accept key of a matched prompt                                                                                                                          |
+| Accepted once     | No key Orchbee wrote confirms a highlight that a person's key or a pointer move took off the one-time accept                                                                           |
 | Lands where aimed | A key is read by a prompt other than the one it was written for only when that prompt was resolved without a key while the key was unread: the first limit above, stated as a property |
 | Off means off     | Once the Host has confirmed Off, no key is written until it is turned on again, whatever was decided before and however late it arrives; and nothing is decided while it is off        |
 | Repeats stop      | At most three keys are written for one unchanged prompt identity in one run                                                                                                            |
 
-The model runs as four bounded variants. Three allow one press per prompt identity under every
-fault: a person typing and clicking, a key that goes astray between two prompts, and turning off
-with keys on their way. The fourth counts presses up to the implementation's limit of three in a
-run without faults. Removing the first-seen rule or the quiet time makes Person first fail, and
-removing the hold makes Off means off fail. Rule 4 of the gate is a backstop against a faulty
+The model runs as five bounded variants. Four allow one press per prompt identity under every
+fault: a person typing and clicking, pointer moves that take the highlight away and back, a key
+that goes astray between two prompts, and turning off with keys on their way. The fifth counts
+presses up to the implementation's limit of three in a run without faults. Removing the
+first-seen rule or the quiet time makes Person first fail, removing the quiet time after a
+pointer move makes Accepted once fail, and removing the hold makes Off means off fail. Rule 4 of the gate is a backstop against a faulty
 sender; the modeled Server never needs it.
 
 The model treats layout matching and the path check as one pure function from a screen to
 routine, hold, or not a prompt; a command is not judged. Those are deterministic transformations
 and are covered by rule tests over captured screens and path tables, as
 [Modeling and Correctness](../../docs/MODELING-AND-CORRECTNESS.md) assigns them. Durations are
-reduced to what they guard: the settle to a count of captures, and the quiet time to a flag that
-clears only under the second assumption below.
+reduced to what they guard: the settle to a count of captures, and each quiet time to a flag that
+clears only under the second or third assumption below. A person's key or a pointer move may take
+the highlight off the one-time accept and a later one bring it back, and a prompt that left the
+screen may come back keeping the revision at which it was first seen.
 
-The model writes two assumptions about Agents into its actions, and a layout is admitted only for
-an Agent that keeps them:
+The model writes three assumptions about Agents into its actions, and a layout is admitted only
+for an Agent that keeps them:
 
-- An Agent removes a prompt it drew only by resolving it. The Server therefore starts a new
-  prompt only after it has seen the terminal without the pressed prompt, and gives a prompt whose
-  identity equals the last pressed one three seconds to settle instead of one.
+- An Agent removes a prompt it drew only by resolving it or by moving its highlight. The Server
+  therefore starts a new prompt only after it has seen the terminal without the pressed prompt,
+  and gives a prompt whose identity equals the last pressed one three seconds to settle instead
+  of one.
 - Within the quiet time an Agent reads a pending key and draws what that key changed. Without
   this, a person's key that the Agent has read but not yet shown could be followed by Orchbee's.
+- Within the quiet time an Agent reads a pending pointer move and draws what that move changed.
+  Without this, Orchbee's key could confirm a highlight a move took off the one-time accept.
 
 ## Layouts
 

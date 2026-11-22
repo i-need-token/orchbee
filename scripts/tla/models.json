@@ -229,6 +229,8 @@
 				"Spontaneous",
 				"PersonType",
 				"HostQuiet",
+				"PointerMove",
+				"PointerQuiet",
 				"TurnOn",
 				"TurnOff",
 				"Capture",
@@ -247,6 +249,20 @@
 						"MaxInst": 1,
 						"MaxRev": 3,
 						"MaxPerson": 2,
+						"MaxPointer": 0,
+						"MaxMsg": 2,
+						"PressLimit": 1,
+						"Orderly": false
+					}
+				},
+				{
+					"name": "pointer",
+					"constants": {
+						"TwoIdentities": false,
+						"MaxInst": 1,
+						"MaxRev": 4,
+						"MaxPerson": 0,
+						"MaxPointer": 2,
 						"MaxMsg": 2,
 						"PressLimit": 1,
 						"Orderly": false
@@ -259,6 +275,7 @@
 						"MaxInst": 2,
 						"MaxRev": 4,
 						"MaxPerson": 0,
+						"MaxPointer": 0,
 						"MaxMsg": 2,
 						"PressLimit": 1,
 						"Orderly": false
@@ -271,6 +288,7 @@
 						"MaxInst": 1,
 						"MaxRev": 3,
 						"MaxPerson": 1,
+						"MaxPointer": 0,
 						"MaxMsg": 3,
 						"PressLimit": 1,
 						"Orderly": false
@@ -283,6 +301,7 @@
 						"MaxInst": 4,
 						"MaxRev": 9,
 						"MaxPerson": 0,
+						"MaxPointer": 0,
 						"MaxMsg": 4,
 						"PressLimit": 3,
 						"Orderly": true

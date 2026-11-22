@@ -128,6 +128,10 @@ pub fn publishPreparedInput(
             self.screen_gate_input.noteTyped(gate.revision);
         } else if (!expectations.unattended) {
             notePersonInputLocked(self);
+        } else if (expectations.mouse_input_epoch != null) {
+            // Pointer motion without a button is no person's input, but it
+            // reached a program that tracks the pointer.
+            self.screen_gate_input.notePointer(clock.monotonicTimeNanoseconds(self));
         }
     }
     commitPreparedInputOwnershipLocked(self, ownership);

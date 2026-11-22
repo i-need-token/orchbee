@@ -130,7 +130,9 @@ rules come from how it draws:
 - Its three options differ only in colour, and a mouse moving over the dialog with no button
   pressed selects the option under it with no change to the text. The layouts read a dialog only
   while "Allow once" is drawn apart from the two others; "Always allow" selected also changes the
-  text above the options.
+  text above the options. A move can reach OpenCode after the frame a decision read and before
+  the key, so the Terminal Host refuses a key within its quiet time after pointer motion reached
+  the program, and the run reads a later frame and decides again.
 - The box is at most 15 rows tall and cuts a longer command with no mark: after its sixth row
   where the keys have a row of their own, after its eighth where they sit beside the options from
   80 columns on. Such a dialog is read with the rows it shows. In a Panel shorter than the box its

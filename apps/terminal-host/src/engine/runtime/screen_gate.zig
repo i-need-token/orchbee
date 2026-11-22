@@ -32,6 +32,12 @@ pub const PersonInput = struct {
     at_nanoseconds: ?u64,
 };
 
+/// When pointer motion without a button last reached the program.
+pub const PointerInput = struct {
+    /// Null when the runtime had no clock; such motion never grows old.
+    at_nanoseconds: ?u64,
+};
+
 /// What the runtime remembers about client input. Every client input is a
 /// person's, whether or not it encodes to bytes, except a focus report,
 /// pointer motion without a button, a screen-gated key, and the cleanup of an
@@ -41,6 +47,10 @@ pub const InputRecord = struct {
     /// person had acted on every screen. A launched terminal starts as
     /// `launched`, a restored one with a person's input on its arrival screen.
     person: ?PersonInput = .{ .revision = std.math.maxInt(u64), .at_nanoseconds = null },
+    /// Pointer motion without a button that reached the program. It is not a
+    /// person's input, but a program that tracks the pointer may move a
+    /// highlight under it, so a key waits until the program has drawn that.
+    pointer: ?PointerInput = null,
     /// The revision the last screen-gated key was typed on.
     typed_revision: ?u64 = null,
 
@@ -49,6 +59,10 @@ pub const InputRecord = struct {
 
     pub fn notePerson(self: *InputRecord, revision: u64, now_nanoseconds: ?u64) void {
         self.person = .{ .revision = revision, .at_nanoseconds = now_nanoseconds };
+    }
+
+    pub fn notePointer(self: *InputRecord, now_nanoseconds: ?u64) void {
+        self.pointer = .{ .at_nanoseconds = now_nanoseconds };
     }
 
     pub fn noteTyped(self: *InputRecord, revision: u64) void {
@@ -77,9 +91,22 @@ pub fn check(gate: Gate, screen: Screen, record: InputRecord, own_entries: usize
         if (typed == gate.revision) return error.ScreenAlreadyTyped;
     }
     if (screen.pending_entries != own_entries) return error.ScreenInputPending;
-    const person = record.person orelse return;
-    if (person.revision >= gate.first_revision) return error.ScreenPersonInput;
-    const at = person.at_nanoseconds orelse return error.ScreenPersonRecent;
-    const now = screen.now_nanoseconds orelse return error.ScreenPersonRecent;
-    if (now -| at < quiet_nanoseconds) return error.ScreenPersonRecent;
+    if (record.person) |person| {
+        if (person.revision >= gate.first_revision) return error.ScreenPersonInput;
+        if (!quietSince(person.at_nanoseconds, screen.now_nanoseconds)) return error.ScreenPersonRecent;
+    }
+    // Pointer motion delivered at or after the decided frame could have moved a
+    // highlight that frame does not show yet, and motion is not numbered by the
+    // frame it reached. Within the quiet time the program has drawn what the
+    // motion changed, and the sender reads that later frame and decides again.
+    if (record.pointer) |pointer| {
+        if (!quietSince(pointer.at_nanoseconds, screen.now_nanoseconds)) return error.ScreenPersonRecent;
+    }
+}
+
+/// Whether the quiet time has passed since `at`; never without both times.
+fn quietSince(at_nanoseconds: ?u64, now_nanoseconds: ?u64) bool {
+    const at = at_nanoseconds orelse return false;
+    const now = now_nanoseconds orelse return false;
+    return now -| at >= quiet_nanoseconds;
 }
