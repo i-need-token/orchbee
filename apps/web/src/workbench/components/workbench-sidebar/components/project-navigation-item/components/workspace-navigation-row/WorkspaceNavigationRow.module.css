@@ -166,7 +166,7 @@
 	background: var(--ob-sys-color-status-unread);
 }
 
-/* ⋯ and × end 4 px from the row's end and center on the name line (G21). */
+/* The row tools end 4 px from the row's end and center on the name line (G21). */
 .tools {
 	position: absolute;
 	top: var(--ob-ref-space-1);
@@ -184,13 +184,9 @@
 	visibility: visible;
 }
 
-.row[data-no-agents]:not(:has(.endInfo)) .tool[data-workspace-agent-launch],
-:global([data-workbench-touch]) .tool[data-workspace-agent-launch] {
-	visibility: visible;
-}
-
 :global([data-workbench-touch]) .tool[data-workspace-agent-launch] {
 	order: 1;
+	visibility: visible;
 }
 
 :global([data-workbench-touch]) .row[data-agent-launch] .endInfo {

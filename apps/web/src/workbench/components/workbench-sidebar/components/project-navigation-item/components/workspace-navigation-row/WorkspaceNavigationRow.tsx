@@ -197,7 +197,6 @@ export function WorkspaceNavigationRow({
 						<div
 							className={styles['row']}
 							data-agent-launch={agentMenu === undefined ? undefined : ''}
-							data-no-agents={agentOverview === undefined ? '' : undefined}
 							data-current={active || undefined}
 							data-navigation-reorder-row='true'
 							onClick={activate}
