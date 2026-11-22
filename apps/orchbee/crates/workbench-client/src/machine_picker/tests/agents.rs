@@ -526,3 +526,69 @@ fn agent_metadata_is_visible_without_changing_activation_identity() {
         })
     );
 }
+
+#[test]
+fn another_machines_agent_notifies_as_a_local_one_and_its_card_chooses_it() {
+    use crate::machine_agents::test_support::checkpoint;
+    use orchbee_workbench_protocol::{PanelAgentState, WorkbenchRevision};
+    let remote = profile(1, "devbox", true);
+    let choice = Choice::Remote(remote.id.clone());
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.replace(&[remote]);
+    let settings = orchbee_local_runtime::NotificationSettings::default();
+    let working = agent_row();
+    let mut done = working.clone();
+    done.state = PanelAgentState::Idle;
+    done.sequence = WorkbenchRevision::new(2);
+    let round = |row: &crate::machine_agents::checkpoint::Row| {
+        vec![(choice.clone(), Agents::Ready(checkpoint(vec![row.clone()])))]
+    };
+    let start = Instant::now();
+    picker.observe_agents(round(&working));
+    picker.observe_remote_notifications(&settings, start);
+    picker.observe_agents(round(&done));
+    picker.observe_remote_notifications(&settings, start);
+
+    // Due after the profile's delay, and only once a frame showed the change.
+    let due = start + Duration::from_secs(1);
+    assert!(
+        picker
+            .take_remote_notification(Locale::EnUs, true, due)
+            .is_none()
+    );
+    picker.after_draw_remote_notifications();
+    let (_, message, target) = picker
+        .take_remote_notification(Locale::EnUs, true, due)
+        .expect("the Agent on devbox finished its turn");
+    assert!(message.body.unwrap().contains("@devbox"));
+    let target = target.unwrap();
+    assert_eq!(target, done.target);
+
+    assert_eq!(picker.open_remote_agent(&target), Some(true));
+    assert_eq!(
+        picker.request.take(),
+        Some(Selection {
+            machine: choice.clone(),
+            context: Some(ClientStartupTarget::Agent(Box::new(done.target.clone()))),
+        })
+    );
+
+    // On screen, the machine's Agents are the Session's to notify and its card to open.
+    picker.cancel_selection();
+    picker.current = choice.clone();
+    let mut asks = done.clone();
+    asks.state = PanelAgentState::Blocked;
+    asks.sequence = WorkbenchRevision::new(3);
+    picker.observe_agents(round(&asks));
+    picker.observe_remote_notifications(&settings, due);
+    picker.after_draw_remote_notifications();
+    assert!(
+        picker
+            .take_remote_notification(Locale::EnUs, true, due + Duration::from_secs(1))
+            .is_none()
+    );
+    assert_eq!(picker.open_remote_agent(&asks.target), None);
+}

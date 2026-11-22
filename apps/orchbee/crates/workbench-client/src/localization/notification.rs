@@ -14,19 +14,21 @@ impl Locale {
         self,
         workspace: Option<&str>,
         project: Option<&str>,
-        tab: &str,
+        tab: Option<&str>,
         pane: &str,
     ) -> String {
         let location = workspace.or(project);
-        match (self, location) {
-            (Self::EnUs, Some(location)) => {
-                format!("Workspace {location} · Tab {tab} · Panel {pane}")
-            }
-            (Self::EnUs, None) => format!("Tab {tab} · Panel {pane}"),
-            (Self::ZhCn, Some(location)) => {
-                format!("工作区 {location} · 标签页 {tab} · 面板 {pane}")
-            }
-            (Self::ZhCn, None) => format!("标签页 {tab} · 面板 {pane}"),
-        }
+        let (workspace_word, tab_word, pane_word) = match self {
+            Self::EnUs => ("Workspace", "Tab", "Panel"),
+            Self::ZhCn => ("工作区", "标签页", "面板"),
+        };
+        // A Workspace's only Tab whose label was never set goes unnamed, as the sidebar leaves it.
+        location
+            .map(|location| format!("{workspace_word} {location}"))
+            .into_iter()
+            .chain(tab.map(|tab| format!("{tab_word} {tab}")))
+            .chain(std::iter::once(format!("{pane_word} {pane}")))
+            .collect::<Vec<_>>()
+            .join(" · ")
     }
 }

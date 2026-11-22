@@ -145,7 +145,7 @@ impl AgentAttention {
         sink_available: bool,
     ) -> Option<(
         orchbee_local_runtime::NotificationDelivery,
-        crate::workbench_client::agent_notifications::AgentNotificationCommand,
+        crate::agent_notifications::AgentNotificationCommand,
     )> {
         self.physical.take_notification(sink_available)
     }

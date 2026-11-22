@@ -14,10 +14,12 @@ mod agents;
 mod card;
 mod forget;
 mod login;
+mod login_notice;
 mod manage;
 mod moving;
 mod navigation;
 mod pointer;
+mod remote_notifications;
 mod sidebar;
 mod spaces;
 mod waiting;
@@ -25,6 +27,7 @@ mod workspace_query;
 pub use agents::Control;
 use agents::Navigation;
 pub(crate) use login::{LoginControl, LoginOverlay};
+pub(crate) use login_notice::LoginNotice;
 pub(crate) use manage::{
     AddForm, Check, MENU_KEY, Notice as ManageNotice, Page, Problem as ManageProblem,
 };
@@ -322,6 +325,8 @@ pub struct Picker {
     workspace_query: crate::terminal_text::line_editor::LineEditor,
     agent_rows: std::sync::Arc<[Row]>,
     agent_observations: Vec<(Choice, crate::machine_agents::checkpoint::Observation)>,
+    /// Counts the changes of `agent_observations`.
+    agent_revision: u64,
     agent_sources: Vec<(Choice, crate::machine_agents::checkpoint::Observation)>,
     agent_attention_key: Option<(Choice, Option<(u64, usize)>)>,
     agent_attention_refresh: bool,
@@ -373,6 +378,9 @@ pub struct Picker {
     moving: moving::Moving,
     /// The card over the terminals of a machine that is not connected.
     cards: card::Cards,
+    /// The machines that need a login and were seen on Settings › Machines since they began to.
+    login_seen: Vec<Choice>,
+    remote_notifications: remote_notifications::RemoteNotifications,
     /// The management pages, the Add row and the outcomes of managing saved Machines.
     manage: manage::Manage,
 }
@@ -410,6 +418,7 @@ impl Default for Picker {
             ),
             agent_rows: std::sync::Arc::from([]),
             agent_observations: Vec::new(),
+            agent_revision: 0,
             agent_sources: Vec::new(),
             agent_attention_key: None,
             agent_attention_refresh: false,
@@ -441,6 +450,8 @@ impl Default for Picker {
             waiting_deferred: None,
             moving: moving::Moving::default(),
             cards: card::Cards::default(),
+            login_seen: Vec::new(),
+            remote_notifications: Default::default(),
             manage: manage::Manage::default(),
         }
     }
@@ -658,6 +669,7 @@ impl Picker {
         }
         let selected = self.selection();
         self.agent_observations = observations;
+        self.agent_revision = self.agent_revision.wrapping_add(1);
         self.rebuild_workspaces(selected);
         true
     }

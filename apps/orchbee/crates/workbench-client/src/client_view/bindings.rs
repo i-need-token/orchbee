@@ -422,6 +422,7 @@ impl Bindings {
             pointer: label(PrefixDesc::PointerCapture),
             start_agent: label(PrefixDesc::StartAgent),
             confirmations: label(PrefixDesc::AgentConfirmations),
+            machines: label(PrefixDesc::Machines),
         }
     }
 }

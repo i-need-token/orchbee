@@ -374,6 +374,20 @@ pub fn render_terminal_shell_with_resize<'a>(
             {
                 secondary_notice = forms;
             }
+            // Saved machines need a login nobody is asked for.
+            if secondary_notice.is_empty()
+                && let Some(notice) = view.machines.login_notice()
+            {
+                secondary_notice = match notice {
+                    crate::machine_picker::LoginNotice::One(label) => locale.machines_need_login(
+                        Some(&crate::terminal_text::sanitize_terminal_text(label)),
+                        1,
+                    ),
+                    crate::machine_picker::LoginNotice::Many(count) => {
+                        locale.machines_need_login(None, count)
+                    }
+                };
+            }
             sidebar_status = phase_status.to_owned();
             if native.phase() == DisplayPhase::Ready
                 && native

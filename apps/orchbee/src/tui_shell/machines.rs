@@ -480,6 +480,9 @@ impl Manager {
                 .find(|machine| machine.id == id.as_str())
         });
         change.redraw |= view.machines.observe_card(card);
+        // Settings › Machines shows every machine that needs a login, so the status line's login
+        // notice goes once it shows.
+        change.redraw |= view.machines.observe_login_notice(settings == Some(true));
         // The status line says why no hub is reached, without hiding another message or a
         // selection in progress.
         let hub_message = self.discovery.hub_message();
@@ -495,9 +498,15 @@ impl Manager {
             change.redraw = true;
         }
         let mut agent_sources = Vec::new();
-        // Settings › Machines counts every machine's working Agents for its stop.
-        let every_machine =
-            view.machines.wants_agents() || view.machines.wants_spaces() || settings == Some(true);
+        // Settings › Machines counts every machine's working Agents for its stop, and the Agents
+        // on every machine notify.
+        let policy = view.notifications.policy();
+        let notifies = policy.agent_delivery != orchbee_local_runtime::NotificationDelivery::Off
+            || policy.sound_enabled;
+        let every_machine = view.machines.wants_agents()
+            || view.machines.wants_spaces()
+            || settings == Some(true)
+            || notifies;
         // The Windows Tab strip summarizes the attached machine's Agents without the Sidebar.
         let current = self.current.as_ref().map(|profile| profile.id.clone());
         let attached = |profile: Option<&Profile>| current.as_ref() == profile.map(|p| &p.id);
@@ -524,6 +533,9 @@ impl Manager {
             now,
             crate::machine_agents::read,
         ));
+        change.redraw |= view
+            .machines
+            .observe_remote_notifications(view.notifications.policy(), now);
         if self.agents.hinted(&choice(self.current.as_ref())) {
             surface.active().expedite_agent_reads();
         }

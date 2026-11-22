@@ -2634,6 +2634,17 @@ impl InputDispatcher {
             return false;
         };
         let target = target.clone();
+        // An Agent on another machine is chosen as its sidebar row is; a choice under way keeps
+        // the card for the next attempt.
+        match view.machines.open_remote_agent(&target) {
+            Some(false) => return false,
+            Some(true) => {
+                view.notifications.dismiss(token);
+                self.pointer.invalidate_map_with_port(port);
+                return true;
+            }
+            None => {}
+        }
         let opening = port.open_notification_target(&target);
         if opening == TargetOpening::Busy {
             // The busy notice answers; the card stays for the next attempt.

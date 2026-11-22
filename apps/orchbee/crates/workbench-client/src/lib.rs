@@ -6,6 +6,7 @@
 mod action_menu;
 mod action_projection;
 mod agent_board;
+mod agent_notifications;
 mod agent_provider;
 mod agent_runtime;
 mod agent_start;

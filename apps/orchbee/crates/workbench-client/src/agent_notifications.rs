@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 const MAXIMUM_OBSERVATIONS: usize = 4096;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum AgentNotificationState {
+pub(crate) enum AgentNotificationState {
     Idle,
     Done,
     Error,
@@ -16,14 +16,29 @@ pub(super) enum AgentNotificationState {
     Unknown,
 }
 
+impl AgentNotificationState {
+    pub(crate) const fn of(state: orchbee_workbench_protocol::PanelAgentState) -> Self {
+        use orchbee_workbench_protocol::PanelAgentState;
+        match state {
+            PanelAgentState::Idle => Self::Idle,
+            PanelAgentState::Done => Self::Done,
+            PanelAgentState::Error => Self::Error,
+            PanelAgentState::Working => Self::Working,
+            PanelAgentState::Blocked => Self::Blocked,
+            // An opening Agent has no turn yet, so it raises no notification.
+            PanelAgentState::Unknown | PanelAgentState::Opening => Self::Unknown,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum AgentNotificationKind {
+pub(crate) enum AgentNotificationKind {
     Done,
     Request,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(super) enum AgentSoundPolicy {
+pub(crate) enum AgentSoundPolicy {
     #[default]
     Default,
     On,
@@ -31,28 +46,28 @@ pub(super) enum AgentSoundPolicy {
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(super) struct AgentNotificationIdentity {
-    pub(super) presentation_id: String,
-    pub(super) generation: String,
-    pub(super) host_epoch: String,
-    pub(super) host_terminal_id: String,
+pub(crate) struct AgentNotificationIdentity {
+    pub(crate) presentation_id: String,
+    pub(crate) generation: String,
+    pub(crate) host_epoch: String,
+    pub(crate) host_terminal_id: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct AgentNotificationObservation {
-    pub(super) identity: AgentNotificationIdentity,
-    pub(super) sequence: u64,
-    pub(super) agent: Option<String>,
-    pub(super) state: AgentNotificationState,
-    pub(super) seen: bool,
+pub(crate) struct AgentNotificationObservation {
+    pub(crate) identity: AgentNotificationIdentity,
+    pub(crate) sequence: u64,
+    pub(crate) agent: Option<String>,
+    pub(crate) state: AgentNotificationState,
+    pub(crate) seen: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct AgentNotificationPolicy {
-    pub(super) delay_millis: u64,
-    pub(super) popup_enabled: bool,
-    pub(super) sound_enabled: bool,
-    pub(super) agent_sounds: BTreeMap<String, AgentSoundPolicy>,
+pub(crate) struct AgentNotificationPolicy {
+    pub(crate) delay_millis: u64,
+    pub(crate) popup_enabled: bool,
+    pub(crate) sound_enabled: bool,
+    pub(crate) agent_sounds: BTreeMap<String, AgentSoundPolicy>,
 }
 
 impl Default for AgentNotificationPolicy {
@@ -67,6 +82,31 @@ impl Default for AgentNotificationPolicy {
 }
 
 impl AgentNotificationPolicy {
+    /// The policy one validated notification profile asks for.
+    pub(crate) fn of(settings: &orchbee_local_runtime::NotificationSettings) -> Self {
+        use orchbee_local_runtime::AgentSoundSetting;
+        Self {
+            delay_millis: settings.delay_seconds.saturating_mul(1000),
+            popup_enabled: settings.agent_delivery
+                != orchbee_local_runtime::NotificationDelivery::Off,
+            sound_enabled: settings.sound_enabled,
+            agent_sounds: settings
+                .agent_sounds()
+                .iter()
+                .map(|(agent, setting)| {
+                    (
+                        agent.clone(),
+                        match setting {
+                            AgentSoundSetting::Default => AgentSoundPolicy::Default,
+                            AgentSoundSetting::On => AgentSoundPolicy::On,
+                            AgentSoundSetting::Off => AgentSoundPolicy::Off,
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
+
     fn sound_allowed(&self, agent: &str) -> bool {
         self.sound_enabled
             && self.agent_sounds.get(agent).copied().unwrap_or_default() != AgentSoundPolicy::Off
@@ -74,13 +114,13 @@ impl AgentNotificationPolicy {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct AgentNotificationCommand {
-    pub(super) identity: AgentNotificationIdentity,
-    pub(super) sequence: u64,
-    pub(super) agent: String,
-    pub(super) kind: AgentNotificationKind,
-    pub(super) popup: bool,
-    pub(super) sound: bool,
+pub(crate) struct AgentNotificationCommand {
+    pub(crate) identity: AgentNotificationIdentity,
+    pub(crate) sequence: u64,
+    pub(crate) agent: String,
+    pub(crate) kind: AgentNotificationKind,
+    pub(crate) popup: bool,
+    pub(crate) sound: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -103,7 +143,7 @@ struct Tracked {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(super) struct AgentNotificationScheduler {
+pub(crate) struct AgentNotificationScheduler {
     policy: AgentNotificationPolicy,
     configuration_revision: u64,
     draw_serial: u64,
@@ -113,7 +153,7 @@ pub(super) struct AgentNotificationScheduler {
 
 impl AgentNotificationScheduler {
     /// Installs one already-validated profile. Invalid reloads never call this boundary.
-    pub(super) fn configure(&mut self, revision: u64, policy: AgentNotificationPolicy) -> bool {
+    pub(crate) fn configure(&mut self, revision: u64, policy: AgentNotificationPolicy) -> bool {
         if self.retired || (self.configuration_revision == revision && self.policy == policy) {
             return false;
         }
@@ -126,7 +166,7 @@ impl AgentNotificationScheduler {
     }
 
     /// Publishes one complete physical round atomically at caller-supplied monotonic time.
-    pub(super) fn observe(
+    pub(crate) fn observe(
         &mut self,
         now_millis: u64,
         observations: Vec<AgentNotificationObservation>,
@@ -210,7 +250,7 @@ impl AgentNotificationScheduler {
     }
 
     /// A successful complete frame opens the zero-delay gate. Failed draws never call this.
-    pub(super) fn after_draw(&mut self) -> bool {
+    pub(crate) fn after_draw(&mut self) -> bool {
         if self.retired {
             return false;
         }
@@ -223,7 +263,7 @@ impl AgentNotificationScheduler {
     }
 
     /// Marks only an exact successfully painted physical version seen and cancels its candidate.
-    pub(super) fn acknowledge(
+    pub(crate) fn acknowledge(
         &mut self,
         identity: &AgentNotificationIdentity,
         sequence: u64,
@@ -243,7 +283,7 @@ impl AgentNotificationScheduler {
     }
 
     /// Cancels an exact successfully painted version without changing attention seen state.
-    pub(super) fn suppress_painted(
+    pub(crate) fn suppress_painted(
         &mut self,
         identity: &AgentNotificationIdentity,
         sequence: u64,
@@ -261,7 +301,7 @@ impl AgentNotificationScheduler {
     }
 
     /// Settles at most one ready candidate. Busy manual/user surfaces retain the candidate.
-    pub(super) fn take_ready(
+    pub(crate) fn take_ready(
         &mut self,
         now_millis: u64,
         sink_available: bool,
@@ -306,7 +346,7 @@ impl AgentNotificationScheduler {
 
     /// An observation gap drops every baseline and candidate. The next complete
     /// round is a fresh baseline, so no transition is inferred across the gap.
-    pub(super) fn unavailable(&mut self) -> bool {
+    pub(crate) fn unavailable(&mut self) -> bool {
         if self.retired || self.tracked.is_empty() {
             return false;
         }
@@ -314,7 +354,7 @@ impl AgentNotificationScheduler {
         true
     }
 
-    pub(super) fn retire(&mut self) {
+    pub(crate) fn retire(&mut self) {
         self.tracked.clear();
         self.retired = true;
     }

@@ -92,7 +92,7 @@ pub(crate) use workspace_close::{WorkspaceCloseStatus, WorkspaceCloseText};
 mod workspace_setup;
 pub(crate) use workspace_setup::{FieldError, SetupStage, SetupStatus, WorkspaceCreationPhase};
 mod worktree_launch;
-pub(crate) use shell::{CONFIRMATIONS_KEY_SLOT, ShellBindings, ShellText};
+pub(crate) use shell::{CONFIRMATIONS_KEY_SLOT, MACHINES_KEY_SLOT, ShellBindings, ShellText};
 pub(crate) use worktree_launch::{WorktreeFieldError, WorktreeMode, WorktreeNotice, WorktreeStage};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

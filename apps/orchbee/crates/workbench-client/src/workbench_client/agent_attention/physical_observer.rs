@@ -4,13 +4,13 @@ use super::{
     AgentReadLane, Instant, LaneCommand, LaneOutcome, LocalClientOrigin, LocalOperationClock,
     PhysicalRound, READ_BUDGET, READ_INTERVAL, ROUND_FRESH_FOR,
 };
-use crate::workbench_client::agent_notifications::{
+use crate::agent_notifications::{
     AgentNotificationCommand, AgentNotificationIdentity, AgentNotificationPolicy,
-    AgentNotificationScheduler, AgentSoundPolicy,
+    AgentNotificationScheduler,
 };
 use crate::workbench_client::agent_read_lane::LaneFailure;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
-use orchbee_local_runtime::{AgentSoundSetting, NotificationDelivery, NotificationSettings};
+use orchbee_local_runtime::{NotificationDelivery, NotificationSettings};
 
 pub(super) struct PhysicalObserver {
     pub(super) state: PhysicalAttentionState,
@@ -98,26 +98,9 @@ impl PhysicalObserver {
     ) -> bool {
         let delivery_changed = self.notification_delivery != settings.agent_delivery;
         self.notification_delivery = settings.agent_delivery;
-        let policy = AgentNotificationPolicy {
-            delay_millis: settings.delay_seconds.saturating_mul(1000),
-            popup_enabled: settings.agent_delivery != NotificationDelivery::Off,
-            sound_enabled: settings.sound_enabled,
-            agent_sounds: settings
-                .agent_sounds()
-                .iter()
-                .map(|(agent, setting)| {
-                    (
-                        agent.clone(),
-                        match setting {
-                            AgentSoundSetting::Default => AgentSoundPolicy::Default,
-                            AgentSoundSetting::On => AgentSoundPolicy::On,
-                            AgentSoundSetting::Off => AgentSoundPolicy::Off,
-                        },
-                    )
-                })
-                .collect(),
-        };
-        self.scheduler.configure(revision, policy) || delivery_changed
+        self.scheduler
+            .configure(revision, AgentNotificationPolicy::of(settings))
+            || delivery_changed
     }
 
     pub(super) fn notification_requires_card(&self) -> bool {

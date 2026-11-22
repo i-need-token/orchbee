@@ -1317,6 +1317,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         crate::notifications::sound(view.notifications.take_sound_after_draw());
     }
     dispatcher.publish_hit_map(hits.finish());
+    view.machines.after_draw_remote_notifications();
     let pointer_projection_redraw = dispatcher.take_pointer_projection_redraw();
     if capture_owner == Some(crate::tui_composition::CaptureOwner::Machine) {
         // Covered native content cannot acknowledge successful visible presentation.

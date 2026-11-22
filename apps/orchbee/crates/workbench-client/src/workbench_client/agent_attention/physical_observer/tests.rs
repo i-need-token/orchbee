@@ -1,6 +1,6 @@
 use super::*;
+use crate::agent_notifications::AgentNotificationKind;
 use crate::local_client::test_support::server::adjustable_operation_clock;
-use crate::workbench_client::agent_notifications::AgentNotificationKind;
 use orchbee_workbench_protocol::{TerminalAgentStateSnapshot, WorkbenchRevision};
 use std::{
     sync::{

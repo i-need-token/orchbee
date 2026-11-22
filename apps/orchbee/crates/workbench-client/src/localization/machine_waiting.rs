@@ -71,6 +71,30 @@ impl Locale {
         }
     }
 
+    /// The status line's login notice, longest form first: `label` alone needs a login, or `count`
+    /// machines do.
+    pub(crate) fn machines_need_login(self, label: Option<&str>, count: usize) -> Vec<String> {
+        let key = super::MACHINES_KEY_SLOT;
+        match (self, label) {
+            (Self::EnUs, Some(label)) => vec![
+                format!("{label} needs login · {key} Machines"),
+                format!("{label} needs login"),
+            ],
+            (Self::ZhCn, Some(label)) => vec![
+                format!("{label} 需要登录 · {key} 机器"),
+                format!("{label} 需要登录"),
+            ],
+            (Self::EnUs, None) => vec![
+                format!("{count} machines need login · {key} Machines"),
+                format!("{count} machines need login"),
+            ],
+            (Self::ZhCn, None) => vec![
+                format!("{count} 台机器需要登录 · {key} 机器"),
+                format!("{count} 台机器需要登录"),
+            ],
+        }
+    }
+
     /// The status while the notice for the Machine named `label` waits for the keyboard.
     pub(crate) fn machine_waiting_deferred(self, label: &str) -> String {
         match self {

@@ -196,7 +196,7 @@ impl WorkbenchClientUi {
         orchbee_workbench_protocol::Notification,
         Option<crate::machine_agents::Target>,
     )> {
-        use crate::workbench_client::agent_notifications::AgentNotificationKind;
+        use crate::agent_notifications::AgentNotificationKind;
         use orchbee_workbench_protocol::NotificationSound;
 
         let (delivery, command) = self.attention.take_notification(sink_available)?;
@@ -236,7 +236,7 @@ impl WorkbenchClientUi {
             locale.agent_notification_context(
                 placement.workspace_label.as_deref(),
                 placement.project_label.as_deref(),
-                &placement.tab_label,
+                Some(&placement.tab_label),
                 &panel_label,
             )
         });
@@ -264,7 +264,7 @@ impl WorkbenchClientUi {
     /// Opening it later revalidates every part through the sidebar's Agent navigation.
     fn agent_notification_target(
         &self,
-        command: &crate::workbench_client::agent_notifications::AgentNotificationCommand,
+        command: &crate::agent_notifications::AgentNotificationCommand,
     ) -> Option<crate::machine_agents::Target> {
         use orchbee_agent_observation_protocol as obap;
 

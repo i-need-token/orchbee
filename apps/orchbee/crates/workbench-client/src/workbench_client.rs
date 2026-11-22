@@ -36,7 +36,6 @@ use orchbee_client_server_protocol::Geometry;
 use std::{io, sync::Arc};
 
 mod agent_attention;
-mod agent_notifications;
 mod pane_graphics;
 mod panel_reports;
 pub use pane_graphics::Canvas as PaneGraphicsCanvas;
@@ -577,8 +576,16 @@ impl WorkbenchClient {
             let automatic_accepting = view.notifications.empty()
                 && (!native.agent_notification_requires_card()
                     || ui::notification_available(view, Some(native.view())));
-            if let Some((delivery, message, target)) =
-                native.take_agent_notification(locale, automatic_accepting)
+            // The Session on screen first, then the Agents on the other machines.
+            if let Some((delivery, message, target)) = native
+                .take_agent_notification(locale, automatic_accepting)
+                .or_else(|| {
+                    view.machines.take_remote_notification(
+                        locale,
+                        automatic_accepting,
+                        std::time::Instant::now(),
+                    )
+                })
             {
                 changed |= view.notifications.install_automatic(
                     message,

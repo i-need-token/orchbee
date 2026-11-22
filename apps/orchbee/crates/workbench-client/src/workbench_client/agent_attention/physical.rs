@@ -4,8 +4,7 @@ use std::collections::BTreeMap;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
     ClientTerminalAgentAttentionEntry, ClientTerminalAgentAttentionSnapshot,
-    ClientTerminalAgentAttentionVersion, PanelAgentState, TerminalAgentStateSnapshot,
-    WorkbenchRevision,
+    ClientTerminalAgentAttentionVersion, TerminalAgentStateSnapshot, WorkbenchRevision,
 };
 
 pub(in crate::workbench_client) use crate::workbench_client::agent_read_lane::physical_attention::{
@@ -188,9 +187,8 @@ impl PhysicalAttentionState {
 
     pub(super) fn notification_observations(
         &self,
-    ) -> Option<Vec<crate::workbench_client::agent_notifications::AgentNotificationObservation>>
-    {
-        use crate::workbench_client::agent_notifications::{
+    ) -> Option<Vec<crate::agent_notifications::AgentNotificationObservation>> {
+        use crate::agent_notifications::{
             AgentNotificationIdentity as Identity, AgentNotificationObservation as Observation,
             AgentNotificationState as State,
         };
@@ -211,15 +209,7 @@ impl PhysicalAttentionState {
                     },
                     sequence: entry.current.sequence.value(),
                     agent: entry.current.agent.clone(),
-                    state: match entry.current.state {
-                        PanelAgentState::Idle => State::Idle,
-                        PanelAgentState::Done => State::Done,
-                        PanelAgentState::Error => State::Error,
-                        PanelAgentState::Working => State::Working,
-                        PanelAgentState::Blocked => State::Blocked,
-                        // An opening Agent has no turn yet, so it raises no notification.
-                        PanelAgentState::Unknown | PanelAgentState::Opening => State::Unknown,
-                    },
+                    state: State::of(entry.current.state),
                     seen: entry.seen,
                 })
                 .collect()
