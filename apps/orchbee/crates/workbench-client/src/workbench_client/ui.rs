@@ -1540,6 +1540,10 @@ pub(super) struct WorkbenchClientUi {
     /// The installed configured commands the global menu lists, from the applied key profile,
     /// each with the Server's name for it.
     configured_commands: Vec<(String, Option<String>)>,
+    /// The machine manager's newest facts for Change machine; `None` until it hands any over.
+    machine_facts: Option<crate::machine_change::Facts>,
+    /// The move the person chose in a Change machine list, until the machine manager takes it.
+    machine_request: Option<crate::machine_change::Request>,
     mailbox: Option<Arc<CommandMailbox>>,
     clock: LocalOperationClock,
     outer_focused: Option<bool>,
@@ -1706,6 +1710,8 @@ impl WorkbenchClientUi {
             worktrees: worktree_launch::Coordinator::default(),
             menus: action_menus::MenuEpisode::default(),
             configured_commands: Vec::new(),
+            machine_facts: None,
+            machine_request: None,
             settings: settings::Coordinator::new(capabilities.login_shell),
             duplication: tab_duplication::Duplication::default(),
             held_restore: held_restore::HeldRestore::default(),

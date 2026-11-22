@@ -7,6 +7,8 @@ pub(crate) enum MenuHeading {
     Worktrees,
     /// The new-Tab menu's Agents, after its shells.
     Agents,
+    /// The machines a Workspace's Change machine lists.
+    RunsOn,
 }
 
 /// Secondary text that ends a row, such as the default launch profile's mark.
@@ -54,6 +56,10 @@ pub(crate) enum MenuUnavailable {
     KeyInSidebar,
     /// A key row's key picks among targets the menu cannot choose, so only the key runs it.
     KeyOnly,
+    /// A Workspace in a linked worktree cannot change machine.
+    WorktreeStays,
+    /// The machine cannot take a Workspace now; its row shows the state word that says why.
+    MachineUnavailable,
 }
 
 impl Locale {
@@ -146,6 +152,8 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::NotGitRepository) => "不在 Git 仓库里",
             (Self::EnUs, MenuUnavailable::NoSelection) => "Select text first",
             (Self::ZhCn, MenuUnavailable::NoSelection) => "请先选中文本",
+            (Self::EnUs, MenuUnavailable::WorktreeStays) => "A worktree stays with its repository",
+            (Self::ZhCn, MenuUnavailable::WorktreeStays) => "工作树跟着它的仓库，不能换机器",
             _ => return None,
         })
     }
@@ -167,6 +175,8 @@ impl Locale {
             (Self::ZhCn, MenuHeading::Worktrees) => "Git 工作树",
             (Self::EnUs, MenuHeading::Agents) => "Agents",
             (Self::ZhCn, MenuHeading::Agents) => "智能体",
+            (Self::EnUs, MenuHeading::RunsOn) => "Runs on",
+            (Self::ZhCn, MenuHeading::RunsOn) => "运行在",
         }
     }
     pub(crate) const fn menu_title(self) -> &'static str {

@@ -22,6 +22,11 @@ pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
 pub(crate) const PANEL_RENAME_RESULT_ID: &str = "orchbee.panel.rename";
 pub(crate) const WORKSPACE_MOVE_RESULT_ID: &str = "orchbee.workspace.move";
 pub(crate) const WORKSPACE_MOVE_FAILURE_ID: &str = "orchbee.cli.failure.workspace-move";
+/// `workspace set-machine`'s documents, which the TUI's Change machine also reads from the command
+/// it runs.
+pub(crate) const WORKSPACE_SET_MACHINE_RESULT_ID: &str = "orchbee.workspace.set-machine";
+pub(crate) const WORKSPACE_SET_MACHINE_FAILURE_ID: &str =
+    "orchbee.cli.failure.workspace-set-machine";
 pub(crate) const TAB_MOVE_RESULT_ID: &str = "orchbee.tab.move";
 pub(crate) const TAB_MOVE_FAILURE_ID: &str = "orchbee.cli.failure.tab-move";
 pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
@@ -189,7 +194,7 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.cli.failure.workspace-move.json"),
     ),
     (
-        "orchbee.workspace.set-machine",
+        WORKSPACE_SET_MACHINE_RESULT_ID,
         include_str!("../../cli/schemas/orchbee.workspace.set-machine.json"),
     ),
     (
@@ -197,7 +202,7 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.workspace.close-preview.json"),
     ),
     (
-        "orchbee.cli.failure.workspace-set-machine",
+        WORKSPACE_SET_MACHINE_FAILURE_ID,
         include_str!("../../cli/schemas/orchbee.cli.failure.workspace-set-machine.json"),
     ),
     (

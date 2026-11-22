@@ -12,6 +12,19 @@ pub(crate) const HOST_GRAMMAR: UserPathGrammar = if cfg!(windows) {
     UserPathGrammar::Posix
 };
 
+/// Whether a path is spelled as Windows spells it: a drive letter or a `\\` share.
+pub(crate) fn windows_form(path: &str) -> bool {
+    path.as_bytes().get(1) == Some(&b':') || path.starts_with("\\\\")
+}
+
+/// `folder`, written `~/…`, as the machine that has `path` spells its paths.
+pub(crate) fn spelled(folder: &str, path: &str) -> String {
+    let separator = if windows_form(path) { "\\" } else { "/" };
+    folder
+        .replacen("~/", &format!("~{separator}"), 1)
+        .replace('/', separator)
+}
+
 /// Resolves an admitted operand in `grammar` from the supplied context only.
 ///
 /// # Errors

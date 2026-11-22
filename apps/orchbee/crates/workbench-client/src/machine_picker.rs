@@ -14,6 +14,7 @@ mod agents;
 mod forget;
 mod login;
 mod manage;
+mod moving;
 mod navigation;
 mod pointer;
 mod sidebar;
@@ -27,6 +28,7 @@ pub(crate) use manage::{
     AddForm, Check, MENU_KEY, Notice as ManageNotice, Page, Problem as ManageProblem,
 };
 pub use manage::{Field, FormControl, MenuItem};
+pub(crate) use moving::{MoveConfirmation, MoveStatus};
 pub use navigation::SidebarTarget;
 pub(crate) use navigation::{
     DrawnSidebarFixedTarget, DrawnSidebarTarget, SIDEBAR_BINDINGS, SidebarActivation,
@@ -366,6 +368,8 @@ pub struct Picker {
     waiting: Option<WaitingNotice>,
     /// The Machine whose notice waits for the keyboard.
     waiting_deferred: Option<String>,
+    /// A Workspace's move: the question it asks, whether it runs, and the notice it leaves.
+    moving: moving::Moving,
     /// The current remote Machine's link was lost: its pane offers Enter to log in again.
     pub lost_link: bool,
     /// The management pages, the Add row and the outcomes of managing saved Machines.
@@ -434,6 +438,7 @@ impl Default for Picker {
             login: None,
             waiting: None,
             waiting_deferred: None,
+            moving: moving::Moving::default(),
             lost_link: false,
             manage: manage::Manage::default(),
         }
@@ -813,6 +818,19 @@ impl Picker {
         }
         self.error = Some(error);
     }
+    /// Lands on the Workspace a move created on `machine`, as choosing its sidebar row does. False
+    /// when no selection could begin.
+    pub fn select_moved(&mut self, machine: Choice, context: ClientStartupTarget) -> bool {
+        if !self.begin_selection(SelectionOrigin::Sidebar) {
+            return false;
+        }
+        self.request = Some(Selection {
+            machine,
+            context: Some(context),
+        });
+        self.error = None;
+        true
+    }
     /// Starts a selection of the current remote Machine again, as Enter on its pane does once
     /// its link was lost.
     pub(crate) fn relogin(&mut self) -> bool {
@@ -833,7 +851,11 @@ impl Picker {
 
     /// All keys, paste and malformed events are consumed by the caller while open.
     pub(crate) fn key(&mut self, key: KeyEvent) {
-        if self.login_key(key) || self.waiting_key(key) || key.kind == KeyKind::Release {
+        if self.login_key(key)
+            || self.waiting_key(key)
+            || self.move_key(key)
+            || key.kind == KeyKind::Release
+        {
             return;
         }
         self.pending_navigation = None;

@@ -142,6 +142,13 @@ pub(in crate::workbench_client::ui) enum NavigationKey {
     Tab(u64),
 }
 
+/// A Change machine list's rows in the order it opened with, and whether a move is under way.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct MachineChoices {
+    pub(super) rows: Vec<crate::machine_change::Row>,
+    pub(super) moving: bool,
+}
+
 /// The open menu's subject, the origin it opened against, and its confirmation stage.
 pub(super) struct Intent {
     capabilities: Capabilities,
@@ -152,6 +159,7 @@ pub(super) struct Intent {
     zoomed: bool,
     pointer_released: bool,
     project_choices: Option<Vec<orchbee_workbench_protocol::Project>>,
+    machines: Option<MachineChoices>,
 }
 
 impl Intent {
@@ -173,7 +181,18 @@ impl Intent {
             zoomed: state.is_some_and(WorkbenchClientState::zoom_active),
             pointer_released,
             project_choices,
+            machines: None,
         }
+    }
+
+    /// The intent of a Change machine list, which acts on these rows by their place.
+    pub(super) fn with_machines(mut self, machines: MachineChoices) -> Self {
+        self.machines = Some(machines);
+        self
+    }
+
+    pub(super) const fn machines(&self) -> Option<&MachineChoices> {
+        self.machines.as_ref()
     }
 
     pub(super) const fn capabilities(&self) -> Capabilities {
@@ -448,6 +467,30 @@ impl MenuEpisode {
 
     pub(super) const fn intent(&self) -> Option<&Intent> {
         self.intent.as_ref()
+    }
+
+    /// Takes newer machine facts into an open Change machine list: what its rows say and whether
+    /// they can be chosen, never their order. True when the list needs a new draw.
+    pub(super) fn refresh_machines(&mut self, facts: &crate::machine_change::Facts) -> bool {
+        let Some(choices) = self
+            .intent
+            .as_mut()
+            .and_then(|intent| intent.machines.as_mut())
+        else {
+            return false;
+        };
+        let before = choices.clone();
+        for row in &mut choices.rows {
+            row.refresh(facts);
+        }
+        choices.moving = facts.moving;
+        if *choices == before {
+            return false;
+        }
+        let rows = choices.rows.clone();
+        self.menu.set_machines(rows);
+        // The caller refreshes availability, which reads the refreshed intent.
+        true
     }
 
     /// The open menu for its own transitions, beside the episode facts its rows read.

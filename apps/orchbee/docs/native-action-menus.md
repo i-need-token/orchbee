@@ -44,7 +44,7 @@ An Agent row's menu holds Rename, which only a Panel's primary terminal offers, 
 
 Allow confirmations opens beside the row without moving focus and lists Off, This Agent only and Always for the Agent's type, with a check on the choice the Server reports; the check moves when the Server's row does. `Ctrl+b y` and the global menu's Allow confirmations row open the same answers under an "Allow confirmations" heading for the Agent in view: the focused Panel's, else another the active Tab shows. While the Server offers to answer that Agent's confirmations, they list This Agent only, Always for the Agent's type and No instead, with no check; No ends the offers for every Agent. The key has no `[keys]` name, the global row shows only while there is such an Agent, and a menu whose Agent's row leaves closes. The rest of a pasted packet after `Ctrl+b y` reaches no terminal.
 
-A context menu's frame title names its target, and a `+` creation menu names what it creates; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Ungroup, Pin or Maximize / Restore; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles and tooltips keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Ungroup. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, unless discovery shows its first terminal is outside Git, then a separated Close. Availability reasons take the frame's bottom edge; a Git refusal removes Git-only rows under a fresh draw token.
+A context menu's frame title names its target, and a `+` creation menu names what it creates; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Ungroup, Pin or Maximize / Restore; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles and tooltips keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Ungroup. A Workspace menu holds Move to Project ▸, Change machine ▸ where the TUI reaches saved machines, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, unless discovery shows its first terminal is outside Git, then a separated Close. Availability reasons take the frame's bottom edge; a Git refusal removes Git-only rows under a fresh draw token.
 
 A pointer-opened menu follows the press: its frame starts at the pressed column on the row below the complete painted trigger (a sidebar row, Tab or group header, otherwise the pressed cell), else ends on the row above it, and shifts left to stay inside the viewport. Height yields to scrolling before covering the trigger row; fewer than three rows on both sides keeps the existing recovery surface. A keyboard-opened sidebar row menu opens beside its row, top edge level with it, moving up only to fit; other keyboard menus stay centered. While a pointer-opened row menu is open, its row keeps the hover fill; a keyboard-opened one keeps the sidebar focus on its row. Placement changes no target or focus. `docs/tui/layout.md` owns the general geometry.
 
@@ -107,7 +107,9 @@ uses a case-insensitive fuzzy subsequence over localized action labels, reviewed
 aliases and the current effective shortcut. A matching child action makes its parent submenu
 searchable; opening it carries the query into the ordinary child menu, where the child actions are
 filtered under their existing ownership and availability rules. The query row shows the filtered
-count, and an empty result set shows a localized no-results state.
+count, and an empty result set shows a localized no-results state. A Change machine list past eight
+saved machines also leads with a query row under the same keys. It starts empty, since what found its
+parent row is no machine's name, and matches a machine's name or address as the Settings filter does.
 
 Keys that work only inside a mode also have rows, so a search finds every key the Client takes.
 These key rows answer a search only: the unsearched menu lists what it can run, and a key row
@@ -197,7 +199,7 @@ direct selected/group Close includes them where applicable. Hidden collapsed mem
 A Tab whose close stopped offers no separate row: its Close row takes the ordinary close path, as
 [close status](native-tab-close-sets.md#close-status) describes.
 
-In the searchable global menu and new-Tab submenu, Up/Down select rows while printable characters,
+In a menu with a query row, Up/Down select rows while printable characters,
 including Space, edit the query. In other menus, Up/Down or j/k select a row. Home/End select the
 first/last row; Enter executes the selected action or opens its submenu. A menu opened by the
 pointer, and a submenu opened by a click, starts without a candidate: no row shows the selection
@@ -305,8 +307,8 @@ intact; execution returns the actual disposition to the same view transition.
 Setup retains the current source and focus, checks the original menu deadline at admission, and uses
 bounded preparation without timing optional human editing.
 
-Workspace menus contain Move to Project ▸, Rename Workspace (shown as Rename), a separated
-Worktree section and a separated close section. The Worktree section holds
+Workspace menus contain Move to Project ▸, Change machine ▸ where the TUI reaches saved machines,
+Rename Workspace (shown as Rename), a separated Worktree section and a separated close section. The Worktree section holds
 New Worktree…, which opens the New Worktree form with its defaults for the sidebar Create route
 and creates only on that form's Create, and Open
 Worktree ▸, whose submenu lists the discovered non-bare checkouts other than the Workspace's own
@@ -317,7 +319,9 @@ one new Project. Move to Project ▸ lists the other Projects in canonical order
 separated New Project… and, for a grouped Workspace, Remove from Project. Choices retain exact IDs, including duplicate labels, and a same-named Project shows its name
 alone, as in the Sidebar. New Project asks
 for one name and atomically creates the Project and moves the Workspace. Organization never selects
-a noncurrent Workspace. Empty conditional creation sections publish no orphan separator.
+a noncurrent Workspace. Change machine ▸ lists where the Workspace can run and moves it as
+[machines.md](machines.md#change-machine) describes; a move that succeeds opens the Workspace on its
+new machine. Empty conditional creation sections publish no orphan separator.
 
 Opening a Project or Workspace menu starts Git discovery of the addressed source. New Worktree…
 and Open Worktree ▸ are absent from the first paint unless current sidebar branch information or
@@ -378,7 +382,8 @@ Close Tab… is the current-Tab close request that `Ctrl+b x` makes, with that k
 rules: the Server decides whether closing asks first, as it does when terminals still run. Panel
 includes Back to last focused panel, directional focus, split, move and resize, close, maximize,
 Find in terminal and copy mode. Workspace includes
-creation, Worktree actions, Next and Previous Workspace, Rename and Close Workspace; Session includes
+creation, Worktree actions, Next and Previous Workspace, Rename, Change machine ▸ for the current
+Workspace and Close Workspace; Session includes
 the sidebar toggle, Focus sidebar, Next and Previous Agent, and Detach. Each configured command
 follows as Run configured command · its name, running the same command its key runs. A row whose keyboard action has the same
 meaning shows the current binding registry's shortcut and dispatches that same existing

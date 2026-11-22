@@ -506,6 +506,22 @@ impl MenuAction {
                     WORKTREE,
                 ),
             ),
+            Self::ChangeMachine => declared(
+                words("Change machine", "更换机器"),
+                built_in(
+                    "orchbee.native.workspace.machine-menu.open",
+                    C::Workspace,
+                    &[alias::WORKSPACE, alias::MOVE],
+                ),
+            ),
+            Self::MoveToMachine(_) => declared(
+                words("Move to machine", "移到机器"),
+                built_in("orchbee.native.workspace.set-machine", C::Workspace, NONE),
+            ),
+            Self::ManageMachines => declared(
+                words("Manage machines…", "管理机器…"),
+                built_in("orchbee.native.machines.settings.open", C::Navigation, NONE),
+            ),
             Self::CreateWorkspaceProject => declared(
                 words("New Project…", "新建项目…"),
                 built_in("workbench.workspace.create-project", C::Workspace, PROJECT),

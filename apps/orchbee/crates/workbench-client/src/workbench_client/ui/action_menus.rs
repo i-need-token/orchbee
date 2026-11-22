@@ -22,6 +22,7 @@ use episode::{
 pub(super) use episode::{MenuEpisode, NavigationKey};
 use std::time::Duration;
 mod episode;
+mod machines;
 mod sidebar;
 #[cfg(test)]
 mod tests;
@@ -127,6 +128,26 @@ fn action_availability(
 ) -> ActionAvailability<MenuUnavailable> {
     if let MenuAction::Key(row) = action {
         return key_row_availability(capabilities, row);
+    }
+    // Other machines exist only where this host keeps saved machines.
+    if matches!(
+        action,
+        MenuAction::ChangeMachine | MenuAction::MoveToMachine(_) | MenuAction::ManageMachines
+    ) && !capabilities.supports(crate::tui_capabilities::Capability::SavedMachines)
+    {
+        return ActionAvailability::Hidden;
+    }
+    // The global row moves the Workspace in use.
+    if matches!(target, Target::Global)
+        && action == MenuAction::ChangeMachine
+        && state.is_none_or(|state| {
+            !matches!(
+                state.cache().location(),
+                ClientContextLocation::Workspace { .. }
+            )
+        })
+    {
+        return ActionAvailability::Disabled(MenuUnavailable::WorkspaceRequired);
     }
     // Open Worktree ▸ needs the same host effect as the global Open Worktree…, and the new-Tab
     // menu's Agent rows the same as Start Agent….
@@ -413,11 +434,10 @@ fn intent_availability(
         facts,
     );
     if availability.is_enabled() {
-        ActionAvailability::from_disabled_reason(sidebar::unavailable(
-            intent.entry(),
-            discovery,
-            &action,
-        ))
+        ActionAvailability::from_disabled_reason(
+            sidebar::unavailable(intent.entry(), discovery, &action)
+                .or_else(|| machines::unavailable(intent, &action)),
+        )
     } else {
         availability
     }
@@ -777,7 +797,8 @@ impl WorkbenchClientUi {
             }
             MenuTarget::Workspace(location)
             | MenuTarget::WorkspaceProjects(location)
-            | MenuTarget::WorkspaceWorktrees(location) => {
+            | MenuTarget::WorkspaceWorktrees(location)
+            | MenuTarget::WorkspaceMachines(location) => {
                 if !live {
                     return false;
                 }
@@ -868,6 +889,12 @@ impl WorkbenchClientUi {
         } else {
             None
         };
+        // The list is the machines in the order it opens with, then Manage machines….
+        let machine_choices = matches!(entry, MenuTarget::WorkspaceMachines(_)).then(|| {
+            let choices = self.machine_choices();
+            actions = machines::actions(&choices);
+            choices
+        });
         if creation_only {
             actions.retain(|action| {
                 matches!(
@@ -986,6 +1013,10 @@ impl WorkbenchClientUi {
             pointer_released,
             project_choices,
         );
+        let intent = match machine_choices {
+            Some(choices) => intent.with_machines(choices),
+            None => intent,
+        };
         if !self
             .menus
             .menu
@@ -1030,11 +1061,33 @@ impl WorkbenchClientUi {
                 .and_then(|(_, name)| name.clone()),
             // The renderer turns the version into the row's tooltip sentence.
             MenuAction::Update => self.update_version.clone(),
+            // The renderer names This computer, whose label is empty, in the interface language.
+            MenuAction::MoveToMachine(index) => intent
+                .machines()?
+                .rows
+                .get(usize::from(index))
+                .map(machines::row_label),
+            MenuAction::ChangeMachine => Some(machines::here_label(self.machine_facts.as_ref())),
             MenuAction::AgentConfirmation(crate::localization::ConfirmationAnswer::AgentType) => {
                 confirmation.as_ref().map(|(agent, _)| agent.clone())
             }
             _ => None,
         });
+        if let Some(choices) = intent.machines() {
+            self.menus.menu.set_machines(choices.rows.clone());
+            // The machine the Workspace runs on carries the check.
+            self.menus.menu.set_notes(|action| match action {
+                MenuAction::MoveToMachine(index)
+                    if choices
+                        .rows
+                        .get(usize::from(*index))
+                        .is_some_and(|row| row.current) =>
+                {
+                    Some(crate::action_menu::MenuRowNote::Applied)
+                }
+                _ => None,
+            });
+        }
         if tab_profiles {
             self.menus.menu.set_notes(|action| match action {
                 MenuAction::NewTabWithProfile(profile)
@@ -1503,6 +1556,9 @@ impl WorkbenchClientUi {
                         | MenuAction::NewWorktree
                         | MenuAction::WorkspaceWorktrees
                         | MenuAction::OpenWorktreeAt(_)
+                        | MenuAction::ChangeMachine
+                        | MenuAction::MoveToMachine(_)
+                        | MenuAction::ManageMachines
                 ) =>
             {
                 true
@@ -1660,6 +1716,9 @@ impl WorkbenchClientUi {
                                     | MenuAction::NewWorktree
                                     | MenuAction::WorkspaceWorktrees
                                     | MenuAction::OpenWorktreeAt(_)
+                                    | MenuAction::ChangeMachine
+                                    | MenuAction::MoveToMachine(_)
+                                    | MenuAction::ManageMachines
                             )
                         ) || self
                             .state
@@ -1832,6 +1891,15 @@ impl WorkbenchClientUi {
             (Target::Workspace { location, .. }, MenuAction::WorkspaceWorktrees) => {
                 Some(MenuTarget::WorkspaceWorktrees(location.clone()))
             }
+            (Target::Workspace { location, .. }, MenuAction::ChangeMachine) => {
+                Some(MenuTarget::WorkspaceMachines(location.clone()))
+            }
+            // The global row moves the Workspace in use.
+            (Target::Global, MenuAction::ChangeMachine) => Some(MenuTarget::WorkspaceMachines(
+                Some(self.state.as_ref()?.cache().location().clone()).filter(|location| {
+                    matches!(location, ClientContextLocation::Workspace { .. })
+                })?,
+            )),
             (Target::Project { project, .. }, MenuAction::WorkspaceCreation) => {
                 Some(MenuTarget::WorkspaceCreation(project.project_id.clone()))
             }
@@ -1867,6 +1935,26 @@ impl WorkbenchClientUi {
         }
         if let Some(child) = child {
             self.open_child_action_menu(child, action, pointer_released);
+            return None;
+        }
+        // The machine manager runs the move; choosing where the Workspace runs changes nothing.
+        if let MenuAction::MoveToMachine(index) = action {
+            if machines::unavailable(intent, &action).is_some() {
+                self.fail_action_menu();
+                return None;
+            }
+            let request = machines::request(intent, index, self.state.as_ref());
+            self.menus.menu.take()?;
+            self.menus.end();
+            if request.is_some() {
+                self.machine_request = request;
+            }
+            return None;
+        }
+        if action == MenuAction::ManageMachines {
+            self.menus.menu.take()?;
+            self.menus.end();
+            let _disposition = self.request_machine_settings();
             return None;
         }
         // The new-Tab menu's Agents run as the picker's new-Tab place does, without asking.
@@ -2070,6 +2158,8 @@ impl WorkbenchClientUi {
             return;
         };
         let cascade = intent.entry().context_menu();
+        // A list of machines filters by machine; what found its parent row is no machine's name.
+        let inherits_query = !cascade && !matches!(child, MenuTarget::WorkspaceMachines(_));
         let parent = ParentMenu {
             target: intent.entry().clone(),
             anchor: menu.anchor,
@@ -2088,7 +2178,7 @@ impl WorkbenchClientUi {
         }
         self.menus.release_intent();
         if self.open_action_menu_hidden(child, parent.anchor, pointer_released, hidden) {
-            if !cascade {
+            if inherits_query {
                 self.menus.menu.set_query(parent.query.as_deref());
             }
             self.menus.push_parent(parent);

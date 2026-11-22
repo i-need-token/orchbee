@@ -75,6 +75,12 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         ));
     }
     let mut selected = scan(arguments.clone())?;
+    // Here `--machine` names the machine that holds the Workspace; the change itself runs on this
+    // computer and asks each machine in turn, so `--session` still names this computer's Session.
+    if let Request::WorkspaceSetMachine(change) = &mut selected.request {
+        change.from = Some(selector);
+        return Ok(selected);
+    }
     let envelope = selection_envelope(format_envelope(&arguments)?);
     if selected.session.is_some() {
         return Err(usage_with(
@@ -90,12 +96,6 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         selected.request,
         Request::Help(_) | Request::RootHelp | Request::Withheld(_)
     ) {
-        return Ok(selected);
-    }
-    // Here `--machine` names the machine that holds the Workspace; the change itself runs on this
-    // computer and asks each machine in turn.
-    if let Request::WorkspaceSetMachine(change) = &mut selected.request {
-        change.from = Some(selector);
         return Ok(selected);
     }
     if let Request::ServerStop {

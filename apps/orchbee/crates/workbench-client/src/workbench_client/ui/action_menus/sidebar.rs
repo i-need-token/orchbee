@@ -50,6 +50,9 @@ fn belongs(entry: &MenuTarget, episode: &Discovery) -> bool {
             MenuTarget::Workspace(ClientContextLocation::Workspace { workspace_id, .. })
             | MenuTarget::WorkspaceWorktrees(ClientContextLocation::Workspace {
                 workspace_id, ..
+            })
+            | MenuTarget::WorkspaceMachines(ClientContextLocation::Workspace {
+                workspace_id, ..
             }),
             SidebarWorktreeTarget::Workspace(id),
         ) => workspace_id == id,
@@ -255,6 +258,15 @@ pub(super) fn unavailable(
     action: &MenuAction,
 ) -> Option<crate::action_menu::MenuUnavailable> {
     use crate::action_menu::MenuUnavailable;
+    // A Workspace in a linked worktree stays with its repository; every row of its list says so.
+    // Without Git's answer yet the rows stay choosable, and the move itself refuses a worktree.
+    if matches!(action, MenuAction::MoveToMachine(_)) {
+        return episode
+            .filter(|episode| belongs(entry, episode))
+            .and_then(Discovery::recognized)
+            .is_some_and(|ready| Removal::capture(ready).is_some())
+            .then_some(MenuUnavailable::WorktreeStays);
+    }
     // New Worktree… and Open Worktree ▸ wait for the addressed source's Git discovery. A checkout or
     // removal row exists only by an earlier answer, so one chosen while the Workspace leaves it, or
     // Git no longer answers, must not wait out the menu's deadline.
@@ -464,6 +476,13 @@ impl WorkbenchClientUi {
         let Some(intent) = intent.filter(|intent| matches!(intent.stage(), Stage::Open)) else {
             return false;
         };
+        // A Change machine list keeps its rows and their names; Git's answer only says whether a
+        // worktree disables them.
+        if matches!(intent.entry(), MenuTarget::WorkspaceMachines(_)) {
+            return menu.refresh_availability(|action| {
+                visible_unavailable(intent_availability(intent, state, discovery, action, facts))
+            });
+        }
         if !matches!(
             intent.entry(),
             MenuTarget::Workspace(_)

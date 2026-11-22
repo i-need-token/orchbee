@@ -17,23 +17,24 @@ use crate::{
         output,
     },
     cli_text::{ChangeLine, CliText, Place},
-    invocation::{OutputFormat, SetMachine, user_path},
+    invocation::{
+        OutputFormat, SetMachine,
+        grammar::schemas::{
+            WORKSPACE_SET_MACHINE_FAILURE_ID as FAILURE_ID,
+            WORKSPACE_SET_MACHINE_RESULT_ID as RESULT_ID,
+        },
+        user_path::{self, spelled, windows_form},
+    },
     localization::Locale,
     machines::{Catalog, Error as CatalogError, Profile, Store, names_this_computer},
 };
 use facts::Facts;
-use orchbee_local_runtime::{CommandFailure, CommandOutput};
+use orchbee_local_runtime::CommandFailure;
 use orchbee_machine_protocol::hub::MachineState;
 use orchbee_workbench_protocol::WorkbenchProjectId;
 use serde_json::{Map, Value, json};
-use std::{
-    io,
-    process::Command,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
-const RESULT_ID: &str = "orchbee.workspace.set-machine";
-const FAILURE_ID: &str = "orchbee.cli.failure.workspace-set-machine";
 /// How long the hub's states and capacities may take, as for `machine list`.
 const HUB: Duration = Duration::from_secs(5);
 /// The bound on one step run on this computer; each step keeps its own shorter default wait.
@@ -345,7 +346,7 @@ fn execute(
     let folder = parts
         .as_ref()
         .map_or_else(|| "~".to_owned(), |parts| format!("~/{}", parts.join("/")));
-    let summary = |folder: &str, created: Option<(&str, &str)>, facts: Option<&Facts>| {
+    let summary = |folder: &str, created: Option<Value>, facts: Option<&Facts>| {
         let mut result = Map::from_iter([
             ("dryRun".to_owned(), json!(change.dry_run)),
             (
@@ -359,10 +360,7 @@ fn execute(
             ("from".to_owned(), from.json()),
             ("to".to_owned(), to.json()),
             ("folder".to_owned(), json!(folder)),
-            (
-                "created".to_owned(),
-                json!(created.map(|(id, path)| json!({"workspaceId": id, "path": path}))),
-            ),
+            ("created".to_owned(), created.unwrap_or(Value::Null)),
         ]);
         result.extend(
             Facts::members(facts)
@@ -500,8 +498,19 @@ fn execute(
         .at("/result/directory/path")
         .and_then(Value::as_str)
         .map(str::to_owned);
+    // Where the new Workspace is, so a Client can show it: its Session and first terminal context.
+    let place = created
+        .at("/result/workspace/source/sessionId")
+        .and_then(Value::as_str)
+        .zip(
+            created
+                .at("/result/workspace/result/terminalContextId")
+                .and_then(Value::as_str),
+        )
+        .map(|(session, terminal)| (session.to_owned(), terminal.to_owned()));
     let completed = created.at("/result/outcome").and_then(Value::as_str) == Some("completed");
-    let (Some(new_id), Some(path), true, 0) = (new_id.clone(), path, completed, created.status)
+    let (Some(new_id), Some(path), Some((session, terminal)), true, 0) =
+        (new_id.clone(), path, place, completed, created.status)
     else {
         let mut refused = Refused::step(
             "create",
@@ -550,16 +559,21 @@ fn execute(
     }
     Ok(match change.format {
         OutputFormat::Json => emit(
-            output::encode_document(&summary(&landed, Some((&new_id, &path)), None)),
+            output::encode_document(&summary(
+                &landed,
+                Some(json!({
+                    "workspaceId": new_id,
+                    "path": path,
+                    "sessionId": session,
+                    "terminalContextId": terminal,
+                })),
+                None,
+            )),
             change.format,
             locale,
         ),
         OutputFormat::Text => {
-            // The folder reads as the machine spells its paths.
-            let separator = if windows_form(&path) { "\\" } else { "/" };
-            let shown = landed
-                .replacen("~/", &format!("~{separator}"), 1)
-                .replace('/', separator);
+            let shown = spelled(&landed, &path);
             emit(
                 Ok(words
                     .cli_set_machine(&ChangeLine::Done {
@@ -803,11 +817,6 @@ fn home_of(end: &End, hub: Option<&list::Hub>) -> Option<String> {
     }
 }
 
-/// Whether a path is spelled as Windows spells it: a drive letter or a `\\` share.
-fn windows_form(path: &str) -> bool {
-    path.as_bytes().get(1) == Some(&b':') || path.starts_with("\\\\")
-}
-
 /// The parts of `folder` below `home`, when `folder` is `home` or inside it. A Windows home takes
 /// either separator and any letter case, as Windows does.
 fn below(home: &str, folder: &str) -> Option<Vec<String>> {
@@ -866,15 +875,10 @@ fn locally(
     context: &mut Context,
 ) -> Output {
     let failed = |kind| cli::failure_output(Failure::new(kind), Some(format), locale);
-    let Ok(executable) = std::env::current_exe() else {
+    let Ok(command) = crate::self_command::command(arguments) else {
         return failed(FailureKind::InternalFailure);
     };
-    let mut command = Command::new(executable);
-    if let Some(session) = crate::local_activation::selected_session_name() {
-        command.args(["--session", session]);
-    }
-    command.args(arguments);
-    let result = exchange(command, Instant::now() + LOCAL_STEP, || {
+    let result = crate::self_command::exchange(command, Instant::now() + LOCAL_STEP, || {
         context.interrupted()
     });
     if result.stdout_truncated || result.stderr_truncated {
@@ -897,38 +901,6 @@ fn locally(
         (Some(CommandFailure::Timeout), _) => failed(FailureKind::Timeout),
         _ => failed(FailureKind::OutcomeUnknown),
     }
-}
-
-#[cfg(windows)]
-fn exchange(
-    command: Command,
-    deadline: Instant,
-    interrupted: impl FnMut() -> io::Result<bool>,
-) -> CommandOutput {
-    orchbee_local_runtime::run_windows_command_exchange(
-        command,
-        None,
-        output::LIMIT,
-        Some(deadline),
-        interrupted,
-    )
-}
-
-/// This thread keeps the interrupt signals blocked for the command, so the child starts with
-/// none blocked.
-#[cfg(unix)]
-fn exchange(
-    command: Command,
-    deadline: Instant,
-    interrupted: impl FnMut() -> io::Result<bool>,
-) -> CommandOutput {
-    orchbee_local_runtime::run_unmasked_unix_command(
-        command,
-        orchbee_local_runtime::SpawnEnvironment::Inherited,
-        output::LIMIT,
-        Some(deadline),
-        interrupted,
-    )
 }
 
 #[cfg(test)]

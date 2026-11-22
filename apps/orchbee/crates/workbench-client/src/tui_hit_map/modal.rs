@@ -39,6 +39,7 @@ pub(crate) enum ControlTarget {
         orchbee_machine_protocol::Id,
         crate::machine_picker::WaitingControl,
     ),
+    Move(u64, bool),
 }
 
 impl ControlTarget {
@@ -54,6 +55,7 @@ impl ControlTarget {
             HitTarget::WorkspaceClose { token, confirm } => Self::Close(*token, *confirm),
             HitTarget::MachineLogin { token, control } => Self::Login(*token, *control),
             HitTarget::MachineWaiting { login, control } => Self::Waiting(*login, *control),
+            HitTarget::MachineMove { token, confirm } => Self::Move(*token, *confirm),
             _ => return None,
         })
     }
@@ -80,7 +82,7 @@ pub(crate) fn accepts_find(target: &ControlTarget) -> bool {
 pub(crate) fn accepts_login(target: &ControlTarget) -> bool {
     matches!(
         target,
-        ControlTarget::Login(..) | ControlTarget::Waiting(..)
+        ControlTarget::Login(..) | ControlTarget::Waiting(..) | ControlTarget::Move(..)
     )
 }
 

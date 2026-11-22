@@ -1,4 +1,5 @@
 //! UI-owned selection over read-only saved-machine observers.
+mod moving;
 mod settings;
 
 use super::{SurfaceSlot, TerminalSurface, terminal_geometry};
@@ -134,6 +135,8 @@ pub(super) struct Manager {
     discovery: Discovery,
     /// Settings › Machines' requests and what is still under way of them.
     settings: crate::machine_settings_exchange::Exchange,
+    /// Change machine's move under way.
+    moves: moving::Mover,
     agents: crate::machine_agents::Collector,
     spaces: crate::machine_spaces::Collector,
     space_git: Option<bool>,
@@ -161,6 +164,7 @@ impl Manager {
         self.agents.request_stop();
         self.spaces.request_stop();
         self.discovery.request_stop();
+        self.moves.request_stop();
     }
 
     /// Process exit: after every owner was asked to stop, observes each against one deadline.
@@ -187,6 +191,7 @@ impl Manager {
         let agents = self.agents.stop_before(deadline);
         let spaces = self.spaces.stop_before(deadline);
         let discovery = self.discovery.stop_before(deadline);
+        let moves = self.moves.stop_before(deadline);
         cached
             .and(candidate)
             .and(retired)
@@ -194,6 +199,7 @@ impl Manager {
             .and(agents)
             .and(spaces)
             .and(discovery)
+            .and(moves)
     }
 
     /// Stops presenting a Client: it is asked to stop now and stays owned until its threads end.
@@ -235,6 +241,7 @@ impl Manager {
             reattach_spent: false,
             discovery: Discovery::new(wakeup.clone()),
             settings: crate::machine_settings_exchange::Exchange::default(),
+            moves: moving::Mover::default(),
             // Host process titles have no publication source; canonical Agent facts also push.
             agents: crate::machine_agents::Collector::new(wakeup.clone(), true),
             spaces: crate::machine_spaces::Collector::new(wakeup.clone(), false),
@@ -409,6 +416,9 @@ impl Manager {
             self.exchange_settings(settings, surface, view, dimensions, now, before_switch);
         change.redraw |= settled.redraw || settled.switched;
         change.switched |= settled.switched;
+        // Change machine: its list's facts, the person's move, and the one under way. A move that
+        // landed is a selection the request below takes in this same tick.
+        change.redraw |= self.exchange_moves(surface, view, now);
         // The login question the hub put to this TUI, and the person's act on the last one.
         change.redraw |= view.machines.exchange_login(&mut self.discovery);
         // "Forget password" on a selected remote Machine, and how the last one ended.
@@ -1152,6 +1162,7 @@ impl Manager {
         // Only the presented view holds the login overlay and notice.
         old_view.machines.forget_login();
         old_view.machines.forget_waiting();
+        old_view.machines.forget_move();
         view.settle_pointer_released(old_view.pointer_released());
         view.machines = picker;
         let old = Cached {

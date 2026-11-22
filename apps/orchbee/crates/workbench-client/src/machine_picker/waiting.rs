@@ -80,6 +80,7 @@ impl ClientView {
     pub fn login_notice_held(&self, port: &(impl TerminalInputPort + ?Sized)) -> bool {
         self.machines.open
             || self.machines.login.is_some()
+            || self.machines.move_shown()
             || self.overlay().is_some()
             || self.prefix_active()
             || self.surface_owns_input()

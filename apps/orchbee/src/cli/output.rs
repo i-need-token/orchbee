@@ -11,7 +11,7 @@ use serde_json::Value;
 mod vocabulary;
 pub(crate) use vocabulary::public;
 
-pub(crate) const LIMIT: usize = 8 * 1024 * 1024;
+pub(crate) use crate::cli_outcome::OUTPUT_LIMIT as LIMIT;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct TooLarge;

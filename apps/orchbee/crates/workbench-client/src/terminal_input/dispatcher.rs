@@ -960,7 +960,9 @@ impl InputDispatcher {
 
         if owner == CaptureOwner::Machine {
             let mut regions_changed = false;
-            let login = view.machines.login().is_some() || view.machines.waiting_shown();
+            let login = view.machines.login().is_some()
+                || view.machines.waiting_shown()
+                || view.machines.move_shown();
             match item.kind {
                 DecodedKind::Key(key) => {
                     // Keyboard input settles at most one exposed wheel chunk
@@ -976,6 +978,7 @@ impl InputDispatcher {
                         .machines
                         .login_paste(text)
                         .and_then(|text| view.machines.waiting_paste(text))
+                        .and_then(|text| view.machines.move_paste(text))
                         .and_then(|text| view.machines.manage_paste(text))
                     {
                         view.machines.paste_workspace_query(&text);

@@ -454,6 +454,34 @@ impl WorkbenchClient {
             .is_some_and(|native| native.observe_machine_settings(facts))
     }
 
+    /// Gives the action menu's Change machine the machine manager's facts; true when an open
+    /// list changed.
+    pub fn observe_machine_change(&mut self, facts: crate::machine_change::Facts) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.observe_machine_change(facts))
+    }
+
+    /// The move the person chose in a Change machine list, once.
+    pub fn take_machine_change_request(&mut self) -> Option<crate::machine_change::Request> {
+        self.backend
+            .native_mut()
+            .and_then(|native| native.take_machine_change_request())
+    }
+
+    /// Whether an open menu offers Change machine, so the TUI reads what the machines have free.
+    pub fn machine_change_wanted(&self) -> bool {
+        match &self.backend {
+            ClientBackend::Native(native) => native.machine_change_wanted(),
+        }
+    }
+
+    pub fn machine_list_open(&self) -> bool {
+        match &self.backend {
+            ClientBackend::Native(native) => native.machine_list_open(),
+        }
+    }
+
     /// Gives this TUI its Update control, which watches the release store from now on.
     pub fn offer_updates(&mut self, updater: crate::release_update::Updater) {
         self.updater = Some(updater);

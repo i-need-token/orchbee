@@ -246,6 +246,8 @@ pub(crate) struct Editor {
     surface_presented: bool,
     /// Why a change the person asked for was not kept, for the Settings notice.
     notice: Option<crate::localization::SettingsNotice>,
+    /// The category the page opening now shows first, instead of General.
+    landing: Option<Category>,
 }
 impl Editor {
     pub(crate) fn new(login_shell_supported: bool) -> Self {
@@ -284,6 +286,7 @@ impl Editor {
         if !matches!(self.state, State::Closed) {
             return None;
         }
+        self.landing = None;
         let token = self.allocate()?;
         self.presentation = PresentationPhase::Pending;
         self.surface_presented = false;
@@ -291,6 +294,12 @@ impl Editor {
             token,
             visible: true,
         };
+        Some(token)
+    }
+    /// Opens on `category`'s rows, as Manage machines… opens Machines.
+    pub(crate) fn open_at(&mut self, category: Category) -> Option<Token> {
+        let token = self.open()?;
+        self.landing = Some(category);
         Some(token)
     }
     pub(crate) fn loaded(&mut self, token: Token, snapshot: &SettingsSnapshot) -> bool {
@@ -341,6 +350,14 @@ impl Editor {
             machines: machines::Listing::default(),
         };
         page.follow_machines(self.machines.facts());
+        if let Some(category) = self
+            .landing
+            .take()
+            .filter(|category| Category::all().contains(category))
+        {
+            page.show_category(category);
+            page.pane = Pane::Rows;
+        }
         page.settle_focus();
         self.state = State::Open(Box::new(page));
         true

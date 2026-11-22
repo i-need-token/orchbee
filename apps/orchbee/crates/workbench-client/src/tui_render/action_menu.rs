@@ -3,8 +3,8 @@
 use crate::{
     action_menu::menu_binding_action,
     action_menu::{
-        KeyRow, MenuAction, MenuAnchor, MenuControl, MenuDraw, MenuRowNote, MenuTarget, MenuView,
-        TabMenuScope,
+        KeyRow, MenuAction, MenuAnchor, MenuControl, MenuDraw, MenuHeading, MenuRowNote,
+        MenuTarget, MenuView, TabMenuScope,
     },
     client_view::{
         Binding, Bindings, KeyCode, KeyLabelGlyphs, LabelStyle, Modifiers,
@@ -28,6 +28,9 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Padding, Paragraph},
 };
+use std::borrow::Cow;
+
+mod machines;
 
 use super::controls::{
     ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
@@ -260,47 +263,50 @@ fn measure<'v>(
     if marker_width == 0 {
         return None;
     }
-    let desired =
-        menu.actions
-            .iter()
-            .enumerate()
-            .map(|(index, action)| {
-                let label = action_label(
-                    locale,
-                    menu.source,
-                    action,
-                    menu.labels[index].as_deref(),
-                    menu.tabs.map(|tabs| tabs.rows[index]),
-                    theme.glyphs.middle_dot,
-                    theme.glyphs.disclosure_closed,
-                );
-                marker_width
-                    .saturating_add(check_track_width(menu.source, action, theme))
-                    .saturating_add(display_width(&label))
-                    .saturating_add(
-                        trailing(binding_labels[index].as_deref(), menu.notes[index], locale)
-                            .map_or(0, |(text, _)| {
-                                display_width(text).saturating_add(usize::from(ROW_BINDING_GAP))
-                            }),
-                    )
-                    // The frame's two edges, then the row's right padding cell and one blank
-                    // cell after its content.
-                    .saturating_add(4)
-            })
-            .max()
-            .unwrap_or(16);
+    let desired = menu
+        .actions
+        .iter()
+        .enumerate()
+        .map(|(index, action)| {
+            let label = action_label(
+                locale,
+                menu.source,
+                action,
+                menu.labels[index].as_deref(),
+                menu.tabs.map(|tabs| tabs.rows[index]),
+                theme.glyphs.middle_dot,
+                theme.glyphs.disclosure_closed,
+            );
+            let trailing = trailing(&menu, index, binding_labels[index].as_deref(), locale);
+            marker_width
+                .saturating_add(check_track_width(menu.source, action, theme))
+                .saturating_add(display_width(&label))
+                .saturating_add(match trailing_width(&trailing) {
+                    0 => 0,
+                    width => width.saturating_add(usize::from(ROW_BINDING_GAP)),
+                })
+                // The frame's two edges, then the row's right padding cell and one blank
+                // cell after its content.
+                .saturating_add(4)
+        })
+        .max()
+        .unwrap_or(16);
     // A group heading starts in the label column of the rows it introduces.
     let desired = (0..result_actions.len())
         .filter_map(|position| menu.result_heading_before(&result_actions, position))
         .map(|heading| {
             marker_width
+                .saturating_add(heading_indent(menu.source, theme))
                 .saturating_add(display_width(locale.menu_heading(heading)))
+                .saturating_add(heading_note(heading, locale).map_or(0, |note| {
+                    display_width(note).saturating_add(usize::from(ROW_BINDING_GAP))
+                }))
                 .saturating_add(4)
         })
         .fold(desired, usize::max);
     let desired = if result_actions.is_empty() {
         // Preserve the full message inside the one-cell frame and horizontal padding on both sides.
-        desired.max(display_width(locale.menu_search_no_results()).saturating_add(4))
+        desired.max(display_width(no_results(&menu, locale)).saturating_add(4))
     } else {
         desired
     };
@@ -806,8 +812,12 @@ fn paint_frame(
             Rect::new(inner.x, inner.y, inner.width, 1),
             query,
             menu.query_cursor,
-            measured.result_actions.len(),
-            locale,
+            &locale.menu_search_count(measured.result_actions.len()),
+            if menu.machines.is_some() {
+                locale.machine_change_find()
+            } else {
+                locale.menu_search_label()
+            },
             theme,
         );
     }
@@ -842,12 +852,29 @@ fn paint_frame(
         }
         if let Some(heading) = heading {
             // Headings name a group in the label column; they are never a candidate.
-            let x = (inner.x - 1).saturating_add(marker_width);
+            let x = (inner.x - 1)
+                .saturating_add(marker_width)
+                .saturating_add(u16::try_from(heading_indent(menu.source, theme)).unwrap_or(0));
             frame.render_widget(
                 Paragraph::new(locale.menu_heading(heading))
                     .style(theme.style(Role::TextSecondary)),
                 Rect::new(x, line(used_rows), inner.right().saturating_sub(x), 1),
             );
+            // A note on the heading names the column the rows end with, and ends where they do.
+            if let Some(note) = heading_note(heading, locale) {
+                let width = u16::try_from(display_width(note)).unwrap_or(u16::MAX);
+                let heading_end = x.saturating_add(
+                    u16::try_from(display_width(locale.menu_heading(heading))).unwrap_or(u16::MAX),
+                );
+                if inner.right().saturating_sub(width)
+                    >= heading_end.saturating_add(ROW_BINDING_GAP)
+                {
+                    frame.render_widget(
+                        Paragraph::new(note).style(theme.style(Role::TextSecondary)),
+                        Rect::new(inner.right() - width, line(used_rows), width, 1),
+                    );
+                }
+            }
             used_rows += 1;
         }
         let row_area = Rect::new(inner.x - 1, line(used_rows), inner.width + 2, 1);
@@ -868,9 +895,10 @@ fn paint_frame(
                 },
             },
             action,
-            trailing(
+            &trailing(
+                menu,
+                action_index,
                 measured.binding_labels[action_index].as_deref(),
-                menu.notes[action_index],
                 locale,
             ),
             locale,
@@ -884,7 +912,7 @@ fn paint_frame(
 
     if measured.result_actions.is_empty() {
         frame.render_widget(
-            Paragraph::new(locale.menu_search_no_results()).style(theme.style(Role::TextSecondary)),
+            Paragraph::new(no_results(menu, locale)).style(theme.style(Role::TextSecondary)),
             Rect::new(inner.x, layout.rows_y, inner.width, 1),
         );
     }
@@ -967,6 +995,9 @@ fn search_result_actions(
             .filter(|index| !matches!(menu.actions[*index], MenuAction::Key(_)))
             .collect();
     };
+    if let Some(rows) = menu.machines {
+        return machines::results(menu, rows, query, locale);
+    }
     menu.actions
         .iter()
         .enumerate()
@@ -1057,15 +1088,11 @@ fn render_search_row(
     area: Rect,
     query: &str,
     cursor: usize,
-    count: usize,
-    locale: Locale,
+    count: &str,
+    label: &str,
     theme: &Theme,
 ) {
-    let count = truncate_display(
-        &locale.menu_search_count(count),
-        usize::from(area.width / 2),
-        theme.glyphs.ellipsis,
-    );
+    let count = truncate_display(count, usize::from(area.width / 2), theme.glyphs.ellipsis);
     let count_width = u16::try_from(display_width(&count)).unwrap_or(u16::MAX);
     let left_width = area.width.saturating_sub(count_width.saturating_add(1));
     let left = Rect::new(area.x, area.y, left_width, area.height);
@@ -1080,7 +1107,7 @@ fn render_search_row(
         frame,
         left,
         QueryField::Editing {
-            label: locale.menu_search_label(),
+            label,
             query,
             cursor,
         },
@@ -1200,7 +1227,7 @@ fn render_row(
         state: row_state,
     }: Row,
     action: &MenuAction,
-    trailing: Option<(&str, Role)>,
+    trailing: &[(Cow<'_, str>, Role)],
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -1227,8 +1254,8 @@ fn render_row(
         .map_or(navigation.right(), |rect| rect.right() + 1);
     // Text stops before the row's right padding cell; a destructive band still reaches the edge.
     let content_right = row.right().saturating_sub(1);
-    let binding_width = trailing
-        .map(|(text, _)| display_width(text))
+    let binding_width = Some(trailing_width(trailing))
+        .filter(|width| *width > 0)
         .and_then(|width| u16::try_from(width).ok())
         .filter(|width| {
             content_right
@@ -1273,9 +1300,15 @@ fn render_row(
     if let Some(rect) = swatch {
         bands.push(RowContentBand::explicit(rect));
     }
-    if let (Some((text, role)), Some(rect)) = (trailing, binding_rect) {
-        frame.render_widget(Paragraph::new(text).style(theme.style(role)), rect);
-        bands.push(RowContentBand::semantic(rect, role));
+    if let Some(rect) = binding_rect {
+        let mut x = rect.x;
+        for (text, role) in trailing {
+            let width = u16::try_from(display_width(text)).unwrap_or(u16::MAX);
+            let run = Rect::new(x, rect.y, width.min(rect.right().saturating_sub(x)), 1);
+            frame.render_widget(Paragraph::new(text.as_ref()).style(theme.style(*role)), run);
+            bands.push(RowContentBand::semantic(run, *role));
+            x = x.saturating_add(width);
+        }
     }
 
     let enabled = menu.unavailable[action_index].is_none() && !menu.transferring;
@@ -1438,16 +1471,65 @@ fn render_close(
     hits.record_interaction(HitLayer::Overlay, rect, painted, target, spec);
 }
 
-/// A row's trailing text: its shortcut, else its note.
-fn trailing(
-    binding: Option<&str>,
-    note: Option<MenuRowNote>,
+/// A row's trailing text, in runs of one role each: its shortcut, else its note. A Change machine
+/// row ends with the machine the Workspace runs on, and a row of its list with what that machine
+/// has free or the word for its state.
+fn trailing<'a>(
+    menu: &MenuView<'a>,
+    index: usize,
+    binding: Option<&'a str>,
     locale: Locale,
-) -> Option<(&str, Role)> {
-    binding.map(|binding| (binding, Role::HintKey)).or_else(|| {
-        note.and_then(|note| locale.menu_row_note(note))
-            .map(|note| (note, Role::TextSecondary))
-    })
+) -> Vec<(Cow<'a, str>, Role)> {
+    let action = &menu.actions[index];
+    if let (MenuAction::MoveToMachine(row), Some(rows)) = (action, menu.machines) {
+        return rows
+            .get(usize::from(*row))
+            .map_or_else(Vec::new, |row| machines::detail(row, locale));
+    }
+    if let Some(binding) = binding {
+        return vec![(binding.into(), Role::HintKey)];
+    }
+    if let (MenuAction::ChangeMachine, Some(label)) = (action, menu.labels[index].as_deref()) {
+        return vec![(machine_name(label, locale), Role::TextSecondary)];
+    }
+    menu.notes[index]
+        .and_then(|note| locale.menu_row_note(note))
+        .map_or_else(Vec::new, |note| vec![(note.into(), Role::TextSecondary)])
+}
+
+fn trailing_width(trailing: &[(Cow<'_, str>, Role)]) -> usize {
+    trailing
+        .iter()
+        .map(|(text, _)| display_width(text))
+        .fold(0, usize::saturating_add)
+}
+
+/// A saved machine's name as a person sees it; an empty one is this computer.
+fn machine_name(label: &str, locale: Locale) -> Cow<'static, str> {
+    if label.is_empty() {
+        locale.machine_change_here().into()
+    } else {
+        sanitize_terminal_text(label).into_owned().into()
+    }
+}
+
+/// The words a search that finds nothing shows.
+fn no_results(menu: &MenuView<'_>, locale: Locale) -> &'static str {
+    if menu.machines.is_some() {
+        locale.machine_change_no_match()
+    } else {
+        locale.menu_search_no_results()
+    }
+}
+
+/// The cells a heading starts after the label column: past the check its rows keep.
+fn heading_indent(source: &MenuTarget, theme: &Theme) -> usize {
+    check_track_width(source, &MenuAction::MoveToMachine(0), theme)
+}
+
+/// The words a heading ends with, naming the column its rows end with.
+fn heading_note(heading: MenuHeading, locale: Locale) -> Option<&'static str> {
+    (heading == MenuHeading::RunsOn).then(|| machines::column_note(locale))
 }
 
 fn action_label(
@@ -1478,6 +1560,10 @@ fn action_label(
     if let MenuAction::Key(row) = action {
         return key_row_label(locale, *row, separator);
     }
+    if let MenuAction::MoveToMachine(_) = action {
+        return machine_name(label.unwrap_or_default(), locale).into_owned();
+    }
+    let label = label.filter(|_| !matches!(action, MenuAction::ChangeMachine));
     if let MenuAction::StartAgentInTab(provider) = action {
         // Under the Agents heading a row names only its Agent, as the picker does.
         return crate::agent_provider::product_name(provider).to_owned();
@@ -1552,6 +1638,12 @@ fn check_track_width(source: &MenuTarget, action: &MenuAction, theme: &Theme) ->
         MenuAction::GroupColor(_) => check + 4,
         MenuAction::AgentConfirmation(_)
             if matches!(source, MenuTarget::AgentConfirmations { offer: false, .. }) =>
+        {
+            check + 1
+        }
+        // Manage machines… lines up with the machines' names.
+        MenuAction::MoveToMachine(_) | MenuAction::ManageMachines
+            if matches!(source, MenuTarget::WorkspaceMachines(_)) =>
         {
             check + 1
         }

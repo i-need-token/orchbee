@@ -13,6 +13,10 @@ use serde_json::{Map, Value, json};
 
 use crate::invocation::grammar::schemas::FAILURE_ID;
 
+/// The most bytes one command writes to one stream; a document past it is refused before a byte
+/// is written. A caller that runs a command reads up to the same bound.
+pub(crate) const OUTPUT_LIMIT: usize = 8 * 1024 * 1024;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum FailureKind {
     Ambiguous,

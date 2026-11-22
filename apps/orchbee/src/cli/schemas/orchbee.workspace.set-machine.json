@@ -62,7 +62,7 @@
 					"anyOf": [
 						{
 							"type": "object",
-							"required": ["workspaceId", "path"],
+							"required": ["workspaceId", "path", "sessionId", "terminalContextId"],
 							"additionalProperties": false,
 							"properties": {
 								"workspaceId": {
@@ -71,6 +71,12 @@
 								"path": {
 									"type": "string",
 									"minLength": 1
+								},
+								"sessionId": {
+									"$ref": "#/$defs/id"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/id"
 								}
 							}
 						},

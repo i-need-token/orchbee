@@ -26,6 +26,7 @@ mod machine_add;
 mod machine_agents;
 mod machine_capacity;
 mod machine_carrier;
+mod machine_change;
 mod machine_credentials;
 mod machine_discovery;
 mod machine_endpoint;
@@ -263,6 +264,10 @@ pub mod application {
 
     pub mod machine_capacity {
         pub use crate::machine_capacity::{UNKNOWN, gigabytes, summary};
+    }
+
+    pub mod machine_change {
+        pub use crate::machine_change::{Facts, Name, Notice, Question, Request, Stops};
     }
 
     pub mod machine_settings {

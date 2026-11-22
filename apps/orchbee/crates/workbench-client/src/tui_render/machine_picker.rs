@@ -304,6 +304,13 @@ impl Picker {
             self.set_waiting_drawn(drawn);
             return;
         }
+        // A move's question, while no login asks.
+        if let Some(confirmation) = self.move_confirmation() {
+            let drawn = ViewportTier::from_area(frame.area()) != ViewportTier::TooSmall
+                && super::machine_move::render(frame, confirmation, locale, theme, hits);
+            self.set_move_drawn(drawn);
+            return;
+        }
         let Some(source) = self.picker_source() else {
             return;
         };

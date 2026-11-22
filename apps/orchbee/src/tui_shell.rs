@@ -1414,6 +1414,7 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
             // A login question or notice is off screen until a frame of this size shows it whole.
             view.machines.login_undrawn();
             view.machines.waiting_undrawn();
+            view.machines.move_undrawn();
         }
         terminal_input.observe_terminal(TerminalObservation::DisplayInvalidated);
         terminal.backend_mut().set_window_dimensions(next);
@@ -1622,6 +1623,18 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn observe_machine_settings(&mut self, _facts: crate::machine_settings::Facts) -> bool {
         false
     }
+    fn machine_change_wanted(&self) -> bool {
+        false
+    }
+    fn machine_list_open(&self) -> bool {
+        false
+    }
+    fn take_machine_change_request(&mut self) -> Option<crate::machine_change::Request> {
+        None
+    }
+    fn observe_machine_change(&mut self, _facts: crate::machine_change::Facts) -> bool {
+        false
+    }
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::workbench_client::WorkbenchClient {
@@ -1767,6 +1780,18 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     }
     fn observe_machine_settings(&mut self, facts: crate::machine_settings::Facts) -> bool {
         crate::workbench_client::WorkbenchClient::observe_machine_settings(self, facts)
+    }
+    fn machine_change_wanted(&self) -> bool {
+        crate::workbench_client::WorkbenchClient::machine_change_wanted(self)
+    }
+    fn machine_list_open(&self) -> bool {
+        crate::workbench_client::WorkbenchClient::machine_list_open(self)
+    }
+    fn take_machine_change_request(&mut self) -> Option<crate::machine_change::Request> {
+        crate::workbench_client::WorkbenchClient::take_machine_change_request(self)
+    }
+    fn observe_machine_change(&mut self, facts: crate::machine_change::Facts) -> bool {
+        crate::workbench_client::WorkbenchClient::observe_machine_change(self, facts)
     }
 }
 

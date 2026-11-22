@@ -164,6 +164,11 @@ pub enum HitTarget {
         login: orchbee_machine_protocol::Id,
         control: crate::machine_picker::WaitingControl,
     },
+    /// Cancel or Move of the question painted for one move of a Workspace.
+    MachineMove {
+        token: u64,
+        confirm: bool,
+    },
     /// A control actually painted by the Workspace setup owner.
     Setup {
         token: crate::workbench_state::workspace_setup::SetupToken,

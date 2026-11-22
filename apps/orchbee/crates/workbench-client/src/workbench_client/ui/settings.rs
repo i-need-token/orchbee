@@ -202,6 +202,16 @@ impl WorkbenchClientUi {
         self.apply_notification_preferences();
     }
     pub(super) fn request_settings(&mut self) -> ClientActionDisposition {
+        self.request_settings_at(None)
+    }
+    /// Opens Settings on Machines, as the last row of a Change machine list does.
+    pub(super) fn request_machine_settings(&mut self) -> ClientActionDisposition {
+        self.request_settings_at(Some(crate::native_settings::Category::Machines))
+    }
+    fn request_settings_at(
+        &mut self,
+        category: Option<crate::native_settings::Category>,
+    ) -> ClientActionDisposition {
         self.settings.clear_notice();
         let busy = self.modal_owns_input();
         let busy = busy
@@ -216,7 +226,11 @@ impl WorkbenchClientUi {
             self.settings.note(Notice::Failed);
             return ClientActionDisposition::KeepNavigator;
         }
-        let Some(token) = self.settings.editor.open() else {
+        let opened = match category {
+            Some(category) => self.settings.editor.open_at(category),
+            None => self.settings.editor.open(),
+        };
+        let Some(token) = opened else {
             self.settings.note(Notice::Busy);
             return ClientActionDisposition::KeepNavigator;
         };

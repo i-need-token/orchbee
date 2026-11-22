@@ -464,6 +464,9 @@ impl PointerState {
             Some(ControlTarget::Waiting(login, control)) => {
                 view.machines.waiting_control(login, control);
             }
+            Some(ControlTarget::Move(token, confirm)) => {
+                view.machines.move_control(token, confirm);
+            }
             Some(_) => {}
             None => self.modal_projection.clear_transport(),
         }

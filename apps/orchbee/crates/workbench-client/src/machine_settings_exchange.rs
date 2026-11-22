@@ -218,6 +218,31 @@ impl Exchange {
         agents: impl Fn(&ProfileId) -> Option<usize>,
         now: Instant,
     ) -> Facts {
+        let machines = self.machines(discovery, profiles, agents, now);
+        let added = self
+            .added
+            .take_if(|added| machines.iter().any(|machine| machine.id == added.as_str()))
+            .map(|added| added.as_str().to_owned());
+        Facts {
+            local: discovery.capacity(None),
+            machines,
+            passwords: discovery
+                .remembering()
+                .is_some_and(|remembering| remembering != Remembering::Unavailable),
+            outcome: self.outcome.take(),
+            added,
+        }
+    }
+
+    /// Every saved machine by name as the page shows it, without taking the outcome or the added
+    /// machine; Change machine lists the same machines.
+    pub fn machines(
+        &self,
+        discovery: &mut Discovery,
+        profiles: &[Profile],
+        agents: impl Fn(&ProfileId) -> Option<usize>,
+        now: Instant,
+    ) -> Vec<Machine> {
         let observations = discovery.observations(now);
         let explanations = discovery.explanations(now);
         let mut machines: Vec<Machine> = profiles
@@ -266,19 +291,7 @@ impl Exchange {
         machines.sort_by(|left, right| {
             natural_order(&left.label, &right.label).then_with(|| left.id.cmp(&right.id))
         });
-        let added = self
-            .added
-            .take_if(|added| machines.iter().any(|machine| machine.id == added.as_str()))
-            .map(|added| added.as_str().to_owned());
-        Facts {
-            local: discovery.capacity(None),
-            machines,
-            passwords: discovery
-                .remembering()
-                .is_some_and(|remembering| remembering != Remembering::Unavailable),
-            outcome: self.outcome.take(),
-            added,
-        }
+        machines
     }
 
     fn commit(&mut self, store: Option<&Store>, edit: &Edit) -> Option<Catalog> {

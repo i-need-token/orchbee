@@ -226,6 +226,12 @@ pub enum MenuAction {
     WorkspaceCreation,
     /// A Workspace's Open Worktree submenu of its other Git Worktrees.
     WorkspaceWorktrees,
+    /// A Workspace's Change machine submenu: the machines it can run on.
+    ChangeMachine,
+    /// A row of that submenu, by its place in the list the submenu took when it opened.
+    MoveToMachine(u16),
+    /// The submenu's last row: Settings › Machines.
+    ManageMachines,
     CreateWorkspaceProject,
     LeaveWorkspaceProject,
     JoinWorkspaceProject(orchbee_workbench_protocol::WorkbenchProjectId),
@@ -297,6 +303,7 @@ impl MenuAction {
                 | Self::WorkspaceProjects
                 | Self::WorkspaceCreation
                 | Self::WorkspaceWorktrees
+                | Self::ChangeMachine
                 | Self::AgentConfirmations
         )
     }
@@ -381,6 +388,10 @@ impl MenuAction {
             Self::WorkspaceProjects
             | Self::WorkspaceCreation
             | Self::WorkspaceWorktrees
+            // The menu's owner moves the Workspace its entry names, and opens Settings › Machines.
+            | Self::ChangeMachine
+            | Self::MoveToMachine(_)
+            | Self::ManageMachines
             | Self::WorkspaceInFolder(_)
             | Self::CreateWorkspaceProject
             | Self::LeaveWorkspaceProject

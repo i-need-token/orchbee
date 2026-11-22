@@ -96,7 +96,7 @@ impl Parts {
 }
 
 /// The color of a machine's state word, as the machine list's tone gives it.
-const fn state_role(machine: &Machine) -> Role {
+pub(in crate::tui_render) const fn state_role(machine: &Machine) -> Role {
     if machine.stopping {
         return Role::StatusPending;
     }

@@ -29,7 +29,7 @@ use ratatui::{
 
 use super::controls::{KeyHint, QueryField, render_overlay_hints, render_query_field};
 
-mod machines;
+pub(super) mod machines;
 #[cfg(test)]
 mod tests;
 

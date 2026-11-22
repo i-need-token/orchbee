@@ -85,6 +85,7 @@ mod environment_marker;
 mod find_bar;
 mod held_restore;
 mod machine_login;
+mod machine_move;
 mod machine_picker;
 mod machine_waiting;
 mod modal;
@@ -365,6 +366,12 @@ pub fn render_terminal_shell_with_resize<'a>(
                 && let Some(sign) = login_deferred(view, locale)
             {
                 secondary_notice = vec![sign];
+            }
+            // A Workspace's move runs, or did not land as asked.
+            if secondary_notice.is_empty()
+                && let Some(forms) = machine_move_status(view, locale)
+            {
+                secondary_notice = forms;
             }
             sidebar_status = phase_status.to_owned();
             if native.phase() == DisplayPhase::Ready
@@ -2761,6 +2768,28 @@ const fn machine_outcome_role(outcome: &crate::machine_settings::Outcome) -> Rol
 }
 
 /// The status sign naming the Machine whose command login notice waits for the keyboard.
+fn machine_move_status(view: &ClientView, locale: Locale) -> Option<Vec<String>> {
+    use crate::machine_change::Notice;
+    use crate::machine_picker::MoveStatus;
+    let clean = |text: &str| crate::terminal_text::sanitize_terminal_text(text).into_owned();
+    Some(match view.machines.move_status()? {
+        MoveStatus::Moving => vec![locale.machine_moving().to_owned()],
+        MoveStatus::Notice(notice) => locale.machine_move_notice(&match notice {
+            Notice::FolderMissing { machine, folder } => Notice::FolderMissing {
+                machine: clean(machine),
+                folder: clean(folder),
+            },
+            Notice::NotConnected { machine } => Notice::NotConnected {
+                machine: clean(machine),
+            },
+            Notice::CloseFailed { machine } => Notice::CloseFailed {
+                machine: clean(machine),
+            },
+            notice => notice.clone(),
+        }),
+    })
+}
+
 fn login_deferred(view: &ClientView, locale: Locale) -> Option<String> {
     view.machines.waiting_deferred().map(|label| {
         locale.machine_waiting_deferred(&crate::terminal_text::sanitize_terminal_text(label))

@@ -46,6 +46,8 @@ pub enum MenuTarget {
     WorkspaceProjects(crate::workbench_projection::ClientContextLocation),
     /// One Workspace's Open Worktree submenu: the Git Worktrees other than its own checkout.
     WorkspaceWorktrees(crate::workbench_projection::ClientContextLocation),
+    /// One Workspace's Change machine submenu: This computer and every saved machine.
+    WorkspaceMachines(crate::workbench_projection::ClientContextLocation),
     /// One Project's New Workspace submenu: a new Worktree, its folders and its Git Worktrees.
     WorkspaceCreation(orchbee_workbench_protocol::WorkbenchProjectId),
     /// An object entry must still belong to the exact Session snapshot that painted it.
@@ -131,6 +133,7 @@ pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
 /// The Worktree rows wait for Git discovery, which may also add Remove Worktree….
 pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
     MenuAction::WorkspaceProjects,
+    MenuAction::ChangeMachine,
     MenuAction::RenameWorkspace,
     MenuAction::NewWorktree,
     MenuAction::WorkspaceWorktrees,
@@ -194,6 +197,7 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::NextWorkspace,
     MenuAction::PreviousWorkspace,
     MenuAction::RenameWorkspace,
+    MenuAction::ChangeMachine,
     MenuAction::CloseWorkspace,
     MenuAction::Detach,
     MenuAction::Settings,
@@ -434,6 +438,8 @@ pub(crate) struct MenuView<'a> {
     pub(crate) labels: &'a [Option<String>],
     pub(crate) notes: &'a [Option<MenuRowNote>],
     pub(crate) tabs: Option<&'a TabMenuPresentation>,
+    /// A Change machine list's rows, one per `MoveToMachine` index.
+    pub(crate) machines: Option<&'a [crate::machine_change::Row]>,
     pub(crate) actions: &'a [MenuAction],
     pub(crate) unavailable: &'a [Option<MenuUnavailable>],
     #[cfg(test)]
@@ -561,6 +567,7 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::NextWorkspace
         | MenuAction::PreviousWorkspace
         | MenuAction::RenameWorkspace
+        | MenuAction::ChangeMachine
         | MenuAction::CloseWorkspace => GlobalMenuGroup::Workspace,
         MenuAction::Detach => GlobalMenuGroup::Client,
         _ => GlobalMenuGroup::Other,
@@ -581,6 +588,9 @@ fn heading_before(
     index: usize,
 ) -> Option<MenuHeading> {
     let previous = index.checked_sub(1).map(|index| &actions[index]);
+    if matches!(source, MenuTarget::WorkspaceMachines(_)) {
+        return (index == 0).then_some(MenuHeading::RunsOn);
+    }
     if matches!(source, MenuTarget::TabProfiles(_)) {
         return (agent_row(&actions[index]) && !previous.is_some_and(agent_row))
             .then_some(MenuHeading::Agents);
@@ -642,6 +652,7 @@ fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -
         | MenuAction::ManageGroups
         | MenuAction::CreateGroup
         | MenuAction::Ungroup
+        | MenuAction::ManageMachines
         | MenuAction::ClosePane => true,
         _ => false,
     }
@@ -652,6 +663,7 @@ struct Menu {
     labels: Vec<Option<String>>,
     notes: Vec<Option<MenuRowNote>>,
     tabs: Option<TabMenuPresentation>,
+    machines: Option<Vec<crate::machine_change::Row>>,
     title: String,
     actions: Vec<MenuAction>,
     unavailable: Vec<Option<MenuUnavailable>>,
@@ -682,6 +694,7 @@ pub(crate) struct RetainedMenu {
     labels: Vec<Option<String>>,
     notes: Vec<Option<MenuRowNote>>,
     tabs: Option<TabMenuPresentation>,
+    machines: Option<Vec<crate::machine_change::Row>>,
     actions: Vec<MenuAction>,
     unavailable: Vec<Option<MenuUnavailable>>,
     #[cfg(test)]
@@ -708,6 +721,7 @@ impl RetainedMenu {
             labels: &self.labels,
             notes: &self.notes,
             tabs: self.tabs.as_ref(),
+            machines: self.machines.as_deref(),
             actions: &self.actions,
             unavailable: &self.unavailable,
             #[cfg(test)]
@@ -938,7 +952,19 @@ impl ActionMenu {
         let Some(token) = self.allocate() else {
             return false;
         };
-        let searchable = matches!(&source, MenuTarget::Global | MenuTarget::TabCreate(_));
+        let searchable = match &source {
+            MenuTarget::Global | MenuTarget::TabCreate(_) => true,
+            // Past eight saved machines the list leads with its query row; This computer is the
+            // one row that is no saved machine.
+            MenuTarget::WorkspaceMachines(_) => {
+                actions
+                    .iter()
+                    .filter(|action| matches!(action, MenuAction::MoveToMachine(_)))
+                    .count()
+                    > crate::machine_settings::FILTER_THRESHOLD + 1
+            }
+            _ => false,
+        };
         // Key rows wait for a search, as the renderer shows them.
         let result_actions = (0..actions.len())
             .filter(|index| !matches!(actions[*index], MenuAction::Key(_)))
@@ -949,6 +975,7 @@ impl ActionMenu {
             labels: vec![None; actions.len()],
             notes: vec![None; actions.len()],
             tabs: None,
+            machines: None,
             unavailable: vec![None; actions.len()],
             result_actions,
             query: searchable.then(|| {
@@ -1009,6 +1036,7 @@ impl ActionMenu {
             labels: menu.labels.clone(),
             notes: menu.notes.clone(),
             tabs: menu.tabs.clone(),
+            machines: menu.machines.clone(),
             actions: menu.actions.clone(),
             unavailable: menu.unavailable.clone(),
             #[cfg(test)]
@@ -1149,6 +1177,29 @@ impl ActionMenu {
         menu.visible_rows = 0;
     }
 
+    /// The rows of a Change machine list. Their order is the list's own; a newer reading of the
+    /// same machines changes their words and availability, never which machine a row names, so a
+    /// row the person already chose keeps its meaning until its transfer ends.
+    pub(crate) fn set_machines(&mut self, rows: Vec<crate::machine_change::Row>) {
+        let Some(menu) = &self.menu else {
+            return;
+        };
+        if self.confirmed.is_some() || menu.machines.as_ref() == Some(&rows) {
+            return;
+        }
+        let Some(token) = self.allocate() else {
+            self.cancel();
+            return;
+        };
+        let Some(menu) = &mut self.menu else {
+            return;
+        };
+        menu.machines = Some(rows);
+        menu.token = token;
+        menu.drawn = None;
+        menu.visible_rows = 0;
+    }
+
     /// Replaces captured display facts under the same successful-draw fence as row copy.
     pub(crate) fn set_tab_presentation(
         &mut self,
@@ -1197,6 +1248,7 @@ impl ActionMenu {
             labels: &menu.labels,
             notes: &menu.notes,
             tabs: menu.tabs.as_ref(),
+            machines: menu.machines.as_deref(),
             actions: &menu.actions,
             unavailable: &menu.unavailable,
             #[cfg(test)]
