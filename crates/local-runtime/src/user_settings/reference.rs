@@ -28,7 +28,10 @@ pub fn default_user_settings_toml() -> String {
 pub fn default_user_settings_toml_with_actions(actions: &[DefaultActionBindings]) -> String {
     let mut output = String::from(HEADER);
     let mut current: Option<String> = None;
-    for setting in SETTING_KEYS.iter().filter(|setting| setting.reference) {
+    for setting in SETTING_KEYS
+        .iter()
+        .filter(|setting| setting.reference && setting.offered())
+    {
         let placement = Placement::of(setting);
         if current.as_deref() != Some(placement.header.as_str()) {
             output.push('\n');

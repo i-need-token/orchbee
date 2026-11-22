@@ -205,6 +205,9 @@ pub struct SettingKey {
     pub page: bool,
     /// Whether `config default` lists the key.
     pub reference: bool,
+    /// Whether a release build offers the key. A release withholds the keys of a feature it does
+    /// not ship yet, as it withholds the feature's other entry points; see [`SettingKey::offered`].
+    pub released: bool,
     /// Fixed English purpose for the offline reference.
     pub description: &'static str,
 }
@@ -246,6 +249,7 @@ const fn key(
         effect: SettingEffect::Immediate,
         page: false,
         reference: true,
+        released: true,
         description,
     }
 }
@@ -267,6 +271,23 @@ impl SettingKey {
         self.reference = false;
         self
     }
+    const fn unreleased(mut self) -> Self {
+        self.released = false;
+        self
+    }
+
+    /// Whether this build knows the key. A release build leaves out an unreleased key everywhere:
+    /// the reader, the snapshot, the reference, the page and every edit treat it as unknown, so a
+    /// release neither shows nor honours it. Development and test builds offer every key.
+    /// [`crate::is_release`] stays the only owner of the decision.
+    pub const fn offered(&self) -> bool {
+        self.released || !crate::is_release()
+    }
+}
+
+/// The keys this build offers, in reference order.
+pub(super) fn offered_settings() -> impl Iterator<Item = &'static SettingKey> {
+    SETTING_KEYS.iter().filter(|setting| setting.offered())
 }
 
 use SettingCategory as C;
@@ -778,7 +799,8 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         SERVER,
         "Let Orchbee press Claude Code's one-time Yes on routine confirmations; destructive commands always wait.",
     )
-    .page(),
+    .page()
+    .unreleased(),
     key(
         "agents.auto_allow.codex",
         V::Boolean,
@@ -787,7 +809,8 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         SERVER,
         "Let Orchbee press Codex's one-time Yes on routine confirmations; destructive commands always wait.",
     )
-    .page(),
+    .page()
+    .unreleased(),
     key(
         "agents.auto_allow.gemini",
         V::Boolean,
@@ -796,7 +819,8 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         SERVER,
         "Let Orchbee press Gemini CLI's one-time Yes on routine confirmations; destructive commands always wait.",
     )
-    .page(),
+    .page()
+    .unreleased(),
     key(
         "agents.auto_allow.opencode",
         V::Boolean,
@@ -805,7 +829,8 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         SERVER,
         "Let Orchbee press OpenCode's one-time Allow on routine confirmations; destructive commands always wait.",
     )
-    .page(),
+    .page()
+    .unreleased(),
     key(
         "agents.auto_allow.offer",
         V::Boolean,
@@ -813,7 +838,8 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         (C::Agents, G::Confirmations),
         SERVER,
         "Offer to turn on automatic confirmation when a supported Agent waits on a routine confirmation.",
-    ),
+    )
+    .unreleased(),
     key(
         "update.channel",
         V::Choice(&["stable", "preview"]),
@@ -859,11 +885,10 @@ fn path_matches<'a>(pattern: &str, mut segments: impl Iterator<Item = &'a str>) 
     }
 }
 
-/// The key that `segments` names exactly. Array elements are named with a `[]` suffix.
+/// The key that `segments` names exactly, if this build offers it. Array elements are named with a
+/// `[]` suffix.
 pub fn find_setting(segments: &[&str]) -> Option<&'static SettingKey> {
-    SETTING_KEYS
-        .iter()
-        .find(|setting| path_matches(setting.path, segments.iter().copied()))
+    offered_settings().find(|setting| path_matches(setting.path, segments.iter().copied()))
 }
 
 /// Whether `key` is a registered key under `table_path`, or a table that holds registered keys.
@@ -874,7 +899,7 @@ pub(super) fn user_config_has_child(table_path: &str, key: &str) -> bool {
         .filter(|segment| !segment.is_empty())
         .chain([key])
         .collect();
-    SETTING_KEYS.iter().any(|setting| {
+    offered_settings().any(|setting| {
         let pattern: Vec<&str> = setting.path.split('.').collect();
         pattern.len() >= candidate.len()
             && pattern
@@ -887,7 +912,7 @@ pub(super) fn user_config_has_child(table_path: &str, key: &str) -> bool {
 /// Whether a dotted path, with `[]` marking array elements, is a registered key or lies under one.
 pub(crate) fn recognized_path(path: &str) -> bool {
     let segments: Vec<&str> = path.split('.').collect();
-    SETTING_KEYS.iter().any(|setting| {
+    offered_settings().any(|setting| {
         let pattern: Vec<&str> = setting.path.split('.').collect();
         pattern.len() <= segments.len()
             && pattern.iter().zip(&segments).all(|(pattern, segment)| {

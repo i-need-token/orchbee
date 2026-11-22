@@ -1261,6 +1261,12 @@ the Clients it applies to, when a change applies and whether the settings page s
 reader, the `orchbee config default` reference, `config check` key knowledge, the editor and the
 published key file all derive from it, so adding a key starts there.
 
+A key marked unreleased belongs to a feature a release build withholds. A release build does not
+know it: the reader, the snapshot, the reference, the page and every edit treat it as unknown, and
+the published key file still lists it. Development and test builds offer every key. The
+`agents.auto_allow.*` keys are unreleased; see the
+[release-withheld surfaces](../../apps/orchbee/README.md#release-withheld-surfaces).
+
 A key's `SettingScope` says whose file holds it. `Client` keys describe how one Client looks and
 takes input (`general.language`, `appearance.*`, the terminal font, padding, opacity, Option,
 selection-copy and blank-row keys, `notifications.*`, `keys.*`) and are read from the file on that

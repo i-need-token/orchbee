@@ -18,6 +18,11 @@ Orchbee started: its Terminal Host does not list `screen-gated-send`, so the Wor
 send before anything reaches that Host, and the terminal keeps waiting for the person until it
 runs under a newer Host.
 
+A release build withholds the feature until it ships: the Server loads no layout, so it reads no
+dialog and offers, shows and presses nothing, and its registry does not know the settings below.
+Development and test builds answer as this reference describes; see the
+[release-withheld surfaces](../../orchbee/README.md#release-withheld-surfaces).
+
 ## Layouts
 
 A layout describes one confirmation dialog of one Agent as that Agent draws it. Layouts are TOML
