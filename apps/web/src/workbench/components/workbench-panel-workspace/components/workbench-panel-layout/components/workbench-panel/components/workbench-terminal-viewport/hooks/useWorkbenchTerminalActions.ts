@@ -53,13 +53,13 @@ type TerminalMenuActionId =
 	| typeof TERMINAL_ACTION_IDS.takeControl;
 
 const terminalActionIcons: Readonly<Record<TerminalMenuActionId, ProductIconName>> = {
-	[TERMINAL_ACTION_IDS.clear]: 'trash',
+	[TERMINAL_ACTION_IDS.clear]: 'clear-all',
 	[TERMINAL_ACTION_IDS.takeControl]: 'terminal',
 	[TERMINAL_ACTION_IDS.copySelection]: 'copy',
 	[TERMINAL_ACTION_IDS.findOpen]: 'search',
-	[TERMINAL_ACTION_IDS.openLink]: 'action',
+	[TERMINAL_ACTION_IDS.openLink]: 'link',
 	[TERMINAL_ACTION_IDS.paste]: 'clipboard',
-	[TERMINAL_ACTION_IDS.selectAll]: 'check',
+	[TERMINAL_ACTION_IDS.selectAll]: 'select-all',
 };
 
 export function useWorkbenchTerminalActions({

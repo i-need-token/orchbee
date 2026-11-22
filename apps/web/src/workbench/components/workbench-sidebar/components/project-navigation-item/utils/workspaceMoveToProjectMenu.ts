@@ -38,7 +38,7 @@ export function workspaceMoveToProjectMenu({
 	];
 	if (workspace.projectId !== null) {
 		organization.push({
-			icon: 'close',
+			icon: 'ungroup',
 			id: 'ungroup',
 			kind: 'command',
 			label: messages.workspaceUngroup,

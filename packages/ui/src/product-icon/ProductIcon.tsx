@@ -15,6 +15,7 @@ export type ProductIconName =
 	| 'clipboard'
 	| 'chevron-right'
 	| 'check'
+	| 'clear-all'
 	| 'close'
 	| 'color'
 	| 'copy'
@@ -26,6 +27,7 @@ export type ProductIconName =
 	| 'info'
 	| 'keyboard'
 	| 'layout'
+	| 'link'
 	| 'more-vertical'
 	| 'new-folder'
 	| 'panels'
@@ -36,6 +38,7 @@ export type ProductIconName =
 	| 'search'
 	| 'screen-full'
 	| 'screen-normal'
+	| 'select-all'
 	| 'settings'
 	| 'sidebar-left'
 	| 'split-down'
@@ -66,6 +69,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'clipboard' && styles['clipboard'],
 				name === 'chevron-right' && styles['chevronRight'],
 				name === 'check' && styles['check'],
+				name === 'clear-all' && styles['clearAll'],
 				name === 'close' && styles['close'],
 				name === 'color' && styles['color'],
 				name === 'copy' && styles['copy'],
@@ -77,6 +81,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'info' && styles['info'],
 				name === 'keyboard' && styles['keyboard'],
 				name === 'layout' && styles['layout'],
+				name === 'link' && styles['link'],
 				name === 'more-vertical' && styles['moreVertical'],
 				name === 'new-folder' && styles['newFolder'],
 				name === 'panels' && styles['panels'],
@@ -87,6 +92,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'search' && styles['search'],
 				name === 'screen-full' && styles['screenFull'],
 				name === 'screen-normal' && styles['screenNormal'],
+				name === 'select-all' && styles['selectAll'],
 				name === 'settings' && styles['settings'],
 				name === 'sidebar-left' && styles['sidebarLeft'],
 				name === 'split-down' && styles['splitDown'],

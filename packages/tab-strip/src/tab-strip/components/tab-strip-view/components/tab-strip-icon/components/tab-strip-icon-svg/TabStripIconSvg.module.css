@@ -2,10 +2,6 @@
 	composes: ct-spinner from '../../../../TabStripView.module.css';
 }
 
-.ct-group-header__chevron {
-	composes: ct-group-header__chevron from '../../../../TabStripView.module.css';
-}
-
 .ct-tab-icon__crashed {
 	composes: ct-tab-icon__crashed from '../../../../TabStripView.module.css';
 }

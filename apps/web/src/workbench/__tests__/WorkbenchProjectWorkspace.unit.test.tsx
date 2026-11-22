@@ -491,7 +491,10 @@ describe('Workbench Project and Workspace management', { timeout: 15_000 }, () =
 		);
 		act(() => publishSnapshot(runtime, workspaceIn(3, fixtureProjectId(1))));
 		await openMove();
-		fireEvent.click(await screen.findByRole('menuitem', { name: 'Remove from Project' }));
+		const removeFromProject = await screen.findByRole('menuitem', { name: 'Remove from Project' });
+		const ungroupIcon = removeFromProject.querySelector('[data-icon]')?.getAttribute('data-icon');
+		expect(ungroupIcon).toBeTruthy();
+		fireEvent.click(removeFromProject);
 		await waitFor(() =>
 			expect(change).toHaveBeenLastCalledWith(expect.anything(), {
 				projectId: null,
@@ -516,7 +519,11 @@ describe('Workbench Project and Workspace management', { timeout: 15_000 }, () =
 		);
 		act(() => publishSnapshot(runtime, workspaceIn(5, fixtureProjectId(1))));
 		fireEvent.click(screen.getByRole('button', { name: 'Project options: Review' }));
-		fireEvent.click(await screen.findByRole('menuitem', { name: 'Ungroup' }));
+		const ungroupProject = await screen.findByRole('menuitem', { name: 'Ungroup' });
+		expect(ungroupProject.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe(
+			ungroupIcon,
+		);
+		fireEvent.click(ungroupProject);
 		await waitFor(() =>
 			expect(change).toHaveBeenLastCalledWith(expect.anything(), {
 				projectId: fixtureProjectId(1),
@@ -1469,7 +1476,9 @@ describe('Workbench Project and Workspace management', { timeout: 15_000 }, () =
 			{ icon: 'edit', label: 'Rename' },
 			{ icon: 'close', label: 'Close' },
 		]);
-		fireEvent.click(within(workspaceMenu).getByRole('menuitem', { name: 'Close' }));
+		const closeWorkspace = within(workspaceMenu).getByRole('menuitem', { name: 'Close' });
+		const closeIcon = closeWorkspace.querySelector('[data-icon]')?.getAttribute('data-icon');
+		fireEvent.click(closeWorkspace);
 		const deleteWorkspaceTitle = await screen.findByText('Close Workspace?');
 		const confirmationDialog = deleteWorkspaceTitle.closest<HTMLElement>(
 			'[data-slot="alert-dialog-content"]',
@@ -1537,12 +1546,15 @@ describe('Workbench Project and Workspace management', { timeout: 15_000 }, () =
 		const projectContextMenu = await screen.findByRole('menu');
 		expect(projectRow.hasAttribute('data-popup-open')).toBe(true);
 		expect(projectContextMenu.getAttribute('data-slot')).toBe('context-menu-content');
+		expectActionableMenuItemsToHaveIcons(projectContextMenu);
 		const projectContextMenuPresentation = getActionableMenuPresentation(projectContextMenu);
-		expect(projectContextMenuPresentation).toEqual([
-			{ icon: 'add', label: 'New Workspace' },
-			{ icon: 'edit', label: 'Rename' },
-			{ icon: 'close', label: 'Ungroup' },
+		expect(projectContextMenuPresentation.map(({ label }) => label)).toEqual([
+			'New Workspace',
+			'Rename',
+			'Ungroup',
 		]);
+		const ungroupItem = within(projectContextMenu).getByRole('menuitem', { name: 'Ungroup' });
+		expect(ungroupItem.querySelector('[data-icon]')?.getAttribute('data-icon')).not.toBe(closeIcon);
 		fireEvent.keyDown(document, { key: 'Escape' });
 		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
 		expect(projectRow.hasAttribute('data-popup-open')).toBe(false);

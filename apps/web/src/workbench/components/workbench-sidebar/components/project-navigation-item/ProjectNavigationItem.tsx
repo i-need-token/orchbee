@@ -162,7 +162,7 @@ export function ProjectNavigationItem({
 					{ id: 'dissolve-project-separator', kind: 'separator' },
 					// Dissolving keeps every Workspace, so it is not destructive.
 					{
-						icon: 'close',
+						icon: 'ungroup',
 						id: 'dissolve-project',
 						kind: 'command',
 						label: messages.projectMenuDissolve,

@@ -1,5 +1,5 @@
 import styles from './GroupHeader.module.css';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
+import { ProductIcon, Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import {
 	type CSSProperties,
 	type MouseEvent as ReactMouseEvent,
@@ -188,7 +188,9 @@ export function GroupHeader({
 							<TabStripIcon name='more-vertical' />
 						</button>
 					) : null}
-					<TabStripIcon name='chevron' variantClass='ct-group-header__chevron' />
+					<span className={styles['ct-group-header__chevron']}>
+						<ProductIcon name='chevron-right' size='disclosure' />
+					</span>
 				</>
 			)}
 		</div>

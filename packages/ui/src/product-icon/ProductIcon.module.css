@@ -43,6 +43,10 @@
 	composes: codicon-check from global;
 }
 
+.clearAll {
+	composes: codicon-clear-all from global;
+}
+
 .close {
 	composes: codicon-close from global;
 }
@@ -87,6 +91,10 @@
 	composes: codicon-layout from global;
 }
 
+.link {
+	composes: codicon-link from global;
+}
+
 .moreVertical {
 	composes: codicon-kebab-vertical from global;
 }
@@ -125,6 +133,10 @@
 
 .screenNormal {
 	composes: codicon-screen-normal from global;
+}
+
+.selectAll {
+	composes: codicon-selection from global;
 }
 
 .settings {

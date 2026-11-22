@@ -4,7 +4,6 @@ import type { TabStripIconVariantClass } from './types/tab-strip-icon-variant-cl
 type TabStripIconName =
 	| 'bluetooth'
 	| 'camera'
-	| 'chevron'
 	| 'collapse-sidebar'
 	| 'desktop-capture'
 	| 'device'
@@ -110,12 +109,6 @@ export function TabStripIcon({ name, variantClass }: TabStripIconProps): ReactNo
 				<path d='M3 8h18v7a3 3 0 0 1-3 3h-2l-2-4h-4l-2 4H6a3 3 0 0 1-3-3Z' />
 				<circle cx='8' cy='12' r='1' fill='currentColor' stroke='none' />
 				<circle cx='16' cy='12' r='1' fill='currentColor' stroke='none' />
-			</TabStripIconSvg>
-		);
-	if (name === 'chevron')
-		return (
-			<TabStripIconSvg iconName={name} variantClass={variantClass}>
-				<path d='m8 10 4 4 4-4' />
 			</TabStripIconSvg>
 		);
 	if (name === 'more-vertical')

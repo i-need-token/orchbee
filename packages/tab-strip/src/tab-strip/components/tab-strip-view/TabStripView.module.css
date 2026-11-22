@@ -1304,6 +1304,8 @@
 	outline-offset: var(--ob-comp-tab-strip-length-negative-2);
 }
 .ct-group-header__chevron {
+	display: grid;
+	place-items: center;
 	width: var(--ob-comp-tab-strip-length-16);
 	height: var(--ob-comp-tab-strip-length-16);
 	flex: 0 0 var(--ob-comp-tab-strip-length-16);
@@ -1312,7 +1314,7 @@
 		var(--ob-sys-motion-easing-standard);
 }
 .ct-group-header[aria-expanded='true'] .ct-group-header__chevron {
-	transform: rotate(180deg);
+	transform: rotate(90deg);
 }
 .ct-group-header[data-orientation='vertical']:focus-visible {
 	outline: var(--ob-comp-tab-strip-length-2) solid var(--ob-sys-color-border-focus);

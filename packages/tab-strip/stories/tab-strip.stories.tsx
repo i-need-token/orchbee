@@ -83,6 +83,31 @@ export const Default: Story = {
 	},
 };
 
+const groupedSnapshot = model.getSnapshot();
+
+export const VerticalGroups: Story = {
+	args: {
+		...Default.args,
+		model: new TabModel({
+			activeTabId: groupedSnapshot.activeTabId,
+			groups: groupedSnapshot.groups.map((group) => ({
+				...group,
+				collapsed: group.id === 'delivery',
+			})),
+			selectedTabIds: [...groupedSnapshot.selectedTabIds],
+			tabs: groupedSnapshot.tabs,
+		}),
+		orientation: TabStripOrientation.Vertical,
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: '100vh' }}>
+				<Story />
+			</div>
+		),
+	],
+};
+
 export const CompactControls: Story = {
 	args: {
 		model: compactControlsModel,
