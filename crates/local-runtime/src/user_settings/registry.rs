@@ -797,7 +797,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         D::Boolean(false),
         (C::Agents, G::Confirmations),
         SERVER,
-        "Let Orchbee press Claude Code's one-time Yes on routine confirmations; destructive commands always wait.",
+        "Let Orchbee press Claude Code's one-time Yes on routine confirmations; commands are not checked, so one that deletes or uploads files runs too.",
     )
     .page()
     .unreleased(),
@@ -807,7 +807,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         D::Boolean(false),
         (C::Agents, G::Confirmations),
         SERVER,
-        "Let Orchbee press Codex's one-time Yes on routine confirmations; destructive commands always wait.",
+        "Let Orchbee press Codex's one-time Yes on routine confirmations; commands are not checked, so one that deletes or uploads files runs too.",
     )
     .page()
     .unreleased(),
@@ -817,7 +817,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         D::Boolean(false),
         (C::Agents, G::Confirmations),
         SERVER,
-        "Let Orchbee press Gemini CLI's one-time Yes on routine confirmations; destructive commands always wait.",
+        "Let Orchbee press Gemini CLI's one-time Yes on routine confirmations; commands are not checked, so one that deletes or uploads files runs too.",
     )
     .page()
     .unreleased(),
@@ -827,7 +827,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         D::Boolean(false),
         (C::Agents, G::Confirmations),
         SERVER,
-        "Let Orchbee press OpenCode's one-time Allow on routine confirmations; destructive commands always wait.",
+        "Let Orchbee press OpenCode's one-time Allow on routine confirmations; commands are not checked, so one that deletes or uploads files runs too.",
     )
     .page()
     .unreleased(),

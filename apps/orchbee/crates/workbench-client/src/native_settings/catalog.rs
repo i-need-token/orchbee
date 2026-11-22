@@ -193,8 +193,8 @@ impl Group {
             Self::SoundDelivery => titled("Sound and delivery", "声音与显示"),
             Self::AgentConfirmations => titled("Allow routine confirmations", "自动允许常规确认")
                 .described(
-                    "Presses the Agent's one-time Yes. Destructive commands always wait.",
-                    "替你按下智能体的单次允许。破坏性命令始终等你确认。",
+                    "Presses the Agent's allow-once for you.",
+                    "替你按下智能体的单次允许。",
                 )
                 .noted(
                     "Request more Agents in a GitHub issue.",

@@ -233,9 +233,9 @@ export const enUSTerminalSettingsMessages = {
 		'Reopens Claude Code on Windows; other Agents need a conversation ID.',
 	'terminal.settings.page.groups.agentConfirmations': 'Allow routine confirmations',
 	'terminal.settings.page.agentConfirmations.description':
-		"Presses the Agent's one-time Yes. Destructive commands always wait.",
+		"Presses the Agent's allow-once for you.",
 	'terminal.settings.page.agentConfirmations.rowDescription':
-		'Orchbee checks the command shown, not what a script does.',
+		'Commands are not checked: one that deletes or uploads files runs too.',
 	'terminal.settings.page.agentConfirmations.request': 'Request more Agents in a GitHub issue.',
 	'terminal.settings.page.profiles.add': 'Add profile',
 	'terminal.settings.page.profiles.edit': 'Edit',

@@ -337,19 +337,19 @@ is. No path in this feature ends a process or blocks a terminal's input or outpu
 
 Both Clients use the same words. English and Simplified Chinese ship together.
 
-| Place                | English                                                                       | Chinese                                                       |
-| -------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Offer                | Let Orchbee allow routine {agent} confirmations?                              | 让 Orchbee 自动允许 {agent} 的常规确认？                      |
-| Offer answers        | This Agent only · Always for {agent} · No                                     | 仅此智能体 · {agent} 始终允许 · 不用                          |
-| Row menu             | Allow confirmations: Off · This Agent only · Always for {agent}               | 自动允许确认：关闭 · 仅此智能体 · {agent} 始终允许            |
-| After a press        | Allowed: {command}                                                            | 已允许：{command}                                             |
-| Stopped              | Stopped allowing: the same confirmation keeps coming back.                    | 已停止自动允许：同一个确认反复出现。                          |
-| Hover reason         | Needs attention · protected file, waiting for you                             | 需要处理 · 受保护的文件，等你确认                             |
-| Settings group       | Allow routine confirmations                                                   | 自动允许常规确认                                              |
-| Change not applied   | Couldn't apply the change.                                                    | 没能应用更改。                                                |
-| Settings description | Presses the Agent's one-time Yes. Destructive commands always wait.           | 替你按下智能体的单次允许。破坏性命令始终等你确认。            |
-| Settings switch      | {agent}, described: Orchbee checks the command shown, not what a script does. | {agent}，说明：Orchbee 只检查显示的命令，不检查脚本做了什么。 |
-| Settings last line   | Request more Agents in a GitHub issue.                                        | 可在 GitHub issue 中申请更多智能体。                          |
+| Place                | English                                                                                   | Chinese                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Offer                | Let Orchbee allow routine {agent} confirmations?                                          | 让 Orchbee 自动允许 {agent} 的常规确认？                    |
+| Offer answers        | This Agent only · Always for {agent} · No                                                 | 仅此智能体 · {agent} 始终允许 · 不用                        |
+| Row menu             | Allow confirmations: Off · This Agent only · Always for {agent}                           | 自动允许确认：关闭 · 仅此智能体 · {agent} 始终允许          |
+| After a press        | Allowed: {command}                                                                        | 已允许：{command}                                           |
+| Stopped              | Stopped allowing: the same confirmation keeps coming back.                                | 已停止自动允许：同一个确认反复出现。                        |
+| Hover reason         | Needs attention · protected file, waiting for you                                         | 需要处理 · 受保护的文件，等你确认                           |
+| Settings group       | Allow routine confirmations                                                               | 自动允许常规确认                                            |
+| Change not applied   | Couldn't apply the change.                                                                | 没能应用更改。                                              |
+| Settings description | Presses the Agent's allow-once for you.                                                   | 替你按下智能体的单次允许。                                  |
+| Settings switch      | {agent}, described: Commands are not checked: one that deletes or uploads files runs too. | {agent}，说明：不检查命令内容，删除、上传等命令同样会执行。 |
+| Settings last line   | Request more Agents in a GitHub issue.                                                    | 可在 GitHub issue 中申请更多智能体。                        |
 
 - **Offer.** A status notice, never a dialog: the person may be typing, and a surface that takes
   the keyboard could turn an Enter meant for the Agent into an answer. The GUI notice carries the
@@ -382,15 +382,15 @@ Main is released often, so nothing a person can reach changes until slice 5. Sli
 in one push: a saved setting that turns pressing on must never exist without both Clients showing
 it.
 
-| Slice | Content                                                                                                                            | Visible |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| 0     | This proposal and the model                                                                                                        | No      |
-| 1     | Terminal Host: screen-gated key, its capability, protocol bindings and fixtures                                                    | No      |
-| 2     | Worker and Server-to-Worker protocol: the gated send and its outcomes                                                              | No      |
+| Slice | Content                                                                                                                   | Visible |
+| ----- | ------------------------------------------------------------------------------------------------------------------------- | ------- |
+| 0     | This proposal and the model                                                                                               | No      |
+| 1     | Terminal Host: screen-gated key, its capability, protocol bindings and fixtures                                           | No      |
+| 2     | Worker and Server-to-Worker protocol: the gated send and its outcomes                                                     | No      |
 | 3     | Server: layouts, the path check, the per-run decision, rule tests over captured Claude Code screens; no way to turn it on | No      |
-| 4     | Settings keys, the row read and the two requests behind their capability, with schemas and bindings; the sampler wiring            | No      |
-| 5     | Both Clients together: offer, row menu, notices, hover reason, Settings, both locales. Claude Code only                            | Yes     |
-| 6–9   | Codex, OpenCode, Gemini CLI, Hermes Agent: layouts, captured screens, Settings switch, one merge each                              | Yes     |
+| 4     | Settings keys, the row read and the two requests behind their capability, with schemas and bindings; the sampler wiring   | No      |
+| 5     | Both Clients together: offer, row menu, notices, hover reason, Settings, both locales. Claude Code only                   | Yes     |
+| 6–9   | Codex, OpenCode, Gemini CLI, Hermes Agent: layouts, captured screens, Settings switch, one merge each                     | Yes     |
 
 Codex is answered for its shell command confirmation only, which also carries the files it writes
 through PowerShell.

@@ -357,8 +357,8 @@ impl Row {
             // The Agent's product name, the same in every language.
             Self::AutoAllowClaude => row("Claude Code", "Claude Code")
                 .described(
-                    "Orchbee checks the command shown, not what a script does.",
-                    "Orchbee 只检查显示的命令，不检查脚本做了什么。",
+                    "Commands are not checked: one that deletes or uploads files runs too.",
+                    "不检查命令内容，删除、上传等命令同样会执行。",
                 )
                 .flag(
                     F::AutoAllowClaude,
@@ -367,8 +367,8 @@ impl Row {
                 ),
             Self::AutoAllowCodex => row("Codex", "Codex")
                 .described(
-                    "Orchbee checks the command shown, not what a script does.",
-                    "Orchbee 只检查显示的命令，不检查脚本做了什么。",
+                    "Commands are not checked: one that deletes or uploads files runs too.",
+                    "不检查命令内容，删除、上传等命令同样会执行。",
                 )
                 .flag(
                     F::AutoAllowCodex,
@@ -377,8 +377,8 @@ impl Row {
                 ),
             Self::AutoAllowGemini => row("Gemini CLI", "Gemini CLI")
                 .described(
-                    "Orchbee checks the command shown, not what a script does.",
-                    "Orchbee 只检查显示的命令，不检查脚本做了什么。",
+                    "Commands are not checked: one that deletes or uploads files runs too.",
+                    "不检查命令内容，删除、上传等命令同样会执行。",
                 )
                 .flag(
                     F::AutoAllowGemini,
@@ -387,8 +387,8 @@ impl Row {
                 ),
             Self::AutoAllowOpenCode => row("OpenCode", "OpenCode")
                 .described(
-                    "Orchbee checks the command shown, not what a script does.",
-                    "Orchbee 只检查显示的命令，不检查脚本做了什么。",
+                    "Commands are not checked: one that deletes or uploads files runs too.",
+                    "不检查命令内容，删除、上传等命令同样会执行。",
                 )
                 .flag(
                     F::AutoAllowOpenCode,
