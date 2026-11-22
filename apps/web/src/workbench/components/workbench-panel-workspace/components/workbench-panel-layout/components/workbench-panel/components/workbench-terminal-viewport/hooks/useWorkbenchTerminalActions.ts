@@ -18,6 +18,7 @@ import type {
 } from '../../../../../../../../../types/workbench-terminal-surface';
 
 interface UseWorkbenchTerminalActionsOptions {
+	readonly onFindOpened: () => void;
 	readonly parentScope: ActionScope;
 	readonly presentationId: string;
 	readonly runtime: ActionRuntime;
@@ -63,6 +64,7 @@ const terminalActionIcons: Readonly<Record<TerminalMenuActionId, ProductIconName
 };
 
 export function useWorkbenchTerminalActions({
+	onFindOpened,
 	parentScope,
 	presentationId,
 	runtime,
@@ -158,11 +160,16 @@ export function useWorkbenchTerminalActions({
 
 		function executePrepared(invocation: PreparedActionInvocation): void {
 			const activeProvider = provider.current;
-			if (activeProvider === null) {
-				void runtime.executePrepared(invocation).completion;
-				return;
+			const execution =
+				activeProvider === null
+					? runtime.executePrepared(invocation)
+					: activeProvider.executePrepared(invocation);
+			if (
+				invocation.actionId === TERMINAL_ACTION_IDS.findOpen &&
+				execution.getSnapshot().result?.kind === 'completed'
+			) {
+				onFindOpened();
 			}
-			void activeProvider.executePrepared(invocation).completion;
 		}
 
 		function formatActionMessage(message: ActionMessageDescriptor): string {
@@ -173,7 +180,7 @@ export function useWorkbenchTerminalActions({
 			};
 			return intl.formatMessage(descriptor, message.values);
 		}
-	}, [intl, pinnedContext, runtime, runtimeRevision, scope, shortcutLabelForAction]);
+	}, [intl, onFindOpened, pinnedContext, runtime, runtimeRevision, scope, shortcutLabelForAction]);
 
 	return {
 		bindActionContextProvider,

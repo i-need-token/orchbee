@@ -6,7 +6,7 @@ import type {
 	WorkbenchWorktreeFormAnswer,
 	WorkbenchWorktreeFormRequest,
 } from '../types/workbench-worktree-form';
-import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
+import { findActiveTerminalFocusTarget } from '../utils/workbench-terminal-focus-target';
 
 /** What the New Worktree form shows while it is open. */
 export interface WorkbenchWorktreeFormModel {

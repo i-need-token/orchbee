@@ -41,7 +41,7 @@ import type {
 	WorkbenchProjectCreationReceipt,
 } from '../types/workbench-project-folder-acquisition';
 import type { WorkbenchTerminalSurfaceProps } from '../types/workbench-terminal-surface';
-import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
+import { findActiveTerminalFocusTarget } from '../utils/workbench-terminal-focus-target';
 import { inertWorkbenchAuthority } from '../../__tests__/inertWorkbenchAuthority';
 
 function FocusTestTerminalSurface({

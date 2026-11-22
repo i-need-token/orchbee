@@ -28,6 +28,7 @@ export interface InstallProjectedTerminalShortcutsOptions {
 	readonly shortcutBindingSource?: ProjectedTerminalShortcutBindingSource | undefined;
 	readonly terminalRoot: HTMLElement;
 	readonly terminalScope: ActionScope;
+	readonly viewport?: HTMLElement | null | undefined;
 }
 
 export function installProjectedTerminalShortcuts({
@@ -40,12 +41,13 @@ export function installProjectedTerminalShortcuts({
 	shortcutBindingSource,
 	terminalRoot,
 	terminalScope,
+	viewport,
 }: InstallProjectedTerminalShortcutsOptions): () => void {
 	const focusFor = (target: EventTarget | null): ProjectedTerminalShortcutFocus => {
 		const NodeConstructor = findRoot.ownerDocument.defaultView?.Node;
 		if (NodeConstructor === undefined || !(target instanceof NodeConstructor)) return 'outside';
 		if (findRoot.contains(target)) return 'find';
-		return terminalRoot.contains(target) ? 'terminal' : 'outside';
+		return target === viewport || terminalRoot.contains(target) ? 'terminal' : 'outside';
 	};
 	const consume = (event: KeyboardEvent): void => {
 		event.preventDefault();

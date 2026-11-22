@@ -6,7 +6,7 @@ import type {
 	WorkbenchAgentCatalogSource,
 	WorkbenchAgentStartPlace,
 } from '../types/workbench-agent-start';
-import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
+import { findActiveTerminalFocusTarget } from '../utils/workbench-terminal-focus-target';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
 
 interface UseWorkbenchAgentDialogsOptions {

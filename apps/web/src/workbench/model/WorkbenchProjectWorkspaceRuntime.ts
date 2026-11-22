@@ -43,6 +43,8 @@ import {
 } from './resolve-current-directory-terminal-target';
 
 type Listener = () => void;
+type TerminalInputFocus = (presentationId: TerminalPresentationId) => void;
+type ClaimTerminalInputFocus = () => TerminalInputFocus | undefined;
 
 export interface WorkbenchTerminalContext {
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
@@ -89,6 +91,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 	private readonly listeners = new Set<Listener>();
 	private terminalTopologyFingerprint: string | undefined;
 	private readonly terminalTopologyListeners = new Set<Listener>();
+	private claimInputFocus: ClaimTerminalInputFocus | undefined;
 	private state = createProjectWorkspaceState();
 	private withheldTabViews: WithheldTabViews = new Map();
 
@@ -100,6 +103,23 @@ export class WorkbenchProjectWorkspaceRuntime {
 
 	public getClientView(): WorkbenchClientView {
 		return projectWorkbenchClientView(this.runtimeSnapshot());
+	}
+
+	/** The mounted Workbench decides when this window can give an external request its keyboard. */
+	public bindTerminalInputFocus(claim: ClaimTerminalInputFocus): () => void {
+		this.claimInputFocus = claim;
+		return () => {
+			if (this.claimInputFocus === claim) this.claimInputFocus = undefined;
+		};
+	}
+
+	public claimTerminalInputFocus(): TerminalInputFocus | undefined {
+		const claim = this.claimInputFocus;
+		const focus = claim?.();
+		if (focus === undefined) return undefined;
+		return (presentationId) => {
+			if (this.claimInputFocus === claim) focus(presentationId);
+		};
 	}
 
 	/** Takes what an outside authority published as the whole shared state of this runtime. */

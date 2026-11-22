@@ -1,5 +1,6 @@
 import {
 	readWorkbenchClientSelection,
+	resolveActiveTerminalPresentationId,
 	showWorkbenchClientTarget,
 	type WorkbenchClientTarget,
 	type WorkbenchProjectWorkspaceRuntime,
@@ -89,6 +90,10 @@ export function bindServerClientView({
 		};
 		let target = navigationTarget(intent);
 		if (target === null) return failed('unsupported');
+		const focusInput =
+			intent.kind === 'context' || intent.kind === 'tab' || intent.kind === 'panel'
+				? runtime.claimTerminalInputFocus()
+				: undefined;
 		const minimum = BigInt(minimumWorkbenchRevision);
 		if (BigInt(session.snapshot.revision) < minimum) {
 			await Promise.race([
@@ -114,7 +119,11 @@ export function bindServerClientView({
 			}
 		}
 		const view = sample();
-		if (view !== null && observed(target, minimum, view, outcome)) return { outcome, view };
+		if (!disposed && view !== null && observed(target, minimum, view, outcome)) {
+			const presentationId = resolveActiveTerminalPresentationId(runtime);
+			if (presentationId !== null) focusInput?.(presentationId);
+			return { outcome, view };
+		}
 		// Something else moved the window before the change was drawn.
 		return failed('interrupted');
 	};

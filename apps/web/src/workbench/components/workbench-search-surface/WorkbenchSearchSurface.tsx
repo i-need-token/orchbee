@@ -64,6 +64,7 @@ export function WorkbenchSearchSurface({
 				className={styles['surface']}
 				data-slot='workbench-search-surface'
 				data-workbench-command-surface='true'
+				finalFocus={false}
 				showCloseButton={false}
 			>
 				<div className={styles['inputRegion']}>

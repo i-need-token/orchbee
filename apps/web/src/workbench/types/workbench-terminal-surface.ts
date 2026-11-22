@@ -7,7 +7,7 @@ import type {
 	ActionTarget,
 	PreparedActionInvocation,
 } from '@orchbee/actions';
-import type { ComponentType } from 'react';
+import type { ComponentType, RefObject } from 'react';
 
 import type { TerminalPresentation } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type { WorkbenchTerminalBellEffect } from '../model/WorkbenchTerminalBellEffectCoordinator';
@@ -68,6 +68,8 @@ export interface WorkbenchTerminalSurfaceProps {
 	readonly onPresentationReady: (readiness: WorkbenchTerminalPresentationReadiness) => void;
 	readonly presentation: WorkbenchTerminalPresentation;
 	readonly presentationMode: WorkbenchTerminalPresentationMode;
+	/** The focusable viewport that hosts this terminal's input and Find surface. */
+	readonly viewportRef?: RefObject<HTMLElement | null> | undefined;
 }
 
 export type WorkbenchTerminalSurface = ComponentType<WorkbenchTerminalSurfaceProps>;

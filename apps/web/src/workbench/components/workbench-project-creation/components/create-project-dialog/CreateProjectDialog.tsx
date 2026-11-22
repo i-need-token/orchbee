@@ -37,6 +37,7 @@ export function CreateProjectDialog({
 	const formId = 'workbench-project-create-form';
 	const descriptionId = 'project-create-path-description';
 	const normalizedPath = path.trim();
+	const pathInput = React.useRef<HTMLInputElement>(null);
 	return (
 		<Dialog
 			onOpenChange={(open) => {
@@ -44,7 +45,11 @@ export function CreateProjectDialog({
 			}}
 			open
 		>
-			<DialogContent closeLabel={messages.close} data-slot='workbench-project-create'>
+			<DialogContent
+				closeLabel={messages.close}
+				data-slot='workbench-project-create'
+				initialFocus={pathInput}
+			>
 				<ResourceDialogHeader
 					description={title === undefined ? messages.projectCreateDescription : undefined}
 					title={title ?? messages.projectCreateTitle}
@@ -62,10 +67,10 @@ export function CreateProjectDialog({
 							autoCapitalize='none'
 							autoComplete='off'
 							autoCorrect='off'
-							autoFocus
 							data-code-like='true'
 							id='project-create-path'
 							placeholder={messages.projectCreatePathPlaceholder}
+							ref={pathInput}
 							required
 							spellCheck={false}
 							value={path}

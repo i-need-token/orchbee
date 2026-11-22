@@ -9,7 +9,7 @@ import {
 	snapshotTab,
 } from '../../../__tests__/server-workbench-snapshot';
 import type { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
-import { findActiveTerminalFocusTarget } from '../findActiveTerminalFocusTarget';
+import { findActiveTerminalFocusTarget } from '../workbench-terminal-focus-target';
 
 function createRuntime(): WorkbenchProjectWorkspaceRuntime {
 	return createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));

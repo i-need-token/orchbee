@@ -19,7 +19,7 @@ const baseEvent = {
 };
 
 describe('projected terminal shortcuts', () => {
-	it('opens find with the platform default in terminal or find focus', () => {
+	it('opens Find with the platform default from input, Find, or its terminal viewport', () => {
 		const apple = shortcutHarness('apple');
 		apple.keyDown({ ...baseEvent, metaKey: true }, apple.terminalNode);
 		apple.keyDown({ ...baseEvent, metaKey: true }, apple.findNode);
@@ -37,12 +37,15 @@ describe('projected terminal shortcuts', () => {
 		);
 
 		const standard = shortcutHarness('standard');
-		standard.keyDown({ ...baseEvent, ctrlKey: true, shiftKey: true }, standard.terminalNode);
-		expect(standard.invoke).toHaveBeenCalledWith(
-			'terminal.search.open',
-			undefined,
-			standard.terminalScope,
-		);
+		for (const target of [standard.terminalNode, standard.viewport]) {
+			const key = standard.keyDown({ ...baseEvent, ctrlKey: true, shiftKey: true }, target);
+			expect(standard.invoke).toHaveBeenLastCalledWith(
+				'terminal.search.open',
+				undefined,
+				standard.terminalScope,
+			);
+			expect(key.preventDefault).toHaveBeenCalledOnce();
+		}
 	});
 
 	it('copies a selection with Ctrl+C only on Windows and otherwise lets the key interrupt', () => {
@@ -283,6 +286,7 @@ interface ShortcutHarness {
 	>;
 	readonly terminalNode: TestNode;
 	readonly terminalScope: ActionScope;
+	readonly viewport: TestNode;
 	keyDown(
 		event: typeof baseEvent,
 		target: TestNode,
@@ -312,6 +316,7 @@ function shortcutHarness(
 	const ownerDocument = { defaultView: { Node: TestNode } };
 	const findNode = new TestNode();
 	const terminalNode = new TestNode();
+	const viewport = new TestNode();
 	const findRoot = {
 		contains: (node: Node) => node === findNode,
 		ownerDocument,
@@ -343,12 +348,14 @@ function shortcutHarness(
 			: { shortcutBindingSource: { current: currentBindings } }),
 		terminalRoot,
 		terminalScope,
+		viewport: viewport as unknown as HTMLElement,
 	});
 
 	return {
 		findNode,
 		findScope,
 		invoke,
+		viewport,
 		keyDown: (event, target) => {
 			const listener = listeners.get('keydown');
 			if (listener === undefined) throw new Error('keydown listener is unavailable');

@@ -164,6 +164,7 @@ export interface ProjectedTerminalWorkbenchHost {
 	) => ActionDisposable;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
+	readonly viewport?: HTMLElement | null | undefined;
 }
 
 /** Typed input admission, not DOM keydown: selection, focus and cursor movement keep completion. */
@@ -1499,6 +1500,7 @@ export async function startProjectedTerminalRenderer(
 			shortcutBindingSource,
 			terminalRoot: rootElement,
 			terminalScope: actions.terminalScope,
+			viewport: workbenchHost?.viewport,
 		});
 	} catch (error) {
 		reportFailure();

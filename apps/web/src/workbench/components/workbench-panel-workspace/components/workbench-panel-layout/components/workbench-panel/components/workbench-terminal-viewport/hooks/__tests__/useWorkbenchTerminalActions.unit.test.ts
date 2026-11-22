@@ -32,6 +32,7 @@ describe('useWorkbenchTerminalActions', () => {
 		const rendered = renderHook(
 			() =>
 				useWorkbenchTerminalActions({
+					onFindOpened: () => undefined,
 					parentScope,
 					presentationId: 'presentation-1',
 					runtime,
@@ -155,6 +156,7 @@ describe('useWorkbenchTerminalActions', () => {
 		const rendered = renderHook(
 			() =>
 				useWorkbenchTerminalActions({
+					onFindOpened: () => undefined,
 					parentScope,
 					presentationId: 'presentation-1',
 					runtime,

@@ -6,7 +6,7 @@ import {
 	FieldLabel,
 	Input,
 } from '@orchbee/ui/components';
-import type * as React from 'react';
+import * as React from 'react';
 
 import type { NewProjectFolderState } from '../../../../model/transitionNewProjectFolder';
 import type { WorkbenchProjectCreationMessages } from '../../types/workbench-project-creation-messages';
@@ -36,6 +36,12 @@ export function CreateProjectFolderDialog({
 	const recovery = state.kind === 'recovery';
 	const formId = 'workbench-new-project-folder-form';
 	const disabled = pending || (!recovery && state.name.trim().length === 0);
+	const nameInput = React.useRef<HTMLInputElement>(null);
+	const failure = state.kind === 'draft' ? state.failure : null;
+	React.useLayoutEffect(() => {
+		// Submitting disables the name field and releases its focus.
+		if (failure !== null) nameInput.current?.focus({ preventScroll: true });
+	}, [failure]);
 	return (
 		<Dialog
 			open
@@ -47,6 +53,7 @@ export function CreateProjectFolderDialog({
 				showCloseButton={!pending}
 				closeLabel={messages.close}
 				data-slot='workbench-project-folder-create'
+				initialFocus={nameInput}
 			>
 				<ResourceDialogHeader
 					title={messages.newFolderTitle}
@@ -76,12 +83,12 @@ export function CreateProjectFolderDialog({
 								autoCapitalize='none'
 								autoComplete='off'
 								autoCorrect='off'
-								autoFocus
 								data-code-like='true'
 								disabled={pending}
 								id='new-project-folder-name'
 								maxLength={255}
 								onChange={(event) => onNameChange(event.currentTarget.value)}
+								ref={nameInput}
 								required
 								spellCheck={false}
 								value={state.name}

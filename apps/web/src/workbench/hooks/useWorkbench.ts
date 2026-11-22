@@ -89,7 +89,8 @@ import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalContext,
 } from '../model/WorkbenchProjectWorkspaceRuntime';
-import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
+import { findActiveTerminalFocusTarget } from '../utils/workbench-terminal-focus-target';
+import { hasWorkbenchExclusiveFocusSurface } from '../utils/workbench-focus-dom';
 import type { WorkbenchAgentStartInput } from '../types/workbench-agent-start';
 import {
 	useWorkbenchAgentDialogs,
@@ -450,6 +451,23 @@ export function useWorkbench({
 		isTabStripVisible: !sidebar.mobile || sidebar.tabListOpen,
 		resolveTerminalTarget: resolveTerminalFocusTarget,
 	});
+	const claimTerminalInputFocus = useMemoizedFn(() => {
+		if (!document.hasFocus() || hasWorkbenchExclusiveFocusSurface(document)) return undefined;
+		const handover = focusRouting.beginTerminalHandover();
+		return (presentationId: string): void => {
+			if (
+				resolveTerminalFocusTarget() === presentationId &&
+				document.hasFocus() &&
+				!hasWorkbenchExclusiveFocusSurface(document)
+			) {
+				handover.complete();
+			}
+		};
+	});
+	React.useLayoutEffect(
+		() => projectWorkspaceRuntime.bindTerminalInputFocus(claimTerminalInputFocus),
+		[claimTerminalInputFocus, projectWorkspaceRuntime],
+	);
 	const layoutFocusRouter = useWorkbenchMobileFocusRouter({
 		focusRouting,
 		hasTabs: tabModel !== undefined,
@@ -523,7 +541,10 @@ export function useWorkbench({
 				: (document.querySelector<HTMLElement>('[data-slot="workbench-sidebar-search"]') ??
 					document.querySelector<HTMLElement>('[data-slot="workbench-sidebar-toggle"]'));
 		searchReturnFocus.current = null;
-		returnFocus?.focus();
+		// A Search action can open a dialog in the same commit that closes Search.
+		if (!hasWorkbenchExclusiveFocusSurface(document)) {
+			returnFocus?.focus({ preventScroll: true });
+		}
 	}, [searchState.kind]);
 	const openNameEditor = useMemoizedFn(
 		(request: WorkbenchTabTitleEditorRequest | WorkbenchPanelNameEditorRequest) => {

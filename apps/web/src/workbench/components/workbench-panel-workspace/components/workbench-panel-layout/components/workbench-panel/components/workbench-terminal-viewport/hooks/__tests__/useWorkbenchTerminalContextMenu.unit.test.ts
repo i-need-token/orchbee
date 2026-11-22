@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -28,6 +30,7 @@ function getControls(): ContextMenuControls {
 describe('useWorkbenchTerminalContextMenu', () => {
 	beforeEach(() => {
 		controls = null;
+		document.body.replaceChildren();
 	});
 
 	it('leaves successful split focus transfer to the new terminal surface', () => {
@@ -57,16 +60,13 @@ describe('useWorkbenchTerminalContextMenu', () => {
 		expect(contextMenu.finalFocus()).toBe(false);
 	});
 
-	it('restores the element focused before a product context menu opened', () => {
-		class FakeHTMLElement {
-			ownerDocument: unknown;
-		}
-		const activeElement = new FakeHTMLElement() as unknown as HTMLElement;
-		const ownerDocument = {
-			activeElement,
-			defaultView: { HTMLElement: FakeHTMLElement },
-		} as unknown as Document;
-		(activeElement as unknown as FakeHTMLElement).ownerDocument = ownerDocument;
+	it('returns the keyboard to terminal input after the viewport opened a menu', () => {
+		const viewport = document.createElement('div');
+		const input = document.createElement('textarea');
+		viewport.tabIndex = 0;
+		viewport.append(input);
+		document.body.append(viewport);
+		viewport.focus();
 		renderToStaticMarkup(
 			createElement(HookProjection, {
 				splitPanel: () => null,
@@ -74,23 +74,19 @@ describe('useWorkbenchTerminalContextMenu', () => {
 		);
 
 		const contextMenu = getControls();
-		contextMenu.captureFinalFocus(ownerDocument);
+		contextMenu.captureFinalFocus(viewport);
 
-		expect(contextMenu.finalFocus()).toBe(activeElement);
+		expect(contextMenu.finalFocus()).toBe(input);
 		expect(contextMenu.finalFocus()).toBe(false);
 	});
 
 	it('leaves focus with a surface the chosen command already opened', () => {
-		class FakeHTMLElement {
-			ownerDocument: unknown;
-		}
-		const menuInvoker = new FakeHTMLElement() as unknown as HTMLElement;
-		const ownerDocument = {
-			activeElement: menuInvoker,
-			body: new FakeHTMLElement(),
-			defaultView: { HTMLElement: FakeHTMLElement },
-		};
-		(menuInvoker as unknown as FakeHTMLElement).ownerDocument = ownerDocument;
+		const viewport = document.createElement('div');
+		const input = document.createElement('textarea');
+		const openedField = document.createElement('input');
+		viewport.append(input);
+		document.body.append(viewport, openedField);
+		input.focus();
 		renderToStaticMarkup(
 			createElement(HookProjection, {
 				splitPanel: () => null,
@@ -98,8 +94,8 @@ describe('useWorkbenchTerminalContextMenu', () => {
 		);
 
 		const contextMenu = getControls();
-		contextMenu.captureFinalFocus(ownerDocument as unknown as Document);
-		ownerDocument.activeElement = { closest: () => null } as unknown as HTMLElement;
+		contextMenu.captureFinalFocus(viewport);
+		openedField.focus();
 
 		expect(contextMenu.finalFocus()).toBe(false);
 	});

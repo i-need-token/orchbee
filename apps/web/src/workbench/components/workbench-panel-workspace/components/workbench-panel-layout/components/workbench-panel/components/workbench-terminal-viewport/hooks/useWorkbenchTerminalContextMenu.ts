@@ -1,6 +1,8 @@
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
 import type { PanelSplitDirection } from '../../../../../../../model/panel-workspace-state';
+import { findTerminalFocusTarget } from '../../../../../../../../../utils/workbench-terminal-focus-target';
 
 interface UseWorkbenchTerminalContextMenuOptions {
 	readonly panelId: string;
@@ -12,41 +14,54 @@ interface UseWorkbenchTerminalContextMenuOptions {
 }
 
 interface WorkbenchTerminalContextMenu {
-	readonly captureFinalFocus: (ownerDocument: Document) => void;
+	readonly captureFinalFocus: (viewport: HTMLElement) => void;
 	readonly finalFocus: () => boolean | HTMLElement;
 	readonly split: (direction: PanelSplitDirection) => void;
+	readonly transferFocus: () => void;
 }
 
 export function useWorkbenchTerminalContextMenu({
 	panelId,
 	splitPanel,
 }: UseWorkbenchTerminalContextMenuOptions): WorkbenchTerminalContextMenu {
-	const transferFocusToSplit = React.useRef(false);
-	const capturedFinalFocus = React.useRef<HTMLElement | null>(null);
-	const captureFinalFocus = (ownerDocument: Document): void => {
+	const focusTransferred = React.useRef(false);
+	const transferFocus = useMemoizedFn(() => {
+		focusTransferred.current = true;
+	});
+	const capturedFinalFocus = React.useRef<{
+		readonly active: HTMLElement;
+		readonly viewport: HTMLElement;
+	} | null>(null);
+	const captureFinalFocus = (viewport: HTMLElement): void => {
+		const { ownerDocument } = viewport;
 		const activeElement = ownerDocument.activeElement;
 		const HTMLElementConstructor = ownerDocument.defaultView?.HTMLElement;
 		capturedFinalFocus.current =
 			HTMLElementConstructor !== undefined && activeElement instanceof HTMLElementConstructor
-				? activeElement
+				? { active: activeElement, viewport }
 				: null;
 	};
 	const split = (direction: PanelSplitDirection): void => {
 		const newPanelId = splitPanel(panelId, direction, 'context-menu');
-		if (newPanelId !== null) transferFocusToSplit.current = true;
+		if (newPanelId !== null) transferFocus();
 	};
 	const finalFocus = (): boolean | HTMLElement => {
-		if (transferFocusToSplit.current) {
-			transferFocusToSplit.current = false;
+		if (focusTransferred.current) {
+			focusTransferred.current = false;
 			capturedFinalFocus.current = null;
 			return false;
 		}
-		const finalFocusTarget = capturedFinalFocus.current;
+		const captured = capturedFinalFocus.current;
 		capturedFinalFocus.current = null;
-		return finalFocusTarget === null || focusMovedOn(finalFocusTarget) ? false : finalFocusTarget;
+		if (captured === null || !captured.active.isConnected || focusMovedOn(captured.active)) {
+			return false;
+		}
+		return captured.active === captured.viewport
+			? findTerminalFocusTarget(captured.viewport)
+			: captured.active;
 	};
 
-	return { captureFinalFocus, finalFocus, split };
+	return { captureFinalFocus, finalFocus, split, transferFocus };
 }
 
 /**

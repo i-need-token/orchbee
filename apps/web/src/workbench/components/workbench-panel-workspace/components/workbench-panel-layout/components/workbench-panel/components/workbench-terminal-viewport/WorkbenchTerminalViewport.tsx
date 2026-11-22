@@ -39,6 +39,7 @@ export function WorkbenchTerminalViewport({
 	terminalSurface: TerminalSurface,
 	view,
 }: WorkbenchTerminalViewportProps): React.ReactNode {
+	const viewportRef = React.useRef<HTMLDivElement>(null);
 	const [displayReady, setDisplayReady] = React.useState<{
 		readonly presentationId: string;
 		readonly surface: WorkbenchTerminalSurface;
@@ -48,6 +49,7 @@ export function WorkbenchTerminalViewport({
 		splitPanel: view.splitPanel,
 	});
 	const terminalActions = useWorkbenchTerminalActions({
+		onFindOpened: contextMenu.transferFocus,
 		parentScope: view.actionScope,
 		presentationId: terminal.presentationId,
 		runtime: view.actionRuntime,
@@ -86,12 +88,13 @@ export function WorkbenchTerminalViewport({
 				data-terminal-role={terminalRole}
 				onContextMenu={(event) => {
 					if (terminalActions.captureContext(event)) {
-						contextMenu.captureFinalFocus(event.currentTarget.ownerDocument);
+						contextMenu.captureFinalFocus(event.currentTarget);
 						return;
 					}
 					event.preventDefault();
 					event.stopPropagation();
 				}}
+				ref={viewportRef}
 				tabIndex={0}
 			>
 				{TerminalSurface === undefined || (layer.mode === 'incoming' && !layoutSettled) ? null : (
@@ -131,6 +134,7 @@ export function WorkbenchTerminalViewport({
 						}}
 						presentation={terminal}
 						presentationMode={layer.mode}
+						viewportRef={viewportRef}
 					/>
 				)}
 			</ContextMenuTrigger>

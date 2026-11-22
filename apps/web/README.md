@@ -171,6 +171,10 @@ Mounting a projected renderer never moves DOM focus. Workbench retains the activ
 pointer activation, an explicit terminal focus request, and closing the Find surface are the only
 adapter paths that move focus into the hidden terminal input. The projected root contains that
 input and the Find surface, so moving between them does not publish a terminal focus transition.
+The terminal viewport also accepts terminal shortcuts when it holds keyboard focus. Cancelling
+its context menu returns focus to the terminal input when available. A CLI Workspace, Tab, or
+Panel focus request can hand the keyboard to the selected terminal in a focused window, while an
+open menu, dialog, or later local interaction retains ownership of its input.
 
 ### Coarse-pointer terminal interaction
 

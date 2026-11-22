@@ -15,5 +15,10 @@ export function findActiveTerminalFocusTarget(
 		Array.from(
 			document.querySelectorAll<HTMLElement>('[data-slot="workbench-terminal-viewport"]'),
 		).find((element) => element.dataset['panelId'] === activeTab.focusedPanelId) ?? null;
-	return viewport?.querySelector<HTMLElement>('textarea, [role="textbox"]') ?? viewport;
+	return viewport === null ? null : findTerminalFocusTarget(viewport);
+}
+
+/** The viewport's keyboard entry, with the viewport as the fallback while input mounts. */
+export function findTerminalFocusTarget(viewport: HTMLElement): HTMLElement {
+	return viewport.querySelector<HTMLElement>('textarea, [role="textbox"]') ?? viewport;
 }

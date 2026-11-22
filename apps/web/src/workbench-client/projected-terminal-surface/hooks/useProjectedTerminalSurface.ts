@@ -81,6 +81,7 @@ type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 			| 'onPresentationReady'
 			| 'presentationMode'
 			| 'onTerminalEdit'
+			| 'viewportRef'
 		>
 	>;
 
@@ -100,9 +101,11 @@ export function useProjectedTerminalSurface(
 	const onPresentationReady = workbenchHost?.onPresentationReady;
 	const onTerminalEdit = workbenchHost?.onTerminalEdit;
 	const presentationMode = workbenchHost?.presentationMode ?? 'active';
+	const viewportRef = workbenchHost?.viewportRef;
 	const capability = React.useContext(ProjectedTerminalSurfaceCapabilityContext);
 	const root = React.useRef<HTMLDivElement>(null);
 	const launchFailureRoot = React.useRef<HTMLElement>(null);
+	const appliedFocusRequest = React.useRef(0);
 	const recoveryController = React.useRef<{
 		readonly controller: ProjectedTerminalRecoveryController;
 		readonly presentationId: string;
@@ -287,6 +290,7 @@ export function useProjectedTerminalSurface(
 								bindContextProvider: bindActionContextProvider,
 								runtime: actionRuntime,
 								scope: actionScope,
+								viewport: viewportRef?.current,
 							},
 					capability.interactionConfigurationSource,
 					capability.presentationSnapshots?.get(presentation.presentationId),
@@ -352,6 +356,7 @@ export function useProjectedTerminalSurface(
 		reportPresentationReady,
 		reportTerminalEdit,
 		settlePasteReview,
+		viewportRef,
 	]);
 	React.useLayoutEffect(() => {
 		const recovery = recoveryController.current;
@@ -381,6 +386,11 @@ export function useProjectedTerminalSurface(
 		if (presentationMode !== 'active' || !autoFocus || currentRecovery?.kind !== 'ready') return;
 		const recovery = recoveryController.current;
 		if (recovery?.presentationId !== presentation.presentationId) return;
+		const explicitlyRequested = focusRequest > appliedFocusRequest.current;
+		const element = root.current;
+		// Leaving a menu can re-enable terminal autofocus after Find took the keyboard.
+		if (!explicitlyRequested && element?.contains(element.ownerDocument.activeElement)) return;
+		if (explicitlyRequested) appliedFocusRequest.current = focusRequest;
 		recovery.controller.focusTerminal();
 	}, [
 		autoFocus,
