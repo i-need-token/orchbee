@@ -26,6 +26,8 @@ pub enum AgentConfirmationChoice {
 #[serde(rename_all = "kebab-case")]
 pub enum AgentConfirmationWait {
     LeavesWorkspace,
+    /// The Workspace is the home folder or holds it, so a file there is not judged inside it.
+    HomeWorkspace,
     ProtectedFile,
     NotUnderstood,
     NotVisible,

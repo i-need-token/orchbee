@@ -283,7 +283,9 @@ approvals, OpenCode's other permissions and Gemini CLI's replace-in-file confirm
 
 A file confirmation is allowed when its path stays inside the Workspace and is not protected. The
 path is placed by its spelling alone, against the Workspace's directory and the working directory
-of the Agent process from the same process sample; the content of the change is not judged. The
+of the Agent process from the same process sample; the content of the change is not judged. A
+Workspace that is the home folder, or holds it, places no file inside: it holds every file that
+configures the account, so every file confirmation there waits. The
 [Server reference](../../apps/orchbee-server/docs/agent-confirmation.md#path-rules) owns the path forms and the protected names.
 
 ## State and wire
@@ -320,7 +322,7 @@ The built contract is in the [Server reference](../../apps/orchbee-server/docs/a
 and the Workbench schemas.
 
 **Wait reasons** are a closed list, each with one localized sentence: file outside the Workspace,
-protected file, path not understood, path not fully visible, marked dangerous by the Agent, not a prompt Orchbee answers, you typed or clicked in this terminal, the
+Workspace includes the home folder, protected file, path not understood, path not fully visible, marked dangerous by the Agent, not a prompt Orchbee answers, you typed or clicked in this terminal, the
 screen keeps changing, the same confirmation keeps coming back, and an older Orchbee started this
 terminal, said once the Worker has refused a send because the terminal's Host does not list
 `screen-gated-send`.

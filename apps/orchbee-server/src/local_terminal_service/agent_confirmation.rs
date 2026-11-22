@@ -114,6 +114,9 @@ impl Entry {
 pub(super) struct AgentConfirmations {
     /// The bundled layouts. Without them no dialog is read and every confirmation waits.
     layouts: Option<Layouts>,
+    /// The home folder of the account the Server runs as; without it every file confirmation
+    /// waits.
+    home: Option<String>,
     /// A leaf lock: no other lock is taken while it is held.
     runs: Mutex<BTreeMap<[u8; 16], Entry>>,
     changes: SessionChangeSource,
@@ -136,6 +139,7 @@ impl Default for AgentConfirmations {
         };
         Self {
             layouts,
+            home: std::env::home_dir().and_then(|home| home.to_str().map(str::to_owned)),
             runs: Mutex::default(),
             changes: SessionChangeSource::default(),
         }
@@ -257,6 +261,7 @@ fn diagnose(outcome: Outcome) {
 fn wait(wait: Wait) -> AgentConfirmationWait {
     match wait {
         Wait::LeavesWorkspace => AgentConfirmationWait::LeavesWorkspace,
+        Wait::HomeWorkspace => AgentConfirmationWait::HomeWorkspace,
         Wait::ProtectedFile => AgentConfirmationWait::ProtectedFile,
         Wait::NotUnderstood => AgentConfirmationWait::NotUnderstood,
         Wait::NotVisible => AgentConfirmationWait::NotVisible,
@@ -441,6 +446,7 @@ impl LocalTerminalService {
                         let scope = Scope {
                             root: root.as_ref().map(|root| root.as_str()),
                             directory: directory.as_deref(),
+                            home: confirmations.home.as_deref(),
                         };
                         entry.run.observe(
                             now,

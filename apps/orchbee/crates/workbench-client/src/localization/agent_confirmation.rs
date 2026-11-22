@@ -66,6 +66,10 @@ impl Locale {
         match (self, wait) {
             (Self::EnUs, W::LeavesWorkspace) => "file outside the Workspace, waiting for you",
             (Self::ZhCn, W::LeavesWorkspace) => "工作区外的文件，等你确认",
+            (Self::EnUs, W::HomeWorkspace) => {
+                "Workspace includes your home folder, waiting for you"
+            }
+            (Self::ZhCn, W::HomeWorkspace) => "工作区包含你的主文件夹，等你确认",
             (Self::EnUs, W::ProtectedFile) => "protected file, waiting for you",
             (Self::ZhCn, W::ProtectedFile) => "受保护的文件，等你确认",
             (Self::EnUs, W::NotUnderstood) => "path Orchbee cannot read, waiting for you",

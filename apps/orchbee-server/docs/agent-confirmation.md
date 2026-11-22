@@ -16,7 +16,7 @@ that is not gives false assurance. A command that deletes or uploads files runs 
 
 Every other rule fails closed. A screen or a file path the module cannot read completely is one
 that waits for the person, and each wait carries one reason from a closed list: the file is
-outside the Workspace, a protected file, a path not understood, a path not fully visible, marked
+outside the Workspace, the Workspace holds the home folder, a protected file, a path not understood, a path not fully visible, marked
 dangerous by the Agent, not a prompt Orchbee answers, a person typed or clicked, the screen keeps
 changing, the same confirmation keeps coming back, and a terminal an older Orchbee started: its
 Terminal Host does not list `screen-gated-send`, so the Worker refuses the send before anything
@@ -155,11 +155,16 @@ A path is placed by its spelling alone; no file system is read.
   waits.
 - **Inside.** A relative path without a `..` step is inside. An absolute path is inside when its
   steps start with the Workspace's. A `..` step, `~`, and a variable wait.
+- **Home folder.** A Workspace that is the home folder of the account the Server runs as, or
+  holds it, holds every file that configures the account, from login keys to programs that start
+  at logon. No file in it is inside, and every file confirmation there waits. Without a known home
+  folder every file confirmation waits.
 - **Protected names** wait wherever they are, compared without case, without a stream and without
   trailing dots and spaces: `.git`; `.env` and `.env.*`; `.claude`, `.codex`, `.gemini`,
-  `.opencode`, `.hermes`, `.mcp.json`, `opencode.json`, `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`;
-  `.bashrc`, `.bash_profile`, `.bash_login`, `.profile`, `.zshrc`, `.zprofile`, `.zshenv`,
-  `.zlogin`, `config.fish`; and PowerShell profile files.
+  `.opencode`, `.hermes`, `.mcp.json`, `opencode.json`, `opencode.jsonc`, `CLAUDE.md`,
+  `CLAUDE.local.md`, `AGENTS.md`, `AGENTS.override.md`, `GEMINI.md`; `.bashrc`, `.bash_profile`,
+  `.bash_login`, `.profile`, `.zshrc`, `.zprofile`, `.zshenv`, `.zlogin`, `config.fish`; and
+  PowerShell profile files.
 - A file confirmation carries exactly one path row. The content of the change is not judged.
 
 ## Run decision

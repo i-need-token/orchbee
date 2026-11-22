@@ -1722,6 +1722,12 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Why a confirmation waits: the file the Agent would create or edit is outside the Workspace folder.',
 	},
+	agentConfirmationWaitHomeWorkspace: {
+		id: 'workbench.agentConfirmation.wait.homeWorkspace',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.homeWorkspace'],
+		description:
+			"Why a confirmation waits: the Workspace folder is the person's home folder or contains it, so Orchbee changes no file there unattended.",
+	},
 	agentConfirmationWaitProtectedFile: {
 		id: 'workbench.agentConfirmation.wait.protectedFile',
 		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.protectedFile'],

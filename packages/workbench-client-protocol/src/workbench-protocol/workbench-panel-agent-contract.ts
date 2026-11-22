@@ -69,6 +69,7 @@ export const TerminalAgentBindingSchema = z
 const AgentConfirmationChoiceSchema = z.enum(['off', 'run', 'agent-type']);
 const AgentConfirmationWaitSchema = z.enum([
 	'leaves-workspace',
+	'home-workspace',
 	'protected-file',
 	'not-understood',
 	'not-visible',

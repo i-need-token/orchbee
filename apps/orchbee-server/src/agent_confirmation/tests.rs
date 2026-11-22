@@ -10,8 +10,10 @@ mod styled_screens;
 const POSIX: Scope<'static> = Scope {
     root: Some("/work/app"),
     directory: Some("/work/app"),
+    home: Some("/home/demo"),
 };
 const WINDOWS: Scope<'static> = Scope {
     root: Some(r"C:\work\app"),
     directory: Some(r"C:\work\app\crates"),
+    home: Some(r"C:\Users\demo"),
 };

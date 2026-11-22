@@ -11,6 +11,7 @@ import type { WorkbenchAuthorityNotice } from './workbench-authority-notice';
 /** Why a confirmation waits for the person, in the TUI's words. */
 export const WORKBENCH_AGENT_CONFIRMATION_WAITS = {
 	changing: workbenchMessages.agentConfirmationWaitChanging,
+	'home-workspace': workbenchMessages.agentConfirmationWaitHomeWorkspace,
 	'host-too-old': workbenchMessages.agentConfirmationWaitHostTooOld,
 	'leaves-workspace': workbenchMessages.agentConfirmationWaitLeavesWorkspace,
 	'marked-dangerous': workbenchMessages.agentConfirmationWaitMarkedDangerous,

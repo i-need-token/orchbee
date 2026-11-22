@@ -1578,6 +1578,7 @@
 		"confirmationWait": {
 			"enum": [
 				"leaves-workspace",
+				"home-workspace",
 				"protected-file",
 				"not-understood",
 				"not-visible",

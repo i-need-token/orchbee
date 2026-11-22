@@ -445,6 +445,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.agentConfirmation.notChanged': '没能应用更改。',
 	'workbench.agentConfirmation.waitStatus': '{status} · {reason}',
 	'workbench.agentConfirmation.wait.leavesWorkspace': '工作区外的文件，等你确认',
+	'workbench.agentConfirmation.wait.homeWorkspace': '工作区包含你的主文件夹，等你确认',
 	'workbench.agentConfirmation.wait.protectedFile': '受保护的文件，等你确认',
 	'workbench.agentConfirmation.wait.notUnderstood': 'Orchbee 无法读取的路径，等你确认',
 	'workbench.agentConfirmation.wait.notVisible': '路径未完整显示，等你确认',

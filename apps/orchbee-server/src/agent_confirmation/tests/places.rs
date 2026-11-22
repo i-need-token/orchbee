@@ -29,6 +29,11 @@ fn a_path_is_placed_by_its_spelling_in_both_forms() {
         (POSIX, "docs/claude.md", PROTECTED),
         (POSIX, ".claude/settings.json", PROTECTED),
         (POSIX, ".zshrc", PROTECTED),
+        // OpenCode reads its permissions from either spelling, and Claude Code and Codex load
+        // these instructions in later sessions.
+        (POSIX, "opencode.jsonc", PROTECTED),
+        (POSIX, "sub/CLAUDE.local.md", PROTECTED),
+        (POSIX, "AGENTS.override.md", PROTECTED),
         (WINDOWS, r"sub\dir\a.txt", INSIDE),
         (WINDOWS, r"C:\work\app\a.txt", INSIDE),
         (WINDOWS, r"c:\WORK\App\a.txt", INSIDE),
@@ -59,26 +64,72 @@ fn a_path_is_placed_by_its_spelling_in_both_forms() {
 
 #[test]
 fn nothing_is_inside_without_a_workspace_the_agent_works_in() {
+    let home = Some("/home/demo");
     for scope in [
         Scope {
             root: None,
             directory: Some("/work/app"),
+            home,
         },
         Scope {
             root: Some("/work/app"),
             directory: None,
+            home,
         },
         Scope {
             root: Some("/work/app"),
             directory: Some("/work"),
+            home,
         },
         Scope {
             root: Some("work/app"),
             directory: Some("work/app"),
+            home,
+        },
+        Scope {
+            root: Some("/work/app"),
+            directory: Some("/work/app"),
+            home: None,
         },
     ] {
         assert_eq!(place::check("a.txt", scope), LEAVES, "{scope:?}");
     }
+}
+
+// A Workspace at the home folder made every file of the account "inside": login keys, cloud
+// credentials, and programs that start at logon.
+#[test]
+fn nothing_is_inside_a_workspace_that_holds_the_home_folder() {
+    let at = |root: &'static str, home: &'static str| Scope {
+        root: Some(root),
+        directory: Some(root),
+        home: Some(home),
+    };
+    for (scope, path) in [
+        (at("/home/demo", "/home/demo"), ".ssh/authorized_keys"),
+        (
+            at("/home/demo", "/home/demo"),
+            "/home/demo/.aws/credentials",
+        ),
+        (at("/home", "/home/demo"), "demo/.gitconfig"),
+        (
+            at(r"C:\Users\demo", r"C:\Users\demo"),
+            r"AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\x.cmd",
+        ),
+        (at(r"c:\users\DEMO", r"C:\Users\demo"), "a.txt"),
+        (at(r"C:\Users", r"C:\Users\demo"), r"demo\.npmrc"),
+    ] {
+        assert_eq!(
+            place::check(path, scope),
+            Err(Wait::HomeWorkspace),
+            "{path:?} in {scope:?}"
+        );
+    }
+    // A Workspace inside the home folder keeps its own files.
+    assert_eq!(
+        place::check("src/a.txt", at("/home/demo/work", "/home/demo")),
+        INSIDE
+    );
 }
 
 #[test]

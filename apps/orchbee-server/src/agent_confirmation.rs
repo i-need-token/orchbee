@@ -28,6 +28,8 @@ pub(crate) enum Kind {
 pub(crate) enum Wait {
     /// The file is outside the Workspace.
     LeavesWorkspace,
+    /// The Workspace is the home folder or holds it, so no file in it counts as inside.
+    HomeWorkspace,
     /// The file is one Orchbee never changes unattended.
     ProtectedFile,
     /// The path has a shape the path rules do not read.

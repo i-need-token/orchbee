@@ -2,14 +2,16 @@
 //! so a link that already exists is outside what this module can see.
 use super::Wait;
 
-/// The directories a confirmation is judged against, both absolute and in the Server's native
-/// form. Without either one nothing can be placed and every path waits.
+/// The directories a confirmation is judged against, all absolute and in the Server's native
+/// form. Without any one of them nothing can be placed and every path waits.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Scope<'a> {
     /// The Workspace's directory.
     pub(crate) root: Option<&'a str>,
     /// The Agent process's working directory, from the same process sample as the screen.
     pub(crate) directory: Option<&'a str>,
+    /// The home folder of the account the Server runs as.
+    pub(crate) home: Option<&'a str>,
 }
 
 const PATH_BYTES: usize = 1024;
@@ -26,8 +28,11 @@ const PROTECTED: &[&str] = &[
     ".hermes",
     ".mcp.json",
     "opencode.json",
+    "opencode.jsonc",
     "claude.md",
+    "claude.local.md",
     "agents.md",
+    "agents.override.md",
     "gemini.md",
     ".bashrc",
     ".bash_profile",
@@ -164,6 +169,18 @@ fn settled(scope: Scope<'_>) -> bool {
     }
 }
 
+/// Whether the Workspace is the home folder or holds it; `None` when either is unknown. Such a
+/// Workspace holds every file that configures the account, from login keys to programs that start
+/// at logon, so no file in it counts as inside.
+fn holds_home(scope: Scope<'_>) -> Option<bool> {
+    let root = parse(scope.root?)?;
+    let home = parse(scope.home?)?;
+    if home.anchor == Anchor::Relative || home.steps.is_empty() {
+        return None;
+    }
+    Some(inside(&home, &root))
+}
+
 /// Judges one path spelling: inside the Workspace and not protected, or the reason it waits.
 pub(crate) fn check(text: &str, scope: Scope<'_>) -> Result<(), Wait> {
     if !plain(text) {
@@ -180,6 +197,11 @@ pub(crate) fn check(text: &str, scope: Scope<'_>) -> Result<(), Wait> {
     };
     if parsed.steps.iter().any(|step| step == "..") || !settled(scope) {
         return Err(Wait::LeavesWorkspace);
+    }
+    match holds_home(scope) {
+        Some(false) => {}
+        Some(true) => return Err(Wait::HomeWorkspace),
+        None => return Err(Wait::LeavesWorkspace),
     }
     if parsed.anchor == Anchor::Relative {
         return Ok(());
