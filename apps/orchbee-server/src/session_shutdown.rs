@@ -56,9 +56,12 @@ struct State {
     /// The admitted records and connections that may change the Session, a subset of `records`.
     intents: usize,
     /// Whether a Server restart holds the Session for its successor: intents other than terminal
-    /// records are refused like under a `drain`, and so is a stop start, while reads, terminal
-    /// records and new Client connections are still admitted.
+    /// records are refused like under a `drain`, and so are a stop start and a Client that did not
+    /// offer `reconnect`, while reads, terminal records and other Client connections are still
+    /// admitted.
     held: bool,
+    /// Client connections being admitted whose Client did not offer `reconnect`.
+    plain_clients: usize,
     /// The `handover` step a Client waits on, if any.
     #[cfg(any(windows, test))]
     exchange: Option<Exchange>,
@@ -219,16 +222,33 @@ impl SessionShutdown {
         true
     }
 
-    /// Admits new work that a restart's hold lets through: a Client connection, or a terminal
-    /// record, which then finds no Worker. A record lease is acquired after decoding and remains
-    /// held through its result write. There is none once a Session stop is recorded or a `drain` or
-    /// `exit` arrived.
+    /// Admits a terminal record, which a restart's hold lets through and which then finds no
+    /// Worker. A record lease is acquired after decoding and remains held through its result write.
+    /// There is none once a Session stop is recorded or a `drain` or `exit` arrived.
     pub(crate) fn enter(&self) -> Option<RecordLease<'_>> {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         if state.entry.is_some() || state.course != Course::Serving {
             return None;
         }
         Some(self.lease(&mut state, true))
+    }
+
+    /// Admits a new Client connection as [`Self::enter`] admits a terminal record, through its
+    /// acceptance write. While a restart holds the Session, a Client that did not offer `reconnect`
+    /// is refused as during a stop, so it tries again and joins whichever Server serves after the
+    /// restart is decided, rather than being admitted and cut off at the commit. Such a Client's
+    /// admission counts until its lease ends, so a hold that begins meanwhile sees it.
+    pub(crate) fn enter_client(&self, reconnects: bool) -> Option<RecordLease<'_>> {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.entry.is_some() || state.course != Course::Serving || (state.held && !reconnects) {
+            return None;
+        }
+        let mut lease = self.lease(&mut state, true);
+        if !reconnects {
+            state.plain_clients += 1;
+            lease.plain_client = true;
+        }
+        Some(lease)
     }
 
     /// Admits any other intent record: as [`Self::enter`], and none while a restart holds the
@@ -257,20 +277,26 @@ impl SessionShutdown {
         RecordLease {
             owner: self,
             intent,
+            plain_client: false,
         }
     }
 
     #[cfg(any(windows, test))]
-    /// Holds the Session for a restart's successor, under the lock that admits stops: a stop is
-    /// either recorded first, and the hold refused, or refused while held. False, holding nothing,
-    /// once a stop or an `exit` is recorded or a `drain` arrived.
-    pub(crate) fn enter_hold(&self) -> bool {
+    /// Holds the Session for a restart's successor, under the lock that admits stops and Client
+    /// connections. A stop is either recorded first, and the hold refused `busy`, or refused while
+    /// held; so is a drain or an `exit`. A Client that did not offer `reconnect` is either seen
+    /// here, connected (`rejoin` false) or being admitted, and the hold refused `clients`, or
+    /// refused while held. `rejoin` runs under this owner's lock and must not call back into it.
+    pub(crate) fn enter_hold(&self, rejoin: impl FnOnce() -> bool) -> Result<(), HoldRefusal> {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         if state.entry.is_some() || state.course != Course::Serving {
-            return false;
+            return Err(HoldRefusal::Busy);
+        }
+        if state.plain_clients > 0 || !rejoin() {
+            return Err(HoldRefusal::Clients);
         }
         state.held = true;
-        true
+        Ok(())
     }
 
     #[cfg(any(windows, test))]
@@ -552,6 +578,8 @@ fn status(entry: &Entry) -> SessionStopStatus {
 pub(crate) struct RecordLease<'a> {
     owner: &'a SessionShutdown,
     intent: bool,
+    /// Whether this admits a Client that did not offer `reconnect`.
+    plain_client: bool,
 }
 impl Drop for RecordLease<'_> {
     fn drop(&mut self) {
@@ -560,8 +588,24 @@ impl Drop for RecordLease<'_> {
         if self.intent {
             state.intents = state.intents.checked_sub(1).expect("owned intent lease");
         }
+        if self.plain_client {
+            state.plain_clients = state
+                .plain_clients
+                .checked_sub(1)
+                .expect("owned Client admission");
+        }
         self.owner.changed.notify_all();
     }
+}
+
+/// Why a restart's hold was not taken.
+#[cfg(any(windows, test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum HoldRefusal {
+    /// A stop or an `exit` is recorded, or a `drain` arrived.
+    Busy,
+    /// A connected Client, or one being admitted, did not offer `reconnect`.
+    Clients,
 }
 
 /// One `exit` requester's reply slot; the process ends only after it is dropped or the owner's

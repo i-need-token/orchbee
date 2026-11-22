@@ -496,7 +496,9 @@ fn next_work(
             return Some(work);
         }
         if let Some((step, ticket)) = shutdown.take_handover() {
-            if restart.step(owners, shutdown, &mut watch, step, ticket) == handover::Next::Leave {
+            if restart.step(owners, shutdown, clients, &mut watch, step, ticket)
+                == handover::Next::Leave
+            {
                 return None;
             }
             continue;

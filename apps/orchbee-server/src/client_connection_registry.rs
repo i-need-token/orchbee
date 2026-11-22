@@ -84,6 +84,17 @@ impl ClientConnectionRegistry {
         self.offers.values().cloned().collect()
     }
 
+    /// Whether every connected Client offered `capability`; a connection without a kept offer
+    /// counts as one that did not.
+    #[cfg(windows)]
+    pub(crate) fn all_offer(&self, capability: &str) -> bool {
+        self.active_generations.iter().all(|generation| {
+            self.offers
+                .get(generation)
+                .is_some_and(|offer| offer.capabilities.contains(capability))
+        })
+    }
+
     pub(crate) fn disconnect(&mut self, generation: NonZeroU64) -> bool {
         self.offers.remove(&generation);
         self.active_generations.remove(&generation)

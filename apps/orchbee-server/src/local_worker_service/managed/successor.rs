@@ -17,7 +17,7 @@ use crate::{
 };
 use orchbee_connection_handshake::{
     CapabilitySet, ConnectionKind, EnvironmentName, Extensions, GenerationRange, HandoverOutcome,
-    HandoverRefusal, HandoverStep, HandoverTicket, ProcessRole, ProcessState,
+    HandoverRefusal, HandoverStep, HandoverTicket, ProcessRole, ProcessState, RECONNECT,
 };
 use orchbee_local_client_protocol::{
     HandoverReply, exchange_handover_before, exchange_query_before,
@@ -63,8 +63,6 @@ const END: Duration = Duration::from_secs(5);
 const CLIENTS: &str = "clients";
 /// The `query` extension that counts the background programs the running Worker runs.
 const BACKGROUND_PROGRAMS: &str = "background-programs";
-/// The capability a Client offers once it reconnects to a restarted Server by itself.
-const RECONNECT: &str = "reconnect";
 
 const RECORD: &str = "handover-successor";
 
@@ -478,6 +476,7 @@ fn refusal_of(reason: HandoverRefusal) -> RestartRefusal {
         HandoverRefusal::Busy => RestartRefusal::Busy,
         HandoverRefusal::BackgroundPrograms => RestartRefusal::BackgroundPrograms,
         HandoverRefusal::WorkerUnavailable => RestartRefusal::WorkerUnavailable,
+        HandoverRefusal::Clients => RestartRefusal::Clients,
         HandoverRefusal::NotRecorded => RestartRefusal::NotRecorded,
         HandoverRefusal::UnknownStep | HandoverRefusal::Unknown => RestartRefusal::Unsupported,
     }

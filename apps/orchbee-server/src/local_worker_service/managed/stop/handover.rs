@@ -7,7 +7,8 @@
 //! by its recorded identity; holding nothing, this Server removes an entry its successor abandoned.
 use super::{Owners, Watch, checkpoint_worker, end_worker, own_stop_id};
 use crate::{
-    local_client_service::ManagedClients, session_shutdown::SessionShutdown,
+    local_client_service::ManagedClients,
+    session_shutdown::{HoldRefusal, SessionShutdown},
     terminal_runtime::TerminalRuntimeState,
 };
 use orchbee_connection_handshake::{
@@ -89,6 +90,7 @@ impl Restart {
         &mut self,
         owners: &mut Owners,
         shutdown: &SessionShutdown,
+        clients: &ManagedClients,
         watch: &mut Watch<'_>,
         step: HandoverStep,
         ticket: HandoverTicket,
@@ -99,14 +101,16 @@ impl Restart {
             (HandoverStep::Prepare | HandoverStep::Abort, Some(false)) => {
                 (HandoverOutcome::Refused(HandoverRefusal::Busy), None)
             }
-            (HandoverStep::Prepare, None) => match prepare(owners, shutdown, watch, ticket) {
-                Ok(held) => {
-                    self.held = Some(held);
-                    record("prepared");
-                    (HandoverOutcome::Prepared, None)
+            (HandoverStep::Prepare, None) => {
+                match prepare(owners, shutdown, clients, watch, ticket) {
+                    Ok(held) => {
+                        self.held = Some(held);
+                        record("prepared");
+                        (HandoverOutcome::Prepared, None)
+                    }
+                    Err(refusal) => (HandoverOutcome::Refused(refusal), None),
                 }
-                Err(refusal) => (HandoverOutcome::Refused(refusal), None),
-            },
+            }
             (HandoverStep::Commit, Some(true)) => {
                 let successor = self.held.as_ref().map(|held| held.successor);
                 let committed = successor.is_some_and(|successor| {
@@ -343,6 +347,7 @@ enum Decided {
 fn prepare(
     owners: &mut Owners,
     shutdown: &SessionShutdown,
+    clients: &ManagedClients,
     watch: &mut Watch<'_>,
     ticket: HandoverTicket,
 ) -> Result<Held, HandoverRefusal> {
@@ -374,9 +379,7 @@ fn prepare(
         return Err(HandoverRefusal::WorkerUnavailable);
     }
     let worker_id = checkpoint_worker(&owners.handle).map_err(|_| HandoverRefusal::Busy)?;
-    if !hold(owners, shutdown) {
-        return Err(HandoverRefusal::Busy);
-    }
+    hold(owners, shutdown, clients)?;
     if let Err(refusal) = capture(owners, shutdown, &worker_id) {
         let _ = retake(owners);
         restart_saver(owners);
@@ -450,14 +453,23 @@ fn capture(
     kept.release_store().map_err(|_| HandoverRefusal::Busy)
 }
 
-/// Holds the Worker, stops and every intent other than terminal records for a restart; false,
-/// holding nothing, once a stop, an `exit` or a `drain` came first.
-fn hold(owners: &Owners, shutdown: &SessionShutdown) -> bool {
-    if !shutdown.enter_hold() {
-        return false;
-    }
+/// Holds the Worker, stops, every intent other than terminal records, and Clients that did not
+/// offer `reconnect` for a restart. Refused, holding nothing, `busy` once a stop, an `exit` or a
+/// `drain` came first, and `clients` while such a Client is connected or being admitted: the
+/// successor's check saw none, but one may have connected since.
+fn hold(
+    owners: &Owners,
+    shutdown: &SessionShutdown,
+    clients: &ManagedClients,
+) -> Result<(), HandoverRefusal> {
+    shutdown
+        .enter_hold(|| clients.rejoin())
+        .map_err(|refusal| match refusal {
+            HoldRefusal::Busy => HandoverRefusal::Busy,
+            HoldRefusal::Clients => HandoverRefusal::Clients,
+        })?;
     hold_registry(owners, true);
-    true
+    Ok(())
 }
 
 fn lift(owners: &Owners, shutdown: &SessionShutdown) {

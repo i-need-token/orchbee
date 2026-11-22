@@ -211,14 +211,26 @@ fn an_idle_stop_begins_only_with_nothing_admitted() {
 }
 
 #[test]
-fn a_restart_hold_refuses_stops_and_intents_but_terminal_records_and_settles_only_intents() {
+fn a_restart_hold_refuses_stops_intents_and_clients_that_do_not_reconnect() {
     let state = SessionShutdown::default();
+    // A Client that did not offer `reconnect`, connected or still being admitted, refuses the hold,
+    // which then holds nothing.
+    let plain = state.enter_client(false).unwrap();
+    assert_eq!(state.enter_hold(|| true), Err(HoldRefusal::Clients));
+    drop(plain);
+    assert_eq!(state.enter_hold(|| false), Err(HoldRefusal::Clients));
+    assert!(state.enter_intent().is_some());
     let read = state.enter_read().unwrap();
     let intent = state.enter_intent().unwrap();
-    assert!(state.enter_hold());
-    // Reads, terminal records and connections are still admitted; other intents wait for the end
-    // of the hold, and so does a stop, which records nothing rather than end with this Server.
+    let rejoining = state.enter_client(true).unwrap();
+    assert_eq!(state.enter_hold(|| true), Ok(()));
+    // Reads, terminal records and Clients that offered `reconnect` are still admitted; other
+    // intents wait for the end of the hold, and so does a stop, which records nothing rather than
+    // end with this Server. Any other Client tries again later.
     assert!(state.enter_intent().is_none());
+    assert!(state.enter_client(false).is_none());
+    drop(rejoining);
+    assert!(state.enter_client(true).is_some());
     let terminal = state.enter().unwrap();
     assert!(state.enter_read().is_some());
     assert!(!state.begin_idle(StopId::new([9; 16]).unwrap(), || true));
@@ -234,12 +246,13 @@ fn a_restart_hold_refuses_stops_and_intents_but_terminal_records_and_settles_onl
     drop(read);
     state.lift_hold();
     assert!(state.enter_intent().is_some());
+    assert!(state.enter_client(false).is_some());
     // A recorded stop refuses the next hold.
     assert!(matches!(
         state.request(&start).status,
         SessionStopStatus::Pending { .. }
     ));
-    assert!(!state.enter_hold());
+    assert_eq!(state.enter_hold(|| true), Err(HoldRefusal::Busy));
 }
 
 #[test]

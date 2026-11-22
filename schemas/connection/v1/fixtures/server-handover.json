@@ -51,6 +51,11 @@
 			"payload": "{\"type\":\"handover-result\",\"state\":\"refused\",\"reason\":\"worker-unavailable\"}"
 		},
 		{
+			"name": "handover-result-refused-clients",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"handover-result\",\"state\":\"refused\",\"reason\":\"clients\"}"
+		},
+		{
 			"name": "handover-result-refused-not-recorded",
 			"direction": "acceptor",
 			"payload": "{\"type\":\"handover-result\",\"state\":\"refused\",\"reason\":\"not-recorded\"}"

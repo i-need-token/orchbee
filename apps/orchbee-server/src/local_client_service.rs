@@ -21,7 +21,7 @@ use std::{
 use orchbee_connection_handshake::{
     AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, CANDIDATE_DEADLINE,
     CONFIGURED_COMMAND_SOURCE_EXITED, CohortIdentity, ConnectionKind, Decision, DrainResult,
-    ExitResult, Extensions, ProductVersion, ReadError, RequestKind, RequestName,
+    ExitResult, Extensions, ProductVersion, RECONNECT, ReadError, RequestKind, RequestName,
     STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED, Unsupported, encode_acceptor_frame,
     read_initiator_message,
 };
@@ -517,7 +517,10 @@ fn handle_candidate_control(
         send_rejection(&mut stream, RejectionReason::WrongMessage);
         return;
     };
-    let Some(admission_lease) = control.enter() else {
+    let reconnects = offer
+        .as_ref()
+        .is_some_and(|offer| offer.capabilities.contains(RECONNECT));
+    let Some(admission_lease) = control.enter(reconnects) else {
         send_rejection(&mut stream, RejectionReason::Stopping);
         return;
     };

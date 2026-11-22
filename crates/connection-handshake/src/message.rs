@@ -196,6 +196,9 @@ pub enum HandoverRefusal {
     BackgroundPrograms,
     /// It has no serving Worker.
     WorkerUnavailable,
+    /// A connected Client, or one being admitted, did not offer `reconnect`: it may not cope with
+    /// its Server being replaced.
+    Clients,
     /// The Session record does not name this Server with a successor holding the ticket.
     NotRecorded,
     /// The step is one the Server does not know.
@@ -205,10 +208,11 @@ pub enum HandoverRefusal {
 }
 
 impl HandoverRefusal {
-    const NAMES: [(Self, &'static str); 6] = [
+    const NAMES: [(Self, &'static str); 7] = [
         (Self::Busy, "busy"),
         (Self::BackgroundPrograms, "background-programs"),
         (Self::WorkerUnavailable, "worker-unavailable"),
+        (Self::Clients, "clients"),
         (Self::NotRecorded, "not-recorded"),
         (Self::UnknownStep, "unknown-step"),
         (Self::Unknown, "unknown"),

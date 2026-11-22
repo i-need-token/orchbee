@@ -75,7 +75,9 @@ their reason and known disposal count for that attempt. A response never claims 
 the admitted activation record is the completion receipt after the managed owner settles its
 resources. Duplicate start never retries effects; only explicit retry of the same failed identity
 may advance the attempt. A Client hello
-after a recorded stop receives the typed stopping rejection. Unknown tags, zero identities, invalid
+after a recorded stop receives the typed stopping rejection, and so does the hello of a Client that
+did not offer `reconnect` while a Server restart holds the Session (Windows); either may try again
+later. Unknown tags, zero identities, invalid
 attempts and trailing payload bytes fail decoding. The codec itself neither starts nor stops a
 process; Linux, macOS and Windows have a stop adapter. On Linux and macOS the stop and `exit`
 exchanges share the Client admission deadline adapter: the offer's answer is due within the

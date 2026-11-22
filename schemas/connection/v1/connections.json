@@ -10,6 +10,7 @@
 				{ "name": "configured-command-source-exited", "addedIn": "0.1.0-beta.15" },
 				{ "name": "project-identity", "addedIn": "0.1.0-beta.23" },
 				{ "name": "prompt-gated-input", "addedIn": "0.1.0" },
+				{ "name": "reconnect", "addedIn": "0.1.0-beta.23" },
 				{ "name": "stream-outcome-unknown", "addedIn": "0.1.0-beta.14" },
 				{ "name": "terminal-limit-reached", "addedIn": "0.1.0-beta.20" },
 				{ "name": "terminal-runtime", "addedIn": "0.1.0-beta.14" },

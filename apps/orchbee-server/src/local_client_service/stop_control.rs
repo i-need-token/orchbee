@@ -199,10 +199,11 @@ impl<'a> StopControl<'a> {
         })
     }
 
-    /// Admits a new Client connection, which a `drain` refuses like an intent.
-    pub(super) fn enter(&'a self) -> Option<Lease<'a>> {
+    /// Admits a new Client connection, which a `drain` refuses like an intent, and a restart's hold
+    /// when the Client did not offer `reconnect`.
+    pub(super) fn enter(&'a self, reconnects: bool) -> Option<Lease<'a>> {
         let record = match self.shutdown {
-            Some(owner) => Some(owner.enter()?),
+            Some(owner) => Some(owner.enter_client(reconnects)?),
             None => None,
         };
         Some(Lease {

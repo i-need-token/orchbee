@@ -100,8 +100,8 @@ decoders only.
   it, for a restart that keeps terminals; any other acceptor, and a Server that cannot hand its
   Session over, answers `unsupported`. `step` is `prepare`, `commit`, or `abort`. The result's
   `state` is `prepared`, `committed`, `aborted`, or `refused`, and its `reason` is `busy`,
-  `background-programs`, `worker-unavailable`, `not-recorded`, or `unknown-step`. All three grow
-  like `reason`.
+  `background-programs`, `worker-unavailable`, `clients`, `not-recorded`, or `unknown-step`. All
+  three grow like `reason`.
 - `processes` lists 1 to 258 entries: the answering process first, then for a Server its Worker
   and up to 256 connected Hosts. Each entry has exactly `role`, `productVersion`, `build`,
   `environment`, `pid` (integer from 1 to 4,294,967,295), `state`, `terminals` (integer from 0 to

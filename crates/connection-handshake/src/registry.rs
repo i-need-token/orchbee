@@ -73,6 +73,12 @@ pub const AGENT_CONFIRMATION: &str = "agent-confirmation";
 /// only by a random identity, which no Server without it allocates.
 pub const PROJECT_IDENTITY: &str = "project-identity";
 
+/// The `client-server` capability of a Client that copes with its Server being replaced, by coming
+/// back on its own or by ending with its lost-connection outcome. A Server restart waits while a
+/// connected Client lacks it, and a held Server refuses such a Client's connection as stopping, so
+/// the Client tries again and joins whichever Server serves next. No build offers it yet.
+pub const RECONNECT: &str = "reconnect";
+
 /// The `worker-host` capability before a Worker may ask a Host to attach a Keeper and hold its
 /// terminals' handles there. No build offers it before the Worker uses the Keeper.
 pub const KEEPER: &str = "keeper";
@@ -176,6 +182,20 @@ impl ConnectionKind {
     #[must_use]
     pub fn declared_capabilities(self) -> CapabilitySet {
         match self {
+            Self::ClientServer => capability_set(&[
+                AGENT_CONFIRMATION,
+                AGENT_INPUT_AREA,
+                COMPATIBILITY_WINDOW,
+                CONFIGURED_COMMAND_SOURCE_EXITED,
+                PROJECT_IDENTITY,
+                PROMPT_GATED_INPUT,
+                RECONNECT,
+                STREAM_OUTCOME_UNKNOWN,
+                TERMINAL_LIMIT_REACHED,
+                TERMINAL_RUNTIME,
+                UPDATE_CHECK,
+                WORKSPACE_IDLE,
+            ]),
             Self::WorkerHost => capability_set(&[
                 HANDOVER,
                 KEEPER,
@@ -183,9 +203,7 @@ impl ConnectionKind {
                 SCREEN_GATED_INPUT,
                 SCREEN_GATED_SEND,
             ]),
-            Self::ClientServer | Self::Keeper | Self::MachineHub | Self::MachineLink => {
-                self.capabilities()
-            }
+            Self::Keeper | Self::MachineHub | Self::MachineLink => self.capabilities(),
         }
     }
 

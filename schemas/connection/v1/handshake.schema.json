@@ -298,7 +298,7 @@
 					"$ref": "#/$defs/name"
 				},
 				"reason": {
-					"description": "busy, background-programs, worker-unavailable, not-recorded, or unknown-step; a receiver reads any other name as unknown.",
+					"description": "busy, background-programs, worker-unavailable, clients, not-recorded, or unknown-step; a receiver reads any other name as unknown.",
 					"$ref": "#/$defs/name"
 				},
 				"extensions": { "$ref": "#/$defs/extensions" }

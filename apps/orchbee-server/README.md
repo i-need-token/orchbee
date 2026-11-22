@@ -79,7 +79,8 @@ Server's facts so the Client can name the older side. A frame that is not `OBHS`
 and an offer that stays silent past the two-second candidate deadline gets `timeout`. A drained or
 exiting Server refuses every offer with `stopping`. After a recorded Session stop, offers are still
 answered, so the stop's status and retry exchanges reach its owner, and the following Client hello
-gets the typed stopping rejection.
+gets the typed stopping rejection; so does the hello of a Client that did not offer `reconnect`
+while a [restart](#server-and-worker-restart) holds the Session.
 
 A `query` request, on every platform, checks only the environment and replies with this Server
 first, then the Worker it started, then each Terminal Host connected to that Worker, each with
@@ -387,11 +388,17 @@ answered `busy`. The decisions the code does not state:
   intents or operations do not settle. A Worker that neither releases its Host nor ends through its
   handle in time does not stop `prepared`: the Host admits one Worker session, so neither the
   successor's Worker nor a take-back replacement can adopt beside it, as for any hung Worker.
+- `prepare` also refuses `clients` while a connected Client, or one being admitted, did not offer
+  `reconnect`. The successor checked the same before it ran, but a Client may connect after that
+  check, so the owner judges again under the lock that enters the hold and admits Client
+  connections: such a Client is either seen there or refused while held.
 - While held, terminal requests see no Worker, as after a Worker loss, and every other intent is
   refused as during a drain, since a change after the exact capture would be lost at the commit;
-  reads and new Client connections go on. The [terminal-runtime state](#terminal-runtime) reads
-  `Reconnecting` only from the point of no return, once the store is released, so a refused
-  `prepare` shows Clients nothing.
+  reads and new connections of Clients that offer `reconnect` go on. Any other Client is refused
+  with `stopping`, which TUI and Desktop relays retry, rather than admitted and cut off at the
+  commit with no way back. The [terminal-runtime state](#terminal-runtime) reads `Reconnecting` only
+  from the point of no return, once the store is released, so a refused `prepare` shows Clients
+  nothing.
 - The record decides how a hold ends. `commit`, `abort`, the end of the 30-second lease and the exit
   of either successor process are judged under the record's writer lock: a record that names the
   successor makes the owner leave; otherwise it ends the successor's Worker and then its Server,
@@ -419,9 +426,9 @@ answered `busy`. The decisions the code does not state:
 freezes, starts the successor of the restart whose `successor` entry names that ticket and this
 process; the requester names it there before it runs. Windows only, it:
 
-1. Checks what `prepare` would refuse, and what only it can judge, such as Clients that cannot
-   reconnect and a Host whose `worker-host` range this build does not meet, so a refusal ends the
-   restart before anything is held.
+1. Checks what `prepare` would refuse, and what only it can judge, such as a connected Client whose
+   `client-server` range this build does not meet and a Host whose `worker-host` range it does not
+   meet, so a refusal ends the restart before anything is held.
 2. Creates its Worker suspended, records it in the entry, then resumes it, so the replaced Server
    and any later start can end it by its identity. The Worker gets `--ticket <ticket>` and connects
    to the Worker endpoint that ticket names, since the replaced Server still serves the Session's
