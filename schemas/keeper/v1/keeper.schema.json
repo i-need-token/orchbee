@@ -155,7 +155,7 @@
 			"additionalProperties": false,
 			"required": ["type", "id", "holding", "for", "mark"],
 			"properties": {
-				"type": { "const": "mark" },
+				"type": { "enum": ["mark", "assign"] },
 				"id": { "$ref": "#/$defs/id" },
 				"holding": { "$ref": "#/$defs/randomId" },
 				"for": { "$ref": "#/$defs/process" },
@@ -194,7 +194,7 @@
 			"additionalProperties": false,
 			"required": ["type", "id", "holding"],
 			"properties": {
-				"type": { "const": "release" },
+				"type": { "enum": ["release", "discard"] },
 				"id": { "$ref": "#/$defs/id" },
 				"holding": { "$ref": "#/$defs/randomId" },
 				"extensions": { "$ref": "#/$defs/extensions" }
@@ -222,6 +222,8 @@
 									"claim",
 									"decline",
 									"release",
+									"assign",
+									"discard",
 									"refused",
 									"unsupported"
 								]
@@ -246,7 +248,9 @@
 						"hold-result",
 						"mark-result",
 						"claim-result",
-						"release-result"
+						"release-result",
+						"assign-result",
+						"discard-result"
 					]
 				},
 				"id": { "$ref": "#/$defs/id" },
@@ -332,7 +336,7 @@
 				"type": { "const": "refused" },
 				"id": { "$ref": "#/$defs/id" },
 				"reason": {
-					"description": "not-registered, wrong-role, not-owner, not-target, unknown-holding, holding-exists, marked, stale-mark, identity-mismatch, capacity, draining, or handle-failed; a receiver reads any other name as unknown.",
+					"description": "not-registered, wrong-role, not-owner, not-target, unknown-holding, holding-exists, marked, stale-mark, identity-mismatch, capacity, draining, handle-failed, or not-orphaned; a receiver reads any other name as unknown.",
 					"$ref": "#/$defs/name"
 				},
 				"extensions": { "$ref": "#/$defs/extensions" }

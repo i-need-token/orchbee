@@ -44,8 +44,11 @@ pub const worker_host = struct {
 pub const keeper = struct {
     pub const name = "keeper";
     pub const generations: message.GenerationRange = .{ .lowest = 1, .highest = 1 };
-    pub const declared_capabilities: []const []const u8 = &.{};
-    pub const capabilities: []const []const u8 = &.{};
+    /// Before the Worker may ask the Keeper to `assign` an orphaned holding to a Host that claims
+    /// it, or to `discard` one.
+    pub const recovery = "recovery";
+    pub const declared_capabilities: []const []const u8 = &.{recovery};
+    pub const capabilities: []const []const u8 = &.{recovery};
     pub const development_fingerprint: []const u8 = options.keeper_fingerprint;
 };
 

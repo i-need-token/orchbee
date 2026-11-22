@@ -54,13 +54,14 @@ pub fn initiatorPayload(arena: std.mem.Allocator, payload: []const u8) PayloadEr
                 .facts = try factsValue(try object.required("facts")),
             } };
         },
-        .mark => blk: {
+        .mark, .assign => blk: {
             try closed(object.members, &.{ "type", "id", "holding", "for", "mark", "extensions" });
-            break :blk .{ .mark = .{
+            const mark: message.Mark = .{
                 .holding = try randomId(try object.required("holding")),
                 .target = try processValue(try object.required("for")),
                 .mark = try randomId(try object.required("mark")),
-            } };
+            };
+            break :blk if (kind == .mark) .{ .mark = mark } else .{ .assign = mark };
         },
         .@"resume", .inspect, .decline => blk: {
             try closed(object.members, &.{ "type", "id", "holding", "mark", "extensions" });
@@ -83,9 +84,10 @@ pub fn initiatorPayload(arena: std.mem.Allocator, payload: []const u8) PayloadEr
                 .terminal = try terminalValue(try object.required("terminal")),
             } };
         },
-        .release => blk: {
+        .release, .discard => blk: {
             try closed(object.members, &.{ "type", "id", "holding", "extensions" });
-            break :blk .{ .release = try randomId(try object.required("holding")) };
+            const holding = try randomId(try object.required("holding"));
+            break :blk if (kind == .release) .{ .release = holding } else .{ .discard = holding };
         },
     };
     return .{ .request = .{
@@ -152,7 +154,7 @@ fn resultBody(arena: std.mem.Allocator, object: Object, kind: message.RequestKin
                 .facts = try factsValue(try object.required("facts")),
             } };
         },
-        inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release => |empty| {
+        inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard => |empty| {
             try closed(object.members, &.{ "type", "id", "extensions" });
             return @unionInit(message.Reply.Body, @tagName(empty), {});
         },

@@ -54,6 +54,8 @@ const Connection = struct {
     transport: local_ipc.LocalServer,
     slot: usize,
     wake: handles.Handle,
+    /// The `answer` listed `recovery`, so this connection may send its requests.
+    recovery: bool = false,
 
     fn serve(self: *Connection) !void {
         var arena_state = std.heap.ArenaAllocator.init(self.allocator);
@@ -84,7 +86,12 @@ const Connection = struct {
             .state = processState(lifecycle),
         });
         switch (decision) {
-            .accept => |answer| try self.write(try handshakeReply(arena, .{ .answer = answer })),
+            .accept => |answer| {
+                for (answer.capabilities) |capability| {
+                    if (std.mem.eql(u8, capability, handshake.registry.keeper.recovery)) self.recovery = true;
+                }
+                try self.write(try handshakeReply(arena, .{ .answer = answer }));
+            },
             .reject => |rejection| return self.finish(try handshakeReply(arena, .{ .rejection = rejection })),
             .unsupported => |unsupported| return self.finish(try handshakeReply(arena, .{ .unsupported = unsupported })),
             .serve => |kind| return self.control(arena, kind, terminals),
@@ -188,6 +195,9 @@ const Connection = struct {
             const body: message.Reply.Body = switch (decoded) {
                 .unknown_request => |unknown| .{ .unsupported = unknown.request },
                 .request => |request| applied: {
+                    // A request added under a capability reads as unknown where it was not negotiated.
+                    const kind = std.meta.activeTag(request.body);
+                    if (message.Request.needsRecovery(kind) and !self.recovery) break :applied .{ .unsupported = kind.name() };
                     self.table.lock();
                     defer self.table.unlock();
                     if (self.table.closing(self.slot)) return;

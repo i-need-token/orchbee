@@ -844,8 +844,9 @@ After `hello`, a connection sends only the requests its role allows; another get
 - N's end changes nothing; the old Host's resume then ends the mark. `release` of a quiesced
   holding gets `marked`. A holding remembers the Host it was claimed from, and the mark that claim
   consumed, until that Host ends or is unregistered.
-- In H1 only a mark's target claims an orphaned holding. H2 adds claims of an unmarked orphan by
-  addition, and until then such a holding keeps its program running until `exit`.
+- Only a mark's target claims an orphaned holding. H2's `recovery` lets the Worker give an unmarked
+  orphan a mark and a target with `assign`, or end it with `discard`, as
+  [H2 design](#h2-design) says; without it such a holding keeps its program running until `exit`.
 
 **Commit and failures**
 
@@ -1327,6 +1328,77 @@ evidence index.
 - H1's evidence is same-build; moves across versions are H3's.
 - ARM64 and system-ConHost terminals never move.
 
+## H2 design
+
+The H2 builder settled this design on 2026-11-21 from H1's design, P1a's replacement, and the
+coordinator's brief. Each pick is marked Chosen, which the owner may veto, or Rule, and rows 56 to
+65 of the [decision record](#decision-record) list them with their reasons.
+
+### Recovery
+
+- Chosen: recovery runs through P1a's replacement. A Host that ends fails its Worker's connection,
+  and the Worker exits as it does today. Where the Server's Supervision finds the Host gone, it
+  stopped the Session before H2; from H2, when the Session record names a running Keeper, it
+  replaces the Worker with a recovery target instead: the Keeper's recorded identity and the lost
+  Host's epoch, which every binding names. The replacement adopts the Keeper as decision 31 says,
+  starts a recovery Host, recovers each terminal into it, and imports the recovery Host's
+  inventory into its kernel as an adoption does. P1a's quarantine, missing bindings, restart cap,
+  `GivenUp`, and the Clients' Reconnecting and Can't reconnect states apply unchanged, so a fourth
+  failure inside 10 minutes leaves the programs running in the Keeper and the Session shown as
+  Can't reconnect.
+- Chosen: the recovery Host takes the lost Host's epoch, which `serve --host-epoch` passes, and
+  each recovered terminal keeps its creation id and terminal id, so the Server's bindings and
+  fences stand and nothing is rebound. A Host refuses a recovery whose holding names another
+  epoch. Rebinding comes with H3.
+- Recovering one terminal: the Worker sends the Keeper `assign` of the orphaned holding that the
+  binding's Host terminal identity names, for the recovery Host, under a mark it mints, and then
+  sends that Host `RecoverTerminal` with the holding, the mark, the binding's identity, a size, and
+  the launch profile the Worker resolves now. The Host builds a fresh engine and takes H1's claim
+  steps with it: `inspect` through its one Keeper, the pull, the claim checks, the pack, the gated
+  threads, `claim`, and the gate. Every step before the claim is undoable; a failure sends
+  `decline` and leaves the holding orphaned with its program running.
+- Chosen: recovery seeds no screen. The recovered terminal starts empty at the size the Worker
+  names, and the Host resizes the console once after the claim, so a full-screen program redraws
+  and a shell shows its next output; the rows on screen and the history before the loss are lost.
+- Rule: the Worker recovers from one Keeper only. Each Host it starts attaches that Keeper alone,
+  and a Host lost during H4's Keeper change fails that change first, so one Keeper arbitrates each
+  orphan. The model's single-Keeper guard on `Assign` is this rule.
+- Chosen: a terminal whose recovery fails keeps its program running in the Keeper and fails the
+  replacement, so the Server tries again under P1a's cap, with the recovery Host adopted and the
+  remaining orphans recovered into it; a terminal already recovered stays recovered. An orphan of
+  the lost Host that no binding names is discarded after the import, which ends its program.
+- Chosen: the hang check. The Worker reads its Host's `dispatch-progress` with `query` on a control
+  lane every 2 seconds. A count that has not grown for 10 seconds, or a Host that has not answered
+  for as long, counts as hung; when the Keeper holds every running terminal of that Host, the
+  Worker ends the Host, and recovery follows as for a crash. A hang check never ends a Host that
+  serves a terminal the Keeper does not hold.
+
+### The Keeper's life from H2
+
+- The Worker starts the Keeper, registers each Host, sends `AttachKeeper`, and adopts a running
+  Keeper as [the Keeper's life](#the-keepers-life) says. The Session record gains a Keeper slot
+  with the Worker as registered parent, and the recovery Host takes the Host slot of the Host that
+  ended, once the Keeper reports it ended.
+- Chosen: a Keeper that ends, or does not answer the Worker within its 2-second reply bound, is
+  ended by the Worker and replaced; each Host holds again in the new Keeper after `KeeperLost`.
+  The Server's stop without a Worker sends the Keeper `exit`, checked by its recorded process id
+  and creation time, so stopping the Session still ends every program.
+- `keeper-fatal.json`, `keeper-fatal.previous.json`, and `keeper-diagnostics.jsonl` join what
+  deleting a Session removes.
+- What a person sees needs no new state or copy: Reconnecting while the replacement recovers,
+  Can't reconnect once P1a's cap gives up, in both Clients and both locales.
+
+### H2 slices
+
+| Slice | Content                                                                                                                                                                      | Status |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| S1    | The Keeper's `recovery`: `assign`, `discard`, `not-orphaned`, their fixtures and real-process witnesses, and the model's `Assign` and `Recover` with the single-Keeper guard | Built  |
+| S2    | The Host: `serve --host-epoch` and `RecoverTerminal`, witnessed with two Host processes and a Keeper                                                                         | Open   |
+| S3    | The Session record: the Keeper slot, the Host slot for the recovery Host, the Keeper's files in deletion, and `keeper_live`                                                  | Open   |
+| S4    | The Worker's `keeper` client: start, registration, `AttachKeeper`, adoption, replacement, `exit` at a stop, and the `keeper` offer to Hosts                                  | Open   |
+| S5    | The recovery target in `AdoptHost`, the Server's decision for a gone Host with a running Keeper, recovery in adopt mode, the hang check, and the stop without a Worker       | Open   |
+| S6    | The [H2 acceptance](#acceptance) on real Windows, `keeper_live` on in release, and the freezes of row 42                                                                     | Open   |
+
 ## Acceptance
 
 - **H1**, on real Windows in a test-owned Session: a same-build move of a terminal running a
@@ -1411,5 +1483,15 @@ evidence index.
 | 53  | `ImportTerminal`'s deadline runs from 1 to 30 seconds, and the Worker sets it to the mark's; a discard, or that deadline, during the restore's build discards the import when the build ends; teardown discards a restored import instead of containing it                                                                                                                                                                                                                   | The creation pipeline cancels no creation and contains what its build made, and a restore must end nothing                                                                                                                                      | Rule; range Chosen (R1 second run)                                 |
 | 54  | H1's release also freezes the Host's `keeper` offer, frames, and reply bound, `hold`'s facts, the Keeper check, holding again after `KeeperLost`, release first with its deadline, the two-attachment limit, settled exports, the inventory states and holding ids, and `dispatch-progress`; a later Keeper answers an H1 Host's `resume` of its current mark only with `resumed` or `claimed`                                                                               | Every later Keeper and Worker must serve H1's Hosts, and an H1 Host reads any other answer as none                                                                                                                                              | Chosen; widens row 42 (R1 second run)                              |
 | 55  | The model adds the invariant that a reader remains while both Hosts run, and the mutant of a drop before the new Host has seen `claimed`; its resume stands for every path that settles a quiesced terminal in the old Host                                                                                                                                                                                                                                                  | The drop's order keeps the only copy that can read again, and no property caught its loss; S2 had landed, so this reopens it                                                                                                                    | Invariant Rule; reopens S2 (R1 second run)                         |
+| 56  | Recovery runs through P1a's replacement: when the Server finds the Host gone and the Session record names a running Keeper, it replaces the Worker with a recovery target instead of stopping the Session                                                                                                                                                                                                                                                                    | It reuses P1a's adoption, import, quarantine, cap, `GivenUp`, and Client states, and the Server already owns the decision and the cap                                                                                                           | Chosen (H2)                                                        |
+| 57  | The recovery Host takes the lost Host's epoch, and each terminal keeps its creation id and terminal id, so no binding changes; rebinding stays with H3                                                                                                                                                                                                                                                                                                                       | The bindings and fences stand, and H2 depends on neither P1c nor H3                                                                                                                                                                             | Chosen (H2)                                                        |
+| 58  | The Worker gives an orphaned holding to the recovery Host with `assign` under a mark it mints, behind the Keeper capability `recovery`, and the Host claims it with H1's claim steps and a fresh engine                                                                                                                                                                                                                                                                      | Only a mark's target claims a holding, so recovery adds a request and no second claim path                                                                                                                                                      | Rule (H2)                                                          |
+| 59  | Recovery seeds no screen: the terminal starts empty, and the Host resizes the console once after the claim                                                                                                                                                                                                                                                                                                                                                                   | Seeding needs a console client on the program's console and its own decision run; a full-screen program redraws after a size change                                                                                                             | Chosen (H2)                                                        |
+| 60  | The Worker recovers from one Keeper only, and a Host lost during H4's Keeper change fails that change first                                                                                                                                                                                                                                                                                                                                                                  | TLC found a second live Keeper still naming the ended Host as owner after a recovery through the first                                                                                                                                          | Rule (H2)                                                          |
+| 61  | A terminal whose recovery fails keeps its program running in the Keeper and fails the replacement, which the Server retries under P1a's cap; a terminal already recovered stays recovered                                                                                                                                                                                                                                                                                    | One failed step must never end a program, and P1a's cap already bounds the retries                                                                                                                                                              | Chosen (H2)                                                        |
+| 62  | An orphan of the lost Host that no binding names is discarded after the import, which ends its program                                                                                                                                                                                                                                                                                                                                                                       | No person can reach it, and the Keeper would otherwise keep it running until the Session stops                                                                                                                                                  | Chosen (H2)                                                        |
+| 63  | The Worker reads its Host's `dispatch-progress` every 2 seconds, and a count that has not grown for 10 seconds, while the Keeper holds every running terminal of that Host, makes the Worker end the Host and recover                                                                                                                                                                                                                                                        | 10 seconds is the Worker's exchange bound, after which a silent Host already counts as lost, and ending a Host whose terminals are all held ends no program                                                                                     | Chosen (H2)                                                        |
+| 64  | A Keeper that ends, or does not answer the Worker within its 2-second reply bound, is ended and replaced by the Worker, and the Hosts hold again after `KeeperLost`                                                                                                                                                                                                                                                                                                          | H1's Hosts hold again in the next Keeper they attach                                                                                                                                                                                            | Chosen (H2)                                                        |
+| 65  | `keeper_live` turns on in release once the H2 acceptance passes on real Windows                                                                                                                                                                                                                                                                                                                                                                                              | The Phases row: H2 is on as soon as it passes                                                                                                                                                                                                   | Rule (H2)                                                          |
 
 Nothing waits on the owner; each Chosen row stays open to a veto.

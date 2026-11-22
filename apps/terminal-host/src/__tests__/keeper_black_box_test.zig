@@ -296,6 +296,7 @@ const Driver = struct {
         var after_use = try self.watchEmptyAfterUse();
         try self.sequences();
         try self.identities();
+        try self.recoveryUnnegotiated();
         try self.unreadReplies();
         try self.races();
         try self.invalidFixtures();
@@ -357,7 +358,7 @@ const Driver = struct {
 
     fn sequences(self: *Driver) !void {
         var count: usize = 0;
-        for ([_][]const u8{ "owner-sequences.json", "claimant-sequences.json" }) |file| {
+        for ([_][]const u8{ "owner-sequences.json", "claimant-sequences.json", "recovery-sequences.json" }) |file| {
             var document_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
             defer document_arena.deinit();
             var document = try self.readFixture(document_arena.allocator(), file);
@@ -413,6 +414,10 @@ const Driver = struct {
                     return fail("{s}: a program ended with the Keeper's exit", .{name});
                 continue;
             }
+            if (step.object.get("worker") != null) {
+                try workerStep(arena, name, &worker, step, processes.items, texts.items, held.items);
+                continue;
+            }
             const host = findHost(hosts.items, step.object.get("host").?.string) orelse return error.UnknownHost;
             const request = step.object.getPtr("request").?;
             const reply = step.object.getPtr("reply").?;
@@ -436,6 +441,42 @@ const Driver = struct {
             for (held.items) |item| if (std.mem.eql(u8, item.holding, holding) and !support.alive(item.program))
                 return fail("{s}: the program of held {s} ended", .{ name, holding });
         }
+    }
+
+    /// A Worker connection whose answer did not list `recovery` gets `unsupported` for its
+    /// requests, which leave the holding alone.
+    fn recoveryUnnegotiated(self: *Driver) !void {
+        var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena_state.deinit();
+        const arena = arena_state.allocator();
+        var keeper = try self.startKeeper();
+        defer keeper.stop();
+        const host = try StandIn.start(self, keeper.endpointId());
+        defer host.end();
+        var plain: Session = .{ .pipe = try support.Pipe.open(keeper.endpointId()) };
+        defer plain.close();
+        try plain.offerWith(arena, &.{});
+        try expectTag("hello worker", try plain.hello(arena, .worker), .hello);
+        try expectTag("register-host", try plain.call(arena, .{ .register_host = host.process }), .register_host);
+        var session = try host.hostSession(arena);
+        defer session.close();
+        const terminal = try host.terminal(self);
+        const holding = self.randomId();
+        try expectTag("hold", try session.call(arena, .{ .hold = .{ .holding = holding, .handles = terminal.handles, .facts = terminal.facts } }), .hold);
+        host.end();
+        try waitHostEnded(arena, &plain, host.process);
+        for ([_]message.Request.Body{ .{ .assign = .{ .holding = holding, .target = host.process, .mark = self.randomId() } }, .{ .discard = holding } }) |body| {
+            switch (try plain.call(arena, body)) {
+                .unsupported => |request| if (!std.mem.eql(u8, request, std.meta.activeTag(body).name()))
+                    return fail("an unnegotiated {s} named {s}", .{ std.meta.activeTag(body).name(), request }),
+                else => |other| return fail("an unnegotiated {s} got {s}", .{ std.meta.activeTag(body).name(), @tagName(other) }),
+            }
+        }
+        const snapshot = try statusAll(arena, &plain);
+        if (snapshot.holdings.len != 1 or snapshot.holdings[0].state != .orphaned)
+            return fail("an unnegotiated recovery request changed the holding", .{});
+        if (!support.alive(terminal.facts.program)) return fail("an unnegotiated discard ended the program", .{});
+        report("assign and discard on a connection without recovery got unsupported and changed nothing", .{});
     }
 
     // --- Identities and the blocked read ---
@@ -675,9 +716,10 @@ const Driver = struct {
         defer bystander.close();
         var sent: usize = 0;
         var slowest_close_ns: u64 = 0;
-        for ([_][]const u8{ "owner.json", "claimant.json", "worker.json" }) |file| {
+        for ([_][]const u8{ "owner.json", "claimant.json", "worker.json", "recovery.json" }) |file| {
             const document = try self.readFixture(arena, file);
-            const role: message.Role = if (std.mem.eql(u8, file, "worker.json")) .worker else .host;
+            const worker_file = std.mem.eql(u8, file, "worker.json") or std.mem.eql(u8, file, "recovery.json");
+            const role: message.Role = if (worker_file) .worker else .host;
             for (document.object.get("invalid").?.array.items) |case| {
                 const name = case.object.get("name").?.string;
                 const bytes = if (case.object.get("frameHex")) |hex| frame: {
@@ -1134,6 +1176,38 @@ fn rememberText(arena: std.mem.Allocator, pairs: *std.ArrayList(TextPair), fake:
 
 /// Replaces a fixture hold's handles and facts with a real terminal's; the fixture's terminal
 /// identities, which name nothing real, stay. Later steps see the real values for the fake ones.
+/// A request on the Worker's connection under an id it has not used; a discarded holding's
+/// program has ended once its reply arrives, give or take the system's Job teardown.
+fn workerStep(
+    arena: std.mem.Allocator,
+    name: []const u8,
+    worker: *Session,
+    step: *std.json.Value,
+    processes: []const ProcessPair,
+    texts: []const TextPair,
+    held: []const HeldProgram,
+) !void {
+    const request = step.object.getPtr("request").?;
+    const reply = step.object.getPtr("reply").?;
+    const id = worker.id();
+    request.object.getPtr("id").?.* = .{ .integer = id };
+    reply.object.getPtr("id").?.* = .{ .integer = id };
+    try substitute(arena, request, processes, texts);
+    try substitute(arena, reply, processes, texts);
+    const payload = try std.json.Stringify.valueAlloc(arena, request.*, .{});
+    try compareReply(arena, name, payload, try worker.sendPayload(arena, payload), reply.*);
+    if (!std.mem.eql(u8, reply.object.get("type").?.string, "discard-result")) return;
+    const holding = request.object.get("holding").?.string;
+    const program = for (held) |item| {
+        if (std.mem.eql(u8, item.holding, holding)) break item.program;
+    } else return;
+    var timer = try monotonic.Timer.start();
+    while (support.alive(program)) {
+        if (timer.read() > 5 * std.time.ns_per_s) return fail("{s}: the discarded holding's program still runs", .{name});
+        monotonic.sleep(20 * ms);
+    }
+}
+
 fn realHold(
     arena: std.mem.Allocator,
     request: *std.json.Value,

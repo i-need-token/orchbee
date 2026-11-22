@@ -29,11 +29,13 @@ level. Each connection starts with one [`OBHS`](../connection/README.md#frame) e
 `connection` is `keeper`. After the `answer`, both directions carry only `OBKP` frames until either
 side closes. The frame has no version field: the answer's generation selects this contract.
 
-- **Generations.** `keeper` is at generation 1 with no capability names. Like `worker-host`, it
-  drops no generation within 1.x, because a Host released with generation 1 may hold a terminal for
-  as long as its program runs.
+- **Generations.** `keeper` is at generation 1. Like `worker-host`, it drops no generation within
+  1.x, because a Host released with generation 1 may hold a terminal for as long as its program
+  runs.
 - **Capabilities.** A request, member, event, or enumerated value added later comes under a
-  capability name and is sent only when the answer lists that name.
+  capability name and is sent only when the answer lists that name. `recovery` adds the Worker's
+  `assign` and `discard` and the reason `not-orphaned`; the Keeper answers either request with
+  `unsupported` on a connection whose answer did not list it.
 - **Control requests.** The Keeper answers `OBHS` control requests on a control slot. `query`
   reports one process entry of role `keeper` whose `terminals` counts its holdings and whose one
   connection entry is `keeper`. After `drain` it answers `register-host` and `hold` with `draining`
@@ -81,7 +83,7 @@ whatever its `type`.
 | Time       | 16 lowercase hexadecimal digits of a `FILETIME`, not all zero                                                                    |
 | Handle     | 16 lowercase hexadecimal digits of a handle value in the process that holds it, nonzero and below 2^32, so never a pseudo handle |
 | Holding id | 32 lowercase hexadecimal digits, not all zero, minted at random by a Host at a terminal's first `hold`                           |
-| Mark id    | 32 lowercase hexadecimal digits, not all zero, minted at random by the owner for one quiesce                                     |
+| Mark id    | 32 lowercase hexadecimal digits, not all zero, minted at random by the owner for one quiesce, or by the Worker for one `assign`  |
 | Terminal   | `{creationId, hostEpoch, terminalId}`: a Terminal Host's terminal identity, each 32 lowercase hexadecimal digits                 |
 | `handles`  | `{job, program, console, signal, reference, input, output}`, seven handles                                                       |
 | `facts`    | `{terminal, program, console, consoleBuild, signalFormat, launch}`                                                               |
@@ -112,6 +114,8 @@ or `unsupported` with `request`, the requested type. One request is outstanding 
 | `claim`           | Mark target | `holding`, `mark`, `program`, `terminal` | None                                                                 |
 | `decline`         | Mark target | `holding`, `mark`                        | `outcome`: `declined` or `claimed`                                   |
 | `release`         | Owner       | `holding`                                | None                                                                 |
+| `assign`          | Worker      | `holding`, `for` (a process), `mark`     | None                                                                 |
+| `discard`         | Worker      | `holding`                                | None                                                                 |
 
 | Reply         | Members besides `type`                              |
 | ------------- | --------------------------------------------------- |
@@ -129,7 +133,8 @@ or `unsupported` with `request`, the requested type. One request is outstanding 
 - `reason`, `role`, `state`, and `outcome` grow: a receiver reads an unknown name as `unknown`, and
   a Host reads every `resume` answer but `resumed` and `claimed` as no answer. Reasons are
   `not-registered`, `wrong-role`, `not-owner`, `not-target`, `unknown-holding`, `holding-exists`,
-  `marked`, `stale-mark`, `identity-mismatch`, `capacity`, `draining`, and `handle-failed`.
+  `marked`, `stale-mark`, `identity-mismatch`, `capacity`, `draining`, `handle-failed`, and, under
+  `recovery`, `not-orphaned`.
 
 ## Admission and roles
 
@@ -177,6 +182,8 @@ that has not taken its reply within 2 seconds loses its connection.
 | `decline` of M by N                                                                     | Orphaned, H for N under M                     | Orphaned                                      |
 | `release` by H                                                                          | Held by H                                     | Absent                                        |
 | `exit`                                                                                  | Any                                           | The Keeper closes every duplicate and ends    |
+| `assign` of M by the Worker for registered Host N                                       | Orphaned, unmarked or for an ended Host       | Orphaned, H for N under M                     |
+| `discard` by the Worker                                                                 | Orphaned, unmarked or for an ended Host       | Absent; the Keeper closes its duplicates      |
 
 - `hold` duplicates the seven handles from the requesting Host with `DUPLICATE_SAME_ACCESS` and no
   inheritance, then checks its own duplicates: each object's type, the program's and OpenConsole's
@@ -191,17 +198,25 @@ that has not taken its reply within 2 seconds loses its connection.
   the owner's terminal identity in `facts`. `inspect`, `claim`, and `decline` from a Host other
   than the current mark's target get `not-target`.
 - `release` of a quiesced holding gets `marked`, and from another Host `not-owner`.
-- A request naming a holding id that does not exist gets `unknown-holding`, except `release`.
+- Rows 14 and 15 come with `recovery`. `assign` and `discard` need an orphaned holding
+  (`not-orphaned`) that no live Host may still claim: a current mark whose target has not ended gets
+  `marked`. `assign` needs a `for` that names a registered Host that has not ended
+  (`not-registered`). `discard` ends the program once no other process holds its Job, since its
+  owner has ended.
+- A request naming a holding id that does not exist gets `unknown-holding`, except `release` and
+  `discard`.
 - A repeated request whose effect already holds gets the same answer: a `hold` of the same holding
   by its owner, a `mark` of the same mark for the same target, a `resume` by the owner while no mark
   is current (`resumed`), a `claim` of the mark it consumed by the current owner, a `decline` of a
-  mark that is neither current nor consumed (`declined`), and a `release` of an absent holding.
+  mark that is neither current nor consumed (`declined`), a `release` or `discard` of an absent
+  holding, and an `assign` of the current mark for the same target.
 - A holding remembers the Host it was claimed from, and the mark that claim consumed, until that
   Host ends or is unregistered, or the holding is released.
-- In generation 1 only a mark's target claims an orphaned holding; an unmarked orphan keeps its
-  program running until `exit`.
-- The Keeper closes a holding's duplicates only at `release` and when it ends, so a handle value
-  that `inspect` answered stays valid while its mark is current.
+- Only a mark's target claims an orphaned holding. Without `recovery` an unmarked orphan keeps its
+  program running until `exit`; with it the Worker assigns the orphan to the Host that recovers it,
+  or discards it.
+- The Keeper closes a holding's duplicates only at `release`, at `discard`, and when it ends, so a
+  handle value that `inspect` answered stays valid while its mark is current.
 
 ## Bounds
 
@@ -224,6 +239,7 @@ seals none of them, so no bytes are sealed before a real Keeper and Host exercis
 | Owner    | The frame, `hello`, `hold`, `mark`, `resume`, `release`, their results, `refused`, and `unsupported` | The change that makes a Host offer `keeper`        |
 | Claimant | `inspect`, `claim`, `decline`, and their results                                                     | The H2 change that makes a release Worker offer it |
 | Worker   | `register-host`, `unregister-host`, `status`, and their results                                      | The H2 change that makes a release Worker offer it |
+| Recovery | `assign`, `discard`, their results, and `not-orphaned`                                               | The H2 change that makes a release Worker offer it |
 
 A later Keeper answers an owner's `resume` of its current mark only with `resumed` or `claimed`.
 No release Session moves a terminal into a Host of the first release, so the claimant's requests
@@ -238,6 +254,8 @@ first meet another version with H2's Keeper, and the Worker's requests with H2's
 | [`claimant.json`](v1/fixtures/claimant.json)                     | Valid, boundary, and invalid cases of the claimant group |
 | [`claimant-sequences.json`](v1/fixtures/claimant-sequences.json) | The state-table rows that a mark target's requests drive |
 | [`worker.json`](v1/fixtures/worker.json)                         | Valid, boundary, and invalid cases of the worker group   |
+| [`recovery.json`](v1/fixtures/recovery.json)                     | Valid, boundary, and invalid cases of the recovery group |
+| [`recovery-sequences.json`](v1/fixtures/recovery-sequences.json) | The state-table rows that the Worker's requests drive    |
 
 - A message file holds `valid`, `boundary`, and `invalid` arrays. Message cases hold `name`,
   `direction` (`initiator`, or `acceptor` for the Keeper), and `payload`, the exact JSON text. A
@@ -250,10 +268,12 @@ first meet another version with H2's Keeper, and the Worker's requests with H2's
 - A sequence case names the state-table `row` it covers, when it covers one, the `hosts` registered
   before its first step, as `{name, process}`, and its `steps`. The runner opens one connection per
   Host and sends `hello` with role `host` before the steps. A step is `{host, request, reply}`, a
-  request sent on that Host's connection and its expected reply; `{ends}`, the named Host's end; or
-  `{exit: true}`, an `OBHS` `exit` after which the Keeper has ended and no program has. `expect`
-  gives the holdings after the last step as `status-result` entries without `facts`, naming the
-  owner and the mark target by Host name.
+  request sent on that Host's connection and its expected reply; `{worker: true, request, reply}`,
+  one sent on the Worker's connection, whose `id` the runner replaces with an unused one in both;
+  `{ends}`, the named Host's end; or `{exit: true}`, an `OBHS` `exit` after which the Keeper has
+  ended and no program has. After a `discard-result` the discarded holding's program has ended.
+  `expect` gives the holdings after the last step as `status-result` entries without `facts`,
+  naming the owner and the mark target by Host name.
 - A runner replaces each `hold`'s `handles` and `facts` with a real terminal's, and the `program`
   and `terminal` of a `claim` with that terminal's program and the claimant's identity; it compares
   an `inspect-result` without its handle values.

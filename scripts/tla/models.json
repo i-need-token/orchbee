@@ -267,6 +267,8 @@
 				"Resume",
 				"OldReply",
 				"Restore",
+				"Assign",
+				"Recover",
 				"Claim",
 				"Decline",
 				"NewReply",

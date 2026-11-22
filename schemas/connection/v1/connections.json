@@ -34,7 +34,7 @@
 		"keeper": {
 			"generations": { "lowest": 1, "highest": 1 },
 			"superseded": [],
-			"capabilities": [],
+			"capabilities": [{ "name": "recovery", "addedIn": "0.1.0-beta.23" }],
 			"fingerprintInputs": [
 				"apps/terminal-host/src/handshake",
 				"apps/terminal-host/src/keeper_protocol",

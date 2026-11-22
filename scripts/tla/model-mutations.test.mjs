@@ -86,6 +86,14 @@ const cases = [
 		'config',
 	],
 	[
+		'terminal-host-handover',
+		'an orphan assigned while its owner still reads',
+		'AssignNeedsOrphan = TRUE',
+		'AssignNeedsOrphan = FALSE',
+		/Invariant OneReader is violated/u,
+		'config',
+	],
+	[
 		'release-store-fallback',
 		'a recorder writes from the pointer it read before the lock',
 		'LockedUpdate = TRUE',

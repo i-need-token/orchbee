@@ -1,0 +1,1716 @@
+{
+	"sequences": [
+		{
+			"name": "assign",
+			"row": 14,
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "assign-result",
+						"id": 1
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "H",
+					"state": "orphaned",
+					"for": "N"
+				}
+			]
+		},
+		{
+			"name": "assign-replacing-the-mark-of-an-ended-target",
+			"row": 14,
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				},
+				{
+					"name": "R",
+					"process": {
+						"pid": 4400,
+						"created": "01db3f0e5c7a1b40"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"host": "H",
+					"request": {
+						"type": "mark",
+						"id": 2,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a"
+					},
+					"reply": {
+						"type": "mark-result",
+						"id": 2
+					}
+				},
+				{
+					"ends": "N"
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4400,
+							"created": "01db3f0e5c7a1b40"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "assign-result",
+						"id": 1
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "H",
+					"state": "orphaned",
+					"for": "R"
+				}
+			]
+		},
+		{
+			"name": "claim-of-an-assigned-orphan",
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "assign-result",
+						"id": 1
+					}
+				},
+				{
+					"host": "N",
+					"request": {
+						"type": "inspect",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "inspect-result",
+						"id": 1,
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					}
+				},
+				{
+					"host": "N",
+					"request": {
+						"type": "claim",
+						"id": 2,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+						"program": {
+							"pid": 5120,
+							"created": "01db3f0e5c7a2b40"
+						},
+						"terminal": {
+							"creationId": "55555555555555555555555555555555",
+							"hostEpoch": "66666666666666666666666666666666",
+							"terminalId": "77777777777777777777777777777777"
+						}
+					},
+					"reply": {
+						"type": "claim-result",
+						"id": 2
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "N",
+					"state": "held"
+				}
+			]
+		},
+		{
+			"name": "repeated-assign",
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "assign-result",
+						"id": 1
+					}
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "assign-result",
+						"id": 1
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "H",
+					"state": "orphaned",
+					"for": "N"
+				}
+			]
+		},
+		{
+			"name": "assign-of-the-current-mark-for-its-live-target",
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"host": "H",
+					"request": {
+						"type": "mark",
+						"id": 2,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a"
+					},
+					"reply": {
+						"type": "mark-result",
+						"id": 2
+					}
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a"
+					},
+					"reply": {
+						"type": "assign-result",
+						"id": 1
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "H",
+					"state": "orphaned",
+					"for": "N"
+				}
+			]
+		},
+		{
+			"name": "assign-while-a-live-target-may-claim",
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				},
+				{
+					"name": "R",
+					"process": {
+						"pid": 4400,
+						"created": "01db3f0e5c7a1b40"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"host": "H",
+					"request": {
+						"type": "mark",
+						"id": 2,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a"
+					},
+					"reply": {
+						"type": "mark-result",
+						"id": 2
+					}
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4400,
+							"created": "01db3f0e5c7a1b40"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 1,
+						"reason": "marked"
+					}
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 1,
+						"reason": "marked"
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "H",
+					"state": "orphaned",
+					"for": "N"
+				}
+			]
+		},
+		{
+			"name": "assign-while-the-owner-runs",
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 1,
+						"reason": "not-orphaned"
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "H",
+					"state": "held"
+				}
+			]
+		},
+		{
+			"name": "assign-of-a-claimed-orphan",
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				},
+				{
+					"name": "R",
+					"process": {
+						"pid": 4400,
+						"created": "01db3f0e5c7a1b40"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "assign-result",
+						"id": 1
+					}
+				},
+				{
+					"host": "N",
+					"request": {
+						"type": "claim",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+						"program": {
+							"pid": 5120,
+							"created": "01db3f0e5c7a2b40"
+						},
+						"terminal": {
+							"creationId": "55555555555555555555555555555555",
+							"hostEpoch": "66666666666666666666666666666666",
+							"terminalId": "77777777777777777777777777777777"
+						}
+					},
+					"reply": {
+						"type": "claim-result",
+						"id": 1
+					}
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4400,
+							"created": "01db3f0e5c7a1b40"
+						},
+						"mark": "b2c3d4e5f60718293a4b5c6d7e8f90a1"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 1,
+						"reason": "not-orphaned"
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "N",
+					"state": "held"
+				}
+			]
+		},
+		{
+			"name": "assign-for-an-ended-or-unknown-host",
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"ends": "N"
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4200,
+							"created": "01db3f0e5c7a1b20"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 1,
+						"reason": "not-registered"
+					}
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 1,
+						"reason": "not-registered"
+					}
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4999,
+							"created": "01db3f0e5c7a1bf0"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 1,
+						"reason": "not-registered"
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "H",
+					"state": "orphaned"
+				}
+			]
+		},
+		{
+			"name": "assign-and-discard-of-an-absent-holding",
+			"hosts": [
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				}
+			],
+			"steps": [
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 1,
+						"reason": "unknown-holding"
+					}
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "discard",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f"
+					},
+					"reply": {
+						"type": "discard-result",
+						"id": 1
+					}
+				}
+			],
+			"expect": []
+		},
+		{
+			"name": "assign-after-a-decline",
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				},
+				{
+					"name": "R",
+					"process": {
+						"pid": 4400,
+						"created": "01db3f0e5c7a1b40"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "assign-result",
+						"id": 1
+					}
+				},
+				{
+					"host": "N",
+					"request": {
+						"type": "decline",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "decline-result",
+						"id": 1,
+						"outcome": "declined"
+					}
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4400,
+							"created": "01db3f0e5c7a1b40"
+						},
+						"mark": "b2c3d4e5f60718293a4b5c6d7e8f90a1"
+					},
+					"reply": {
+						"type": "assign-result",
+						"id": 1
+					}
+				},
+				{
+					"host": "R",
+					"request": {
+						"type": "inspect",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"mark": "b2c3d4e5f60718293a4b5c6d7e8f90a1"
+					},
+					"reply": {
+						"type": "inspect-result",
+						"id": 1,
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					}
+				},
+				{
+					"host": "R",
+					"request": {
+						"type": "claim",
+						"id": 2,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"mark": "b2c3d4e5f60718293a4b5c6d7e8f90a1",
+						"program": {
+							"pid": 5120,
+							"created": "01db3f0e5c7a2b40"
+						},
+						"terminal": {
+							"creationId": "55555555555555555555555555555555",
+							"hostEpoch": "66666666666666666666666666666666",
+							"terminalId": "77777777777777777777777777777777"
+						}
+					},
+					"reply": {
+						"type": "claim-result",
+						"id": 2
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "R",
+					"state": "held"
+				}
+			]
+		},
+		{
+			"name": "discard",
+			"row": 15,
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "discard",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f"
+					},
+					"reply": {
+						"type": "discard-result",
+						"id": 1
+					}
+				}
+			],
+			"expect": []
+		},
+		{
+			"name": "discard-after-the-assigned-target-ended",
+			"row": 15,
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "assign-result",
+						"id": 1
+					}
+				},
+				{
+					"ends": "N"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "discard",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f"
+					},
+					"reply": {
+						"type": "discard-result",
+						"id": 1
+					}
+				}
+			],
+			"expect": []
+		},
+		{
+			"name": "discard-while-the-owner-runs",
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "discard",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 1,
+						"reason": "not-orphaned"
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "H",
+					"state": "held"
+				}
+			]
+		},
+		{
+			"name": "discard-while-a-live-target-may-claim",
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"ends": "H"
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "assign",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "assign-result",
+						"id": 1
+					}
+				},
+				{
+					"worker": true,
+					"request": {
+						"type": "discard",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 1,
+						"reason": "marked"
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "H",
+					"state": "orphaned",
+					"for": "N"
+				}
+			]
+		},
+		{
+			"name": "recovery-requests-from-a-host",
+			"hosts": [
+				{
+					"name": "H",
+					"process": {
+						"pid": 4200,
+						"created": "01db3f0e5c7a1b20"
+					}
+				},
+				{
+					"name": "N",
+					"process": {
+						"pid": 4300,
+						"created": "01db3f0e5c7a1b30"
+					}
+				}
+			],
+			"steps": [
+				{
+					"host": "H",
+					"request": {
+						"type": "hold",
+						"id": 1,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"handles": {
+							"job": "00000000000001a4",
+							"program": "00000000000001a8",
+							"console": "00000000000001ac",
+							"signal": "00000000000001b0",
+							"reference": "00000000000001b4",
+							"input": "00000000000001b8",
+							"output": "00000000000001bc"
+						},
+						"facts": {
+							"terminal": {
+								"creationId": "33333333333333333333333333333333",
+								"hostEpoch": "11111111111111111111111111111111",
+								"terminalId": "44444444444444444444444444444444"
+							},
+							"program": {
+								"pid": 5120,
+								"created": "01db3f0e5c7a2b40"
+							},
+							"console": {
+								"pid": 5116,
+								"created": "01db3f0e5c7a2b38"
+							},
+							"consoleBuild": "3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586",
+							"signalFormat": 1,
+							"launch": "managed-powershell"
+						}
+					},
+					"reply": {
+						"type": "hold-result",
+						"id": 1
+					}
+				},
+				{
+					"host": "H",
+					"request": {
+						"type": "assign",
+						"id": 2,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+						"for": {
+							"pid": 4300,
+							"created": "01db3f0e5c7a1b30"
+						},
+						"mark": "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 2,
+						"reason": "wrong-role"
+					}
+				},
+				{
+					"host": "H",
+					"request": {
+						"type": "discard",
+						"id": 3,
+						"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f"
+					},
+					"reply": {
+						"type": "refused",
+						"id": 3,
+						"reason": "wrong-role"
+					}
+				}
+			],
+			"expect": [
+				{
+					"holding": "5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f",
+					"owner": "H",
+					"state": "held"
+				}
+			]
+		}
+	]
+}

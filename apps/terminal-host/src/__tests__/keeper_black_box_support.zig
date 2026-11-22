@@ -479,6 +479,11 @@ pub const Session = struct {
 
     /// Offers `keeper` as a client of this build would and requires its answer.
     pub fn offer(self: *Session, arena: std.mem.Allocator) !void {
+        return self.offerWith(arena, handshake.registry.keeper.capabilities);
+    }
+
+    /// Offers `keeper` listing only `capabilities` and requires its answer.
+    pub fn offerWith(self: *Session, arena: std.mem.Allocator, capabilities: []const []const u8) !void {
         const profile = handshake.registry.keeperProfile(
             build_options.host_version,
             .{ .commit = build_options.source_commit },
@@ -487,7 +492,7 @@ pub const Session = struct {
         const frame = try handshake.encode.initiatorFrame(arena, .{ .offer = .{
             .connection = profile.connection,
             .generations = profile.generations,
-            .capabilities = profile.capabilities,
+            .capabilities = capabilities,
             .product_version = profile.product_version,
             .build = profile.build,
             .environment = profile.environment,

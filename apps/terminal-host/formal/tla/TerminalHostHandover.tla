@@ -4,17 +4,22 @@ EXTENDS Naturals, Sequences
 \* Checks the move of one terminal from an old Terminal Host to a new one under
 \* the H1 design of the Host handover proposal
 \* (proposals/platform/host-handover.md: "How a terminal moves", "The Keeper
-\* protocol", "The Host's side", and "The move's model"). It covers that
-\* section's invariants: one reader, no loss or repeat with records that end
-\* only at ground, each held key once, an abort that restores the old Host,
-\* only a claim committing, holdings that name only Hosts that may read, and a
-\* reader that remains while both Hosts run.
+\* protocol", "The Host's side", and "The move's model"), and its recovery
+\* into the new Host after the old Host ended under the H2 design ("H2
+\* design"). It covers that section's invariants: one reader, no loss or
+\* repeat with records that end only at ground, each held key once, an abort
+\* that restores the old Host, only a claim committing, holdings that name
+\* only Hosts that may read, and a reader that remains while both Hosts run.
+\* A recovered terminal starts with an empty screen: it loses what the ended
+\* Host had read and repeats nothing.
 \*
 \* Transition vocabulary: Quiesce is the Worker's hold and QuiesceTerminal;
 \* Park and Withdraw are the reader parking at ground and a quiesce refused as
 \* passing; Mark is the export followed by `mark`; Resume is `resume` at the
 \* mark's deadline or on the Worker's ResumeTerminal; Restore is
-\* RestoreTerminal with `inspect`; Claim and Decline are `claim` and `decline`,
+\* RestoreTerminal with `inspect`; Assign is the Worker's `assign` of the
+\* orphaned holding to the new Host under a mark the Worker mints; Recover is
+\* RecoverTerminal with `inspect`; Claim and Decline are `claim` and `decline`,
 \* the latter on DiscardImport or at the import's deadline; OldReply and
 \* NewReply read a Keeper answer; Hold is `hold` after AttachKeeper or a
 \* resume; Drop is DropTerminal, from the Worker or from a replacement that
@@ -44,8 +49,11 @@ EXTENDS Naturals, Sequences
 \*
 \* Bounds: one terminal whose output is two bytes forming one sequence, so a
 \* reader stops before, inside, or after it; two quiesces, each holding one
-\* key; one undecodable answer; each Host, Keeper, and the first Worker crash
-\* at most once, and the second Keeper may start at any moment. Left out: a
+\* key; one assignment; one undecodable answer; each Host, Keeper, and the
+\* first Worker crash at most once, and the second Keeper may start at any
+\* moment. The Worker assigns only once the Keeper has seen the old Host end,
+\* which for a hung Host follows the Worker ending it, and sends
+\* RecoverTerminal after the assignment. Left out: a
 \* lost `inspect`, which fails the restore like a missing mark; lost `hold`
 \* answers; the terminal's own end, and `release`, during a move;
 \* DetachKeeper and the Keeper change's status comparison, so a Keeper leaves
@@ -59,7 +67,7 @@ EXTENDS Naturals, Sequences
 \* Claims: the proposal's TH-028 to TH-034 join the runtime model with the
 \* behavior they state; until then this model maps to no runtime claim.
 \*
-\* The nine design flags are TRUE in the checked configuration; each mutant
+\* The ten design flags are TRUE in the checked configuration; each mutant
 \* configuration sets one to FALSE.
 
 CONSTANTS
@@ -75,11 +83,14 @@ CONSTANTS
   ReadAfterClaimed,         \* the new Host reads only after seeing claimed
   ResumeNeedsAnswer,        \* the old Host reads again only on resumed
   HoldOnlyRead,             \* a Host holds only a terminal it reads
-  DropAfterNewClaimed       \* the drop follows the new Host's claimed
+  DropAfterNewClaimed,      \* the drop follows the new Host's claimed
+  AssignNeedsOrphan         \* the Keeper assigns only a holding whose owner ended
 
 Hosts == {"old", "new"}
 Keepers == {"k1", "k2"}
 Marks == 1..MaxQuiesces
+\* The mark the Worker mints for its one assignment.
+Assigned == MaxQuiesces + 1
 Other(h) == IF h = "old" THEN "new" ELSE "old"
 
 \* A Keeper's process state and its one holding. `consumed` is the mark a
@@ -87,7 +98,7 @@ Other(h) == IF h = "old" THEN "new" ELSE "old"
 \* Host ends. A holding whose owner has ended is orphaned.
 KeeperStates ==
   [state: {"off", "live", "ended"}, owner: {"none", "old", "new"},
-   mark: 0..MaxQuiesces, consumed: 0..MaxQuiesces]
+   mark: 0..Assigned, consumed: 0..Assigned]
 
 Empty(state) == [state |-> state, owner |-> "none", mark |-> 0, consumed |-> 0]
 
@@ -103,12 +114,15 @@ VARIABLES
   nImport,       \* the mark id its import names
   nKeeper,       \* the Keeper it inspected
   nSaw,          \* the new Host has seen claimed
+  nBase,         \* the bytes taken before the new Host's terminal starts
   keeper,        \* each Keeper
   link,          \* each Host's connection to each Keeper
   answer,        \* the Keeper answer in flight to each Host
   unreadable,    \* answers spent on the undecodable budget
   records,       \* each mark's exported record, empty until exported
   relay,         \* records the Worker relays for RestoreTerminal
+  assigned,      \* the Keeper the Worker assigned the orphan in, or "none"
+  recovering,    \* the Worker sent RecoverTerminal
   worker,        \* "first", or "second" after a crash and replacement
   holding,       \* the first Worker holds the terminal's input
   quiesces,      \* QuiesceTerminal requests made
@@ -117,13 +131,15 @@ VARIABLES
   misdelivered   \* a key reached a Host while the other read
 
 oldVars == <<oReader, oStep, oMark, oKeeper>>
-newVars == <<nStep, nImport, nKeeper, nSaw>>
+newVars == <<nStep, nImport, nKeeper, nSaw, nBase>>
 netVars == <<keeper, link, answer, unreadable>>
-moveVars == <<records, relay>>
+moveVars == <<records, relay, assigned, recovering>>
 workerVars == <<worker, holding, quiesces, typed, delivered, misdelivered>>
 vars == <<taken, applied, alive, oldVars, newVars, netVars, moveVars, workerVars>>
 
 Taken == [i \in 1..taken |-> i]
+\* The bytes taken after the first `base` of them.
+TakenAfter(base) == [i \in 1..(taken - base) |-> base + i]
 AtGround(bytes) == IF bytes = <<>> THEN TRUE ELSE bytes[Len(bytes)] # SequenceStart
 
 \* A Host's reader runs: it takes the next output from the pipe.
@@ -161,6 +177,7 @@ Init ==
   /\ nImport = 0
   /\ nKeeper = "k1"
   /\ nSaw = FALSE
+  /\ nBase = 0
   /\ keeper = [k \in Keepers |->
        IF k = "k1" THEN [Empty("live") EXCEPT !.owner = "old"] ELSE Empty("off")]
   /\ link = [h \in Hosts |-> [k \in Keepers |-> IF k = "k1" THEN "ok" ELSE "none"]]
@@ -168,6 +185,8 @@ Init ==
   /\ unreadable = 0
   /\ records = [m \in Marks |-> <<>>]
   /\ relay = {}
+  /\ assigned = "none"
+  /\ recovering = FALSE
   /\ worker = "first"
   /\ holding = FALSE
   /\ quiesces = 0
@@ -277,7 +296,7 @@ Mark ==
                /\ UNCHANGED <<answer, oReader, oKeeper>>
        ELSE /\ Serve
             /\ UNCHANGED netVars
-  /\ UNCHANGED <<taken, applied, alive, newVars, relay, workerVars>>
+  /\ UNCHANGED <<taken, applied, alive, newVars, relay, assigned, recovering, workerVars>>
 
 \* `resume` to the Keeper that holds the mark, at the mark's deadline or on the
 \* Worker's ResumeTerminal.
@@ -323,7 +342,8 @@ OldReply ==
      \/ /\ NoAnswer("old", oKeeper)
         /\ oStep' = "stopped"
         /\ UNCHANGED <<relay, oReader, oMark, oKeeper>>
-  /\ UNCHANGED <<taken, applied, alive, newVars, records, workerVars>>
+  /\ UNCHANGED <<taken, applied, alive, newVars, records, assigned, recovering,
+                 workerVars>>
 
 \* Present only in the mutant that resumes at the deadline without an answer.
 DeadlineResume ==
@@ -349,9 +369,47 @@ Restore(m) ==
               /\ nStep' = "restored"
               /\ nImport' = m
               /\ nKeeper' = k
+              /\ nBase' = 0
               /\ applied' = [applied EXCEPT !["new"] = records[m]]
-       ELSE UNCHANGED <<nStep, nImport, nKeeper, applied>>
-  /\ UNCHANGED <<taken, alive, oldVars, nSaw, netVars, records, workerVars>>
+       ELSE UNCHANGED <<nStep, nImport, nKeeper, nBase, applied>>
+  /\ UNCHANGED <<taken, alive, oldVars, nSaw, netVars, records, assigned,
+                 recovering, workerVars>>
+
+\* The Worker's `assign`: the Keeper names the new Host as the claimant of the
+\* orphaned holding under the mark the Worker minted, while no live Host may
+\* claim it. The Worker assigns only in a Keeper that no other running Keeper
+\* shares a holding with: a Host lost during a Keeper change fails the change,
+\* which ends the second Keeper first.
+Assign ==
+  /\ assigned = "none"
+  /\ alive["new"]
+  /\ \E k \in Keepers:
+       /\ keeper[k].state = "live"
+       /\ keeper[k].owner = "old"
+       /\ AssignNeedsOrphan => ~alive["old"]
+       /\ keeper[k].mark = 0
+       /\ \A j \in Keepers \ {k}: keeper[j].state = "live" => keeper[j].owner = "none"
+       /\ keeper' = [keeper EXCEPT ![k].mark = Assigned]
+       /\ assigned' = k
+  /\ UNCHANGED <<taken, applied, alive, oldVars, newVars, link, answer, unreadable,
+                 records, relay, recovering, workerVars>>
+
+\* RecoverTerminal: `inspect` the assigned mark, pull, check, pack, and create
+\* the gated threads with an empty screen. A failed inspect fails the
+\* recovery.
+Recover ==
+  /\ assigned # "none"
+  /\ ~recovering
+  /\ recovering' = TRUE
+  /\ IF nStep \in {"none", "discarded"} /\ Inspectable(assigned, Assigned)
+       THEN /\ nStep' = "restored"
+            /\ nImport' = Assigned
+            /\ nKeeper' = assigned
+            /\ nBase' = taken
+            /\ applied' = [applied EXCEPT !["new"] = <<>>]
+       ELSE UNCHANGED <<nStep, nImport, nKeeper, nBase, applied>>
+  /\ UNCHANGED <<taken, alive, oldVars, nSaw, netVars, records, relay, assigned,
+                 workerVars>>
 
 \* `claim`, the commit.
 Claim ==
@@ -371,7 +429,7 @@ Claim ==
         /\ UNCHANGED <<link, unreadable>>
      \/ /\ Lost("new", nKeeper)
         /\ UNCHANGED <<answer, nStep>>
-  /\ UNCHANGED <<taken, applied, alive, oldVars, nImport, nKeeper, nSaw, moveVars,
+  /\ UNCHANGED <<taken, applied, alive, oldVars, nImport, nKeeper, nSaw, nBase, moveVars,
                  workerVars>>
 
 \* `decline` before discarding, on DiscardImport or at the import's deadline.
@@ -392,7 +450,7 @@ Decline ==
                /\ UNCHANGED answer
        ELSE /\ Discard
             /\ UNCHANGED netVars
-  /\ UNCHANGED <<taken, alive, oldVars, nKeeper, nSaw, moveVars, workerVars>>
+  /\ UNCHANGED <<taken, alive, oldVars, nKeeper, nSaw, nBase, moveVars, workerVars>>
 
 \* Whichever answer first shows claimed completes the claim.
 NewReply ==
@@ -412,7 +470,7 @@ NewReply ==
                   /\ UNCHANGED <<nImport, nSaw, applied>>
            ELSE /\ Discard
                 /\ UNCHANGED nSaw
-  /\ UNCHANGED <<taken, alive, oldVars, nKeeper, moveVars, workerVars>>
+  /\ UNCHANGED <<taken, alive, oldVars, nKeeper, nBase, moveVars, workerVars>>
 
 -----------------------------------------------------------------------------
 \* Keepers.
@@ -537,7 +595,8 @@ NewCrash ==
   /\ answer' = [answer EXCEPT !["new"] = "none"]
   /\ link' = [link EXCEPT !["new"] = [k \in Keepers |-> "none"]]
   /\ relay' = {}
-  /\ UNCHANGED <<taken, oldVars, nSaw, keeper, unreadable, records, workerVars>>
+  /\ UNCHANGED <<taken, oldVars, nSaw, nBase, keeper, unreadable, records, assigned,
+                 recovering, workerVars>>
 
 -----------------------------------------------------------------------------
 
@@ -551,6 +610,8 @@ Next ==
   \/ OldReply
   \/ DeadlineResume
   \/ \E m \in Marks: Restore(m)
+  \/ Assign
+  \/ Recover
   \/ Claim
   \/ Decline
   \/ NewReply
@@ -591,15 +652,18 @@ TypeOK ==
   /\ oMark \in 0..MaxQuiesces
   /\ oKeeper \in Keepers
   /\ nStep \in {"none", "restored", "claiming", "refused", "declining", "reading", "discarded"}
-  /\ nImport \in 0..MaxQuiesces
+  /\ nImport \in 0..Assigned
   /\ nKeeper \in Keepers
   /\ nSaw \in BOOLEAN
+  /\ nBase \in 0..MaxBytes
   /\ keeper \in [Keepers -> KeeperStates]
   /\ link \in [Hosts -> [Keepers -> {"none", "ok", "failed"}]]
   /\ answer \in [Hosts -> {"none", "ok", "refused", "resumed", "claimed", "declined"}]
   /\ unreadable \in 0..MaxUnreadable
   /\ records \in [Marks -> Seq(1..MaxBytes)]
   /\ relay \subseteq Marks
+  /\ assigned \in Keepers \cup {"none"}
+  /\ recovering \in BOOLEAN
   /\ worker \in {"first", "second"}
   /\ holding \in BOOLEAN
   /\ quiesces \in 0..MaxQuiesces
@@ -617,8 +681,11 @@ OneReader ==
 
 \* The reading Host has applied every byte taken from the pipe, a restored
 \* record's included, once and in order, so its bytes followed by the pipe's
-\* are the program's output.
-NoLossOrRepeat == \A h \in Hosts: Reads(h) => applied[h] = Taken
+\* are the program's output. A recovered terminal has applied every byte taken
+\* since its recovery began, once and in order.
+NoLossOrRepeat ==
+  /\ Reads("old") => applied["old"] = Taken
+  /\ Reads("new") => applied["new"] = TakenAfter(nBase)
 
 \* No record ends inside a sequence.
 RecordsEndAtGround == \A m \in Marks: AtGround(records[m])

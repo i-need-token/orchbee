@@ -1,5 +1,6 @@
-//! The Keeper's requests, each applied to the table with its lock held: the Worker's registrations
-//! and `status`, and a registered Host's holding requests along the contract's state table.
+//! The Keeper's requests, each applied to the table with its lock held: the Worker's registrations,
+//! `status`, and recovery requests, and a registered Host's holding requests along the contract's
+//! state table.
 
 const std = @import("std");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
@@ -28,6 +29,8 @@ pub fn apply(
             .register_host => |process| registerHost(table, process),
             .unregister_host => |process| unregisterHost(table, process, effects),
             .status => |after| status(table, arena, after),
+            .assign => |assign| assignRequest(table, assign),
+            .discard => |holding| discardRequest(table, holding, effects),
             else => refused(.wrong_role),
         },
         .host => |requester| {
@@ -257,6 +260,46 @@ fn releaseRequest(table: *Table, requester: Process, id: RandomId, effects: *Eff
     );
     table.holding_count -= 1;
     return .release;
+}
+
+/// Recovery: the Worker names the live Host that may claim an orphaned holding, under a mark it
+/// mints, while no live Host may still claim it.
+fn assignRequest(table: *Table, assign: message.Mark) Body {
+    const holding = table.find(assign.holding) orelse return refused(.unknown_holding);
+    if (!holding.orphaned) return refused(.not_orphaned);
+    if (holding.mark) |current| {
+        if (std.mem.eql(u8, &current.id, &assign.mark) and current.target.eql(assign.target)) return .assign;
+        if (liveHost(table, current.target)) return refused(.marked);
+    }
+    if (!liveHost(table, assign.target)) return refused(.not_registered);
+    holding.mark = .{ .id = assign.mark, .target = assign.target };
+    return .assign;
+}
+
+/// Closes an orphaned holding's duplicates, which ends its program once no other process holds its
+/// Job, while no live Host may still claim it.
+fn discardRequest(table: *Table, id: RandomId, effects: *Effects) Body {
+    const position = table.search(id);
+    if (!position.found) return .discard;
+    const holding = &table.holdings[position.index];
+    if (!holding.orphaned) return refused(.not_orphaned);
+    if (holding.mark) |current| if (liveHost(table, current.target)) return refused(.marked);
+    const owner = holding.owner;
+    effects.duplicates = holding.duplicates;
+    std.mem.copyForwards(
+        Holding,
+        table.holdings[position.index .. table.holding_count - 1],
+        table.holdings[position.index + 1 .. table.holding_count],
+    );
+    table.holding_count -= 1;
+    effects.host = table.forgetIfEndedAndUnnamed(owner);
+    return .discard;
+}
+
+/// Whether `process` is a registered Host that has not ended.
+fn liveHost(table: *const Table, process: Process) bool {
+    const index = table.findHost(process) orelse return false;
+    return !table.hosts[index].?.ended;
 }
 
 fn refused(reason: Reason) Body {

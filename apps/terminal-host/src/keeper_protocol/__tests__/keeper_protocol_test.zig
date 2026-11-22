@@ -19,8 +19,8 @@ const Decoded = union(Direction) {
     acceptor: message.AcceptorMessage,
 };
 
-const message_files = [_][]const u8{ fixtures.owner, fixtures.claimant, fixtures.worker };
-const sequence_files = [_][]const u8{ fixtures.owner_sequences, fixtures.claimant_sequences };
+const message_files = [_][]const u8{ fixtures.owner, fixtures.claimant, fixtures.worker, fixtures.recovery };
+const sequence_files = [_][]const u8{ fixtures.owner_sequences, fixtures.claimant_sequences, fixtures.recovery_sequences };
 
 fn decodeFrame(arena: std.mem.Allocator, direction: Direction, bytes: []const u8) decode.FrameError!Decoded {
     return switch (direction) {

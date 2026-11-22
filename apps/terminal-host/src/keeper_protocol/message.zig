@@ -89,6 +89,8 @@ pub const Reason = enum {
     capacity,
     draining,
     handle_failed,
+    /// The holding's owner still runs; only `recovery`'s requests answer it.
+    not_orphaned,
     unknown,
 
     pub fn name(self: Reason) []const u8 {
@@ -144,6 +146,9 @@ pub const RequestKind = enum {
     claim,
     decline,
     release,
+    /// The Worker's requests under `recovery`.
+    assign,
+    discard,
 
     pub fn name(self: RequestKind) []const u8 {
         return wireName(self);
@@ -216,7 +221,15 @@ pub const Request = struct {
         claim: Claim,
         decline: Marked,
         release: RandomId,
+        /// An orphaned holding's claim by `target` under `mark`, which the Worker mints.
+        assign: Mark,
+        discard: RandomId,
     };
+
+    /// Whether only a connection that negotiated `recovery` sends this request.
+    pub fn needsRecovery(kind: RequestKind) bool {
+        return kind == .assign or kind == .discard;
+    }
 };
 
 pub const InitiatorMessage = union(enum) {
@@ -280,6 +293,8 @@ pub const Reply = struct {
         mark,
         claim,
         release,
+        assign,
+        discard,
         status: StatusPage,
         @"resume": Outcome,
         decline: Outcome,
@@ -299,6 +314,8 @@ pub const Reply = struct {
                 .mark => kind == .mark,
                 .claim => kind == .claim,
                 .release => kind == .release,
+                .assign => kind == .assign,
+                .discard => kind == .discard,
                 .status => kind == .status,
                 .@"resume" => kind == .@"resume",
                 .decline => kind == .decline,

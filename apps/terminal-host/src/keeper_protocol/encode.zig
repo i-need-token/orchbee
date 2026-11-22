@@ -166,7 +166,7 @@ fn writeInitiator(writer: *std.Io.Writer, value: message.InitiatorMessage) Write
                     try object.handles(hold.handles);
                     try object.facts(hold.facts);
                 },
-                .mark => |mark| {
+                .mark, .assign => |mark| {
                     try object.randomId("holding", mark.holding);
                     try object.process("for", mark.target);
                     try object.randomId("mark", mark.mark);
@@ -181,7 +181,7 @@ fn writeInitiator(writer: *std.Io.Writer, value: message.InitiatorMessage) Write
                     try object.process("program", claim.program);
                     try object.terminal("terminal", claim.terminal);
                 },
-                .release => |holding| try object.randomId("holding", holding),
+                .release, .discard => |holding| try object.randomId("holding", holding),
             }
             try object.extensions(request.extensions);
         },
@@ -228,7 +228,7 @@ fn writeAcceptor(writer: *std.Io.Writer, value: message.AcceptorMessage) WriteEr
                     try object.handles(inspection.handles);
                     try object.facts(inspection.facts);
                 },
-                inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release => |_, tag| {
+                inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard => |_, tag| {
                     try object.text("type", @field(message.RequestKind, @tagName(tag)).resultName());
                     try object.id(reply.id);
                 },
