@@ -136,6 +136,18 @@ impl ModeCheckedLocalSessionRendezvous {
     pub fn host_endpoint_path(runtime: &Path) -> PathBuf {
         format!(r"\\.\pipe\orchbee-terminal-host-{}", endpoint_id(runtime)).into()
     }
+    /// The Keeper's endpoint id: the Host's address math under its own domain, so the Keeper's pipe
+    /// belongs to this Session alone and a Worker that adopts the Keeper derives it again.
+    pub fn keeper_endpoint_id(runtime: &Path) -> String {
+        hashed_id(b"orchbee-windows-keeper-v1\0", runtime)
+    }
+    pub fn keeper_endpoint_path(runtime: &Path) -> PathBuf {
+        format!(
+            r"\\.\pipe\orchbee-terminal-host-{}",
+            Self::keeper_endpoint_id(runtime)
+        )
+        .into()
+    }
     pub fn observation_endpoint_path(runtime: &Path) -> PathBuf {
         endpoint(runtime, "observation")
     }
@@ -350,8 +362,11 @@ pub(crate) fn endpoint_exists(path: &Path) -> io::Result<bool> {
 }
 
 fn endpoint_id(runtime: &Path) -> String {
+    hashed_id(b"orchbee-windows-runtime-v1\0", runtime)
+}
+fn hashed_id(domain: &[u8], runtime: &Path) -> String {
     let mut hash = Sha256::new();
-    hash.update(b"orchbee-windows-runtime-v1\0");
+    hash.update(domain);
     // All admitted callers use the canonical path. Preserve every UTF-16 code
     // unit and normalize ASCII case (including the drive letter).
     for unit in runtime.as_os_str().encode_wide() {

@@ -676,8 +676,11 @@ clean-stop publication. `spawn_server` requires the catalog and matching activat
 `spawn_server_outside_job`, on Windows, takes the same owners and creates the Server with
 `CREATE_BREAKAWAY_FROM_JOB`, or inside the activator's Job when that Job refuses, and answers
 which as `JobPlacement`; the remote link helper uses it so a Session outlives the `ssh`
-connection's Job. `spawn_session_child` requires the exact registered direct parent for Worker or
-Host. Each
+connection's Job. `spawn_session_child` requires the exact registered direct parent for Worker,
+Host or Keeper. The recorded Worker alone starts a Keeper, the first or one that replaces a
+Keeper observed gone, and a recovery Host, which takes the Host slot only once the recorded Host
+is observed gone under the record's writer lock; a record writes its Keeper slot only once one is
+reserved. Each
 child is created suspended and released only after its identity is flushed. A failed start's I/O
 error keeps the failed operation's kind and operating-system code and names its step,
 `SessionChildStep::of`: registration, creation or release. Explicit confirmed
@@ -727,7 +730,8 @@ admitted stopped receipt (or never-activated runtime), free lifetime, checkpoint
 locks, and absent endpoints are required before publishing the durable Deleting record, which fences
 activation and survives partial cleanup. The owner removes only known Session and runtime files,
 including `terminal-output/` entries, the binding record, a `layouts/` folder an earlier build kept, and the Terminal
-Host's `host-fatal.json`, `host-fatal.previous.json` and `host-diagnostics.jsonl` records in the
+Host's `host-fatal.json`, `host-fatal.previous.json` and `host-diagnostics.jsonl` records and its
+Keeper's `keeper-fatal.json`, `keeper-fatal.previous.json` and `keeper-diagnostics.jsonl` in the
 `host` folder, plus on POSIX
 the `<endpoint-id>.l` lock file an exited Host leaves there, whose free lock absent endpoints
 already proved, releases their

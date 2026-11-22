@@ -30,8 +30,16 @@ pub(crate) enum ProcessRole {
     Server,
     Worker,
     Host,
+    /// The Terminal Host's Keeper, which the Worker starts once its first Host is ready and which
+    /// keeps a Host's programs running when that Host ends.
+    Keeper,
 }
-const ROLES: [ProcessRole; 3] = [ProcessRole::Server, ProcessRole::Worker, ProcessRole::Host];
+pub(crate) const ROLES: [ProcessRole; 4] = [
+    ProcessRole::Server,
+    ProcessRole::Worker,
+    ProcessRole::Host,
+    ProcessRole::Keeper,
+];
 
 #[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -51,6 +59,9 @@ pub(crate) enum Registration {
     },
 }
 impl Registration {
+    fn is_not_started(&self) -> bool {
+        *self == Self::NotStarted
+    }
     pub(crate) fn identity(self) -> Option<ProcessIdentity> {
         match self {
             Self::Identified { identity } => Some(identity),
@@ -64,6 +75,9 @@ pub(crate) struct SessionProcesses {
     server: Registration,
     worker: Registration,
     host: Registration,
+    /// Written only once a Keeper is reserved, so a record without one reads as it did before.
+    #[serde(skip_serializing_if = "Registration::is_not_started")]
+    keeper: Registration,
 }
 
 impl<'de> Deserialize<'de> for SessionProcesses {
@@ -74,19 +88,27 @@ impl<'de> Deserialize<'de> for SessionProcesses {
             server: Registration,
             worker: Registration,
             host: Registration,
+            #[serde(default)]
+            keeper: Registration,
         }
         let wire = Wire::deserialize(deserializer)?;
         let processes = Self {
             server: wire.server,
             worker: wire.worker,
             host: wire.host,
+            keeper: wire.keeper,
         };
-        // A Host is reserved only by an identified Worker. An identified Host needs no registered
-        // Worker: a replacement Worker returns its slot to spawning while the Host it adopts keeps
-        // its identity, and a generation that adopts its predecessor's running Host starts with
-        // that Host alone. An older reader refuses both instead of misreading them.
+        // A Host or a Keeper is reserved only by an identified Worker. An identified Host or Keeper
+        // needs no registered Worker: a replacement Worker returns its slot to spawning while the
+        // Host and Keeper it adopts keep their identities, and a generation that adopts its
+        // predecessor's running Host starts with that Host alone. An older reader refuses both
+        // instead of misreading them, and a record with a Keeper.
+        let reserved_by_worker = |slot: Registration| {
+            slot == Registration::Spawning && processes.worker.identity().is_none()
+        };
         if (processes.worker != Registration::NotStarted && processes.server.identity().is_none())
-            || (processes.host == Registration::Spawning && processes.worker.identity().is_none())
+            || reserved_by_worker(processes.host)
+            || reserved_by_worker(processes.keeper)
         {
             return Err(de::Error::custom(
                 "child registration requires its identified parent",
@@ -114,8 +136,11 @@ pub(crate) enum RegistrationError {
     DuplicateIdentity,
     /// A replacement needs a Worker to replace.
     NoWorker,
-    /// A Host still spawning blocks a replacement Worker.
+    /// A Host or a Keeper still spawning blocks a replacement Worker.
     HostSpawning,
+    /// A recovery Host takes the place only of a registered Host.
+    #[cfg(windows)]
+    NoHost,
 }
 
 #[cfg_attr(
@@ -157,6 +182,7 @@ impl SessionProcesses {
             ProcessRole::Server => self.server,
             ProcessRole::Worker => self.worker,
             ProcessRole::Host => self.host,
+            ProcessRole::Keeper => self.keeper,
         }
     }
     #[cfg(any(windows, test))]
@@ -165,6 +191,7 @@ impl SessionProcesses {
             ProcessRole::Server => &mut self.server,
             ProcessRole::Worker => &mut self.worker,
             ProcessRole::Host => &mut self.host,
+            ProcessRole::Keeper => &mut self.keeper,
         }
     }
     #[cfg(any(windows, test))]
@@ -176,7 +203,7 @@ impl SessionProcesses {
         let required = match role {
             ProcessRole::Server => Some(Creator::Activator),
             ProcessRole::Worker => self.server.identity().map(Creator::Process),
-            ProcessRole::Host => self.worker.identity().map(Creator::Process),
+            ProcessRole::Host | ProcessRole::Keeper => self.worker.identity().map(Creator::Process),
         };
         if required != Some(creator) {
             return Err(RegistrationError::WrongCreator);
@@ -190,7 +217,8 @@ impl SessionProcesses {
     /// Returns the Worker slot to spawning for a replacement Worker. Only the recorded Server takes
     /// it, and only once the recorded Worker is proven gone through the Server's own handle, or a
     /// failed replacement is known to have left no process: the caller holds that proof. The Host
-    /// keeps its registration, identified or not started; a Host still spawning blocks it.
+    /// and the Keeper keep their registrations, identified or not started; either still spawning
+    /// blocks it.
     #[cfg(any(windows, test))]
     pub(crate) fn reserve_replacement_worker(
         &mut self,
@@ -202,26 +230,57 @@ impl SessionProcesses {
         if self.worker == Registration::NotStarted {
             return Err(RegistrationError::NoWorker);
         }
-        if self.host == Registration::Spawning {
+        if self.host == Registration::Spawning || self.keeper == Registration::Spawning {
             return Err(RegistrationError::HostSpawning);
         }
         self.worker = Registration::Spawning;
         Ok(())
     }
+    /// Returns the Host slot to spawning for a recovery Host, which takes the place of a Host that
+    /// ended while the Keeper kept its programs. Only the recorded Worker takes it, and only once
+    /// the recorded Host is proven gone: the caller observed its exact identity gone under the
+    /// record's writer lock.
+    #[cfg(windows)]
+    pub(crate) fn reserve_recovery_host(
+        &mut self,
+        creator: Creator,
+    ) -> Result<(), RegistrationError> {
+        if self.worker.identity().map(Creator::Process) != Some(creator) {
+            return Err(RegistrationError::WrongCreator);
+        }
+        if self.host.identity().is_none() {
+            return Err(RegistrationError::NoHost);
+        }
+        self.host = Registration::Spawning;
+        Ok(())
+    }
+    /// Reserves the Keeper slot for a Keeper the recorded Worker starts: the first one, or one that
+    /// replaces a Keeper proven gone, which the caller observed under the record's writer lock.
+    #[cfg(windows)]
+    pub(crate) fn reserve_keeper(&mut self, creator: Creator) -> Result<(), RegistrationError> {
+        if self.worker.identity().map(Creator::Process) != Some(creator) {
+            return Err(RegistrationError::WrongCreator);
+        }
+        if self.keeper == Registration::Spawning {
+            return Err(RegistrationError::AlreadyStarted);
+        }
+        self.keeper = Registration::Spawning;
+        Ok(())
+    }
     /// The registrations once a restart committed: `server` and `worker`, the successor pair, take
-    /// the Server and Worker slots, and the Host keeps its registration. A Host still spawning, or
-    /// an identity that would own two roles, refuses.
+    /// the Server and Worker slots, and the Host and the Keeper keep their registrations. A Host or
+    /// a Keeper still spawning, or an identity that would own two roles, refuses.
     #[cfg(windows)]
     pub(crate) fn hand_over(
         &mut self,
         server: ProcessIdentity,
         worker: ProcessIdentity,
     ) -> Result<(), RegistrationError> {
-        if self.host == Registration::Spawning {
+        if self.host == Registration::Spawning || self.keeper == Registration::Spawning {
             return Err(RegistrationError::HostSpawning);
         }
-        let host = self.host.identity();
-        if server == worker || host == Some(server) || host == Some(worker) {
+        let kept = [self.host.identity(), self.keeper.identity()];
+        if server == worker || kept.contains(&Some(server)) || kept.contains(&Some(worker)) {
             return Err(RegistrationError::DuplicateIdentity);
         }
         self.server = Registration::Identified { identity: server };
@@ -251,7 +310,10 @@ impl SessionProcesses {
     /// creator held across the whole attempt, it names an attempt that ended before the identity
     /// write, whose child, if created, was never resumed and never runs. The identified roles,
     /// among them the slot's creator, decide alone.
-    pub(crate) fn status(&self, observations: [ProcessObservation; 3]) -> RecoveryVerdict {
+    pub(crate) fn status(
+        &self,
+        observations: [ProcessObservation; ROLES.len()],
+    ) -> RecoveryVerdict {
         let mut live = None;
         for (role, observation) in ROLES.into_iter().zip(observations) {
             match (self.registration(role), observation) {

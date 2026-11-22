@@ -87,8 +87,9 @@ pub const KEEPER: &str = "keeper";
 /// claim a terminal for a Host move. No build offers it before the Worker moves terminals.
 pub const HANDOVER: &str = "handover";
 
-/// The `keeper` capability before the Worker may ask the Keeper to `assign` an orphaned holding to
-/// the Host that claims it, or to `discard` one, so a lost Host's terminals can be recovered.
+/// The `keeper` and `worker-host` capability before the Worker may ask the Keeper to `assign` an
+/// orphaned holding to the Host that claims it, or to `discard` one, and that Host to recover it,
+/// so a lost Host's terminals come back.
 pub const RECOVERY: &str = "recovery";
 
 /// The `machine-hub` and `machine-link` capability before a client may ask the hub, and the hub
@@ -176,8 +177,7 @@ impl ConnectionKind {
             ],
             Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_SEND],
             Self::MachineHub | Self::MachineLink => &[CAPACITY],
-            // The Worker offers `recovery` with its Keeper client, which no build has yet.
-            Self::Keeper => &[],
+            Self::Keeper => &[RECOVERY],
         };
         capability_set(names)
     }

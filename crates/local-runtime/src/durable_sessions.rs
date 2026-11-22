@@ -143,7 +143,7 @@ impl Record {
 
 /// One Session folder's catalog record as listed.
 pub(crate) enum CatalogRecord {
-    Readable(Record),
+    Readable(Box<Record>),
     /// The folder holds a record this build cannot admit for the Session the folder names.
     Unreadable,
     /// The folder holds a record whose version this build cannot use: saved by a newer version,
@@ -399,7 +399,7 @@ impl Directory {
             return Ok(None);
         }
         let record = match self.read(scope) {
-            Ok(Some(record)) => CatalogRecord::Readable(record),
+            Ok(Some(record)) => CatalogRecord::Readable(Box::new(record)),
             Ok(None) => CatalogRecord::Missing,
             Err(error) if unusable(&error) => CatalogRecord::Unusable,
             Err(error) if error.kind() == io::ErrorKind::InvalidData => CatalogRecord::Unreadable,
@@ -594,6 +594,17 @@ impl RetainedSessionRecord {
     /// runs, and a free lock reads as gone, which also covers a Host that never started.
     /// Observation grants no termination authority.
     pub fn host_presence(&self) -> io::Result<HostPresence> {
+        self.child_presence(crate::process_registration::ProcessRole::Host)
+    }
+    /// What this generation's Keeper is now, in the same terms as [`Self::host_presence`]. POSIX
+    /// starts no Keeper, so there it reads as never started.
+    pub fn keeper_presence(&self) -> io::Result<HostPresence> {
+        self.child_presence(crate::process_registration::ProcessRole::Keeper)
+    }
+    fn child_presence(
+        &self,
+        role: crate::process_registration::ProcessRole,
+    ) -> io::Result<HostPresence> {
         let current = self
             .directory
             .read(&self.scope)?
@@ -602,14 +613,17 @@ impl RetainedSessionRecord {
             return Err(io::ErrorKind::InvalidData.into());
         }
         #[cfg(windows)]
-        return Ok(crate::process_observation::host_presence(
+        return Ok(crate::process_observation::presence(
             &current.processes,
+            role,
         ));
         #[cfg(unix)]
-        return Ok(if crate::rendezvous::host_lock_held(current.runtime())? {
-            HostPresence::Running(None)
-        } else {
-            HostPresence::Gone
+        return Ok(match role {
+            crate::process_registration::ProcessRole::Keeper => HostPresence::NotStarted,
+            _ if crate::rendezvous::host_lock_held(current.runtime())? => {
+                HostPresence::Running(None)
+            }
+            _ => HostPresence::Gone,
         });
     }
     /// Only after confirmed child exit and listener cleanup, before the runtime stop receipt.

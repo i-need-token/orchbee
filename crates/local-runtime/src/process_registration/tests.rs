@@ -81,7 +81,7 @@ fn an_ended_reservation_never_refuses_recovery_and_only_identified_roles_decide(
     let mut replacement = enrolled();
     replacement.reserve_replacement_worker(server).unwrap();
     for processes in [fresh, worker, host, replacement] {
-        let mut observations = [ProcessObservation::Gone; 3];
+        let mut observations = [ProcessObservation::Gone; ROLES.len()];
         for (index, role) in ROLES.into_iter().enumerate() {
             if processes.registration(role) == Registration::Spawning {
                 // No identity names the slot's process, so no observation of it decides.
@@ -111,7 +111,7 @@ fn pid_reuse_proves_old_identity_gone_without_granting_any_termination_capabilit
         (1, identity(2, 20)),
         (2, identity(3, 30)),
     ] {
-        let mut observations = [ProcessObservation::Gone; 3];
+        let mut observations = [ProcessObservation::Gone; ROLES.len()];
         observations[index] = ProcessObservation::Present(expected);
         assert!(matches!(
             processes.status(observations),

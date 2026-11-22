@@ -4,16 +4,16 @@
 //! rendezvous observes.
 use crate::{
     durable_sessions::RecordWriter,
-    process_registration::{ProcessObservation, RecoveryVerdict, SessionProcesses},
+    process_registration::{ProcessObservation, ROLES, RecoveryVerdict, SessionProcesses},
 };
 
 pub(crate) struct ProcessSnapshot {
-    observations: [ProcessObservation; 3],
+    observations: [ProcessObservation; ROLES.len()],
 }
 impl ProcessSnapshot {
     pub(crate) fn observe(_processes: &SessionProcesses) -> Self {
         Self {
-            observations: [ProcessObservation::Unknown; 3],
+            observations: [ProcessObservation::Unknown; ROLES.len()],
         }
     }
     /// Cold recovery's verdict on the record `processes` was read from under `_writer`.

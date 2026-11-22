@@ -32,12 +32,16 @@ const RUNTIME_FILES: &[&str] = &[
     "activation.lock",
     "session-lifetime.lock",
 ];
-/// The records the Terminal Host may leave in its `host` folder: its fatal record, an earlier
-/// Host's fatal record, and its log of survived faults (`apps/terminal-host/docs/runtime-model.md`).
+/// The records the Terminal Host and its Keeper may leave in the `host` folder: each one's fatal
+/// record, an earlier one's fatal record, and its log of survived faults
+/// (`apps/terminal-host/docs/runtime-model.md`).
 const HOST_FILES: &[&str] = &[
     "host-fatal.json",
     "host-fatal.previous.json",
     "host-diagnostics.jsonl",
+    "keeper-fatal.json",
+    "keeper-fatal.previous.json",
+    "keeper-diagnostics.jsonl",
 ];
 
 /// The files a runtime folder's `host` folder may hold: [`HOST_FILES`], and on POSIX the lock file

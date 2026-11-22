@@ -46,6 +46,8 @@ pub fn spawn_session_child(
         SessionChild::Worker => Reservation::Fresh(ProcessRole::Worker),
         SessionChild::ReplacementWorker => Reservation::ReplacementWorker,
         SessionChild::Host => Reservation::Fresh(ProcessRole::Host),
+        SessionChild::RecoveryHost => Reservation::RecoveryHost,
+        SessionChild::Keeper => Reservation::Keeper,
     };
     spawn_reserved_with(
         &directory,
@@ -66,6 +68,10 @@ enum Reservation {
     Fresh(ProcessRole),
     /// The Worker slot, returned to spawning for a replacement of a Worker proven gone.
     ReplacementWorker,
+    /// The Host slot, returned to spawning for a recovery Host once the recorded Host is gone.
+    RecoveryHost,
+    /// The Keeper slot, for the first Keeper or one that replaces a Keeper proven gone.
+    Keeper,
 }
 
 impl Reservation {
@@ -73,6 +79,8 @@ impl Reservation {
         match self {
             Self::Fresh(role) => role,
             Self::ReplacementWorker => ProcessRole::Worker,
+            Self::RecoveryHost => ProcessRole::Host,
+            Self::Keeper => ProcessRole::Keeper,
         }
     }
 }
@@ -158,13 +166,26 @@ fn spawn_reserved_with<T>(
         }
         let creator = match role {
             ProcessRole::Server => Creator::Activator,
-            ProcessRole::Worker | ProcessRole::Host => {
+            ProcessRole::Worker | ProcessRole::Host | ProcessRole::Keeper => {
                 Creator::Process(process_observation::current_identity()?)
             }
         };
         match reservation {
             Reservation::Fresh(role) => record.processes.reserve(role, creator),
             Reservation::ReplacementWorker => record.processes.reserve_replacement_worker(creator),
+            // Under the writer lock, so the Host observed gone stays the recorded one.
+            Reservation::RecoveryHost
+                if process_observation::role_absent(&record.processes, ProcessRole::Host) =>
+            {
+                record.processes.reserve_recovery_host(creator)
+            }
+            Reservation::RecoveryHost => return Err(io::ErrorKind::ResourceBusy.into()),
+            Reservation::Keeper
+                if process_observation::role_absent(&record.processes, ProcessRole::Keeper) =>
+            {
+                record.processes.reserve_keeper(creator)
+            }
+            Reservation::Keeper => return Err(io::ErrorKind::ResourceBusy.into()),
         }
         .map_err(|_| io::ErrorKind::InvalidData)?;
         directory.publish(scope, &record)?;

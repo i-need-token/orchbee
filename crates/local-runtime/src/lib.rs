@@ -44,6 +44,13 @@ pub use release_store::{
     active_release, bundle_of_cohort, complete_move, held_versions, is_release_version_directory,
     record_event, release_store_root,
 };
+mod keeper;
+pub use keeper::keeper_live;
+#[cfg(windows)]
+pub use keeper::{
+    HeldTerminal, Holding, HoldingState, KEEPER_REPLY_BOUND, KeeperClient, KeeperProcess,
+    KeeperRefusal, KeeperStatus, start_keeper,
+};
 mod automatic_updates;
 pub use automatic_updates::{
     AUTOMATIC_UPDATE_HELPER, CLIENT_FAILURE_HELPER, RELAUNCH_PROTOCOL_VARIABLE,

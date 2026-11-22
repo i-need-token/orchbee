@@ -8,6 +8,12 @@ pub enum SessionChild {
     /// its registration, and a Host still spawning refuses the start.
     ReplacementWorker,
     Host,
+    /// A Host that takes the place of the recorded Host once that Host is proven gone, so the
+    /// programs the Keeper kept can be recovered into it. Only the recorded Worker starts it.
+    RecoveryHost,
+    /// The Session's Keeper, which only the recorded Worker starts: the first one, or one that
+    /// replaces a Keeper proven gone.
+    Keeper,
 }
 
 /// The step of a registered child's start that failed. A failed [`spawn_session_child`] carries it
