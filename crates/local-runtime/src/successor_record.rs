@@ -8,8 +8,8 @@
 //! identity, the Worker first.
 
 use crate::{
-    DataRoot, ExactProcess, JobPlacement, ModeCheckedLocalSessionRendezvous as Rendezvous,
-    RetainedChild,
+    BlockerRole, DataRoot, ExactProcess, JobPlacement,
+    ModeCheckedLocalSessionRendezvous as Rendezvous, RetainedChild,
     durable_sessions::{self as durable, Directory, Lifecycle, Record, RecordWriter, Successor},
     process_observation,
     process_registration::{ProcessIdentity, ProcessRole},
@@ -244,10 +244,13 @@ impl SuccessorRecord {
         self.replaced.pid()
     }
 
-    /// The Server this restart replaces, opened on its recorded identity, or `None` once it is
-    /// gone.
+    /// The Server this restart replaces, opened on its recorded identity with the right to end it,
+    /// which this successor needs should that Server not leave, or `None` once it is gone. A Server
+    /// this account may not end fails.
     pub fn open_replaced(&self) -> io::Result<Option<ExactProcess>> {
-        ExactProcess::open(self.replaced)
+        ExactProcess::open(self.replaced, BlockerRole::Server)?
+            .map(ExactProcess::endable)
+            .transpose()
     }
 
     /// Creates this successor's Worker suspended, names it in the entry, and only then resumes it.

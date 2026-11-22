@@ -1,7 +1,9 @@
 //! The process that keeps cold recovery from starting a Session again: one an earlier start
-//! registered whose exact identity, its process ID and creation time, is still alive. A refusal
-//! names it so the surface that reports the refusal can say which process to end; naming it grants
-//! no termination authority, and nothing here ends a process.
+//! registered whose exact identity, its process ID and creation time, is still alive; one running
+//! that role's program that holds the registered ID and that this account may not open, so it
+//! cannot be proven another process; or one a restart's successor entry names that cannot be
+//! proven gone or ended. A refusal names it so the surface that reports the refusal can say which
+//! process to end; naming it grants no termination authority, and nothing here ends a process.
 use crate::{
     CohortArtifact,
     process_registration::{ProcessRole, RecoveryVerdict, SessionProcesses},
@@ -35,7 +37,7 @@ impl BlockerRole {
         }
     }
 
-    const fn of(role: ProcessRole) -> Self {
+    pub(crate) const fn of(role: ProcessRole) -> Self {
         match role {
             ProcessRole::Server => Self::Server,
             ProcessRole::Worker => Self::Worker,
@@ -50,28 +52,38 @@ impl RecoveryBlocker {
         error.get_ref()?.downcast_ref().copied()
     }
 
-    /// The process `verdict` found alive on `processes`. Only an exact identity observed alive is
-    /// named: an unknown observation may concern a process that has since ended and whose ID
-    /// another process now holds.
+    /// The process `verdict` found alive, or could not tell apart from the registered one, on
+    /// `processes`. An unknown observation is a process running that role's program that holds the
+    /// registered ID and that this account may not open: ending it, or restarting the computer,
+    /// clears the refusal whether or not it is the registered process.
     pub(crate) fn named(processes: &SessionProcesses, verdict: RecoveryVerdict) -> Option<Self> {
         match verdict {
-            RecoveryVerdict::Live(role) => {
-                processes
-                    .registration(role)
-                    .identity()
-                    .map(|identity| Self {
-                        role: BlockerRole::of(role),
-                        process_id: identity.pid(),
-                    })
-            }
-            RecoveryVerdict::Gone | RecoveryVerdict::Uncertain(_) => None,
+            RecoveryVerdict::Live(role) | RecoveryVerdict::Uncertain(role) => processes
+                .registration(role)
+                .identity()
+                .map(|identity| Self {
+                    role: BlockerRole::of(role),
+                    process_id: identity.pid(),
+                }),
+            RecoveryVerdict::Gone => None,
         }
     }
 
     /// The refusal cold recovery returns for a `verdict` other than gone on `processes`, as
     /// InvalidData, carrying the process [`Self::named`] finds.
     pub(crate) fn refusal(processes: &SessionProcesses, verdict: RecoveryVerdict) -> io::Error {
-        match Self::named(processes, verdict) {
+        Self::carried(Self::named(processes, verdict))
+    }
+
+    /// The refusal cold recovery returns when what a successor entry names could not be proven
+    /// gone or ended with `error`, as InvalidData, carrying the process `error` names.
+    #[cfg(windows)]
+    pub(crate) fn successor_refusal(error: &io::Error) -> io::Error {
+        Self::carried(Self::of(error))
+    }
+
+    fn carried(blocker: Option<Self>) -> io::Error {
+        match blocker {
             Some(blocker) => io::Error::new(io::ErrorKind::InvalidData, blocker),
             None => io::ErrorKind::InvalidData.into(),
         }
@@ -82,7 +94,7 @@ impl fmt::Display for RecoveryBlocker {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "the registered {} process {} is still running",
+            "the {} process {} from an earlier start is still running",
             self.role.program().file_name(),
             self.process_id
         )

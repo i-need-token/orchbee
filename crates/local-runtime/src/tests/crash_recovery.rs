@@ -298,8 +298,8 @@ fn a_child_slot_an_ended_attempt_left_spawning_never_blocks_recovery() {
 }
 
 #[test]
-fn unknown_and_exact_live_registration_refuse_without_publication() {
-    for case in ["unknown", "live", "host-live"] {
+fn exact_live_registration_refuses_without_publication() {
+    for case in ["live", "host-live"] {
         let base = Fixture::new();
         let local = Fixture::new();
         let (catalog, session, scope) = setup(&base, &local, "refused");
@@ -313,7 +313,7 @@ fn unknown_and_exact_live_registration_refuse_without_publication() {
             let server = if case == "live" {
                 crate::process_observation::current_identity().unwrap()
             } else {
-                ProcessIdentity::new(if case == "unknown" { 4 } else { u32::MAX - 7 }, 1).unwrap()
+                ProcessIdentity::new(u32::MAX - 7, 1).unwrap()
             };
             processes.identify(ProcessRole::Server, server).unwrap();
             if case == "host-live" {
@@ -350,6 +350,39 @@ fn unknown_and_exact_live_registration_refuse_without_publication() {
             "{case}"
         );
     }
+}
+
+#[test]
+fn an_id_now_held_by_a_process_this_account_may_not_open_or_end_never_blocks_recovery() {
+    // The registered Server and the successor pair ended, and their ID now belongs to the Service
+    // Control Manager, created at another time.
+    let held =
+        |creation_time| ProcessIdentity::new(super::service_control_manager(), creation_time);
+    let (server, successor, worker) = (held(1).unwrap(), held(2).unwrap(), held(3).unwrap());
+    let base = Fixture::new();
+    let local = Fixture::new();
+    let (catalog, session, scope) = setup(&base, &local, "reused");
+    let directory = directory(&local);
+    let mut record = directory.read(&scope).unwrap().unwrap();
+    record
+        .processes
+        .reserve(ProcessRole::Server, Creator::Activator)
+        .unwrap();
+    record
+        .processes
+        .identify(ProcessRole::Server, server)
+        .unwrap();
+    crate::durable_sessions::reserve_successor(&mut record, [7; 16], successor, [9; 16]).unwrap();
+    crate::durable_sessions::record_successor_worker(&mut record, [7; 16], successor, worker)
+        .unwrap();
+    directory.publish(&scope, &record).unwrap();
+    let (activation, lifetime) = guards(&session);
+    assert_eq!(
+        catalog
+            .recover_inactive(&session, &activation, &lifetime)
+            .unwrap(),
+        Some([1; 16])
+    );
 }
 
 #[test]

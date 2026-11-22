@@ -121,6 +121,22 @@ impl Drop for SharedFolder {
     }
 }
 
+/// The process ID of the Service Control Manager, `services.exe`, which every Windows runs: a
+/// system process this account may not end and, without administrator rights, may not open.
+#[cfg(windows)]
+pub(crate) fn service_control_manager() -> u32 {
+    let mut processes =
+        winsafe::HPROCESSLIST::CreateToolhelp32Snapshot(winsafe::co::TH32CS::SNAPPROCESS, None)
+            .unwrap();
+    for process in processes.iter_processes() {
+        let process = process.unwrap();
+        if process.szExeFile().eq_ignore_ascii_case("services.exe") {
+            return process.th32ProcessID;
+        }
+    }
+    panic!("every Windows runs services.exe");
+}
+
 /// Writes a fixture file as storage writes one, private to the user: Windows files inherit the
 /// fixture's private ACL, and a POSIX file is created as 0600.
 fn write_private(path: impl AsRef<Path>, bytes: impl AsRef<[u8]>) -> io::Result<()> {

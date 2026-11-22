@@ -93,12 +93,18 @@ proposal.
 | Active; all identified identities gone, a Spawning slot counting as not started; all guards and endpoint/storage checks pass   | Publish Crashed for the old activation; reconcile its marker; begin a fresh generation; the old activation counts as a crash unless the record names it `exited`    |
 | Crashed with matching old marker, or marker absent after runtime loss                                                          | Resume the same guarded reconciliation before a fresh generation                                                                                                    |
 | Active or Crashed; Server and Worker proven gone, the registered Host alive and named by the binding record; other checks pass | As the first row, but the fresh generation keeps the Host's registration, with Server and Worker NotStarted, for its Server to adopt                                |
-| Any state; the record carries a readable [successor entry](#successor-entry)                                                   | First end every live process the entry names, the Worker first; then the row that applies. One that cannot be opened or ended refuses this attempt and retains data |
+| Any state; the record carries a readable [successor entry](#successor-entry)                                                   | First end every live process the entry names, the Worker first; then the row that applies. One not proven gone or ended refuses this attempt, named, unless Stopped |
 | Any other exact identity alive, identity query unknown, unsafe storage, conflicting receipt after creation or endpoint present | Refuse and retain data                                                                                                                                              |
 | Malformed or unsupported record                                                                                                | Refuse as InvalidData; retain bytes                                                                                                                                 |
 | Valid Stopped with current checkpoint evidence                                                                                 | Existing clean-stop restart path; next activation writes version 1                                                                                                  |
 
 A Spawning slot counts as not started only under the [writer-lock rule](#the-writer-lock-rule).
+
+An identity is decided with the rights to query and wait alone. Where this account may not open
+the process holding its ID, such as another account's or a protected process, the system's
+process list decides: a live process keeps its ID and the program it started from, so an ID no
+process holds, or one held by a process running another program than the role's, names no live
+registered process. Only a holder running the role's program leaves the query unknown.
 
 A Server `exit` leaves its generation Active and, once its Worker is gone, writes that generation's
 activation identifier to the record's `extensions.exited`. Recovery proves the generation dead by
@@ -136,10 +142,12 @@ abandoned entry, `clear_restart` for the requester. An identity that matches no 
 and nothing is ended. An entry this build cannot read is no entry.
 
 Recovery holds the lifetime lock, so both Servers are gone. Under the writer lock, before any
-verdict and whatever the record's state, it ends every live process the entry names, the Worker
-first. A live successor process therefore never refuses recovery,
-and no generation adopts the Host beside one; only a process that cannot be opened or ended refuses,
-as `RecoveryRequired`, and only that attempt. A fresh generation's record starts without the entry.
+verdict, it ends every live process the entry names, the Worker first, so no generation adopts the
+Host beside one. The right to end is asked for only once an identity matched. A process that
+cannot be proven gone or ended, one running that role's program that this account may not open
+or a match it may not end, refuses that attempt for an Active or Crashed record, naming the
+process as a `RecoveryBlocker`. A Stopped record goes on: it keeps no Host, and the fresh
+generation's record starts without the entry, so no successor can commit onto it.
 
 ## Cold adoption
 
@@ -161,9 +169,10 @@ Recovery never terminates a registered process, fabricates a clean-stop receipt,
 data, or resumes an Agent into a still-owned terminal; it ends only what a
 [successor entry](#successor-entry) names. A live Host is never ended: a binding record that
 names it lets the next generation adopt it, and otherwise it blocks recovery. Refusal offers read-only diagnosis: a refusal whose
-verdict observed a registered identity alive carries that `RecoveryBlocker`, the first such role in
-Server, Worker, Host order and its PID, so the surface that reports the refusal can name the process
-whose end, or a restart, clears it. An unknown observation names nothing, and naming grants no
+verdict observed a registered identity alive or unknown carries a `RecoveryBlocker` with that role
+and PID, so the surface that reports the refusal can name the process whose end, or a restart,
+clears it. An unknown one is a process running the role's program that holds the registered ID;
+ending it clears the refusal whether or not it is the registered process. Naming grants no
 termination authority. A retained record
 refuses only the Session it names or whose location it occupies, so an alternate named Session
 remains available; this grants no unknown-owner cleanup capability.
@@ -253,7 +262,8 @@ creator's loss or an unconfirmed cleanup ends it and turns an unidentified suspe
 orphan that never runs (`OrphansNeverRun`). Recovery decides only with no attempt pending:
 `ProofIsSound` checks that it never admits a generation that may still run a process, and
 `RecoveryNeverStuck` that it admits every Active generation that can run none once no observation
-is unknown or obstructed. Process-query denial and endpoint obstruction reject recovery. The model
+is unknown or obstructed. Endpoint obstruction rejects recovery, and so does a denied process query
+while the process holding the ID runs the role's program. The model
 has one current exact-registry state space; unsupported records are rejected before entering it.
 
 Its finite bounds and OS/process adapter assumptions do not prove arbitrary kernel behavior or

@@ -64,7 +64,8 @@ pub(super) struct Restart {
 struct Held {
     ticket: HandoverTicket,
     successor: Successor,
-    /// The successor Server and its Worker, opened on their recorded identities.
+    /// The successor Server and its Worker, opened on their recorded identities with the right to
+    /// end them.
     server: ExactProcess,
     worker: ExactProcess,
     lease: Instant,
@@ -355,9 +356,12 @@ fn prepare(
         }
         _ => return Err(HandoverRefusal::NotRecorded),
     };
+    // The hold ends the pair should the record keep naming this generation, so it needs the right.
+    let endable =
+        |process: io::Result<Option<ExactProcess>>| process?.map(ExactProcess::endable).transpose();
     let (Ok(Some(server)), Ok(Some(worker))) = (
-        ExactProcess::successor_server(&successor),
-        ExactProcess::successor_worker(&successor),
+        endable(ExactProcess::successor_server(&successor)),
+        endable(ExactProcess::successor_worker(&successor)),
     ) else {
         return Err(HandoverRefusal::NotRecorded);
     };

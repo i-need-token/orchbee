@@ -218,9 +218,10 @@ impl SessionCatalog {
     ///
     /// A restart's successor entry the record still carries names a Server and Worker that never
     /// committed, and whose old Server is gone, since this caller holds the lifetime lock. Every
-    /// live process it names is ended by its recorded identity first, whatever the record's state,
-    /// so no later generation runs beside one; only a process that cannot be opened or ended
-    /// refuses, and only this attempt.
+    /// live process it names is ended by its recorded identity first, so no later generation runs
+    /// beside one. A process that cannot be proven gone or ended refuses this attempt, naming it,
+    /// only where a generation could be adopted: a stopped Session keeps no Host, and the fresh
+    /// generation it starts carries no entry for a successor to commit onto.
     pub fn recover_inactive(
         &self,
         session: &Rendezvous,
@@ -236,9 +237,14 @@ impl SessionCatalog {
             return Ok(None);
         };
         #[cfg(windows)]
-        if let Some(successor) = crate::Successor::of(&record) {
-            crate::ExactProcess::end_successor(&successor, Instant::now() + SUCCESSOR_END_BUDGET)
-                .map_err(|_| io::Error::from(io::ErrorKind::InvalidData))?;
+        if let Some(successor) = crate::Successor::of(&record)
+            && let Err(error) = crate::ExactProcess::end_successor(
+                &successor,
+                Instant::now() + SUCCESSOR_END_BUDGET,
+            )
+            && !matches!(record.lifecycle, Lifecycle::Stopped { .. })
+        {
+            return Err(RecoveryBlocker::successor_refusal(&error));
         }
         if matches!(record.lifecycle, Lifecycle::Stopped { .. }) {
             return Ok(None);
