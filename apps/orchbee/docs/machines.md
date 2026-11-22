@@ -1389,17 +1389,15 @@ terminals, Workspace switches, Agents mode and every `orchbee --machine` command
 
 ### Managing machines in the TUI
 
-[Settings › Machines](#machines-in-settings) manages the same records. The picker's Machines list ends with a fixed "Add machine…" row, and while Local is the only
-machine a line under the list says what a remote one offers. A remote row shows its name, its
-address in the secondary color and its state word; the selected row adds its
-[details and action](#states-and-details) and two buttons, its action on Enter and Actions on F2.
-The picker carries what the person asks to [discovery](#the-tui-as-a-hub-client) and the machines
+[Settings › Machines](#machines-in-settings) manages the saved machines; `Ctrl+b Shift+M` and the
+action menu's `Machines…` open it. Its Add machine opens the [add form](#adding-a-machine) over the
+page, which closes once the add is saved or given up and leaves the page on the machine it saved.
+The page carries what the person asks to [discovery](#the-tui-as-a-hub-client) and the machines
 store once per frame tick and never waits for the hub; a commit's catalog refreshes the list at once.
-Removing or disabling the machine on screen returns the TUI to Local once the change is saved, with
-the picker still open on the change's notice, rather than reading as a failed switch. Remove and
-stop of the machine on screen returns to Local as the stop begins, under the confirmation that says
-the stop is running, since its terminals end before its record goes. When the picker cannot open
-again, the status line says the switch did not happen, as for a Machine another process removed.
+Removing or disconnecting the machine on screen returns the TUI to Local once the change is saved,
+and stopping its terminals returns to Local as the stop begins, since its terminals end before its
+record goes; the page shows the change. When another process removes the machine on screen, the TUI
+returns to Local and the status line says the switch did not happen.
 
 Disable saves the Machine disabled and then disconnects it, so nothing connects it again; a save that fails leaves it as it was. Disconnect ends the link without asking; the record and the remote Session stay. Remove and stop asks first and keeps the Machine in the catalog and list while the hub answers `stop-session`, removing the record only once the Session stopped (`stopped` or `not-running`); a stop that fails or finds the Machine gone keeps the record and says so. It is offered only while the Machine is `online`.
 

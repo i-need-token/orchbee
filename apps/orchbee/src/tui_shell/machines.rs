@@ -450,8 +450,8 @@ impl Manager {
             change.switched |= refreshed.switched;
         }
         // The person is stopping the remote Session of the Machine on screen: its terminals end
-        // before its record goes, so the view leaves it for Local now, under the picker that says
-        // the stop is running, instead of showing the Session end.
+        // before its record goes, so the view leaves it for Local now instead of showing the
+        // Session end.
         if self
             .current
             .as_ref()
@@ -1065,8 +1065,7 @@ impl Manager {
         change
     }
     /// Leaves the Machine on screen for Local. After the person's `own` remove, disable or Session
-    /// stop of it in the picker, Local takes its place under the picker, which stays on that
-    /// change; otherwise, or when the picker cannot open again, the status line says the switch
+    /// stop of it, Settings › Machines shows that change; otherwise the status line says the switch
     /// did not happen, as for a Machine another process removed.
     fn leave_current(
         &mut self,
@@ -1085,7 +1084,7 @@ impl Manager {
             false,
             before_switch,
         );
-        if !(own && view.machines.reopen_after_manage()) {
+        if !own {
             view.machines.error = Some("removed");
             view.workspace_navigation_unavailable();
         }

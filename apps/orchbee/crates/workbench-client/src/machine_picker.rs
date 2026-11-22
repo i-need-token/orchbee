@@ -768,26 +768,6 @@ impl Picker {
             .position(|r| r.choice == self.current)
             .unwrap_or(0);
     }
-    /// Opens the picker again after the person's own remove, disable or Session stop of the machine
-    /// on screen moved the shell to Local: the list keeps its page and the change's notice, so
-    /// Local reads as the outcome of what the person did there rather than as a failed switch.
-    /// False when no selection could begin, which leaves the picker closed for the shell to say so.
-    #[must_use]
-    pub fn reopen_after_manage(&mut self) -> bool {
-        if !self.begin_selection(SelectionOrigin::Picker) {
-            return false;
-        }
-        self.leave_sidebar_navigation();
-        self.open = true;
-        self.error = None;
-        self.wheel_capacity = None;
-        self.selected = self
-            .visible_rows()
-            .iter()
-            .position(|r| r.choice == self.current)
-            .unwrap_or(0);
-        true
-    }
     fn begin_selection(&mut self, origin: SelectionOrigin) -> bool {
         // Any new choice puts a chosen machine's card away; a sidebar choice notes its own.
         self.cancel_selection();
