@@ -96,13 +96,19 @@ impl ViewerRecovery {
 
 impl WorkbenchClientUi {
     /// Settles the Session's terminal-runtime stream. Serving again after a replacement arms the
-    /// shown Tab's re-attach and reopens the Agent streams the Server closed.
+    /// shown Tab's re-attach and reopens the Agent streams the Server closed. A shared connection
+    /// that lost its Server retires the Client: what reconnects may be another Server, which holds
+    /// none of its viewers or registration, so the shell starts a new Client in its place.
     pub(super) fn drive_terminal_runtime(&mut self) -> bool {
         let session = self
             .state
             .as_ref()
             .map(|state| state.cache().session_id().clone());
         let state = self.terminal_runtime.poll(session.as_ref(), &self.clock);
+        if self.terminal_runtime.take_carrier_lost() {
+            self.retire(CarrierFailure::Transport);
+            return true;
+        }
         let previous = std::mem::replace(&mut self.terminal_runtime_state, state);
         // A replacement too quick for its frames to arrive still ends in a later serving revision.
         let served_again = self.terminal_runtime.take_served_again();

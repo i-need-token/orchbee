@@ -495,23 +495,38 @@ impl WorkbenchClient {
         self.updater = Some(updater);
     }
 
-    /// A Client for the local Session in `runtime` after its Server was replaced: it opens
-    /// `context`, the Workspace the lost Client showed, and remembers positions as a local start
-    /// does.
+    /// A Client for the local Session in `runtime` after its connection ended. It opens the place
+    /// `context` names, the one the lost Client showed, by location alone: a Session started
+    /// again has a new identity. Without one it opens the remembered position. It starts no
+    /// Workspace of its own, and remembers positions as a local start does.
     pub fn rejoin_local(
         client: LocalClient,
         geometry: Geometry,
         runtime: &std::path::Path,
         context: Option<ClientStartupTarget>,
     ) -> io::Result<Self> {
-        let writer = if crate::tui_capabilities::Capability::PositionStorage.available() {
-            crate::startup_preference::store::Preferences::load(runtime)
-                .writer()
-                .ok()
-                .flatten()
-        } else {
-            None
+        let (writer, remembered) =
+            if crate::tui_capabilities::Capability::PositionStorage.available() {
+                let preferences = crate::startup_preference::store::Preferences::load(runtime);
+                let remembered = preferences.position.clone();
+                (preferences.writer().ok().flatten(), remembered)
+            } else {
+                (None, None)
+            };
+        let position = match context {
+            Some(ClientStartupTarget::Context(target)) => {
+                Some(crate::startup_preference::Position {
+                    location: target.location,
+                    member: None,
+                })
+            }
+            _ => remembered,
         };
+        let context = Some(ClientStartupTarget::LocalDirectory {
+            position,
+            fallback: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            directory: Box::new(StartupDirectory::without_workspace()),
+        });
         let mut workbench_client = Self::start_with_context(client, geometry, context)?;
         workbench_client.position_writer = writer;
         workbench_client.local_runtime = Some(runtime.to_owned());

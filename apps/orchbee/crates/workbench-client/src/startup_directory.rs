@@ -123,6 +123,14 @@ impl StartupDirectory {
             report: Arc::new(Mutex::new(Progress::Initial)),
         }
     }
+    /// A start that opens what the Session holds and never starts a Workspace of its own.
+    pub(crate) fn without_workspace() -> Self {
+        Self {
+            parameters: None,
+            allowed: false,
+            report: Arc::new(Mutex::new(Progress::Initial)),
+        }
+    }
     pub(crate) fn admits(&self, snapshot: &Snapshot) -> bool {
         self.allowed
             && snapshot.navigation.workspaces.is_empty()

@@ -40,6 +40,9 @@ pub(super) struct Lane {
     /// A later serving revision arrived on the open stream. The revision advances only when the
     /// state changes, so the Worker was replaced even when the frames between were never seen.
     served_again: bool,
+    /// The shared connection lost its Server since the last call. It reconnects by itself, maybe
+    /// to another Server that holds none of this Client's viewers or registration.
+    carrier_lost: bool,
 }
 
 impl Default for Lane {
@@ -51,6 +54,7 @@ impl Default for Lane {
             reopen_at: None,
             state: TerminalRuntimeState::Serving,
             served_again: false,
+            carrier_lost: false,
         }
     }
 }
@@ -96,6 +100,11 @@ impl Lane {
         std::mem::take(&mut self.served_again)
     }
 
+    /// Whether the shared connection lost its Server since the last call.
+    pub(super) fn take_carrier_lost(&mut self) -> bool {
+        std::mem::take(&mut self.carrier_lost)
+    }
+
     /// Stands in for the stream's frames in a harness without a Server.
     #[cfg(test)]
     pub(super) fn observe(&mut self, state: TerminalRuntimeState) {
@@ -128,7 +137,11 @@ impl Lane {
                     }
                     None => true,
                 },
-                Ok(Some(StreamEvent::Gap | StreamEvent::Disconnected)) => false,
+                Ok(Some(StreamEvent::Gap)) => false,
+                Ok(Some(StreamEvent::Disconnected)) => {
+                    self.carrier_lost = true;
+                    false
+                }
                 Ok(None) => break,
                 Err(_) => true,
             };
