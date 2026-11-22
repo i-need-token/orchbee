@@ -135,6 +135,10 @@
 	composes: codicon-layout-sidebar-left from global;
 }
 
+.splitDown {
+	composes: codicon-split-vertical from global;
+}
+
 .tabs {
 	composes: codicon-window from global;
 }

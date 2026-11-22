@@ -56,7 +56,7 @@ export function buildWorkbenchPanelMenuEntries({
 			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.splitActivePanelRight),
 		},
 		{
-			icon: 'panels',
+			icon: 'split-down',
 			id: 'split-panel-below',
 			kind: 'command',
 			label: view.messages.splitBelow,

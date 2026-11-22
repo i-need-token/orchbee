@@ -1078,13 +1078,18 @@ describe('Workbench Project and Workspace management', { timeout: 15_000 }, () =
 
 		const menu = await openTerminalMenu();
 		expectActionableMenuItemsToHaveIcons(menu);
+		const splitRight = within(menu).getByRole('menuitem', { name: /^Split right/u });
+		const splitDown = within(menu).getByRole('menuitem', { name: /^Split down/u });
+		expect(splitDown.querySelector('[data-icon]')?.getAttribute('data-icon')).not.toBe(
+			splitRight.querySelector('[data-icon]')?.getAttribute('data-icon'),
+		);
 		expect(within(menu).queryByRole('menuitem', { name: /^Maximize/u })).toBeNull();
 		expect(
 			within(menu)
 				.getByRole('menuitem', { name: /^Close/u })
 				.getAttribute('data-variant'),
 		).toBe('destructive');
-		fireEvent.click(within(menu).getByRole('menuitem', { name: /^Split right/u }));
+		fireEvent.click(splitRight);
 		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
 		expect(createPanelTerminal).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
 			direction: 'right',

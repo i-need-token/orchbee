@@ -38,6 +38,7 @@ export type ProductIconName =
 	| 'screen-normal'
 	| 'settings'
 	| 'sidebar-left'
+	| 'split-down'
 	| 'tabs'
 	| 'terminal'
 	| 'trash'
@@ -88,6 +89,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'screen-normal' && styles['screenNormal'],
 				name === 'settings' && styles['settings'],
 				name === 'sidebar-left' && styles['sidebarLeft'],
+				name === 'split-down' && styles['splitDown'],
 				name === 'tabs' && styles['tabs'],
 				name === 'terminal' && styles['terminal'],
 				name === 'trash' && styles['trash'],
