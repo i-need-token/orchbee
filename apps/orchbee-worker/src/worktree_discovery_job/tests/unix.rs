@@ -442,6 +442,7 @@ fn malformed_cleanup_confirmation_is_physical_unknown() -> TestResult {
                 outcome: JobOutcome::Cancelled,
                 child_reaped: false,
                 pipes_closed: true,
+                unsettled: None,
             }),
         });
     }

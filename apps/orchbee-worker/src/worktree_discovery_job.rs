@@ -323,6 +323,8 @@ struct OwnerReport {
     outcome: JobOutcome,
     child_reaped: bool,
     pipes_closed: bool,
+    /// The command whose settlement failed, kept so a later look can still prove it ended.
+    unsettled: Option<Child>,
 }
 
 struct Physical {
@@ -337,9 +339,17 @@ struct Receipt {
     expires: Instant,
 }
 
+/// A job whose command could not be proven ended. The slot admits no new job until a later look at
+/// the retained command proves it ended, which publishes the job's outcome as its receipt; a
+/// panicked owner retains no command, and its slot stays dead.
+struct Dead {
+    job_id: JobId,
+    unsettled: Option<(Child, JobOutcome)>,
+}
+
 struct SlotInner {
     physical: Option<Physical>,
-    dead: Option<JobId>,
+    dead: Option<Dead>,
     receipt: Option<Receipt>,
 }
 
@@ -442,7 +452,11 @@ impl WorktreeDiscoverySlot {
         {
             return PollOutcome::Pending;
         }
-        if inner.dead == Some(job_id) {
+        if inner
+            .dead
+            .as_ref()
+            .is_some_and(|dead| dead.job_id == job_id)
+        {
             return PollOutcome::PhysicalUnknown;
         }
         PollOutcome::Unknown
@@ -463,7 +477,11 @@ impl WorktreeDiscoverySlot {
         {
             return CancelOutcome::AlreadyTerminal(receipt.outcome.clone());
         }
-        if inner.dead == Some(job_id) {
+        if inner
+            .dead
+            .as_ref()
+            .is_some_and(|dead| dead.job_id == job_id)
+        {
             return CancelOutcome::PhysicalUnknown;
         }
         CancelOutcome::Unknown
@@ -478,23 +496,33 @@ impl WorktreeDiscoverySlot {
     }
 
     /// Requests stop, then proves the owned child and pipes are settled before the deadline.
-    /// `TimedOut` leaves the stop requested and pending.
+    /// `TimedOut` leaves the stop requested and pending. A command whose earlier cleanup failed is
+    /// looked at again until the deadline, so a stop succeeds once it has ended after all.
     pub(crate) fn stop_before(&self, deadline: Instant) -> io::Result<()> {
         loop {
-            {
+            let unsettled = {
                 let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
                 settle(&mut inner);
-                if inner.dead.is_some() {
-                    return Err(io::Error::other("discovery child cleanup is unknown"));
-                }
-                let Some(physical) = &inner.physical else {
+                if let Some(physical) = &inner.physical {
+                    physical.cancel.store(true, Ordering::Relaxed);
+                    false
+                } else if let Some(dead) = &inner.dead {
+                    // Without the command there is nothing left to look at.
+                    if dead.unsettled.is_none() {
+                        return Err(cleanup_unknown());
+                    }
+                    true
+                } else {
                     return Ok(());
-                };
-                physical.cancel.store(true, Ordering::Relaxed);
-            }
+                }
+            };
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
-                return Err(io::ErrorKind::TimedOut.into());
+                return Err(if unsettled {
+                    cleanup_unknown()
+                } else {
+                    io::ErrorKind::TimedOut.into()
+                });
             }
             thread::sleep(remaining.min(POLL_SLICE));
         }
@@ -513,7 +541,29 @@ impl Drop for WorktreeDiscoverySlot {
     }
 }
 
+fn cleanup_unknown() -> io::Error {
+    io::Error::other("discovery child cleanup is unknown")
+}
+
 fn settle(inner: &mut SlotInner) {
+    // A retained command that has ended since its cleanup failed settles its job after all.
+    let ended = inner
+        .dead
+        .as_mut()
+        .and_then(|dead| dead.unsettled.as_mut())
+        .is_some_and(|(child, _)| matches!(child.try_wait(), Ok(Some(_))));
+    if ended
+        && let Some(Dead {
+            job_id,
+            unsettled: Some((_, outcome)),
+        }) = inner.dead.take()
+    {
+        inner.receipt = Some(Receipt {
+            job_id,
+            outcome,
+            expires: Instant::now() + RECEIPT_TTL,
+        });
+    }
     let Some(physical) = &inner.physical else {
         return;
     };
@@ -530,8 +580,17 @@ fn settle(inner: &mut SlotInner) {
                 expires: Instant::now() + RECEIPT_TTL,
             });
         }
-        _ => {
-            inner.dead = Some(job_id);
+        Ok(report) => {
+            inner.dead = Some(Dead {
+                job_id,
+                unsettled: report.unsettled.map(|child| (child, report.outcome)),
+            });
+        }
+        Err(_panic) => {
+            inner.dead = Some(Dead {
+                job_id,
+                unsettled: None,
+            });
         }
     }
 }
@@ -552,6 +611,7 @@ enum StageEnd {
     Terminated {
         outcome: JobOutcome,
         reaped: bool,
+        unsettled: Option<Child>,
     },
 }
 
@@ -591,6 +651,7 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
                     outcome: JobOutcome::OwnerIo { stage: Some(stage) },
                     child_reaped: false,
                     pipes_closed: true,
+                    unsettled: None,
                 };
             }
             Err(failure) if failure.error.kind() == io::ErrorKind::NotFound => {
@@ -627,11 +688,16 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
                     });
                 }
             }
-            StageEnd::Terminated { outcome, reaped } => {
+            StageEnd::Terminated {
+                outcome,
+                reaped,
+                unsettled,
+            } => {
                 return OwnerReport {
                     outcome,
                     child_reaped: reaped,
                     pipes_closed: true,
+                    unsettled,
                 };
             }
         }
@@ -674,6 +740,7 @@ fn owner_report(outcome: JobOutcome) -> OwnerReport {
         outcome,
         child_reaped: true,
         pipes_closed: true,
+        unsettled: None,
     }
 }
 
@@ -984,6 +1051,7 @@ fn detached(outcome: JobOutcome, out: Option<ChildStdout>, err: Option<ChildStde
     StageEnd::Terminated {
         outcome,
         reaped: true,
+        unsettled: None,
     }
 }
 
@@ -1080,7 +1148,11 @@ fn kill_reap(
     }
     drop(out);
     drop(err);
-    StageEnd::Terminated { outcome, reaped }
+    StageEnd::Terminated {
+        outcome,
+        reaped,
+        unsettled: (!reaped).then_some(child),
+    }
 }
 
 #[cfg(test)]

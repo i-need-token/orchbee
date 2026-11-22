@@ -437,7 +437,10 @@ joins only already-finished tasks; it never waits for an unfinished one.
 `terminal_operations::background_jobs` applies one contract to every exit path. It
 requests stop from all owners before waiting, observes each owner against one shared
 deadline even after another fails, and reports the first failure. Explicit shutdown uses
-the request deadline (at most 60 seconds for the whole shutdown). Every other loop exit,
+the request deadline (at most 60 seconds for the whole shutdown); a shutdown that keeps the
+terminals goes on to release the Host even when that stop fails, since no kept terminal depends on
+a background job, and records the failure as `cleanup-unproven`, while one that disposes them
+reports it as incomplete. Every other loop exit,
 including Server disconnection, protocol failure and Host start failure, uses one
 six-second window, which exceeds each owner's five-second cleanup bound. Unproven cleanup
 never replaces the loop's own error: it is recorded as `cleanup-unproven`, the loop's error
@@ -1334,10 +1337,16 @@ pnpm verify
 
 Windows Git discovery owns one suspended-assigned Job per command. Its private
 adapter polls the inner root, then terminates remaining Job members and polls for
-both root exit and the exact all-processes-exited completion event. Settlement has
+both root exit and the exact all-processes-exited completion event, or, when Windows dropped
+that event, a zero active-process count with every terminated member's own exit, as
+[the process-wrap correction](../../third-party/process-wrap/README.md#completion-contract)
+describes. Settlement has
 one five-second cooperative cleanup budget on the retained discovery thread.
 Only successful settlement permits a terminal receipt, the next command or slot
-reuse. Failure retires the slot as `PhysicalUnknown`; it cannot be retried as proof.
+reuse. Failure retires the slot as `PhysicalUnknown` and keeps the command: each later look
+terminates the Job's members again, and once the Job is seen complete the job's outcome becomes its
+receipt and the slot is free; `stop_before` keeps looking until its deadline. A root exit alone
+never frees it.
 
 The states are running, settling, settled or physically unknown. Settling retains
 the Job and thread owner. OS calls may overrun cooperative deadlines; `poll` stays

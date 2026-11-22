@@ -551,8 +551,9 @@ pub(crate) fn send_outcome_unbuildable() {
     }
 }
 
-/// Background jobs whose stop could not be proven when the serving loop ended. The loop's own end
-/// keeps its `exited` record; this one is written beside it.
+/// Background jobs whose stop could not be proven when the serving loop ended, or when a shutdown
+/// that keeps the terminals went on without that proof. The loop's own end keeps its `exited`
+/// record; this one is written beside it.
 pub(crate) fn cleanup_unproven(error: &io::Error) {
     log_event(LogLevel::Error, "cleanup-unproven", &[error_kind(error)]);
 }

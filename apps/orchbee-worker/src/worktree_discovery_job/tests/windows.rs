@@ -170,7 +170,10 @@ fn explicit_stop_cancels_and_settles_owned_child_and_refuses_unknown_cleanup() {
     );
     let witness = witness.lock().unwrap();
     assert_eq!(witness.spawned, witness.reaped);
-    slot.inner.lock().unwrap().dead = Some(id(2));
+    slot.inner.lock().unwrap().dead = Some(Dead {
+        job_id: id(2),
+        unsettled: None,
+    });
     assert!(
         slot.stop_before(Instant::now() + Duration::from_secs(1))
             .is_err()

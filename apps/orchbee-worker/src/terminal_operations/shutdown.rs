@@ -237,27 +237,32 @@ pub(super) fn run(
             Instant::now() + Duration::from_millis(u64::from(request.budget.milliseconds()));
         let outcome = if let Some(reason) = refusal(request, worker_id, generation, true) {
             WorkerShutdownOutcome::Refused(reason)
-        } else if let Err(error) = jobs.stop_before(deadline) {
-            WorkerShutdownOutcome::Incomplete {
-                host_epoch: managed.as_ref().map(|(host, _)| {
-                    HostEpoch::from_bytes(*host.host_epoch().as_bytes())
-                        .expect("admitted nonzero epoch")
-                }),
-                disposed_terminals: 0,
-                stage: ShutdownStage::BackgroundJobs,
-                failure: if error.kind() == io::ErrorKind::TimedOut {
-                    ShutdownFailure::Deadline
-                } else {
-                    ShutdownFailure::ProcessWait
-                },
-            }
-        } else if let Some((host, owner)) = managed.as_mut() {
-            match request.terminals {
-                ShutdownTerminals::Dispose => owner.stop(host, server, request, deadline),
-                ShutdownTerminals::Keep => release(host),
-            }
         } else {
-            WorkerShutdownOutcome::NoHost
+            match jobs.stop_before(deadline) {
+                Err(error) if request.terminals == ShutdownTerminals::Dispose => {
+                    WorkerShutdownOutcome::Incomplete {
+                        host_epoch: managed.as_ref().map(|(host, _)| {
+                            HostEpoch::from_bytes(*host.host_epoch().as_bytes())
+                                .expect("admitted nonzero epoch")
+                        }),
+                        disposed_terminals: 0,
+                        stage: ShutdownStage::BackgroundJobs,
+                        failure: if error.kind() == io::ErrorKind::TimedOut {
+                            ShutdownFailure::Deadline
+                        } else {
+                            ShutdownFailure::ProcessWait
+                        },
+                    }
+                }
+                // Keeping the terminals leaves every one running, which no background job's end
+                // changes, so a job whose end cannot be proven is recorded and this Worker still
+                // ends: otherwise one stuck job would keep its Server from ever ending.
+                Err(error) => {
+                    crate::diagnostic_events::cleanup_unproven(&error);
+                    end(&mut managed, server, request, deadline)
+                }
+                Ok(()) => end(&mut managed, server, request, deadline),
+            }
         };
         let completed = matches!(
             outcome,
@@ -282,6 +287,22 @@ pub(super) fn run(
                 );
             }
         }
+    }
+}
+
+/// Ends the Host's terminals and the Host, or releases them, once the background jobs are settled.
+fn end(
+    managed: &mut Option<(&HostBrokerConnection, &mut ManagedHost)>,
+    server: &LocalStream,
+    request: WorkerShutdownRequest,
+    deadline: Instant,
+) -> WorkerShutdownOutcome {
+    let Some((host, owner)) = managed.as_mut() else {
+        return WorkerShutdownOutcome::NoHost;
+    };
+    match request.terminals {
+        ShutdownTerminals::Dispose => owner.stop(host, server, request, deadline),
+        ShutdownTerminals::Keep => release(host),
     }
 }
 

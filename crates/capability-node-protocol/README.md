@@ -696,9 +696,10 @@ Outcome tags are 1 NoHost, 2 Stopped (Host epoch, u32 disposed count), 3 Refused
 (1 wrong Worker, 2 unmanaged), 4 Incomplete (optional Host epoch, u32 disposed
 count, stage and failure), and 5 Released (Host epoch). NoHost means no owned Host was
 started and background jobs settled; Stopped requires the owned Host's exit after
-containment/disposal. Released answers only Keep: background jobs settled and the
-Worker closed its Host connection without inventory, containment, disposal or a Host
-exit wait, so the Host keeps every terminal; the Worker then ends.
+containment/disposal. Released answers only Keep: the Worker closed its Host connection
+without inventory, containment, disposal or a Host exit wait, so the Host keeps every
+terminal; the Worker then ends. Its background jobs settled, or their unproven stop was
+recorded, since no kept terminal depends on them.
 Neither claims that the Worker has already exited; its Server must wait on the
 retained creation handle. Counts describe only this attempt. Stages 1..5 are
 background jobs, inventory, force, dispose and Host exit. Failures 1..5 are deadline,
