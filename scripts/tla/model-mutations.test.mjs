@@ -248,7 +248,7 @@ const cases = [
 		'the new Server commits before the Host is adopted',
 		'  /\\ sn = "adopted" /\\ proc["Sn"] = "run"\n',
 		'  /\\ sn \\in {"stored", "adopted"} /\\ proc["Sn"] = "run"\n',
-		/Invariant AdmitsOnlyRecordedOwner is violated/u,
+		/Invariant (?:AdmitsOnlyRecordedOwner|EndsWell) is violated/u,
 	],
 	[
 		'session-restart-handover',

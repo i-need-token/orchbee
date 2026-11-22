@@ -384,7 +384,9 @@ answered `busy`. The decisions the code does not state:
   ends can then end both through those handles, so no successor process outlives a take-back.
 - `prepare` refuses rather than cut work short: `background-programs` while a plugin job or
   configured command runs, since it runs in the Worker the hand-over ends, and `busy` while admitted
-  intents or operations do not settle.
+  intents or operations do not settle. A Worker that neither releases its Host nor ends through its
+  handle in time does not stop `prepared`: the Host admits one Worker session, so neither the
+  successor's Worker nor a take-back replacement can adopt beside it, as for any hung Worker.
 - While held, terminal requests see no Worker, as after a Worker loss, and every other intent is
   refused as during a drain, since a change after the exact capture would be lost at the commit;
   reads and new Client connections go on. The [terminal-runtime state](#terminal-runtime) reads
@@ -394,11 +396,13 @@ answered `busy`. The decisions the code does not state:
   of either successor process are judged under the record's writer lock: a record that names the
   successor makes the owner leave; otherwise it ends the successor's Worker and then its Server,
   removes the entry and takes the Session back with a
-  [replacement Worker](#managed-worker-replacement). An `exit` while held is judged first and,
-  kept, goes on without a Worker. Leaving publishes no Stopped record, receipt or `exited`, since
-  the record belongs to the successor. While the record stays unreadable or unwritable, the owner
-  does not guess: after a bound it ends the successor and leaves without the store, and the next
-  start adopts the Host through [cold adoption](#cold-adoption).
+  [replacement Worker](#managed-worker-replacement), lifting the hold first, since the replacement
+  adopts the Host over later ticks and may give up as P1a does: an intent admitted before it serves
+  fails as during a Worker loss. An `exit` while held is judged first and, kept, goes on without a
+  Worker. Leaving publishes no Stopped record, receipt or `exited`, since the record belongs to the
+  successor. While the record stays unreadable or unwritable, the owner does not guess: after a
+  bound it ends the successor and leaves without the store, and the next start adopts the Host
+  through [cold adoption](#cold-adoption).
 - A stop is never accepted by a Server that may leave without carrying it out. Entering the hold
   refuses `busy` once a stop is recorded, and while held a `server stop` start records nothing and
   answers `not-recorded`, both under the lock that admits stops; the hold already refuses a Client's

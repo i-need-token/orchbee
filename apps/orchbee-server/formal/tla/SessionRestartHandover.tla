@@ -5,6 +5,10 @@
 \* next activation. Every process may crash or hang at any step. A hung or suspended process never
 \* acts again and ends only through a handle opened on its verified identity, its process id and
 \* creation time; a recorded identity that matches no live process is gone and nothing is ended.
+\* Every identity check decides here. The code decides with the rights to query and wait alone, and
+\* from the system's process list when it may not open the process; the one case it cannot decide,
+\* an id now held by a process of the same program that this account may not open, refuses the
+\* start and names that process, outside this model.
 \* A process Sn created but had not yet recorded is an orphan, as for every Session child: it never
 \* runs and holds nothing, so the model leaves it out.
 EXTENDS Naturals
@@ -146,6 +150,14 @@ SoReleasesWorker ==
   /\ Ends({"Ow"}) /\ served' = FALSE
   /\ msgs' = msgs \cup {"prepared"} /\ so' = "prepared"
   /\ UNCHANGED <<record, sn, replacements, faults, exited, committed, cold>>
+\* A Worker that neither leaves nor ends through its handle in time stays hung with its Host
+\* session. So answers `prepared` all the same: the Host admits one Worker session, so Wn cannot
+\* adopt beside it, and neither can So's own replacement after a take-back.
+SoReleasesWorkerStuck ==
+  /\ so = "released" /\ proc["So"] = "run" /\ proc["Ow"] \in Alive /\ faults < MaxFaults
+  /\ proc' = [proc EXCEPT !["Ow"] = "hung"] /\ served' = FALSE /\ faults' = faults + 1
+  /\ msgs' = msgs \cup {"prepared"} /\ so' = "prepared"
+  /\ UNCHANGED <<record, lock, session, sn, replacements, exited, committed, cold>>
 \* `commit`: So reads the record under the writer lock and exits only once it names Sn.
 SoCommitted ==
   /\ so = "prepared" /\ proc["So"] = "run" /\ "commit" \in msgs
@@ -167,6 +179,14 @@ SoFences ==
             /\ Ends({"Wn", "Sn"}) /\ so' = "retaking" /\ UNCHANGED exited
        ELSE /\ Ends({"So"}) /\ so' = "exited" /\ exited' = TRUE /\ UNCHANGED record
   /\ UNCHANGED <<sn, served, replacements, faults, committed, cold>>
+\* A fence that cannot decide within its bound, the record unreadable or its writer lock held
+\* elsewhere: So ends Wn and Sn through its handles without the record and leaves without the
+\* store, publishing nothing. Nobody serves until the next start, which recovers whichever pair the
+\* record names, adopting the Host.
+SoLeavesUndecided ==
+  /\ so = "prepared" /\ proc["So"] = "run"
+  /\ Ends({"Wn", "Sn", "So"}) /\ so' = "left"
+  /\ UNCHANGED <<record, sn, served, msgs, replacements, faults, exited, committed, cold>>
 SoRetakesStore ==
   /\ so = "retaking" /\ proc["So"] = "run" /\ lock = "none"
   /\ lock' = "So" /\ so' = "replacing"
@@ -210,7 +230,8 @@ WorkerLeaves(w) ==
 \* The next start, under the activation lock and the record writer lock, finds the recorded
 \* Server and Worker gone: it ends the processes the successor entry names by verified identity,
 \* Wn first, and only then publishes a new generation without the entry, adopting the Host. A live
-\* successor process never refuses the start.
+\* successor process never refuses the start; in the code only the undecidable identity the header
+\* names does.
 RecordedWorker == IF record.server = "So" THEN "Ow" ELSE "Wn"
 Activate ==
   /\ cold = "none" /\ record.server \in {"So", "Sn"}
@@ -255,6 +276,7 @@ Progress ==
 Next ==
   \/ Progress
   \/ RequesterClears
+  \/ SoReleasesWorkerStuck \/ SoLeavesUndecided
   \/ \E p \in Procs: Crash(p) \/ Hang(p)
   \/ \E m \in msgs: Lose(m)
   \/ \E m \in {"commit", "abort"}: Stray(m)
@@ -264,7 +286,7 @@ TypeOK ==
   /\ proc \in [Procs -> {"none", "run", "hung", "suspended", "dead"}]
   /\ record \in [server: {"So", "Sn", "Cold"}, successor: BOOLEAN, worker: BOOLEAN]
   /\ lock \in {"none", "So", "Sn", "Cold"} /\ session \in {"none", "Ow", "Wn", "Cold"}
-  /\ so \in {"serving", "held", "released", "prepared", "retaking", "replacing", "exited"}
+  /\ so \in {"serving", "held", "released", "prepared", "retaking", "replacing", "exited", "left"}
   /\ sn \in {"checking", "created", "ready", "asked", "prepared", "stored", "adopted",
              "committed", "released", "open", "gone"}
   /\ served \in BOOLEAN /\ msgs \subseteq Messages
