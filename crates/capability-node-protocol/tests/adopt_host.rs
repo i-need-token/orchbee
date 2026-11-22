@@ -331,7 +331,7 @@ fn malformed_pages_and_answers_are_refused() {
     const ORDINAL: usize = ATTEMPT + 8;
     type Corruption = fn(&mut Vec<u8>);
     let cases: [(&str, Corruption); 15] = [
-        ("unknown target", |bad| bad[TARGET] = 3),
+        ("unknown target", |bad| bad[TARGET] = u8::MAX),
         ("process flag", |bad| bad[TARGET + 1] = 2),
         ("zero process id", |bad| bad[PROCESS_ID..CREATION].fill(0)),
         ("zero creation time", |bad| {
@@ -409,7 +409,7 @@ fn malformed_pages_and_answers_are_refused() {
         .unwrap(),
     ))
     .unwrap();
-    unknown_failure[OUTCOME + 1] = 7;
+    unknown_failure[OUTCOME + 1] = u8::MAX;
     assert!(decode_message(&unknown_failure).is_err());
 }
 
