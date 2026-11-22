@@ -5,7 +5,9 @@
 //! performs no I/O.
 
 use orchbee_capability_node_protocol::{DefaultLaunchProgram, LaunchPreferences, LaunchSelection};
-use orchbee_workbench_protocol::PresentationLaunchProgram;
+use orchbee_workbench_protocol::{
+    AgentStartSelector, PresentationLaunchProgram, UserAgentLaunch, UserAgentLaunchSettings,
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct LaunchCapture {
@@ -13,6 +15,7 @@ pub(crate) struct LaunchCapture {
     explicit: LaunchPreferences,
     /// What a default launch carries, including the default profile's program.
     default: LaunchPreferences,
+    agent_launch: UserAgentLaunchSettings,
     system_shell: Option<PresentationLaunchProgram>,
     /// The program an explicit launch presents in place of the adapter it dispatches.
     presented: Option<PresentationLaunchProgram>,
@@ -23,9 +26,19 @@ impl LaunchCapture {
         Self {
             explicit,
             default,
+            agent_launch: UserAgentLaunchSettings::new(),
             system_shell: None,
             presented: None,
         }
+    }
+
+    pub(crate) fn with_agent_launch(mut self, settings: UserAgentLaunchSettings) -> Self {
+        self.agent_launch = settings;
+        self
+    }
+
+    pub(crate) fn agent_launch(&self, selector: AgentStartSelector) -> Option<&UserAgentLaunch> {
+        self.agent_launch.get(&selector)
     }
 
     /// A capture whose every launch the Worker refuses, for requests that never create.

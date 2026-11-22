@@ -3,7 +3,7 @@ import { agentObservationMessages, useOrchbeeIntl, workbenchMessages } from '@or
 import type { TabStatusAdornment, TabStatusAdornmentKind } from '@orchbee/tab-strip';
 import * as React from 'react';
 
-import { WorkbenchAgentProviderIcon } from '../components/workbench-agent-provider-icon/WorkbenchAgentProviderIcon';
+import { AgentProviderIcon } from '../../agent-provider-icon';
 import { WorkbenchAgentStateGlyph } from '../components/workbench-agent-state-glyph/WorkbenchAgentStateGlyph';
 import {
 	collectPanelLeaves,
@@ -215,7 +215,7 @@ export function useWorkbenchAgentPresentation({
 			);
 			if (state === null) continue;
 			const agents = [...new Set(observations.map((observation) => observation.agent))];
-			const identityIcon = React.createElement(WorkbenchAgentProviderIcon, {
+			const identityIcon = React.createElement(AgentProviderIcon, {
 				agents,
 				gradientPrefix: `${agentIconGradientPrefix}-${identityIcons.size}`,
 			});
@@ -328,6 +328,7 @@ export function useWorkbenchAgentPresentation({
 							panelId: destination.panelId,
 							presentationId: destination.presentationId,
 							primary: destination.terminalPosition.kind === 'primary',
+							providerId: observation.agent,
 							status,
 							tabId: destination.tabId,
 							terminalContextId: destination.terminalContextId,

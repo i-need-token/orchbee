@@ -325,6 +325,9 @@ impl Editor {
             _ => {}
         }
         match row {
+            Row::AgentLaunchProvider(provider) => {
+                page.enter_page(Page::AgentLaunch(provider), Row::AgentArguments(provider));
+            }
             Row::LaunchProfiles => {
                 page.enter_page(Page::Profiles, Row::Profile);
                 page.profile = page

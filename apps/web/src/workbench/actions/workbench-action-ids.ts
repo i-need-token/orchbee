@@ -482,9 +482,23 @@ export const workbenchAgentStartInput: ActionInputValidation<WorkbenchAgentStart
 		if (!isRecord(input)) return { success: false, code: 'expected-workbench-agent-start' };
 		const providerId = WorkbenchAgentStartProviderSchema.safeParse(input['providerId']);
 		const place = WORKBENCH_AGENT_START_PLACES.find((candidate) => candidate === input['place']);
-		return providerId.success && place !== undefined
-			? { success: true, data: { place, providerId: providerId.data } }
-			: { success: false, code: 'expected-workbench-agent-start' };
+		const workspaceId = input['workspaceId'];
+		if (
+			!providerId.success ||
+			place === undefined ||
+			(workspaceId !== undefined &&
+				(place !== 'new-tab' || typeof workspaceId !== 'string' || workspaceId === ''))
+		) {
+			return { success: false, code: 'expected-workbench-agent-start' };
+		}
+		return {
+			success: true,
+			data: {
+				place,
+				providerId: providerId.data,
+				...(workspaceId === undefined ? {} : { workspaceId }),
+			},
+		};
 	},
 };
 

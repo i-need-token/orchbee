@@ -10,6 +10,7 @@ import {
 } from '@orchbee/actions';
 import { agentStartMessages, workbenchMessages } from '@orchbee/i18n';
 
+import { findWorkbenchWorkspace } from '../../project-workspace';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import {
 	WORKBENCH_AGENT_START_PLACES,
@@ -18,6 +19,7 @@ import {
 } from '../types/workbench-agent-start';
 import type { WorkbenchAuthority } from '../types/workbench-authority';
 import type { WorkbenchTerminalHandover } from '../types/workbench-focus-routing';
+import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
 import { createSharedTab } from './workbench-shared-tab-creation';
 import {
 	WORKBENCH_ACTION_IDS,
@@ -29,6 +31,7 @@ interface RegisterWorkbenchAgentStartActionsOptions {
 	readonly agentCatalog: WorkbenchAgentCatalogSource;
 	readonly authority: WorkbenchAuthority;
 	readonly beginTerminalHandover: () => WorkbenchTerminalHandover;
+	readonly navigation?: WorkbenchNavigationPort | undefined;
 	/** Opens the dialog offering the places a start can use now. */
 	readonly openAgentStart: (places: readonly WorkbenchAgentStartPlace[]) => void;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
@@ -62,6 +65,7 @@ export function registerWorkbenchAgentStartActions({
 	agentCatalog,
 	authority,
 	beginTerminalHandover,
+	navigation,
 	openAgentStart,
 	projectWorkspaceRuntime,
 	scope,
@@ -129,20 +133,39 @@ export function registerWorkbenchAgentStartActions({
 				category,
 				execution: {
 					concurrency: 'reject-duplicate',
-					concurrencyKey: (input) => `${input.place}:${input.providerId}`,
+					concurrencyKey: (input) => `${input.workspaceId ?? input.place}:${input.providerId}`,
 					mode: 'foreground',
 				},
-				getAvailability: (context, input) =>
-					startable() ? placeAvailability(input.place, context) : HIDDEN,
+				getAvailability: (context, input) => {
+					const catalog = agentCatalog.getSnapshot();
+					if (catalog?.startable !== true) return HIDDEN;
+					if (input.workspaceId === undefined) return placeAvailability(input.place, context);
+					const workspace = findWorkbenchWorkspace(
+						projectWorkspaceRuntime.getSnapshot(),
+						input.workspaceId,
+					);
+					return workspace !== undefined &&
+						catalog.agents.some(
+							(agent) => agent.providerId === input.providerId && agent.state === 'found',
+						)
+						? { kind: 'enabled' }
+						: { kind: 'disabled' };
+				},
 				handler: {
-					execute: async (context, { place, providerId }) => {
+					execute: async (context, { place, providerId, workspaceId }) => {
 						const invocation = { scope, source: context.source };
 						switch (place) {
 							case 'new-tab':
 								return await createSharedTab(
 									context,
 									{ agentStart: providerId, placement: null },
-									{ authority, beginTerminalHandover, runtime: projectWorkspaceRuntime },
+									{
+										authority,
+										beginTerminalHandover,
+										navigation,
+										runtime: projectWorkspaceRuntime,
+										workspaceId,
+									},
 								);
 							case 'split-down':
 							case 'split-right':

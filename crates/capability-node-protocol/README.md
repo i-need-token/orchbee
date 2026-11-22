@@ -76,9 +76,8 @@ negotiation, and a Worker that predates it would reject the frame as malformed.
 ## Agent start command
 
 A default or explicit launch may carry an `AgentStartCommand`: the command the launched shell runs
-first, resolved by the Server from the startable Agent catalog. It is a bare command name of at most
-64 bytes, not beginning with `-` or `.`, and at most eight arguments of at most 128 bytes; every token
-uses only `[A-Za-z0-9._:=-]`, so no shell reads it as syntax. Launch kinds 5 and 6 are kinds 0 and 1
+first, resolved by the Server from the startable Agent catalog and the user's launch settings. The
+shell adapter encodes the arguments as literal words. Launch kinds 5 and 6 are kinds 0 and 1
 followed by the command in the selection's program encoding. It excludes plugin metadata and is part of the authorized launch's replay identity. The Worker passes it only to a
 shell whose startup takes a first command and launches any other program without it; see
 [Agent start command](../../apps/orchbee-worker/README.md#agent-start-command).

@@ -6,7 +6,9 @@ use super::metadata::{
 use crate::localization::{Locale, Words, words};
 use orchbee_color_themes::Polarity;
 use orchbee_local_runtime::UserSettingsField;
-use orchbee_workbench_protocol::UserSettingsValues;
+use orchbee_workbench_protocol::{
+    AgentStartSelector, MAXIMUM_AGENT_ARGUMENT_INPUT_BYTES, UserSettingsValues,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Row {
@@ -41,6 +43,11 @@ pub enum Row {
     /// Whether the Server answers OpenCode's routine confirmations
     /// (`agents.auto_allow.opencode`).
     AutoAllowOpenCode,
+    /// Opens the settings for one provider, whose name is the row's label.
+    AgentLaunchProvider(AgentStartSelector),
+    AgentYolo(AgentStartSelector),
+    AgentArguments(AgentStartSelector),
+    AgentCommand(AgentStartSelector),
     LaunchProfiles,
     /// The key pressed before a command key (`keys.prefix`).
     PrefixKey,
@@ -410,6 +417,33 @@ impl Row {
                 "自动更新开启时，Orchbee 也会每小时检查一次。",
             ),
             // Settings › Machines edits no setting; a machine's facts describe the other rows.
+            Self::AgentLaunchProvider(_) => row("Launch options", "启动选项"),
+            Self::AgentYolo(provider) => {
+                let setting = row("YOLO mode", "YOLO 模式");
+                match provider.agent().id() {
+                    "claude-code" => setting.described(
+                        "Skip Claude Code’s permission prompts at launch.",
+                        "启动时跳过 Claude Code 的权限确认。",
+                    ),
+                    "codex" => setting.described(
+                        "Start Codex without approval prompts or sandbox restrictions.",
+                        "启动时跳过 Codex 的审批和沙箱限制。",
+                    ),
+                    "gemini" => setting.described(
+                        "Start Gemini CLI with tool actions automatically approved.",
+                        "启动时自动批准 Gemini CLI 的工具操作。",
+                    ),
+                    _ => setting.described(
+                        "Start the Agent with its native automatic approval mode.",
+                        "启动时使用该 Agent 自带的自动批准模式。",
+                    ),
+                }
+            }
+            Self::AgentArguments(_) => row("Custom launch arguments", "自定义启动参数").described(
+                "Use quotes around argument values that contain spaces.",
+                "用引号保留参数值中的空格。",
+            ),
+            Self::AgentCommand(_) => row("Launch command preview", "启动命令预览"),
             Self::AddMachine => row("Add machine…", "添加机器…"),
             Self::FindMachine => row("Find a machine", "查找机器"),
             Self::ThisComputer => row("This computer", "这台电脑"),
@@ -447,6 +481,9 @@ impl Row {
     }
 
     pub(crate) fn name(self, locale: Locale) -> &'static str {
+        if let Self::AgentLaunchProvider(provider) = self {
+            return crate::agent_provider::product_name(provider.agent().id());
+        }
         locale.words(self.declaration().name)
     }
 
@@ -484,6 +521,14 @@ impl Row {
         self.declaration().text_key
     }
 
+    pub(super) fn agent_launch_key(self) -> Option<String> {
+        match self {
+            Self::AgentArguments(provider) => Some(provider.arguments_key()),
+            Self::AgentYolo(provider) => Some(provider.yolo_key()),
+            _ => None,
+        }
+    }
+
     /// The longest text draft this row admits: a setting control's own bound, or the editor
     /// bound of a launch-profile text row.
     pub(crate) fn text_limit(self) -> Option<usize> {
@@ -498,6 +543,7 @@ impl Row {
             Self::ProfileName => Some(512),
             Self::Executable | Self::ArgumentValue => Some(32 * 1024),
             Self::PrefixKey => Some(64),
+            Self::AgentArguments(_) => Some(MAXIMUM_AGENT_ARGUMENT_INPUT_BYTES),
             Self::MachineName => Some(crate::machines::LABEL_LIMIT),
             // A filter of 128 characters, each up to four bytes.
             Self::FindMachine => Some(512),
@@ -511,6 +557,7 @@ impl Row {
 pub(crate) enum Page {
     General,
     Profiles,
+    AgentLaunch(AgentStartSelector),
     /// One saved machine's page, opened from its row on Settings › Machines.
     Machine,
 }
@@ -520,7 +567,7 @@ impl Page {
     /// machine's page through its facts.
     pub(crate) const fn rows(self) -> &'static [Row] {
         match self {
-            Self::General | Self::Machine => &[],
+            Self::General | Self::Machine | Self::AgentLaunch(_) => &[],
             Self::Profiles => &[
                 Row::Profile,
                 Row::ProfileName,
@@ -552,6 +599,7 @@ impl Page {
     pub(crate) const fn opener(self) -> Row {
         match self {
             Self::General | Self::Profiles => Row::LaunchProfiles,
+            Self::AgentLaunch(provider) => Row::AgentLaunchProvider(provider),
             Self::Machine => Row::ThisComputer,
         }
     }

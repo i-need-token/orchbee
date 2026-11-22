@@ -3,6 +3,51 @@ use crate::NotificationDelivery;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[test]
+fn agent_launch_configuration_projects_literals_and_rejects_invalid_arguments() {
+    use orchbee_workbench_protocol::{AgentStartSelector, SettingPath, SettingScalar};
+
+    let source = r#"
+[agents.launch.claude_code]
+yolo = true
+arguments = '--permission-mode plan --model "example model"'
+
+[agents.launch.codex]
+arguments = '--model "'
+"#;
+    let loaded = parse(source, Path::new("config.toml"), &|_| None);
+    let claude = AgentStartSelector::parse("claude-code").unwrap();
+    let codex = AgentStartSelector::parse("codex").unwrap();
+    let launch = loaded.values.agent_launch.get(&claude).unwrap();
+    assert!(launch.yolo);
+    assert_eq!(
+        launch.extra_arguments(claude).unwrap(),
+        ["--permission-mode", "plan", "--model", "example model"]
+    );
+    assert!(!loaded.values.agent_launch.contains_key(&codex));
+    assert!(
+        loaded
+            .diagnostics
+            .items()
+            .iter()
+            .any(|diagnostic| diagnostic.field == codex.arguments_key()
+                && diagnostic.reason == "unclosed-quote")
+    );
+    let snapshot = settings_snapshot(&loaded, 4);
+    assert_eq!(snapshot_values(&snapshot), loaded.values);
+    let claude_yolo = SettingPath::parse(&claude.yolo_key()).unwrap();
+    assert_eq!(
+        snapshot.values[&claude_yolo],
+        Some(SettingScalar::Boolean(true))
+    );
+    let pi = AgentStartSelector::parse("pi").unwrap();
+    assert!(
+        !snapshot
+            .values
+            .contains_key(&SettingPath::parse(&pi.yolo_key()).unwrap())
+    );
+}
+
+#[test]
 fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
     let read = |text: &str| parse(text, Path::new(r"C:\config.toml"), &|_| None);
     assert!(

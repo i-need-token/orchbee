@@ -24,6 +24,7 @@ import { useSidebarScrollbar } from './hooks/useSidebarScrollbar';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
 import { useWorkbenchSidebarKeyboard } from './hooks/useWorkbenchSidebarKeyboard';
 import { useWorkbenchSidebarWorkspaceLocations } from './hooks/useWorkbenchSidebarWorkspaceLocations';
+import { useWorkspaceAgentMenu } from './hooks/useWorkspaceAgentMenu';
 import { useWorkspaceCreationActivation } from './hooks/useWorkspaceCreationActivation';
 import { useWorkspaceWorktrees } from './hooks/useWorkspaceWorktrees';
 import type {
@@ -32,6 +33,7 @@ import type {
 	WorkbenchWorktreeCommands,
 } from './types/workbench-sidebar-types';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../types/workbench-agent-overview';
+import type { WorkbenchWorkspaceAgentLaunch } from '../../types/workbench-agent-start';
 import type { WorkbenchWorkspaceLocationSource } from '../../types/workbench-workspace-location';
 import styles from './WorkbenchSidebar.module.css';
 
@@ -102,6 +104,7 @@ interface WorkbenchSidebarProps {
 		| undefined;
 	readonly updateWorkspace: (workspaceId: string, name: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
+	readonly workspaceAgentLaunch?: WorkbenchWorkspaceAgentLaunch | undefined;
 	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
 	/** Absent where the authority cannot reach Git for its Workspaces. */
 	readonly worktreeCommands?: WorkbenchWorktreeCommands | undefined;
@@ -148,10 +151,12 @@ export function WorkbenchSidebar({
 	update,
 	updateWorkspace,
 	workspaceAgentOverviews,
+	workspaceAgentLaunch,
 	workspaceLocationSource,
 	worktreeCommands,
 }: WorkbenchSidebarProps): React.ReactNode {
 	const workspaceLocations = useWorkbenchSidebarWorkspaceLocations(workspaceLocationSource);
+	const agentMenu = useWorkspaceAgentMenu(workspaceAgentLaunch);
 	const rootReference = useWorkbenchSidebarFocusRequest(focusRequest);
 	const view = useWorkbenchSidebar(projectWorkspaceState);
 	const locationNameMessages = {
@@ -322,6 +327,7 @@ export function WorkbenchSidebar({
 									toggleRecentsExpansion={toggleRecentsExpansion}
 									toggleWorkspaceAgents={toggleWorkspaceAgents}
 									workspaceAgentOverviews={workspaceAgentOverviews}
+									agentMenu={agentMenu}
 									workspaceLocations={workspaceLocations}
 									worktreeMenu={workspaceWorktrees.menu}
 									state={shownState}

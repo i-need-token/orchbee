@@ -44,6 +44,8 @@ fn no_two_keys_claim_the_same_path() {
                 segment
                     .replace("<platform>", "windows")
                     .replace("<action>", ACTIONS[0])
+                    .replace("<agent>", "codex")
+                    .replace("<yolo-agent>", "codex")
                     .replace('*', "codex")
             })
             .collect();

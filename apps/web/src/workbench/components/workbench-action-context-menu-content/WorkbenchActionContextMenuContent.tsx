@@ -16,6 +16,7 @@ import type * as React from 'react';
 
 import type {
 	WorkbenchActionMenuChoice,
+	WorkbenchActionMenuCommand,
 	WorkbenchActionMenuEntry,
 } from '../../types/workbench-action-menu';
 
@@ -29,24 +30,34 @@ export function WorkbenchActionContextMenuContent({
 	entries,
 	finalFocus,
 }: WorkbenchActionContextMenuContentProps): React.ReactNode {
+	const commandItem = (command: WorkbenchActionMenuCommand) => (
+		<ContextMenuItem
+			key={command.id}
+			disabled={command.disabled}
+			variant={command.destructive === true ? 'destructive' : 'default'}
+			onClick={command.onSelect}
+		>
+			{command.leadingMark ?? <ProductIcon name={command.icon} size='menu-leading' />}
+			{command.label}
+			{command.shortcut === undefined ? null : (
+				<ContextMenuShortcut>{command.shortcut}</ContextMenuShortcut>
+			)}
+		</ContextMenuItem>
+	);
 	return (
 		<ContextMenuContent finalFocus={finalFocus}>
 			{entries.map((entry) => {
 				switch (entry.kind) {
 					case 'command':
+						return commandItem(entry);
+					case 'group':
 						return (
-							<ContextMenuItem
-								key={entry.id}
-								disabled={entry.disabled}
-								variant={entry.destructive === true ? 'destructive' : 'default'}
-								onClick={entry.onSelect}
-							>
-								<ProductIcon name={entry.icon} size='menu-leading' />
-								{entry.label}
-								{entry.shortcut === undefined ? null : (
-									<ContextMenuShortcut>{entry.shortcut}</ContextMenuShortcut>
+							<ContextMenuGroup key={entry.id}>
+								{entry.label === undefined ? null : (
+									<ContextMenuLabel>{entry.label}</ContextMenuLabel>
 								)}
-							</ContextMenuItem>
+								{entry.commands.map(commandItem)}
+							</ContextMenuGroup>
 						);
 					case 'choice':
 						return (
@@ -86,20 +97,7 @@ export function WorkbenchActionContextMenuContent({
 											{group.label === undefined ? null : (
 												<ContextMenuLabel>{group.label}</ContextMenuLabel>
 											)}
-											{group.commands.map((command) => (
-												<ContextMenuItem
-													key={command.id}
-													disabled={command.disabled}
-													variant={command.destructive === true ? 'destructive' : 'default'}
-													onClick={command.onSelect}
-												>
-													<ProductIcon name={command.icon} size='menu-leading' />
-													{command.label}
-													{command.shortcut === undefined ? null : (
-														<ContextMenuShortcut>{command.shortcut}</ContextMenuShortcut>
-													)}
-												</ContextMenuItem>
-											))}
+											{group.commands.map(commandItem)}
 										</ContextMenuGroup>
 									))}
 								</ContextMenuSubContent>

@@ -31,6 +31,37 @@ const CATALOG: WorkbenchAgentCatalogSnapshot = {
 afterEach(cleanup);
 
 describe('WorkbenchAgentStartDialog', () => {
+	it('keeps the Workspace destination and excludes Agents that are not found', () => {
+		const onStart = vi.fn<(input: WorkbenchAgentStartInput) => void>();
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<WorkbenchAgentStartDialog
+					catalog={{
+						getSnapshot: () => CATALOG,
+						refresh: () => undefined,
+						subscribe: () => () => undefined,
+					}}
+					finalFocus={() => null}
+					onClose={() => undefined}
+					onStart={onStart}
+					places={['new-tab']}
+					workspace={{ id: 'example-workspace', name: 'Example' }}
+				/>
+			</OrchbeeI18nProvider>,
+		);
+		expect(screen.getByText('New Tab · Example')).toBeTruthy();
+		expect(screen.getAllByRole('option')).toHaveLength(2);
+		fireEvent.change(screen.getByRole('combobox', { name: 'Search' }), { target: { value: 'pi' } });
+		expect(screen.queryAllByRole('option')).toHaveLength(0);
+		fireEvent.change(screen.getByRole('combobox', { name: 'Search' }), { target: { value: '' } });
+		fireEvent.click(screen.getByRole('button', { name: /Start/u }));
+		expect(onStart).toHaveBeenCalledWith({
+			place: 'new-tab',
+			providerId: 'codex',
+			workspaceId: 'example-workspace',
+		});
+	});
+
 	it('clears a query before Escape closes, and Start runs the start with the highlighted Agent and shown place', async () => {
 		const runtime = new ActionRuntime();
 		const scope = runtime.createScope('workbench');

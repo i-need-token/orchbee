@@ -84,7 +84,12 @@ pub(super) fn render(
                 .iter()
                 .any(|item| matches!(item, Item::Provider { .. } | Item::Fold { .. })) =>
         {
-            Some(DialogRow::Item(copy.no_match.into(), Role::TextSecondary))
+            let message = if picker.targets_workspace() && picker.query().trim().is_empty() {
+                copy.no_installed
+            } else {
+                copy.no_match
+            };
+            Some(DialogRow::Item(message.into(), Role::TextSecondary))
         }
         // With nothing to report the list takes the row, so no blank row sits under a list
         // that has more rows below.
@@ -102,6 +107,11 @@ pub(super) fn render(
         KeyHint::new(&vertical, text.board.select_hint),
         KeyHint::new(&tab, copy.place_hint),
     ];
+    let hints = if picker.targets_workspace() {
+        &hints[..3]
+    } else {
+        &hints[..]
+    };
     // The dialog pads below its title and above its footer itself. The place row is required:
     // Enter starts where it says, so height pressure never removes it.
     let mut rows = vec![
@@ -118,7 +128,7 @@ pub(super) fn render(
         title: copy.title,
         class: DialogClass::Medium,
         rows,
-        footer: DialogFooter::Hints(&hints),
+        footer: DialogFooter::Hints(hints),
     };
     let Some(layout) = dialog_layout(frame.area(), &dialog, theme) else {
         return AgentBoardDraw::NotPresented(board.episode());

@@ -329,10 +329,12 @@ impl LocalTerminalService {
     /// under the send's own locks, so Client input admitted before the send refutes it.
     fn send_agent_start(&self, signals: &Signals, candidate: &Candidate) -> Event {
         let command = &candidate.launch.command;
-        let line = std::iter::once(command.program())
-            .chain(command.arguments().iter().map(String::as_str))
-            .collect::<Vec<_>>()
-            .join(" ");
+        let Some(line) = orchbee_local_runtime::windows_cmd_agent_start_line(
+            command.program(),
+            command.arguments(),
+        ) else {
+            return Event::CommandUnsupported;
+        };
         let Some(request) = prompt_line::request(&candidate.target, &line, false) else {
             return Event::Failed;
         };

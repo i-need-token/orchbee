@@ -597,6 +597,29 @@
 			"page": false
 		},
 		{
+			"path": "agents.launch.<agent>.arguments",
+			"type": "text",
+			"maximumBytes": 2048,
+			"default": "",
+			"scope": "server",
+			"clients": "both",
+			"effect": "new-terminals",
+			"category": "agents",
+			"group": "agent-launch",
+			"page": true
+		},
+		{
+			"path": "agents.launch.<yolo-agent>.yolo",
+			"type": "boolean",
+			"default": false,
+			"scope": "server",
+			"clients": "both",
+			"effect": "new-terminals",
+			"category": "agents",
+			"group": "agent-launch",
+			"page": true
+		},
+		{
 			"path": "agents.auto_allow.claude",
 			"type": "boolean",
 			"default": false,

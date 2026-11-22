@@ -290,8 +290,15 @@ fn actual_powershell_startup_runs_the_agent_once_and_keeps_the_shell() {
         if !shell.is_file() {
             continue;
         }
+        let shell_folder = shell.parent().unwrap().to_str().unwrap().replace('/', "\\");
+        let shell_name = shell.file_name().unwrap().to_str().unwrap();
         for (program, arguments, expected) in [
             ("where.exe", vec!["powershell".to_owned()], "powershell.exe"),
+            (
+                "where.exe",
+                vec!["/R".to_owned(), shell_folder, shell_name.to_owned()],
+                shell_name,
+            ),
             (
                 "orchbee-agent-start-absent",
                 vec![],

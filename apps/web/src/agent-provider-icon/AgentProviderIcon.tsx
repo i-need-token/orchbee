@@ -1,10 +1,11 @@
 import { ProductIcon } from '@orchbee/ui/components';
 import type { ReactNode } from 'react';
 
-import { WORKBENCH_AGENT_PROVIDER_ORDER } from '../../constants/workbench-agent-providers';
-import styles from './WorkbenchAgentProviderIcon.module.css';
+import { AGENT_PRODUCT_MARKS } from './agent-product-marks';
+import { WORKBENCH_AGENT_PROVIDER_ORDER } from './workbench-agent-providers';
+import styles from './AgentProviderIcon.module.css';
 
-interface WorkbenchAgentProviderIconProps {
+interface AgentProviderIconProps {
 	readonly gradientPrefix: string;
 	/**
 	 * Reported Agent labels or Agent start provider ids; one without a product mark shows the generic
@@ -17,10 +18,7 @@ interface WorkbenchAgentProviderIconProps {
  * Curated Agent product marks derived from Lobe Icons 1.94.0 and the OMP website favicon.
  * Source revisions and license notices are recorded in the repository third-party notices.
  */
-export function WorkbenchAgentProviderIcon({
-	agents,
-	gradientPrefix,
-}: WorkbenchAgentProviderIconProps): ReactNode {
+export function AgentProviderIcon({ agents, gradientPrefix }: AgentProviderIconProps): ReactNode {
 	const renderProviderIcon = (agent: string): ReactNode => {
 		const icon = (contents: ReactNode, viewBox = '0 0 24 24'): ReactNode => (
 			<svg
@@ -178,8 +176,10 @@ export function WorkbenchAgentProviderIcon({
 					</>,
 				);
 			}
-			default:
-				return <ProductIcon name='agent' />;
+			default: {
+				const mark = AGENT_PRODUCT_MARKS.get(agent);
+				return mark === undefined ? <ProductIcon name='agent' /> : icon(mark);
+			}
 		}
 	};
 	const distinctProviderIds = [...new Set(agents)];

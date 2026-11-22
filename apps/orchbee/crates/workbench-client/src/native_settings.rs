@@ -23,7 +23,7 @@ use page::machines::{self, Machines};
 mod metadata;
 mod page;
 use page::PageState;
-pub(crate) use page::{PageView, Pane};
+pub(crate) use page::{PageView, Pane, agent_yolo_overridden};
 mod rows;
 #[cfg(any(test, feature = "test-support"))]
 mod test_support;

@@ -16,6 +16,7 @@ use crate::agent_board::{
     AgentBoardView,
 };
 use crate::client_view::{KeyCode, KeyEvent, Modifiers, PanelDirection};
+use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
 
 impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn set_agent_board_origin(
@@ -84,6 +85,13 @@ impl WorkbenchClientUi {
         let worktree = self.worktree_place_available();
         self.observe_session_capabilities();
         self.board.open_picker_in_new_tab(focus.as_ref(), worktree);
+    }
+
+    pub(super) fn open_workspace_agent_picker(&mut self, location: ClientContextLocation) {
+        if self.retirement_failure.is_none() && !self.board.is_open() && !self.modal_owns_input() {
+            self.observe_session_capabilities();
+            self.board.open_workspace_picker(location);
+        }
     }
 
     /// Hands the picker the Session's current handshake answer, which a reconnect may have
@@ -205,6 +213,19 @@ impl WorkbenchClientUi {
 
     /// Runs a start the picker accepted in the place it showed.
     fn run_picked_start(&mut self, picked: PickedStart) {
+        if let Some(location) = picked.workspace {
+            let Some(session_id) = self.view().navigation_session().cloned() else {
+                return;
+            };
+            let target = ClientContextTarget {
+                location,
+                session_id,
+            };
+            let _disposition = self.structure_action(
+                super::StructureAction::CreateWorkspaceAgentTab(picked.provider, target),
+            );
+            return;
+        }
         match picked.place {
             StartPlace::ThisPanel(panel) => {
                 let clock = self.clock.clone();
@@ -245,7 +266,8 @@ impl WorkbenchClientUi {
             }
             return;
         }
-        let _disposition = self.structure_action(super::StructureAction::CreateAgentTab(provider));
+        let _disposition =
+            self.structure_action(super::StructureAction::CreateAgentTab(provider, None));
     }
 
     /// Moves refused starts to new Tabs. The Server delivers and watches each Agent a created

@@ -97,6 +97,7 @@ pub(crate) struct AgentPickerText {
     pub(crate) meta_not_found: &'static str,
     pub(crate) meta_cant_check: &'static str,
     pub(crate) no_match: &'static str,
+    pub(crate) no_installed: &'static str,
     pub(crate) checking: &'static str,
     /// No lookup completed on the Session's machine and the last one failed or cannot run there.
     pub(crate) couldnt_check: &'static str,
@@ -144,6 +145,7 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
         meta_not_found: "not found",
         meta_cant_check: "can’t check",
         no_match: "No Agent matches.",
+        no_installed: "No installed Agents found.",
         checking: "Looking for installed Agents…",
         couldnt_check: "Couldn’t check installed Agents",
         unsupported: "Starting an Agent is not supported on this platform.",
@@ -198,6 +200,7 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
         meta_not_found: "未找到",
         meta_cant_check: "无法检查",
         no_match: "没有匹配的智能体。",
+        no_installed: "未找到已安装的智能体。",
         checking: "正在查找已安装的智能体…",
         couldnt_check: "无法检查已安装的智能体",
         unsupported: "此平台尚不支持启动智能体。",

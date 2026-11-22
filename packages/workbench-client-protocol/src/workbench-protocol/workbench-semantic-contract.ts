@@ -1,3 +1,4 @@
+import { WorkbenchAgentStartProviderSchema } from '../agent-launch-settings';
 import { z } from 'zod';
 
 export const WORKBENCH_PROTOCOL_VERSION = 1;
@@ -212,49 +213,10 @@ const WorkbenchPresentationAgentNotResumedSchema = z
 	})
 	.readonly();
 
-/**
- * The startable Agent catalog; the Server resolves an id to the new shell's first command and names
- * it again when that start did not happen.
- */
-export const WorkbenchAgentStartProviderSchema = z.enum([
-	'pi',
-	'claude-code',
-	'codex',
-	'gemini',
-	'cursor',
-	'devin',
-	'antigravity',
-	'cline',
-	'omp',
-	'mastracode',
-	'opencode',
-	'github-copilot',
-	'kimi',
-	'kiro',
-	'droid',
-	'amp',
-	'grok',
-	'hermes',
-	'kilo',
-	'qodercli',
-	'qwen-code',
-	'letta',
-	'maki',
-	'muse',
-	'atomcode',
-	'codebuddy',
-	'command-code',
-	'deveco',
-	'mimo',
-	'reasonix',
-	'snow',
-	'minimax-code',
-	'mothx',
-	'jcode',
-	'openclaw',
-	'prime-agent',
-]);
-export type WorkbenchAgentStartProvider = z.output<typeof WorkbenchAgentStartProviderSchema>;
+export {
+	WorkbenchAgentStartProviderSchema,
+	type WorkbenchAgentStartProvider,
+} from '../agent-launch-settings';
 
 /**
  * The Server found that the Agent start the Presentation's creation carried did not happen in the

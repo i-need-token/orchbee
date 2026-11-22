@@ -12,6 +12,10 @@ managed startup, which takes the start as its first command like managed PowerSh
 shell's first command, and the Server alone makes sure that start happens: no Client types it. When
 it did not happen, the Server says so once on the Presentation.
 
+The Server captures the provider's launch settings with the other terminal preferences. The
+provider's native permission option in custom arguments takes precedence over the YOLO preference.
+An explicit conversation selection also takes precedence over the generated conversation ID.
+
 Non-goals: starting an Agent in an existing shell, reserving or binding an Agent name, typing a
 command a request supplied, and replaying a line. A creation without `agentStart` is never a
 candidate.
@@ -52,9 +56,9 @@ acceptance before its first sample, and from the last read that had one in overt
 
 ### Typed line
 
-A marked cmd's line is the command and its arguments joined by single spaces, the same tokens a
-managed shell runs; every token is plain ASCII without spaces, quotes or shell syntax, so cmd reads
-none as code. The line is sent only when the prompt readiness rule it shares with
+A marked cmd runs a plain command directly when its tokens need no quoting. Other arguments travel
+in the PowerShell argv adapter's encoded command, within cmd's prompt line bound. The line is sent
+only when the prompt readiness rule it shares with
 [resume](agent-session-resume.md#guards), without resume's directory check, admits a shell its frame
 shows at its prompt with nothing else in its console, a silent one waiting unlike in resume, and
 only through the Host's prompt gate, as one idle-prompt

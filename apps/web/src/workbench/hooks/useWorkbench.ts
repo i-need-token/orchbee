@@ -91,7 +91,10 @@ import type {
 } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { findActiveTerminalFocusTarget } from '../utils/workbench-terminal-focus-target';
 import { hasWorkbenchExclusiveFocusSurface } from '../utils/workbench-focus-dom';
-import type { WorkbenchAgentStartInput } from '../types/workbench-agent-start';
+import type {
+	WorkbenchAgentStartInput,
+	WorkbenchWorkspaceAgentLaunch,
+} from '../types/workbench-agent-start';
 import {
 	useWorkbenchAgentDialogs,
 	type WorkbenchAgentStartDialogModel,
@@ -186,6 +189,7 @@ interface ResizablePanelSize {
 interface WorkbenchView {
 	/** Present while Start Agent is open. */
 	readonly agentStart: WorkbenchAgentStartDialogModel | undefined;
+	readonly workspaceAgentLaunch: WorkbenchWorkspaceAgentLaunch | undefined;
 	/** Esc, Cancel or the backdrop: closes Start Agent. */
 	readonly closeAgentStart: () => void;
 	/** Closes Start Agent and runs `workbench.agent.start-provider`. */
@@ -751,6 +755,17 @@ export function useWorkbench({
 		agentDialogs.endStart(input.place === 'new-worktree');
 		actions.invoke(WORKBENCH_ACTION_IDS.startAgent, input, 'button');
 	});
+	const startWorkspaceAgent = useMemoizedFn<
+		undefined,
+		Parameters<WorkbenchWorkspaceAgentLaunch['start']>,
+		void
+	>((workspaceId, providerId) => {
+		actions.invoke(
+			WORKBENCH_ACTION_IDS.startAgent,
+			{ place: 'new-tab', providerId, workspaceId },
+			'button',
+		);
+	});
 	const createProject = useMemoizedFn((path: string) =>
 		actions.invoke(WORKBENCH_ACTION_IDS.createProject, { path }, 'button'),
 	);
@@ -983,6 +998,14 @@ export function useWorkbench({
 
 	return {
 		agentStart: agentDialogs.start,
+		workspaceAgentLaunch:
+			authorityNotice.authority.agentCatalog === undefined
+				? undefined
+				: {
+						catalog: authorityNotice.authority.agentCatalog,
+						open: agentDialogs.openWorkspaceStart,
+						start: startWorkspaceAgent,
+					},
 		closeAgentStart: agentDialogs.closeStart,
 		reportActionOutcome: authorityNotice.reportActionOutcome,
 		startAgent,

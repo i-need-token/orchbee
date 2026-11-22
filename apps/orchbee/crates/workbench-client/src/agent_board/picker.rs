@@ -14,6 +14,7 @@ use orchbee_workbench_protocol::{
 use super::session_agents::SessionAgents;
 use super::start::StartPlace;
 use super::{AgentBoard, AgentBoardControl, AgentBoardControlTarget};
+use crate::client_context::ClientContextLocation;
 use crate::client_view::{Binding, KeyCode, KeyEvent, KeyKind, Modifiers};
 use crate::localization::AgentStartStatus;
 use crate::session_capabilities::SessionAction;
@@ -215,9 +216,18 @@ fn by_product(rows: &mut [Row<'_>]) {
 /// one failed or cannot run, it is one Not checked group, then Not found. A provider whose check
 /// is still running is never listed, and the fold waits for every check.
 pub(crate) fn items(sources: &Sources<'_>, query: &str, expanded: bool) -> Vec<Item> {
+    projected_items(sources, query, expanded, false)
+}
+
+fn projected_items(
+    sources: &Sources<'_>,
+    query: &str,
+    expanded: bool,
+    installed_only: bool,
+) -> Vec<Item> {
     use AgentCatalogEntryState as State;
     let query = query.trim().to_lowercase();
-    let unchecked = sources.unchecked();
+    let unchecked = !installed_only && sources.unchecked();
     let startable = |row: &Row<'_>| {
         if unchecked {
             !matches!(row.state, State::NotFound | State::Checking)
@@ -231,7 +241,11 @@ pub(crate) fn items(sources: &Sources<'_>, query: &str, expanded: bool) -> Vec<I
         .filter_map(|id| sources.rows.iter().find(|row| row.id == *id))
         .copied()
         .filter(startable)
-        .take(RECENT_LIMIT)
+        .take(if installed_only {
+            usize::MAX
+        } else {
+            RECENT_LIMIT
+        })
         .collect();
     let mut rest: Vec<Row<'_>> = sources
         .rows
@@ -281,6 +295,9 @@ pub(crate) fn items(sources: &Sources<'_>, query: &str, expanded: bool) -> Vec<I
         group(&mut rows, Group::NotFound, &unavailable);
     } else {
         group(&mut rows, Group::Installed, &rest);
+        if installed_only {
+            return rows;
+        }
         if query.is_empty() && !expanded {
             // While a check runs the count is not known; the status row says so instead.
             if !unavailable.is_empty() && !sources.checking() {
@@ -332,6 +349,7 @@ pub(crate) fn menu_agents(sources: &Sources<'_>) -> Vec<&'static str> {
 pub(crate) struct PickedStart {
     pub(crate) provider: &'static str,
     pub(crate) place: StartPlace,
+    pub(crate) workspace: Option<ClientContextLocation>,
 }
 
 pub(crate) struct Picker {
@@ -346,6 +364,7 @@ pub(crate) struct Picker {
     /// Holds while the picker stays open; a query change never resets it.
     place: StartPlace,
     revision: u64,
+    workspace: Option<ClientContextLocation>,
 }
 
 impl Picker {
@@ -359,6 +378,7 @@ impl Picker {
             place: places.automatic(),
             places,
             revision: 0,
+            workspace: None,
         }
     }
 
@@ -373,6 +393,10 @@ impl Picker {
 
     pub(crate) fn query(&self) -> &str {
         self.query.text()
+    }
+
+    pub(crate) const fn targets_workspace(&self) -> bool {
+        self.workspace.is_some()
     }
 
     pub(crate) fn query_cursor(&self) -> usize {
@@ -536,7 +560,12 @@ impl AgentBoard {
             return Vec::new();
         };
         self.sources().map_or_else(Vec::new, |sources| {
-            items(&sources, picker.query(), picker.expanded)
+            projected_items(
+                &sources,
+                picker.query(),
+                picker.expanded,
+                picker.workspace.is_some(),
+            )
         })
     }
 
@@ -614,6 +643,14 @@ impl AgentBoard {
         self.open_picker(focus, worktree);
         if let Some(picker) = self.picker.as_mut() {
             picker.place = StartPlace::NewTab;
+        }
+    }
+
+    /// Starts an installed Agent in a new Tab of this exact Workspace.
+    pub(crate) fn open_workspace_picker(&mut self, location: ClientContextLocation) {
+        self.open_picker(None, false);
+        if let Some(picker) = self.picker.as_mut() {
+            picker.workspace = Some(location);
         }
     }
 
@@ -726,6 +763,7 @@ impl AgentBoard {
                     StartPlace::ThisPanel(panel) if self.start.guards(panel) => StartPlace::NewTab,
                     place => place.clone(),
                 };
+                let workspace = picker.workspace.clone();
                 // The New Worktree form opens over the picker, which keeps its query, cursor and
                 // place for the form's cancellation; the form's submission closes it.
                 if place != StartPlace::NewWorktree {
@@ -734,6 +772,7 @@ impl AgentBoard {
                 PickerOutcome::Start(PickedStart {
                     provider: id,
                     place,
+                    workspace,
                 })
             }
             Some(Item::Provider { .. }) => {

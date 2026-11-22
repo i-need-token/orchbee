@@ -265,6 +265,7 @@ function CategoryContent({ category, props, query }: CategoryContentProps): Reac
 		case 'agents':
 			return (
 				<AgentSettings
+					catalog={props.agentCatalog}
 					query={query}
 					requestAgent={props.requestAgent}
 					userSettings={userSettings}

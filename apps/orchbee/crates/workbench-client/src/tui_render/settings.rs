@@ -391,6 +391,7 @@ fn render_content(
             .heading(locale)
             .unwrap_or_default()
             .to_owned(),
+        Page::AgentLaunch(provider) => Row::AgentLaunchProvider(provider).name(locale).to_owned(),
         Page::Machine => page.shown_machine().map_or_else(
             || Category::Machines.name(locale).to_owned(),
             |machine| sanitize_terminal_text(&machine.label).into_owned(),
@@ -1093,6 +1094,29 @@ fn render_row(
                 // Update control's tooltip is.
                 let update = page.about().update().map(sanitize_terminal_text);
                 locale.about_updates(update.as_deref(), page.about().check())
+            } else if let Row::AgentCommand(provider) = row {
+                let agent = provider.agent();
+                let mut arguments: Vec<String> = agent
+                    .launch_arguments()
+                    .iter()
+                    .map(|argument| (*argument).to_owned())
+                    .collect();
+                if let Some(launch) = page.values().agent_launch.get(&provider)
+                    && let Ok(extra) = launch.extra_arguments(provider)
+                {
+                    arguments.extend(extra);
+                }
+                orchbee_local_runtime::posix_command_line(agent.executable(), &arguments)
+                    .unwrap_or_default()
+            } else if let Row::AgentYolo(provider) = row
+                && crate::native_settings::agent_yolo_overridden(page.values(), provider)
+            {
+                locale
+                    .words(crate::localization::words(
+                        "Custom launch arguments choose the permission mode.",
+                        "权限模式由自定义启动参数指定。",
+                    ))
+                    .to_owned()
             } else if is_focused && !enabled {
                 locale.settings_detail(page)
             } else {

@@ -58,6 +58,7 @@ export function projectWorkbenchAgentStartRows<Provider extends string>(
 	catalog: WorkbenchAgentStartCatalogView<Provider>,
 	query: string,
 	expanded: boolean,
+	installedOnly = false,
 ): WorkbenchAgentStartRows<Provider> {
 	const needle = query.trim().toLowerCase();
 	const matches = (entry: WorkbenchAgentStartEntry<Provider>): boolean =>
@@ -75,10 +76,12 @@ export function projectWorkbenchAgentStartRows<Provider extends string>(
 
 	const recent: WorkbenchAgentStartEntry<Provider>[] = [];
 	for (const providerId of catalog.recent) {
-		if (recent.length === RECENT_LIMIT) break;
+		if (!installedOnly && recent.length === RECENT_LIMIT) break;
 		const entry = byId.get(providerId);
 		if (entry === undefined || recent.includes(entry)) continue;
-		if (unchecked ? entry.state !== 'not-found' : entry.state === 'found') recent.push(entry);
+		if (entry.state === 'found' || (!installedOnly && unchecked && entry.state !== 'not-found')) {
+			recent.push(entry);
+		}
 	}
 	const rest = alphabetical(catalog.agents.filter((entry) => !recent.includes(entry)));
 	const rows: WorkbenchAgentStartRow<Provider>[] = [];
@@ -100,7 +103,7 @@ export function projectWorkbenchAgentStartRows<Provider extends string>(
 	};
 
 	list('recent', recent, () => 'command');
-	if (unchecked) {
+	if (unchecked && !installedOnly) {
 		list(
 			'not-checked',
 			rest.filter((entry) => entry.state !== 'not-found'),
@@ -119,6 +122,10 @@ export function projectWorkbenchAgentStartRows<Provider extends string>(
 		rest.filter((entry) => entry.state === 'found'),
 		() => 'command',
 	);
+	if (installedOnly) {
+		const status = unchecked ? 'couldnt-check' : 'looking';
+		return { rows, status: checked ? null : status };
+	}
 	const folded = rest.filter((entry) => entry.state !== 'found' && entry.state !== 'checking');
 	if (checked && needle === '' && !expanded) {
 		if (folded.length > 0)

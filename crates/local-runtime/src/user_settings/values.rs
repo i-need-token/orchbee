@@ -5,13 +5,14 @@ use super::{
     registry::{SETTING_KEYS, current_platform, find_setting},
 };
 use orchbee_workbench_protocol::{
-    SettingChange, SettingEntry, SettingEntryValue, SettingPath, SettingValue, SettingsSnapshot,
-    UserLaunchCommand, UserLaunchProfile, UserLaunchProfiles, UserSettingsValues,
+    AgentStartSelector, SettingChange, SettingEntry, SettingEntryValue, SettingPath, SettingValue,
+    SettingsSnapshot, UserAgentLaunch, UserLaunchCommand, UserLaunchProfile, UserLaunchProfiles,
+    UserSettingsValues,
 };
 use serde_json::Value;
 
-/// One field of [`UserSettingsValues`]. Each scalar field is carried by one `config.toml` key; the
-/// launch catalog by the platform's profile table and its default profile.
+/// A common setting with one row. A scalar has one `config.toml` key; the launch catalog uses the
+/// platform's profile table and its default profile. Agent launch keys identify their own rows.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum UserSettingsField {
     Locale,
@@ -37,7 +38,7 @@ pub enum UserSettingsField {
 }
 
 impl UserSettingsField {
-    /// Every field, so a caller that walks the values cannot silently omit one.
+    /// Every fixed row, so a caller that walks the values cannot silently omit one.
     pub const ALL: [Self; 20] = [
         Self::Locale,
         Self::ApplicationTheme,
@@ -170,6 +171,30 @@ pub fn value_changes(
             .flatten();
         change(setting.path, value, restored.contains(&field));
     }
+    for provider in AgentStartSelector::all() {
+        let previous = baseline
+            .agent_launch
+            .get(&provider)
+            .cloned()
+            .unwrap_or_default();
+        let next = values
+            .agent_launch
+            .get(&provider)
+            .cloned()
+            .unwrap_or_default();
+        change(
+            &provider.arguments_key(),
+            (previous.arguments != next.arguments).then_some(SettingValue::Text(next.arguments)),
+            false,
+        );
+        if provider.yolo_flag().is_some() {
+            change(
+                &provider.yolo_key(),
+                (previous.yolo != next.yolo).then_some(SettingValue::Boolean(next.yolo)),
+                false,
+            );
+        }
+    }
     let restore = restored.contains(&UserSettingsField::LaunchProfiles);
     let platform = current_platform();
     let before = &baseline.launch_profiles;
@@ -270,7 +295,21 @@ pub fn settings_values(
             values = candidate;
         }
     }
-    admitted(&values).unwrap_or(defaults)
+    let mut values = admitted(&values).unwrap_or(defaults);
+    values.agent_launch = AgentStartSelector::all()
+        .filter_map(|provider| {
+            let key = provider.arguments_key();
+            let arguments = match lookup(&key).filter(|value| admitted_by_key(&key, value)) {
+                Some(Scalar::Text(text)) => text,
+                _ => String::new(),
+            };
+            let yolo = provider.yolo_flag().is_some()
+                && lookup(&provider.yolo_key()) == Some(Scalar::Boolean(true));
+            (yolo || !arguments.is_empty())
+                .then_some((provider, UserAgentLaunch { yolo, arguments }))
+        })
+        .collect();
+    values
 }
 
 /// A looked-up value passes its key's admission again, so values that did not come through the

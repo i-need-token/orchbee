@@ -3,7 +3,7 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { WorkbenchAgentProviderIcon } from '../WorkbenchAgentProviderIcon';
+import { AgentProviderIcon } from '../AgentProviderIcon';
 
 /** The labels the Server reports for these providers, not their canonical provider IDs. */
 const curatedAgents = [
@@ -19,10 +19,10 @@ const curatedAgents = [
 	'qwen',
 ] as const;
 
-describe('WorkbenchAgentProviderIcon', () => {
+describe('AgentProviderIcon', () => {
 	it.each(curatedAgents)('renders the curated %s product mark', (agent) => {
 		const { container } = render(
-			<WorkbenchAgentProviderIcon agents={[agent]} gradientPrefix={`test-${agent}`} />,
+			<AgentProviderIcon agents={[agent]} gradientPrefix={`test-${agent}`} />,
 		);
 
 		expect(container.querySelector(`[data-agent-provider-icon="${agent}"]`)).toBeTruthy();
@@ -30,7 +30,7 @@ describe('WorkbenchAgentProviderIcon', () => {
 
 	it('uses the provider-neutral Agent icon for a custom Agent', () => {
 		const unknown = render(
-			<WorkbenchAgentProviderIcon agents={['private-adapter']} gradientPrefix='test-unknown' />,
+			<AgentProviderIcon agents={['private-adapter']} gradientPrefix='test-unknown' />,
 		);
 
 		expect(unknown.container.querySelector('[data-icon="agent"]')).toBeTruthy();
@@ -38,7 +38,7 @@ describe('WorkbenchAgentProviderIcon', () => {
 
 	it('overlaps two complete provider marks in registry order', () => {
 		const mixed = render(
-			<WorkbenchAgentProviderIcon agents={['codex', 'claude']} gradientPrefix='test-mixed' />,
+			<AgentProviderIcon agents={['codex', 'claude']} gradientPrefix='test-mixed' />,
 		);
 
 		expect(mixed.container.querySelector('[data-icon="agent"]')).toBeNull();
@@ -51,10 +51,7 @@ describe('WorkbenchAgentProviderIcon', () => {
 
 	it('uses the provider-neutral multi-Agent mark for three providers', () => {
 		const rendered = render(
-			<WorkbenchAgentProviderIcon
-				agents={['codex', 'claude', 'gemini']}
-				gradientPrefix='test-multi'
-			/>,
+			<AgentProviderIcon agents={['codex', 'claude', 'gemini']} gradientPrefix='test-multi' />,
 		);
 
 		expect(rendered.container.querySelector('[data-icon="agent"]')).toBeTruthy();

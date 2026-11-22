@@ -1500,13 +1500,14 @@ Worker or the Host completes with the managed startup above, or with that exact 
 prepared. That startup is the only one that reads it, so the Worker mirrors the Host's
 classification and sets
 `ORCHBEE_AGENT_START` to the line `windows_agent_start_command` composes from the catalog program
-and arguments, each single-quoted after `Get-Command` resolution. Every other Windows launch,
+and its literal arguments. Arguments that need quoting use the configured executable's Windows argv
+adapter. Every other Windows launch,
 including cmd, custom launch profiles and PowerShell with unadmitted flags, removes the variable,
 so a value inherited from the Worker's environment never starts anything. The startup clears the
 variable before the Agent runs, so nested shells never repeat it. On macOS and Linux the Worker
 mirrors the Host's managed zsh and bash rule instead: `zsh` or `bash` with only `-i`, `-l`, `-il`,
-`-li` or `--login` gets the start's tokens as plain words, a token that starts with `=` single-quoted
-so zsh does not expand it, and every other launch removes the variable; a Host without the scripts
+`-li` or `--login` gets a line whose shell quoting preserves every argument. Every other launch
+removes the variable. A Host without the scripts
 removes it too. A table test covers the
 line per shell kind, and an actual 5.1/7 test covers the marker, the cleared variable and a shell
 that keeps working after a command that is not found.

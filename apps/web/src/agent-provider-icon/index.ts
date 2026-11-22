@@ -1,0 +1,1 @@
+export { AgentProviderIcon } from './AgentProviderIcon';

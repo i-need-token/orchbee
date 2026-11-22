@@ -55,6 +55,8 @@ pub(super) enum Event {
     Refused { settling: bool },
     /// The Host typed nothing because it predates the prompt gate.
     GateUnsupported,
+    /// This shell cannot carry the command's arguments within its prompt line bounds.
+    CommandUnsupported,
     /// Any other send result; part of the line may have been typed.
     Failed,
     /// The Presentation left or rebound, its terminal stopped answering, or a guard refused the
@@ -179,6 +181,9 @@ impl Delivery {
             }
             (State::Sending, Event::GateUnsupported) => {
                 Command::End(Some(AgentStartFailureReason::TerminalTooOld))
+            }
+            (State::Sending, Event::CommandUnsupported) => {
+                Command::End(Some(AgentStartFailureReason::UnsupportedShell))
             }
             (State::Watching { .. }, Event::Read { observation, .. }) => {
                 self.watch(observation, now)

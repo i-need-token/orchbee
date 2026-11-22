@@ -245,6 +245,7 @@ export function Workbench({
 				projectNavigationMessages={view.projectNavigationMessages}
 				projectWorkspaceState={view.projectWorkspaceState}
 				workspaceAgentOverviews={agentPresentation.workspaceAgentOverviews}
+				workspaceAgentLaunch={view.workspaceAgentLaunch}
 				removeProject={view.removeProject}
 				reorderProject={view.reorderProject}
 				moveWorkspace={view.moveWorkspace}
@@ -648,6 +649,7 @@ export function Workbench({
 					onClose={view.closeAgentStart}
 					onStart={view.startAgent}
 					places={view.agentStart.places}
+					workspace={view.agentStart.workspace}
 				/>
 			)}
 			{view.worktreeForm === undefined ? null : (

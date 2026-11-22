@@ -13,6 +13,7 @@ import type {
 	WorkbenchAgentCatalogSource,
 	WorkbenchAgentStartInput,
 	WorkbenchAgentStartPlace,
+	WorkbenchAgentStartWorkspace,
 } from '../../../types/workbench-agent-start';
 import {
 	projectWorkbenchAgentStartRows,
@@ -25,6 +26,7 @@ interface UseWorkbenchAgentStartDialogOptions {
 	readonly catalog: WorkbenchAgentCatalogSource;
 	readonly onStart: (input: WorkbenchAgentStartInput) => void;
 	readonly places: readonly WorkbenchAgentStartPlace[];
+	readonly workspace?: WorkbenchAgentStartWorkspace | undefined;
 }
 
 type Highlight = WorkbenchAgentStartProvider | 'fold';
@@ -62,6 +64,7 @@ interface WorkbenchAgentStartDialogView {
 	readonly activeDescendant: string | undefined;
 	readonly canStart: boolean;
 	readonly cancelLabel: string;
+	readonly destination: string | null;
 	readonly closeLabel: string;
 	readonly gradientPrefix: string;
 	readonly listId: string;
@@ -126,6 +129,7 @@ export function useWorkbenchAgentStartDialog({
 	catalog,
 	onStart,
 	places,
+	workspace,
 }: UseWorkbenchAgentStartDialogOptions): WorkbenchAgentStartDialogView {
 	const intl = useOrchbeeIntl();
 	const idPrefix = React.useId();
@@ -149,8 +153,8 @@ export function useWorkbenchAgentStartDialog({
 		() =>
 			snapshot === null
 				? NO_CATALOG_ROWS
-				: projectWorkbenchAgentStartRows(snapshot, query, expanded),
-		[expanded, query, snapshot],
+				: projectWorkbenchAgentStartRows(snapshot, query, expanded, workspace !== undefined),
+		[expanded, query, snapshot, workspace],
 	);
 	const highlights = model.rows.flatMap<Highlight>((row) => {
 		if (row.kind === 'provider') return [row.providerId];
@@ -169,7 +173,13 @@ export function useWorkbenchAgentStartDialog({
 
 	const elementId = (key: Highlight): string => `${idPrefix}-${key}`;
 	const startProvider = useMemoizedFn((providerId: WorkbenchAgentStartProvider) => {
-		if (startable && place !== null) onStart({ place, providerId });
+		if (startable && place !== null) {
+			onStart({
+				place,
+				providerId,
+				...(workspace === undefined ? {} : { workspaceId: workspace.id }),
+			});
+		}
 	});
 	const unfold = useMemoizedFn(() => {
 		setExpanded(true);
@@ -278,6 +288,10 @@ export function useWorkbenchAgentStartDialog({
 		activeDescendant: highlighted === null ? undefined : elementId(highlighted),
 		canStart,
 		cancelLabel: intl.formatMessage(agentStartMessages.cancel),
+		destination:
+			workspace === undefined
+				? null
+				: intl.formatMessage(agentStartMessages.workspaceDestination, { name: workspace.name }),
 		closeLabel: intl.formatMessage(workbenchMessages.resourceClose),
 		gradientPrefix: idPrefix,
 		listId: `${idPrefix}-list`,
@@ -300,6 +314,7 @@ export function useWorkbenchAgentStartDialog({
 		status: projectStatus({
 			format: (descriptor) => intl.formatMessage(descriptor),
 			noMatch: query.trim() !== '' && !providerShown,
+			noInstalled: workspace !== undefined && !providerShown,
 			startable: snapshot === null || startable,
 			status: model.status,
 		}),
@@ -311,11 +326,13 @@ export function useWorkbenchAgentStartDialog({
 function projectStatus({
 	format,
 	noMatch,
+	noInstalled,
 	startable,
 	status,
 }: {
 	readonly format: (descriptor: MessageDescriptor) => string;
 	readonly noMatch: boolean;
+	readonly noInstalled: boolean;
 	readonly startable: boolean;
 	readonly status: WorkbenchAgentStartRows['status'];
 }): WorkbenchAgentStartDialogView['status'] {
@@ -326,5 +343,6 @@ function projectStatus({
 		return { message: format(agentStartMessages.statusCouldntCheck), warning: true };
 	}
 	if (noMatch) return { message: format(agentStartMessages.statusNoMatch), warning: false };
+	if (noInstalled) return { message: format(agentStartMessages.statusNoInstalled), warning: false };
 	return null;
 }

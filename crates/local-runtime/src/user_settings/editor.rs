@@ -216,6 +216,20 @@ fn admit(change: &SettingChange) -> Result<(), SettingsEditError> {
     let setting = find_setting(&segments)
         .filter(|setting| !setting.path.contains("[]"))
         .ok_or_else(|| SettingsEditError::UnknownKey { key: dotted(key) })?;
+    if let SettingChange::Set { value, .. } = change
+        && matches!(
+            setting.path,
+            super::registry::AGENT_ARGUMENTS_PATH | super::registry::AGENT_YOLO_PATH
+        )
+    {
+        setting
+            .admit(value)
+            .map_err(|reason| SettingsEditError::InvalidValue {
+                key: dotted(key),
+                field: dotted(key),
+                reason,
+            })?;
+    }
     if let (SettingChange::Set { value, .. }, SettingValue::Structured(_)) = (change, setting.value)
     {
         let entries = match value {

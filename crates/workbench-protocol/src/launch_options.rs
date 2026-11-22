@@ -1,6 +1,6 @@
 //! One launch's cwd and environment overrides. These do not select a program,
 //! mutate a catalog profile, or change Workspace directory membership.
-use crate::{LaunchEnvironment, WorkbenchDirectoryPath};
+use crate::{AgentStartSelector, LaunchEnvironment, WorkbenchDirectoryPath};
 use serde::{Deserialize, Serialize};
 
 /// Catalog identity only. The Server, never the caller, resolves executable intent.
@@ -38,33 +38,6 @@ impl PluginPaneSelector {
             plugin_id,
             entrypoint_id,
         })
-    }
-}
-
-/// A startable Agent's canonical provider id from the closed catalog. The Server resolves it to
-/// the command the new shell runs first; the caller never supplies command text.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "String", into = "String")]
-pub struct AgentStartSelector(orchbee_agent_observation_protocol::StartableAgent);
-impl AgentStartSelector {
-    #[must_use]
-    pub fn parse(provider_id: &str) -> Option<Self> {
-        orchbee_agent_observation_protocol::StartableAgent::parse(provider_id).map(Self)
-    }
-    #[must_use]
-    pub const fn agent(self) -> orchbee_agent_observation_protocol::StartableAgent {
-        self.0
-    }
-}
-impl TryFrom<String> for AgentStartSelector {
-    type Error = &'static str;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(&value).ok_or("unknown startable Agent provider")
-    }
-}
-impl From<AgentStartSelector> for String {
-    fn from(value: AgentStartSelector) -> Self {
-        value.0.id().to_owned()
     }
 }
 

@@ -129,7 +129,9 @@ const RESTORE: &[LocalBinding] = &[LocalBinding::Delete];
 /// What `Enter` does on a row, as its hint names it.
 fn primary_label(page: PageView<'_>, row: Row) -> SettingsHintLabel {
     match row {
-        Row::LaunchProfiles | Row::AddMachine | Row::Machine(_) => SettingsHintLabel::Open,
+        Row::LaunchProfiles | Row::AgentLaunchProvider(_) | Row::AddMachine | Row::Machine(_) => {
+            SettingsHintLabel::Open
+        }
         Row::Back => SettingsHintLabel::Back,
         Row::ThemeOption(_) => SettingsHintLabel::Select,
         Row::Updates if page.about().update().is_some() => SettingsHintLabel::Update,
@@ -181,7 +183,12 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
     let selected = page.selected();
     // Rows that only show a fact, and actions that cannot run now, name no primary key.
     let acts = match selected {
-        Row::Version | Row::ThisComputer | Row::MachineAddress | Row::MachineFree => false,
+        Row::Version
+        | Row::ThisComputer
+        | Row::MachineAddress
+        | Row::MachineFree
+        | Row::AgentCommand(_) => false,
+        Row::AgentYolo(_) => page.enabled(selected),
         Row::Updates => page.about().actionable(),
         Row::MachineName
         | Row::MachineStatus
@@ -192,12 +199,15 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
     };
     let primary = acts.then(|| hint(PRIMARY, primary_label(page, selected)));
     match page.page() {
-        Page::Profiles | Page::Machine => {
+        Page::Profiles | Page::Machine | Page::AgentLaunch(_) => {
             let mut hints = vec![
                 hint(EXIT, SettingsHintLabel::Back),
                 hint(MOVE, SettingsHintLabel::Move),
             ];
             hints.extend(primary);
+            if page.changed(selected) {
+                hints.push(hint(RESTORE, SettingsHintLabel::Restore));
+            }
             if matches!(selected, Row::Profile | Row::Argument) {
                 hints.push(hint(SWITCH, SettingsHintLabel::Change));
             }

@@ -38,20 +38,16 @@ pub fn windows_powershell_application(program: &str) -> String {
     )
 }
 
-/// The line managed PowerShell runs as its first command: the resolved program and each argument
-/// single-quoted, so none is read as a parameter or a number. `None` unless every token is
-/// visible ASCII without a single quote, since PowerShell also closes a quote at typographic
-/// quote marks.
+/// The line managed PowerShell runs as its first command with literal arguments. The original
+/// short invocation remains suitable for plain tokens; general argv uses the same Windows
+/// adapter as a configured executable.
 #[must_use]
 pub fn windows_agent_start_command(program: &str, arguments: &[String]) -> Option<String> {
-    let plain = |token: &str| {
-        !token.is_empty()
-            && token
-                .chars()
-                .all(|character| character.is_ascii_graphic() && character != '\'')
-    };
-    if !plain(program) || !arguments.iter().all(|argument| plain(argument)) {
+    if !plain_agent_token(program) {
         return None;
+    }
+    if !arguments.iter().all(|argument| plain_agent_token(argument)) {
+        return crate::command::windows_program_invocation(program, arguments);
     }
     Some(
         std::iter::once(windows_powershell_application(program))
@@ -59,6 +55,31 @@ pub fn windows_agent_start_command(program: &str, arguments: &[String]) -> Optio
             .collect::<Vec<_>>()
             .join(" "),
     )
+}
+
+/// The line a marked cmd can take at its prompt. When an argument needs quoting, the encoded
+/// Windows argv adapter carries it intact without exposing it to cmd expansion.
+#[must_use]
+pub fn windows_cmd_agent_start_line(program: &str, arguments: &[String]) -> Option<String> {
+    if !plain_agent_token(program) {
+        return None;
+    }
+    if arguments.iter().all(|argument| plain_agent_token(argument)) {
+        return Some(
+            std::iter::once(program)
+                .chain(arguments.iter().map(String::as_str))
+                .collect::<Vec<_>>()
+                .join(" "),
+        );
+    }
+    crate::command::windows_cmd_program_invocation(program, arguments)
+}
+
+fn plain_agent_token(token: &str) -> bool {
+    !token.is_empty()
+        && token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"._:=-".contains(&byte))
 }
 
 /// Decodes reported paths as observations; callers separately admit launchable path syntax.

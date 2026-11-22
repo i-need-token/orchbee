@@ -71,5 +71,13 @@ export { isSettingOnPage, readSettingValue, settingDefault } from './setting-key
 /** @internal Every scalar key, for the Web in-memory settings fixture. */
 export { SETTING_KEYS } from './setting-keys';
 export type { SettingKey, SettingValues, SettingsPlatform } from './setting-keys';
+export { agentArgumentsKey, agentYoloKey } from './setting-keys';
+export {
+	AGENT_YOLO_PROVIDERS,
+	agentOverridesYolo,
+	agentYoloFlag,
+	parseAgentArguments,
+	type AgentYoloProvider,
+} from './agent-launch-settings';
 /** @internal The file state, for Web fixtures that publish one. */
 export type { SettingsFile } from './workbench-protocol';

@@ -2,7 +2,9 @@
 //! search, or a child page lists. Values only decide which dependent rows show.
 use super::{Choice, Page, Row};
 use crate::localization::{Locale, Words, words};
-use orchbee_workbench_protocol::{CompletionReminderMode, TerminalDisplayAppearance};
+use orchbee_workbench_protocol::{
+    AgentStartSelector, CompletionReminderMode, TerminalDisplayAppearance,
+};
 
 /// One entry of the page's left column.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -68,7 +70,7 @@ impl Category {
             ],
             Self::Notifications => &[Group::WhenToNotify, Group::SoundDelivery],
             Self::Keyboard => &[Group::Prefix],
-            Self::Agents => &[Group::AgentConfirmations],
+            Self::Agents => &[Group::AgentLaunch, Group::AgentConfirmations],
             Self::Machines => &[Group::MachineList],
             Self::About => &[Group::About],
         }
@@ -115,6 +117,7 @@ pub enum Group {
     WhenToNotify,
     SoundDelivery,
     Prefix,
+    AgentLaunch,
     /// One row for each Agent whose routine confirmations Orchbee can answer.
     AgentConfirmations,
     /// About's version, update and Automatic updates rows; unnamed, since the category names it.
@@ -190,6 +193,10 @@ impl Group {
             ),
             Self::WhenToNotify => titled("When to notify", "何时通知"),
             Self::SoundDelivery => titled("Sound and delivery", "声音与显示"),
+            Self::AgentLaunch => titled("Launch options", "启动选项").described(
+                "Applies to new conversations started by Orchbee.",
+                "应用于之后通过 Orchbee 新建的会话。",
+            ),
             Self::AgentConfirmations => titled("Allow routine confirmations", "自动允许常规确认")
                 .described(
                     "Presses the Agent's allow-once for you.",
@@ -238,6 +245,13 @@ impl Group {
             ],
             Self::SoundDelivery => vec![Row::Sound],
             Self::Prefix => vec![Row::PrefixKey],
+            Self::AgentLaunch => {
+                let mut rows: Vec<_> = AgentStartSelector::all()
+                    .map(Row::AgentLaunchProvider)
+                    .collect();
+                rows.sort_by_cached_key(|row| row.name(Locale::EnUs).to_ascii_lowercase());
+                rows
+            }
             Self::AgentConfirmations => vec![
                 Row::AutoAllowClaude,
                 Row::AutoAllowCodex,
@@ -346,6 +360,19 @@ pub(super) fn entries(
     match page {
         Page::Profiles => {
             entries.extend(page.rows().iter().copied().map(Entry::Setting));
+            return entries;
+        }
+        Page::AgentLaunch(provider) => {
+            entries.push(Entry::Heading(Group::AgentLaunch));
+            if provider.yolo_flag().is_some() {
+                entries.push(Entry::Setting(Row::AgentYolo(provider)));
+            }
+            entries.extend([
+                Entry::Setting(Row::AgentArguments(provider)),
+                Entry::Setting(Row::AgentCommand(provider)),
+                Entry::Setting(Row::Back),
+                Entry::End,
+            ]);
             return entries;
         }
         // A machine's page lists what the machine facts hold, which `machines` builds.

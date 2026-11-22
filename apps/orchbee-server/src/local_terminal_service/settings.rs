@@ -80,6 +80,7 @@ pub(super) fn launch_capture(values: &UserSettingsValues) -> LaunchCapture {
             .map_or(LaunchPreferences::Unavailable, LaunchPreferences::Available)
     };
     LaunchCapture::new(capture(explicit), capture(intent))
+        .with_agent_launch(values.agent_launch.clone())
 }
 
 fn launch_preferences(

@@ -11,9 +11,20 @@ use super::{
 use crate::terminal_text::line_editor::LineEditor;
 use machines::{Listing, Machines};
 use orchbee_workbench_protocol::{
-    ApplicationAppearance, SettingChange, UserLaunchCommand, UserLaunchField, UserLaunchProfile,
-    UserSettingsValues,
+    AgentStartSelector, ApplicationAppearance, SettingChange, UserLaunchCommand, UserLaunchField,
+    UserLaunchProfile, UserSettingsValues, parse_agent_arguments,
 };
+
+pub(crate) fn agent_yolo_overridden(
+    values: &UserSettingsValues,
+    provider: AgentStartSelector,
+) -> bool {
+    values
+        .agent_launch
+        .get(&provider)
+        .and_then(|launch| parse_agent_arguments(&launch.arguments).ok())
+        .is_some_and(|arguments| provider.overrides_yolo(&arguments))
+}
 
 /// The column that holds keyboard focus.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -109,7 +120,12 @@ impl PageState {
         }
         match entry {
             Entry::Heading(group) => gap + 1 + usize::from(self.described(group)),
-            Entry::Setting(Row::ThemeOption(_) | Row::AddMachine | Row::FindMachine) => 1,
+            Entry::Setting(
+                Row::ThemeOption(_)
+                | Row::AddMachine
+                | Row::FindMachine
+                | Row::AgentLaunchProvider(_),
+            ) => 1,
             Entry::Setting(_) => 2,
             Entry::Option(_) | Entry::Note(_) | Entry::End | Entry::NoResults => 1,
             Entry::ConfigFile => 2,
@@ -119,7 +135,7 @@ impl PageState {
     /// A group whose heading carries a description line.
     pub(super) fn described(&self, group: Group) -> bool {
         match group {
-            Group::LaunchProfiles | Group::AgentConfirmations => true,
+            Group::LaunchProfiles | Group::AgentConfirmations | Group::AgentLaunch => true,
             Group::LightThemes => self.values.application_theme == ApplicationAppearance::Dark,
             Group::DarkThemes => self.values.application_theme == ApplicationAppearance::Light,
             _ => false,
@@ -307,6 +323,11 @@ impl PageState {
     /// its list, which picking a theme there set, and leaves the other slot alone.
     pub(super) fn restore_changes(&self, row: Row) -> Vec<SettingChange> {
         let row = row.setting_row();
+        if let Some(key) = row.agent_launch_key() {
+            return orchbee_workbench_protocol::SettingPath::parse(&key)
+                .map(|key| vec![SettingChange::Restore { key }])
+                .unwrap_or_default();
+        }
         if let Some(key) = row.text_key() {
             return orchbee_workbench_protocol::SettingPath::parse(key)
                 .map(|key| vec![SettingChange::Restore { key }])
@@ -320,7 +341,7 @@ impl PageState {
 
     /// The file sets one of this row's keys, so the row shows as changed and can be restored.
     pub(super) fn changed(&self, row: Row) -> bool {
-        !self.page.is_child()
+        (!self.page.is_child() || row.agent_launch_key().is_some())
             && self.restore_changes(row).iter().any(|change| match change {
                 SettingChange::Restore { key } => self.confirmed.sets(key.as_str()),
                 SettingChange::Set { .. } => false,
@@ -342,6 +363,17 @@ impl PageState {
 
     /// The shown values with `row`'s field back at its default, as a restore asks.
     pub(super) fn restored_values(&self, row: Row) -> UserSettingsValues {
+        if let Row::AgentYolo(provider) | Row::AgentArguments(provider) = row {
+            let mut values = self.values.clone();
+            if let Some(launch) = values.agent_launch.get_mut(&provider) {
+                if matches!(row, Row::AgentYolo(_)) {
+                    launch.yolo = false;
+                } else {
+                    launch.arguments.clear();
+                }
+            }
+            return values;
+        }
         let restored = self.restore_changes(row);
         let names = |changes: &[SettingChange], key: &str| {
             changes.iter().any(|change| match change {
@@ -391,6 +423,8 @@ impl PageState {
             Row::Version => return true,
             Row::Updates => return about.enabled(),
             Row::Back | Row::LaunchProfiles => return true,
+            Row::AgentCommand(_) => return false,
+            Row::AgentYolo(provider) => return !agent_yolo_overridden(&self.values, provider),
             Row::ThemeOption(_) => return !self.reduced_color,
             _ => {}
         }
@@ -436,6 +470,14 @@ impl PageState {
             return Some((flag.read)(&self.values));
         }
         match row {
+            Row::AgentYolo(provider) => Some(
+                !agent_yolo_overridden(&self.values, provider)
+                    && self
+                        .values
+                        .agent_launch
+                        .get(&provider)
+                        .is_some_and(|launch| launch.yolo),
+            ),
             Row::Login => match &self.current_profile().command {
                 UserLaunchCommand::SystemShell { login } => Some(*login),
                 UserLaunchCommand::CustomExecutable { .. } => None,

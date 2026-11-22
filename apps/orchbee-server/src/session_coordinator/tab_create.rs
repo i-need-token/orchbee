@@ -329,7 +329,7 @@ impl SessionCoordinator {
         };
         terminal.set_profile_provenance(profile_provenance);
         if let Some(selector) = &options.agent_start
-            && super::agent_start::agent_start_command(selector)
+            && super::agent_start::agent_start_command(selector, capture)
                 .and_then(|start| terminal.set_agent_start(start))
                 .is_err()
         {

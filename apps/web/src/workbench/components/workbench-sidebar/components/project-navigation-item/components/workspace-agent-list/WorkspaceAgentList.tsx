@@ -6,13 +6,14 @@ import {
 	TooltipTrigger,
 } from '@orchbee/ui/components';
 import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
-import type { MouseEvent, ReactNode } from 'react';
+import { useId, type MouseEvent, type ReactNode } from 'react';
 
 import type {
 	WorkbenchAgentConfirmationChooseInput,
 	WorkbenchPanelTargetInput,
 } from '../../../../../../actions/workbench-action-ids';
 import { WorkbenchAgentStateGlyph } from '../../../../../workbench-agent-state-glyph/WorkbenchAgentStateGlyph';
+import { AgentProviderIcon } from '../../../../../../../agent-provider-icon';
 import type {
 	WorkbenchActionMenuChoice,
 	WorkbenchActionMenuEntry,
@@ -47,6 +48,7 @@ export function WorkspaceAgentList({
 	overview,
 	renameAgentPanel,
 }: WorkspaceAgentListProps): ReactNode {
+	const iconPrefix = useId();
 	return (
 		<ul className={styles['list']} data-slot='workbench-sidebar-workspace-agents'>
 			{overview.rows.map((row, index) => {
@@ -147,14 +149,20 @@ export function WorkspaceAgentList({
 								tabIndex={-1}
 								type='button'
 							/>
-							<Tooltip>
-								<TooltipTrigger render={<span className={styles['glyph']} />}>
-									<WorkbenchAgentStateGlyph status={row.status} />
-								</TooltipTrigger>
-								<TooltipContent side='bottom'>
-									{row.statusReason ?? row.status.status}
-								</TooltipContent>
-							</Tooltip>
+							<span className={styles['glyph']}>
+								<Tooltip>
+									<TooltipTrigger render={<span className={styles['state']} />}>
+										<WorkbenchAgentStateGlyph status={row.status} />
+									</TooltipTrigger>
+									<TooltipContent side='bottom'>
+										{row.statusReason ?? row.status.status}
+									</TooltipContent>
+								</Tooltip>
+								<AgentProviderIcon
+									agents={[row.providerId]}
+									gradientPrefix={`${iconPrefix}-${row.presentationId}`}
+								/>
+							</span>
 							<SidebarTruncationTooltip
 								content={provider === null ? title : `${title} · ${provider}`}
 								render={<span className={styles['text']} />}

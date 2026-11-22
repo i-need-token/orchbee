@@ -90,7 +90,7 @@ pub use user_settings::{
 mod directory;
 pub use directory::{
     AGENT_START_VARIABLE, long_form_of_short_name, posix_reported_directory, reported_directory,
-    same_existing_folder, windows_agent_start_command,
+    same_existing_folder, windows_agent_start_command, windows_cmd_agent_start_line,
     windows_interactive_powershell_initialization, windows_powershell_application,
     windows_reported_directory,
 };

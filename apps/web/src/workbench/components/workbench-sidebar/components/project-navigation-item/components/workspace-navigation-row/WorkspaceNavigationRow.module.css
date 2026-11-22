@@ -14,9 +14,7 @@
 	display: flex;
 	min-width: 0;
 	flex-direction: column;
-	padding: var(--ob-ref-space-1)
-		calc(var(--ob-ref-space-12) + var(--ob-ref-space-2) + var(--ob-ref-space-0-5))
-		var(--ob-ref-space-1) var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
 	border-radius: var(--ob-ref-radius-ui-md);
 	color: var(--ob-sys-color-text-secondary);
 	cursor: default;
@@ -105,18 +103,22 @@
 	height: var(--ob-ref-size-control-2xs);
 }
 
+.line1,
+.line2:not([data-agent-status]) {
+	padding-inline-end: calc(var(--ob-ref-space-12) + var(--ob-ref-space-0-5));
+}
+
+.row[data-agent-launch] .line1 {
+	padding-inline-end: calc(
+		var(--ob-ref-space-12) + var(--ob-ref-size-control-2xs) + var(--ob-ref-space-1)
+	);
+}
+
 .line2 {
 	height: var(--ob-ref-space-3);
 	color: var(--ob-sys-color-text-muted);
 	font: var(--ob-sys-typography-label-xs);
 	white-space: nowrap;
-}
-
-/* The end area's items all sit on line 1, so a folded Workspace's states run under it to the row's
-   8 px end inset, as the TUI's status line spans the sidebar, and `+N` appears only when they do not
-   fit there. */
-.line2[data-agent-status] {
-	margin-inline-end: calc(-1 * (var(--ob-ref-space-12) + var(--ob-ref-space-0-5)));
 }
 
 /* Text beside icons sits on the icons' center line (G19): trimmed to its cap height and baseline,
@@ -182,6 +184,19 @@
 	visibility: visible;
 }
 
+.row[data-no-agents]:not(:has(.endInfo)) .tool[data-workspace-agent-launch],
+:global([data-workbench-touch]) .tool[data-workspace-agent-launch] {
+	visibility: visible;
+}
+
+:global([data-workbench-touch]) .tool[data-workspace-agent-launch] {
+	order: 1;
+}
+
+:global([data-workbench-touch]) .row[data-agent-launch] .endInfo {
+	inset-inline-end: calc(var(--ob-ref-space-2) + var(--ob-ref-size-control-2xs));
+}
+
 .row:hover .endInfo,
 .row[data-popup-open] .endInfo,
 .row:has(:focus-visible) .endInfo,
@@ -190,6 +205,7 @@
 }
 
 .row[data-drag-ghost] .tools,
+.row[data-drag-ghost] .tool[data-workspace-agent-launch],
 .row[data-drag-ghost] .chevron {
 	visibility: hidden;
 }

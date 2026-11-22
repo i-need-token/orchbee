@@ -8,6 +8,7 @@ export interface WorkbenchActionMenuCommand {
 	readonly id: string;
 	readonly kind: 'command';
 	readonly label: string;
+	readonly leadingMark?: React.ReactNode;
 	readonly onSelect: (event: React.MouseEvent<HTMLElement>) => void;
 	readonly shortcut?: string | undefined;
 }
@@ -50,5 +51,6 @@ export interface WorkbenchActionMenuChoice {
 
 export type WorkbenchActionMenuEntry =
 	| WorkbenchActionMenuCommand
+	| (WorkbenchActionMenuGroup & { readonly kind: 'group' })
 	| WorkbenchActionMenuSeparator
 	| WorkbenchActionMenuSubmenu;

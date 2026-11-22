@@ -2,8 +2,13 @@
 //! framing. Server retains authoritative state and effect admission; callers own transport,
 //! deadlines and presentation of the admitted values.
 
+mod agent_start;
 pub mod agent_view;
 mod user_settings;
+pub use agent_start::{
+    AgentStartSelector, MAXIMUM_AGENT_ARGUMENT_INPUT_BYTES, UserAgentLaunch,
+    UserAgentLaunchSettings, parse_agent_arguments,
+};
 pub use agent_view::{
     AgentViewAction, AgentViewBuiltinField, AgentViewBuiltinSortField, AgentViewContextOperand,
     AgentViewContextValue, AgentViewFailure, AgentViewField, AgentViewFilter, AgentViewOutcome,
@@ -251,7 +256,7 @@ pub use command::{
 };
 
 mod launch_options;
-pub use launch_options::{AgentStartSelector, LaunchOptions, PluginPaneSelector};
+pub use launch_options::{LaunchOptions, PluginPaneSelector};
 mod launch_environment;
 pub use launch_environment::{
     LaunchEnvironment, MAXIMUM_LAUNCH_ENVIRONMENT_BYTES, MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES,

@@ -234,6 +234,28 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.agentConfirmations.rowDescription':
 		'Commands are not checked: one that deletes or uploads files runs too.',
 	'terminal.settings.page.agentConfirmations.request': 'Request more Agents in a GitHub issue.',
+	'terminal.settings.page.agentLaunch.group': 'Launch options',
+	'terminal.settings.page.agentLaunch.description':
+		'Applies to new conversations started by Orchbee.',
+	'terminal.settings.page.agentLaunch.filter': 'Find an Agent',
+	'terminal.settings.page.agentLaunch.yolo': 'YOLO mode',
+	'terminal.settings.page.agentLaunch.yoloDescription':
+		'Start the Agent with its native automatic approval mode.',
+	'terminal.settings.page.agentLaunch.yoloClaude':
+		'Skip Claude Code’s permission prompts at launch.',
+	'terminal.settings.page.agentLaunch.yoloCodex':
+		'Start Codex without approval prompts or sandbox restrictions.',
+	'terminal.settings.page.agentLaunch.yoloGemini':
+		'Start Gemini CLI with tool actions automatically approved.',
+	'terminal.settings.page.agentLaunch.yoloOverride':
+		'Custom launch arguments choose the permission mode.',
+	'terminal.settings.page.agentLaunch.arguments': 'Custom launch arguments',
+	'terminal.settings.page.agentLaunch.argumentsDescription':
+		'Use quotes around argument values that contain spaces.',
+	'terminal.settings.page.agentLaunch.unclosedQuote': 'Close the quote in the launch arguments.',
+	'terminal.settings.page.agentLaunch.invalidArguments':
+		'The launch arguments are invalid or exceed the supported length.',
+	'terminal.settings.page.agentLaunch.preview': 'Launch command preview',
 	'terminal.settings.page.profiles.add': 'Add profile',
 	'terminal.settings.page.profiles.addCustom': 'Custom…',
 	'terminal.settings.page.profiles.shell.commandPrompt': 'Command Prompt',

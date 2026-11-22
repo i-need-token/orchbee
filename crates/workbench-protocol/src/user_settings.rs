@@ -1,8 +1,8 @@
 //! The typed view of the common settings both Clients present, and the value types its fields
 //! use. `orchbee-local-runtime` builds it from `config.toml` keys or a settings snapshot; this
 //! crate owns only the types and their bounds.
+use crate::agent_start::{UserAgentLaunchSettings, parse_agent_arguments};
 use serde::{Deserialize, Serialize};
-
 mod launch;
 pub use launch::{UserLaunchCommand, UserLaunchField, UserLaunchProfile, UserLaunchProfiles};
 
@@ -106,6 +106,9 @@ pub struct UserSettingsValues {
     /// Whether the Server answers OpenCode's routine confirmations for the person.
     #[serde(default)]
     pub auto_allow_opencode: bool,
+    /// Per-provider preferences for new Agent starts made through Orchbee.
+    #[serde(default)]
+    pub agent_launch: UserAgentLaunchSettings,
     pub launch_profiles: UserLaunchProfiles,
 }
 impl Default for UserSettingsValues {
@@ -130,6 +133,7 @@ impl Default for UserSettingsValues {
             auto_allow_codex: false,
             auto_allow_gemini: false,
             auto_allow_opencode: false,
+            agent_launch: UserAgentLaunchSettings::new(),
             launch_profiles: UserLaunchProfiles::default(),
         }
     }
@@ -143,6 +147,10 @@ impl UserSettingsValues {
             && valid_color_theme_id(&self.dark_theme)
             && (1..=3600).contains(&self.completion_reminder_minimum_seconds)
             && self.scrollback_bytes <= 1_000_000_000
+            && self.agent_launch.iter().all(|(provider, launch)| {
+                (!launch.yolo || provider.yolo_flag().is_some())
+                    && parse_agent_arguments(&launch.arguments).is_ok()
+            })
             && self.launch_profiles.is_valid()
     }
 }

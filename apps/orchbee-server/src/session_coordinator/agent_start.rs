@@ -2,7 +2,7 @@
 //! a settled creation leaves for the Server to deliver, publishes that start's failure fact, and
 //! records the Session's Agent starts in its catalog's Recent list. Whether and when anything is
 //! typed belongs to the start delivery.
-use super::SessionCoordinator;
+use super::{LaunchCapture, SessionCoordinator};
 use orchbee_capability_node_protocol::{AgentStartCommand, CapabilityNodeMessage, ProtocolError};
 use orchbee_workbench_protocol::{
     AgentStartFailureReason, AgentStartSelector, PresentationBinding, TerminalPresentationId,
@@ -76,13 +76,22 @@ fn unix_milliseconds() -> Option<u64> {
 /// id rather than with a predictable one.
 pub(super) fn agent_start_command(
     selector: &AgentStartSelector,
+    capture: &LaunchCapture,
 ) -> Result<AgentStartCommand, ProtocolError> {
     let agent = selector.agent();
-    let session = agent.session_option().and_then(|_| conversation_id());
-    AgentStartCommand::new(
-        agent.executable().to_owned(),
-        agent.start_arguments(session.as_deref()),
-    )
+    let extra = capture
+        .agent_launch(*selector)
+        .map(|settings| settings.extra_arguments(*selector))
+        .transpose()
+        .map_err(|_| ProtocolError::InvalidPayload)?
+        .unwrap_or_default();
+    let session = agent
+        .session_option()
+        .filter(|_| !agent.chooses_session(&extra))
+        .and_then(|_| conversation_id());
+    let mut arguments = agent.start_arguments(session.as_deref());
+    arguments.extend(extra);
+    AgentStartCommand::new(agent.executable().to_owned(), arguments)
 }
 
 impl SessionCoordinator {

@@ -68,7 +68,14 @@ export interface TerminalSettingsFontCatalog {
 	listFamilies(): Promise<readonly string[] | null>;
 }
 
+/** The Server catalog also supplies names for Agents that have not been installed yet. */
+export interface AgentLaunchCatalogSource {
+	getSnapshot(): Pick<WorkbenchAgentCatalog, 'agents'> | null;
+	subscribe(listener: () => void): () => void;
+}
+
 export interface TerminalSettingsSurfaceProps {
+	readonly agentCatalog?: AgentLaunchCatalogSource | undefined;
 	/** What About shows; without it Settings has no About category. */
 	readonly about?: TerminalSettingsAbout | undefined;
 	readonly applicationLocaleController: ApplicationLocaleController;
@@ -109,3 +116,4 @@ export interface TerminalColorThemeListView {
 	readonly selectedId: string;
 	readonly settingId: string;
 }
+import type { WorkbenchAgentCatalog } from '@orchbee/workbench-client-protocol';

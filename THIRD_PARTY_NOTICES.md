@@ -384,7 +384,7 @@ Codicons is licensed separately from Orchbee. The upstream copyright and license
 - Source: <https://github.com/lobehub/lobe-icons>
 - Package and revision: `@lobehub/icons-static-svg@1.94.0`, `fbd2d56e3f734e889f1373e71c8368cc4e60e0d7`
 - License: MIT
-- Use in Orchbee: adapted SVG path data for the Claude Code, Cline, Codex, Gemini CLI, GitHub Copilot, Grok, OpenCode, Pi, and Qwen Code Agent identity icons
+- Use in Orchbee: adapted SVG path data for the Amp, Antigravity, Claude Code, Cline, CodeBuddy, Codex, Cursor, Devin, Gemini CLI, GitHub Copilot, Grok, Hermes Agent, Kilo, Kimi, Kiro, MastraCode, MiMo Code, MiniMax Code, OpenClaw, OpenCode, Pi, Qoder CLI, and Qwen Code Agent identity icons, plus the Huawei and Meta marks for DevEco Code and Muse Code
 
 The product names and trademarks represented by these icons remain the property of their respective owners. Their descriptive use does not imply endorsement.
 
@@ -402,6 +402,24 @@ The product names and trademarks represented by these icons remain the property 
 > NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Agent product artwork
+
+These assets are distributed to identify the respective Agents in Orchbee. The marks and product
+names belong to their owners.
+
+| Agent        | Asset source                                                                                                                                                                  |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AtomCode     | [AtomCode website logo](https://cdn-news.gitcode.com/news/logo_1794046182088.png)                                                                                             |
+| Command Code | [Command Code website favicon](https://commandcode.ai/favicon/2024/favicon-32x32.png)                                                                                         |
+| Droid        | [Factory website favicon](https://www.factory.ai/favicon.svg)                                                                                                                 |
+| Jcode        | [Jcode website favicon](https://jcode.sh/favicon.svg)                                                                                                                         |
+| Letta Code   | [Letta website favicon](https://www.letta.com/assets/images/favicon.jpg)                                                                                                      |
+| Maki         | [Maki website favicon](https://maki.sh/favicon-32x32.png)                                                                                                                     |
+| MothX        | [MothX documentation logo](https://mothx.net/assets/mothx-small.png)                                                                                                          |
+| Prime Agent  | [Prime Intellect website favicon](https://cdn.prod.website-files.com/66239f0441b09824acb92c75/671b6f3bbf6572d40beb8cf2_Positive.jpg)                                          |
+| Reasonix     | [Reasonix desktop icon](https://github.com/hardylab/Reasonix/blob/33902e96f3dae3d88dd74a7f12d859a7b6d21119/desktop/build/linux/icons/hicolor/32x32/apps/reasonix-desktop.png) |
+| Snow         | [Snow JetBrains plugin icon](https://github.com/MayDay-wpf/snow-cli/tree/6f008a0e55e8819fb40b3f229e67fc746a725944/JetBrains/src/main/resources/icons)                         |
 
 ## OMP Favicon
 

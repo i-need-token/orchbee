@@ -3,14 +3,18 @@
 use super::{
     DiagnosticsCollector, Scalar, SettingsDiagnosticDisposition, SettingsDiagnostics,
     UserSettingsLoad,
-    registry::{SETTING_KEYS, SETTING_PLATFORMS, SettingDefault, SettingValue, current_platform},
+    registry::{
+        AGENT_ARGUMENTS_PATH, AGENT_YOLO_PATH, SETTING_KEYS, SETTING_PLATFORMS, SettingDefault,
+        SettingValue, current_platform,
+    },
     user_config_has_child,
 };
 use orchbee_workbench_protocol::{
-    ConfigurationDiagnostic, ConfigurationDiagnosticDisposition, ConfigurationDiagnostics,
-    MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED, MAXIMUM_SETTING_TEXT_BYTES,
-    MAXIMUM_SETTINGS_FILE_PATH_BYTES, MAXIMUM_SNAPSHOT_SETTING_KEYS, SettingPath, SettingScalar,
-    SettingsFile, SettingsPlatform, SettingsSnapshot, SettingsSyntaxReason, WorkbenchRevision,
+    AgentStartSelector, ConfigurationDiagnostic, ConfigurationDiagnosticDisposition,
+    ConfigurationDiagnostics, MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED,
+    MAXIMUM_SETTING_TEXT_BYTES, MAXIMUM_SETTINGS_FILE_PATH_BYTES, MAXIMUM_SNAPSHOT_SETTING_KEYS,
+    SettingPath, SettingScalar, SettingsFile, SettingsPlatform, SettingsSnapshot,
+    SettingsSyntaxReason, WorkbenchRevision,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -70,7 +74,7 @@ fn concrete(pattern: &str) -> bool {
     !pattern.contains('*') && !pattern.contains("<action>") && !pattern.contains("[]")
 }
 
-/// Every concrete path of a registered scalar key, `<platform>` spelled out for each platform.
+/// Every concrete path of a registered scalar key, with each platform and startable provider.
 fn scalar_paths() -> impl Iterator<Item = (String, &'static SettingDefault)> {
     SETTING_KEYS
         .iter()
@@ -78,17 +82,21 @@ fn scalar_paths() -> impl Iterator<Item = (String, &'static SettingDefault)> {
             concrete(setting.path) && !matches!(setting.value, SettingValue::Structured(_))
         })
         .flat_map(|setting| {
-            let platforms: &[&str] = if setting.path.contains("<platform>") {
-                &SETTING_PLATFORMS
-            } else {
-                &[""]
+            let paths = match setting.path {
+                AGENT_ARGUMENTS_PATH => AgentStartSelector::all()
+                    .map(AgentStartSelector::arguments_key)
+                    .collect(),
+                AGENT_YOLO_PATH => AgentStartSelector::all()
+                    .filter(|agent| agent.yolo_flag().is_some())
+                    .map(AgentStartSelector::yolo_key)
+                    .collect(),
+                path if path.contains("<platform>") => SETTING_PLATFORMS
+                    .iter()
+                    .map(|platform| path.replace("<platform>", platform))
+                    .collect(),
+                path => vec![path.to_owned()],
             };
-            platforms.iter().map(move |platform| {
-                (
-                    setting.path.replace("<platform>", platform),
-                    &setting.default,
-                )
-            })
+            paths.into_iter().map(move |path| (path, &setting.default))
         })
 }
 

@@ -1,3 +1,10 @@
+import {
+	AGENT_YOLO_PROVIDERS,
+	WorkbenchAgentStartProviderSchema,
+	type AgentYoloProvider,
+	type WorkbenchAgentStartProvider,
+} from './agent-launch-settings';
+
 /**
  * The settings registry's key table, mirrored from `schemas/workbench/v1/setting-keys-v1.json`,
  * which the Rust registry generates. A unit test keeps the two equal; edit the registry and copy the
@@ -604,6 +611,29 @@ export const SETTING_KEY_TABLE = {
 			page: false,
 		},
 		{
+			path: 'agents.launch.<agent>.arguments',
+			type: 'text',
+			maximumBytes: 2048,
+			default: '',
+			scope: 'server',
+			clients: 'both',
+			effect: 'new-terminals',
+			category: 'agents',
+			group: 'agent-launch',
+			page: true,
+		},
+		{
+			path: 'agents.launch.<yolo-agent>.yolo',
+			type: 'boolean',
+			default: false,
+			scope: 'server',
+			clients: 'both',
+			effect: 'new-terminals',
+			category: 'agents',
+			group: 'agent-launch',
+			page: true,
+		},
+		{
 			path: 'agents.auto_allow.claude',
 			type: 'boolean',
 			default: false,
@@ -689,11 +719,18 @@ export type SettingsPlatform = (typeof SETTING_KEY_TABLE)['platforms'][number];
 type ScalarDefinition = Exclude<SettingKeyDefinition, { readonly type: 'structured' }>;
 /** A path that names an open set of keys, such as one per Agent or per action, lists no value. */
 type OpenPath = `${string}*${string}` | `${string}[]${string}` | `${string}<action>${string}`;
+type SettingsAgentId<Agent extends string> = Agent extends `${infer First}-${infer Rest}`
+	? `${First}_${SettingsAgentId<Rest>}`
+	: Agent;
 type ConcretePath<Path extends string> = Path extends OpenPath
 	? never
 	: Path extends `${infer Head}<platform>${infer Tail}`
 		? `${Head}${SettingsPlatform}${Tail}`
-		: Path;
+		: Path extends `${infer Head}<agent>${infer Tail}`
+			? `${Head}${SettingsAgentId<WorkbenchAgentStartProvider>}${Tail}`
+			: Path extends `${infer Head}<yolo-agent>${infer Tail}`
+				? `${Head}${SettingsAgentId<AgentYoloProvider>}${Tail}`
+				: Path;
 type DefinitionValue<Definition> = Definition extends { readonly type: 'boolean' }
 	? boolean
 	: Definition extends { readonly type: 'integer' }
@@ -722,10 +759,43 @@ const utf8 = new TextEncoder();
 const definitions = new Map<string, ScalarDefinition>();
 for (const definition of SETTING_KEY_TABLE.keys) {
 	if (definition.type === 'structured' || /\*|\[\]|<action>/u.test(definition.path)) continue;
-	const paths = definition.path.includes('<platform>')
-		? SETTING_KEY_TABLE.platforms.map((platform) => definition.path.replace('<platform>', platform))
-		: [definition.path];
-	for (const path of paths) definitions.set(path, definition);
+	const path = definition.path;
+	let paths: readonly string[] = [path];
+	if (path.includes('<platform>')) {
+		paths = SETTING_KEY_TABLE.platforms.map((platform) => path.replace('<platform>', platform));
+	} else if (path.includes('<agent>')) {
+		paths = WorkbenchAgentStartProviderSchema.options.map((agent) =>
+			path.replace('<agent>', agent.replaceAll('-', '_')),
+		);
+	} else if (path.includes('<yolo-agent>')) {
+		paths = AGENT_YOLO_PROVIDERS.map((agent) =>
+			path.replace('<yolo-agent>', agent.replaceAll('-', '_')),
+		);
+	}
+	for (const key of paths) definitions.set(key, definition);
+}
+
+type AgentArgumentsKey = Extract<SettingKey, `agents.launch.${string}.arguments`>;
+type AgentYoloKey = Extract<SettingKey, `agents.launch.${string}.yolo`>;
+
+function isAgentArgumentsKey(key: string): key is AgentArgumentsKey {
+	return key.startsWith('agents.launch.') && key.endsWith('.arguments') && definitions.has(key);
+}
+
+function isAgentYoloKey(key: string): key is AgentYoloKey {
+	return key.startsWith('agents.launch.') && key.endsWith('.yolo') && definitions.has(key);
+}
+
+export function agentArgumentsKey(provider: WorkbenchAgentStartProvider): AgentArgumentsKey {
+	const key = `agents.launch.${provider.replaceAll('-', '_')}.arguments`;
+	if (!isAgentArgumentsKey(key)) throw new Error(`The settings registry is missing ${key}.`);
+	return key;
+}
+
+export function agentYoloKey(provider: AgentYoloProvider): AgentYoloKey {
+	const key = `agents.launch.${provider.replaceAll('-', '_')}.yolo`;
+	if (!isAgentYoloKey(key)) throw new Error(`The settings registry is missing ${key}.`);
+	return key;
 }
 
 function text(value: unknown, maximumBytes: number): value is string {

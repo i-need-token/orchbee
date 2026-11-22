@@ -269,6 +269,7 @@ fn a_session_without_the_prompt_gate_disables_only_this_panel() {
         PickerOutcome::Start(PickedStart {
             provider: "codex",
             place: NewTab,
+            workspace: None,
         })
     );
 
@@ -279,6 +280,7 @@ fn a_session_without_the_prompt_gate_disables_only_this_panel() {
         PickerOutcome::Start(PickedStart {
             provider: "codex",
             place: ThisPanel(focused.clone()),
+            workspace: None,
         })
     );
 }

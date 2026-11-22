@@ -323,8 +323,8 @@ pub(crate) fn program_within_bounds(executable: &str, arguments: &[String]) -> b
 
 /// The command an interactive shell runs first, resolved by the Server from the startable Agent
 /// catalog: a bare command name the shell resolves on its own search path, then literal
-/// arguments. Every token is plain ASCII without spaces, quotes or shell syntax, so a shell that
-/// takes it never reads it as code.
+/// arguments. The executable is a plain name. The receiving shell adapter quotes each argument
+/// as a literal word.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AgentStartCommand {
     program: String,
@@ -332,12 +332,12 @@ pub struct AgentStartCommand {
 }
 
 /// The most arguments one Agent start command carries.
-pub const MAXIMUM_AGENT_START_ARGUMENTS: usize = 8;
+pub const MAXIMUM_AGENT_START_ARGUMENTS: usize = 32;
 
 impl AgentStartCommand {
     /// # Errors
-    /// Refuses an empty, oversized or option-like program, too many arguments, and any token
-    /// outside `[A-Za-z0-9._:=-]`.
+    /// Refuses an empty, oversized or option-like program, too many arguments, or arguments
+    /// with control characters or more than 4096 bytes in total.
     pub fn new(program: String, arguments: Vec<String>) -> Result<Self, ProtocolError> {
         let token = |value: &str, maximum: usize| {
             !value.is_empty()
@@ -349,7 +349,10 @@ impl AgentStartCommand {
         if !token(&program, 64)
             || program.starts_with(['-', '.'])
             || arguments.len() > MAXIMUM_AGENT_START_ARGUMENTS
-            || !arguments.iter().all(|argument| token(argument, 128))
+            || arguments
+                .iter()
+                .any(|argument| argument.chars().any(char::is_control))
+            || arguments.iter().map(String::len).sum::<usize>() > 4096
         {
             return Err(ProtocolError::InvalidPayload);
         }

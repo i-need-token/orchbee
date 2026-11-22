@@ -12,7 +12,10 @@ import {
 } from '@orchbee/ui/components';
 import type * as React from 'react';
 
-import type { WorkbenchActionMenuEntry } from '../../types/workbench-action-menu';
+import type {
+	WorkbenchActionMenuCommand,
+	WorkbenchActionMenuEntry,
+} from '../../types/workbench-action-menu';
 
 interface WorkbenchActionDropdownMenuContentProps {
 	readonly align?: 'end' | 'start';
@@ -31,6 +34,20 @@ export function WorkbenchActionDropdownMenuContent({
 	side = 'bottom',
 	sideOffset,
 }: WorkbenchActionDropdownMenuContentProps): React.ReactNode {
+	const commandItem = (command: WorkbenchActionMenuCommand) => (
+		<DropdownMenuItem
+			key={command.id}
+			disabled={command.disabled}
+			variant={command.destructive === true ? 'destructive' : 'default'}
+			onClick={command.onSelect}
+		>
+			{command.leadingMark ?? <ProductIcon name={command.icon} size='menu-leading' />}
+			{command.label}
+			{command.shortcut === undefined ? null : (
+				<DropdownMenuShortcut>{command.shortcut}</DropdownMenuShortcut>
+			)}
+		</DropdownMenuItem>
+	);
 	return (
 		<DropdownMenuContent
 			align={align}
@@ -42,19 +59,15 @@ export function WorkbenchActionDropdownMenuContent({
 			{entries.map((entry) => {
 				switch (entry.kind) {
 					case 'command':
+						return commandItem(entry);
+					case 'group':
 						return (
-							<DropdownMenuItem
-								key={entry.id}
-								disabled={entry.disabled}
-								variant={entry.destructive === true ? 'destructive' : 'default'}
-								onClick={entry.onSelect}
-							>
-								<ProductIcon name={entry.icon} size='menu-leading' />
-								{entry.label}
-								{entry.shortcut === undefined ? null : (
-									<DropdownMenuShortcut>{entry.shortcut}</DropdownMenuShortcut>
+							<DropdownMenuGroup key={entry.id}>
+								{entry.label === undefined ? null : (
+									<DropdownMenuLabel>{entry.label}</DropdownMenuLabel>
 								)}
-							</DropdownMenuItem>
+								{entry.commands.map(commandItem)}
+							</DropdownMenuGroup>
 						);
 					case 'separator':
 						return <DropdownMenuSeparator key={entry.id} />;
@@ -71,20 +84,7 @@ export function WorkbenchActionDropdownMenuContent({
 											{group.label === undefined ? null : (
 												<DropdownMenuLabel>{group.label}</DropdownMenuLabel>
 											)}
-											{group.commands.map((command) => (
-												<DropdownMenuItem
-													key={command.id}
-													disabled={command.disabled}
-													variant={command.destructive === true ? 'destructive' : 'default'}
-													onClick={command.onSelect}
-												>
-													<ProductIcon name={command.icon} size='menu-leading' />
-													{command.label}
-													{command.shortcut === undefined ? null : (
-														<DropdownMenuShortcut>{command.shortcut}</DropdownMenuShortcut>
-													)}
-												</DropdownMenuItem>
-											))}
+											{group.commands.map(commandItem)}
 										</DropdownMenuGroup>
 									))}
 								</DropdownMenuSubContent>

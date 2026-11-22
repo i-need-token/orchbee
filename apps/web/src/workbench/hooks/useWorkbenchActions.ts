@@ -313,6 +313,7 @@ export function useWorkbenchActions({
 						agentCatalog: authority.agentCatalog,
 						authority,
 						beginTerminalHandover: focusRouting.beginTerminalHandover,
+						navigation,
 						openAgentStart,
 						projectWorkspaceRuntime,
 						scope,

@@ -131,6 +131,8 @@ fn example_table(segments: &[&str]) -> String {
             segment
                 .trim_end_matches("[]")
                 .replace("<platform>", SETTING_PLATFORMS[0])
+                .replace("<agent>", "claude_code")
+                .replace("<yolo-agent>", "claude_code")
         })
         .collect::<Vec<_>>()
         .join(".")

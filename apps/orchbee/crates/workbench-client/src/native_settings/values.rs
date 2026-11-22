@@ -95,6 +95,10 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
         return;
     }
     match draft.row {
+        Row::AgentYolo(provider) => {
+            let launch = values.agent_launch.entry(provider).or_default();
+            launch.yolo = !launch.yolo;
+        }
         Row::CompletionThreshold => {
             values.completion_reminder_minimum_seconds = u16::try_from(step_integer(
                 u64::from(values.completion_reminder_minimum_seconds),
@@ -233,6 +237,12 @@ pub(super) fn add_profile(draft: &mut Draft, shell: Option<&InstalledShell>) {
 pub(super) fn text(draft: &Draft) -> Option<String> {
     let values = &draft.values;
     match draft.row {
+        Row::AgentArguments(provider) => Some(
+            values
+                .agent_launch
+                .get(&provider)
+                .map_or_else(String::new, |launch| launch.arguments.clone()),
+        ),
         Row::PrefixKey => Some(draft.text_value(draft.row).unwrap_or_default().to_owned()),
         Row::Foreground => Some(values.custom_foreground.clone()),
         Row::Background => Some(values.custom_background.clone()),
@@ -311,6 +321,17 @@ pub(super) fn requirement(row: Row) -> Option<SettingsTextRequirement> {
 /// Writes an accepted text into the page's values; false leaves them as they were.
 pub(super) fn accept_text(draft: &mut Draft, value: String) -> bool {
     match draft.row {
+        Row::AgentArguments(provider) => {
+            let Ok(arguments) = orchbee_workbench_protocol::parse_agent_arguments(&value) else {
+                return false;
+            };
+            let launch = draft.values.agent_launch.entry(provider).or_default();
+            launch.arguments = if arguments.is_empty() {
+                String::new()
+            } else {
+                value
+            };
+        }
         Row::Foreground | Row::Background => {
             if value.len() != 7
                 || !value.starts_with('#')

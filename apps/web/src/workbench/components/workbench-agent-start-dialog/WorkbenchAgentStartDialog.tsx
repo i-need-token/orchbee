@@ -19,8 +19,9 @@ import type {
 	WorkbenchAgentCatalogSource,
 	WorkbenchAgentStartInput,
 	WorkbenchAgentStartPlace,
+	WorkbenchAgentStartWorkspace,
 } from '../../types/workbench-agent-start';
-import { WorkbenchAgentProviderIcon } from '../workbench-agent-provider-icon/WorkbenchAgentProviderIcon';
+import { AgentProviderIcon } from '../../../agent-provider-icon';
 import {
 	useWorkbenchAgentStartDialog,
 	type WorkbenchAgentStartProviderRowView,
@@ -34,6 +35,7 @@ interface WorkbenchAgentStartDialogProps {
 	readonly onStart: (input: WorkbenchAgentStartInput) => void;
 	/** The places a start can use now; the first is the default. */
 	readonly places: readonly WorkbenchAgentStartPlace[];
+	readonly workspace?: WorkbenchAgentStartWorkspace | undefined;
 }
 
 /** Start Agent: the Session's Agents to start, one per row, and where the started Agent opens. */
@@ -43,8 +45,9 @@ export function WorkbenchAgentStartDialog({
 	onClose,
 	onStart,
 	places,
+	workspace,
 }: WorkbenchAgentStartDialogProps): React.ReactNode {
-	const view = useWorkbenchAgentStartDialog({ catalog, onStart, places });
+	const view = useWorkbenchAgentStartDialog({ catalog, onStart, places, workspace });
 	const option = (row: WorkbenchAgentStartProviderRowView): React.ReactNode => (
 		<div
 			aria-selected={row.highlighted}
@@ -58,7 +61,7 @@ export function WorkbenchAgentStartDialog({
 			onDoubleClick={row.onDoubleClick}
 		>
 			<span aria-hidden='true' className={styles['icon']}>
-				<WorkbenchAgentProviderIcon
+				<AgentProviderIcon
 					agents={[row.providerId]}
 					gradientPrefix={`${view.gradientPrefix}-${row.providerId}`}
 				/>
@@ -152,28 +155,34 @@ export function WorkbenchAgentStartDialog({
 					{view.status?.message ?? '\u00A0'}
 				</p>
 				<DialogFooter className={styles['footer']}>
-					<span className={styles['place']}>
-						<label className={styles['placeLabel']} htmlFor={view.placeId}>
-							{view.opensInLabel}
-						</label>
-						<Select
-							disabled={view.places.length === 0}
-							items={view.places}
-							value={view.place === '' ? null : view.place}
-							onValueChange={view.onPlaceChange}
-						>
-							<SelectTrigger id={view.placeId} size='sm'>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{view.places.map((place) => (
-									<SelectItem key={place.value} value={place.value}>
-										{place.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</span>
+					{view.destination === null ? (
+						<span className={styles['place']}>
+							<label className={styles['placeLabel']} htmlFor={view.placeId}>
+								{view.opensInLabel}
+							</label>
+							<Select
+								disabled={view.places.length === 0}
+								items={view.places}
+								value={view.place === '' ? null : view.place}
+								onValueChange={view.onPlaceChange}
+							>
+								<SelectTrigger id={view.placeId} size='sm'>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{view.places.map((place) => (
+										<SelectItem key={place.value} value={place.value}>
+											{place.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</span>
+					) : (
+						<span className={styles['place']}>
+							<span className={styles['placeLabel']}>{view.destination}</span>
+						</span>
+					)}
 					<Button className={styles['action']} type='button' variant='outline' onClick={onClose}>
 						{view.cancelLabel}
 					</Button>

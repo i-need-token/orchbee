@@ -4,8 +4,8 @@ use super::*;
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use orchbee_local_runtime::UserSettingsField;
 use orchbee_workbench_protocol::{
-    ApplicationAppearance, SettingChange, SettingPath, SettingValue, SettingsPlatform,
-    WorkbenchRevision,
+    AgentStartSelector, ApplicationAppearance, SettingChange, SettingPath, SettingValue,
+    SettingsPlatform, WorkbenchRevision,
 };
 
 /// The snapshot the Server publishes at `revision` for a file that gives `values` and sets `set`.
@@ -118,6 +118,29 @@ fn every_common_setting_has_one_row_with_one_place_on_the_page() {
             .filter(|row| row.setting().is_some_and(|metadata| metadata.key == field))
             .count();
         assert_eq!(rows, 1, "{field:?} has exactly one row and one place");
+    }
+    let defaults = UserSettingsValues::default();
+    for provider in AgentStartSelector::all() {
+        let link = Row::AgentLaunchProvider(provider);
+        assert_eq!(placed.iter().filter(|row| **row == link).count(), 1);
+        let mut keys: Vec<_> = catalog::entries(
+            Page::AgentLaunch(provider),
+            Category::Agents,
+            catalog::Filter::of("", &defaults, false),
+            None,
+        )
+        .into_iter()
+        .filter_map(|entry| match entry {
+            Entry::Setting(row) => row.agent_launch_key(),
+            _ => None,
+        })
+        .collect();
+        keys.sort();
+        let mut expected = vec![provider.arguments_key()];
+        if provider.yolo_flag().is_some() {
+            expected.push(provider.yolo_key());
+        }
+        assert_eq!(keys, expected);
     }
     let setting = |row: Row| row.setting().expect("a row that edits a common setting");
     assert_eq!(

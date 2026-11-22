@@ -967,6 +967,15 @@ impl WorkbenchClientUi {
                 .is_hidden()
             },
         );
+        if matches!(&entry, MenuTarget::Workspace(_))
+            && self
+                .capabilities
+                .supports(crate::tui_capabilities::Capability::AgentLaunch)
+            && self.board.can_start_agent()
+            && live
+        {
+            actions.insert(0, MenuAction::StartAgent);
+        }
         // A single profile without Agents is the button's own click, so it opens no menu.
         if tab_profiles && actions.len() < 2 {
             return false;
@@ -1968,6 +1977,15 @@ impl WorkbenchClientUi {
             self.menus.menu.take()?;
             self.menus.end();
             self.open_agent_picker_in_new_tab();
+            return None;
+        }
+        if action == MenuAction::StartAgent
+            && let Target::Workspace { location, .. } = intent.target()
+        {
+            let location = location.clone();
+            self.menus.menu.take()?;
+            self.menus.end();
+            self.open_workspace_agent_picker(location);
             return None;
         }
         // The Server answers on a later turn; nothing here waits for it.

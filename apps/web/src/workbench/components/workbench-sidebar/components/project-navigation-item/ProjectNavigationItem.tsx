@@ -21,6 +21,7 @@ import type { WorkbenchActionMenuEntry } from '../../../../types/workbench-actio
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../types/workbench-agent-overview';
 import type { SidebarDragItem } from '../../model/sidebar-drag-destination';
 import type { WorkbenchSidebarWorkspaceLocation } from '../../hooks/useWorkbenchSidebarWorkspaceLocations';
+import type { WorkspaceAgentMenu } from '../../hooks/useWorkspaceAgentMenu';
 import type { ProjectWorktreeRows, WorkspaceWorktreeMenu } from '../../hooks/useWorkspaceWorktrees';
 import type {
 	WorkbenchProjectNavigationMessages,
@@ -77,6 +78,7 @@ interface ProjectNavigationItemProps {
 	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
+	readonly agentMenu?: WorkspaceAgentMenu | undefined;
 	readonly workspaceLocations: ReadonlyMap<string, WorkbenchSidebarWorkspaceLocation>;
 	readonly worktreeMenu: (workspaceId: string) => WorkspaceWorktreeMenu;
 }
@@ -117,6 +119,7 @@ export function ProjectNavigationItem({
 	toggleRecentsExpansion,
 	toggleWorkspaceAgents,
 	workspaceAgentOverviews,
+	agentMenu,
 	workspaceLocations,
 	worktreeMenu,
 }: ProjectNavigationItemProps): ReactNode {
@@ -314,6 +317,7 @@ export function ProjectNavigationItem({
 							agentOverview={workspaceAgentOverviews.find(
 								(overview) => overview.workspaceId === workspace.id,
 							)}
+							agentMenu={agentMenu}
 							deleteWorkspace={deleteWorkspace}
 							dragging={workspace.id === heldWorkspaceId}
 							location={workspaceLocations.get(workspace.id)}

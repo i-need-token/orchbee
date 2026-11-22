@@ -1,6 +1,7 @@
 import type { ActionAvailability, ActionExecutionContext, ActionResult } from '@orchbee/actions';
 import type { TabStripTabCreationIntent } from '@orchbee/tab-strip';
 
+import { findWorkbenchWorkspace } from '../../project-workspace';
 import type { WorkbenchTerminalCreateInput } from './workbench-action-ids';
 import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
@@ -10,12 +11,17 @@ import type {
 	WorkbenchTabDuplicationStop,
 } from '../types/workbench-authority';
 import type { WorkbenchTerminalHandover } from '../types/workbench-focus-routing';
-import type { WorkbenchTerminalCreateRequest } from '../types/workbench-host-actions';
+import type {
+	WorkbenchNavigationPort,
+	WorkbenchTerminalCreateRequest,
+} from '../types/workbench-host-actions';
 
 interface SharedTabCreationOptions {
 	readonly authority: WorkbenchAuthority;
 	readonly beginTerminalHandover: () => WorkbenchTerminalHandover;
+	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly runtime: WorkbenchProjectWorkspaceRuntime;
+	readonly workspaceId?: string | undefined;
 }
 
 interface SharedTabDuplicationOptions {
@@ -80,15 +86,22 @@ function withoutReceipt<Receipt>(result: ActionResult<Receipt>): ActionResult<vo
 export async function createSharedTab(
 	context: ActionExecutionContext,
 	creation: Omit<WorkbenchAuthorityTabCreation, 'terminalContextId'>,
-	{ authority, beginTerminalHandover, runtime }: SharedTabCreationOptions,
+	{ authority, beginTerminalHandover, navigation, runtime, workspaceId }: SharedTabCreationOptions,
 ): Promise<ActionResult<void>> {
-	const origin = runtime.getSnapshot().activeLocation;
-	const originContext = runtime.getActiveTerminalContext();
-	if (originContext === null) return ACTIVE_TAB_UNAVAILABLE;
+	const state = runtime.getSnapshot();
+	const origin = state.activeLocation;
+	const workspace =
+		workspaceId === undefined ? undefined : findWorkbenchWorkspace(state, workspaceId);
+	if (workspaceId !== undefined && workspace === undefined) return ACTIVE_TAB_UNAVAILABLE;
+	const target =
+		workspace === undefined
+			? runtime.getActiveTerminalContext()
+			: runtime.getTerminalContext(workspace.terminalContextId);
+	if (target === null) return ACTIVE_TAB_UNAVAILABLE;
 	const handover = beginTerminalHandover();
 	const created = await authority.createTab(context, {
 		...creation,
-		terminalContextId: originContext.terminalContextId,
+		terminalContextId: target.terminalContextId,
 	});
 	if (created.kind !== 'completed' || created.value === undefined) return withoutReceipt(created);
 	const { tabId, terminalContextId } = created.value;
@@ -100,6 +113,25 @@ export async function createSharedTab(
 		workbenchActiveLocationsEqual(origin, runtime.getSnapshot().activeLocation)
 	) {
 		tabModel.selectTab(tabId);
+		if (
+			workspace !== undefined &&
+			(origin.kind !== 'workspace' || origin.workspaceId !== workspace.id)
+		) {
+			if (navigation === undefined) {
+				const activated = runtime.transition({
+					type: 'workspace-activated',
+					workspaceId: workspace.id,
+				});
+				if (activated.outcome === 'rejected') return { kind: 'completed' };
+			} else {
+				const entered = await navigation.navigate(context, {
+					kind: 'workspace',
+					workspaceId: workspace.id,
+				});
+				if (entered.kind !== 'completed' && entered.kind !== 'unchanged')
+					return { kind: 'completed' };
+			}
+		}
 		handover.complete();
 	}
 	return { kind: 'completed' };

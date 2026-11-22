@@ -5,6 +5,28 @@
 /// Program discovery excludes aliases/functions; references and arguments are never script source.
 #[must_use]
 pub fn windows_encoded_command(program: &str, args: &[String]) -> Option<String> {
+    let invocation = windows_program_invocation(program, args)?;
+    let script = format!(
+        "$OutputEncoding=[Text.UTF8Encoding]::new($false);[Console]::OutputEncoding=$OutputEncoding; {invocation}"
+    );
+    let bytes: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let encoded = base64(&bytes);
+    // Leave room for the absolute shell and switches below CreateProcessW's 32,767 UTF-16 limit.
+    (encoded.len() <= 30_000).then_some(encoded)
+}
+
+/// Carries the same literal argv through cmd's shorter interactive command line.
+pub(crate) fn windows_cmd_program_invocation(program: &str, args: &[String]) -> Option<String> {
+    let invocation = windows_program_invocation(program, args)?;
+    let encoded = base64(invocation.as_bytes());
+    let line = format!(
+        r#""%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "& ([scriptblock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{encoded}'))))""#
+    );
+    (line.len() <= 8191).then_some(line)
+}
+
+/// Resolves a program and starts it with literal argv in a PowerShell command.
+pub(crate) fn windows_program_invocation(program: &str, args: &[String]) -> Option<String> {
     if program.is_empty()
         || program.chars().any(char::is_control)
         || args.len() > 128
@@ -18,20 +40,21 @@ pub fn windows_encoded_command(program: &str, args: &[String]) -> Option<String>
         .map(|arg| literal(arg))
         .collect::<Vec<_>>()
         .join(",");
-    // The helper never prompts, so it carries only UTF-8 console and pipeline encoding,
-    // not the interactive prompt or reader integration; its echo stays short.
-    let script = format!(
-        "$OutputEncoding=[Text.UTF8Encoding]::new($false);[Console]::OutputEncoding=$OutputEncoding; & {{ $ErrorActionPreference='Stop';$c=Get-Command {} -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1;$a=@({values});{} }}",
+    Some(format!(
+        "& {{ $ErrorActionPreference='Stop';$c=Get-Command {} -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1;$a=@({values});{} }}",
         literal(program),
         include_str!("windows.ps1")
-    );
-    let bytes: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
-    let encoded = base64(&bytes);
-    // Leave room for the absolute shell and switches below CreateProcessW's 32,767 UTF-16 limit.
-    (encoded.len() <= 30_000).then_some(encoded)
+    ))
 }
 
 fn literal(value: &str) -> String {
+    // PowerShell recognizes smart quote characters as delimiters too.
+    if value.contains(['\u{2018}', '\u{2019}', '\u{201a}', '\u{201b}']) {
+        return format!(
+            "([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{}')))",
+            base64(value.as_bytes())
+        );
+    }
     format!("'{}'", value.replace('\'', "''"))
 }
 
@@ -87,7 +110,7 @@ pub fn windows_raw_command_encoded(
     (encoded.len() <= 28 * 1024).then_some(encoded)
 }
 
-// RFC 4648 standard alphabet, used only for the PowerShell UTF-16LE boundary.
+// RFC 4648 standard alphabet for carrying data through PowerShell.
 fn base64(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);

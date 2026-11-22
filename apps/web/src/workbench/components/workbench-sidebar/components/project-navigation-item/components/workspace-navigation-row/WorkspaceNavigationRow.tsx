@@ -6,7 +6,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from '@orchbee/ui/components';
-import type { MouseEvent, PointerEvent, ReactNode } from 'react';
+import { useRef, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 
 import type {
 	ProjectWorkspaceState,
@@ -22,6 +22,7 @@ import type { WorkbenchActionMenuEntry } from '../../../../../../types/workbench
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../../../types/workbench-agent-overview';
 import { WorkbenchActionContextMenuContent } from '../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import type { WorkbenchSidebarWorkspaceLocation } from '../../../../hooks/useWorkbenchSidebarWorkspaceLocations';
+import type { WorkspaceAgentMenu } from '../../../../hooks/useWorkspaceAgentMenu';
 import type { WorkspaceWorktreeMenu } from '../../../../hooks/useWorkspaceWorktrees';
 import type { WorkbenchProjectNavigationMessages } from '../../../../types/workbench-sidebar-types';
 import { SidebarTruncationTooltip } from '../../../sidebar-truncation-tooltip/SidebarTruncationTooltip';
@@ -62,6 +63,7 @@ interface WorkspaceNavigationRowProps {
 		origin: WorkbenchTerminalLocationActivationOrigin,
 	) => void;
 	readonly agentOverview: WorkbenchWorkspaceAgentOverviewView | undefined;
+	readonly agentMenu?: WorkspaceAgentMenu | undefined;
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	/** Held by a drag: it stands where it would land, its disclosure and Agent rows tucked away. */
 	readonly dragging: boolean;
@@ -92,6 +94,7 @@ export function WorkspaceNavigationRow({
 	active,
 	activateWorkspace,
 	agentOverview,
+	agentMenu,
 	deleteWorkspace,
 	dragging,
 	location,
@@ -118,6 +121,8 @@ export function WorkspaceNavigationRow({
 	const unread = folded && agentOverview.unreadLabel !== undefined;
 	// A row whose directory just moved keeps its old name until its new location settles.
 	const name = location?.heldName ?? workspace.name;
+	const main = useRef<HTMLButtonElement>(null);
+	const startTarget = { id: workspace.id, name };
 	// A branch that repeats the name, as a worktree named after its branch does, gives way to the
 	// folder, as in the TUI.
 	const line =
@@ -127,6 +132,17 @@ export function WorkspaceNavigationRow({
 	const ahead = location?.ahead ?? 0;
 	const behind = location?.behind ?? 0;
 	const menuEntries: readonly WorkbenchActionMenuEntry[] = [
+		...(agentMenu === undefined
+			? []
+			: [
+					{
+						icon: 'agent',
+						id: 'start-workspace-agent',
+						kind: 'command',
+						label: agentMenu.label,
+						onSelect: () => agentMenu.open(startTarget, main.current),
+					} as const,
+				]),
 		workspaceMoveToProjectMenu({
 			messages,
 			setWorkspaceProject,
@@ -180,6 +196,8 @@ export function WorkspaceNavigationRow({
 					render={
 						<div
 							className={styles['row']}
+							data-agent-launch={agentMenu === undefined ? undefined : ''}
+							data-no-agents={agentOverview === undefined ? '' : undefined}
 							data-current={active || undefined}
 							data-navigation-reorder-row='true'
 							onClick={activate}
@@ -203,6 +221,7 @@ export function WorkspaceNavigationRow({
 							.filter((part) => typeof part === 'string')
 							.join('. ')}
 						className={styles['rowMain']}
+						ref={main}
 						data-sidebar-nav='workspace'
 						data-slot='workbench-sidebar-workspace'
 						tabIndex={-1}
@@ -266,6 +285,32 @@ export function WorkspaceNavigationRow({
 						</span>
 					) : null}
 					<span className={styles['tools']}>
+						{agentMenu === undefined ? null : (
+							<Tooltip>
+								<WorkbenchSidebarDropdownMenu
+									entries={agentMenu.entries(startTarget, () => main.current)}
+									onOpenChange={(open) => {
+										if (open) agentMenu.refresh();
+									}}
+									trigger={
+										<TooltipTrigger
+											render={
+												<button
+													aria-label={`${agentMenu.label}: ${name}`}
+													className={styles['tool']}
+													data-navigation-reorder-excluded='true'
+													data-workspace-agent-launch=''
+													tabIndex={-1}
+													type='button'
+												/>
+											}
+										/>
+									}
+									triggerContent={<ProductIcon name='add' />}
+								/>
+								<TooltipContent side='bottom'>{agentMenu.label}</TooltipContent>
+							</Tooltip>
+						)}
 						<Tooltip>
 							<WorkbenchSidebarDropdownMenu
 								onOpenChange={(open) => {

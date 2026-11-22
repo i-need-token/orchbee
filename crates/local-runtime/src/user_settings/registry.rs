@@ -3,6 +3,12 @@
 //! The reader, the offline reference, unknown-key detection, diagnostic bundles and the editor all
 //! derive their key knowledge from [`SETTING_KEYS`]; no second list of keys exists.
 use super::{keys::ACTIONS, notifications::MAXIMUM_NOTIFICATION_DELAY_SECONDS};
+use orchbee_workbench_protocol::{
+    AgentStartSelector, MAXIMUM_AGENT_ARGUMENT_INPUT_BYTES, parse_agent_arguments,
+};
+
+pub(super) const AGENT_ARGUMENTS_PATH: &str = "agents.launch.<agent>.arguments";
+pub(super) const AGENT_YOLO_PATH: &str = "agents.launch.<yolo-agent>.yolo";
 
 /// Longest color-theme id, the bound the typed values admit.
 const THEME_ID_BYTES: usize = 64;
@@ -44,6 +50,7 @@ pub enum SettingGroup {
     Basics,
     Restore,
     Confirmations,
+    AgentLaunch,
     Updates,
     Theme,
     TerminalColors,
@@ -68,6 +75,7 @@ impl SettingGroup {
             Self::Basics => "basics",
             Self::Restore => "restore",
             Self::Confirmations => "confirmations",
+            Self::AgentLaunch => "agent-launch",
             Self::Updates => "updates",
             Self::Theme => "theme",
             Self::TerminalColors => "tcolors",
@@ -763,6 +771,29 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Popup height; popup commands only.",
     ),
     key(
+        AGENT_ARGUMENTS_PATH,
+        V::Text {
+            maximum_bytes: MAXIMUM_AGENT_ARGUMENT_INPUT_BYTES,
+            shape: "literal arguments separated by spaces, with single or double quotes for grouping",
+        },
+        D::Text(""),
+        (C::Agents, G::AgentLaunch),
+        SERVER,
+        "Extra arguments for a new Agent start. Use its provider ID with underscores in the table name.",
+    )
+    .page()
+    .effect(SettingEffect::NewTerminals),
+    key(
+        AGENT_YOLO_PATH,
+        V::Boolean,
+        D::Boolean(false),
+        (C::Agents, G::AgentLaunch),
+        SERVER,
+        "Start a supported Agent with its native YOLO mode. An explicit permission option in arguments takes precedence.",
+    )
+    .page()
+    .effect(SettingEffect::NewTerminals),
+    key(
         "agents.auto_allow.claude",
         V::Boolean,
         D::Boolean(false),
@@ -836,8 +867,15 @@ fn segment_matches(pattern: &str, segment: &str) -> bool {
         "*" => true,
         "<action>" => ACTIONS.contains(&segment),
         "<platform>" => SETTING_PLATFORMS.contains(&segment),
+        "<agent>" => settings_agent(segment).is_some(),
+        "<yolo-agent>" => settings_agent(segment).is_some_and(|agent| agent.yolo_flag().is_some()),
         _ => pattern == segment,
     }
+}
+
+fn settings_agent(segment: &str) -> Option<AgentStartSelector> {
+    AgentStartSelector::parse(&segment.replace('_', "-"))
+        .filter(|agent| agent.settings_id() == segment)
 }
 
 fn path_matches<'a>(pattern: &str, mut segments: impl Iterator<Item = &'a str>) -> bool {
@@ -939,6 +977,9 @@ impl SettingKey {
             }
             V::Text { maximum_bytes, .. } => {
                 let value = value.as_str().ok_or("wrong-type")?;
+                if self.path == AGENT_ARGUMENTS_PATH {
+                    parse_agent_arguments(value)?;
+                }
                 if value.len() <= maximum_bytes && !value.contains('\0') {
                     Ok(Scalar::Text(value.to_owned()))
                 } else {

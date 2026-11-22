@@ -48,7 +48,7 @@ pub const STARTABLE_AGENT_PROVIDER_IDS: &[&str] = &[
 
 /// One startable provider, admitted only by its exact canonical id; aliases and report labels
 /// select nothing.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct StartableAgent(&'static str);
 
 impl StartableAgent {

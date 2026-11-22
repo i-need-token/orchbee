@@ -126,7 +126,8 @@ pub(super) enum StructureAction {
     Panel(PanelRequestKind),
     CreateTab,
     /// A new Tab whose shell runs this Agent as its first command.
-    CreateAgentTab(&'static str),
+    CreateAgentTab(&'static str, Option<ClientContextLocation>),
+    CreateWorkspaceAgentTab(&'static str, ClientContextTarget),
     /// A split of the focused Panel whose new shell runs this Agent as its first command.
     SplitAgent(PanelDirection, &'static str),
 }
@@ -420,7 +421,8 @@ impl WorkbenchClientUi {
             StructureAction::SelectTab(_)
             | StructureAction::Panel(_)
             | StructureAction::CreateTab
-            | StructureAction::CreateAgentTab(_)
+            | StructureAction::CreateAgentTab(..)
+            | StructureAction::CreateWorkspaceAgentTab(..)
             | StructureAction::SplitAgent(..) => ClientActionDisposition::DismissNavigator,
         };
         self.hold_intent(HeldIntent::Structure(action));
@@ -502,7 +504,38 @@ impl WorkbenchClientUi {
             StructureAction::SelectTab(action) => self.select_tab(action),
             StructureAction::Panel(kind) => self.panel_operation(kind),
             StructureAction::CreateTab => self.create_tab(),
-            StructureAction::CreateAgentTab(provider) => self.create_agent_tab(provider),
+            StructureAction::CreateAgentTab(provider, location) => {
+                if location.as_ref().is_some_and(|target| {
+                    self.state
+                        .as_ref()
+                        .is_none_or(|state| state.cache().location() != target)
+                }) {
+                    return ClientActionDisposition::KeepNavigator;
+                }
+                self.create_agent_tab(provider)
+            }
+            StructureAction::CreateWorkspaceAgentTab(provider, target) => {
+                use crate::workbench_client::ContextNavigationAdmission;
+                match self.navigate_context(&target) {
+                    ContextNavigationAdmission::Current => self.create_agent_tab(provider),
+                    ContextNavigationAdmission::Admitted => {
+                        self.hold_intent(HeldIntent::Structure(StructureAction::CreateAgentTab(
+                            provider,
+                            Some(target.location),
+                        )));
+                        ClientActionDisposition::DismissNavigator
+                    }
+                    ContextNavigationAdmission::Busy => {
+                        self.hold_intent(HeldIntent::Structure(
+                            StructureAction::CreateWorkspaceAgentTab(provider, target),
+                        ));
+                        ClientActionDisposition::DismissNavigator
+                    }
+                    ContextNavigationAdmission::Unavailable => {
+                        ClientActionDisposition::KeepNavigator
+                    }
+                }
+            }
             StructureAction::SplitAgent(direction, provider) => {
                 self.panel_operation_starting(PanelRequestKind::Split { direction }, Some(provider))
             }

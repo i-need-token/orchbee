@@ -250,6 +250,7 @@ export function WebApplication({
 			</div>
 			<TerminalSettingsSurface
 				about={about}
+				agentCatalog={authority.agentCatalog}
 				requestAgent={requestAgent}
 				applicationLocaleController={applicationLocaleController}
 				controller={terminalSettingsController}

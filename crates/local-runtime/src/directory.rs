@@ -5,8 +5,9 @@ mod posix;
 mod windows;
 pub use posix::posix_reported_directory;
 pub use windows::{
-    windows_agent_start_command, windows_interactive_powershell_initialization,
-    windows_powershell_application, windows_reported_directory,
+    windows_agent_start_command, windows_cmd_agent_start_line,
+    windows_interactive_powershell_initialization, windows_powershell_application,
+    windows_reported_directory,
 };
 
 /// The environment variable through which a launch asks a managed shell, PowerShell on Windows
