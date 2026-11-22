@@ -295,7 +295,9 @@ test "a discard or the import deadline during the restore's build discards the i
 }
 
 test "a settled terminal moves once its outcome is published and its import sends no TerminalExited" {
-    var f = try Fixture.create();
+    // Host A runs as its own process, so only the Host's handles count against its baseline: in
+    // this process every handle the test runner opens for itself counted as A's too.
+    var f = try Fixture.createWith(.process);
     defer f.destroy();
     const before = try f.counts();
     const id = try f.createTerminal(.a);
