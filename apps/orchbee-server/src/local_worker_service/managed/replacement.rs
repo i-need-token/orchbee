@@ -78,11 +78,11 @@ impl Supervision {
     /// One look of the stop loop. A loss of the serving Worker is handled here, which may block
     /// for one replacement's attempts; a stop or an `exit` ends a replacement at its next step
     /// boundary. Returns whether the Server should begin its own stop: a Worker lost without a
-    /// serving replacement whose Host is gone.
+    /// serving replacement whose Host is gone, with no Keeper left that keeps its programs.
     pub(super) fn look(&mut self, owners: &mut Owners, shutdown: &SessionShutdown) -> bool {
         let generation = owners.handle.generation();
         if self.unreplaced == Some(generation) {
-            return super::stop::host_absent(owners);
+            return super::stop::host_absent(owners) && super::stop::keeper_absent(owners);
         }
         if owners.handle.is_active() && !owners.carrier.is_finished() {
             return false;

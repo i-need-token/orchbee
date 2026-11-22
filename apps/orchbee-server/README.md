@@ -269,10 +269,14 @@ capture keeps each terminal's last cached directory. The stop then ends that Wor
 on Windows exactly as on Linux and macOS: after the final capture it sends the Host's `exit`
 control request, which ends every terminal the Worker would have disposed, and continues once the
 retained record observes the Host's registered identity gone, within 45 seconds. A failed or
-unanswered request fails the attempt in its host-exit phase; the Host is never ended by force. A
+unanswered request fails the attempt in its host-exit phase; the Host is never ended by force. On
+Windows the stop then ends the Session's Keeper, checked by its recorded process ID and creation
+time, since a Keeper may hold the last handles of a program whose Host ended; a Keeper gone or never
+started counts as ended, and one not ended by the deadline fails the attempt in the same phase. A
 stop is therefore never refused only because its Worker is gone.
-A Server whose Worker was lost with no replacement serving, and whose Host is gone, with no stop
-admitted, begins its own stop under a fresh identity, checking once a second;
+A Server whose Worker was lost with no replacement serving, whose Host is gone and, on Windows, whose
+Keeper is gone or never started, with no stop admitted, begins its own stop under a fresh identity,
+checking once a second;
 [Managed Worker replacement](#managed-worker-replacement) says when a loss comes to that. It
 publishes the same Stopped record, and a later start restores from its final capture.
 The first look that finds the Worker exited with no stop recorded, on every platform, first
@@ -300,7 +304,7 @@ action that applies follows:
 | ---------------------------------------------------------- | --------------------------------- |
 | A stop is admitted                                         | The stop goes on without a Worker |
 | The Worker cannot be proven gone, or the Host not observed | Give up                           |
-| The Host is gone, or still spawning                        | The Server stops itself           |
+| The Host is still spawning, or gone with no Keeper running | The Server stops itself           |
 | The cap allows no attempt                                  | Give up                           |
 | Otherwise                                                  | Replace the Worker                |
 
@@ -308,6 +312,13 @@ On Windows the retained record observes the Host by its registered process ID an
 and a Host never started is adopted as no Host. POSIX registers no Host, so a Host lock no process
 holds reads as gone; there the Server stops itself only when the lost Worker held a settled binding,
 and otherwise replaces it with no Host. A Host still spawning never ran.
+
+On Windows a Host gone while the record names a running Keeper, which kept that Host's programs, is
+replaced rather than stopped: `AdoptHost` names a Recovery target, the Keeper's recorded process,
+and the replacement [recovers those programs](../orchbee-worker/README.md#replacement-adoption) into
+a recovery Host. An attempt after a failed one adopts the Host the record names running, which is
+the recovery Host a failed recovery left, or recovers again while the Host is gone and the Keeper
+runs; with neither, the Server stops itself. POSIX starts no Keeper.
 
 The cap allows 3 attempts in any trailing 10 minutes of one Server process, and an attempt counts
 when it starts. Attempts run one at a time, the first at once and each later one a second after the
@@ -331,11 +342,13 @@ the Worker is proven gone, unless a stop is admitted; `Serving` once a replaceme
 `GivenUp` on giving up.
 
 `host-gone` makes the Server stop itself; `host-unverified`, `host-mismatch` and `host-refused`
-give up at once; every other failure, a timeout, a decline, and a creation or admission failure
-count against the cap. A replacement that cannot be proven gone after its failure gives up. A stop
-admitted, or an `exit` received, during a replacement ends it at the next step boundary through the
-Server's handle, and the stop goes on without a Worker. Giving up lasts until the Session stops; a
-Host that ends meanwhile makes the Server stop itself. The supervision never ends a Host.
+give up at once; every other failure, `recovery-failed` among them, a timeout, a decline, and a
+creation or admission failure count against the cap. A replacement that cannot be proven gone after
+its failure gives up. A stop admitted, or an `exit` received, during a replacement ends it at the
+next step boundary through the Server's handle, and the stop goes on without a Worker. Giving up
+lasts until the Session stops; a Host that ends meanwhile makes the Server stop itself once no Keeper
+runs either, so the programs a Keeper keeps after a give-up run on under `GivenUp` until a stop ends
+them. The supervision never ends a Host or a Keeper.
 
 ## Cold adoption
 

@@ -38,6 +38,16 @@ pub(super) fn receive_timed(
     receive_until_timed(server, host, None)?.ok_or_else(|| super::peer_closed().into())
 }
 
+/// Whether the Server's next request has begun to arrive, seen without waiting.
+#[cfg(windows)]
+pub(super) fn readable_now(server: &UnixStream) -> bool {
+    let mut descriptors = [PollFd::new(server.as_local_io(), PollFlags::POLLIN)];
+    poll(&mut descriptors, PollTimeout::ZERO).is_ok()
+        && descriptors[0]
+            .revents()
+            .is_some_and(|events| events.contains(PollFlags::POLLIN))
+}
+
 /// Only an idle cutoff can return None. Once input is readable, a partial record
 /// remains a fatal record-budget failure and cannot be discarded as lease expiry. A whole frame
 /// this Worker cannot decode is answered as unreadable here, and the wait goes on to the next

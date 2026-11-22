@@ -1,9 +1,15 @@
 //! The Worker's care of the Session's Keeper and of its Host's dispatch on Windows
-//! (`proposals/platform/host-handover.md`, the hang check and the Keeper's life from H2). Between
-//! Server requests, a Keeper the Host reports lost, or reports unresponsive and that does not answer
-//! the Worker either, is replaced; and a Host whose dispatch has stopped turning is ended once the
-//! Keeper holds every terminal it runs, so recovery follows as for a crash. A hang check never ends
-//! a Host that runs a terminal the Keeper does not hold, and no step here ends the Worker.
+//! (`proposals/platform/host-handover.md`, the hang check and the Keeper's life from H2). It runs
+//! between Server requests: it starts the Session's Keeper for a Host that recovers terminals and
+//! has none, replaces a Keeper the Host reports lost, or reports unresponsive and that does not
+//! answer the Worker either, and ends a Host whose dispatch has stopped turning once the Keeper
+//! holds every terminal it runs, so recovery follows as for a crash. A hang check never ends a Host
+//! that runs a terminal the Keeper does not hold, and no step here ends the Worker.
+//!
+//! A Server request that arrives while the care runs waits for it, so the care answers when it
+//! began, and that request's bound runs from then. A request that meets a hung Host first keeps the
+//! care from running until its exchange passes its bound and ends the Worker, so the Worker checks
+//! that Host once more before it exits.
 
 use std::{
     io,
@@ -15,7 +21,9 @@ use orchbee_local_runtime::{HoldingState, KeeperProcess, KeeperStatus};
 use winsafe::{HPROCESS, HPROCESSLIST, co};
 
 use super::shutdown::ManagedHost;
-use crate::{diagnostic_events, host_connection::HostBrokerConnection};
+use crate::{
+    diagnostic_events, host_connection::HostBrokerConnection, session_keeper::SessionKeeper,
+};
 
 /// How often the Worker cares for the Keeper and reads its Host's `dispatch-progress`.
 const PERIOD: Duration = Duration::from_secs(2);
@@ -23,12 +31,25 @@ const PERIOD: Duration = Duration::from_secs(2);
 const PROBE_BOUND: Duration = Duration::from_secs(1);
 /// How long a count that has not grown, or a Host that has not answered, counts as hung.
 const HANG_BOUND: Duration = Duration::from_secs(10);
-/// How long ending a hung Host waits for it to exit.
+/// How far apart the two `dispatch-progress` reads lie that check a Host which left an exchange
+/// unanswered: a dispatch loop that still turns does so every 20 milliseconds while idle.
+const RECHECK_GAP: Duration = Duration::from_secs(1);
+/// How long ending a hung Host or a replaced Keeper waits for it to exit.
 const END_BOUND: Duration = Duration::from_secs(2);
+/// How long after one Keeper start the next may begin, so a Keeper that keeps ending is not
+/// started in a loop.
+const START_SPACING: Duration = Duration::from_secs(30);
+/// Failed Keeper starts after which this Worker starts none: its terminals then run unheld.
+const START_ATTEMPTS: u32 = 3;
 
-/// The care's schedule and what the Host's answers showed so far.
+/// The care's schedule, the Keeper starts it made, and what the Host's answers showed so far.
 pub(super) struct KeeperCare {
     due: Instant,
+    /// When the next Keeper start may begin, and how many failed.
+    next_start: Instant,
+    failed_starts: u32,
+    /// Whether the Keeper ended or stopped answering and waits for its replacement.
+    replacing: bool,
     /// The last `dispatch-progress` the Host answered, and when it last changed.
     progress: Option<u64>,
     turned: Instant,
@@ -39,9 +60,14 @@ pub(super) struct KeeperCare {
 }
 
 impl KeeperCare {
+    /// A care whose first turn is due at once, so a first Keeper starts right after the answer
+    /// that came before it.
     pub(super) fn new(now: Instant) -> Self {
         Self {
-            due: now + PERIOD,
+            due: now,
+            next_start: now,
+            failed_starts: 0,
+            replacing: false,
             progress: None,
             turned: now,
             terminals: None,
@@ -54,19 +80,24 @@ impl KeeperCare {
         self.due
     }
 
-    /// Cares for the Keeper and probes the Host when the care is due; a Worker without a Keeper
-    /// only keeps the schedule.
+    /// Cares for the Keeper and probes the Host when the care is due. Returns when the care began
+    /// if a Server request became readable while it ran.
     pub(super) fn run(
         &mut self,
         host: &HostBrokerConnection,
         server: &LocalStream,
         managed: &mut ManagedHost,
-    ) {
-        let now = Instant::now();
-        if now < self.due {
-            return;
+    ) -> Option<Instant> {
+        let began = Instant::now();
+        if began < self.due {
+            return None;
         }
-        self.due = now + PERIOD;
+        self.care(host, managed);
+        self.due = Instant::now() + PERIOD;
+        super::server_transport::readable_now(server).then_some(began)
+    }
+
+    fn care(&mut self, host: &HostBrokerConnection, managed: &mut ManagedHost) {
         let events = host.take_keeper_events();
         if events.unheld {
             diagnostic_events::keeper_failed(
@@ -74,16 +105,63 @@ impl KeeperCare {
                 &io::Error::other("the Host runs a terminal its Keeper does not hold"),
             );
         }
-        let Some(keeper) = managed.keeper() else {
-            return;
-        };
         // A Keeper the Host reports unresponsive is replaced only when it does not answer the
         // Worker either within its reply bound.
-        if events.lost || (events.unresponsive && keeper.status().is_err()) {
-            replace(host, server, managed);
+        if let Some(keeper) = managed.keeper()
+            && (events.lost || (events.unresponsive && keeper.status().is_err()))
+        {
+            self.replacing = true;
+        }
+        if self.replacing || managed.keeper().is_none() {
+            self.start(host, managed);
+        } else {
+            self.probe(host, managed);
+        }
+    }
+
+    /// Starts the Session's Keeper for a Host that recovers terminals, ending first the Keeper it
+    /// replaces, and has the Host attach it. A failed start leaves the terminals running unheld.
+    fn start(&mut self, host: &HostBrokerConnection, managed: &mut ManagedHost) {
+        let now = Instant::now();
+        // Only a Host that can take a kept program back gets a Keeper.
+        if !(host.keeper() && host.recovery())
+            || self.failed_starts >= START_ATTEMPTS
+            || now < self.next_start
+        {
             return;
         }
-        self.probe(host, managed);
+        let Some((runtime, executable)) = managed
+            .keeper_program()
+            .map(|(runtime, executable)| (runtime.to_owned(), executable.to_owned()))
+        else {
+            return;
+        };
+        self.next_start = now + START_SPACING;
+        let replaced = std::mem::take(&mut self.replacing);
+        if let Some(mut lost) = managed.take_keeper() {
+            lost.end(now + END_BOUND);
+        }
+        let started = managed
+            .host_identity()
+            .map_err(Into::into)
+            .and_then(|process| {
+                SessionKeeper::start_attached(&runtime, &executable, host, process)
+            });
+        match started {
+            Ok(keeper) => {
+                if replaced {
+                    diagnostic_events::keeper_replaced();
+                } else {
+                    diagnostic_events::keeper_started();
+                }
+                managed.keep(Some(keeper));
+            }
+            Err(error) => {
+                self.failed_starts += 1;
+                let step = if replaced { "replace" } else { "start" };
+                diagnostic_events::keeper_failed(step, error.as_ref());
+            }
+        }
     }
 
     /// Reads the Host's `dispatch-progress` and ends a Host hung for [`HANG_BOUND`] once the Keeper
@@ -101,6 +179,38 @@ impl KeeperCare {
         if stalled < HANG_BOUND {
             return;
         }
+        self.end_hung(managed, stalled);
+    }
+
+    /// Checks the Host once more as the Worker exits because the Host left one of its exchanges
+    /// unanswered for the whole exchange bound, which counts as hung unless two
+    /// `dispatch-progress` reads [`RECHECK_GAP`] apart show its dispatch still turning; a hung
+    /// Host is then ended as the care ends one, and recovery follows the Worker's exit.
+    pub(super) fn after_unanswered(
+        &mut self,
+        host: &HostBrokerConnection,
+        managed: &mut ManagedHost,
+    ) {
+        if managed.keeper().is_none() {
+            return;
+        }
+        let first = host.query_progress(Instant::now() + PROBE_BOUND);
+        std::thread::sleep(RECHECK_GAP);
+        let second = host.query_progress(Instant::now() + PROBE_BOUND);
+        if let (Some((before, _)), Some((after, _))) = (first, second)
+            && before != after
+        {
+            return;
+        }
+        if let Some((_, terminals)) = second.or(first) {
+            self.terminals = Some(terminals);
+        }
+        self.end_hung(managed, self.turned.elapsed());
+    }
+
+    /// Ends a hung Host once the Keeper holds every terminal it runs; a Host left running is
+    /// recorded once per stall.
+    fn end_hung(&mut self, managed: &mut ManagedHost, stalled: Duration) {
         let held = self
             .terminals
             .is_some_and(|terminals| holds_every_terminal(managed, terminals));
@@ -115,25 +225,6 @@ impl KeeperCare {
             diagnostic_events::host_hung(false, stalled);
             self.recorded = true;
         }
-    }
-}
-
-/// Replaces the Keeper of `managed`; a failed replacement leaves the terminals running unheld and
-/// this Worker without a Keeper.
-fn replace(host: &HostBrokerConnection, server: &LocalStream, managed: &mut ManagedHost) {
-    let Some(keeper) = managed.take_keeper() else {
-        return;
-    };
-    let replaced = managed
-        .host_identity()
-        .map_err(Into::into)
-        .and_then(|process| keeper.replace(host, server, process));
-    match replaced {
-        Ok(keeper) => {
-            diagnostic_events::keeper_replaced();
-            managed.keep(Some(keeper));
-        }
-        Err(error) => diagnostic_events::keeper_failed("replace", error.as_ref()),
     }
 }
 

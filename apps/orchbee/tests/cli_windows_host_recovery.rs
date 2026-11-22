@@ -46,6 +46,7 @@ const CAP: usize = 3;
 fn a_killed_host_is_recovered_until_the_cap_and_a_confirmed_stop_ends_the_program() {
     require_product_conpty();
     let fixture = Fixture::new("orchbee-host-recovery-", &[]);
+    let _logs = Logs(&fixture);
     let (terminal, mut shown) = ticker(&fixture);
     let host = host_of(worker(&fixture).expect("a Worker serves"));
     let program = program_of(&host);
@@ -103,6 +104,9 @@ fn a_killed_host_is_recovered_until_the_cap_and_a_confirmed_stop_ends_the_progra
         signaled(&program, STOPPED),
         "the confirmed stop left the program running"
     );
+    // The Session starts again from what the stop left, and the fixture stops it at its end.
+    let started = fixture.run(&["server", "start", "--session", "default"]);
+    assert_eq!(started.code, Some(0), "{started}");
 }
 
 #[test]
@@ -110,13 +114,15 @@ fn a_killed_host_is_recovered_until_the_cap_and_a_confirmed_stop_ends_the_progra
 fn a_host_whose_dispatch_stops_is_ended_and_recovered() {
     require_product_conpty();
     let fixture = Fixture::new("orchbee-host-hang-", &[]);
+    let _logs = Logs(&fixture);
     let (terminal, shown) = ticker(&fixture);
     let lost = worker(&fixture).expect("a Worker serves");
     let host = host_of(lost);
     let program = program_of(&host);
     let stopped = Instant::now();
     suspend_dispatch_thread(&host);
-    // Nothing here asks the Host anything until the Worker has replaced it.
+    // Nothing here asks the Host anything until the Worker has replaced it; the attached TUI's
+    // viewer requests may meet the hung Host before the Worker's own check does.
     until("a new Worker serves", HANG_RECOVERED, || {
         worker(&fixture).filter(|serving| *serving != lost)
     });
@@ -132,6 +138,34 @@ fn a_host_whose_dispatch_stops_is_ended_and_recovered() {
         last_tick(&read_terminal(&fixture, &terminal)).filter(|tick| *tick > shown)
     });
     eprintln!("hang: recovered in {:?}", stopped.elapsed());
+}
+
+/// Prints the fixture's diagnostic logs when its test fails, before the fixture removes them.
+struct Logs<'a>(&'a Fixture);
+
+impl Drop for Logs<'_> {
+    fn drop(&mut self) {
+        if !thread::panicking() {
+            return;
+        }
+        // The data root, and with it `logs/`, sits in the fixture's home folder.
+        let mut folders = vec![std::path::PathBuf::from(self.0.path("home"))];
+        while let Some(folder) = folders.pop() {
+            for entry in fs::read_dir(&folder).into_iter().flatten().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    folders.push(path);
+                } else if path
+                    .extension()
+                    .is_some_and(|extension| extension == "jsonl")
+                    && path.parent().and_then(|parent| parent.file_name()) == Some("logs".as_ref())
+                    && let Ok(text) = fs::read_to_string(&path)
+                {
+                    eprintln!("log {}:\n{text}", path.display());
+                }
+            }
+        }
+    }
 }
 
 /// The system ConHost's terminals stay unheld, so without the product's ConPTY nothing recovers.

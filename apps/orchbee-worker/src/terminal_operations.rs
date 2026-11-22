@@ -117,6 +117,24 @@ pub(crate) struct AdmittedAux<'a> {
     pub(super) managed_host: Option<&'a mut shutdown::ManagedHost>,
 }
 
+#[cfg(windows)]
+impl AdmittedAux<'_> {
+    /// The same owners, lent to one serving loop, so the managed Host stays at hand after it.
+    fn reborrow(&mut self) -> AdmittedAux<'_> {
+        AdmittedAux {
+            drain: self.drain,
+            system_shell: self.system_shell,
+            worktree_slot: self.worktree_slot,
+            agent_integrations: self.agent_integrations,
+            agent_probes: self.agent_probes,
+            mutation_slot: self.mutation_slot,
+            plugin_jobs: self.plugin_jobs,
+            session_runtime: self.session_runtime,
+            managed_host: self.managed_host.as_deref_mut(),
+        }
+    }
+}
+
 /// Owns the admitted Server wire and preserves its physical owners across an explicit handoff.
 pub(crate) fn run_admitted(
     server: UnixStream,
@@ -141,6 +159,8 @@ pub(crate) fn run_admitted(
 }
 
 /// Serves the admitted connection and attaches the classified cause to the error that ends it.
+/// On Windows a Host that left an exchange unanswered for its whole bound is checked for a hang
+/// before the Worker exits, so a hang a request met first is recovered as one the care found.
 fn run_admitted_with_handoff(
     server: UnixStream,
     host: &mut HostBrokerConnection,
@@ -150,16 +170,30 @@ fn run_admitted_with_handoff(
     aux: AdmittedAux<'_>,
     #[cfg(windows)] handoff: handoff::Handoff,
 ) -> Result<(), Box<dyn Error>> {
+    #[cfg(windows)]
+    let mut aux = aux;
+    #[cfg(windows)]
+    let mut care = keeper_care::KeeperCare::new(std::time::Instant::now());
     let outcome = serve(
         server,
         host,
         worker_id,
         generation,
         kernel,
+        #[cfg(windows)]
+        aux.reborrow(),
+        #[cfg(not(windows))]
         aux,
         #[cfg(windows)]
-        handoff,
+        (handoff, &mut care),
     );
+    #[cfg(windows)]
+    if let Err(error) = &outcome
+        && let Some(managed) = aux.managed_host.as_deref_mut()
+        && exit_cause::host_unanswered(error.as_ref(), host)
+    {
+        care.after_unanswered(host, managed);
+    }
     outcome.map_err(|error| exit_cause::attach(error, host))
 }
 
@@ -167,6 +201,8 @@ fn run_admitted_with_handoff(
 /// ([`Pacing`]), and names the site its failure would be recorded at. Cleanup of what the
 /// connection no longer uses runs after the request's own work, so it never takes the request's
 /// room, and before the result, while the Server sends nothing.
+///
+/// On Windows the loop also keeps, between requests, the explicit handoff and the Keeper's care.
 ///
 /// [`Pacing`]: crate::host_connection::Pacing
 fn serve(
@@ -176,14 +212,12 @@ fn serve(
     generation: NonZeroU64,
     mut kernel: AuthorizedHostOperationKernel,
     aux: AdmittedAux<'_>,
-    #[cfg(windows)] mut handoff: handoff::Handoff,
+    #[cfg(windows)] (mut handoff, care): (handoff::Handoff, &mut keeper_care::KeeperCare),
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
     let mut server = server;
     #[cfg(windows)]
     let mut aux = aux;
-    #[cfg(windows)]
-    let mut care = keeper_care::KeeperCare::new(std::time::Instant::now());
     let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
     loop {
         host.pacing.end_request();
@@ -193,19 +227,21 @@ fn serve(
         #[cfg(windows)]
         let (request, readable) = loop {
             // The Keeper's care runs between requests, never under a prepared handoff, so nothing
-            // changes under one.
+            // changes under one. A request that arrived while it ran waited for it, so that
+            // request's bound runs from when the care began.
+            let mut cared = None;
             let wake = match aux.managed_host.as_deref_mut() {
                 _ if handoff.is_prepared() => handoff.deadline(),
                 Some(managed) => {
-                    care.run(host, &server, managed);
+                    cared = care.run(host, &server, managed);
                     Some(care.due())
                 }
                 None => None,
             };
-            if let Some(received) =
+            if let Some((request, readable)) =
                 server_transport::receive_until_timed(&server, Some(host), wake)?
             {
-                break received;
+                break (request, cared.map_or(readable, |began| readable.min(began)));
             }
             handoff.expire(std::time::Instant::now());
         };

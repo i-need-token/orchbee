@@ -16,8 +16,7 @@ pub(super) fn attach(error: Box<dyn Error>, host: &HostBrokerConnection) -> Box<
     if error.is::<ExitCause>() {
         return error;
     }
-    let failure = HostFailure::find(error.as_ref())
-        .or_else(|| peer_lost(error.as_ref()).then(|| host.pacing.failure())?);
+    let failure = host_failure(error.as_ref(), host);
     let (reason, peer, waited) = failure.map_or_else(
         || {
             let (reason, peer) = other(error.as_ref());
@@ -42,6 +41,20 @@ pub(super) fn attach(error: Box<dyn Error>, host: &HostBrokerConnection) -> Box<
         waited,
         source: error,
     })
+}
+
+/// Whether the serving loop's final error is a Host exchange that passed its bound unanswered,
+/// which [`attach`] records as a Host deadline.
+#[cfg(windows)]
+pub(super) fn host_unanswered(error: &(dyn Error + 'static), host: &HostBrokerConnection) -> bool {
+    host_failure(error, host)
+        .is_some_and(|failure| failure.deadline && !matches!(failure.class, PeerFailure::Server))
+}
+
+/// The Host failure behind the serving loop's final error: one it carries, or the connection's
+/// first when the loop reports a peer connection ended.
+fn host_failure(error: &(dyn Error + 'static), host: &HostBrokerConnection) -> Option<HostFailure> {
+    HostFailure::find(error).or_else(|| peer_lost(error).then(|| host.pacing.failure())?)
 }
 
 /// Wraps an error that ended the loop before any Host existed.

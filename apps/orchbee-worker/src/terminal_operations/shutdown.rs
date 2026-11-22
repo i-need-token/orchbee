@@ -53,6 +53,9 @@ pub(crate) struct ManagedHost {
     /// The Session's Keeper, which a stop ends once the Host is gone.
     #[cfg(windows)]
     keeper: Option<crate::session_keeper::SessionKeeper>,
+    /// The Session runtime folder and the Terminal Host program a Keeper for this Host starts from.
+    #[cfg(windows)]
+    keeper_program: Option<(std::path::PathBuf, std::path::PathBuf)>,
 }
 
 impl ManagedHost {
@@ -62,6 +65,8 @@ impl ManagedHost {
             state: HostState::Connected,
             #[cfg(windows)]
             keeper: None,
+            #[cfg(windows)]
+            keeper_program: None,
         }
     }
 
@@ -72,7 +77,24 @@ impl ManagedHost {
             state: HostState::Connected,
             #[cfg(windows)]
             keeper: None,
+            #[cfg(windows)]
+            keeper_program: None,
         }
+    }
+
+    /// Names where a Keeper for this Host starts from: the Session runtime folder `runtime` and
+    /// the Terminal Host program `executable`.
+    #[cfg(windows)]
+    pub(super) fn keep_from(&mut self, runtime: &std::path::Path, executable: std::path::PathBuf) {
+        self.keeper_program = Some((runtime.to_owned(), executable));
+    }
+
+    /// Where a Keeper for this Host starts from, once named.
+    #[cfg(windows)]
+    pub(super) fn keeper_program(&self) -> Option<(&std::path::Path, &std::path::Path)> {
+        self.keeper_program
+            .as_ref()
+            .map(|(runtime, executable)| (runtime.as_path(), executable.as_path()))
     }
 
     /// Keeps `keeper`, the Session's Keeper this Worker started or adopted, until a stop ends it.
@@ -99,15 +121,6 @@ impl ManagedHost {
         match &self.owner {
             HostOwner::Started(child) => child.exact_identity(),
             HostOwner::Adopted(host) => host.identity(),
-        }
-    }
-
-    /// The Host's process as this Worker started it; an adopted Host has none.
-    #[cfg(windows)]
-    pub(super) const fn child(&self) -> Option<&RetainedChild> {
-        match &self.owner {
-            HostOwner::Started(child) => Some(child),
-            HostOwner::Adopted(_) => None,
         }
     }
 

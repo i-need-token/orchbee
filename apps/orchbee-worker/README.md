@@ -269,8 +269,8 @@ The last page is answered within 18 seconds of its arrival, inside the Server's 
 
 A `Recovery` target names the Session's Keeper, which kept the programs of a Host that ended. The
 Worker adopts that Keeper, requiring the recorded process ID and creation time, starts a recovery
-Host in the Host's slot that serves the lost epoch, registers it with the Keeper and has it attach
-the Keeper. For each binding, the orphaned holding of that epoch with the binding's identity is
+Host in the Host's slot that serves the lost epoch, the one the target names or else the one the
+bindings name, registers it with the Keeper and has it attach the Keeper. For each binding, the orphaned holding of that epoch with the binding's identity is
 assigned to the recovery Host under a mark derived from the holding and that Host, so a retry assigns
 it again without effect; `RecoverTerminal` restores it at 80 by 24 cells with the system's display
 mode and the default color themes, and `ClaimTerminal` completes it. The recovery Host's inventory
@@ -303,22 +303,29 @@ quarantine and missing bindings. The macOS and Linux verification has no Host wi
 
 ## The Session's Keeper
 
-On Windows, where the Host offers `keeper`, the managed Worker starts the Session's Keeper once its
-first Host is ready and that Host's first Launch is answered, registers the Host with it and has the
-Host attach it, so the Host holds each running terminal there. A replacement Worker adopts the
-recorded Keeper instead. A failed Keeper step leaves the terminals running unheld and the Worker
-serving. A stop ends the Keeper once the Host is gone.
+On Windows the managed Worker cares for the Session's Keeper between Server requests, never under a
+prepared handoff: first right after the answer that admitted its Host, then every two seconds. A
+Host that offers both `keeper` and `recovery` and has no Keeper gets one: the Worker starts it,
+registers the Host with it and has the Host attach it, so the Host holds each running terminal
+there. A Host without `recovery`, such as one on the system ConHost, gets none, since no Host could
+take a kept program back. A replacement Worker adopts the recorded Keeper instead. A failed Keeper
+step leaves the terminals running unheld and the Worker serving; Keeper starts are 30 seconds apart,
+and after three failed ones the Worker starts no more. A stop ends the Keeper once the Host is gone.
 
-Between Server requests, never under a prepared handoff, the Worker cares for the Keeper every two
-seconds. A Keeper the Host reports lost, or reports unresponsive and that does not answer the Worker
-within its two-second reply bound either, is ended and replaced, and the Host attaches the new one;
-a failed replacement leaves the Worker without a Keeper. The same care reads the Host's
-`dispatch-progress` with a `query` on a control lane, within one second. A count that has not
+A Host exchange between requests does not watch the Server, so a request that arrives meanwhile
+waits for it, at most three seconds for an `AttachKeeper`, and that request's bound runs from when
+the care began. A Keeper the Host reports lost, or reports unresponsive and that does not answer the
+Worker within its two-second reply bound either, is ended and replaced, and the Host attaches the
+new one. The same care reads the Host's `dispatch-progress` with a `query` on a control lane, within
+one second. A count that has not
 changed for 10 seconds, or a Host that has not answered for as long, counts as hung: the Worker ends
 the Host only when the Keeper holds, for that Host, at least as many terminals as the Host's last
 answer counted and every live child process of the Host is the program or OpenConsole of one of
 those holdings, and recovery then follows as for a crash. Otherwise the Host is left running and the
-stall recorded once.
+stall recorded once. A request that meets a hung Host first holds the care off until its exchange
+passes the 10-second bound, which ends the Worker; before it exits, the Worker reads
+`dispatch-progress` twice, one second apart, and a count that did not change, or a Host that
+answered neither read, counts as hung and is ended under the same conditions.
 
 ## Worktree discovery job
 

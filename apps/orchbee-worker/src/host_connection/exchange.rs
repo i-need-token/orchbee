@@ -49,7 +49,9 @@ pub(crate) enum PeerFailure {
 
 pub(crate) struct HostExchange<'a> {
     host: &'a HostBrokerConnection,
-    server: &'a UnixStream,
+    /// The Server stream of the request this exchange serves, which sends nothing until that
+    /// request is answered, so readable input there ends the exchange; `None` between requests.
+    server: Option<&'a UnixStream>,
     started: Instant,
     deadline: Instant,
 }
@@ -63,7 +65,7 @@ impl<'a> HostExchange<'a> {
     ) -> Self {
         Self {
             host,
-            server,
+            server: Some(server),
             started: Instant::now(),
             deadline,
         }
@@ -79,7 +81,24 @@ impl<'a> HostExchange<'a> {
         let started = Instant::now();
         Ok(Self {
             host,
-            server,
+            server: Some(server),
+            started,
+            deadline: host.pacing.start(started, budget)?,
+        })
+    }
+
+    /// An exchange between Server requests, with at most `budget`. The Server may send its next
+    /// request meanwhile, which waits in its stream until this exchange ends, so that stream is not
+    /// watched; the caller starts that request's bound no later than this exchange began.
+    #[cfg(windows)]
+    pub(crate) fn between_requests(
+        host: &'a HostBrokerConnection,
+        budget: Duration,
+    ) -> Result<Self, NotStarted> {
+        let started = Instant::now();
+        Ok(Self {
+            host,
+            server: None,
             started,
             deadline: host.pacing.start(started, budget)?,
         })
@@ -99,7 +118,7 @@ impl<'a> HostExchange<'a> {
         let started = Instant::now();
         Self {
             host,
-            server,
+            server: Some(server),
             started,
             deadline: started,
         }
@@ -317,19 +336,33 @@ impl<'a> HostExchange<'a> {
         interest: PollFlags,
         timeout: PollTimeout,
     ) -> Result<(PollFlags, PollFlags), PeerFailure> {
-        let mut descriptors = [
-            PollFd::new(self.server.as_local_io(), PollFlags::POLLIN),
-            PollFd::new(self.host.stream().as_local_io(), interest),
-        ];
-        match poll(&mut descriptors, timeout) {
-            Ok(_) => Ok((
-                descriptors[0]
-                    .revents()
-                    .ok_or_else(|| self.fail(PeerFailure::Server))?,
-                descriptors[1]
-                    .revents()
-                    .ok_or_else(|| self.fail(PeerFailure::Host))?,
-            )),
+        let host = PollFd::new(self.host.stream().as_local_io(), interest);
+        let mut both;
+        let mut alone;
+        let descriptors: &mut [PollFd<'_>] = match self.server {
+            Some(server) => {
+                both = [PollFd::new(server.as_local_io(), PollFlags::POLLIN), host];
+                &mut both
+            }
+            None => {
+                alone = [host];
+                &mut alone
+            }
+        };
+        match poll(descriptors, timeout) {
+            Ok(_) => match descriptors {
+                [server, host] => Ok((
+                    server
+                        .revents()
+                        .ok_or_else(|| self.fail(PeerFailure::Server))?,
+                    host.revents().ok_or_else(|| self.fail(PeerFailure::Host))?,
+                )),
+                [host] => Ok((
+                    PollFlags::empty(),
+                    host.revents().ok_or_else(|| self.fail(PeerFailure::Host))?,
+                )),
+                _ => Err(self.fail(PeerFailure::Host)),
+            },
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {
                 Ok((PollFlags::empty(), PollFlags::empty()))
             }
@@ -339,8 +372,10 @@ impl<'a> HostExchange<'a> {
 
     pub(crate) fn close(&self, failure: PeerFailure) {
         let _closed = self.host.stream().shutdown(Shutdown::Both);
-        if failure == PeerFailure::Server {
-            let _closed = self.server.shutdown(Shutdown::Both);
+        if failure == PeerFailure::Server
+            && let Some(server) = self.server
+        {
+            let _closed = server.shutdown(Shutdown::Both);
         }
     }
 
@@ -395,6 +430,22 @@ pub(crate) fn exchange(
     encoding: PayloadEncoding,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut exchange = HostExchange::open(host, server)?;
+    exchange.prepare().map_err(|class| exchange.error(class))?;
+    exchange.request(correlation, kind, payload, encoding)
+}
+
+/// [`exchange`] between Server requests, within `budget`, as
+/// [`HostExchange::between_requests`] runs it.
+#[cfg(windows)]
+pub(crate) fn exchange_between_requests(
+    host: &HostBrokerConnection,
+    correlation: CorrelationId,
+    kind: u16,
+    payload: &[u8],
+    encoding: PayloadEncoding,
+    budget: Duration,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    let mut exchange = HostExchange::between_requests(host, budget)?;
     exchange.prepare().map_err(|class| exchange.error(class))?;
     exchange.request(correlation, kind, payload, encoding)
 }

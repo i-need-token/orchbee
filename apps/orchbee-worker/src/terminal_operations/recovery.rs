@@ -29,7 +29,7 @@ use super::lazy::{HostStart, start_host};
 use crate::{
     host_adoption as host,
     host_connection::HostBrokerConnection,
-    session_keeper::{self, SessionKeeper},
+    session_keeper::{self, Serving, SessionKeeper},
     terminal_authorization::InventoryTerminal,
 };
 
@@ -70,9 +70,14 @@ pub(super) fn recover(
         restarts: 0,
         error,
     };
+    // The bindings name the lost Host's epoch, which the recovery Host serves.
+    let epoch = epoch.or_else(|| {
+        bindings
+            .first()
+            .map(|binding| binding.identity.host_epoch())
+    });
     let expected = (keeper.process_id.get(), keeper.creation_time.get());
-    let executable = cohort.executable(orchbee_local_runtime::CohortArtifact::TerminalHost);
-    let mut keeper = match SessionKeeper::adopt(runtime, &executable, Some(expected)) {
+    let mut keeper = match SessionKeeper::adopt(runtime, Some(expected)) {
         Ok(Some(keeper)) => keeper,
         Ok(None) => return Err(failed("the Session's Keeper is gone".into())),
         Err(error) => return Err(failed(error)),
@@ -97,7 +102,7 @@ pub(super) fn recover(
             return Err(refused("the recovery Host does not offer recovery"));
         }
         let process = child.exact_identity()?;
-        keeper.attach(&host, channel.server, process)?;
+        keeper.attach(&host, Serving::Request(channel.server), process)?;
         Ok(process)
     })();
     let process = attached.map_err(failed)?;
@@ -156,14 +161,18 @@ pub(super) fn recover_orphans(
         };
         match session_keeper::request(
             host,
-            server,
+            Serving::Request(server),
             &HandoverControl::RecoverTerminal(Box::new(recover)),
         )? {
             HandoverControl::TerminalRecovered(restored)
                 if restored.creation_id == creation_id && restored.terminal_id == terminal_id => {}
             _ => return Err(refused("the recovery Host restored another terminal")),
         }
-        match session_keeper::request(host, server, &HandoverControl::ClaimTerminal(terminal_id))? {
+        match session_keeper::request(
+            host,
+            Serving::Request(server),
+            &HandoverControl::ClaimTerminal(terminal_id),
+        )? {
             HandoverControl::TerminalClaimed(claimed) if claimed == terminal_id => {}
             _ => return Err(refused("the recovery Host claimed another terminal")),
         }

@@ -105,6 +105,11 @@ pub(crate) fn run(
                 managed: mut managed_host,
                 kernel,
             } = *adopted;
+            #[cfg(windows)]
+            managed_host.keep_from(
+                runtime,
+                cohort.executable(orchbee_local_runtime::CohortArtifact::TerminalHost),
+            );
             super::run_admitted_with_handoff(
                 server,
                 &mut host,
@@ -133,7 +138,7 @@ pub(crate) fn run(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the wait before an adoption takes the admitted Worker's owners one by one, as its               caller holds them"
+    reason = "the wait before an adoption takes the admitted Worker's owners one by one, as its caller holds them"
 )]
 fn serve_until_adopted(
     server: &UnixStream,
@@ -207,7 +212,7 @@ fn serve_until_adopted(
                         let found = host::adopt(runtime, process, epoch, channel);
                         #[cfg(windows)]
                         let found = found.and_then(|found| {
-                            with_keeper(found, cohort, runtime, keeper_channel, &bindings)
+                            with_keeper(found, runtime, keeper_channel, &bindings)
                         });
                         #[cfg(not(windows))]
                         let found = found.map(Found::from);
@@ -283,7 +288,6 @@ impl From<super::recovery::Recovered> for Found {
 #[cfg(windows)]
 fn with_keeper(
     found: host::Found,
-    cohort: &Cohort,
     runtime: &Path,
     channel: (&UnixStream, CorrelationId, Instant),
     bindings: &[orchbee_capability_node_protocol::AdoptBinding],
@@ -293,8 +297,7 @@ fn with_keeper(
     if !adopted.host.keeper() {
         return Ok(adopted);
     }
-    let executable = cohort.executable(orchbee_local_runtime::CohortArtifact::TerminalHost);
-    let mut keeper = match crate::session_keeper::SessionKeeper::adopt(runtime, &executable, None) {
+    let mut keeper = match crate::session_keeper::SessionKeeper::adopt(runtime, None) {
         Ok(Some(keeper)) => keeper,
         Ok(None) => return Ok(adopted),
         Err(error) => {
@@ -307,7 +310,11 @@ fn with_keeper(
         .host_identity()
         .map_err(Box::<dyn Error>::from)
         .and_then(|process| {
-            keeper.attach(&adopted.host, server, process)?;
+            keeper.attach(
+                &adopted.host,
+                crate::session_keeper::Serving::Request(server),
+                process,
+            )?;
             Ok(process)
         });
     let process = match attached {

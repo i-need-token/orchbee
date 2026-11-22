@@ -4,12 +4,15 @@
 //! at a stop once the Host is gone. A failed Keeper step leaves the terminals running unheld and
 //! the Worker serving, so nothing here ends a program or the Worker
 //! (`proposals/platform/host-handover.md`, The Keeper's life from H2).
+//!
+//! A Host exchange runs either inside the Server request it serves, which watches that request's
+//! Server stream, or between requests, where the Server's next request waits for it.
 
 use std::{
     error::Error,
     io,
     num::NonZeroU32,
-    path::{Path, PathBuf},
+    path::Path,
     time::{Duration, Instant},
 };
 
@@ -29,6 +32,17 @@ use crate::host_connection::HostBrokerConnection;
 const CONNECT_BUDGET: Duration = Duration::from_secs(5);
 /// How long ending a Keeper waits for it to exit.
 const END_BOUND: Duration = Duration::from_secs(2);
+/// How long a handover request between Server requests may take: a Host fails an `AttachKeeper`
+/// that takes it more than two seconds, and the Server's next request waits meanwhile.
+const BETWEEN_REQUESTS_BUDGET: Duration = Duration::from_secs(3);
+
+/// Where a Host exchange runs: inside the Server request whose stream is named, which sends
+/// nothing until it is answered, or between requests.
+#[derive(Clone, Copy)]
+pub(crate) enum Serving<'a> {
+    Request(&'a LocalStream),
+    BetweenRequests,
+}
 
 /// The Keeper process this Worker answers for: the child it started, or the recorded Keeper it
 /// adopted, held open on its exact identity.
@@ -37,15 +51,12 @@ enum Owner {
     Adopted(ExactProcess),
 }
 
-/// The Session's Keeper and this Worker's one connection to it, with the Session runtime folder
-/// and the Terminal Host program a replacement starts from.
+/// The Session's Keeper and this Worker's one connection to it.
 pub(crate) struct SessionKeeper {
     owner: Owner,
     process: KeeperProcess,
     endpoint_id: [u8; 16],
     client: KeeperClient,
-    runtime: PathBuf,
-    executable: PathBuf,
 }
 
 /// A `TypedFailure` a Host sent for a handover request.
@@ -83,8 +94,6 @@ impl SessionKeeper {
                 process: KeeperProcess { pid, created },
                 endpoint_id: endpoint_id(runtime)?,
                 client,
-                runtime: runtime.to_owned(),
-                executable: executable.to_owned(),
             }),
             Err(error) => {
                 // A Keeper no Host attached holds nothing, so ending it ends no program.
@@ -95,8 +104,7 @@ impl SessionKeeper {
     }
 
     /// Adopts the live Keeper the Session record names, which must be `expected` when the caller
-    /// names one, and connects to it; `None` when the record names no live Keeper. A replacement
-    /// starts from `executable`.
+    /// names one, and connects to it; `None` when the record names no live Keeper.
     ///
     /// # Errors
     ///
@@ -104,7 +112,6 @@ impl SessionKeeper {
     /// the Keeper does not answer.
     pub(crate) fn adopt(
         runtime: &Path,
-        executable: &Path,
         expected: Option<(u32, u64)>,
     ) -> Result<Option<Self>, Box<dyn Error>> {
         let root = data_root()?;
@@ -126,28 +133,25 @@ impl SessionKeeper {
             process: KeeperProcess { pid, created },
             endpoint_id: endpoint_id(runtime)?,
             client,
-            runtime: runtime.to_owned(),
-            executable: executable.to_owned(),
         }))
     }
 
-    /// Ends this Keeper, which ended or stopped answering, starts another in its slot, and has the
-    /// Host `process`, which `host` serves, attach it; the Host then holds its running terminals
-    /// in the new Keeper. Until then they run unheld, as they do when a step fails.
+    /// Starts the Session's Keeper as [`SessionKeeper::start`] does and has the Host `process`,
+    /// which `host` serves, attach it between Server requests.
     ///
     /// # Errors
     ///
-    /// Returns an error when the start or the attachment fails; a new Keeper no Host attached is
-    /// ended first.
-    pub(crate) fn replace(
-        mut self,
+    /// Returns an error when the start or the attachment fails; a Keeper no Host attached is ended
+    /// first.
+    pub(crate) fn start_attached(
+        runtime: &Path,
+        executable: &Path,
         host: &HostBrokerConnection,
-        server: &LocalStream,
         process: (u32, u64),
     ) -> Result<Self, Box<dyn Error>> {
-        self.owner.end(Instant::now() + END_BOUND);
-        let mut keeper = Self::start(&self.runtime, &self.executable)?;
-        if let Err(error) = keeper.attach(host, server, process) {
+        let mut keeper = Self::start(runtime, executable)?;
+        if let Err(error) = keeper.attach(host, Serving::BetweenRequests, process) {
+            // No terminal is held yet, so ending the Keeper ends no program.
             keeper.end(Instant::now() + END_BOUND);
             return Err(error);
         }
@@ -163,7 +167,7 @@ impl SessionKeeper {
     pub(crate) fn attach(
         &mut self,
         host: &HostBrokerConnection,
-        server: &LocalStream,
+        serving: Serving<'_>,
         process: (u32, u64),
     ) -> Result<(), Box<dyn Error>> {
         let (pid, created) = process;
@@ -178,7 +182,7 @@ impl SessionKeeper {
             keeper,
             endpoint_id: self.endpoint_id,
         });
-        match request(host, server, &attach)? {
+        match request(host, serving, &attach)? {
             HandoverControl::KeeperAttached(attached) if attached == keeper => Ok(()),
             _ => Err(unexpected().into()),
         }
@@ -249,7 +253,7 @@ impl Owner {
 /// is the error's [`HostRefusal`].
 pub(crate) fn request(
     host: &HostBrokerConnection,
-    server: &LocalStream,
+    serving: Serving<'_>,
     value: &HandoverControl,
 ) -> Result<HandoverControl, Box<dyn Error>> {
     use orchbee_terminal_protocol::{
@@ -259,14 +263,24 @@ pub(crate) fn request(
 
     let encoded = encode_handover_control(value)?;
     let correlation = CorrelationId::from_bytes(crate::worker_identity::fresh_identity()?)?;
-    let record = crate::host_connection::exchange(
-        host,
-        server,
-        correlation,
-        encoded.kind,
-        &encoded.payload,
-        PayloadEncoding::ControlJson,
-    )?;
+    let record = match serving {
+        Serving::Request(server) => crate::host_connection::exchange(
+            host,
+            server,
+            correlation,
+            encoded.kind,
+            &encoded.payload,
+            PayloadEncoding::ControlJson,
+        )?,
+        Serving::BetweenRequests => crate::host_connection::exchange_between_requests(
+            host,
+            correlation,
+            encoded.kind,
+            &encoded.payload,
+            PayloadEncoding::ControlJson,
+            BETWEEN_REQUESTS_BUDGET,
+        )?,
+    };
     let envelope = decode_transport_envelope(&record)?;
     if envelope.kind == encoded.kind {
         return Ok(decode_handover_control(

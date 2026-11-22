@@ -842,6 +842,16 @@ pub(super) fn host_absent(owners: &Owners) -> bool {
     matches!(owners.session_record.host_absent(), Ok(true))
 }
 
+/// Only an exact observation that the Keeper is gone, or that none started, counts; a running
+/// Keeper keeps the programs of a Host that ended. POSIX starts none.
+pub(super) fn keeper_absent(owners: &Owners) -> bool {
+    matches!(
+        owners.session_record.keeper_presence(),
+        Ok(orchbee_local_runtime::HostPresence::Gone
+            | orchbee_local_runtime::HostPresence::NotStarted)
+    )
+}
+
 #[cfg(windows)]
 fn own_stop_id() -> Option<StopId> {
     let mut bytes = [0; 16];

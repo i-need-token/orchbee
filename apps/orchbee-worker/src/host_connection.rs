@@ -49,6 +49,8 @@ mod viewers;
 
 #[cfg(test)]
 mod tests;
+#[cfg(windows)]
+pub(crate) use exchange::exchange_between_requests;
 pub(crate) use exchange::{
     HostExchange, PeerFailure, UnexpectedAnswer, exchange, response_envelope,
 };

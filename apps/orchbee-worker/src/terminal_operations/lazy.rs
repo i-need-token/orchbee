@@ -363,15 +363,10 @@ pub(crate) fn run(
                 Err(error) => return Err(super::exit_cause::attach(error, &host)),
             }
             let mut managed_host = super::shutdown::ManagedHost::new(child);
-            // The Keeper starts once the first Host is ready and its Launch answered, so the start
-            // takes none of the Launch's bound; the Host then holds that terminal too. A failed
-            // start leaves the terminals unheld and the Worker serving.
+            // The Keeper's care starts the Session's Keeper between requests, first right after
+            // this answer, so the start takes none of the Launch's bound.
             #[cfg(windows)]
-            {
-                host.pacing.end_request();
-                let keeper = start_keeper(cohort, runtime, &host, &server, managed_host.child());
-                managed_host.keep(keeper);
-            }
+            managed_host.keep_from(runtime, cohort.executable(CohortArtifact::TerminalHost));
             return super::run_admitted_with_handoff(
                 server,
                 &mut host,
@@ -403,44 +398,6 @@ pub(crate) fn run(
         plugins: &plugin_jobs,
     }
     .settle_exit(outcome)
-}
-
-/// Starts the Session's Keeper for the Host `host` that `child` is, and has that Host attach it,
-/// where the Host negotiated `keeper`; `None` when it did not or a step failed, which leaves the
-/// terminals unheld.
-#[cfg(windows)]
-pub(super) fn start_keeper(
-    cohort: &Cohort,
-    runtime: &Path,
-    host: &HostBrokerConnection,
-    server: &UnixStream,
-    child: Option<&orchbee_local_runtime::RetainedChild>,
-) -> Option<crate::session_keeper::SessionKeeper> {
-    let child = child.filter(|_| host.keeper())?;
-    let executable = cohort.executable(CohortArtifact::TerminalHost);
-    let mut keeper = match crate::session_keeper::SessionKeeper::start(runtime, &executable) {
-        Ok(keeper) => keeper,
-        Err(error) => {
-            crate::diagnostic_events::keeper_failed("start", error.as_ref());
-            return None;
-        }
-    };
-    let attached = child
-        .exact_identity()
-        .map_err(Box::<dyn Error>::from)
-        .and_then(|identity| keeper.attach(host, server, identity));
-    match attached {
-        Ok(()) => {
-            crate::diagnostic_events::keeper_started();
-            Some(keeper)
-        }
-        Err(error) => {
-            crate::diagnostic_events::keeper_failed("attach", error.as_ref());
-            // No terminal is held yet, so ending the Keeper ends no program.
-            keeper.end(Instant::now() + Duration::from_secs(2));
-            None
-        }
-    }
 }
 
 /// Where a managed Host start failed, named in its diagnostic record.
