@@ -397,6 +397,12 @@ impl Locale {
                 "Local terminal startup timed out. Existing session processes were retained.\n"
             }
             (Self::ZhCn, StartupFailure::TimedOut) => "本地终端启动超时。已有会话进程已保留。\n",
+            (Self::EnUs, StartupFailure::SessionStopping) => {
+                "The local session is still finishing an earlier stop. Try again shortly; if it persists, run orchbee doctor.\n"
+            }
+            (Self::ZhCn, StartupFailure::SessionStopping) => {
+                "本地会话仍在完成先前的停止。请稍后重试；若一直如此，请运行 orchbee doctor。\n"
+            }
             (Self::EnUs, StartupFailure::TerminalUnavailable) => {
                 "The local terminal is unavailable. No terminal creation was retried.\n"
             }

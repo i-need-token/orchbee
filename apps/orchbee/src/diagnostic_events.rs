@@ -135,6 +135,7 @@ const fn startup_failure(failure: &StartupFailure) -> &'static str {
         StartupFailure::ElevatedSession => "admission",
         StartupFailure::Admission => "admission",
         StartupFailure::TimedOut => "timed-out",
+        StartupFailure::SessionStopping => "session-stopping",
         StartupFailure::TerminalUnavailable => "terminal-unavailable",
         StartupFailure::OutcomeUnknown => "outcome-unknown",
         StartupFailure::Interface => "interface",

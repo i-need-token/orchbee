@@ -2084,7 +2084,7 @@ fn classify_refusal(rejection: &orchbee_connection_handshake::Rejection) -> Fail
 }
 
 /// A Session that is draining, stopping or exiting accepts no new Client.
-fn stopping() -> Failure {
+pub(super) fn stopping() -> Failure {
     Failure::new(FailureKind::ServiceUnavailable)
         .details(stage_reason_details("admission", "stopping"))
 }

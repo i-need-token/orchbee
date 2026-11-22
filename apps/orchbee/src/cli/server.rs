@@ -275,6 +275,7 @@ fn classify(failure: ActivationFailure) -> Failure {
         Some(ActivationCause::SpawnIo) => recovery_required(),
         None => match failure.failure {
             StartupFailure::TimedOut => timeout(),
+            StartupFailure::SessionStopping => super::query::stopping(),
             StartupFailure::RecoveryRequired => recovery_required(),
             StartupFailure::RecoveryBlocked(blocker) => recovery_blocked(blocker),
             StartupFailure::ServerNotStarted(spawn) => server_not_started(spawn),

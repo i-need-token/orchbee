@@ -309,6 +309,11 @@ fn activate(
             // the store's start, so the next Session runs the store's active version.
             Activated::Stopping => {
                 drop((catalog, session));
+                // A Session still stopping when the time runs out is named as such, not as a
+                // start that timed out.
+                if deadline.saturating_duration_since(Instant::now()) <= 2 * STOPPING_PAUSE {
+                    return Err(ActivationFailure::bare(StartupFailure::SessionStopping));
+                }
                 wait(deadline, STOPPING_PAUSE)?;
                 continue;
             }

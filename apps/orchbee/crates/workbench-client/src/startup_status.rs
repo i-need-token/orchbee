@@ -39,6 +39,9 @@ pub enum StartupFailure {
     ElevatedSession,
     Admission,
     TimedOut,
+    /// The Session was still ending an earlier stop when the start's time ran out. A Windows
+    /// Server ends a stop that keeps failing by itself, so a later start goes on.
+    SessionStopping,
     TerminalUnavailable,
     OutcomeUnknown,
     Interface,
