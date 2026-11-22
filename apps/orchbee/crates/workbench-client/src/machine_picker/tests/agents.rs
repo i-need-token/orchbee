@@ -552,14 +552,13 @@ fn another_machines_agent_notifies_as_a_local_one_and_its_card_chooses_it() {
     picker.observe_agents(round(&done));
     picker.observe_remote_notifications(&settings, start);
 
-    // Due after the profile's delay, and only once a frame showed the change.
+    // Due after the profile's delay.
     let due = start + Duration::from_secs(1);
     assert!(
         picker
-            .take_remote_notification(Locale::EnUs, true, due)
+            .take_remote_notification(Locale::EnUs, true, due - Duration::from_millis(1))
             .is_none()
     );
-    picker.after_draw_remote_notifications();
     let (_, message, target) = picker
         .take_remote_notification(Locale::EnUs, true, due)
         .expect("the Agent on devbox finished its turn");
@@ -584,7 +583,6 @@ fn another_machines_agent_notifies_as_a_local_one_and_its_card_chooses_it() {
     asks.sequence = WorkbenchRevision::new(3);
     picker.observe_agents(round(&asks));
     picker.observe_remote_notifications(&settings, due);
-    picker.after_draw_remote_notifications();
     assert!(
         picker
             .take_remote_notification(Locale::EnUs, true, due + Duration::from_secs(1))

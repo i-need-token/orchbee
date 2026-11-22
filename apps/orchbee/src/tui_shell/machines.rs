@@ -138,6 +138,8 @@ pub(super) struct Manager {
     /// Change machine's move under way.
     moves: moving::Mover,
     agents: crate::machine_agents::Collector,
+    /// The other machines' explicit notification feeds.
+    remote_notices: crate::notifications::RemoteNotifications,
     spaces: crate::machine_spaces::Collector,
     /// What each saved machine listed when last connected, kept across restarts.
     last_seen: crate::machine_spaces::LastSeen,
@@ -246,6 +248,7 @@ impl Manager {
             moves: moving::Mover::default(),
             // Host process titles have no publication source; canonical Agent facts also push.
             agents: crate::machine_agents::Collector::new(wakeup.clone(), true),
+            remote_notices: crate::notifications::RemoteNotifications::default(),
             spaces: crate::machine_spaces::Collector::new(wakeup.clone(), false),
             last_seen: crate::machine_spaces::LastSeen::configured(),
             space_git: None,
@@ -502,6 +505,7 @@ impl Manager {
         // on every machine notify.
         let policy = view.notifications.policy();
         let notifies = policy.agent_delivery != orchbee_local_runtime::NotificationDelivery::Off
+            || policy.delivery != orchbee_local_runtime::NotificationDelivery::Off
             || policy.sound_enabled;
         let every_machine = view.machines.wants_agents()
             || view.machines.wants_spaces()
@@ -536,6 +540,12 @@ impl Manager {
         change.redraw |= view
             .machines
             .observe_remote_notifications(view.notifications.policy(), now);
+        // `orchbee notification show` on another machine reaches this screen.
+        let accepting = surface.active().explicit_notifications_accepting(view);
+        let on_screen = choice(self.current.as_ref());
+        change.redraw |= self
+            .remote_notices
+            .tick(&agent_sources, &on_screen, view, accepting, now);
         if self.agents.hinted(&choice(self.current.as_ref())) {
             surface.active().expedite_agent_reads();
         }

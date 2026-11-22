@@ -58,6 +58,17 @@ impl Picker {
             .flat_map(|(choice, round)| round.rows.iter().map(move |row| (choice, row)))
     }
 
+    /// The Session a connected machine's Agents were last read from.
+    pub fn agent_session(&self, choice: &Choice) -> Option<orchbee_workbench_protocol::SessionId> {
+        self.agent_observations
+            .iter()
+            .find(|(id, _)| id == choice)
+            .and_then(|(_, observation)| match observation {
+                Observation::Ready(round) => Some(round.session_id.clone()),
+                _ => None,
+            })
+    }
+
     /// Takes the notification profile and the other machines' Agent rows as they stand at `now`;
     /// true when what may notify changed.
     pub fn observe_remote_notifications(
@@ -96,15 +107,13 @@ impl Picker {
             .collect();
         let scheduler = &mut self.remote_notifications.scheduler;
         // A round the scheduler refuses is a gap: the next one is a fresh baseline.
-        changed
-            | scheduler
-                .observe(now_millis, observations)
-                .unwrap_or_else(|()| scheduler.unavailable())
-    }
-
-    /// A successful complete frame showed the rows a due notification follows.
-    pub fn after_draw_remote_notifications(&mut self) {
-        self.remote_notifications.scheduler.after_draw();
+        let observed = scheduler
+            .observe(now_millis, observations)
+            .unwrap_or_else(|()| scheduler.unavailable());
+        // No frame acknowledges another machine's Agent, so its notifications wait only for the
+        // delay, never for a frame.
+        scheduler.after_draw();
+        changed | observed
     }
 
     /// The next due notification about an Agent on another machine, worded as a local one, with

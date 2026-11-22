@@ -1488,8 +1488,12 @@ same profile, delay and transitions, with the machine's name beside the Workspac
 writes it (`Workspace api @devbox`). Every connected machine's Agents are read while notifications
 or sound are on, whatever the sidebar shows. The Agent rows' seen state is this Client's: a
 machine's first read, and the machine that comes into view, are a fresh baseline, so a switch
-raises nothing. Opening the card chooses that Agent as its sidebar row does, through the machine's
-card while it connects; the machine on screen is the Session's to notify and open.
+raises nothing; no frame acknowledges another machine's Agent, so its notification waits only for
+the delay. Opening the card chooses that Agent as its sidebar row does, through the machine's card
+while it connects; the machine on screen is the Session's to notify and open. `orchbee notification
+show` in another connected machine's Session shows here as on a Client attached to it: each such
+machine's connection listens to the Session its Agents were read from, an ordinary inbox that counts
+nowhere else.
 
 Local Panels use their own connection and are untouched. Each connection's threads, credit and pipe
 are its own, and the UI loop never reads a channel, so one slow remote never stalls input or drawing

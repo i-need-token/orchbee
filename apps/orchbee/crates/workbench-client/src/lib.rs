@@ -33,6 +33,7 @@ mod machine_discovery;
 mod machine_endpoint;
 mod machine_hub;
 mod machine_login;
+mod machine_notifications;
 mod machine_observation;
 mod machine_overview;
 mod machine_picker;
@@ -354,6 +355,7 @@ pub mod application {
     }
 
     pub mod notifications {
+        pub use crate::machine_notifications::RemoteNotifications;
         pub use crate::notifications::paint::render;
         pub use crate::notifications::system::{SystemNotifications, sound};
         pub use crate::workbench_client::notification_available as available;

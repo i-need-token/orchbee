@@ -113,6 +113,11 @@ impl mailbox::MailboxClock for crate::local_client::LocalOperationClock {
 }
 
 impl ClientBackend {
+    fn native(&self) -> Option<&ui::WorkbenchClientUi> {
+        match self {
+            Self::Native(native) => Some(native),
+        }
+    }
     fn native_mut(&mut self) -> Option<&mut ui::WorkbenchClientUi> {
         match self {
             Self::Native(native) => Some(native),
@@ -566,6 +571,23 @@ impl WorkbenchClient {
         }
     }
 
+    /// Whether an explicit notification may land now: no card shows, and a card could.
+    fn accepting_explicit(
+        native: &ui::WorkbenchClientUi,
+        view: &crate::client_view::ClientView,
+    ) -> bool {
+        (!view.notifications.card_delivery()
+            || ui::notification_available(view, Some(native.view())))
+            && view.notifications.empty()
+    }
+
+    /// Whether an explicit notification from another machine's Session may land now.
+    pub fn explicit_notifications_accepting(&self, view: &crate::client_view::ClientView) -> bool {
+        self.backend
+            .native()
+            .is_some_and(|native| Self::accepting_explicit(native, view))
+    }
+
     pub fn automatic_notifications_tick(
         &mut self,
         view: &mut crate::client_view::ClientView,
@@ -765,9 +787,7 @@ impl WorkbenchClient {
                     let rows = confirmations.poll(native.title_presentations());
                     configuration_changed |= native.receive_agent_confirmations(rows);
                 }
-                let accepting = (!view.notifications.card_delivery()
-                    || ui::notification_available(view, Some(native.view())))
-                    && view.notifications.empty();
+                let accepting = Self::accepting_explicit(native, view);
                 if let Some(listener) = &self.notifications
                     && let Some(message) = listener.poll(accepting)
                 {

@@ -1317,7 +1317,6 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         crate::notifications::sound(view.notifications.take_sound_after_draw());
     }
     dispatcher.publish_hit_map(hits.finish());
-    view.machines.after_draw_remote_notifications();
     let pointer_projection_redraw = dispatcher.take_pointer_projection_redraw();
     if capture_owner == Some(crate::tui_composition::CaptureOwner::Machine) {
         // Covered native content cannot acknowledge successful visible presentation.
@@ -1618,6 +1617,10 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn machine_settings_shown(&self) -> Option<bool> {
         None
     }
+    /// Whether an explicit notification from another machine's Session may land now.
+    fn explicit_notifications_accepting(&self, _view: &crate::client_view::ClientView) -> bool {
+        false
+    }
     fn take_machine_settings_request(&mut self) -> Option<crate::machine_settings::Request> {
         None
     }
@@ -1775,6 +1778,9 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     }
     fn machine_settings_shown(&self) -> Option<bool> {
         crate::workbench_client::WorkbenchClient::machine_settings_shown(self)
+    }
+    fn explicit_notifications_accepting(&self, view: &crate::client_view::ClientView) -> bool {
+        crate::workbench_client::WorkbenchClient::explicit_notifications_accepting(self, view)
     }
     fn take_machine_settings_request(&mut self) -> Option<crate::machine_settings::Request> {
         crate::workbench_client::WorkbenchClient::take_machine_settings_request(self)

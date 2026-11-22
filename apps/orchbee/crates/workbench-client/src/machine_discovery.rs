@@ -60,6 +60,12 @@ impl Connection {
     pub fn from_origin(origin: LocalClientOrigin, clock: LocalOperationClock) -> Self {
         Self { origin, clock }
     }
+    pub(crate) const fn origin(&self) -> &LocalClientOrigin {
+        &self.origin
+    }
+    pub(crate) fn clock(&self) -> LocalOperationClock {
+        self.clock.clone()
+    }
     pub fn reconnect(
         &self,
         deadline: Instant,
