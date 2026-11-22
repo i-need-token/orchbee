@@ -497,9 +497,16 @@ impl WorkbenchClientUi {
             return false;
         };
         // Rebuild Workspace rows from their vocabulary: discovery may add back Git actions
-        // previously omitted by a refusal. Availability still owns capability filtering.
+        // previously omitted by a refusal. Availability still owns capability filtering. Start
+        // Agent ▸ was fixed when the menu opened and keeps its place.
         let base = if matches!(intent.entry(), MenuTarget::Workspace(_)) {
-            crate::action_menu::WORKSPACE_ACTIONS.to_vec()
+            view.actions
+                .first()
+                .filter(|action| **action == MenuAction::WorkspaceAgents)
+                .into_iter()
+                .chain(crate::action_menu::WORKSPACE_ACTIONS)
+                .cloned()
+                .collect()
         } else {
             view.actions.to_vec()
         };

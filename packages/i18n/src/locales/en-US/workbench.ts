@@ -337,7 +337,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.profiles.default': 'Default',
 	'workbench.tabs.profiles.systemShell': 'System shell',
 	'workbench.tabs.agents.heading': 'Agents',
-	'workbench.tabs.agents.more': 'More Agents…',
 	'workbench.tabs.groups.collection': 'Tab groups',
 	'workbench.tabs.groups.unnamed': 'Unnamed group',
 	'workbench.tabs.groupName.createTitle': 'New Tab Group',

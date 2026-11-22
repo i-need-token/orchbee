@@ -48,6 +48,8 @@ pub enum MenuTarget {
     WorkspaceWorktrees(crate::workbench_projection::ClientContextLocation),
     /// One Workspace's Change machine submenu: This computer and every saved machine.
     WorkspaceMachines(crate::workbench_projection::ClientContextLocation),
+    /// One Workspace's Start Agent submenu: the Agents the new-Tab menu lists, starting there.
+    WorkspaceAgents(crate::workbench_projection::ClientContextLocation),
     /// One Project's New Workspace submenu: a new Worktree, its folders and its Git Worktrees.
     WorkspaceCreation(orchbee_workbench_protocol::WorkbenchProjectId),
     /// An object entry must still belong to the exact Session snapshot that painted it.
@@ -317,8 +319,6 @@ pub(crate) fn menu_binding_action(
             PrefixAction::Client(A::DismissPrefix)
         }
         (T::TabCreate(_), M::NewTab) => PrefixAction::Client(A::CreateTab),
-        // The key opens the same picker; only its starting place differs.
-        (T::TabProfiles(_), M::MoreAgents) => PrefixAction::Client(A::StartAgent),
         _ => return None,
     };
     Some(action)
@@ -574,12 +574,9 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
     }
 }
 
-/// The new-Tab menu's Agents section: its provider rows and "More Agents…".
+/// The new-Tab menu's Agents section: its provider rows.
 const fn agent_row(action: &MenuAction) -> bool {
-    matches!(
-        action,
-        MenuAction::StartAgentInTab(_) | MenuAction::MoreAgents
-    )
+    matches!(action, MenuAction::StartAgentInTab(_))
 }
 
 fn heading_before(

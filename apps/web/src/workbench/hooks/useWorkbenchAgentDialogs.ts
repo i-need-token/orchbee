@@ -5,7 +5,6 @@ import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProject
 import type {
 	WorkbenchAgentCatalogSource,
 	WorkbenchAgentStartPlace,
-	WorkbenchAgentStartWorkspace,
 } from '../types/workbench-agent-start';
 import { findActiveTerminalFocusTarget } from '../utils/workbench-terminal-focus-target';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
@@ -22,7 +21,6 @@ export interface WorkbenchAgentStartDialogModel {
 	readonly finalFocus: () => HTMLElement | false | null;
 	/** The places a start can use now, in the dialog's order; the first is the default. */
 	readonly places: readonly WorkbenchAgentStartPlace[];
-	readonly workspace?: WorkbenchAgentStartWorkspace | undefined;
 }
 
 interface WorkbenchAgentDialogs {
@@ -35,10 +33,6 @@ interface WorkbenchAgentDialogs {
 	readonly endStart: (handedOff: boolean) => void;
 	/** Opens Start Agent with the places `workbench.agent.start` found available. */
 	readonly openStart: (places: readonly WorkbenchAgentStartPlace[]) => void;
-	readonly openWorkspaceStart: (
-		workspace: WorkbenchAgentStartWorkspace,
-		returnTo: HTMLElement | null,
-	) => void;
 	/** Present while Start Agent is open. */
 	readonly start: WorkbenchAgentStartDialogModel | undefined;
 	/** Whether the Session can start an Agent now, which offers Start Agent's entry points. */
@@ -47,11 +41,7 @@ interface WorkbenchAgentDialogs {
 
 type Shown =
 	| { readonly kind: 'none' }
-	| {
-			readonly kind: 'start';
-			readonly places: readonly WorkbenchAgentStartPlace[];
-			readonly workspace?: WorkbenchAgentStartWorkspace;
-	  };
+	| { readonly kind: 'start'; readonly places: readonly WorkbenchAgentStartPlace[] };
 
 const NONE: Shown = { kind: 'none' };
 
@@ -75,11 +65,11 @@ export function useWorkbenchAgentDialogs({
 		readStartable,
 	);
 
-	const show = (target: Shown, returnTo?: HTMLElement | null): void => {
+	const show = (target: Shown): void => {
 		if (next.current.kind === 'none' && target.kind !== 'none') {
 			const focused = typeof document === 'undefined' ? null : document.activeElement;
 			returnFocus.current =
-				returnTo ?? (focused instanceof HTMLElement && focused !== document.body ? focused : null);
+				focused instanceof HTMLElement && focused !== document.body ? focused : null;
 			landed.current = false;
 		}
 		next.current = target;
@@ -97,10 +87,6 @@ export function useWorkbenchAgentDialogs({
 	const openStart = useMemoizedFn((places: readonly WorkbenchAgentStartPlace[]) =>
 		show({ kind: 'start', places }),
 	);
-	const openWorkspaceStart = useMemoizedFn(
-		(workspace: WorkbenchAgentStartWorkspace, returnTo: HTMLElement | null) =>
-			show({ kind: 'start', places: ['new-tab'], workspace }, returnTo),
-	);
 	const closeStart = useMemoizedFn(() => show(NONE));
 	const endStart = useMemoizedFn((handedOff: boolean) => {
 		show(NONE);
@@ -111,10 +97,9 @@ export function useWorkbenchAgentDialogs({
 		closeStart,
 		endStart,
 		openStart,
-		openWorkspaceStart,
 		start:
 			shown.kind === 'start' && agentCatalog !== undefined
-				? { catalog: agentCatalog, finalFocus, places: shown.places, workspace: shown.workspace }
+				? { catalog: agentCatalog, finalFocus, places: shown.places }
 				: undefined,
 		startOffered,
 	};

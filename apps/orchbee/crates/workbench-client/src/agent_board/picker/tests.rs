@@ -269,7 +269,6 @@ fn a_session_without_the_prompt_gate_disables_only_this_panel() {
         PickerOutcome::Start(PickedStart {
             provider: "codex",
             place: NewTab,
-            workspace: None,
         })
     );
 
@@ -280,7 +279,6 @@ fn a_session_without_the_prompt_gate_disables_only_this_panel() {
         PickerOutcome::Start(PickedStart {
             provider: "codex",
             place: ThisPanel(focused.clone()),
-            workspace: None,
         })
     );
 }
@@ -352,10 +350,10 @@ fn esc_clears_the_query_then_leaves_the_picker() {
     assert!(!board.is_open());
 }
 
-/// The new-Tab menu lists what the picker lists first: Recent, then Installed A–Z, at most four,
-/// and never a provider that is still being checked, not found or not checked.
+/// The new-Tab menu lists what the picker lists first: Recent, then Installed A–Z, and never a
+/// provider that is still being checked, not found or not checked.
 #[test]
-fn new_tab_menu_lists_the_pickers_found_providers_up_to_four() {
+fn new_tab_menu_lists_the_pickers_found_providers() {
     struct Case {
         name: &'static str,
         recent: &'static [&'static str],
@@ -380,14 +378,6 @@ fn new_tab_menu_lists_the_pickers_found_providers_up_to_four() {
             missing: &[],
             pending: &[],
             expect: &["amp", "pi"],
-        },
-        Case {
-            name: "more than four keeps the first four in the picker's order",
-            recent: &["pi"],
-            installed: &["pi", "opencode", "kimi", "codex", "amp", "claude-code"],
-            missing: &[],
-            pending: &[],
-            expect: &["pi", "amp", "claude-code", "codex"],
         },
         Case {
             name: "a provider still being checked waits; found so far is listed",

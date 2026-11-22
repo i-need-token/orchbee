@@ -847,9 +847,6 @@ export function useWorkbench({
 	const createTabWithProfile = useMemoizedFn((profile: UserLaunchProfile) => {
 		actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null, profile }, 'context-menu');
 	});
-	const openAgentStartForNewTab = useMemoizedFn(() => {
-		actions.invoke(WORKBENCH_ACTION_IDS.openAgentStart, undefined, 'context-menu');
-	});
 	const startAgentInNewTab = useMemoizedFn((providerId: WorkbenchAgentStartProvider) => {
 		actions.invoke(
 			WORKBENCH_ACTION_IDS.startAgent,
@@ -862,9 +859,7 @@ export function useWorkbench({
 		createTab: createTabWithProfile,
 		inWorkspace: projectWorkspaceState.activeLocation.kind === 'workspace',
 		launchProfiles: authorityNotice.authority.launchProfiles,
-		openAgentStart: openAgentStartForNewTab,
 		startAgentInNewTab,
-		startAgentShortcutLabel,
 	});
 	const invokeLocationActivation = useMemoizedFn(
 		(targetLocation: WorkbenchActiveLocation, source: 'button' | 'keyboard' | 'pointer') => {
@@ -1003,7 +998,6 @@ export function useWorkbench({
 				? undefined
 				: {
 						catalog: authorityNotice.authority.agentCatalog,
-						open: agentDialogs.openWorkspaceStart,
 						start: startWorkspaceAgent,
 					},
 		closeAgentStart: agentDialogs.closeStart,

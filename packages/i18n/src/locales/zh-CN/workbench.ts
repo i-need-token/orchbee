@@ -317,7 +317,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.profiles.default': '默认',
 	'workbench.tabs.profiles.systemShell': '系统 Shell',
 	'workbench.tabs.agents.heading': '智能体',
-	'workbench.tabs.agents.more': '更多智能体…',
 	'workbench.tabs.groups.collection': '标签页组',
 	'workbench.tabs.groups.unnamed': '未命名分组',
 	'workbench.tabs.groupName.createTitle': '新建标签页分组',

@@ -649,7 +649,6 @@ export function Workbench({
 					onClose={view.closeAgentStart}
 					onStart={view.startAgent}
 					places={view.agentStart.places}
-					workspace={view.agentStart.workspace}
 				/>
 			)}
 			{view.worktreeForm === undefined ? null : (

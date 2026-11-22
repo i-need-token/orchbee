@@ -44,6 +44,7 @@ pub enum InteractionTarget {
     NavigatorRow(crate::client_view::navigator::Row),
     NavigatorClose(crate::client_view::navigator::DrawSource),
     TabCreate(crate::action_menu::DrawnTabCreate),
+    TabCreateMenu(crate::action_menu::DrawnTabCreate),
     TabCloseRequest {
         source: crate::action_menu::DrawnTabCreate,
         tab: orchbee_workbench_protocol::WorkbenchTabId,
@@ -102,6 +103,7 @@ impl InteractionTarget {
                 | Self::Sidebar(_)
                 | Self::SidebarFixed(_)
                 | Self::TabCreate(_)
+                | Self::TabCreateMenu(_)
                 | Self::TabCloseRequest { .. }
                 | Self::TabStripPage { .. }
         ) {
@@ -205,6 +207,7 @@ impl InteractionTarget {
             Self::NavigatorRow(row) => HitTarget::NavigatorRow(row.clone()),
             Self::NavigatorClose(source) => HitTarget::NavigatorClose(source.episode()),
             Self::TabCreate(target) => HitTarget::TabCreate(target.clone()),
+            Self::TabCreateMenu(target) => HitTarget::TabCreateMenu(target.clone()),
             Self::TabCloseRequest { source, tab } => HitTarget::TabCloseRequest {
                 source: source.clone(),
                 tab: tab.clone(),

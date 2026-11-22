@@ -179,6 +179,13 @@ impl Locale {
             (Self::ZhCn, MenuHeading::RunsOn) => "运行在",
         }
     }
+    /// `[v]` beside the Tab strip's `[+]`, which opens the new-Tab menu.
+    pub(crate) const fn new_tab_menu_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "New Tab menu",
+            Self::ZhCn => "新建标签页菜单",
+        }
+    }
     pub(crate) const fn menu_title(self) -> &'static str {
         match self {
             Self::EnUs => "Actions",

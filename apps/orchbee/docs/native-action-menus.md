@@ -64,12 +64,12 @@ selected set, these rows name its count instead, as in Pin selected 2 Tabs.
 Add to group ▸ lists the other groups in strip order, then a separated New group…. A group
 header's menu, titled with the group's name and Tab count, holds New Tab in group, Rename and
 Group color ▸, then Ungroup and the red Close; a click on the header already folds the group
-and dragging moves it. Right-clicking the new-Tab button lists the saved launch profiles, the
-default first and marked Default, then a separated Agents section under its heading: up to four
-Agents by product name, the picker's Recent then Installed rows in its order, and More Agents… with
-the `Ctrl+b Shift+G` key. An Agent row starts that Agent in a new Tab of the current Workspace without a
-question, through the [Start Agent picker](start-agent-picker.md)'s new-Tab place; More Agents… opens the
-picker with new Tab as its place. The rows come from the Session's Agent catalog as already held:
+and dragging moves it. Right-clicking the new-Tab button, or a click on the `[v]` beside it, lists
+the saved launch profiles, the default first and marked Default, then a separated Agents section
+under its heading: every Agent the picker lists as Recent or Installed, in its order, by product
+name. `[v]` is painted only while the menu holds more than one row and the strip has room for it. An
+Agent row starts that Agent in a new Tab of the current Workspace without a question, through the
+[Start Agent picker](start-agent-picker.md)'s new-Tab place. The rows come from the Session's Agent catalog as already held:
 opening the menu never asks the Server to look again, and the rows are fixed when the menu opens,
 so a catalog that arrives later reorders nothing. While a lookup runs the section lists what is
 known, and a provider still being checked or not found is never listed. Where the picker could not
@@ -318,8 +318,12 @@ intact; execution returns the actual disposition to the same view transition.
 Setup retains the current source and focus, checks the original menu deadline at admission, and uses
 bounded preparation without timing optional human editing.
 
-Workspace menus contain Move to Project ▸, Change machine ▸ where the TUI reaches saved machines,
-Rename Workspace (shown as Rename), a separated Worktree section and a separated close section. The Worktree section holds
+Workspace menus lead with Start Agent ▸ while an Agent can start, then contain Move to Project ▸,
+Change machine ▸ where the TUI reaches saved machines, Rename Workspace (shown as Rename), a
+separated Worktree section and a separated close section. Start Agent ▸ lists the new-Tab menu's
+Agents, fixed when the menu opens; a row starts that Agent in a new Tab of the addressed Workspace,
+which it selects first when another Workspace is current. The row is absent while no Agent is found.
+The Worktree section holds
 New Worktree…, which opens the New Worktree form with its defaults for the sidebar Create route
 and creates only on that form's Create, and Open
 Worktree ▸, whose submenu lists the discovered non-bare checkouts other than the Workspace's own

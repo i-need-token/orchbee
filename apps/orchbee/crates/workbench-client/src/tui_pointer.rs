@@ -1959,6 +1959,11 @@ impl PointerState {
                 {
                     Some(crate::action_menu::MenuTarget::TabProfiles(target.clone()))
                 }
+                HitResolution::Region(HitTarget::TabCreateMenu(target))
+                    if matches!(event.button, MouseButton::Left | MouseButton::Right) =>
+                {
+                    Some(crate::action_menu::MenuTarget::TabProfiles(target.clone()))
+                }
                 HitResolution::Region(hit)
                     if hit.row_menu_target().is_some() && event.button == MouseButton::Right =>
                 {
@@ -2004,7 +2009,7 @@ impl PointerState {
             && event.mods == crate::client_view::Modifiers::NONE
             && !matches!(map.hit(event.column, event.row),
                 HitResolution::Region(hit) if hit.sidebar_target().is_some()
-                    || matches!(hit, HitTarget::MachineWorkspaceSurface(_) | HitTarget::SidebarScrollbar { .. } | HitTarget::SidebarResize(_) | HitTarget::TabCreate(_)))
+                    || matches!(hit, HitTarget::MachineWorkspaceSurface(_) | HitTarget::SidebarScrollbar { .. } | HitTarget::SidebarResize(_) | HitTarget::TabCreate(_) | HitTarget::TabCreateMenu(_)))
         {
             view.machines.leave_sidebar_navigation();
         }
@@ -2038,6 +2043,7 @@ impl PointerState {
                 | HitTarget::NavigatorClose(_)
                 | HitTarget::MachinePicker(_)
                 | HitTarget::TabCreate(_)
+                | HitTarget::TabCreateMenu(_)
                 | HitTarget::CopyControl { .. }
                 | HitTarget::CopySurface { .. }
                 | HitTarget::FindControl { .. }

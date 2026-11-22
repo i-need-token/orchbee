@@ -222,6 +222,14 @@ pub(super) fn create_tooltip(view: &ClientView, locale: Locale, theme: &Theme) -
     }
 }
 
+/// `[v]` beside `[+]`, which no key opens.
+pub(super) fn create_menu_tooltip(locale: Locale) -> TooltipContent {
+    TooltipContent::Action {
+        label: locale.new_tab_menu_label().to_owned(),
+        key: None,
+    }
+}
+
 /// Metadata decorates display only. Sanitizing, clipping and hit width still
 /// consume the complete label through the same rendering path as plain Tabs.
 pub(super) fn label_with_metadata<'a>(

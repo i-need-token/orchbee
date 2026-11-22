@@ -35,6 +35,10 @@
 	composes: codicon-clippy from global;
 }
 
+.chevronDown {
+	composes: codicon-chevron-down from global;
+}
+
 .chevronRight {
 	composes: codicon-chevron-right from global;
 }

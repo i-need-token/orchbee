@@ -75,29 +75,6 @@ impl WorkbenchClientUi {
         ClientActionDisposition::DismissNavigator
     }
 
-    /// The new-Tab menu's "More Agents…": the picker as `Ctrl+B G` opens it, with a new Tab as
-    /// its place. The menu closed first, so nothing else owns input.
-    pub(super) fn open_agent_picker_in_new_tab(&mut self) {
-        if self.retirement_failure.is_some() || self.board.is_open() || self.modal_owns_input() {
-            return;
-        }
-        let focus = self.focused_panel();
-        let worktree = self.worktree_place_available();
-        self.observe_session_capabilities();
-        self.board.open_picker_in_new_tab(focus.as_ref(), worktree);
-    }
-
-    pub(super) fn open_workspace_agent_picker(
-        &mut self,
-        location: ClientContextLocation,
-        name: String,
-    ) {
-        if self.retirement_failure.is_none() && !self.board.is_open() && !self.modal_owns_input() {
-            self.observe_session_capabilities();
-            self.board.open_workspace_picker(location, name);
-        }
-    }
-
     /// Hands the picker the Session's current handshake answer, which a reconnect may have
     /// replaced, before it fixes its places.
     fn observe_session_capabilities(&mut self) {
@@ -109,12 +86,20 @@ impl WorkbenchClientUi {
     /// where the picker's new-Tab start would be hidden or refused, so the section is absent
     /// rather than disabled. Opening the menu never asks for a new lookup.
     pub(super) fn new_tab_menu_agents(&self) -> Option<Vec<&'static str>> {
+        if self.view().no_current_workspace() {
+            return None;
+        }
+        self.menu_agents()
+    }
+
+    /// A Workspace's Start Agent ▸ rows, as the new-Tab menu's, or `None` where no Agent can start
+    /// there, so the row is absent.
+    pub(super) fn menu_agents(&self) -> Option<Vec<&'static str>> {
         if self.retirement_failure.is_some()
             || !self
                 .capabilities
                 .supports(crate::tui_capabilities::Capability::AgentLaunch)
             || !self.board.can_start_agent()
-            || self.view().no_current_workspace()
         {
             return None;
         }
@@ -217,19 +202,6 @@ impl WorkbenchClientUi {
 
     /// Runs a start the picker accepted in the place it showed.
     fn run_picked_start(&mut self, picked: PickedStart) {
-        if let Some(location) = picked.workspace {
-            let Some(session_id) = self.view().navigation_session().cloned() else {
-                return;
-            };
-            let target = ClientContextTarget {
-                location,
-                session_id,
-            };
-            let _disposition = self.structure_action(
-                super::StructureAction::CreateWorkspaceAgentTab(picked.provider, target),
-            );
-            return;
-        }
         match picked.place {
             StartPlace::ThisPanel(panel) => {
                 let clock = self.clock.clone();
@@ -259,6 +231,25 @@ impl WorkbenchClientUi {
     fn start_in_split(&mut self, provider: &'static str, direction: PanelDirection) {
         let _disposition =
             self.structure_action(super::StructureAction::SplitAgent(direction, provider));
+    }
+
+    /// The same new Tab in the Workspace a sidebar row names, which opens first when another
+    /// Workspace is current.
+    pub(super) fn start_in_workspace_new_tab(
+        &mut self,
+        provider: &'static str,
+        location: ClientContextLocation,
+    ) {
+        let Some(session_id) = self.view().navigation_session().cloned() else {
+            return;
+        };
+        let target = ClientContextTarget {
+            location,
+            session_id,
+        };
+        let _disposition = self.structure_action(super::StructureAction::CreateWorkspaceAgentTab(
+            provider, target,
+        ));
     }
 
     /// Asks the Server for a new Tab in the current Workspace whose shell runs the Agent as its

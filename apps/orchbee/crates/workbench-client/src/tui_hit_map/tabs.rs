@@ -21,6 +21,7 @@ pub(crate) fn exposed_regions(map: &FrameHitMap) -> impl Iterator<Item = (Rect, 
                 HitTarget::Tab(_)
                     | HitTarget::TabGroup { .. }
                     | HitTarget::TabCreate(_)
+                    | HitTarget::TabCreateMenu(_)
                     | HitTarget::TabCloseRequest { .. }
             ) && [region.rect.x, region.rect.right().saturating_sub(1)]
                 .into_iter()

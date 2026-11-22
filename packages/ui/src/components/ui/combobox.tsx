@@ -34,6 +34,14 @@ function ComboboxTrigger({
 }
 
 /*
+ * Orchbee adaptation: a trigger that brings its own look, as an icon button on a row does, for a
+ * list that opens below it with its search field inside.
+ */
+function ComboboxButton(props: ComboboxPrimitive.Trigger.Props) {
+	return <ComboboxPrimitive.Trigger data-slot='combobox-button' {...props} />;
+}
+
+/*
  * Orchbee adaptation: a search field that heads the list, as in the reference's font list: full
  * width and borderless, divided from the entries by one line, instead of an outlined input group.
  * Its text starts where the entries' text starts.
@@ -149,6 +157,7 @@ function ComboboxCollection({ ...props }: ComboboxPrimitive.Collection.Props) {
 
 export {
 	Combobox,
+	ComboboxButton,
 	ComboboxContent,
 	ComboboxList,
 	ComboboxItem,

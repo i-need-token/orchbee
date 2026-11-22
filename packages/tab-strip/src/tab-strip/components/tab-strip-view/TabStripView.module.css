@@ -809,25 +809,38 @@
 	justify-content: center;
 	flex: 0 0 auto;
 }
-.ct-new-tab {
+.ct-new-tab,
+.ct-new-tab-menu {
 	position: absolute;
 	top: var(--ob-comp-tab-strip-length-4);
 }
-.ct-new-tab[data-frame-condensed] {
+/* The menu button sits right after +, narrower, as a split button's arrow part does. */
+.ct-new-tab-menu {
+	width: var(--ob-comp-tab-strip-length-20);
+}
+.ct-new-tab-menu .ct-tab-strip-control-button__target {
+	width: var(--ob-comp-tab-strip-length-16);
+}
+.ct-new-tab[data-frame-condensed],
+.ct-new-tab-menu[data-frame-condensed] {
 	top: 0;
 	height: var(--ob-comp-tab-strip-length-35);
 	padding-top: var(--ob-comp-tab-strip-length-7);
 	align-items: flex-start;
 }
-.ct-new-tab:hover .ct-tab-strip-control-button__target {
+.ct-new-tab:hover .ct-tab-strip-control-button__target,
+.ct-new-tab-menu:hover .ct-tab-strip-control-button__target {
 	color: var(--ob-sys-color-icon-hover);
 	background-color: var(--ob-sys-color-surface-hovered);
 }
-.ct-new-tab:active .ct-tab-strip-control-button__target {
+.ct-new-tab:active .ct-tab-strip-control-button__target,
+.ct-new-tab-menu:active .ct-tab-strip-control-button__target,
+.ct-new-tab-menu[aria-expanded='true'] .ct-tab-strip-control-button__target {
 	color: var(--ob-sys-color-icon-primary);
 	background-color: var(--ob-sys-color-surface-pressed);
 }
-.ct-new-tab:focus-visible .ct-tab-strip-control-button__target {
+.ct-new-tab:focus-visible .ct-tab-strip-control-button__target,
+.ct-new-tab-menu:focus-visible .ct-tab-strip-control-button__target {
 	color: var(--ob-sys-color-icon-hover);
 	outline: var(--ob-ref-border-width-strong) solid var(--ob-sys-color-border-focus);
 	outline-offset: calc(var(--ob-ref-border-width-strong) * -1);

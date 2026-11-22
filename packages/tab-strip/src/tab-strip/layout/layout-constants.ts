@@ -21,3 +21,6 @@ export const LAYOUT_CONSTANTS = {
 	verticalTabStripUncollapsedMinWidth: 126,
 	verticalTabStripUncollapsedMaxWidth: 400,
 } as const;
+
+/** The horizontal strip's New Tab menu button beside +, which the Tabs also leave room for. */
+export const NEW_TAB_MENU_BUTTON_WIDTH = 20;

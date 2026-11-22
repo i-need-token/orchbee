@@ -13,7 +13,6 @@ import type {
 	WorkbenchAgentCatalogSource,
 	WorkbenchAgentStartInput,
 	WorkbenchAgentStartPlace,
-	WorkbenchAgentStartWorkspace,
 } from '../../../types/workbench-agent-start';
 import {
 	projectWorkbenchAgentStartRows,
@@ -26,7 +25,6 @@ interface UseWorkbenchAgentStartDialogOptions {
 	readonly catalog: WorkbenchAgentCatalogSource;
 	readonly onStart: (input: WorkbenchAgentStartInput) => void;
 	readonly places: readonly WorkbenchAgentStartPlace[];
-	readonly workspace?: WorkbenchAgentStartWorkspace | undefined;
 }
 
 type Highlight = WorkbenchAgentStartProvider | 'fold';
@@ -128,7 +126,6 @@ export function useWorkbenchAgentStartDialog({
 	catalog,
 	onStart,
 	places,
-	workspace,
 }: UseWorkbenchAgentStartDialogOptions): WorkbenchAgentStartDialogView {
 	const intl = useOrchbeeIntl();
 	const idPrefix = React.useId();
@@ -172,13 +169,7 @@ export function useWorkbenchAgentStartDialog({
 
 	const elementId = (key: Highlight): string => `${idPrefix}-${key}`;
 	const startProvider = useMemoizedFn((providerId: WorkbenchAgentStartProvider) => {
-		if (startable && place !== null) {
-			onStart({
-				place,
-				providerId,
-				...(workspace === undefined ? {} : { workspaceId: workspace.id }),
-			});
-		}
+		if (startable && place !== null) onStart({ place, providerId });
 	});
 	const unfold = useMemoizedFn(() => {
 		setExpanded(true);
@@ -312,12 +303,7 @@ export function useWorkbenchAgentStartDialog({
 			startable: snapshot === null || startable,
 			status: model.status,
 		}),
-		// A start from a Workspace row always opens a new Tab there, so the title names the Workspace
-		// and the dialog offers no place.
-		title:
-			workspace === undefined
-				? intl.formatMessage(agentStartMessages.title)
-				: intl.formatMessage(agentStartMessages.titleInWorkspace, { name: workspace.name }),
+		title: intl.formatMessage(agentStartMessages.title),
 	};
 }
 

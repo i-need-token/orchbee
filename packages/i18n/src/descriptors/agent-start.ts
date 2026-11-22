@@ -98,6 +98,6 @@ export const agentStartMessages = defineMessages({
 	title: message('agentStart.title', 'Title of the Start Agent dialog and name of its action.'),
 	titleInWorkspace: message(
 		'agentStart.titleInWorkspace',
-		'Title of Start Agent opened from a Workspace row, which starts in a new Tab there. {name} is the Workspace name.',
+		'Accessible name of a Workspace row’s Agent list, whose Agents start in a new Tab there. {name} is the Workspace name.',
 	),
 });

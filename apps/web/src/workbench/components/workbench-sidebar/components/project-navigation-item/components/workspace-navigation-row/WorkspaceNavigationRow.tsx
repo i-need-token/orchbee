@@ -6,7 +6,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from '@orchbee/ui/components';
-import { useRef, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
+import type { MouseEvent, PointerEvent, ReactNode } from 'react';
 
 import type {
 	ProjectWorkspaceState,
@@ -37,6 +37,7 @@ import {
 	suppressDuplicateNavigationContextMenu,
 } from '../../utils/navigation-row-menu';
 import { workspaceMoveToProjectMenu } from '../../utils/workspaceMoveToProjectMenu';
+import { WorkspaceAgentLaunchMenu } from '../workspace-agent-launch-menu/WorkspaceAgentLaunchMenu';
 import { WorkspaceAgentList } from '../workspace-agent-list/WorkspaceAgentList';
 import { WorkspaceAgentStatusLine } from '../workspace-agent-status-line/WorkspaceAgentStatusLine';
 import styles from './WorkspaceNavigationRow.module.css';
@@ -121,7 +122,6 @@ export function WorkspaceNavigationRow({
 	const unread = folded && agentOverview.unreadLabel !== undefined;
 	// A row whose directory just moved keeps its old name until its new location settles.
 	const name = location?.heldName ?? workspace.name;
-	const main = useRef<HTMLButtonElement>(null);
 	const startTarget = { id: workspace.id, name };
 	// A branch that repeats the name, as a worktree named after its branch does, gives way to the
 	// folder, as in the TUI.
@@ -132,17 +132,7 @@ export function WorkspaceNavigationRow({
 	const ahead = location?.ahead ?? 0;
 	const behind = location?.behind ?? 0;
 	const menuEntries: readonly WorkbenchActionMenuEntry[] = [
-		...(agentMenu === undefined
-			? []
-			: [
-					{
-						icon: 'agent',
-						id: 'start-workspace-agent',
-						kind: 'command',
-						label: agentMenu.label,
-						onSelect: () => agentMenu.open(startTarget, main.current),
-					} as const,
-				]),
+		...(agentMenu === undefined ? [] : [agentMenu.submenu(startTarget)]),
 		workspaceMoveToProjectMenu({
 			messages,
 			setWorkspaceProject,
@@ -188,7 +178,10 @@ export function WorkspaceNavigationRow({
 		>
 			<ContextMenu
 				onOpenChange={(open, details) => {
-					if (open) refreshWorktrees(workspace.id);
+					if (open) {
+						refreshWorktrees(workspace.id);
+						agentMenu?.refresh();
+					}
 					menuFocus.onOpenChange(workspace.id, open, details);
 				}}
 			>
@@ -220,7 +213,6 @@ export function WorkspaceNavigationRow({
 							.filter((part) => typeof part === 'string')
 							.join('. ')}
 						className={styles['rowMain']}
-						ref={main}
 						data-sidebar-nav='workspace'
 						data-slot='workbench-sidebar-workspace'
 						tabIndex={-1}
@@ -286,11 +278,8 @@ export function WorkspaceNavigationRow({
 					<span className={styles['tools']}>
 						{agentMenu === undefined ? null : (
 							<Tooltip>
-								<WorkbenchSidebarDropdownMenu
-									entries={agentMenu.entries(startTarget, () => main.current)}
-									onOpenChange={(open) => {
-										if (open) agentMenu.refresh();
-									}}
+								<WorkspaceAgentLaunchMenu
+									menu={agentMenu}
 									trigger={
 										<TooltipTrigger
 											render={
@@ -306,6 +295,7 @@ export function WorkspaceNavigationRow({
 										/>
 									}
 									triggerContent={<ProductIcon name='add' />}
+									workspace={startTarget}
 								/>
 								<TooltipContent side='bottom'>{agentMenu.label}</TooltipContent>
 							</Tooltip>
@@ -313,7 +303,9 @@ export function WorkspaceNavigationRow({
 						<Tooltip>
 							<WorkbenchSidebarDropdownMenu
 								onOpenChange={(open) => {
-									if (open) refreshWorktrees(workspace.id);
+									if (!open) return;
+									refreshWorktrees(workspace.id);
+									agentMenu?.refresh();
 								}}
 								entries={menuEntries}
 								trigger={

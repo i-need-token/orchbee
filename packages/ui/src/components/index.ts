@@ -14,6 +14,7 @@ export {
 	Button,
 	Checkbox,
 	Combobox,
+	ComboboxButton,
 	ComboboxCollection,
 	ComboboxContent,
 	ComboboxGroup,

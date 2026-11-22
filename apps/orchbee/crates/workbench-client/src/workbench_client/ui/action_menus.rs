@@ -149,11 +149,11 @@ fn action_availability(
     {
         return ActionAvailability::Disabled(MenuUnavailable::WorkspaceRequired);
     }
-    // Open Worktree ▸ needs the same host effect as the global Open Worktree…, and the new-Tab
-    // menu's Agent rows the same as Start Agent….
+    // Open Worktree ▸ needs the same host effect as the global Open Worktree…, and the Agent rows
+    // and Start Agent ▸ the same as Start Agent….
     let effect = match action {
         MenuAction::WorkspaceWorktrees => MenuAction::OpenWorktree.client_action(),
-        MenuAction::StartAgentInTab(_) | MenuAction::MoreAgents => {
+        MenuAction::StartAgentInTab(_) | MenuAction::WorkspaceAgents => {
             MenuAction::StartAgent.client_action()
         }
         _ => action.client_action(),
@@ -452,6 +452,11 @@ fn workspace_title(context: &crate::workbench_projection::ClientContext) -> Stri
 }
 
 impl WorkbenchClientView<'_> {
+    /// Whether `[v]` beside `[+]` offers the new-Tab menu: more than one shell, or an Agent.
+    pub(crate) const fn new_tab_menu(&self) -> bool {
+        self.new_tab_menu
+    }
+
     /// Creation uses the painted context even when it contains no Tabs.
     pub(crate) fn tab_create_target(&self) -> Option<crate::action_menu::DrawnTabCreate> {
         Some(crate::action_menu::DrawnTabCreate {
@@ -798,7 +803,8 @@ impl WorkbenchClientUi {
             MenuTarget::Workspace(location)
             | MenuTarget::WorkspaceProjects(location)
             | MenuTarget::WorkspaceWorktrees(location)
-            | MenuTarget::WorkspaceMachines(location) => {
+            | MenuTarget::WorkspaceMachines(location)
+            | MenuTarget::WorkspaceAgents(location) => {
                 if !live {
                     return false;
                 }
@@ -861,6 +867,15 @@ impl WorkbenchClientUi {
         if matches!(entry, MenuTarget::WorkspaceWorktrees(_)) {
             // Discovery supplies every row of the Open Worktree submenu.
             actions = Vec::new();
+        }
+        if matches!(entry, MenuTarget::WorkspaceAgents(_)) {
+            // Fixed now, as the new-Tab menu's Agents are.
+            actions = self
+                .menu_agents()
+                .unwrap_or_default()
+                .into_iter()
+                .map(MenuAction::StartAgentInTab)
+                .collect();
         }
         if !self.notification_target {
             // The action opens only the Agent card shown now; without one it is irrelevant.
@@ -945,7 +960,6 @@ impl WorkbenchClientUi {
                 .collect();
             if let Some(agents) = agents {
                 actions.extend(agents.into_iter().map(MenuAction::StartAgentInTab));
-                actions.push(MenuAction::MoreAgents);
             }
         }
         let facts = self.row_facts(&target);
@@ -967,14 +981,12 @@ impl WorkbenchClientUi {
                 .is_hidden()
             },
         );
+        // Start Agent ▸ leads a Workspace's menu while an installed Agent can start there.
         if matches!(&entry, MenuTarget::Workspace(_))
-            && self
-                .capabilities
-                .supports(crate::tui_capabilities::Capability::AgentLaunch)
-            && self.board.can_start_agent()
             && live
+            && self.menu_agents().is_some_and(|agents| !agents.is_empty())
         {
-            actions.insert(0, MenuAction::StartAgent);
+            actions.insert(0, MenuAction::WorkspaceAgents);
         }
         // A single profile without Agents is the button's own click, so it opens no menu.
         if tab_profiles && actions.len() < 2 {
@@ -1568,6 +1580,8 @@ impl WorkbenchClientUi {
                         | MenuAction::ChangeMachine
                         | MenuAction::MoveToMachine(_)
                         | MenuAction::ManageMachines
+                        | MenuAction::WorkspaceAgents
+                        | MenuAction::StartAgentInTab(_)
                 ) =>
             {
                 true
@@ -1728,6 +1742,8 @@ impl WorkbenchClientUi {
                                     | MenuAction::ChangeMachine
                                     | MenuAction::MoveToMachine(_)
                                     | MenuAction::ManageMachines
+                                    | MenuAction::WorkspaceAgents
+                                    | MenuAction::StartAgentInTab(_)
                             )
                         ) || self
                             .state
@@ -1909,6 +1925,9 @@ impl WorkbenchClientUi {
                     matches!(location, ClientContextLocation::Workspace { .. })
                 })?,
             )),
+            (Target::Workspace { location, .. }, MenuAction::WorkspaceAgents) => {
+                Some(MenuTarget::WorkspaceAgents(location.clone()))
+            }
             (Target::Project { project, .. }, MenuAction::WorkspaceCreation) => {
                 Some(MenuTarget::WorkspaceCreation(project.project_id.clone()))
             }
@@ -1966,38 +1985,19 @@ impl WorkbenchClientUi {
             let _disposition = self.request_machine_settings();
             return None;
         }
-        // The new-Tab menu's Agents run as the picker's new-Tab place does, without asking.
+        // The Agent rows run as the picker's new-Tab place does, without asking: in the current
+        // Workspace, or in the Workspace whose Start Agent ▸ lists them.
         if let MenuAction::StartAgentInTab(provider) = action {
+            let workspace = match intent.target() {
+                Target::Workspace { location, .. } => Some(location.clone()),
+                _ => None,
+            };
             self.menus.menu.take()?;
             self.menus.end();
-            self.start_in_new_tab(provider);
-            return None;
-        }
-        if action == MenuAction::MoreAgents {
-            self.menus.menu.take()?;
-            self.menus.end();
-            self.open_agent_picker_in_new_tab();
-            return None;
-        }
-        if action == MenuAction::StartAgent
-            && let Target::Workspace { location, .. } = intent.target()
-        {
-            let location = location.clone();
-            let name = self
-                .state
-                .as_ref()
-                .and_then(|state| {
-                    state
-                        .cache()
-                        .navigation()
-                        .iter()
-                        .find(|context| context.location == location)
-                        .map(workspace_title)
-                })
-                .unwrap_or_default();
-            self.menus.menu.take()?;
-            self.menus.end();
-            self.open_workspace_agent_picker(location, name);
+            match workspace {
+                Some(location) => self.start_in_workspace_new_tab(provider, location),
+                None => self.start_in_new_tab(provider),
+            }
             return None;
         }
         // The Server answers on a later turn; nothing here waits for it.

@@ -253,10 +253,11 @@ pub enum MenuAction {
     Sidebar,
     Navigator,
     StartAgent,
-    /// A new-Tab menu row: starts this provider in a new Tab of the current Workspace.
+    /// A Workspace's Start Agent submenu of the Agents its new Tab can start.
+    WorkspaceAgents,
+    /// A new-Tab menu or Start Agent submenu row: starts this provider in a new Tab of the current
+    /// Workspace, or of the submenu's Workspace.
     StartAgentInTab(&'static str),
-    /// The new-Tab menu's last Agent row: the picker, opening in a new Tab.
-    MoreAgents,
     /// Shown only while an Agent notification card is current.
     OpenNotificationTarget,
     /// Opens the answers about Orchbee answering one Agent's routine confirmations. Shown only
@@ -304,6 +305,7 @@ impl MenuAction {
                 | Self::WorkspaceCreation
                 | Self::WorkspaceWorktrees
                 | Self::ChangeMachine
+                | Self::WorkspaceAgents
                 | Self::AgentConfirmations
         )
     }
@@ -401,8 +403,8 @@ impl MenuAction {
             | Self::DeleteWorkspace
             | Self::DeleteProject
             // The menu's owner runs these through the picker's own new-Tab start.
+            | Self::WorkspaceAgents
             | Self::StartAgentInTab(_)
-            | Self::MoreAgents
             // The menu's owner sends these for the Agent its entry names.
             | Self::AgentConfirmations
             | Self::AgentConfirmation(_) => return None,

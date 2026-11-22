@@ -31,32 +31,6 @@ const CATALOG: WorkbenchAgentCatalogSnapshot = {
 afterEach(cleanup);
 
 describe('WorkbenchAgentStartDialog', () => {
-	it('starts in the Workspace it was opened for', () => {
-		const onStart = vi.fn<(input: WorkbenchAgentStartInput) => void>();
-		render(
-			<OrchbeeI18nProvider locale='en-US'>
-				<WorkbenchAgentStartDialog
-					catalog={{
-						getSnapshot: () => CATALOG,
-						refresh: () => undefined,
-						subscribe: () => () => undefined,
-					}}
-					finalFocus={() => null}
-					onClose={() => undefined}
-					onStart={onStart}
-					places={['new-tab']}
-					workspace={{ id: 'example-workspace', name: 'Example' }}
-				/>
-			</OrchbeeI18nProvider>,
-		);
-		fireEvent.click(screen.getByRole('button', { name: /Start/u }));
-		expect(onStart).toHaveBeenCalledWith({
-			place: 'new-tab',
-			providerId: 'codex',
-			workspaceId: 'example-workspace',
-		});
-	});
-
 	it('clears a query before Escape closes, and Start runs the start with the highlighted Agent and shown place', async () => {
 		const runtime = new ActionRuntime();
 		const scope = runtime.createScope('workbench');

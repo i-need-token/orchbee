@@ -25,7 +25,7 @@ export const WORKBENCH_AGENT_START_PLACES = [
 
 export type WorkbenchAgentStartPlace = (typeof WORKBENCH_AGENT_START_PLACES)[number];
 
-/** The Workspace row's target, held until the picker commits or closes. */
+/** The Workspace a sidebar start opens its new Tab in, and the name its row shows. */
 export interface WorkbenchAgentStartWorkspace {
 	readonly id: string;
 	readonly name: string;
@@ -34,7 +34,6 @@ export interface WorkbenchAgentStartWorkspace {
 /** Sidebar entry points backed by the Session's own Agent catalog. */
 export interface WorkbenchWorkspaceAgentLaunch {
 	readonly catalog: WorkbenchAgentCatalogSource;
-	readonly open: (workspace: WorkbenchAgentStartWorkspace, returnTo: HTMLElement | null) => void;
 	readonly start: (workspaceId: string, providerId: WorkbenchAgentStartProvider) => void;
 }
 

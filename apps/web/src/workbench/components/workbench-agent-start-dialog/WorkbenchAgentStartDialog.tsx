@@ -19,7 +19,6 @@ import type {
 	WorkbenchAgentCatalogSource,
 	WorkbenchAgentStartInput,
 	WorkbenchAgentStartPlace,
-	WorkbenchAgentStartWorkspace,
 } from '../../types/workbench-agent-start';
 import { AgentProviderMark } from '../../../agent-provider-mark';
 import {
@@ -35,7 +34,6 @@ interface WorkbenchAgentStartDialogProps {
 	readonly onStart: (input: WorkbenchAgentStartInput) => void;
 	/** The places a start can use now; the first is the default. */
 	readonly places: readonly WorkbenchAgentStartPlace[];
-	readonly workspace?: WorkbenchAgentStartWorkspace | undefined;
 }
 
 /** Start Agent: the Session's Agents to start, one per row, and where the started Agent opens. */
@@ -45,9 +43,8 @@ export function WorkbenchAgentStartDialog({
 	onClose,
 	onStart,
 	places,
-	workspace,
 }: WorkbenchAgentStartDialogProps): React.ReactNode {
-	const view = useWorkbenchAgentStartDialog({ catalog, onStart, places, workspace });
+	const view = useWorkbenchAgentStartDialog({ catalog, onStart, places });
 	const option = (row: WorkbenchAgentStartProviderRowView): React.ReactNode => (
 		<div
 			aria-selected={row.highlighted}
@@ -144,45 +141,41 @@ export function WorkbenchAgentStartDialog({
 						),
 					)}
 				</div>
-				<p
-					aria-live='polite'
-					className={styles['statusLine']}
-					data-slot='workbench-agent-start-status'
-					data-warning={view.status?.warning === true}
-				>
-					{view.status?.message ?? '\u00A0'}
-				</p>
-				<DialogFooter className={styles['footer']}>
-					{workspace === undefined ? (
-						<span className={styles['place']}>
-							<label className={styles['placeLabel']} htmlFor={view.placeId}>
-								{view.opensInLabel}
-							</label>
-							<Select
-								disabled={view.places.length === 0}
-								items={view.places}
-								value={view.place === '' ? null : view.place}
-								onValueChange={view.onPlaceChange}
-							>
-								<SelectTrigger id={view.placeId} size='sm'>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{view.places.map((place) => (
-										<SelectItem key={place.value} value={place.value}>
-											{place.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</span>
-					) : (
-						// A Workspace's Start Agent always opens a new Tab there, so its place is plain text.
-						<span className={styles['place']}>
-							<span className={styles['placeLabel']}>{view.opensInLabel}</span>
-							<span className={styles['placeValue']}>{view.places[0]?.label}</span>
-						</span>
+				{/* The live region stays mounted to announce; it takes room only while it has a status. */}
+				<div aria-live='polite' className={styles['status']}>
+					{view.status === null ? null : (
+						<p
+							className={styles['statusLine']}
+							data-slot='workbench-agent-start-status'
+							data-warning={view.status.warning}
+						>
+							{view.status.message}
+						</p>
 					)}
+				</div>
+				<DialogFooter className={styles['footer']}>
+					<span className={styles['place']}>
+						<label className={styles['placeLabel']} htmlFor={view.placeId}>
+							{view.opensInLabel}
+						</label>
+						<Select
+							disabled={view.places.length === 0}
+							items={view.places}
+							value={view.place === '' ? null : view.place}
+							onValueChange={view.onPlaceChange}
+						>
+							<SelectTrigger id={view.placeId} size='sm'>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{view.places.map((place) => (
+									<SelectItem key={place.value} value={place.value}>
+										{place.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</span>
 					<Button className={styles['action']} type='button' variant='outline' onClick={onClose}>
 						{view.cancelLabel}
 					</Button>

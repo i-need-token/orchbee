@@ -92,7 +92,13 @@
 	white-space: nowrap;
 }
 
-/* One line that keeps its height, so the list never jumps when the status changes. */
+/* The live region adds no box of its own, so without a status it leaves no line and no gap above
+   the footer. */
+.status {
+	display: contents;
+}
+
+/* One line under the list while the lookup runs, fails or finds nothing. */
 .statusLine {
 	margin: 0;
 	color: var(--ob-sys-color-text-muted);
@@ -119,11 +125,6 @@
 
 .placeLabel {
 	color: var(--ob-sys-color-text-muted);
-	font: var(--ob-sys-typography-label-sm);
-}
-
-.placeValue {
-	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-label-sm);
 }
 

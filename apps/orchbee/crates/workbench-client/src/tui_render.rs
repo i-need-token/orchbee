@@ -2151,7 +2151,15 @@ fn render_tab_strip(
 
     let tab_source = native.tab_create_target();
     let create_target = tab_source.clone().filter(|_| strip.width >= 7);
-    let create_width = if create_target.is_some() { 4 } else { 0 };
+    // `[v]` follows `[+]` while the new-Tab menu has more to offer and the strip has room.
+    let menu_target = create_target
+        .clone()
+        .filter(|_| native.new_tab_menu() && strip.width >= 10);
+    let create_width = match (&create_target, &menu_target) {
+        (Some(_), Some(_)) => 7,
+        (Some(_), None) => 4,
+        (None, _) => 0,
+    };
 
     let tab_area = Rect::new(strip.x, strip.y, strip.width - create_width, strip.height);
     frame
@@ -2297,39 +2305,74 @@ fn render_tab_strip(
             InteractionSpec::enabled(PrimaryContract::ActivateOnDoubleClick),
         );
     }
+    let controls_width = if menu_target.is_some() { 6 } else { 3 };
+    let offset = create_offset.min(strip.width.saturating_sub(controls_width));
     if let Some(target) = create_target {
-        let offset = create_offset.min(strip.width - 3);
-        let offered = Rect::new(strip.x + offset, strip.y, 3, 1);
-        if let Some(rect) = controls::icon_action_rect(frame.area(), offered) {
-            let interaction = InteractionTarget::TabCreate(target);
-            let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
-            let pointer = tabs::pointer_presentation(hits.projected_pointer(
-                HitLayer::Foreground,
-                rect,
-                rect,
-                &interaction,
-                spec,
-            ));
-            if let Some(painted) = controls::render_icon_action(
-                frame,
-                offered,
-                controls::IconActionSpec::new(
-                    controls::IconActionGlyph::Add,
-                    controls::ControlSurface::Strip,
-                    controls::Availability::Enabled,
-                    pointer,
-                ),
-                theme,
-            ) {
-                hits.record_interaction_tooltip(
-                    HitLayer::Foreground,
-                    rect,
-                    &interaction,
-                    tabs::create_tooltip(view, locale, theme),
-                );
-                hits.record_interaction(HitLayer::Foreground, rect, painted, interaction, spec);
-            }
-        }
+        render_tab_create_control(
+            frame,
+            hits,
+            Rect::new(strip.x + offset, strip.y, 3, 1),
+            InteractionTarget::TabCreate(target),
+            PrimaryContract::ActivateOnRelease,
+            controls::IconActionGlyph::Add,
+            tabs::create_tooltip(view, locale, theme),
+            theme,
+        );
+    }
+    if let Some(target) = menu_target {
+        // The pointer owner opens the menu on press, as the sidebar's `[+]` does.
+        render_tab_create_control(
+            frame,
+            hits,
+            Rect::new(strip.x + offset + 3, strip.y, 3, 1),
+            InteractionTarget::TabCreateMenu(target),
+            PrimaryContract::Specialized,
+            controls::IconActionGlyph::Down,
+            tabs::create_menu_tooltip(locale),
+            theme,
+        );
+    }
+}
+
+/// One of the Tab strip's creation controls, `[+]` or `[v]`, with its hover, tooltip and target.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the two controls differ in target, contract, glyph and tooltip"
+)]
+fn render_tab_create_control(
+    frame: &mut Frame<'_>,
+    hits: &mut HitMapBuilder,
+    offered: Rect,
+    interaction: InteractionTarget,
+    primary: PrimaryContract,
+    glyph: controls::IconActionGlyph,
+    tooltip: crate::tui_hit_map::TooltipContent,
+    theme: &Theme,
+) {
+    let Some(rect) = controls::icon_action_rect(frame.area(), offered) else {
+        return;
+    };
+    let spec = InteractionSpec::enabled(primary);
+    let pointer = tabs::pointer_presentation(hits.projected_pointer(
+        HitLayer::Foreground,
+        rect,
+        rect,
+        &interaction,
+        spec,
+    ));
+    if let Some(painted) = controls::render_icon_action(
+        frame,
+        offered,
+        controls::IconActionSpec::new(
+            glyph,
+            controls::ControlSurface::Strip,
+            controls::Availability::Enabled,
+            pointer,
+        ),
+        theme,
+    ) {
+        hits.record_interaction_tooltip(HitLayer::Foreground, rect, &interaction, tooltip);
+        hits.record_interaction(HitLayer::Foreground, rect, painted, interaction, spec);
     }
 }
 

@@ -15,6 +15,7 @@ export { Checkbox } from './checkbox';
 
 export {
 	Combobox,
+	ComboboxButton,
 	ComboboxCollection,
 	ComboboxContent,
 	ComboboxGroup,

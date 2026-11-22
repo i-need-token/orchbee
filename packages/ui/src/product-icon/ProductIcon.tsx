@@ -13,6 +13,7 @@ export type ProductIconName =
 	| 'arrow-left'
 	| 'bell'
 	| 'clipboard'
+	| 'chevron-down'
 	| 'chevron-right'
 	| 'check'
 	| 'clear-all'
@@ -67,6 +68,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'arrow-left' && styles['arrowLeft'],
 				name === 'bell' && styles['bell'],
 				name === 'clipboard' && styles['clipboard'],
+				name === 'chevron-down' && styles['chevronDown'],
 				name === 'chevron-right' && styles['chevronRight'],
 				name === 'check' && styles['check'],
 				name === 'clear-all' && styles['clearAll'],

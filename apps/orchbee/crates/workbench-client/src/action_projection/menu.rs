@@ -608,8 +608,8 @@ impl MenuAction {
                 words("Start Agent in new Tab", "在新标签页中启动智能体"),
                 operation::START_AGENT,
             ),
-            Self::MoreAgents => {
-                declared(words("More Agents…", "更多智能体…"), operation::START_AGENT)
+            Self::WorkspaceAgents => {
+                declared(words("Start Agent", "启动智能体"), operation::START_AGENT)
             }
             Self::OpenNotificationTarget => declared(
                 words("Go to the Agent that notified", "跳到发通知的智能体"),

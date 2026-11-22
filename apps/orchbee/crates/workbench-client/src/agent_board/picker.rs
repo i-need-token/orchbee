@@ -14,7 +14,6 @@ use orchbee_workbench_protocol::{
 use super::session_agents::SessionAgents;
 use super::start::StartPlace;
 use super::{AgentBoard, AgentBoardControl, AgentBoardControlTarget};
-use crate::client_context::ClientContextLocation;
 use crate::client_view::{Binding, KeyCode, KeyEvent, KeyKind, Modifiers};
 use crate::localization::AgentStartStatus;
 use crate::session_capabilities::SessionAction;
@@ -308,11 +307,9 @@ pub(crate) fn status(sources: &Sources<'_>) -> Option<Status> {
     }
 }
 
-/// How many Agents the new-Tab menu lists before "More Agents…".
-pub(crate) const MENU_LIMIT: usize = 4;
-
-/// The new-Tab menu's Agents: the picker's own Recent then Installed rows, in its order, at most
-/// [`MENU_LIMIT`]. A provider still being checked, not found or not checked is never listed.
+/// The Agents the new-Tab menu and a Workspace's Start Agent ▸ list: the picker's own Recent then
+/// Installed rows, in its order. A provider still being checked, not found or not checked is never
+/// listed.
 pub(crate) fn menu_agents(sources: &Sources<'_>) -> Vec<&'static str> {
     items(sources, "", false)
         .into_iter()
@@ -324,7 +321,6 @@ pub(crate) fn menu_agents(sources: &Sources<'_>) -> Vec<&'static str> {
             } => Some(id),
             _ => None,
         })
-        .take(MENU_LIMIT)
         .collect()
 }
 
@@ -333,7 +329,6 @@ pub(crate) fn menu_agents(sources: &Sources<'_>) -> Vec<&'static str> {
 pub(crate) struct PickedStart {
     pub(crate) provider: &'static str,
     pub(crate) place: StartPlace,
-    pub(crate) workspace: Option<ClientContextLocation>,
 }
 
 pub(crate) struct Picker {
@@ -348,14 +343,6 @@ pub(crate) struct Picker {
     /// Holds while the picker stays open; a query change never resets it.
     place: StartPlace,
     revision: u64,
-    workspace: Option<PickerWorkspace>,
-}
-
-/// The Workspace a picker opened from a Workspace row starts in: always a new Tab there.
-struct PickerWorkspace {
-    location: ClientContextLocation,
-    /// The name its sidebar row showed, which the title repeats.
-    name: String,
 }
 
 impl Picker {
@@ -369,15 +356,10 @@ impl Picker {
             place: places.automatic(),
             places,
             revision: 0,
-            workspace: None,
         }
     }
 
     fn cycle_place(&mut self, forward: bool) {
-        // A Workspace's picker always opens a new Tab there.
-        if self.workspace.is_some() {
-            return;
-        }
         self.place = self.places.next(&self.place, forward);
         self.touch();
     }
@@ -388,13 +370,6 @@ impl Picker {
 
     pub(crate) fn query(&self) -> &str {
         self.query.text()
-    }
-
-    /// The Workspace the picker starts in, by the name its sidebar row showed.
-    pub(crate) fn workspace_name(&self) -> Option<&str> {
-        self.workspace
-            .as_ref()
-            .map(|workspace| workspace.name.as_str())
     }
 
     pub(crate) fn query_cursor(&self) -> usize {
@@ -627,27 +602,6 @@ impl AgentBoard {
         self.catalog_refresh = true;
     }
 
-    /// The new-Tab menu's "More Agents…": the picker with a new Tab as its place.
-    pub(crate) fn open_picker_in_new_tab(
-        &mut self,
-        focus: Option<&WorkbenchPanelId>,
-        worktree: bool,
-    ) {
-        self.open_picker(focus, worktree);
-        if let Some(picker) = self.picker.as_mut() {
-            picker.place = StartPlace::NewTab;
-        }
-    }
-
-    /// A Workspace row's Start Agent: the picker whose start opens a new Tab of that Workspace.
-    pub(crate) fn open_workspace_picker(&mut self, location: ClientContextLocation, name: String) {
-        self.open_picker(None, false);
-        if let Some(picker) = self.picker.as_mut() {
-            picker.place = StartPlace::NewTab;
-            picker.workspace = Some(PickerWorkspace { location, name });
-        }
-    }
-
     /// Whether an opened picker asked for a new lookup since the last call.
     pub(crate) fn take_catalog_refresh(&mut self) -> bool {
         std::mem::replace(&mut self.catalog_refresh, false)
@@ -757,10 +711,6 @@ impl AgentBoard {
                     StartPlace::ThisPanel(panel) if self.start.guards(panel) => StartPlace::NewTab,
                     place => place.clone(),
                 };
-                let workspace = picker
-                    .workspace
-                    .as_ref()
-                    .map(|workspace| workspace.location.clone());
                 // The New Worktree form opens over the picker, which keeps its query, cursor and
                 // place for the form's cancellation; the form's submission closes it.
                 if place != StartPlace::NewWorktree {
@@ -769,7 +719,6 @@ impl AgentBoard {
                 PickerOutcome::Start(PickedStart {
                     provider: id,
                     place,
-                    workspace,
                 })
             }
             Some(Item::Provider { .. }) => {

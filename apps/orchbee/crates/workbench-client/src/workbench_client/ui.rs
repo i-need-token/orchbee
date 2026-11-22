@@ -362,6 +362,8 @@ pub struct WorkbenchClientView<'a> {
     /// Whether the Session's terminals are served, or the Server is replacing a lost Worker or
     /// gave up on it.
     terminal_runtime: TerminalRuntimeState,
+    /// Whether the new-Tab menu offers more than `[+]`'s own click, so `[v]` beside it opens it.
+    new_tab_menu: bool,
 }
 
 pub(crate) use crate::localization::LaunchFailure;
@@ -1378,6 +1380,7 @@ impl<'a> WorkbenchClientView<'a> {
             popup: None,
             update: None,
             terminal_runtime: TerminalRuntimeState::Serving,
+            new_tab_menu: false,
         }
     }
 
@@ -1426,6 +1429,7 @@ impl<'a> WorkbenchClientView<'a> {
             popup: None,
             update: None,
             terminal_runtime: TerminalRuntimeState::Serving,
+            new_tab_menu: false,
         }
     }
 }
@@ -1839,6 +1843,11 @@ impl WorkbenchClientUi {
             popup: Some(&self.popup),
             update: self.update_version.as_deref(),
             terminal_runtime: self.terminal_runtime_state,
+            // `[v]` is painted only beside a current Workspace's `[+]`, so this skips the
+            // new-Tab menu's own Workspace check, which reads this view.
+            new_tab_menu: self.preferences.launch_profiles.profiles.len()
+                + self.menu_agents().map_or(0, |agents| agents.len())
+                > 1,
             worktree: Some(&self.worktrees.launcher),
             menu: Some(&self.menus),
             settings: Some(&self.settings),

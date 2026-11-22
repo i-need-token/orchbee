@@ -13,3 +13,7 @@
 .ct-new-tab {
 	composes: ct-new-tab from '../../../../TabStripView.module.css';
 }
+
+.ct-new-tab-menu {
+	composes: ct-new-tab-menu from '../../../../TabStripView.module.css';
+}

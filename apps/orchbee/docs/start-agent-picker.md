@@ -11,11 +11,10 @@ Maintain this reference with the private `agent_board/` module, its narrow acces
 `client_view`, `ui`, `tui_render`, `tui_pointer` and the dispatcher, and their correctness evidence.
 
 One action, `agent.start`, opens the picker: `Ctrl+b Shift+G`, the action menu's
-**Start Agent…**, the status line's start Agent hint, and the new-Tab button's More Agents…, which
-opens it with new Tab as its place. Pressing `Ctrl+b Shift+G` again closes it. That menu's Agent
-rows start directly instead: they list up to four of this picker's Recent then Installed providers,
-fixed when the menu opens, and start one as the new-Tab place does, with the same notices
-([action menus](native-action-menus.md)). Modal or confirmation ownership refuses opening.
+**Start Agent…** and the status line's start Agent hint. Pressing `Ctrl+b Shift+G` again closes it.
+The new-Tab menu's and a Workspace's Start Agent ▸ rows start directly instead: they list this
+picker's Recent then Installed providers, fixed when the menu opens, and start one as the new-Tab
+place does, with the same notices ([action menus](native-action-menus.md)). Modal or confirmation ownership refuses opening.
 
 Opening creates a stable episode and claims the top input slot before the first paint, so no
 keystroke falls through to the terminal shell. The first evaluated draw either admits that episode

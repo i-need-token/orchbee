@@ -1,14 +1,18 @@
-import { agentStartMessages, useOrchbeeIntl, workbenchTabMessages } from '@orchbee/i18n';
-import { useId, useSyncExternalStore } from 'react';
+import { agentStartMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import type { WorkbenchAgentStartProvider } from '@orchbee/workbench-client-protocol';
+import { useId, useSyncExternalStore, type ReactNode } from 'react';
 
 import { AgentProviderMark } from '../../../../agent-provider-mark';
-import { projectWorkbenchAgentShortlist } from '../../workbench-agent-start-dialog/model/projectWorkbenchAgentShortlist';
+import { projectWorkbenchAgentLaunchChoices } from '../../workbench-agent-start-dialog/model/projectWorkbenchAgentLaunchChoices';
 import { projectWorkbenchAgentStartRows } from '../../workbench-agent-start-dialog/model/projectWorkbenchAgentStartRows';
 import type {
 	WorkbenchAgentStartWorkspace,
 	WorkbenchWorkspaceAgentLaunch,
 } from '../../../types/workbench-agent-start';
-import type { WorkbenchActionMenuEntry } from '../../../types/workbench-action-menu';
+import type {
+	WorkbenchActionMenuCommand,
+	WorkbenchActionMenuEntry,
+} from '../../../types/workbench-action-menu';
 import { subscribeToNothing } from '../../../utils/subscribeToNothing';
 
 const LOOKUP_STATUS = {
@@ -16,20 +20,31 @@ const LOOKUP_STATUS = {
 	looking: agentStartMessages.statusLooking,
 } as const;
 
-export interface WorkspaceAgentMenu {
+export interface WorkspaceAgentChoice {
 	readonly label: string;
-	readonly entries: (
-		workspace: WorkbenchAgentStartWorkspace,
-		returnTo: () => HTMLElement | null,
-	) => readonly WorkbenchActionMenuEntry[];
-	readonly open: WorkbenchWorkspaceAgentLaunch['open'];
+	readonly providerId: WorkbenchAgentStartProvider;
+}
+
+export interface WorkspaceAgentMenu {
+	/** The installed Agents a search matches, the Recent first. */
+	readonly choices: (query: string) => readonly WorkspaceAgentChoice[];
+	/** What an empty list says: no match for the search, or why no Agent is listed. */
+	readonly emptyLabel: (query: string) => string;
+	readonly label: string;
+	readonly mark: (workspaceId: string, providerId: WorkbenchAgentStartProvider) => ReactNode;
 	readonly refresh: () => void;
+	readonly searchLabel: string;
+	readonly start: WorkbenchWorkspaceAgentLaunch['start'];
+	/** The row menu's Start Agent submenu, which lists the same Agents. */
+	readonly submenu: (workspace: WorkbenchAgentStartWorkspace) => WorkbenchActionMenuEntry;
+	/** The list's accessible name, which names the Workspace it starts in. */
+	readonly title: (workspace: WorkbenchAgentStartWorkspace) => string;
 }
 
 /**
- * The Workspace row's + menu: the Agents the New Tab menu offers, each starting in a new Tab of
- * that Workspace, then More Agents…, which opens Start Agent for that Workspace. While no Agent is
- * found yet, one line above More Agents… says why.
+ * Start Agent on a Workspace row: every installed Agent, the Recent first, each starting in a new Tab
+ * of that Workspace. The row's + lists them under a search field and its menu lists them in a
+ * submenu; while none is found, the list says why.
  */
 export function useWorkspaceAgentMenu(
 	launch: WorkbenchWorkspaceAgentLaunch | undefined,
@@ -42,48 +57,59 @@ export function useWorkspaceAgentMenu(
 	const productNames = new Map(
 		catalog.agents.map((agent) => [agent.providerId, agent.productName]),
 	);
-	const shortlist = projectWorkbenchAgentShortlist(catalog);
-	const lookup =
-		shortlist.length === 0 ? projectWorkbenchAgentStartRows(catalog, '', false).status : null;
+	const choices = (query: string): readonly WorkspaceAgentChoice[] =>
+		projectWorkbenchAgentLaunchChoices(catalog, query).map((providerId) => ({
+			label: productNames.get(providerId) ?? providerId,
+			providerId,
+		}));
+	const emptyLabel = (query: string): string => {
+		if (query.trim() !== '') return intl.formatMessage(agentStartMessages.statusNoMatch);
+		const lookup = projectWorkbenchAgentStartRows(catalog, '', false).status;
+		return intl.formatMessage(
+			lookup === null ? agentStartMessages.statusNoInstalled : LOOKUP_STATUS[lookup],
+		);
+	};
+	const mark = (workspaceId: string, providerId: WorkbenchAgentStartProvider): ReactNode => (
+		<AgentProviderMark
+			gradientPrefix={`${id}-${workspaceId}-${providerId}`}
+			providerId={providerId}
+		/>
+	);
+	const label = intl.formatMessage(agentStartMessages.title);
 	return {
-		label: intl.formatMessage(agentStartMessages.title),
-		open: launch.open,
+		choices,
+		emptyLabel,
+		label,
+		mark,
 		refresh: launch.catalog.refresh,
-		entries: (workspace, returnTo) => [
-			...shortlist.map(
-				(providerId): WorkbenchActionMenuEntry => ({
-					icon: 'agent',
-					id: providerId,
-					kind: 'command',
-					label: productNames.get(providerId) ?? providerId,
-					leadingMark: (
-						<AgentProviderMark
-							gradientPrefix={`${id}-${workspace.id}-${providerId}`}
-							providerId={providerId}
-						/>
-					),
-					onSelect: () => launch.start(workspace.id, providerId),
-				}),
-			),
-			...(shortlist.length === 0
-				? [
-						{
-							commands: [],
-							id: 'status',
-							kind: 'group',
-							label: intl.formatMessage(
-								lookup === null ? agentStartMessages.statusNoInstalled : LOOKUP_STATUS[lookup],
-							),
-						} as const,
-					]
-				: [{ id: 'more-separator', kind: 'separator' } as const]),
-			{
-				icon: 'ellipsis',
-				id: 'more',
-				kind: 'command',
-				label: intl.formatMessage(workbenchTabMessages.newTabMoreAgents),
-				onSelect: () => launch.open(workspace, returnTo()),
-			},
-		],
+		searchLabel: intl.formatMessage(agentStartMessages.search),
+		start: launch.start,
+		submenu: (workspace) => {
+			const listed = choices('');
+			return {
+				groups: [
+					{
+						commands: listed.map(
+							(choice): WorkbenchActionMenuCommand => ({
+								icon: 'agent',
+								id: choice.providerId,
+								kind: 'command',
+								label: choice.label,
+								leadingMark: mark(workspace.id, choice.providerId),
+								onSelect: () => launch.start(workspace.id, choice.providerId),
+							}),
+						),
+						id: 'agents',
+						label: listed.length === 0 ? emptyLabel('') : undefined,
+					},
+				],
+				icon: 'agent',
+				id: 'start-workspace-agent',
+				kind: 'submenu',
+				label,
+			};
+		},
+		title: (workspace) =>
+			intl.formatMessage(agentStartMessages.titleInWorkspace, { name: workspace.name }),
 	};
 }

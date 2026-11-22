@@ -1,6 +1,6 @@
 import { ProductIcon } from '@orchbee/ui/components';
 import styles from './HorizontalContents.module.css';
-import { type CSSProperties, type ReactNode } from 'react';
+import { type CSSProperties, type MouseEvent, type ReactNode, useRef } from 'react';
 import { calculateTabContainerZValue } from '../../../../layout/calculateTabContainerZValue';
 import { requireDefined } from '../../../../utils/requireDefined';
 import { isPlainPrimaryDoubleClick } from '../../../../utils/isPlainPrimaryDoubleClick';
@@ -18,13 +18,16 @@ import { TabButton } from '../tab-button/TabButton';
 import { GroupHeader } from '../group-header/GroupHeader';
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStripViewModel } from '../../../../types/tab-strip-view-model';
-import { LAYOUT_CONSTANTS } from '../../../../layout/layout-constants';
+import { LAYOUT_CONSTANTS, NEW_TAB_MENU_BUTTON_WIDTH } from '../../../../layout/layout-constants';
 import { DEFAULT_TAB_STYLE_METRICS } from '../../../../layout/tab-style-metrics';
 import { tabCollectionEaseOut } from '../../../../layout/tab-collection-animating-layout-manager';
 import {
 	clampDraggedViewPosition,
 	getAnimatedDraggedViewPosition,
 } from '../../../../dragging/dragged-tabs-container-layout';
+
+/** The New Tab button's box; the menu button starts where it ends. */
+const NEW_TAB_BUTTON_WIDTH = 28;
 
 export function HorizontalContents({
 	horizontalLeadingActions,
@@ -52,6 +55,7 @@ export function HorizontalContents({
 		horizontalTrackRef,
 		items,
 		horizontalAnimationRuntimeRef,
+		menu,
 		setMenu,
 		hover,
 		drag,
@@ -77,6 +81,15 @@ export function HorizontalContents({
 	} = view;
 	const newTabCreationEnabled =
 		actions.getCreationAvailability({ groupId: null, kind: 'new-tab' }).kind === 'enabled';
+	const newTabMenuShown = showNewTabButton && newTabMenuAvailable;
+	const newTabMenuOpen = menu?.kind === 'new-tab';
+	// A press on the menu button while its menu is open closes the menu, so its click opens nothing.
+	const newTabMenuOpenAtPress = useRef(false);
+	const openNewTabMenu = (event: MouseEvent<HTMLButtonElement>) => {
+		if (newTabCreationEnabled && newTabMenuAvailable) {
+			setMenu({ kind: 'new-tab', x: event.clientX, y: event.clientY });
+		}
+	};
 
 	const idealTrailingBounds = horizontalLayout?.bounds.at(-1);
 	const paintedTrailingBounds = paintedHorizontalBounds(items.length - 1);
@@ -175,6 +188,11 @@ export function HorizontalContents({
 				? dragPresentation.left - drag.dragAreaBounds.left + dragPresentation.width
 				: null,
 	});
+
+	const newTabButtonStart = Math.min(
+		newTabButtonTrailingEdge + 4,
+		Math.max(0, size.width - 38 - (newTabMenuShown ? NEW_TAB_MENU_BUTTON_WIDTH : 0)),
+	);
 
 	return (
 		<div className={styles['ct-horizontal-contents']}>
@@ -476,12 +494,41 @@ export function HorizontalContents({
 						frameCondensed={horizontalFrameCondensed}
 						tabIndex={0}
 						onClick={addTab}
-						onContextMenu={(event) => {
-							if (newTabCreationEnabled && newTabMenuAvailable) {
-								setMenu({ kind: 'new-tab', x: event.clientX, y: event.clientY });
-							}
+						onContextMenu={openNewTabMenu}
+						inlineStart={newTabButtonStart}
+					/>
+				) : null}
+				{newTabMenuShown ? (
+					// Its menu is the one a secondary click on + opens, here below the button.
+					<TabStripControlButton
+						variantClass='ct-new-tab-menu'
+						type='button'
+						aria-label={messages.newTabMenu}
+						aria-expanded={newTabMenuOpen}
+						aria-haspopup='menu'
+						disabled={!newTabCreationEnabled}
+						icon={<ProductIcon name='chevron-down' />}
+						frameCondensed={horizontalFrameCondensed}
+						tabIndex={0}
+						onPointerDown={() => {
+							newTabMenuOpenAtPress.current = newTabMenuOpen;
 						}}
-						inlineStart={Math.min(newTabButtonTrailingEdge + 4, Math.max(0, size.width - 38))}
+						onClick={(event) => {
+							const closing = newTabMenuOpenAtPress.current;
+							newTabMenuOpenAtPress.current = false;
+							if (closing) return;
+							const bounds = event.currentTarget.getBoundingClientRect();
+							event.currentTarget.dispatchEvent(
+								new window.MouseEvent('contextmenu', {
+									bubbles: true,
+									cancelable: true,
+									clientX: bounds.left,
+									clientY: bounds.bottom,
+								}),
+							);
+						}}
+						onContextMenu={openNewTabMenu}
+						inlineStart={newTabButtonStart + NEW_TAB_BUTTON_WIDTH}
 					/>
 				) : null}
 			</div>

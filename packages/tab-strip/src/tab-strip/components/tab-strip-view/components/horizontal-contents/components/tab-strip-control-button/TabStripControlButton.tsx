@@ -1,14 +1,18 @@
 import styles from './TabStripControlButton.module.css';
-import type { MouseEventHandler, ReactNode } from 'react';
+import type { MouseEventHandler, PointerEventHandler, ReactNode } from 'react';
 import { joinClassNames } from '../../../../../../utils/tab-strip-internals';
 
 interface TabStripControlButtonProps {
 	type?: 'button' | 'reset' | 'submit';
 	'aria-label': string;
+	/** A button that opens a menu names it and says whether it is open. */
+	'aria-expanded'?: boolean;
+	'aria-haspopup'?: 'menu';
 	disabled?: boolean;
 	tabIndex?: number;
 	onClick?: MouseEventHandler<HTMLButtonElement>;
 	onContextMenu?: MouseEventHandler<HTMLButtonElement>;
+	onPointerDown?: PointerEventHandler<HTMLButtonElement>;
 	icon?: ReactNode;
 	label?: ReactNode;
 	variantClass?: keyof typeof styles;
@@ -22,10 +26,13 @@ export function TabStripControlButton({
 	frameCondensed = false,
 	type = 'button',
 	'aria-label': ariaLabel,
+	'aria-expanded': ariaExpanded,
+	'aria-haspopup': ariaHasPopup,
 	disabled,
 	tabIndex = -1,
 	onClick,
 	onContextMenu,
+	onPointerDown,
 	variantClass,
 	inlineStart,
 }: TabStripControlButtonProps): ReactNode {
@@ -33,10 +40,13 @@ export function TabStripControlButton({
 		<button
 			type={type}
 			aria-label={ariaLabel}
+			aria-expanded={ariaExpanded}
+			aria-haspopup={ariaHasPopup}
 			disabled={disabled}
 			tabIndex={tabIndex}
 			onClick={onClick}
 			onContextMenu={onContextMenu}
+			onPointerDown={onPointerDown}
 			className={joinClassNames(
 				styles['ct-tab-strip-control-button'],
 				variantClass === undefined ? undefined : styles[variantClass],

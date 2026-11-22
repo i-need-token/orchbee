@@ -7,7 +7,7 @@ import type {
 import * as React from 'react';
 
 import { AgentProviderMark } from '../../agent-provider-mark';
-import { projectWorkbenchAgentShortlist } from '../components/workbench-agent-start-dialog/model/projectWorkbenchAgentShortlist';
+import { projectWorkbenchAgentLaunchChoices } from '../components/workbench-agent-start-dialog/model/projectWorkbenchAgentLaunchChoices';
 import type { WorkbenchAgentCatalogSource } from '../types/workbench-agent-start';
 import type { WorkbenchLaunchProfiles } from '../types/workbench-authority';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
@@ -18,29 +18,23 @@ interface UseWorkbenchNewTabChoicesOptions {
 	readonly createTab: (profile: UserLaunchProfile) => void;
 	readonly inWorkspace: boolean;
 	readonly launchProfiles: WorkbenchLaunchProfiles | undefined;
-	/** Runs `workbench.agent.start`, which opens Start Agent with New Tab as its default place. */
-	readonly openAgentStart: () => void;
 	/** Runs `workbench.agent.start-provider` with the new-Tab place. */
 	readonly startAgentInNewTab: (providerId: WorkbenchAgentStartProvider) => void;
-	/** Start Agent's effective shortcut, absent while it has none. */
-	readonly startAgentShortcutLabel: string | undefined;
 }
 
 /**
  * The New Tab button's menu, as in the TUI: every saved launch profile, the default first and marked
- * Default, then, while the Session can start an Agent, an Agents section with up to four Agents by
- * product name, the first Recent then Installed rows of Start Agent, and More Agents…. A profile
- * starts one Tab with it and never changes the default; an Agent starts in a new Tab without a
- * question. Without a Workspace there is nowhere to put that Tab, so the button offers no menu.
+ * Default, then, while the Session can start an Agent, an Agents section with every installed Agent
+ * by product name, the Recent then Installed rows of Start Agent. A profile starts one Tab with it
+ * and never changes the default; an Agent starts in a new Tab without a question. Without a
+ * Workspace there is nowhere to put that Tab, so the button offers no menu.
  */
 export function useWorkbenchNewTabChoices({
 	agentCatalog,
 	createTab,
 	inWorkspace,
 	launchProfiles,
-	openAgentStart,
 	startAgentInNewTab,
-	startAgentShortcutLabel,
 }: UseWorkbenchNewTabChoicesOptions): readonly TabStripNewTabSection[] | undefined {
 	const intl = useOrchbeeIntl();
 	const markPrefix = React.useId();
@@ -85,7 +79,7 @@ export function useWorkbenchNewTabChoices({
 		const productNames = new Map(
 			agents.agents.map((entry) => [entry.providerId, entry.productName] as const),
 		);
-		const agentChoices = projectWorkbenchAgentShortlist(agents).map(
+		const agentChoices = projectWorkbenchAgentLaunchChoices(agents).map(
 			(providerId): TabStripNewTabChoice => ({
 				icon: 'agent',
 				id: `agent:${providerId}`,
@@ -100,29 +94,10 @@ export function useWorkbenchNewTabChoices({
 			}),
 		);
 		sections.push({
-			choices: [
-				...agentChoices,
-				{
-					icon: 'ellipsis',
-					id: 'agent-more',
-					label: intl.formatMessage(workbenchTabMessages.newTabMoreAgents),
-					...(startAgentShortcutLabel === undefined ? {} : { note: startAgentShortcutLabel }),
-					select: openAgentStart,
-				},
-			],
+			choices: agentChoices,
 			id: 'agents',
 			label: intl.formatMessage(workbenchTabMessages.newTabAgentsHeading),
 		});
 		return sections;
-	}, [
-		agents,
-		createTab,
-		inWorkspace,
-		intl,
-		markPrefix,
-		openAgentStart,
-		profileCatalog,
-		startAgentInNewTab,
-		startAgentShortcutLabel,
-	]);
+	}, [agents, createTab, inWorkspace, intl, markPrefix, profileCatalog, startAgentInNewTab]);
 }

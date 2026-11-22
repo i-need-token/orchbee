@@ -205,6 +205,8 @@ pub enum HitTarget {
     NewWorkspaceButton,
     CreateMenu(Option<crate::machine_picker::SidebarTarget>),
     TabCreate(crate::action_menu::DrawnTabCreate),
+    /// `[v]` beside `[+]`: a press opens the new-Tab menu below it.
+    TabCreateMenu(crate::action_menu::DrawnTabCreate),
     ActionMenuRow {
         token: crate::action_menu::MenuToken,
         row: usize,
