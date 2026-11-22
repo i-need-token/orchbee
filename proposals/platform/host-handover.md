@@ -1167,10 +1167,8 @@ answers true in test builds and false in release builds until H2 and H4, respect
 
 - Chosen: a TLA+ model, `terminal-host-handover`, because four independently ordered actors share
   one small protocol. It sits beside the Terminal Host's models in
-  `apps/terminal-host/formal/tla/`, is registered in `scripts/tla/models.json` with the runtime
-  model as its claims, and meets the 20-second deadline with two workers. It triggers on this
-  proposal; the slices that add the Host's H1 sources and `schemas/keeper` add them as triggers,
-  since the registry admits only triggers that match a tracked file.
+  `apps/terminal-host/formal/tla/`, is registered in `scripts/tla/models.json`, and meets the 20-second deadline with two
+  workers.
 - Actors: the Worker, the old and new Host, the Keeper, and a second Keeper. Each Host and each
   Keeper may crash once, the Worker may crash once and be replaced, the Worker may end a Keeper
   that missed a deadline and attach a second at any moment, a broken connection loses the message
@@ -1224,8 +1222,8 @@ answers true in test builds and false in release builds until H2 and H4, respect
 | `TH-034`, the Keeper's arbitration     | S6                                                                                      |
 
 - The claims left without a witness are in [risks](#risks-h1-leaves-open).
-- Other registered models: `terminal-host-delivery` and `terminal-host-process-identity` rerun
-  through their triggers and do not change in H1. `session-crash-recovery` and
+- Other registered models: `terminal-host-delivery` and `terminal-host-process-identity` do not
+  change in H1. `session-crash-recovery` and
   `local-session-startup` change in H2 for the Keeper slot and its start,
   `local-terminal-coordinator` and `worker-send-transaction` change in H3 for the hold and
   rebinding, and `terminal-host-process-identity` changes in H5, when the Keeper parents programs.

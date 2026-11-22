@@ -74,8 +74,8 @@ transfer when needed. Terminal processes and viewing attachments survive these h
 ## Evidence and staged delivery
 
 The [Server transfer model](../../orchbee-server/docs/terminal-controller-takeover.md) owns the
-shared authority. The retained `ConnectionViewerOwnership` TLA model covers its existing Viewer
-and grant cleanup bounds; activation and MRU behavior are outside that model.
+shared authority, including Viewer and grant cleanup; activation and MRU behavior stay with the
+Client.
 
 The GUI focus/control projection must consume the same published ownership and focus order and match
 self-owner and recent-Viewer behavior. All four native binaries remain one cohort.

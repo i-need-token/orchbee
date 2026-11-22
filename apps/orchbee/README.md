@@ -647,9 +647,6 @@ pnpm --filter @orchbee/terminal-host build
 cargo build -p orchbee-server -p orchbee-worker --locked
 cargo test -p orchbee -p orchbee-workbench-client --all-targets --all-features --locked
 cargo clippy -p orchbee -p orchbee-workbench-client --all-targets --all-features --locked -- -D warnings
-node scripts/tla/check-inventory.mjs
-node scripts/tla/run-models.mjs --workspace apps/orchbee
-node scripts/tla/run-models.mjs --models local-session-startup
 cargo tree -p orchbee --target x86_64-pc-windows-msvc --locked
 pnpm verify
 ```

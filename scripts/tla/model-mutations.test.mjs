@@ -4,77 +4,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
 
-import { applyConfigConstants, inventoryPath, repositoryRoot } from './model-inventory.mjs';
-import { provisionJar } from './toolchain.mjs';
+import { applyConfigConstants, inventoryPath, repositoryRoot, tlcJar } from './run-models.mjs';
 import { runChild } from './test-support/child-process.mjs';
 
 const inventory = JSON.parse(await readFile(inventoryPath, 'utf8'));
-const jar =
-	process.env.ORCHBEE_TLA2TOOLS_JAR ??
-	path.join(repositoryRoot, '.tools', `tla2tools-${inventory.tool.version}.jar`);
-await provisionJar(inventory.tool, jar, process.env.ORCHBEE_TLA2TOOLS_JAR === undefined);
+const jar = await tlcJar(inventory);
 
 // Each mutation drops a protocol guard, leaving the checked property and bounds intact.
-// The full baseline gate supplies the positive controls from the exact same modules/configs.
+// run-models.mjs runs the unmutated modules and configurations first as the positive controls.
 const cases = [
-	[
-		'client-subscription-delivery',
-		'old generation completion enters a replacement subscription',
-		'FenceGeneration = TRUE',
-		'FenceGeneration = FALSE',
-		/Invariant CurrentGeneration is violated/u,
-		'config',
-	],
-	[
-		'client-subscription-delivery',
-		'in-flight delivery survives cancellation without its fence',
-		'FenceCancellation = TRUE',
-		'FenceCancellation = FALSE',
-		/Invariant CancellationFence is violated/u,
-		'config',
-	],
-	[
-		'native-settings-save',
-		'stale file overwrite',
-		'/\\ s.phase[c] = "checking" /\\ Content(s.file) = s.before[c]',
-		'/\\ s.phase[c] = "checking"',
-		/Invariant OtherKeysPreserved is violated/u,
-	],
-	[
-		'connection-viewer-routing',
-		'exact cleanup releases successor',
-		'after == IF s.grant[target] = v THEN 0 ELSE s.grant[target]',
-		'after == 0',
-		/Invariant StaleCleanupPreservesSuccessor is violated/u,
-	],
-	[
-		'native-client-pane-membership',
-		'stale completion affects replacement',
-		'accepted == Current(s.flight)',
-		'accepted == TRUE',
-		/Invariant (?:FramesAreCurrent|EffectsUseCurrentIncarnation) is violated/u,
-	],
-	[
-		'native-client-pane-membership',
-		'typed input reaches the pane a pending navigation is leaving',
-		'(p = s.focus /\\ s.intent = 0)',
-		'p = s.focus',
-		/Invariant InputFollowsSettledNavigation is violated/u,
-	],
-	[
-		'local-terminal-relay',
-		'feedback acknowledges another flight',
-		'/\\ identity = s.frameFlight[c]',
-		'/\\ identity \\in 1..s.frameSource',
-		/Action property FeedbackUsesExactFlight is violated/u,
-	],
-	[
-		'native-terminal-viewport',
-		'independent outcome producer',
-		'/\\ s.outcome.kind = "window" /\\ s.outcome.sequence # 0\n  /\\ s\' = [s EXCEPT !.outcome.sequence = 0]',
-		'/\\ s.outcome = None\n  /\\ s\' = [s EXCEPT !.outcome = Command("window", 0)]',
-		/Action property OutcomeProductionOwned is violated/u,
-	],
 	[
 		'terminal-host-handover',
 		'claim accepted without a mark for the claimant',
@@ -316,100 +254,11 @@ const cases = [
 		'cold-adoption',
 	],
 	[
-		'native-projection-record-resync',
-		'a record the Client cannot read resyncs while the Server waits on its flight',
-		'[] r.bad = "envelope" \\/ count > Bound ->',
-		'[] count > Bound ->',
-		/Temporal properties were violated/u,
-	],
-	[
-		'native-projection-record-resync',
-		'rejected records resync without a bound',
-		'[] r.bad = "envelope" \\/ count > Bound ->',
-		'[] r.bad = "envelope" ->',
-		/Invariant BoundedResyncs is violated/u,
-	],
-	[
-		'native-focus-viewer-loss-parking',
-		'a focus loss beside an owner retires the Client',
-		'/\\ ui\' = IF ui.phase = "ready"\n',
-		'/\\ ui\' = IF ui.phase = "ready" /\\ ui.owner = "none"\n',
-		/Invariant NeverRetired is violated/u,
-	],
-	[
-		'native-focus-viewer-loss-parking',
-		'a takeover whose viewer is gone fails instead of settling as refused',
-		'IF worker.viewer THEN "granted" ELSE "refused"',
-		'"granted"',
-		/Invariant NeverRetired is violated/u,
-	],
-	[
-		'native-focus-viewer-loss-parking',
-		'a focus parked beside a Create keeps the Ready anchor that names its lost viewer',
-		'!.anchor = IF @ = "ready" THEN "unattached" ELSE @]',
-		'!.anchor = @]',
-		/Invariant (?:NeverRetired|AnchorMatchesViewer) is violated/u,
-	],
-	[
-		'native-focus-viewer-loss-parking',
-		'a Create whose Ready origin lost its viewer fails instead of answering as unattached',
-		'IF worker.origin = "ready" /\\ worker.viewer THEN "viewer"',
-		'IF worker.origin = "ready" THEN IF worker.viewer THEN "viewer" ELSE "protocol"',
-		/Invariant NeverRetired is violated/u,
-	],
-	[
-		'native-request-scoped-unknown-outcome',
-		'a retry of an unknown identity reuses that identity',
-		'ReplayGuard = TRUE',
-		'ReplayGuard = FALSE',
-		/Invariant NoReplayOfUnknownId is violated/u,
-		'config',
-	],
-	[
-		'native-request-scoped-unknown-outcome',
-		'a stream-scoped unknown retires the live carrier',
-		'KeepCarrierOnStreamUnknown = TRUE',
-		'KeepCarrierOnStreamUnknown = FALSE',
-		/Invariant StreamUnknownNeverRetires is violated/u,
-		'config',
-	],
-	[
-		'native-request-scoped-unknown-outcome',
-		'a typed Server answer releases the close fence',
-		'ReleaseOnlyOnStreamUnknown = TRUE',
-		'ReleaseOnlyOnStreamUnknown = FALSE',
-		/Invariant TypedHoldKeepsFence is violated/u,
-		'config',
-	],
-	[
-		'native-request-scoped-unknown-outcome',
-		'a second close is admitted beside one in flight',
-		'BlockCompetingClose = TRUE',
-		'BlockCompetingClose = FALSE',
-		/Invariant CloseSerialized is violated/u,
-		'config',
-	],
-	[
-		'native-request-scoped-unknown-outcome',
-		'a timer clears the unknown notice',
-		'TimerKeepsUnknown = TRUE',
-		'TimerKeepsUnknown = FALSE',
-		/Action property UnknownNoticeKeptUntilKey is violated/u,
-		'config',
-	],
-	[
 		'windows-checkpoint-storage',
 		'a writer that no longer holds the store lock publishes the binding file',
 		'  /\\ storeHeld /\\ t = storeTake\n',
 		'',
 		/Invariant BindingsCurrent is violated/u,
-	],
-	[
-		'native-request-scoped-unknown-outcome',
-		'an owed publication read has no fairness',
-		' /\\ WF_vars(Publish)\n',
-		'\n',
-		/Temporal properties were violated/u,
 	],
 ];
 

@@ -3,8 +3,7 @@
 //! answered with a snapshot request naming that flight, and any other record leaves the next frame
 //! to bring the snapshot. Resyncs without an applied frame are bounded. Past the bound, or on a
 //! record the Client cannot read (it may be a frame the Server still waits on), only this pane
-//! stops, with the refused record's class in the log. The Session and connection stay; the
-//! protocol and its bound are modeled in `formal/tla/ProjectionRecordResync.tla`.
+//! stops, with the refused record's class in the log. The Session and connection stay.
 use super::{CausalSettlement, ClientProjectionStatus, PendingDraw, WorkbenchClientUi};
 use crate::terminal_projection::{ProjectionRejection, RejectedRecord};
 use crate::workbench_client::diagnostic_events::{self, RecordContainment};

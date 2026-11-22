@@ -264,28 +264,11 @@ test(
 test('the daily gate retains host tests while full builds and cross checks require explicit commands', () => {
 	assert.deepEqual(
 		checkSteps('verify').map((step) => step.name),
-		[
-			'format:check',
-			'test:tla:inventory',
-			'build:packages',
-			'lint',
-			'typecheck',
-			'test',
-			'test:exports',
-		],
+		['format:check', 'build:packages', 'lint', 'typecheck', 'test', 'test:exports'],
 	);
 	assert.deepEqual(
 		checkSteps('verify:full').map((step) => step.name),
-		[
-			'format:check',
-			'test:tla:inventory',
-			'build:full',
-			'lint',
-			'typecheck',
-			'test',
-			'test:cross',
-			'test:exports',
-		],
+		['format:check', 'build:full', 'lint', 'typecheck', 'test', 'test:cross', 'test:exports'],
 	);
 	const steps = checkSteps('test', undefined, 'win32');
 	assert.equal(steps.length, 5);

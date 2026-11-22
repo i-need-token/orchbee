@@ -5,12 +5,11 @@
 `pnpm verify` is the host verification gate; CI runs its stages across the jobs of the [CI contract](#ci-contract). Run the applicable root gate from the repository root before committing a completed change. It prepares check inputs without a full application build or cross-compilation, in this order:
 
 1. `pnpm format:check`
-2. `pnpm test:tla:inventory`
-3. `pnpm build:packages`
-4. `pnpm lint`
-5. `pnpm typecheck`
-6. `pnpm test`
-7. `pnpm test:exports`
+2. `pnpm build:packages`
+3. `pnpm lint`
+4. `pnpm typecheck`
+5. `pnpm test`
+6. `pnpm test:exports`
 
 A focused command is useful while iterating, but completion requires the applicable root gate.
 Use the daily affected gate below for a scoped completed change; use all host suites when required
@@ -50,7 +49,7 @@ file can cause a full run; the resolver does not delete or ignore it.
 
 ### What always runs
 
-oxfmt and each workspace's own format check, the TLA inventory check, the library build, every
+oxfmt and each workspace's own format check, the library build, every
 command of the `lint` script except Clippy, type checking, and `test:lint-rules`, whose Markdown
 link check covers every tracked file. Their inputs cross every workspace. The changed gate reads the
 `format:check` and `lint` scripts from the root `package.json`, so a command added there runs in both
@@ -62,7 +61,8 @@ gates.
 | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | rustfmt and Clippy                                                        | A Cargo owner is selected. Clippy takes the selected members with `--package`; the lint task's source and manifest policies still cover the workspace. A change to `scripts/run-rust-workspace.mjs`, which holds those policies, lints every member.                        |
 | Workspace suites                                                          | Their owner is selected. pnpm suites use the normal workspace commands; Cargo members keep all targets, all features, the lockfile and documentation tests. Node suites finish before Rust tests start, and real-process tests first build the host executables they start. |
-| Root tooling suites and the TLA runner tests                              | A root tooling input changes: anything under `scripts/`, a root pnpm manifest, `knip.config.mjs`, or a workflow file. One suite also runs when a repository file it reads changes; `toolingSuites` in the scope script lists those files.                                   |
+| Root tooling suites                                                       | A root tooling input changes: anything under `scripts/` except `scripts/tla/`, a root pnpm manifest, `knip.config.mjs`, or a workflow file. One suite also runs when a repository file it reads changes; `toolingSuites` in the scope script lists those files.             |
+| Changed TLA+ models                                                       | A file under a `formal/tla/` directory or `scripts/tla/` changes, as [TLA+ models](#tla-models) describes. Such a change selects no suite.                                                                                                                                  |
 | `test:exports`                                                            | A `packages/*` owner is selected or a root tooling input changes.                                                                                                                                                                                                           |
 | Terminal Host test compilation for `x86_64-linux-gnu` and `aarch64-macos` | Terminal Host Zig source or build files change. The host suite compiles for its own system only.                                                                                                                                                                            |
 
@@ -96,8 +96,7 @@ repository root. Markdown inside an owner selects that owner. Other files outsid
 remain unknown and select the complete gate.
 
 A change that adds a cross-owner input, or a test that reads a file outside its owner, adds the
-mapping and its positive control in `scripts/verification-scope.test.mjs` in the same change. This
-policy does not waive change-triggered TLA checks.
+mapping and its positive control in `scripts/verification-scope.test.mjs` in the same change.
 
 ## Execution and evidence
 
@@ -180,7 +179,6 @@ results remain unchanged.
 | `verify`                         | The complete host gate: the stages under [Merge gate](#merge-gate), in order.                                                                                                                                                                      |
 | `verify:changed -- <base>`       | The daily gate under [Affected verification](#affected-verification).                                                                                                                                                                              |
 | `format:check`                   | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                                                                                                      |
-| `test:tla:inventory`             | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree; every trigger matches a tracked file.                                                                                    |
 | `build`, `build:packages`        | Shared library workspaces produce the artifacts consumed by lint, type checking, tests and export checks.                                                                                                                                          |
 | `lint`                           | Runs `lint:code` (blocking oxlint diagnostics), `lint:rust-modules`, `lint:rust`, `lint:styles`, `lint:storage` and `lint:dependencies`. [Linting](LINTING.md#enforcement-boundary) says what each one enforces.                                   |
 | `lint:code:warnings`, `lint:fix` | Outside the gate: show the non-blocking oxlint warnings too; apply the safe oxlint fixes.                                                                                                                                                          |
@@ -248,23 +246,25 @@ results remain unchanged.
   The runner lists the client's test targets at run time, so a new one joins `client-commands` by
   itself, and it fails on a client target kind that no part names.
 
-## Change-triggered TLA+ verification
+## TLA+ models
 
-`pnpm test:tla` is the complete TLA verification gate. It runs the Java-free inventory and runner tests, then checks every registered configuration and the real TLC cache/mutation witnesses. Model checking always starts from fresh state and does not reuse success results. The complete invocation fails if wall time exceeds 60 seconds. Measure three complete fresh-state runs with dependencies and pinned tools installed when changing this budget or the portfolio; disclose machine/load and provisioning time separately.
+No gate runs TLA+ by default: `pnpm verify` and CI never start TLC or provision Java. An unchanged
+model needs no run. `pnpm verify:changed -- <base>` adds one step, `changed TLA+ models`, only when
+a file under a `formal/tla/` directory or `scripts/tla/` changed; that step runs
+`pnpm test:tla:changed -- <base>`. Run it yourself when you change a model outside that gate.
 
-`scripts/tla/models.json` registers every protocol model and its configurations (one per named variant, otherwise one per model), with semantic owners, claims, implementation triggers, required action coverage and a 20-second configuration deadline. This is the whole maintained portfolio, not a fast subset in front of a hidden required full suite. New models must fit the complete budget and the admission criteria in [Modeling and Correctness](MODELING-AND-CORRECTNESS.md). A timeout is a failure, not a way to skip work.
+- `pnpm test:tla` runs every registered model, then its mutation controls.
+- `pnpm test:tla:changed -- <base>` runs the models whose own module, configuration or supporting
+  module changed since the fork point with `<base>`, counting uncommitted and untracked files. A
+  change under `scripts/tla/` runs every model.
+- `node scripts/tla/run-models.mjs --models <id>[,<id>]` or `--workspace <path>` runs a chosen
+  set.
 
-The ordinary `pnpm verify` gate runs `test:tla:inventory`; it does not implicitly run Java. CI runs no TLA+ model checking or TLC. Product protocol state, transitions, assumptions or refinement changes require the affected registered model, run locally with `pnpm test:tla:changed -- <base>` or `pnpm test:tla`, and its implementation tests. Workspace commands delegate to the shared runner; workspaces with only local implementation evidence expose no empty TLA command. `node scripts/tla/run-models.mjs --all` is the model-only baseline; it is not the complete TLA gate.
-
-`pnpm test:tla:changed -- <base>` selects affected protocols and optionally reuses exact unchanged mathematical results under the [tooling cache contract](../scripts/tla/README.md#local-success-cache). Reuse does not prove changed product code. Full `pnpm test:tla` never reuses those results. Runner/helper, verification-standard or trigger-policy changes select the compact full model baseline and require the real tooling witnesses. Known inventory test entrypoints stay in the mandatory inventory gate. There is no workflow metamodel.
-
-Selection unions current and baseline dependencies, both rename paths and committed/staged/unstaged/untracked changes. Removed registrations do not select unrelated survivors. Changed shared metadata, invalid or non-ancestor bases and hidden Git inputs select all models. Current and baseline exclusions are evaluated independently so a same-diff exclusion cannot hide an owner change. Optional document scopes must classify all supported H2 headings; ambiguity falls back to whole-file selection. Product dependencies on tooling paths are still honored. CI workflows are not a selection input, so a workflow edit selects no model.
-
-Every configuration uses pinned TLC 1.7.4 and SHA-256, fingerprint polynomial 0, explicit finite bounds, required action coverage, declared workers and isolated state/Java temporary directories. `-lncheck final` checks all configured temporal properties after the reachable graph is complete. Success requires normal child/stdio closure, a complete successful report, zero queued states and every required action witness. Output retains machine-readable counts, duration, worker/heap budgets, input digest and log path. Partial exploration is not progress evidence.
-
-Independent configurations share a FIFO resource queue bounded by processors and 60% of available memory. The default heap ceiling is 4096 MiB plus a 512 MiB process reserve. `--max-heap-mib N` accepts decimal integers 256 through 8192; `--jobs N` explicitly caps process slots within the same memory budget. Declared workers count against CPU admission; an oversized job runs alone. These are admission bounds, not guarantees about GC threads, actual RSS or external load. Caller-owned logs and recovery state are reclaimed after their last consumer.
-
-Local UI selection, menus, rendering configuration, fixed CLI workflows and deterministic business reducers use their existing controlled/generated implementation tests. Owner documents must name those witnesses and state that they do not provide exhaustive TLC assurance. Retained cores cover shared identity, grants, commit/publication, unknown outcomes, persistence and queue progress within their declared abstractions.
+`scripts/tla/models.json` registers each model's module, configuration, named variants, TLC
+workers, required action coverage and the 20-second configuration deadline. A model passes only on a
+complete clean search that took every required action, followed by its mutation cases in
+`scripts/tla/model-mutations.test.mjs` finding their counterexamples. A timeout is a failure.
+[Modeling and Correctness](MODELING-AND-CORRECTNESS.md#tla) decides when a model is admitted.
 
 ## CI contract
 
@@ -290,8 +290,8 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   Linux `verify` job never compiles. It runs as three parallel jobs, one per test part of
   [Required tasks](#required-tasks): as one job it ran for about an hour, 41 minutes of that in
   tests and most of those in the terminal client's process tests, and a run ends with its slowest
-  job. They and `rust-macos` are the only jobs that run the Cargo test suites. Formatting, documentation,
-  TypeScript and TLA checks are platform-independent and stay in `verify`. The Windows TUI process
+  job. They and `rust-macos` are the only jobs that run the Cargo test suites. Formatting, documentation
+  and TypeScript checks are platform-independent and stay in `verify`. The Windows TUI process
   tests that share `apps/orchbee/tests/support/windows_tui_session.rs` take turns inside their test
   binary: four of their real Session pairs at once saturate the four-vCPU runner, and shells then
   echo typed input seconds late.
@@ -317,9 +317,8 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   every downloaded package against its pinned hash before it enters the archive store.
 - Platform exclusions are explicit. Linux stays parked: its Cargo test suites run in no job, as
   the `verify` job above describes. No job runs `test:cross`; cross-compilation stays explicit.
-- No job runs TLA+ model checking or TLC, and no job provisions Java. Of the TLA tooling, the
-  `verify` job runs only the Java-free `test:tla:inventory` stage of `pnpm verify`. Affected registered models run
-  locally, as Change-triggered TLA+ verification above requires.
+- No job runs TLA+ model checking, TLC or any TLA+ tooling, and no job provisions Java. A changed
+  model runs locally, as [TLA+ models](#tla-models) describes.
 - The workflow installs every exact compiler version required by a tracked native workspace through
   its pinned official toolchain mechanism. Directly downloaded archives require a checked digest
   before they are added to `PATH`. Every third-party GitHub Action across `.github/workflows/*.yml`

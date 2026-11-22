@@ -1591,7 +1591,7 @@ longer counts.
 writers, with lock-free decisions between them and a crash at any point. The registered
 configuration has four versions, where version 0 stands for a release before slice 1 or a build
 whose switch is off, a floor of 2 on version 3, one Session generation and two failures standing
-for three. The TLA gate runs it twice: with two moves and a clock that stays at its first tick, so
+for three. The runner checks it twice: with two moves and a clock that stays at its first tick, so
 every failure falls inside its window, and with one move and a clock that passes the one-tick
 window. It checks that no committed start or failure is lost,
 that only a move or a fallback changes `active` or `previous`, that a failure counts only toward
@@ -1606,8 +1606,8 @@ model lets it remove every other folder at once, as retention does; that the com
 the target's own binary; that readers read whole files; and that the switch is fixed per build.
 
 `formal/tla/deep/ReleaseStoreFallback.cfg` keeps the designed bounds, three Session generations, a
-window of one tick over two ticks and three moves, as a deep check outside the gate, since no
-configuration that reaches every guard fits the gate's 20-second deadline. Only it lets a window
+window of one tick over two ticks and three moves, as a deep check the runner does not run, since no
+configuration that reaches every guard fits the 20-second configuration deadline. Only it lets a window
 close during a run of several moves, and only it reaches a Session failure of a generation the move
 did not start, the counterexample `AttributeStarts = FALSE` needs, which the
 mutation suite therefore leaves out; with that guard off, the deep configuration reaches

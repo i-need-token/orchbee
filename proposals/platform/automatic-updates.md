@@ -561,11 +561,9 @@ Every commit and refusal releases the lock.
   `apps/orchbee-server/src/local_worker_service/managed/stop_windows.rs`, and
   `crates/local-runtime/src/session_catalog/**`; required coverage: every action but `HoldLater`,
   which the configuration never enables.
-- The registration adds seven configuration mutation cases, one per flag, updates the model and
-  mutant counts in the [TLA tooling guide](../../scripts/tla/README.md) and in
-  [verification](../../docs/VERIFICATION.md#change-triggered-tla-verification), and measures three
-  complete fresh `pnpm test:tla` runs inside the 60-second budget. It may narrow the bounds above,
-  stating the narrowed limits.
+- The registration adds seven configuration mutation cases, one per flag, and each configuration
+  finishes inside the 20-second deadline of [TLA+ models](../../docs/VERIFICATION.md#tla-models).
+  It may narrow the bounds above, stating the narrowed limits.
 
 ### Notify only in the worst case
 

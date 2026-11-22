@@ -305,35 +305,14 @@ an outside change shown at once on the open page, and covering Client capture. T
 watcher cases also retain confirmed shared appearance and pointer-release state while updating live
 bindings, their hints and both sidebar profiles together.
 
-`SettingsCommitPublication.tla/.cfg` bounds two Clients that each edit their own key through
-the Server and one external editor that ignores the lock, changing values or breaking the syntax
-twice. An edit holds the Server's reload admission from its read to its publication, and the
-sampler reloads under the same admission. `Read` records the file's content; `Replace` writes only
-while that content is unchanged; `Redo` reads once more after a change and `RefuseChanged` refuses
-the second one. A file that does not parse refuses the edit, is never written and publishes its
-syntax error over the last valid values.
-
-Checked properties:
-
-| Property                        | What it checks                                                              |
-| ------------------------------- | --------------------------------------------------------------------------- |
-| `OneWriter`                     | An edit reads, writes and reloads only while it holds the reload admission. |
-| `OtherKeysPreserved`            | A write changes only its own key of the file it replaces.                   |
-| `UnparsableFileNeverWritten`    | A file that does not parse is never replaced.                               |
-| `SnapshotIsNewest`              | The current snapshot has the highest published revision.                    |
-| `PublicationIdentity`           | A revision names exactly one snapshot.                                      |
-| `RevisionAdvances`              | Each publication advances the revision by one.                              |
-| `PublishedValuesWereFileStates` | Every published value set was once the whole file; no snapshot mixes two.   |
-| `SnapshotShowsLastValid`        | A syntax error keeps the last valid values in the snapshot.                 |
-| `RefusalChangesNothing`         | A refused edit writes nothing and publishes nothing.                        |
-| `ReplyIsCurrent`                | An edit replies with the snapshot its own reload published.                 |
-| `FileEventuallyPublished`       | Once writes stop, the snapshot shows the file's values or its syntax error. |
-
-The negative control removes the content recheck from `Replace` and must produce an
-`OtherKeysPreserved` counterexample.
-
-Run `node scripts/tla/run-models.mjs --models native-settings-save` and the owning
-Cargo/TypeScript checks. The affected root gate remains required.
+Two Clients that each edit their own key go through the Server, while an external editor may change
+the file at any time without the lock. An edit holds the Server's reload admission from its read to
+its publication, and the sampler reloads under the same admission. An edit writes only while the
+file's content is unchanged since its read, reads once more after one change, and refuses a second.
+A write changes only its own key; a file that does not parse is never written, refuses the edit and
+publishes its syntax error over the last valid values. Each publication advances the revision by
+one, and every published value set was once the whole file. The owning Cargo and TypeScript tests
+check these rules over named traces; no model explores every interleaving.
 
 ## History units and host-color display
 

@@ -132,10 +132,8 @@ action covered (no zero-coverage line). The batch evidence directories
 `a3/evidence-13/` and `a3/evidence-14/` predate the revision in which an
 intact answer keeps the carrier.
 
-The authoritative run uses the existing runner resource budget — currently a
-2048 MiB heap, one worker, and a 120 s ceiling, as recorded in
-`scripts/tla/models.json` (`workers` 1, `timeoutMilliseconds` 120000) and
-capped by `maximumHeapMiB` in `scripts/tla/model-checks.mjs`.
+The authoritative run uses one TLC worker and the registry's configuration
+deadline, as `scripts/tla/models.json` and `scripts/tla/run-models.mjs` set them.
 
 ## Negative controls
 
@@ -214,7 +212,7 @@ acceptedBytes={0}`: a semantic key legally acknowledged with zero bytes.
   (only the shared-carrier boundary is modeled).
 
 This model is registered in `scripts/tla/models.json` as
-`worker-send-transaction` (owner `orchbee-worker`).
+`worker-send-transaction`.
 
 ## Idle-prompt refinement
 

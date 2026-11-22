@@ -67,6 +67,5 @@ Run from the repository root:
 ```sh
 cargo test -p orchbee-local-worker-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-local-worker-protocol --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models local-session-startup
 pnpm verify
 ```

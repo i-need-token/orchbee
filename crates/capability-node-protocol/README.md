@@ -675,7 +675,6 @@ Run from the repository root:
 cargo test -p orchbee-capability-node-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
 cargo test --locked -p orchbee-worker --all-targets --all-features
-pnpm test:tla:inventory
 ```
 
 ## Managed Worker shutdown

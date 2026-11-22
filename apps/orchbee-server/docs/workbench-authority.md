@@ -380,7 +380,7 @@ An admitted local Client selects an exact Session/Worker/logical Terminal bindin
 | Dependencies | Unpublished OBCS v1 values, unchanged OBCN/OBSR relay, existing OBWP snapshot read, and the native Client's existing absolute submission deadline.                                                                                                                  |
 | Limits       | Same-user local target resolution and no takeover. The Selection model does not prove multiple viewer routes, remote authorization, persistence, restart adoption, selection UI or continuous Worker availability.                                                  |
 
-The [Session routing owner](../README.md#accepted-connection-viewer-routing-modeling-record) first
+The [Session routing owner](../README.md#connection-viewer-routing) first
 reaps exact known-Disposed entries and enforces its capacity bound. With capacity available, a
 duplicate resolved live target in the same Session returns `already-attached` before Worker IPC;
 different targets can coexist. Within target resolution, poisoned registry or Session ownership returns

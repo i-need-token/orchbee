@@ -88,8 +88,10 @@ const toolingSuites = [
 		],
 	],
 	['test:agent-observation-adapters', ['crates/agent-integration-writer/']],
-	['test:tla:runner', []],
 ];
+// A TLA+ model or its tooling selects no suite: the changed gate runs the changed models instead.
+const tlaInput = (changed) =>
+	changed.startsWith('scripts/tla/') || /(?:^|\/)formal\/tla\//u.test(changed);
 // The complete Rust lint runs for a change to the runner that holds its policies.
 const rustLintTool = 'scripts/run-rust-workspace.mjs';
 // Zig sources that the Windows host suite compiles for Windows only.
@@ -316,6 +318,7 @@ function validateGraph(graph) {
 }
 
 export function selectVerificationScope(graph, paths) {
+	const tla = paths.some(tlaInput);
 	try {
 		validateGraph(graph);
 		const selected = new Set();
@@ -328,6 +331,10 @@ export function selectVerificationScope(graph, paths) {
 		for (const changed of paths) {
 			if (changed === rustLintTool) completeRustLint = true;
 			if (posixCompileInputs.some((input) => matchesInput(changed, input))) posixCompile = true;
+			if (tlaInput(changed)) {
+				reasons.push(`TLA+ <- ${changed}`);
+				continue;
+			}
 			for (const [suite, inputs] of toolingSuites) {
 				if (inputs.some((input) => matchesInput(changed, input))) tooling.add(suite);
 			}
@@ -447,6 +454,7 @@ export function selectVerificationScope(graph, paths) {
 			tooling: Object.freeze(toolingSuiteNames.filter((name) => tooling.has(name))),
 			completeRustLint,
 			posixCompile,
+			tla,
 			// The export checker reads each library package's manifest and build output.
 			packageExports:
 				tooling.size === toolingSuites.length ||
@@ -454,7 +462,7 @@ export function selectVerificationScope(graph, paths) {
 			reasons: Object.freeze(reasons),
 		});
 	} catch (error) {
-		return Object.freeze({ all: true, reasons: Object.freeze([error.message]) });
+		return Object.freeze({ all: true, tla, reasons: Object.freeze([error.message]) });
 	}
 }
 

@@ -6,11 +6,7 @@ export default function createKnipConfiguration({ production, strict }) {
 		treatConfigHintsAsErrors: true,
 		workspaces: {
 			'.': {
-				entry: [
-					'scripts/*.mjs',
-					'scripts/style-contract/__tests__/*.unit.test.ts',
-					'scripts/tla/check-inventory.mjs',
-				],
+				entry: ['scripts/*.mjs', 'scripts/style-contract/__tests__/*.unit.test.ts'],
 				project: ['scripts/**/*.{js,mjs,ts}', '*.{js,mjs,ts}'],
 				ignoreBinaries: isProduction ? [] : ['rustc', 'zig'],
 			},

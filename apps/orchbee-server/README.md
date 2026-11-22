@@ -1043,21 +1043,28 @@ order equals arrival order. The existing twenty-second Worker response budget, t
 bounds, and fifty-second Client submission window all hold; the three Host exchanges share the
 Worker's fifteen-second request bound, which fits inside them without enlargement.
 
-## Accepted terminal Client authority and relay modeling record
+## Terminal Client relay delivery
 
-`RelayDeliveryIsolation.tla/.cfg` owns delivery isolation. Two viewers each have independent frame/history queues and one in-flight record per lane. Two source records and a one-slot queue expose both successful draining and overflow. An overflowing viewer closes without clearing its peer's work. Feedback must name the exact delivered record, history delivery preserves the frame flight, and a stalled viewer cannot disable Worker progress. This is a safety model; no network-delivery fairness is assumed.
+Each viewer has its own frame and history queues and one in-flight record per lane. An overflowing
+viewer closes without clearing its peer's work. Feedback must name the exact delivered record,
+history delivery preserves the frame flight, and a stalled viewer cannot stop Worker progress.
+`local_terminal_service/viewer_connection` and the Worker carrier own these rules; their tests check
+exact bytes, capacity, request IDs, attachment generations and codecs over named traces.
 
-`Frame`/`History` map to relay enqueue, `DeliverFrame`/`DeliverHistory` to viewer delivery, feedback actions to acknowledgement, and `Close` to viewer-local cleanup. Exact bytes, production capacity, request IDs, attachment generations and codecs are checked by `local_terminal_service/viewer_connection` and Worker carrier tests. Authority and cleanup ordering are owned by `ConnectionViewerOwnership`; these separate models do not prove their full product composition.
+## Connection Viewer routing
 
-The mutation suite accepts wrong-flight feedback and requires a counterexample. Run `node scripts/tla/run-models.mjs --models local-terminal-relay` and Server/Worker implementation tests.
+Viewer identities are immutable and never reused. A controller grant stays reserved while its owner
+closes; controller release precedes viewer retirement, and a stale cleanup cannot release a
+successor's grant. One grant stands for both the Server lease and the Worker grant. A Worker refusal
+meaning the Worker holds no such grant drops an active viewer's lease through the same exact cleanup,
+so a grant another viewer's Takeover installed meanwhile stays. Control admission validates
+Connection, target, viewer and Worker epoch together. Target disposal or Worker replacement closes
+affected bindings.
 
-## Accepted Connection Viewer routing modeling record
-
-`ConnectionViewerOwnership.tla/.cfg` checks two immutable viewer identities, two Connections, two targets and two Worker epochs. Attach explores every Connection/target assignment, including same-target contention. A controller grant remains reserved while its owner closes; controller release precedes viewer retirement, and stale cleanup cannot release a successor's grant. One grant stands for both the Server lease and the Worker grant; `ForgetGrant` drops an active viewer's lease on a Worker refusal meaning the Worker holds no such grant, after an effect or a Takeover by that viewer, through the same exact cleanup, so a grant another viewer's Takeover installed meanwhile stays. Control admission validates Connection, target, viewer and Worker epoch together. Target disposal or Worker replacement closes affected bindings. Weak fairness of controller/viewer release establishes eventual retirement.
-
-`Attach`, `Acquire`, `Control`, `Close`, `ForgetGrant` and the release actions map to `local_terminal_service/viewer_connection`, `controller_connection` and Worker carrier ownership. Viewer identities are never reused within the model. Capacity arithmetic, candidate attach failures, frame/history routing, wire validation and compound operation results belong to the existing service unit tests and `tests/client_process` traces. They are not exhaustive claims of this identity core. The relay model independently checks lane isolation.
-
-The maintained exact-cleanup mutant, which lets a late cleanup or a forgotten lease release a successor's grant, must violate `StaleCleanupPreservesSuccessor`. Run `node scripts/tla/run-models.mjs --models connection-viewer-routing` plus the owning Server tests.
+`local_terminal_service/viewer_connection`, `controller_connection` and Worker carrier ownership
+implement these rules. The service unit tests and the `tests/client_process` traces check them,
+including capacity, candidate attach failures, frame and history routing, wire validation and
+compound operation results; no model explores every interleaving of this core.
 
 ## Accepted Connection Viewer history read modeling record
 
@@ -1381,21 +1388,11 @@ stream cancellation fences queued and in-flight delivery. Typed overload disconn
 so reconnect cannot evade the limit. Logical terminal attachments are not reconstructed by replaying
 Attach. One-shot CLI connections keep their direct protocol path.
 
-`ClientSubscriptionDelivery.tla/.cfg` is the minimal new concurrency model: two Clients, queue
-capacity two, two publication revisions and two connection generations. An independent in-flight
-frame survives Cancel/Reconnect and is checked at delivery. It checks snapshot-before-update,
-gap-before-replacement-snapshot, generation/cancellation fences, queue-length bounds and publication
-being enabled independently of Client queue occupancy. This last property assumes nonblocking
-publication; it does not prove OS scheduling, socket progress, byte/stream budgets, codecs, terminal
-ownership, or end-to-end liveness. Request streams and their close reasons, `stopping` and
-`outcome-unknown` included, are outside it; the dispatcher tests cover them. `Overflow` is a
-required positive reachability witness. The
-maintained negative controls set FenceGeneration or FenceCancellation to FALSE and require the
-corresponding invariant counterexample. Existing relay/ownership models do not cover this new
-connection/subscription boundary. A stream follows one monotone counter chosen by its mode: commits
-for an invalidation stream, commits plus title changes for a published-title read, every other
-publication otherwise. The single modeled revision abstracts that
-counter, because no checked property relates the revisions of two Clients.
+A subscription delivers a snapshot before any update and a gap before a replacement snapshot; the
+connection generation and stream cancellation fence queued and in-flight frames, and publication
+never waits on a Client queue. A stream follows one monotone counter chosen by its mode: commits for
+an invalidation stream, commits plus title changes for a published-title read, every other
+publication otherwise.
 
 Controlled implementation traces in `local_client_service/multiplex/tests.rs` check a commit during
 capture, an undrained peer alongside a progressing peer, exclusive event cursors, and late lane
@@ -1411,8 +1408,6 @@ and admit the next command. A source-loss trace holds a completed capture throug
 subscription read failure and verifies that a sibling can start; it uses a controlled job, not
 an OS Host integration witness. View lifecycle traces distinguish sibling and publisher cleanup.
 The protocol codec tests reject untrusted lengths, versions, identifiers and tags.
-Run `node scripts/tla/run-models.mjs --models client-subscription-delivery --jobs 1`, the two
-`client-subscription-delivery` mutation cases, and the affected Rust host gate when these claims change.
 
 ## Verification
 
@@ -1423,7 +1418,6 @@ pnpm --filter @orchbee/terminal-host build
 cargo build -p orchbee-worker --locked
 cargo test -p orchbee-server --all-targets --all-features --locked
 cargo clippy -p orchbee-server --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --workspace apps/orchbee-server --jobs 1
 pnpm verify
 ```
 
@@ -1432,9 +1426,8 @@ Every trace round-trips through the replay codec; one seed also replays against 
 Successful traces are otherwise executed once. A failure retains its original seed and trace and
 shrinks against the same failure fingerprint.
 
-The Server model command supports the shared runner’s bounded concurrency. Each retained configuration keeps its declared bounds, properties and action coverage. Implementation tests remain required when product behavior changes.
-
-The relay core has one configuration with a 20-second deadline. It must enumerate the complete reachable graph and satisfy every declared property and action witness. The complete uncached `pnpm test:tla` gate, including tooling witnesses, has a 60-second budget.
+The Server's two TLA+ models, `local-terminal-coordinator` and `session-restart-handover`, run only
+when they change, as [TLA+ models](../../docs/VERIFICATION.md#tla-models) describes.
 
 ## Workspace terminal creation
 
@@ -1661,8 +1654,8 @@ and waiter expiry. The Windows real-LocalStream `worktree_query::tests` traces
 cover six sidebar readers competing with both source forms between polls,
 committed Directory list/query sharing, active-status handoff, admission timeout,
 late Start/Poll replies, exact Cancel and definite-Busy recovery. These controlled
-implementation traces cover this gate; the existing coordinator/relay/viewer TLA
-models do not model discovery receipt ownership or claim this fix. Live terminal
+implementation traces cover this gate; the coordinator TLA model does not model
+discovery receipt ownership or claim this fix. Live terminal
 load and deployed-cohort behavior require separate observation.
 
 ## Workspace current directory reads

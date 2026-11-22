@@ -8,7 +8,7 @@ handshake, navigation intent, recovery, and how the painted surface is produced 
 Maintain it with `terminal_viewport.rs`, `workbench_client/mailbox.rs`,
 `workbench_client/connection/native.rs`, `workbench_client/ui.rs`, `terminal_input/dispatcher.rs`,
 `client_view.rs`, `client_view/bindings.rs`, `tui_pointer.rs`, `tui_render.rs` and its
-`tui_render/viewport.rs` painter, `terminal_live_view.rs`, `tui_backend.rs`, `localization.rs`, and `formal/tla/TerminalViewportCoordination.tla`.
+`tui_render/viewport.rs` painter, `terminal_live_view.rs`, `tui_backend.rs` and `localization.rs`.
 The protocol contract is owned by `crates/terminal-protocol` (`row_window.rs`, `history.rs`,
 `row_access.rs`) and by `crates/client-server-protocol/src/viewer.rs` for the
 `TerminalViewerAction` surface; this document consumes that contract and never extends it.
@@ -449,16 +449,11 @@ Its read/ACK authority and cancellation remain owned by Orchbee.
   attachment lease; events and outcomes for a dead incarnation are dropped. The checked action
   property keeps `Lost` terminal for this incarnation; reattachment belongs to a new incarnation.
 
-## Source correspondence
-
-`TerminalViewportCoordination.tla/.cfg` abstracts one pane, two entry/read attempts, two anonymous input commands and a two-slot FIFO. `Enter` (including `EnterTail`), `Read` and `Recover` correspond to the viewport's staged commands; `Admit` and `Execute` represent the mailbox/worker FIFO; `Consume` represents outcome intake; `Detach` invalidates the pane epoch. The entry abstraction does not distinguish active versus paused projection demand; executor and tail-render tests own that distinction. Fault injection may corrupt an existing window response but cannot manufacture an independent producer.
-
-The checked claims are bounded queue ownership, one read flight, current-epoch presentation, admitted-command preservation during recovery, and entry/recovery settlement under weak fairness of admission, execution and consumption. This is a smaller protocol abstraction, not an equivalence proof of every viewport operation. Concrete row bounds, navigation, deadlines, scrollbar gestures and generation/sequence validation remain obligations of `terminal_viewport/tests.rs`, `window.rs` and the projection/connection tests.
-
 ## Verification
 
-Run `node scripts/tla/run-models.mjs --models native-terminal-viewport` for the bounded protocol and the native Cargo tests for its implementation. `scripts/tla/model-mutations.test.mjs` restores an independent outcome producer and requires an `OutcomeProductionOwned` counterexample. The complete `pnpm test:tla` gate runs this negative control and all retained configurations without success-cache reuse.
-
-The model does not prove actual clock latency, payload validation, row geometry or all UI schedules. A timeout, unfinished state queue or incomplete action coverage is a failed check.
+`terminal_viewport/tests.rs`, `window.rs` and the projection and connection tests check these
+invariants together with row bounds, navigation, deadlines, scrollbar gestures and generation and
+sequence validation over named traces. No model explores every order of entry, read, recovery and
+detach.
 
 The TUI describes a lost reading anchor as showing the latest output. This one-shot notice expires after four seconds and clears immediately when the focused pane completes its return to live. The status chip floats over terminal content without changing terminal geometry; the recovery protocol and retained operation facts are unchanged.

@@ -418,7 +418,6 @@ pnpm --filter @orchbee/terminal-host test
 pnpm --filter @orchbee/terminal-host test:black-box
 pnpm --filter @orchbee/terminal-host test:protocol
 pnpm --filter @orchbee/terminal-host test:surface-fixtures
-pnpm --filter @orchbee/terminal-host test:tla
 pnpm --filter @orchbee/terminal-host test:cross
 pnpm verify
 ```
@@ -555,7 +554,7 @@ The narrower POSIX endpoint-security evidence can be run without the complete Ho
 
 The native macOS run exercises real libc ACL inheritance and `getpeereid`; the cross-target steps compile the Linux `SO_PEERCRED` and FreeBSD `getpeereid` branches but are not runtime evidence for those systems.
 
-`test:tla` checks the retained Host delivery and process-identity protocols through the shared pinned runner. Registry, lifecycle, shutdown, request outcomes, graphics, input and history workflows use their native unit/property/integration suites. The [runtime evidence mapping](docs/runtime-model.md#required-correctness-evidence) names the claims, concrete witnesses and limits. These implementation traces do not provide the retired models’ exhaustive interleaving assurance.
+`test:tla` checks the Host's delivery, handover and process-identity models through the shared pinned runner; like every TLA+ model, they run only when they change ([TLA+ models](../../docs/VERIFICATION.md#tla-models)). Registry, lifecycle, shutdown, request outcomes, graphics, input and history workflows use their native unit/property/integration suites. The [runtime evidence mapping](docs/runtime-model.md#required-correctness-evidence) names the claims, concrete witnesses and limits. These implementation traces do not provide the retired models’ exhaustive interleaving assurance.
 
 The focused throughput harness runs through the real PTY:
 

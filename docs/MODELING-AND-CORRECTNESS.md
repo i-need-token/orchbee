@@ -6,16 +6,16 @@ Select the smallest evidence that can judge the changed claims. Use of async wor
 gestures, or several files does not by itself require a stronger method; a real ordering, ownership,
 or durability risk does, however local the change looks.
 
-| The change has                                                                                          | It carries                                                                                           |
-| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Local presentation without new domain state or transitions                                              | The existing component contract and tests admitted under [`TESTING.md`](TESTING.md)                  |
-| Local completion, cancellation, or retry under one established owner with bounded effects               | Types and focused tests for stale results, cancellation, failure, and cleanup                        |
-| Owned domain state, interacting transitions, persistence, or process coordination                       | Explicit state, events, outputs, and invariants in types, with deterministic tests of the core       |
-| Combinations or sequences that named examples cannot bound                                              | Property-based or model-based exploration with shrinking and a replayable failure                    |
-| A shared protocol with an ownership, commit, recovery, or progress risk that implementation traces miss | A TLA+ model with safety and applicable progress checks, and evidence tying it to the implementation |
-| A critical pure transformation that needs a claim over all inputs                                       | A Lean theorem                                                                                       |
-| A source-compatible port or behavioral replica                                                          | A pinned reference, a stated parity scope, and differential checks inside that scope                 |
-| Timing, geometry, focus, gestures, or platform behavior that cannot be judged at the core boundary      | Controlled adapter or system traces at the lowest faithful boundary                                  |
+| The change has                                                                                     | It carries                                                                                           |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Local presentation without new domain state or transitions                                         | The existing component contract and tests admitted under [`TESTING.md`](TESTING.md)                  |
+| Local completion, cancellation, or retry under one established owner with bounded effects          | Types and focused tests for stale results, cancellation, failure, and cleanup                        |
+| Owned domain state, interacting transitions, persistence, or process coordination                  | Explicit state, events, outputs, and invariants in types, with deterministic tests of the core       |
+| Combinations or sequences that named examples cannot bound                                         | Property-based or model-based exploration with shrinking and a replayable failure                    |
+| A cross-process protocol that passes the [TLA+ admission bar](#tla)                                | A TLA+ model with safety and applicable progress checks, and evidence tying it to the implementation |
+| A critical pure transformation that needs a claim over all inputs                                  | A Lean theorem                                                                                       |
+| A source-compatible port or behavioral replica                                                     | A pinned reference, a stated parity scope, and differential checks inside that scope                 |
+| Timing, geometry, focus, gestures, or platform behavior that cannot be judged at the core boundary | Controlled adapter or system traces at the lowest faithful boundary                                  |
 
 - Types, transitions, and behavior tests are the model. Add prose only for a decision, assumption,
   or boundary they do not explain, under [package documents](DOCUMENTATION.md#package-documents);
@@ -74,25 +74,31 @@ techniques: success, failure, cancellation, and the intentional no-op.
 
 ## TLA+
 
-Use TLA+ for a small shared protocol whose independently ordered actors create a specific
-ownership, commit, recovery, or progress risk. Async calls, an explicit state machine, several UI
-states, or a long fixed workflow alone do not justify a model. Prefer one maintained protocol per
-authority boundary over a model per product feature.
+A TLA+ model is a design aid for a protocol, not a regression net: implementation tests carry
+regressions. Admit a new model only when all three hold, and when in doubt, do not add it:
 
-- State the falsifiable claim, why implementation tests cannot judge it, the mapping from actions
-  to source, the finite bounds, and the assumptions. Fairness comes from the contract.
+- independently ordered processes share a handover, commit, recovery, or ownership protocol;
+- a wrong order would end every terminal, lose user data, or leave two owners of one resource; and
+- the harmful orders are too many for named implementation tests to cover.
+
+Async calls, an explicit state machine, several UI states, a Client-local workflow, or a long fixed
+workflow do not qualify. Extend the model of the same authority boundary before adding another.
+
+- State the falsifiable claim, the mapping from actions to source, the finite bounds, and the
+  assumptions in the module. Fairness comes from the contract.
 - Keep competing identities, stale completions, failure cuts, and progress risks in the
   abstraction. Never hide a reachable failure with a state constraint or a weakened assertion.
-- Require reachable action coverage and negative controls for the motivating faults. Turn a real
+- Require reachable action coverage and a mutation case for each motivating fault. Turn a real
   counterexample into a deterministic implementation regression at the owning boundary.
-- Register each module and configuration once in `scripts/tla/models.json` with its owner, claims,
-  and implementation triggers. A changed protocol updates the model and the implementation evidence
-  together; an unchanged passing model does not prove changed code.
-- Every maintained configuration runs in the complete uncached `pnpm test:tla` gate within its
-  60-second budget. Do not add a routinely required suite outside it.
-- Retire a model by deleting its artifacts, registration, and proof claims together, mapping the
-  behavior obligations that continue to maintained models or implementation tests, and stating any
-  loss of exhaustive assurance.
+- Register each model once in `scripts/tla/models.json`; every configuration finishes within its
+  20-second deadline.
+- Update a model only when the protocol it abstracts changes; ordinary implementation edits leave it
+  alone. A passing unchanged model says nothing about changed code.
+- TLA+ runs only when a model or its tooling changes
+  ([TLA+ models](VERIFICATION.md#tla-models)); no default gate and no CI job runs it.
+- Retire a model by deleting its module, configuration, registration, mutation cases, and the
+  passages that cite it together, naming the implementation tests that keep its behavior and
+  stating the lost exhaustive assurance.
 
 ## Other methods
 
@@ -122,19 +128,16 @@ theorem together with the behavior it described.
 
 ## Gate
 
-The root gate in [`VERIFICATION.md`](VERIFICATION.md) runs the default implementation evidence.
-A change to protocol state, transitions, assumptions, or refinement runs the affected TLA models
-and implementation tests; a change to the TLA runner, to this standard, or to `VERIFICATION.md` runs
-the complete `pnpm test:tla` gate
-([change-triggered TLA+ verification](VERIFICATION.md#change-triggered-tla-verification)). The
-applicable command fails, without retries, on:
+The root gate in [`VERIFICATION.md`](VERIFICATION.md) runs the default implementation evidence; a
+changed TLA+ model runs as [TLA+ models](VERIFICATION.md#tla-models) describes. The applicable
+command fails, without retries, on:
 
 - a checked TLA+ safety or progress counterexample;
 - an unchecked or admitted Lean theorem, or an undeclared trust assumption;
 - a failed property, or a generated failure that cannot be replayed;
 - a deterministic trace mismatch, or timing that affects the result and is not controlled;
 - a differential mismatch inside the declared parity scope; or
-- a registered model whose source or trigger file no longer exists.
+- a registered model whose module or configuration no longer exists.
 
 A completion report names the checked claims, their bounds, and the exclusions. It makes no
 unbounded claim such as "fully verified" or "perfect replica".

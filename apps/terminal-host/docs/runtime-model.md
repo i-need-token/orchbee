@@ -2449,7 +2449,8 @@ these entries successfully.
 
 The following stable compatibility witnesses are aliases for existing Host invariants rather than
 a parallel specification. The ordinary Host `test` gate executes the named native suites and
-cross-language corpus; the separately selected `test:tla` gate executes the linked models. These
+cross-language corpus; the linked models run when they change, as
+[TLA+ models](../../../docs/VERIFICATION.md#tla-models) describes. These
 witnesses control Host adapters, failure injection, and deterministic schedules, but make no claim
 about application UI or operating-system effects beyond the native integrations named below.
 

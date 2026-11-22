@@ -266,35 +266,17 @@ another Client's close, the install drops the flag and the surviving leaves retu
 layout; the leaf that takes the focus does not inherit it. A hidden leaf leaving keeps the maximized state, and
 a plugin overlay still restores the maximized state of its return Panel.
 
-## Source correspondence
+## Membership and focus fences
 
-`PaneIncarnationFencing` abstracts only the final identity/cleanup boundary. Concrete geometry, payloads, operation receipts and complete panel lifecycle composition stay in these implementation suites.
-
-## Finite model evidence
-
-`PaneIncarnationFencing.tla/.cfg` checks two logical panes, at most two incarnations per pane, two selection anchors, one queued command and one execution flight. Each bound is the smallest that keeps its failure reachable: the second pane gives cross-pane tags and a navigation target, the second incarnation gives replacement and late cleanup, and the second anchor gives re-anchored tags. Only frame commands occupy the queue: `Start` and `Complete` never branch on a command's kind, so queued input would cross the same fences as a frame command with the same tag, and queuing it too would multiply every pipeline state by the navigation state without reaching a new failure. `Admit` still checks typed input against focus and pending navigation in every reachable state. `Mint`/`Depart`/`Cleanup` map to membership replacement and retirement; `Admit`/`Start`/`Complete` preserve the captured pane, incarnation and anchor; `Draw` consumes only a current frame; `Intend`/`Land`/`Abandon` map to a requested navigation that moves focus only when it lands. Cleanup, start, completion and landing use weak fairness. The model checks current frames/effects, successor preservation under late cleanup, input admission only after a pending navigation settles, and eventual settlement of departing membership and pending navigation.
-
-The maintained mutation controls remove the completion identity guard, which must fail `FramesAreCurrent` or `EffectsUseCurrentIncarnation`, and the pending-navigation input guard, which must fail `InputFollowsSettledNavigation`. Run `node scripts/tla/run-models.mjs --models native-client-pane-membership` and the owning Cargo tests.
-
-[`FocusViewerLossParking`](../formal/tla/FocusViewerLossParking.tla) checks the focused pane's
-viewer loss beside the operation that owns the Client. The Worker runs one lease at a time and
-publishes through one event cell the UI drains in order; only a lease that serves the projected
-focus loses its viewer, never an owner's own lease. `Queue`/`Lose`/`Drop` map to those focus
-commands and `dispose_lost_viewer`, `Begin` to an owner's plan and begin, `ApplyLost` to
-`settle_pane_fault`, `RunOwner` to the owner's Worker lease, `ApplyResult` to its UI settlement and
-`Reattach` to the bounded automatic re-attach, which waits for every owner. The owner `takeover`
-needs the focus viewer; `create` holds the anchor it began from, which parking converts and the
-Worker answers by whether it still holds the viewer, and may finish in a second lease after an
-unavailable snapshot; `free` stands for every owner whose completion reads none. Three owner
-starts bound the run, enough to interleave a loss, a re-attach and a second owner. The model checks
-that no order of losses and owner leases retires the Client, that the UI parks exactly the focus
-whose viewer the Worker no longer holds, that a Create's anchor names the viewer exactly while the
-Worker holds it, and that every owner settles; `RunOwner`, `ApplyLost` and `ApplyResult` use weak
-fairness. Its mutation controls retire on a loss beside an owner, let a takeover without a viewer
-fail, keep a parked Create's Ready anchor, and let the Worker fail a Ready-origin Create whose
-viewer is gone; each must fail `NeverRetired` or `AnchorMatchesViewer`. Run
-`node scripts/tla/run-models.mjs --models native-focus-viewer-loss-parking`; the owners' completion
-against a parked focus is tested at `workbench_state`, and the takeover's skip at the Worker.
+A completion acts only on the pane, incarnation and selection anchor it captured, and a late cleanup
+never removes a successor. Typed input waits until a pending navigation lands or is abandoned.
+Losing the focused pane's viewer never retires the Client: only a lease that serves the projected
+focus loses its viewer, never an owner's own lease, and the UI parks exactly the focus whose viewer
+the Worker no longer holds. A parked Create keeps an anchor that names the viewer exactly while the
+Worker holds it, and every owner settles. The owners' completion against a parked focus is tested at
+`workbench_state` and the takeover's skip at the Worker; geometry, payloads, operation receipts and
+the complete panel lifecycle stay in those implementation suites. No model explores every order of
+these events.
 
 ## Terminal settlement
 

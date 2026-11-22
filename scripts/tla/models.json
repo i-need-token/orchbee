@@ -1,226 +1,15 @@
 {
-	"schemaVersion": 1,
 	"tool": {
 		"version": "1.7.4",
 		"downloadUrl": "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
 		"sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
 	},
 	"defaultTimeoutMilliseconds": 20000,
-	"sharedTriggers": ["docs/MODELING-AND-CORRECTNESS.md", "docs/VERIFICATION.md", "scripts/tla/**"],
 	"models": [
 		{
-			"id": "native-client-pane-membership",
-			"owner": "orchbee",
-			"workspace": "apps/orchbee",
-			"module": "apps/orchbee/formal/tla/PaneIncarnationFencing.tla",
-			"config": "apps/orchbee/formal/tla/PaneIncarnationFencing.cfg",
-			"claims": ["apps/orchbee/docs/native-panel-lifecycle.md"],
-			"triggers": [
-				"apps/orchbee/crates/workbench-client/src/workbench_client.rs",
-				"apps/orchbee/crates/workbench-client/src/workbench_state*",
-				"apps/orchbee/crates/workbench-client/src/workbench_state/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/mailbox*",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/mailbox/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/connection*",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/connection/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_projection*",
-				"apps/orchbee/crates/workbench-client/src/workbench_projection/**",
-				"apps/orchbee/crates/workbench-client/src/terminal_projection*",
-				"apps/orchbee/crates/workbench-client/src/terminal_projection/**",
-				"apps/orchbee/crates/workbench-client/src/local_client*",
-				"apps/orchbee/crates/local-client/src/**",
-				"crates/client-server-protocol/src/**",
-				"crates/workbench-protocol/src/**"
-			],
-			"requiredCoverage": [
-				"Mint",
-				"Depart",
-				"Cleanup",
-				"Select",
-				"AdvanceAnchor",
-				"Admit",
-				"Start",
-				"Complete",
-				"Draw",
-				"Intend",
-				"Land",
-				"Abandon"
-			]
-		},
-		{
-			"id": "native-focus-viewer-loss-parking",
-			"owner": "orchbee",
-			"workspace": "apps/orchbee",
-			"module": "apps/orchbee/formal/tla/FocusViewerLossParking.tla",
-			"config": "apps/orchbee/formal/tla/FocusViewerLossParking.cfg",
-			"claims": ["apps/orchbee/docs/native-panel-lifecycle.md"],
-			"triggers": [
-				"apps/orchbee/crates/workbench-client/src/workbench_state*",
-				"apps/orchbee/crates/workbench-client/src/workbench_state/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/connection*",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/connection/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/mailbox*",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/mailbox/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/control_takeover*",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/viewer_recovery*"
-			],
-			"requiredCoverage": [
-				"Queue",
-				"Lose",
-				"Drop",
-				"Begin",
-				"ApplyLost",
-				"RunOwner",
-				"ApplyResult",
-				"Reattach"
-			]
-		},
-		{
-			"id": "native-projection-record-resync",
-			"owner": "orchbee",
-			"workspace": "apps/orchbee",
-			"module": "apps/orchbee/formal/tla/ProjectionRecordResync.tla",
-			"config": "apps/orchbee/formal/tla/ProjectionRecordResync.cfg",
-			"claims": ["apps/orchbee/docs/workbench-client-runtime.md"],
-			"triggers": [
-				"apps/orchbee/crates/workbench-client/src/terminal_projection*",
-				"apps/orchbee/crates/workbench-client/src/terminal_projection/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/projection_resync*",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/connection*",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/connection/**",
-				"apps/orchbee-server/src/local_terminal_service/projection*",
-				"apps/orchbee-server/src/local_terminal_service/projection/**",
-				"crates/terminal-protocol/src/projection_feedback.rs"
-			],
-			"requiredCoverage": [
-				"SendFrame",
-				"SendOther",
-				"CorruptPayload",
-				"CorruptEnvelope",
-				"Receive",
-				"Deliver"
-			]
-		},
-		{
-			"id": "native-request-scoped-unknown-outcome",
-			"owner": "orchbee",
-			"workspace": "apps/orchbee",
-			"module": "apps/orchbee/formal/tla/RequestScopedUnknownOutcome.tla",
-			"config": "apps/orchbee/formal/tla/RequestScopedUnknownOutcome.cfg",
-			"claims": ["apps/orchbee/docs/workbench-client-runtime.md"],
-			"triggers": [
-				"apps/orchbee/crates/local-client/src/local_client.rs",
-				"apps/orchbee/crates/local-client/src/local_client/agent.rs",
-				"apps/orchbee/crates/local-client/src/local_client/workbench.rs",
-				"apps/orchbee/crates/local-client/src/local_client/workbench/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/connection/native.rs",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/connection/native/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_state.rs",
-				"apps/orchbee/crates/workbench-client/src/workbench_state/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/mailbox.rs",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/ui.rs",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/input_routing.rs",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/workspace_close.rs"
-			],
-			"requiredCoverage": [
-				"Submit",
-				"Retry",
-				"Ok",
-				"TypedAnswer",
-				"StreamUnknown",
-				"Publish",
-				"KeyDismiss",
-				"TimerTick",
-				"RealDisconnect",
-				"ProtocolViolation"
-			]
-		},
-		{
-			"id": "native-settings-save",
-			"owner": "orchbee",
-			"workspace": "apps/orchbee",
-			"module": "apps/orchbee/formal/tla/SettingsCommitPublication.tla",
-			"config": "apps/orchbee/formal/tla/SettingsCommitPublication.cfg",
-			"claims": ["apps/orchbee/docs/native-settings.md"],
-			"triggers": [
-				"apps/orchbee/crates/workbench-client/src/native_settings*",
-				"apps/orchbee/crates/workbench-client/src/native_settings/**",
-				"apps/orchbee/crates/local-client/src/local_client/workbench/settings*",
-				"apps/orchbee/crates/local-client/src/local_client/workbench/settings/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/settings_lane*",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/settings*",
-				"crates/local-runtime/src/user_settings.rs",
-				"crates/local-runtime/src/user_settings/editor*",
-				"crates/local-runtime/src/user_settings/editor/**",
-				"crates/local-runtime/src/user_settings/snapshot.rs",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/configuration*",
-				"apps/orchbee-server/src/local_terminal_service/configuration*",
-				"apps/orchbee-server/src/local_terminal_service/configuration/**",
-				"apps/orchbee-server/src/local_terminal_service/settings*",
-				"apps/orchbee-server/src/local_terminal_service/settings/**",
-				"crates/workbench-protocol/src/command/settings.rs",
-				"packages/workbench-client-protocol/src/workbench-protocol/workbench-settings-contract.ts",
-				"schemas/workbench/v1/workbench-settings*"
-			],
-			"requiredCoverage": [
-				"Submit",
-				"Admit",
-				"Busy",
-				"RefuseUnparsable",
-				"Read",
-				"Replace",
-				"Redo",
-				"RefuseChanged",
-				"Commit",
-				"SampleBegin",
-				"SampleCommit",
-				"ExternalEdit",
-				"ExternalBreak"
-			]
-		},
-		{
-			"id": "native-terminal-viewport",
-			"owner": "orchbee",
-			"workspace": "apps/orchbee",
-			"module": "apps/orchbee/formal/tla/TerminalViewportCoordination.tla",
-			"config": "apps/orchbee/formal/tla/TerminalViewportCoordination.cfg",
-			"claims": ["apps/orchbee/docs/native-terminal-viewport.md"],
-			"triggers": [
-				"apps/orchbee/crates/workbench-client/src/workbench_client.rs",
-				"apps/orchbee/crates/workbench-client/src/terminal_viewport*",
-				"apps/orchbee/crates/workbench-client/src/terminal_viewport/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/mailbox*",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/mailbox/**",
-				"apps/orchbee/crates/workbench-client/src/terminal_projection*",
-				"apps/orchbee/crates/workbench-client/src/terminal_projection/**",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/connection*",
-				"apps/orchbee/crates/workbench-client/src/workbench_client/connection/**",
-				"crates/terminal-protocol/src/**",
-				"crates/client-server-protocol/src/**"
-			],
-			"requiredCoverage": [
-				"Enter",
-				"Input",
-				"Read",
-				"Recover",
-				"Admit",
-				"Execute",
-				"Consume",
-				"CorruptWindow",
-				"Detach"
-			]
-		},
-		{
 			"id": "agent-confirmation-press",
-			"owner": "orchbee-server",
-			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/AgentConfirmationPress.tla",
 			"config": "apps/orchbee-server/formal/tla/AgentConfirmationPress.cfg",
-			"claims": ["proposals/agent/automatic-confirmation.md"],
-			"triggers": [
-				"apps/orchbee-server/formal/tla/AgentConfirmationPress.cfg",
-				"apps/orchbee-server/formal/tla/AgentConfirmationPress.tla"
-			],
 			"requiredCoverage": [
 				"Raise",
 				"Draw",
@@ -310,85 +99,9 @@
 			]
 		},
 		{
-			"id": "client-subscription-delivery",
-			"owner": "orchbee-server",
-			"workspace": "apps/orchbee-server",
-			"module": "apps/orchbee-server/formal/tla/ClientSubscriptionDelivery.tla",
-			"config": "apps/orchbee-server/formal/tla/ClientSubscriptionDelivery.cfg",
-			"claims": ["apps/orchbee-server/README.md", "apps/orchbee/README.md"],
-			"triggers": [
-				"apps/orchbee-server/src/local_client_service/multiplex.rs",
-				"apps/orchbee-server/src/local_client_service/application_connection.rs",
-				"apps/orchbee-server/src/semantic_events/changes.rs",
-				"apps/orchbee/crates/local-client/src/local_client/multiplex.rs",
-				"apps/orchbee/crates/local-client/src/local_client/multiplex/**",
-				"crates/workbench-protocol/src/multiplex.rs"
-			],
-			"requiredCoverage": [
-				"Publish",
-				"Capture",
-				"Enqueue",
-				"Overflow",
-				"Resnapshot",
-				"Take",
-				"Deliver",
-				"Cancel",
-				"Reconnect"
-			]
-		},
-		{
-			"id": "connection-viewer-routing",
-			"owner": "orchbee-server",
-			"workspace": "apps/orchbee-server",
-			"module": "apps/orchbee-server/formal/tla/ConnectionViewerOwnership.tla",
-			"config": "apps/orchbee-server/formal/tla/ConnectionViewerOwnership.cfg",
-			"claims": ["apps/orchbee-server/README.md"],
-			"triggers": [
-				"apps/orchbee-server/src/local_terminal_service.rs",
-				"apps/orchbee-server/src/local_terminal_service/viewer*",
-				"apps/orchbee-server/src/local_terminal_service/viewer*/**",
-				"apps/orchbee-server/src/local_terminal_service/controller*",
-				"apps/orchbee-server/src/local_terminal_service/controller*/**",
-				"apps/orchbee-server/src/local_client_service*",
-				"apps/orchbee-server/src/local_client_service/**",
-				"apps/orchbee-server/src/worker_obcn_carrier*",
-				"apps/orchbee-server/src/worker_obcn_carrier/**",
-				"crates/client-server-protocol/src/**",
-				"schemas/client-server/**"
-			],
-			"requiredCoverage": [
-				"Attach",
-				"Acquire",
-				"Control",
-				"Close",
-				"ReleaseController",
-				"ReleaseViewer",
-				"LateCleanup",
-				"ForgetGrant",
-				"Dispose",
-				"ReplaceWorker"
-			]
-		},
-		{
 			"id": "local-terminal-coordinator",
-			"owner": "orchbee-server",
-			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/LocalTerminalCoordinator.tla",
 			"config": "apps/orchbee-server/formal/tla/LocalTerminalCoordinator.cfg",
-			"claims": ["apps/orchbee-server/README.md"],
-			"triggers": [
-				"apps/orchbee-server/src/terminal_coordinator.rs",
-				"apps/orchbee-server/src/terminal_coordinator/**",
-				"apps/orchbee-server/src/local_terminal_service.rs",
-				"apps/orchbee-server/tests/client_process/terminal_operations.rs",
-				"apps/orchbee-server/src/session_coordinator/terminal_retirement.rs",
-				"apps/orchbee-server/src/session_coordinator/tab_close.rs",
-				"apps/orchbee-server/src/session_coordinator/recorded_bindings.rs",
-				"apps/orchbee-server/src/local_terminal_service/checkpoint.rs",
-				"apps/orchbee-server/src/local_worker_service/managed/adoption.rs",
-				"apps/orchbee-worker/src/terminal_authorization.rs",
-				"apps/orchbee-worker/src/terminal_authorization/**"
-			],
 			"requiredCoverage": [
 				"IssueCreate",
 				"IssueStart",
@@ -446,63 +159,9 @@
 			]
 		},
 		{
-			"id": "local-terminal-relay",
-			"owner": "orchbee-server",
-			"workspace": "apps/orchbee-server",
-			"module": "apps/orchbee-server/formal/tla/RelayDeliveryIsolation.tla",
-			"config": "apps/orchbee-server/formal/tla/RelayDeliveryIsolation.cfg",
-			"claims": [
-				"apps/orchbee-server/README.md",
-				"schemas/terminal/references/protocol.md",
-				"apps/orchbee-worker/README.md"
-			],
-			"triggers": [
-				"apps/orchbee-server/src/local_terminal_service.rs",
-				"apps/orchbee-server/src/local_terminal_service/viewer*",
-				"apps/orchbee-server/src/local_terminal_service/viewer*/**",
-				"apps/orchbee-server/src/worker_obcn_carrier*",
-				"apps/orchbee-server/src/worker_obcn_carrier/**",
-				"apps/orchbee-worker/src/terminal_viewer_operation*",
-				"apps/orchbee-worker/src/terminal_viewer_operation/**",
-				"apps/orchbee-worker/src/host_connection/viewers*",
-				"apps/orchbee-worker/src/host_connection/viewers/**",
-				"crates/terminal-protocol/src/**",
-				"crates/client-server-protocol/src/**",
-				"crates/capability-node-protocol/src/**",
-				"schemas/client-server/**",
-				"schemas/terminal/v1/**"
-			],
-			"requiredCoverage": [
-				"Frame",
-				"History",
-				"DeliverFrame",
-				"DeliverHistory",
-				"FrameObserved",
-				"HistoryObserved",
-				"Close",
-				"WorkerProgress"
-			]
-		},
-		{
 			"id": "session-restart-handover",
-			"owner": "orchbee-server",
-			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/SessionRestartHandover.tla",
 			"config": "apps/orchbee-server/formal/tla/SessionRestartHandover.cfg",
-			"claims": ["apps/orchbee-server/README.md"],
-			"triggers": [
-				"apps/orchbee-server/src/local_worker_service/managed/stop.rs",
-				"apps/orchbee-server/src/local_worker_service/managed/stop/handover.rs",
-				"apps/orchbee-server/src/local_worker_service/managed/replacement.rs",
-				"apps/orchbee-server/src/local_worker_service/managed/successor.rs",
-				"apps/orchbee-server/src/session_shutdown.rs",
-				"apps/orchbee/src/cli/server_restart/workflow.rs",
-				"crates/local-runtime/src/durable_sessions.rs",
-				"crates/local-runtime/src/durable_sessions/successor.rs",
-				"crates/local-runtime/src/exact_process.rs",
-				"crates/local-runtime/src/session_catalog/catalog.rs",
-				"crates/local-runtime/src/successor_record.rs"
-			],
 			"requiredCoverage": [
 				"SnCreatesWorker",
 				"SnResumesWorker",
@@ -536,26 +195,8 @@
 		},
 		{
 			"id": "worker-send-transaction",
-			"owner": "orchbee-worker",
-			"workspace": "apps/orchbee-worker",
 			"module": "apps/orchbee-worker/formal/tla/WorkerSendTransaction.tla",
 			"config": "apps/orchbee-worker/formal/tla/WorkerSendTransaction.cfg",
-			"claims": [
-				"apps/orchbee-worker/docs/worker-send-transaction.md",
-				"crates/capability-node-protocol/README.md",
-				"schemas/terminal/references/protocol.md"
-			],
-			"triggers": [
-				"apps/orchbee-worker/docs/worker-send-transaction.md",
-				"apps/orchbee-worker/formal/tla/WorkerSendTransaction.cfg",
-				"apps/orchbee-worker/formal/tla/WorkerSendTransaction.tla",
-				"apps/orchbee-worker/src/host_connection/**",
-				"apps/orchbee-worker/src/terminal_send_operation.rs",
-				"apps/orchbee-worker/tests/process/terminal_operations/send.rs",
-				"crates/capability-node-protocol/src/**",
-				"crates/terminal-protocol/src/**",
-				"schemas/terminal/v1/**"
-			],
 			"requiredCoverage": [
 				"SendAttach",
 				"SendInput",
@@ -593,12 +234,8 @@
 		},
 		{
 			"id": "terminal-host-delivery",
-			"owner": "@orchbee/terminal-host",
-			"workspace": "apps/terminal-host",
 			"module": "apps/terminal-host/formal/tla/TerminalHostDelivery.tla",
 			"config": "apps/terminal-host/formal/tla/TerminalHostDelivery.cfg",
-			"claims": ["apps/terminal-host/docs/runtime-model.md"],
-			"triggers": ["apps/terminal-host/src/**", "apps/terminal-host/build.zig"],
 			"requiredCoverage": [
 				"Connect",
 				"Attach",
@@ -619,32 +256,8 @@
 		},
 		{
 			"id": "terminal-host-handover",
-			"owner": "@orchbee/terminal-host",
-			"workspace": "apps/terminal-host",
 			"module": "apps/terminal-host/formal/tla/TerminalHostHandover.tla",
 			"config": "apps/terminal-host/formal/tla/TerminalHostHandover.cfg",
-			"claims": ["apps/terminal-host/docs/runtime-model.md"],
-			"triggers": [
-				"proposals/platform/host-handover.md",
-				"schemas/keeper/**",
-				"apps/terminal-host/src/keeper/**",
-				"apps/terminal-host/src/keeper_protocol/**",
-				"apps/terminal-host/src/keeper_link/**",
-				"apps/terminal-host/src/platform/keeper*.zig",
-				"apps/terminal-host/src/platform/conpty_builds.zig",
-				"apps/terminal-host/src/service/keepers.zig",
-				"apps/terminal-host/src/engine/handover/**",
-				"apps/terminal-host/src/engine/runtime/handover_*.zig",
-				"apps/terminal-host/src/engine/runtime/reader_pause.zig",
-				"apps/terminal-host/src/platform/pty_posix.zig",
-				"apps/terminal-host/src/platform/pty_windows.zig",
-				"apps/terminal-host/src/platform/process_windows_handover.zig",
-				"apps/terminal-host/src/engine/runtime/wait_thread.zig",
-				"apps/terminal-host/src/core/state/handover.zig",
-				"apps/terminal-host/src/control/*_handover.zig",
-				"apps/terminal-host/src/service/runtime_aggregate/handover.zig",
-				"apps/terminal-host/src/service/moves/**"
-			],
 			"requiredCoverage": [
 				"Read",
 				"Quiesce",
@@ -672,12 +285,8 @@
 		},
 		{
 			"id": "terminal-host-process-identity",
-			"owner": "@orchbee/terminal-host",
-			"workspace": "apps/terminal-host",
 			"module": "apps/terminal-host/formal/tla/TerminalHostProcessIdentity.tla",
 			"config": "apps/terminal-host/formal/tla/TerminalHostProcessIdentity.cfg",
-			"claims": ["apps/terminal-host/docs/runtime-model.md"],
-			"triggers": ["apps/terminal-host/src/**", "apps/terminal-host/build.zig"],
 			"requiredCoverage": [
 				"ChildExited",
 				"RecycleMemberPid",
@@ -701,24 +310,8 @@
 		},
 		{
 			"id": "local-session-startup",
-			"owner": "orchbee-local-runtime",
-			"workspace": "crates/local-runtime",
 			"module": "crates/local-runtime/formal/tla/LocalSessionStartup.tla",
 			"config": "crates/local-runtime/formal/tla/LocalSessionStartup.cfg",
-			"claims": ["crates/local-runtime/README.md"],
-			"triggers": [
-				"crates/local-runtime/src/**",
-				"apps/orchbee/src/local_startup**",
-				"apps/orchbee/crates/workbench-client/src/local_activation*",
-				"apps/orchbee-server/src/local_worker_service*",
-				"apps/orchbee-server/src/local_worker_service/**",
-				"apps/orchbee-worker/src/worker_connection*",
-				"apps/orchbee-worker/src/terminal_operations/lazy*",
-				"apps/orchbee-worker/src/host_connection*",
-				"apps/orchbee-worker/src/host_connection/**",
-				"scripts/stage-local-runtime.mjs",
-				"apps/orchbee-server/src/local_client_service*"
-			],
 			"requiredCoverage": [
 				"Acquire",
 				"Commit",
@@ -748,22 +341,8 @@
 		},
 		{
 			"id": "release-store-fallback",
-			"owner": "orchbee-local-runtime",
-			"workspace": "crates/local-runtime",
 			"module": "crates/local-runtime/formal/tla/ReleaseStoreFallback.tla",
 			"config": "crates/local-runtime/formal/tla/ReleaseStoreFallback.cfg",
-			"claims": ["crates/local-runtime/README.md"],
-			"triggers": [
-				"crates/release-records/src/**",
-				"crates/local-runtime/src/release_store**",
-				"apps/orchbee/src/release_store/**",
-				"apps/orchbee/src/cli/update/**",
-				"apps/orchbee-launcher/src/**",
-				"apps/orchbee/npm/orchbee/lib/launcher.mjs",
-				"apps/orchbee/crates/workbench-client/src/local_activation*",
-				"apps/orchbee-server/src/local_worker_service/managed/stop**",
-				"crates/local-runtime/src/session_catalog/**"
-			],
 			"requiredCoverage": [
 				"Offer",
 				"ExplicitInstall",
@@ -783,28 +362,26 @@
 				"Tick"
 			],
 			"variants": [
-				{ "name": "fixed-clock", "constants": { "MaxTime": 0 } },
-				{ "name": "window", "constants": { "MaxTime": 1, "MaxMoves": 1 } }
+				{
+					"name": "fixed-clock",
+					"constants": {
+						"MaxTime": 0
+					}
+				},
+				{
+					"name": "window",
+					"constants": {
+						"MaxTime": 1,
+						"MaxMoves": 1
+					}
+				}
 			],
 			"workers": 4
 		},
 		{
 			"id": "session-crash-recovery",
-			"owner": "orchbee-local-runtime",
-			"workspace": "crates/local-runtime",
 			"module": "crates/local-runtime/formal/tla/SessionCrashRecovery.tla",
 			"config": "crates/local-runtime/formal/tla/SessionCrashRecovery.cfg",
-			"claims": ["crates/local-runtime/docs/windows-crash-recovery.md"],
-			"triggers": [
-				"crates/local-runtime/**",
-				"apps/orchbee/crates/workbench-client/src/local_activation.rs",
-				"apps/orchbee/src/cli/server.rs",
-				"apps/orchbee/src/cli/named_sessions.rs",
-				"apps/orchbee/src/cli/schemas/orchbee.session.list.json",
-				"apps/orchbee-server/src/local_worker_service/managed/**",
-				"apps/orchbee-server/src/local_worker_service/managed.rs",
-				"apps/orchbee-worker/src/terminal_operations/lazy.rs"
-			],
 			"requiredCoverage": [
 				"Acquire",
 				"CommitMarker",
@@ -839,39 +416,34 @@
 			"variants": [
 				{
 					"name": "recovery",
-					"constants": { "MaxGeneration": 2, "MaxIncarnation": 1, "Handover": false }
+					"constants": {
+						"MaxGeneration": 2,
+						"MaxIncarnation": 1,
+						"Handover": false
+					}
 				},
 				{
 					"name": "replacement",
-					"constants": { "MaxGeneration": 1, "MaxIncarnation": 2, "Handover": false }
+					"constants": {
+						"MaxGeneration": 1,
+						"MaxIncarnation": 2,
+						"Handover": false
+					}
 				},
 				{
 					"name": "handover",
-					"constants": { "MaxGeneration": 2, "MaxIncarnation": 1, "Handover": true }
+					"constants": {
+						"MaxGeneration": 2,
+						"MaxIncarnation": 1,
+						"Handover": true
+					}
 				}
 			]
 		},
 		{
 			"id": "windows-checkpoint-storage",
-			"owner": "orchbee-local-runtime",
-			"workspace": "crates/local-runtime",
 			"module": "crates/local-runtime/formal/tla/WindowsCheckpointStorage.tla",
 			"config": "crates/local-runtime/formal/tla/WindowsCheckpointStorage.cfg",
-			"claims": ["crates/local-runtime/docs/windows-checkpoint-storage.md"],
-			"triggers": [
-				"crates/local-runtime/src/session_store.rs",
-				"crates/local-runtime/src/session_store/**",
-				"crates/local-runtime/src/checkpoint_rotation.rs",
-				"crates/local-runtime/src/checkpoint_rotation/**",
-				"crates/local-runtime/src/durable_sessions.rs",
-				"crates/local-runtime/src/session_catalog.rs",
-				"crates/local-runtime/src/session_catalog/**",
-				"crates/local-runtime/src/tests.rs",
-				"crates/local-runtime/src/tests/**",
-				"crates/local-runtime/docs/windows-checkpoint-storage*",
-				"crates/local-runtime/formal/tla/WindowsCheckpointStorage.*",
-				"apps/orchbee-server/src/local_worker_service/managed/**"
-			],
 			"requiredCoverage": [
 				"Prepare",
 				"Flush",

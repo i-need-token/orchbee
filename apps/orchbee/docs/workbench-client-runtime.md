@@ -582,24 +582,18 @@ running, and a new attachment of the pane starts with a fresh count. Every refus
 (`dropped`, `resynced` or `stopped`). A stop always writes; drops and resyncs write at most once a
 minute per stage. Answers that break the viewer contract still retire the connection.
 
-[`ProjectionRecordResync`](../formal/tla/ProjectionRecordResync.tla) checks that every answer names
-the Server's flight, so a refused record never escalates to refused feedback and a released viewer;
-that the resync count stays bounded; and that a running pane always answers the frame the Server
-waits on. Its mutation controls remove the stop on an unreadable record and the bound.
+Every snapshot request names the Server's flight, so a refused record never escalates to refused
+feedback and a released viewer, and a running pane always answers the frame the Server waits on.
 
-[`RequestScopedUnknownOutcome`](../formal/tla/RequestScopedUnknownOutcome.tla) models the
-request-scoped unknown outcome of workspace close, tab close and tab rename on one live multiplexed
-carrier, with two requests in flight, a competing close, a retry after an unknown outcome, a typed
-Server answer, a stream-scoped unknown, a timer, a Client keypress, a publication, a transport loss
-and a protocol violation. Each design flag has one mutant that TLC rejects. The model checks that a
-stream-scoped unknown never replays its request identity and never retires a live carrier; that a
-typed Server answer (`Unavailable`, `Denied` or an unknown status) keeps the close fence and its
-evidence held; that at most one close is in flight; that only a Client keypress clears an unknown
-notice; and that an owed publication read on a live carrier is eventually performed. Only a
-stream-scoped unknown releases the close fence and leaves a shown Tab interactive; transport loss
-and protocol violations still retire the Session. A startup-directory launch whose outcome is
-unknown retires the carrier, because the client has no surface yet to settle it before bootstrap;
-this model does not cover startup.
+Workspace close, Tab close and Tab rename share one live multiplexed carrier. A stream-scoped
+unknown outcome never replays its request identity and never retires a live carrier; a typed Server
+answer (`Unavailable`, `Denied` or an unknown status) keeps the close fence and its evidence held;
+at most one close is in flight; only a Client keypress clears an unknown notice; and an owed
+publication read on a live carrier is eventually performed. Only a stream-scoped unknown releases
+the close fence and leaves a shown Tab interactive; transport loss and protocol violations still
+retire the Session. A startup-directory launch whose outcome is unknown retires the carrier, because
+the client has no surface yet to settle it before bootstrap. Controlled implementation traces check
+these rules; no model explores every interleaving.
 
 ## Client state and bounded mailbox
 

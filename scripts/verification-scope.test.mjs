@@ -307,8 +307,6 @@ test('a root tooling input selects every tooling suite and no workspace suite', 
 		'scripts/run-checks.mjs',
 		'scripts/verification-scope.test.mjs',
 		'scripts/rust-module-graph-record.txt',
-		'scripts/tla/run-models.mjs',
-		'scripts/tla/new-helper.mjs',
 		'scripts/release-publish.mjs',
 		'.github/workflows/verify.yml',
 		'.github/workflows/release.yml',
@@ -321,16 +319,36 @@ test('a root tooling input selects every tooling suite and no workspace suite', 
 		const names = stepNames(checkSteps('verify', selected));
 		for (const suite of ['test:check-output', 'test:release-feed', 'test:exports'])
 			assert.ok(names.includes(suite), `${changed} must run ${suite}`);
-		assert.ok(names.includes('TLA inventory and runner tests'), changed);
-		assert.doesNotMatch(names.join('\n'), /workspace tests/u, changed);
+		assert.doesNotMatch(names.join('\n'), /workspace tests|TLA/u, changed);
 	}
 	// A root pnpm manifest is a tooling input and reaches every pnpm workspace as well.
 	const manifest = selectVerificationScope(actual, ['package.json']);
 	assert.deepEqual(manifest.tooling, toolingSuiteNames);
 	assert.ok(manifest.pnpm.includes('@orchbee/web'));
 	// Anything else outside an owner stays conservative.
-	for (const changed of ['formal/tla/New.tla', '.github/dependabot.yml', 'tsconfig.base.json'])
+	for (const changed of ['.github/dependabot.yml', 'tsconfig.base.json'])
 		assert.equal(selectVerificationScope(actual, [changed]).all, true, changed);
+});
+
+test('only a changed TLA+ model or TLA+ tool runs TLA+, and it selects no suite', () => {
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	for (const changed of [
+		'apps/terminal-host/formal/tla/TerminalHostHandover.tla',
+		'crates/local-runtime/formal/tla/deep/ReleaseStoreFallback.cfg',
+		'scripts/tla/models.json',
+	]) {
+		const selected = selectVerificationScope(actual, [changed]);
+		assert.equal(selected.all, false, changed);
+		assert.equal(selected.tla, true, changed);
+		assert.deepEqual([...selected.pnpm, ...selected.cargo, ...selected.tooling], [], changed);
+		assert.ok(stepNames(checkSteps('verify', selected)).includes('changed TLA+ models'), changed);
+	}
+	for (const scope of [
+		selectVerificationScope(actual, ['apps/terminal-host/src/main.zig']),
+		{ all: true, tla: false, reasons: [] },
+	])
+		assert.doesNotMatch(stepNames(checkSteps('verify', scope)).join('\n'), /TLA/u);
+	assert.doesNotMatch(stepNames(checkSteps('verify')).join('\n'), /TLA/u);
 });
 
 test('a tooling suite runs with the repository files it reads, and none runs for other changes', () => {
@@ -362,8 +380,7 @@ test('a tooling suite runs with the repository files it reads, and none runs for
 		// Markdown links cover every tracked file, so that suite runs for any change.
 		assert.ok(names.includes('test:lint-rules'), changed);
 		assert.ok(!names.includes('test:check-output'), changed);
-		assert.ok(!names.includes('TLA inventory and runner tests'), changed);
-		assert.ok(names.includes('TLA inventory check'), changed);
+		assert.doesNotMatch(names.join('\n'), /TLA/u, changed);
 	}
 });
 

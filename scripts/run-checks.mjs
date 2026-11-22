@@ -21,20 +21,6 @@ function nodeStep(name, args) {
 	return { name, command: process.execPath, args };
 }
 
-const tlaRunnerSuite = 'test:tla:runner';
-const tlaRunnerTests = nodeStep('TLA inventory and runner tests', [
-	'--test',
-	'--test-concurrency=4',
-	'scripts/tla/model-inventory.test.mjs',
-	'scripts/tla/model-checks.test.mjs',
-	'scripts/tla/document-scopes.test.mjs',
-	'scripts/tla/model-records.test.mjs',
-	'scripts/tla/model-cache.test.mjs',
-	'scripts/tla/execution-properties.test.mjs',
-	'scripts/tla/run-models.test.mjs',
-	'scripts/tla/toolchain.test.mjs',
-]);
-const tlaInventoryCheck = nodeStep('TLA inventory check', ['scripts/tla/check-inventory.mjs']);
 // Markdown links and the Chinese allowlist cover every tracked file, so this suite is a repository
 // check and runs for every change; the other root suites test the gate's own tools.
 const repositorySuite = 'test:lint-rules';
@@ -118,7 +104,6 @@ export function checkSteps(task, scope, platform = process.platform, rustPart) {
 	}
 	const verifyStages = [
 		'format:check',
-		'test:tla:inventory',
 		'build:packages',
 		'lint',
 		'typecheck',
@@ -128,28 +113,10 @@ export function checkSteps(task, scope, platform = process.platform, rustPart) {
 	// Every `test` step that needs no Cargo: root tooling tests, then the pnpm workspace suites.
 	const nodeSuites = [
 		// Small independent gates overlap freely.
-		{
-			concurrent: [
-				repositorySuite,
-				// The TLA runner tests are part of the `test:tla:inventory` stage here.
-				...toolingSuiteNames.filter((name) => name !== tlaRunnerSuite),
-			].map((name) => pnpmStep(name)),
-		},
+		{ concurrent: [repositorySuite, ...toolingSuiteNames].map((name) => pnpmStep(name)) },
 		pnpmStep('workspace tests', ['-r', 'test']),
 	];
 	const tasks = new Map([
-		[
-			'test:tla',
-			[
-				pnpmStep('test:tla:inventory'),
-				{
-					concurrent: [
-						nodeStep('TLA models', ['scripts/tla/run-models.mjs', '--all']),
-						pnpmStep('test:tla:tooling'),
-					],
-				},
-			],
-		],
 		['verify', verifyStages.map((name) => pnpmStep(name))],
 		[
 			// `verify` for a host whose Cargo suites are not release evidence: every stage except the
@@ -196,16 +163,27 @@ export function checkSteps(task, scope, platform = process.platform, rustPart) {
 			'test:stage-local-runtime',
 			[nodeStep('local-runtime staging tests', ['--test', 'scripts/stage-local-runtime.test.mjs'])],
 		],
-		['test:tla:inventory', [tlaRunnerTests, tlaInventoryCheck]],
 	]);
 	const steps = tasks.get(task);
 	if (steps === undefined) {
 		throw new Error(`Unknown check task: ${task ?? '<missing>'}`);
 	}
-	if (scope !== undefined && !scope.all) {
-		if (task === 'verify') return changedVerifySteps(scope, platform);
-		if (task === 'test') return changedTestSteps(scope, platform);
+	if (scope !== undefined && task === 'verify') {
+		const verifySteps = scope.all ? steps : changedVerifySteps(scope, platform);
+		// No other gate runs TLA+: only a change to a model or its tooling runs the changed models.
+		return scope.tla
+			? [
+					...verifySteps,
+					nodeStep('changed TLA+ models', [
+						'scripts/tla/run-models.mjs',
+						'--changed-since',
+						scope.base ?? 'HEAD',
+					]),
+				]
+			: verifySteps;
 	}
+	if (scope !== undefined && !scope.all && task === 'test')
+		return changedTestSteps(scope, platform);
 	return steps;
 }
 
@@ -222,8 +200,6 @@ function changedVerifySteps(scope, platform) {
 		...scriptSteps('format:check').filter(
 			(step) => scope.cargo.length > 0 || !step.args.includes(rustRunner),
 		),
-		...(scope.tooling.includes(tlaRunnerSuite) ? [tlaRunnerTests] : []),
-		tlaInventoryCheck,
 		pnpmStep('build:packages'),
 		...scriptSteps('lint').flatMap((step) => (step.name === 'lint:rust' ? rustLint : [step])),
 		pnpmStep('typecheck'),
@@ -235,9 +211,7 @@ function changedVerifySteps(scope, platform) {
 function changedTestSteps(scope, platform) {
 	return [
 		{
-			concurrent: [repositorySuite, ...scope.tooling.filter((name) => name !== tlaRunnerSuite)].map(
-				(name) => pnpmStep(name),
-			),
+			concurrent: [repositorySuite, ...scope.tooling].map((name) => pnpmStep(name)),
 		},
 		...(scope.pnpm.length
 			? [
@@ -280,7 +254,6 @@ function changedTestSteps(scope, platform) {
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	try {
 		const name = process.argv[2];
-		const started = performance.now();
 		const root = resolve(import.meta.dirname, '..');
 		const taskArguments = process.argv.slice(3);
 		const partIndex = name === 'verify:rust-native' ? taskArguments.indexOf('--part') : -1;
@@ -305,12 +278,6 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
 					verbose: options.verbose,
 					cwd: root,
 				});
-		if (name === 'test:tla' && performance.now() - started > 60_000) {
-			process.stderr.write(
-				'TLA verification exceeded the 60 second budget; reduce model or tooling cost before accepting this gate.\n',
-			);
-			process.exitCode = 1;
-		}
 	} catch (error) {
 		process.stderr.write(`${error.message}\n`);
 		process.exitCode = 1;
