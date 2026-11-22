@@ -211,17 +211,20 @@ fn an_idle_stop_begins_only_with_nothing_admitted() {
 }
 
 #[test]
-fn a_restart_hold_refuses_only_intents_other_than_terminal_records_and_settles_only_intents() {
+fn a_restart_hold_refuses_stops_and_intents_but_terminal_records_and_settles_only_intents() {
     let state = SessionShutdown::default();
     let read = state.enter_read().unwrap();
     let intent = state.enter_intent().unwrap();
-    state.hold(true);
+    assert!(state.enter_hold());
     // Reads, terminal records and connections are still admitted; other intents wait for the end
-    // of the hold, and so does an idle stop.
+    // of the hold, and so does a stop, which records nothing rather than end with this Server.
     assert!(state.enter_intent().is_none());
     let terminal = state.enter().unwrap();
     assert!(state.enter_read().is_some());
     assert!(!state.begin_idle(StopId::new([9; 16]).unwrap(), || true));
+    let start = request(10, StopAction::Start);
+    assert_eq!(state.request(&start).status, SessionStopStatus::NotRecorded);
+    assert!(!state.stopping());
     assert_eq!(state.process_state(), ProcessState::Ready);
     drop(intent);
     assert!(!state.settle_intents(Instant::now()));
@@ -229,8 +232,14 @@ fn a_restart_hold_refuses_only_intents_other_than_terminal_records_and_settles_o
     // A read in flight does not keep the capture waiting.
     assert!(state.settle_intents(Instant::now()));
     drop(read);
-    state.hold(false);
+    state.lift_hold();
     assert!(state.enter_intent().is_some());
+    // A recorded stop refuses the next hold.
+    assert!(matches!(
+        state.request(&start).status,
+        SessionStopStatus::Pending { .. }
+    ));
+    assert!(!state.enter_hold());
 }
 
 #[test]

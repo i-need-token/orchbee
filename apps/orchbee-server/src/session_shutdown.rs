@@ -56,8 +56,8 @@ struct State {
     /// The admitted records and connections that may change the Session, a subset of `records`.
     intents: usize,
     /// Whether a Server restart holds the Session for its successor: intents other than terminal
-    /// records are refused like under a `drain`, while reads, terminal records and new Client
-    /// connections are still admitted.
+    /// records are refused like under a `drain`, and so is a stop start, while reads, terminal
+    /// records and new Client connections are still admitted.
     held: bool,
     /// The `handover` step a Client waits on, if any.
     #[cfg(any(windows, test))]
@@ -100,6 +100,9 @@ pub(crate) struct SessionShutdown {
 
 impl SessionShutdown {
     /// Atomically admits one identity, observes duplicates, or explicitly retries a failed attempt.
+    /// A start that arrives while a restart holds the Session records nothing and answers
+    /// `not-recorded`: the successor may take the Session over at any moment, and a stop this Server
+    /// accepted would then end with it, never carried out.
     pub(crate) fn request(&self, request: &SessionStopRequest) -> SessionStopResult {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(entry) = state.entry.as_mut() {
@@ -118,7 +121,7 @@ impl SessionShutdown {
             if request.action == StopAction::Retry {
                 self.requeue(entry);
             }
-        } else if request.action == StopAction::Start {
+        } else if request.action == StopAction::Start && !state.held {
             state.entry = Some(Entry {
                 attempt: Attempt {
                     id: request.id,
@@ -258,9 +261,22 @@ impl SessionShutdown {
     }
 
     #[cfg(any(windows, test))]
-    /// Holds the Session for a restart's successor, or lifts that hold.
-    pub(crate) fn hold(&self, held: bool) {
-        self.state.lock().unwrap_or_else(|e| e.into_inner()).held = held;
+    /// Holds the Session for a restart's successor, under the lock that admits stops: a stop is
+    /// either recorded first, and the hold refused, or refused while held. False, holding nothing,
+    /// once a stop or an `exit` is recorded or a `drain` arrived.
+    pub(crate) fn enter_hold(&self) -> bool {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.entry.is_some() || state.course != Course::Serving {
+            return false;
+        }
+        state.held = true;
+        true
+    }
+
+    #[cfg(any(windows, test))]
+    /// Lifts a restart's hold.
+    pub(crate) fn lift_hold(&self) {
+        self.state.lock().unwrap_or_else(|e| e.into_inner()).held = false;
     }
 
     #[cfg(any(windows, test))]

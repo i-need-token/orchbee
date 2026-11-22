@@ -177,9 +177,10 @@ impl Restart {
         }
     }
 
-    /// Before a stop or an `exit`: a held restart is decided first, and the Session taken back
-    /// without a replacement Worker, so the stop or `exit` goes on as without a Worker; holding
-    /// nothing, an entry is removed after what it names is ended.
+    /// Before a stop or an `exit`: a held restart, which only an `exit` meets since the hold refuses
+    /// stops, is decided first, and the Session taken back without a replacement Worker, so the
+    /// `exit` goes on as without a Worker; holding nothing, an entry is removed after what it names
+    /// is ended.
     pub(super) fn settle_before_ending(
         &mut self,
         owners: &mut Owners,
@@ -373,7 +374,9 @@ fn prepare(
         return Err(HandoverRefusal::WorkerUnavailable);
     }
     let worker_id = checkpoint_worker(&owners.handle).map_err(|_| HandoverRefusal::Busy)?;
-    hold(owners, shutdown, true);
+    if !hold(owners, shutdown) {
+        return Err(HandoverRefusal::Busy);
+    }
     if let Err(refusal) = capture(owners, shutdown, &worker_id) {
         let _ = retake(owners);
         restart_saver(owners);
@@ -447,17 +450,26 @@ fn capture(
     kept.release_store().map_err(|_| HandoverRefusal::Busy)
 }
 
-/// Holds the Worker and every intent other than terminal records for a restart, or lifts that.
-fn hold(owners: &Owners, shutdown: &SessionShutdown, held: bool) {
-    shutdown.hold(held);
+/// Holds the Worker, stops and every intent other than terminal records for a restart; false,
+/// holding nothing, once a stop, an `exit` or a `drain` came first.
+fn hold(owners: &Owners, shutdown: &SessionShutdown) -> bool {
+    if !shutdown.enter_hold() {
+        return false;
+    }
+    hold_registry(owners, true);
+    true
+}
+
+fn lift(owners: &Owners, shutdown: &SessionShutdown) {
+    shutdown.lift_hold();
+    hold_registry(owners, false);
+}
+
+fn hold_registry(owners: &Owners, held: bool) {
     match owners.registry.lock() {
         Ok(mut registry) => registry.hold(held),
         Err(poisoned) => poisoned.into_inner().hold(held),
     }
-}
-
-fn lift(owners: &Owners, shutdown: &SessionShutdown) {
-    hold(owners, shutdown, false);
 }
 
 /// Holds the store again; false when it stays out of reach.

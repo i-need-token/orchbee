@@ -488,8 +488,8 @@ fn next_work(
             Duration::from_secs(1)
         };
         if let Some(work) = shutdown.take_within(tick) {
-            // A stop or an `exit` decides a held restart first, and clears one that never got so
-            // far.
+            // An `exit` decides a held restart first, the hold refusing stops, and a stop or an
+            // `exit` clears one that never got so far.
             if restart.settle_before_ending(owners, shutdown) == handover::Next::Leave {
                 return None;
             }

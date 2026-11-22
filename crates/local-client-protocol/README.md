@@ -68,11 +68,13 @@ owns when `server stop` sends it.
 Kinds 4 and 5 carry same-user Session stop requests and status responses after an answered offer,
 within the 256-byte bound. A request contains a nonzero 128-bit stop identity and a closed
 start/status/explicit-retry action. Responses echo that identity and distinguish not-recorded,
-pending, failed, another active identity and unmanaged mode. Pending/failed states retain a positive
-attempt (at most 64), a closed phase, and failures retain their reason and known disposal count for
-that attempt. A response never claims final process exit: the admitted activation record is
-the completion receipt after the managed owner settles its resources. Duplicate start never retries
-effects; only explicit retry of the same failed identity may advance the attempt. A Client hello
+pending, failed, another active identity and unmanaged mode. A start answered not-recorded recorded
+nothing: a Server restart holds the Session (Windows), and the caller may start again once it ends.
+Pending/failed states retain a positive attempt (at most 64), a closed phase, and failures retain
+their reason and known disposal count for that attempt. A response never claims final process exit:
+the admitted activation record is the completion receipt after the managed owner settles its
+resources. Duplicate start never retries effects; only explicit retry of the same failed identity
+may advance the attempt. A Client hello
 after a recorded stop receives the typed stopping rejection. Unknown tags, zero identities, invalid
 attempts and trailing payload bytes fail decoding. The codec itself neither starts nor stops a
 process; Linux, macOS and Windows have a stop adapter. On Linux and macOS the stop and `exit`

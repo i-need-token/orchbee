@@ -941,8 +941,9 @@ A run is the work of one `stop-session` for one Machine, and its thread performs
   `unknown`. A far reset counts only before submission: the helper resets a `session` channel only
   before `accept`, and every answer follows `accept`.
 - **The outcomes stay the contract's.** A `start` answered `busy` reads `failed`, although another
-  stop may be ending the Session: the Session refused this one. The run cannot tell a Session that
-  ended because of its stop from one that ended otherwise, so both read `stopped`.
+  stop may be ending the Session: the Session refused this one. So does a `start` answered
+  `not-recorded`, which a Server restart's hold gives: nothing was recorded. The run cannot tell a
+  Session that ended because of its stop from one that ended otherwise, so both read `stopped`.
 - **`not-recorded` after `pending` means a later Server.** A Server keeps its stop entry until it
   ends, so a later `status` it does not know comes from another Server of the same Session, and the
   one asked has ended. Without the `pending` answer the `start` may never have reached the Server,

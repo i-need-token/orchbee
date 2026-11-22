@@ -158,6 +158,14 @@ pub(super) fn observe_session(
         signals.poll_fd(),
     );
     match result {
+        // A Server records every start while no stop exists, except while a restart holds the
+        // Session: nothing was recorded, and the Session takes a stop again once the restart ends.
+        Ok(result)
+            if action == StopAction::Start && result.status == SessionStopStatus::NotRecorded =>
+        {
+            answer.observation = Observation::Unavailable("draining");
+            return;
+        }
         Ok(result) => answer.observation = Observation::Server(result.status),
         Err(error) => {
             answer.elevated_session = error.failure.refused_by_elevated_session();

@@ -394,11 +394,16 @@ answered `busy`. The decisions the code does not state:
   of either successor process are judged under the record's writer lock: a record that names the
   successor makes the owner leave; otherwise it ends the successor's Worker and then its Server,
   removes the entry and takes the Session back with a
-  [replacement Worker](#managed-worker-replacement). A stop or `exit` while held is judged first
-  and, kept, goes on without a Worker. Leaving publishes no Stopped record, receipt or `exited`,
-  since the record belongs to the successor. While the record stays unreadable or unwritable, the
-  owner does not guess: after a bound it ends the successor and leaves without the store, and the
-  next start adopts the Host through [cold adoption](#cold-adoption).
+  [replacement Worker](#managed-worker-replacement). An `exit` while held is judged first and,
+  kept, goes on without a Worker. Leaving publishes no Stopped record, receipt or `exited`, since
+  the record belongs to the successor. While the record stays unreadable or unwritable, the owner
+  does not guess: after a bound it ends the successor and leaves without the store, and the next
+  start adopts the Host through [cold adoption](#cold-adoption).
+- A stop is never accepted by a Server that may leave without carrying it out. Entering the hold
+  refuses `busy` once a stop is recorded, and while held a `server stop` start records nothing and
+  answers `not-recorded`, both under the lock that admits stops; the hold already refuses a Client's
+  stop as an intent. The person stops the Session again once the restart ends, from whichever
+  Server then serves it.
 - Holding nothing, the owner clears an abandoned entry, one whose Server is gone or whose ticket
   never reached `prepare`, ending what it names by verified identity, the Worker first; a start after
   both Servers ended does the same before it recovers
