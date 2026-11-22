@@ -602,7 +602,7 @@ fn edit_in(
 #[test]
 fn an_edit_against_an_unparsable_file_writes_nothing_and_answers_its_position() {
     let fixture = Fixture::new();
-    fixture.write("[terminal]\nrestore_output = false\n[keys\n");
+    fixture.write("[terminal]\nrestore_after_restart = false\n[keys\n");
     let startup = fixture.load(true);
     let syntax = startup.syntax.unwrap();
     let registry = Registry::default();
@@ -611,7 +611,7 @@ fn an_edit_against_an_unparsable_file_writes_nothing_and_answers_its_position() 
     let before = std::fs::read(fixture.file()).unwrap();
     let (outcome, output_off) = registry.edit_with(
         &[set(
-            "terminal.restore_output",
+            "terminal.restore_after_restart",
             orchbee_workbench_protocol::SettingValue::Boolean(true),
         )],
         edit_in(&fixture),
@@ -635,14 +635,14 @@ fn an_edit_against_an_unparsable_file_writes_nothing_and_answers_its_position() 
 #[test]
 fn a_refused_edit_publishes_nothing() {
     let fixture = Fixture::new();
-    fixture.write("[terminal]\nrestore_output = false\n");
+    fixture.write("[terminal]\nrestore_after_restart = false\n");
     let registry = Registry::default();
     registry.initialize_load(&fixture.load(true)).unwrap();
     let signal = watched(&registry);
     let (configuration, published) = (current(&registry), settings(&registry));
     let (outcome, _) = registry.edit_with(
         &[set(
-            "terminal.restore_output",
+            "terminal.restore_after_restart",
             orchbee_workbench_protocol::SettingValue::Text("yes".into()),
         )],
         edit_in(&fixture),
@@ -654,11 +654,11 @@ fn a_refused_edit_publishes_nothing() {
             reason: SettingsRefusal::InvalidValue,
             key: Some(ref key),
             ..
-        } if key.as_str() == "terminal.restore_output"
+        } if key.as_str() == "terminal.restore_after_restart"
     ));
     assert_eq!(
         std::fs::read_to_string(fixture.file()).unwrap(),
-        "[terminal]\nrestore_output = false\n"
+        "[terminal]\nrestore_after_restart = false\n"
     );
     assert_eq!(signal.revision(), 0);
     assert_eq!(current(&registry), configuration);

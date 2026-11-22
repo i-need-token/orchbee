@@ -23,14 +23,6 @@ impl LocalTerminalService {
         self.terminal_output.get()
     }
 
-    /// Whether this Session keeps and replays terminal output, read from the last valid settings
-    /// before the caller takes any lock. Before startup installs configuration it reads as off.
-    pub(crate) fn output_replay_enabled(&self) -> bool {
-        self.configuration
-            .with_preferences(|values| values.restore_terminal_output)
-            .unwrap_or(false)
-    }
-
     fn output_locale(&self) -> Locale {
         let preference = self
             .configuration

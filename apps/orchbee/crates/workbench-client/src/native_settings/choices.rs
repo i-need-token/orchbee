@@ -1,7 +1,7 @@
 //! Finite choices: a list's provisional candidate previews; accepting it applies the value.
 use super::{AppearancePreview, Row};
-use crate::localization::StartFolder;
 use orchbee_color_themes::Polarity;
+use orchbee_local_runtime::InstalledShell;
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
     TerminalDisplayAppearance, UserSettingsValues,
@@ -18,28 +18,42 @@ pub enum Choice {
     TerminalTheme(TerminalDisplayAppearance),
     AgentReminders(AgentReminderMode),
     CompletionReminders(CompletionReminderMode),
-    /// One entry of the new terminal folder list; the common values do not carry its key.
-    NewTerminalFolder(StartFolder),
+    /// An entry of Add profile's list, which adds a profile rather than changing a setting.
+    NewProfile(NewProfile),
 }
 
-impl StartFolder {
-    /// The entry a stored `terminal.new_cwd` shows as: unset, empty and `follow` are the default,
-    /// and any other text, `current` included, is a custom folder.
-    pub(crate) fn of(value: Option<&str>) -> Self {
-        match value.unwrap_or_default() {
-            "" | "follow" => Self::Follow,
-            "home" => Self::Home,
-            "workspace" => Self::Workspace,
-            _ => Self::Custom,
-        }
-    }
+/// What Add profile adds: a shell installed here, or a system-shell profile to fill in.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NewProfile {
+    /// A shell by its place in the list detected when Settings first listed them.
+    Shell(u8),
+    Custom,
+}
 
-    /// The word an entry stores; a custom folder is the text the person types.
-    pub(crate) const fn value(self) -> Option<&'static str> {
+/// The shells installed here, detected once; a profile catalog holds at most 64 profiles.
+static NEW_PROFILE_SHELLS: LazyLock<Vec<InstalledShell>> = LazyLock::new(|| {
+    let mut shells = orchbee_local_runtime::installed_shells();
+    shells.truncate(64);
+    shells
+});
+
+/// Add profile's list: each installed shell, then Custom…; empty when no shell was found.
+static NEW_PROFILE_CHOICES: LazyLock<Vec<Choice>> = LazyLock::new(|| {
+    if NEW_PROFILE_SHELLS.is_empty() {
+        return Vec::new();
+    }
+    (0..NEW_PROFILE_SHELLS.len())
+        .filter_map(|index| u8::try_from(index).ok())
+        .map(|index| Choice::NewProfile(NewProfile::Shell(index)))
+        .chain([Choice::NewProfile(NewProfile::Custom)])
+        .collect()
+});
+
+impl NewProfile {
+    /// The installed shell this entry adds; none for Custom….
+    pub(crate) fn shell(self) -> Option<&'static InstalledShell> {
         match self {
-            Self::Workspace => Some("workspace"),
-            Self::Home => Some("home"),
-            Self::Follow => Some("follow"),
+            Self::Shell(index) => NEW_PROFILE_SHELLS.get(usize::from(index)),
             Self::Custom => None,
         }
     }
@@ -99,6 +113,7 @@ impl Choice {
         match row {
             Row::LightTheme => &LIGHT_THEMES,
             Row::DarkTheme => &DARK_THEMES,
+            Row::AddProfile => &NEW_PROFILE_CHOICES,
             Row::Language => &[
                 Self::Locale(SettingsLocale::System),
                 Self::Locale(SettingsLocale::EnUs),
@@ -123,17 +138,11 @@ impl Choice {
                 Self::CompletionReminders(CompletionReminderMode::Unfocused),
                 Self::CompletionReminders(CompletionReminderMode::Always),
             ],
-            Row::NewTerminalFolder => &[
-                Self::NewTerminalFolder(StartFolder::Workspace),
-                Self::NewTerminalFolder(StartFolder::Home),
-                Self::NewTerminalFolder(StartFolder::Follow),
-                Self::NewTerminalFolder(StartFolder::Custom),
-            ],
             _ => &[],
         }
     }
 
-    /// The value of a row the common values carry; the page reads the folder row's text itself.
+    /// The value of a finite row, which the common values carry.
     pub(super) fn from_values(row: Row, values: &UserSettingsValues) -> Option<Self> {
         match row {
             Row::Language => Some(Self::Locale(values.locale)),
@@ -177,7 +186,7 @@ impl Choice {
             Self::TerminalTheme(value) => values.terminal_display_theme = value,
             Self::AgentReminders(value) => values.agent_notification_mode = value,
             Self::CompletionReminders(value) => values.completion_reminder_mode = value,
-            Self::NewTerminalFolder(_) => {}
+            Self::NewProfile(_) => {}
         }
     }
 
@@ -201,8 +210,7 @@ impl Choice {
                 }
             }
             Self::TerminalTheme(value) => preview.terminal_display_theme = value,
-            Self::AgentReminders(_) | Self::CompletionReminders(_) | Self::NewTerminalFolder(_) => {
-            }
+            Self::AgentReminders(_) | Self::CompletionReminders(_) | Self::NewProfile(_) => {}
         }
     }
 }
@@ -220,9 +228,9 @@ impl ChoicePicker {
     pub(crate) const fn row(self) -> Row {
         self.row
     }
-    /// Returns the row's value when the list opened, independently of navigation.
-    pub(crate) const fn original(self) -> Choice {
-        self.original
+    /// Whether the list marks `choice` as the row's value; Add profile's list has none.
+    pub(crate) fn marks(self, choice: Choice) -> bool {
+        self.original == choice && !matches!(choice, Choice::NewProfile(_))
     }
     /// Opens the row's list on `original`, the value the row shows.
     pub(super) fn open(row: Row, original: Choice) -> Option<Self> {

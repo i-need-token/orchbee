@@ -62,6 +62,16 @@ resolution while retaining the shared scrollback default, and a catalog without 
 refuses the creation. A custom executable must be absolute in its platform's form; POSIX login is
 explicit and Windows login is refused. Every `config.toml` launch profile applies this one rule.
 
+`installed_shells` lists the shells a new launch profile can start, which Add profile offers in the
+TUI; Desktop's Main lists the same ones in TypeScript for its page. On Windows it finds PowerShell
+(`pwsh.exe` on `PATH`, else under `%ProgramFiles%\PowerShell\7`), Windows PowerShell and Command
+Prompt under `%SystemRoot%\System32`, and Git Bash under `%ProgramFiles%`, `%ProgramFiles(x86)%` or
+`%LOCALAPPDATA%\Programs\Git`, or beside the `git.exe` on `PATH`, started with `--login -i`. On
+macOS and Linux it takes each executable `/etc/shells` names, then Homebrew's `bash`, `zsh`, `fish`,
+`nu`, `pwsh`, `elvish` and `xonsh` under `/opt/homebrew/bin` and `/usr/local/bin`, once per real
+file, each named by its file name and, when two share one, its folder. It reads only the file
+system, lists no WSL distribution, and an empty list leaves Add profile asking for a name.
+
 `UserTerminalColors` resolves terminal default colors for both native presentation and new Worker
 profiles. Theme and Host take the canvas of the active slot's theme when application appearance is
 explicitly Light or Dark; System leaves Host defaults with their runtime owner, which builds them
@@ -1271,8 +1281,8 @@ A key's `SettingScope` says whose file holds it. `Client` keys describe how one 
 takes input (`general.language`, `appearance.*`, the terminal font, padding, opacity, Option,
 selection-copy and blank-row keys, `notifications.*`, `keys.*`) and are read from the file on that
 Client's machine. `Server` keys describe what the Server does (`terminal.new_cwd`,
-`scrollback_bytes`, `restore_output`, the launch profiles and default profile,
-`worktrees.directory`, `agents.resume_on_restore`, `agents.auto_allow.claude`, `agents.auto_allow.codex`, `agents.auto_allow.gemini`, `agents.auto_allow.opencode`, `agents.auto_allow.offer`, `update.channel`, `update.automatic`)
+`scrollback_bytes`, `restore_after_restart`, the launch profiles and default profile,
+`worktrees.directory`, `agents.auto_allow.claude`, `agents.auto_allow.codex`, `agents.auto_allow.gemini`, `agents.auto_allow.opencode`, `agents.auto_allow.offer`, `update.channel`, `update.automatic`)
 and are read from the attached Server's file. With a local Server both are the same file.
 
 ### Compatibility
@@ -1314,11 +1324,11 @@ every key's purpose, allowed values and default.
 | `appearance.window_title`                                                                   | `"{hostname}: {workspace}"`      | file only                            |
 | `appearance.sidebar.workspaces.rows`                                                        | workspace and Git, then location | file only                            |
 | `appearance.sidebar.workspaces.row_gap`                                                     | `0`                              | file only                            |
-| `terminal.new_cwd`                                                                          | unset (no override)              | General / Basics                     |
+| `terminal.new_cwd`                                                                          | unset (no override)              | file only                            |
 | `terminal.copy_on_select`                                                                   | `false`                          | Terminal / Input                     |
 | `terminal.macos_option_as_alt`                                                              | `"off"`                          | Terminal / Input (Desktop)           |
 | `terminal.scrollback_bytes`                                                                 | `10000000`                       | Terminal / Output                    |
-| `terminal.restore_output`                                                                   | `false`                          | General / Restore                    |
+| `terminal.restore_after_restart`                                                            | `true`                           | Terminal / Restore                   |
 | `terminal.font_family`, `font_size`                                                         | built-in stack, `13`             | Appearance / Terminal text (Desktop) |
 | `terminal.font_weight`, `font_weight_bold`, `font_ligatures`, `padding`                     | `400`, `700`, `true`, `0`        | file only (Desktop)                  |
 | `terminal.background_opacity`                                                               | `100`                            | file only (Desktop)                  |
@@ -1334,14 +1344,13 @@ every key's purpose, allowed values and default.
 | `keys.prefix`                                                                               | `"ctrl+b"`                       | Keyboard / Prefix (TUI)              |
 | `keys.<action>`                                                                             | the action's built-in keys       | Keyboard (TUI)                       |
 | `[[keys.command]]` `command`, `type`, `key`, `description`, `width`, `height`               | no commands                      | file only                            |
-| `agents.resume_on_restore`                                                                  | `true`                           | Agents / Restore                     |
 | `agents.auto_allow.claude`                                                                  | `false`                          | Agents / Confirmations               |
 | `agents.auto_allow.codex`                                                                   | `false`                          | Agents / Confirmations               |
 | `agents.auto_allow.gemini`                                                                  | `false`                          | Agents / Confirmations               |
 | `agents.auto_allow.opencode`                                                                | `false`                          | Agents / Confirmations               |
 | `agents.auto_allow.offer`                                                                   | `true`                           | file only                            |
 | `update.channel`                                                                            | `"stable"`                       | file only, not in the reference      |
-| `update.automatic`                                                                          | `true`                           | General / Updates                    |
+| `update.automatic`                                                                          | `true`                           | About / Updates                      |
 
 `update.automatic` appears on the settings page and in the reference from
 [automatic updates](../../proposals/platform/automatic-updates.md#phases) slice 1, the release

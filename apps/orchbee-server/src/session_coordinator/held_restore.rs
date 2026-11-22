@@ -17,7 +17,8 @@ use orchbee_workbench_protocol::{
 /// What admission needs probed before the launch: the saved directory, or nothing for home.
 pub(crate) struct HeldRestoreProbe {
     pub(crate) directory: Option<WorkbenchDirectoryPath>,
-    /// The kept output the held Presentation replays when it starts, if any.
+    /// The kept output the held Presentation replays when it starts, if any; none when a retained
+    /// Agent reference resumes in the saved directory.
     pub(crate) output: Option<(TerminalPresentationId, u64)>,
 }
 
@@ -97,14 +98,14 @@ impl SessionCoordinator {
                 WorkbenchCommandUnavailableReason::ServiceUnavailable,
             )
         })?;
-        let held = self.held_directory(command, &target)?;
+        let (held, agent_resume) = self.held_directory(command, &target)?;
+        let saved = target.directory == WorkbenchRestoreDirectory::Saved;
         Ok(HeldRestoreProbe {
-            directory: match target.directory {
-                WorkbenchRestoreDirectory::Saved => Some(held.0),
-                WorkbenchRestoreDirectory::Home => None,
-            },
-            output: self
-                .restart_output(target.presentation_id)
+            directory: saved.then_some(held),
+            // An Agent that resumes there shows its own conversation, so no kept output replays.
+            output: (!(saved && agent_resume))
+                .then(|| self.restart_output(target.presentation_id))
+                .flatten()
                 .map(|token| (target.presentation_id.clone(), token)),
         })
     }

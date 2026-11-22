@@ -158,9 +158,9 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.themes.appliesLight': 'Applies when the app appearance is Light.',
 	'terminal.settings.page.language.label': 'Language',
 	'terminal.settings.page.language.description': 'Language for menus and messages.',
-	'terminal.settings.page.restoreOutput.label': 'Restore terminal output after restart',
-	'terminal.settings.page.restoreOutput.description':
-		'Shows recent output again after a restart. Kept on this computer; may include secrets.',
+	'terminal.settings.page.restoreTerminals.label': 'Restore terminals after restart',
+	'terminal.settings.page.restoreTerminals.description':
+		'Resumes supported Agent conversations; other terminals show their recent output again. Kept on this computer; may include secrets.',
 	'terminal.settings.page.automaticUpdates.label': 'Automatic updates',
 	'terminal.settings.page.automaticUpdates.description':
 		'Download and install new versions in the background. Nothing restarts until you click Update.',
@@ -228,9 +228,6 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.permission.deniedDescription':
 		'Allow Orchbee in the system notification settings to see them outside the app.',
 	'terminal.settings.page.permission.allow': 'Allow',
-	'terminal.settings.page.resumeAgents.label': 'Resume Agent conversations after restart',
-	'terminal.settings.page.resumeAgents.description':
-		'Reopens Claude Code on Windows; other Agents need a conversation ID.',
 	'terminal.settings.page.groups.agentConfirmations': 'Allow routine confirmations',
 	'terminal.settings.page.agentConfirmations.description':
 		"Presses the Agent's allow-once for you.",
@@ -238,6 +235,11 @@ export const enUSTerminalSettingsMessages = {
 		'Commands are not checked: one that deletes or uploads files runs too.',
 	'terminal.settings.page.agentConfirmations.request': 'Request more Agents in a GitHub issue.',
 	'terminal.settings.page.profiles.add': 'Add profile',
+	'terminal.settings.page.profiles.addCustom': 'Custom…',
+	'terminal.settings.page.profiles.shell.commandPrompt': 'Command Prompt',
+	'terminal.settings.page.profiles.shell.gitBash': 'Git Bash',
+	'terminal.settings.page.profiles.shell.powerShell': 'PowerShell',
+	'terminal.settings.page.profiles.shell.windowsPowerShell': 'Windows PowerShell',
 	'terminal.settings.page.profiles.edit': 'Edit',
 	'terminal.settings.page.profiles.done': 'Done',
 	'terminal.settings.page.profiles.useAsDefault': 'Use as default',
@@ -272,14 +274,6 @@ export const enUSTerminalSettingsMessages = {
 		"{path} has a syntax error at line {line}, column {column} · showing the last valid settings, read-only, until it's fixed",
 	'terminal.settings.file.unreadable':
 		"{path} can't be read · showing the last valid settings, read-only, until it can",
-	'terminal.settings.page.newTerminalFolder.label': 'New terminal folder',
-	'terminal.settings.page.newTerminalFolder.description':
-		'Applies to terminals the orchbee command creates.',
-	'terminal.settings.page.newTerminalFolder.workspace': 'Workspace folder',
-	'terminal.settings.page.newTerminalFolder.home': 'Home folder',
-	'terminal.settings.page.newTerminalFolder.follow': 'Same as the current terminal',
-	'terminal.settings.page.newTerminalFolder.custom': 'Custom folder…',
-	'terminal.settings.page.newTerminalFolder.path': 'Custom folder path',
 } as const;
 
 export type TerminalSettingsMessageId = keyof typeof enUSTerminalSettingsMessages;

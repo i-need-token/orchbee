@@ -78,14 +78,11 @@ pub struct UserSettingsValues {
     #[serde(deserialize_with = "color_value")]
     pub custom_background: String,
     pub copy_on_select: bool,
-    /// Whether the Server records supported Agent sessions in its checkpoint and resumes them in
-    /// their Panels after a restart.
-    #[serde(default = "default_resume_agents_on_restore")]
-    pub resume_agents_on_restore: bool,
-    /// Whether the Server keeps each terminal's recent output beside its checkpoint and shows it
-    /// again after a restart.
-    #[serde(default)]
-    pub restore_terminal_output: bool,
+    /// Whether a restart brings terminals back as they were: the Server records supported Agent
+    /// sessions in its checkpoint and resumes them in their Panels, and keeps every other
+    /// terminal's recent output beside the checkpoint and shows it again.
+    #[serde(default = "default_restore_terminals")]
+    pub restore_terminals: bool,
     pub agent_notification_mode: AgentReminderMode,
     pub completion_reminder_mode: CompletionReminderMode,
     #[serde(deserialize_with = "minimum_seconds")]
@@ -122,8 +119,7 @@ impl Default for UserSettingsValues {
             custom_foreground: "#141414".into(),
             custom_background: "#fcfcfc".into(),
             copy_on_select: false,
-            resume_agents_on_restore: true,
-            restore_terminal_output: false,
+            restore_terminals: true,
             agent_notification_mode: AgentReminderMode::Never,
             completion_reminder_mode: CompletionReminderMode::Never,
             completion_reminder_minimum_seconds: 5,
@@ -172,7 +168,7 @@ fn default_light_theme() -> String {
 fn default_dark_theme() -> String {
     "orchbee-dark".into()
 }
-fn default_resume_agents_on_restore() -> bool {
+fn default_restore_terminals() -> bool {
     true
 }
 fn default_automatic_updates() -> bool {

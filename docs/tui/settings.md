@@ -26,7 +26,9 @@ catalogs, protocols, and persistence behavior.
 A setting is a durable, revisitable choice or policy that changes later product behavior. A command,
 one-task answer, status, diagnostic, migration, credential exchange, resource collection, or
 destructive data operation remains an action or dedicated workflow even when Settings links to it.
-Do not show roadmap rows or disabled placeholders for unavailable future capability.
+Do not show roadmap rows or disabled placeholders for unavailable future capability. The page shows
+only settings people feel in the application; a key that changes only what the `orchbee` command does
+stays in `config.toml`.
 
 | Responsibility                                                                  | Owner                                        |
 | ------------------------------------------------------------------------------- | -------------------------------------------- |
@@ -105,8 +107,9 @@ the dialog at a size below its minimum instead of hiding its close control.
   ordering, skips orphan category headers, and exposes an explicit empty result. Activating a result
   reveals and focuses its row without changing the value.
 - An information category, such as one that names the product version and offers its update
-  action, may close the category list. It holds no setting, so it shows no settings-file line,
-  search skips it, and its action rows follow the action rules rather than the commit rules.
+  action, may close the category list. It holds only a setting that governs those facts, such as
+  automatic updates, and shows no settings-file line; search lists its settings and skips its facts,
+  and its action rows follow the action rules rather than the commit rules.
 - Keep the page title, the current return route, and the status line visible through scrolling and
   size-tier degradation.
 

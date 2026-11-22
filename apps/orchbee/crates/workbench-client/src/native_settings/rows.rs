@@ -19,8 +19,9 @@ pub enum Row {
     Foreground,
     Background,
     CopyOnSelect,
-    ResumeAgents,
-    RestoreOutput,
+    /// Whether a restart resumes Agents and replays other terminals' output
+    /// (`terminal.restore_after_restart`).
+    RestoreTerminals,
     Reminders,
     CompletionReminders,
     CompletionThreshold,
@@ -41,8 +42,6 @@ pub enum Row {
     /// (`agents.auto_allow.opencode`).
     AutoAllowOpenCode,
     LaunchProfiles,
-    /// Where a new terminal starts (`terminal.new_cwd`).
-    NewTerminalFolder,
     /// The key pressed before a command key (`keys.prefix`).
     PrefixKey,
     /// One shipped theme of a Themes list; activating it puts it in use.
@@ -259,32 +258,16 @@ impl Row {
                     E::SubsequentSelection,
                     flag!(copy_on_select),
                 ),
-            Self::ResumeAgents => row(
-                "Resume Agent conversations after restart",
-                "重启后恢复智能体会话",
-            )
-            .described(
-                "Reopens Claude Code on Windows; other Agents need a conversation ID.",
-                "重启后恢复 Windows 上的 Claude Code；其他 Agent 需带会话 ID 启动。",
-            )
-            .flag(
-                F::ResumeAgentsOnRestore,
-                E::NextRestart,
-                flag!(resume_agents_on_restore),
-            ),
-            Self::RestoreOutput => row(
-                "Restore terminal output after restart",
-                "重启后恢复终端输出",
-            )
-            .described(
-                "Shows recent output after a restart. Kept locally; may hold secrets.",
-                "重启后再次显示最近的输出。保存在本机，可能包含密钥等敏感信息。",
-            )
-            .flag(
-                F::RestoreTerminalOutput,
-                E::NextRestart,
-                flag!(restore_terminal_output),
-            ),
+            Self::RestoreTerminals => row("Restore terminals after restart", "重启后恢复终端")
+                .described(
+                    "Resumes Agents; other terminals show recent output. May hold secrets.",
+                    "恢复智能体会话，其他终端再次显示最近的输出。可能包含密钥等敏感信息。",
+                )
+                .flag(
+                    F::RestoreTerminals,
+                    E::NextRestart,
+                    flag!(restore_terminals),
+                ),
             Self::Reminders => row("Agent status notifications", "智能体状态通知")
                 .described(
                     "Tells you when an Agent you can’t see finishes or needs you.",
@@ -402,13 +385,6 @@ impl Row {
                 )
                 .setting(F::LaunchProfiles, C::Catalog, E::NewDefaultLaunch)
                 .applies(NEW_TERMINALS),
-            Self::NewTerminalFolder => row("New terminal folder", "新终端文件夹")
-                .described(
-                    "Applies to terminals the orchbee command creates.",
-                    "适用于 orchbee 命令新建的终端。",
-                )
-                .text_key("terminal.new_cwd")
-                .applies(NEW_TERMINALS),
             Self::PrefixKey => row("Prefix key", "前缀键")
                 .described(
                     "Press it first, then a command key.",
@@ -521,7 +497,6 @@ impl Row {
         match self {
             Self::ProfileName => Some(512),
             Self::Executable | Self::ArgumentValue => Some(32 * 1024),
-            Self::NewTerminalFolder => Some(4096),
             Self::PrefixKey => Some(64),
             Self::MachineName => Some(crate::machines::LABEL_LIMIT),
             // A filter of 128 characters, each up to four bytes.

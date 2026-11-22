@@ -2,7 +2,8 @@
 //! Agent session and kept output, a restore resumes the one and replays the other, and a held
 //! restore does both for its one Presentation. The Session's settings turn each on. Output replay
 //! rides wherever the Session keeps a checkpoint; Agent resume rides on Windows and macOS, through
-//! `resume`. It does not sample directories or publish a checkpoint.
+//! `resume`, and a Presentation whose Agent resumes replays no output. One setting turns both on.
+//! It does not sample directories or publish a checkpoint.
 
 use super::super::LocalTerminalService;
 use crate::{
@@ -41,30 +42,32 @@ pub(in crate::local_terminal_service) type Seed = Option<Vec<u8>>;
 /// Whether Agent resume and output replay are on for one save or restore.
 #[derive(Clone, Copy)]
 pub(in crate::local_terminal_service) struct Riders {
-    resume: resume::Resume,
-    replay: bool,
+    restore: bool,
 }
 
 impl Riders {
-    /// The Session's current choices, read before the caller takes any lock.
+    /// The Session's current choice, read before the caller takes any lock.
     pub(in crate::local_terminal_service) fn current(service: &LocalTerminalService) -> Self {
         Self {
-            resume: resume::Resume::current(service),
-            replay: service.output_replay_enabled(),
+            restore: service.restores_terminals(),
         }
     }
 
-    /// The startup read's choices, which decide a restore once.
+    /// The startup read's choice, which decides a restore once.
     pub(super) fn startup(values: &UserSettingsValues) -> Self {
         Self {
-            resume: resume::Resume::startup(values),
-            replay: values.restore_terminal_output,
+            restore: values.restore_terminals,
         }
+    }
+
+    /// Agent resume, which the same setting turns on.
+    const fn resume(self) -> resume::Resume {
+        resume::Resume::new(self.restore)
     }
 
     /// What Agent resume reads for a save while no lock is held.
     pub(super) fn entries(self, service: &LocalTerminalService) -> resume::Entries {
-        self.resume.entries(service)
+        self.resume().entries(service)
     }
 
     /// Every bound checkpoint member and the Presentation it shows, which a final save captures
@@ -73,7 +76,7 @@ impl Riders {
         self,
         service: &LocalTerminalService,
     ) -> io::Result<Vec<(PresentationBinding, TerminalPresentationId)>> {
-        if !self.replay {
+        if !self.restore {
             return Ok(Vec::new());
         }
         Ok(service
@@ -91,7 +94,7 @@ impl Riders {
         deadline: Instant,
     ) -> FinalOutput {
         FinalOutput {
-            replay: self.replay,
+            replay: self.restore,
             presentations,
             deadline: Instant::now() + deadline.saturating_duration_since(Instant::now()) / 2,
             deadline_noted: false,
@@ -109,8 +112,8 @@ impl Riders {
         targets: &[ProcessObservationTarget],
         entries: &resume::Entries,
     ) -> io::Result<Vec<u8>> {
-        let agents = self.resume.agent_sessions(coordinator, targets, entries);
-        let outputs = service.checkpoint_outputs(self.replay, targets);
+        let agents = self.resume().agent_sessions(coordinator, targets, entries);
+        let outputs = service.checkpoint_outputs(self.restore, targets);
         coordinator.checkpoint_with_observations(
             worker,
             directories,
@@ -126,25 +129,26 @@ impl Riders {
         coordinator: &mut SessionCoordinator,
         target: &WorkbenchRestoreTarget,
     ) -> bool {
-        self.resume.hold_agent(coordinator, target)
+        self.resume().hold_agent(coordinator, target)
     }
 
     /// Queues a restored Presentation's Agent reference to resume where it was recorded, or drops
-    /// it.
+    /// it; answers whether it queued one.
     pub(super) fn restore_agent(
         self,
         coordinator: &mut SessionCoordinator,
         target: &WorkbenchRestoreTarget,
         resumes: &mut Resumes,
-    ) {
-        self.resume.restore_agent(coordinator, target, resumes);
+    ) -> bool {
+        self.resume().restore_agent(coordinator, target, resumes)
     }
 
-    /// The kept output a restored Presentation replays, while replay is on.
-    pub(super) fn restored_output(self, target: &WorkbenchRestoreTarget) -> Output {
+    /// The kept output a restored Presentation replays, while replay is on. A Presentation whose
+    /// Agent resumes replays none: the Agent shows its own conversation.
+    pub(super) fn restored_output(self, target: &WorkbenchRestoreTarget, agent: bool) -> Output {
         target
             .restored_output()
-            .filter(|_| self.replay)
+            .filter(|_| self.restore && !agent)
             .map(|token| RestoredOutput {
                 presentation_id: target.presentation_id().clone(),
                 token,
@@ -158,7 +162,7 @@ impl Riders {
         output: Option<&(TerminalPresentationId, u64)>,
     ) -> Seed {
         output
-            .filter(|_| self.replay)
+            .filter(|_| self.restore)
             .and_then(|(presentation, token)| service.restored_output_seed(presentation, *token))
     }
 
@@ -172,7 +176,7 @@ impl Riders {
         current: Option<WorkerPlacement>,
         started: Option<(TerminalPresentationId, WorkbenchDirectoryPath)>,
     ) {
-        self.resume
+        self.resume()
             .resume_held_agent(service, coordinator, current, started);
     }
 }
@@ -244,7 +248,7 @@ pub(in crate::local_terminal_service) fn attach_held_seed(
 
 /// Captures kept output for the next background save within `budget`, while replay is on.
 pub(super) fn capture_background(service: &LocalTerminalService, budget: Duration) {
-    if service.output_replay_enabled() {
+    if service.restores_terminals() {
         service.capture_terminal_output(Instant::now() + budget);
     }
 }

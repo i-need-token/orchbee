@@ -110,6 +110,19 @@ const DesktopSessionRefusalSchema = z.discriminatedUnion('reason', [
 /** A capability name of the `client-server` handshake: 1 to 64 lowercase letters, digits, and hyphens. */
 const CapabilityNameSchema = z.string().regex(/^[a-z0-9-]{1,64}$/u);
 
+/**
+ * A shell installed on this machine that Add profile lists; Windows shells are named by `kind`, and a
+ * `named` one by `name`, its file name with its folder when two share it.
+ */
+const DesktopInstalledShellSchema = z.strictObject({
+	arguments: z.array(z.string().max(32 * 1024)).max(128),
+	executable: z.string().min(1).max(4096),
+	kind: z.enum(['powershell', 'windows-powershell', 'command-prompt', 'git-bash', 'named']),
+	name: z.string().max(512),
+});
+
+export type DesktopInstalledShell = z.infer<typeof DesktopInstalledShellSchema>;
+
 /** What only Main can know about the document it is connecting. */
 const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	/**
@@ -134,6 +147,11 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	 * development and test builds offer every one.
 	 */
 	distribution: z.enum(['development', 'release', 'test']),
+	/**
+	 * The shells installed on this machine, where the Session's Server also runs, that Add profile
+	 * lists. A malformed list reads as empty, so Add profile asks for a name as before.
+	 */
+	installedShells: z.array(DesktopInstalledShellSchema).max(64).catch([]),
 	/** Whether this machine's Host can start the system shell as a login shell; Windows cannot. */
 	loginShellAvailable: z.boolean(),
 	/**

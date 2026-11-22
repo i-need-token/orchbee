@@ -1,4 +1,4 @@
-/* The popup is as wide as the font picker's popup beside it in Settings. */
+/* As wide as a command palette; the popup's own available-width bound narrows it in a small window. */
 .popup {
-	width: var(--ob-ref-container-3xs);
+	width: var(--ob-ref-container-xl);
 }

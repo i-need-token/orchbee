@@ -8,7 +8,7 @@ use crate::{
 };
 use orchbee_server::{RetainedAgentSession, WorkbenchRestoreTarget};
 use orchbee_workbench_protocol::{
-    PresentationBinding, TerminalPresentationId, UserSettingsValues, WorkbenchDirectoryPath,
+    PresentationBinding, TerminalPresentationId, WorkbenchDirectoryPath,
 };
 use std::sync::Arc;
 
@@ -27,11 +27,8 @@ pub(in crate::local_terminal_service::checkpoint) struct Entries;
 pub(super) struct Resume;
 
 impl Resume {
-    pub(super) fn current(_service: &LocalTerminalService) -> Self {
-        Self
-    }
-
-    pub(super) fn startup(_values: &UserSettingsValues) -> Self {
+    /// The setting changes nothing here.
+    pub(super) const fn new(_on: bool) -> Self {
         Self
     }
 
@@ -58,12 +55,14 @@ impl Resume {
         false
     }
 
+    /// Nothing resumes.
     pub(super) fn restore_agent(
         self,
         _coordinator: &mut SessionCoordinator,
         _target: &WorkbenchRestoreTarget,
         _resumes: &mut Resumes,
-    ) {
+    ) -> bool {
+        false
     }
 
     pub(super) fn resume_held_agent(

@@ -155,7 +155,7 @@ struct Committed {
     configuration_changed: bool,
     /// Either snapshot changed, so subscribers must read again.
     published: bool,
-    /// The committed settings turned `terminal.restore_output` from on to off.
+    /// The committed settings turned `terminal.restore_after_restart` from on to off.
     output_off: bool,
 }
 impl Registry {
@@ -452,8 +452,7 @@ impl Registry {
             return Err(Failure::Busy.into());
         }
         let output_off = valid.as_ref().is_some_and(|load| {
-            state.current.values.restore_terminal_output
-                && !load.settings.values.restore_terminal_output
+            state.current.values.restore_terminals && !load.settings.values.restore_terminals
         });
         if configuration_changed && let Some(load) = valid {
             state.current = load.settings;

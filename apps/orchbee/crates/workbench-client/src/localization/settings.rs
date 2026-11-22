@@ -31,6 +31,7 @@ pub(crate) enum SettingsNotice {
 
 use crate::terminal_text::{sanitize_terminal_text, truncate_display};
 mod parameters;
+use orchbee_local_runtime::{InstalledShell, InstalledShellKind};
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
     TerminalDisplayAppearance,
@@ -39,7 +40,7 @@ use parameters::SettingsChoice as Choice;
 pub(crate) use parameters::{
     SettingUnit, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsFieldRequirement,
     SettingsFileFact, SettingsHintLabel, SettingsProfileLabel, SettingsTextRequirement,
-    SettingsValue, StartFolder,
+    SettingsValue,
 };
 impl Locale {
     fn setting(self, english: &'static str, chinese: &'static str) -> &'static str {
@@ -159,16 +160,18 @@ impl Locale {
             Choice::CompletionReminders(CompletionReminderMode::Always) => {
                 self.setting("Always", "始终")
             }
-            Choice::NewTerminalFolder(StartFolder::Workspace) => {
-                self.setting("Workspace folder", "工作区目录")
-            }
-            Choice::NewTerminalFolder(StartFolder::Home) => self.setting("Home folder", "主目录"),
-            Choice::NewTerminalFolder(StartFolder::Follow) => {
-                self.setting("Same as the current terminal", "与当前终端相同")
-            }
-            Choice::NewTerminalFolder(StartFolder::Custom) => {
-                self.setting("Custom folder…", "自定义目录…")
-            }
+            Choice::NewProfile(Some(shell)) => self.installed_shell_name(shell),
+            Choice::NewProfile(None) => self.setting("Custom…", "自定义…"),
+        }
+    }
+    /// An installed shell's name, as Windows Terminal names the Windows ones.
+    pub(crate) fn installed_shell_name(self, shell: &InstalledShell) -> &str {
+        match shell.kind {
+            InstalledShellKind::PowerShell => "PowerShell",
+            InstalledShellKind::WindowsPowerShell => "Windows PowerShell",
+            InstalledShellKind::CommandPrompt => self.setting("Command Prompt", "命令提示符"),
+            InstalledShellKind::GitBash => "Git Bash",
+            InstalledShellKind::Named => &shell.name,
         }
     }
     pub(crate) fn settings_toggle(self, value: bool) -> &'static str {

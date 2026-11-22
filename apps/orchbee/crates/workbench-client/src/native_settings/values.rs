@@ -2,6 +2,7 @@
 //! literal data.
 use super::{AdjustmentStep, Choice, ChoicePicker, Edit, PageState as Draft, Row, SettingControl};
 use crate::localization::SettingsTextRequirement;
+use orchbee_local_runtime::InstalledShell;
 use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfile};
 
 /// Decimal MB preserves every persisted byte without floating-point rounding.
@@ -165,23 +166,7 @@ pub(super) fn activate(draft: &mut Draft) {
         Row::DeleteProfile if draft.values.launch_profiles.profiles.len() > 1 => {
             draft.confirm_delete = true
         }
-        Row::AddProfile if draft.values.launch_profiles.profiles.len() < 64 => {
-            let profiles = &mut draft.values.launch_profiles.profiles;
-            let Some(id) = (1..=65)
-                .map(|index| format!("profile-{index}"))
-                .find(|id| profiles.iter().all(|profile| &profile.id != id))
-            else {
-                return;
-            };
-            profiles.push(UserLaunchProfile {
-                id: id.clone(),
-                name: Some(id),
-                command: UserLaunchCommand::BUILT_IN,
-            });
-            draft.profile = profiles.len() - 1;
-            draft.argument = 0;
-            draft.row = Row::ProfileName;
-        }
+        Row::AddProfile => add_profile(draft, None),
         Row::AddArgument | Row::DeleteArgument => {
             if let UserLaunchCommand::CustomExecutable { arguments, .. } =
                 &mut draft.values.launch_profiles.profiles[draft.profile].command
@@ -212,12 +197,43 @@ pub(super) fn delete_profile(draft: &mut Draft) {
     }
     draft.row = Row::Profile;
 }
+/// Adds a profile at the end of the catalog and focuses its name: an installed shell under its
+/// name, with its executable and arguments, or the system shell under a fresh name.
+pub(super) fn add_profile(draft: &mut Draft, shell: Option<&InstalledShell>) {
+    let profiles = &draft.values.launch_profiles.profiles;
+    if profiles.len() >= 64 {
+        return;
+    }
+    let Some(id) = (1..=65)
+        .map(|index| format!("profile-{index}"))
+        .find(|id| profiles.iter().all(|profile| &profile.id != id))
+    else {
+        return;
+    };
+    let (name, command) = match shell {
+        Some(shell) => (
+            draft.locale.installed_shell_name(shell).to_owned(),
+            UserLaunchCommand::CustomExecutable {
+                executable: shell.executable.clone(),
+                arguments: shell.arguments.clone(),
+            },
+        ),
+        None => (id.clone(), UserLaunchCommand::BUILT_IN),
+    };
+    let profiles = &mut draft.values.launch_profiles.profiles;
+    profiles.push(UserLaunchProfile {
+        id,
+        name: Some(name),
+        command,
+    });
+    draft.profile = profiles.len() - 1;
+    draft.argument = 0;
+    draft.row = Row::ProfileName;
+}
 pub(super) fn text(draft: &Draft) -> Option<String> {
     let values = &draft.values;
     match draft.row {
-        Row::NewTerminalFolder | Row::PrefixKey => {
-            Some(draft.text_value(draft.row).unwrap_or_default().to_owned())
-        }
+        Row::PrefixKey => Some(draft.text_value(draft.row).unwrap_or_default().to_owned()),
         Row::Foreground => Some(values.custom_foreground.clone()),
         Row::Background => Some(values.custom_background.clone()),
         Row::CompletionThreshold => Some(values.completion_reminder_minimum_seconds.to_string()),
@@ -292,7 +308,7 @@ pub(super) fn requirement(row: Row) -> Option<SettingsTextRequirement> {
         _ => return None,
     })
 }
-/// Writes an accepted text into the page's values; alse leaves them as they were.
+/// Writes an accepted text into the page's values; false leaves them as they were.
 pub(super) fn accept_text(draft: &mut Draft, value: String) -> bool {
     match draft.row {
         Row::Foreground | Row::Background => {

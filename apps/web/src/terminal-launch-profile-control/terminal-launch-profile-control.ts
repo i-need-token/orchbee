@@ -6,11 +6,26 @@ import {
 } from '@orchbee/workbench-client-protocol';
 import { z } from 'zod';
 
+/**
+ * A shell installed on the Server's machine that Add profile lists: the Windows ones named by `kind`,
+ * a `named` one by `name`.
+ */
+const InstalledShellSchema = z.strictObject({
+	arguments: z.array(z.string()),
+	executable: z.string().min(1),
+	kind: z.enum(['powershell', 'windows-powershell', 'command-prompt', 'git-bash', 'named']),
+	name: z.string(),
+});
+
+export type InstalledShell = z.infer<typeof InstalledShellSchema>;
+
 /** @internal Fixture parser for the Web terminal settings Stories and tests; no production boundary parses it. */
 export const TerminalLaunchProfileSnapshotSchema = z.strictObject({
 	/** The settings revision that last changed the catalog; a draft begun before it is stale. */
 	catalogRevision: z.string().optional(),
 	capabilities: z.strictObject({
+		/** What Add profile lists; empty where nothing was found, and Add profile asks for a name. */
+		installedShells: z.array(InstalledShellSchema),
 		loginShell: z.boolean(),
 	}),
 	catalog: UserLaunchProfileCatalogSchema,
@@ -65,8 +80,14 @@ export type TerminalLaunchProfileClientOperationResult =
 	| { readonly kind: 'unavailable' };
 
 export interface TerminalLaunchProfileControl {
-	/** Adds a system-shell profile with this name at the end of the catalog. */
-	createProfile(name: string): Promise<TerminalLaunchProfileClientOperationResult>;
+	/**
+	 * Adds a profile with this name at the end of the catalog: one that runs `command`, or the system
+	 * shell without it.
+	 */
+	createProfile(
+		name: string,
+		command?: UserLaunchProfile['command'],
+	): Promise<TerminalLaunchProfileClientOperationResult>;
 	deleteProfile(
 		profileId: UserLaunchProfileId,
 	): Promise<TerminalLaunchProfileClientOperationResult>;

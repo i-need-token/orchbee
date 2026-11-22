@@ -22,8 +22,7 @@ pub enum UserSettingsField {
     CustomForeground,
     CustomBackground,
     CopyOnSelect,
-    ResumeAgentsOnRestore,
-    RestoreTerminalOutput,
+    RestoreTerminals,
     AgentNotificationMode,
     CompletionReminderMode,
     CompletionReminderMinimumSeconds,
@@ -39,7 +38,7 @@ pub enum UserSettingsField {
 
 impl UserSettingsField {
     /// Every field, so a caller that walks the values cannot silently omit one.
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 20] = [
         Self::Locale,
         Self::ApplicationTheme,
         Self::LightTheme,
@@ -48,8 +47,7 @@ impl UserSettingsField {
         Self::CustomForeground,
         Self::CustomBackground,
         Self::CopyOnSelect,
-        Self::ResumeAgentsOnRestore,
-        Self::RestoreTerminalOutput,
+        Self::RestoreTerminals,
         Self::AgentNotificationMode,
         Self::CompletionReminderMode,
         Self::CompletionReminderMinimumSeconds,
@@ -74,8 +72,7 @@ impl UserSettingsField {
             Self::CustomForeground => "appearance.custom_foreground",
             Self::CustomBackground => "appearance.custom_background",
             Self::CopyOnSelect => "terminal.copy_on_select",
-            Self::ResumeAgentsOnRestore => "agents.resume_on_restore",
-            Self::RestoreTerminalOutput => "terminal.restore_output",
+            Self::RestoreTerminals => "terminal.restore_after_restart",
             Self::AgentNotificationMode => "notifications.agent_reminder",
             Self::CompletionReminderMode => "notifications.completion_reminder",
             Self::CompletionReminderMinimumSeconds => "notifications.completion_minimum_seconds",
@@ -101,8 +98,7 @@ impl UserSettingsField {
             Self::CustomForeground => "customForeground",
             Self::CustomBackground => "customBackground",
             Self::CopyOnSelect => "copyOnSelect",
-            Self::ResumeAgentsOnRestore => "resumeAgentsOnRestore",
-            Self::RestoreTerminalOutput => "restoreTerminalOutput",
+            Self::RestoreTerminals => "restoreTerminals",
             Self::AgentNotificationMode => "agentNotificationMode",
             Self::CompletionReminderMode => "completionReminderMode",
             Self::CompletionReminderMinimumSeconds => "completionReminderMinimumSeconds",

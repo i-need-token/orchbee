@@ -105,7 +105,8 @@
 	text-align: start;
 }
 
-.addRow:hover:not(:disabled) {
+.addRow:hover:not(:disabled),
+.addRow[data-popup-open] {
 	background: var(--ob-sys-color-surface-hovered);
 	color: var(--ob-sys-color-text-primary);
 }

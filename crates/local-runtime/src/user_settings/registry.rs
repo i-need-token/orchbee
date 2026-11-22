@@ -18,6 +18,8 @@ pub enum SettingCategory {
     Notifications,
     Keyboard,
     Agents,
+    /// The version and update control, beside the update settings.
+    About,
 }
 
 impl SettingCategory {
@@ -31,6 +33,7 @@ impl SettingCategory {
             Self::Notifications => "notifications",
             Self::Keyboard => "keyboard",
             Self::Agents => "agents",
+            Self::About => "about",
         }
     }
 }
@@ -389,9 +392,8 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         unset("no override", "\"home\""),
         (C::General, G::Basics),
         SERVER,
-        "Starting folder for a new terminal.",
+        "Starting folder for a terminal an orchbee command creates without --cwd.",
     )
-    .page()
     .effect(SettingEffect::NewTerminals),
     key(
         "terminal.copy_on_select",
@@ -423,12 +425,12 @@ pub const SETTING_KEYS: &[SettingKey] = &[
     .page()
     .effect(SettingEffect::NewTerminals),
     key(
-        "terminal.restore_output",
+        "terminal.restore_after_restart",
         V::Boolean,
-        D::Boolean(false),
-        (C::General, G::Restore),
+        D::Boolean(true),
+        (C::Terminal, G::Restore),
         SERVER,
-        "Show each terminal's recent output again after a restart.",
+        "After a restart, resume supported Agent conversations in their panels and show every other terminal's recent output again.",
     )
     .page()
     .effect(SettingEffect::Restart),
@@ -761,16 +763,6 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Popup height; popup commands only.",
     ),
     key(
-        "agents.resume_on_restore",
-        V::Boolean,
-        D::Boolean(true),
-        (C::Agents, G::Restore),
-        SERVER,
-        "Resume supported Agent conversations in their panels after a restart.",
-    )
-    .page()
-    .effect(SettingEffect::Restart),
-    key(
         "agents.auto_allow.claude",
         V::Boolean,
         D::Boolean(false),
@@ -818,7 +810,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "update.channel",
         V::Choice(&["stable", "preview"]),
         D::Text("stable"),
-        (C::General, G::Updates),
+        (C::About, G::Updates),
         SERVER,
         "Release channel for explicit update operations.",
     )
@@ -827,7 +819,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "update.automatic",
         V::Boolean,
         D::Boolean(true),
-        (C::General, G::Updates),
+        (C::About, G::Updates),
         SERVER,
         "Download and install new versions in the background; development builds ignore it.",
     )

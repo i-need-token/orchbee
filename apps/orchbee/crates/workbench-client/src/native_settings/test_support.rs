@@ -24,7 +24,9 @@ impl Editor {
     /// Presents the page as a frame of the given width tier would.
     pub(crate) fn draw_with(&mut self, token: Token, narrow: bool) {
         let draw = match &self.state {
-            State::Open(page) => page.presentation(TEST_LINES, narrow),
+            State::Open(page) => {
+                page.presentation(TEST_LINES, narrow, crate::localization::Locale::EnUs)
+            }
             _ => SettingsDraw::surface(token),
         };
         self.presented(draw);

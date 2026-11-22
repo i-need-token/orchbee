@@ -431,7 +431,14 @@ function createTerminalLaunchProfileStoryControl(
 	let profileSequence = 1;
 	let snapshot: TerminalLaunchProfileClientSnapshot = {
 		...TerminalLaunchProfileSnapshotSchema.parse({
-			capabilities: { loginShell },
+			capabilities: {
+				installedShells: [
+					{ arguments: [], executable: '/bin/zsh', kind: 'named', name: 'zsh' },
+					{ arguments: [], executable: '/bin/bash', kind: 'named', name: 'bash' },
+					{ arguments: [], executable: '/opt/homebrew/bin/fish', kind: 'named', name: 'fish' },
+				],
+				loginShell,
+			},
 			catalog: {
 				defaultProfileId: builtInProfileId,
 				profiles: [
@@ -466,14 +473,11 @@ function createTerminalLaunchProfileStoryControl(
 		return Promise.resolve({ kind: 'completed' as const, snapshot });
 	};
 	return {
-		createProfile: (name) => {
+		createProfile: (name, command = { kind: 'system-shell', login: false }) => {
 			const id = UserLaunchProfileIdSchema.parse(`story-profile-${++profileSequence}`);
 			return commit({
 				...snapshot.catalog,
-				profiles: [
-					...snapshot.catalog.profiles,
-					{ command: { kind: 'system-shell', login: false }, id, name },
-				],
+				profiles: [...snapshot.catalog.profiles, { command, id, name }],
 			});
 		},
 		deleteProfile: (profileId) =>

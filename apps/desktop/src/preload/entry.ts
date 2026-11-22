@@ -1,5 +1,6 @@
-import { ipcRenderer } from 'electron';
+import { ipcRenderer, webUtils } from 'electron';
 
+import { installDesktopFileDropBridge } from './installDesktopFileDropBridge';
 import { installDesktopServerConnectionBridge } from './installDesktopServerConnectionBridge';
 import { installDesktopWindowCaptionBridge } from './installDesktopWindowCaptionBridge';
 import { installDesktopWindowFaultBridge } from './installDesktopWindowFaultBridge';
@@ -10,3 +11,4 @@ installDesktopServerConnectionBridge(ipcRenderer, window, {
 });
 installDesktopWindowCaptionBridge(ipcRenderer, window);
 installDesktopWindowFaultBridge(ipcRenderer, window);
+installDesktopFileDropBridge(window, (file) => webUtils.getPathForFile(file), process.platform);

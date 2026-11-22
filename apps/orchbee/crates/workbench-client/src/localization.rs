@@ -45,7 +45,7 @@ mod settings;
 pub(crate) use settings::{
     SettingUnit, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsFieldRequirement,
     SettingsFileFact, SettingsHintLabel, SettingsNotice, SettingsProfileLabel,
-    SettingsTextRequirement, SettingsValue, StartFolder,
+    SettingsTextRequirement, SettingsValue,
 };
 mod status;
 mod terminal_feedback;

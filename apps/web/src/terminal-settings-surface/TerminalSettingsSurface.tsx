@@ -48,8 +48,6 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 	const filePath = useUserSettings(userSettings).snapshot?.filePath ?? null;
 	if (!page.open) return null;
 	const searchLabel = intl.formatMessage(terminalSettingsMessages.searchPlaceholder);
-	// An information category such as About holds no setting, so search never lists it.
-	const searchableCategories = page.categories.filter((definition) => definition.searchable);
 	const currentCategory = TERMINAL_SETTINGS_CATEGORIES.find(
 		(definition) => definition.id === page.category,
 	);
@@ -166,7 +164,7 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 							</h1>
 							{page.searching ? (
 								<div className={styles['searchPage']} data-slot='settings-search-results'>
-									{searchableCategories.map((definition) => (
+									{page.categories.map((definition) => (
 										<section
 											aria-label={intl.formatMessage(definition.label)}
 											className={styles['searchCategory']}
@@ -221,7 +219,7 @@ function CategoryContent({ category, props, query }: CategoryContentProps): Reac
 	const userSettings = props.controller.userSettings;
 	switch (category) {
 		case 'about':
-			return props.about === undefined ? null : <AboutSettings about={props.about} />;
+			return <AboutSettings about={props.about} query={query} userSettings={userSettings} />;
 		case 'general':
 			return (
 				<GeneralSettings
@@ -244,7 +242,6 @@ function CategoryContent({ category, props, query }: CategoryContentProps): Reac
 			return (
 				<TerminalBehaviorSettings
 					defaultSettingsControl={props.terminalDefaultSettingsControl}
-					folderPicker={props.folderPicker}
 					interactionController={props.terminalInteractionSettingsController}
 					launchProfileClient={props.terminalLaunchProfileClient}
 					macosInputController={props.macosTerminalInputSettingsController}

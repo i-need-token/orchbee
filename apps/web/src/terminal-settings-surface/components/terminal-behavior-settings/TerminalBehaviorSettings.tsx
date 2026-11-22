@@ -12,7 +12,6 @@ import type { TerminalLaunchProfileControl } from '../../../terminal-launch-prof
 import type { UserSettingsControl } from '../../../user-settings';
 import { useSetting } from '../../hooks/useSetting';
 import { useSettingDraft } from '../../hooks/useSettingDraft';
-import type { TerminalSettingsFolderPicker } from '../../types/terminal-settings-surface';
 import {
 	formatScrollbackMegabytes,
 	parseScrollbackMegabytes,
@@ -22,13 +21,11 @@ import { MacosTerminalInputSettings } from '../macos-terminal-input-settings/Mac
 import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
-import { SettingsSelect } from '../settings-select/SettingsSelect';
 import { TerminalLaunchProfileSettings } from '../terminal-launch-profile-settings/TerminalLaunchProfileSettings';
 import styles from './TerminalBehaviorSettings.module.css';
 
 interface TerminalBehaviorSettingsProps {
 	readonly defaultSettingsControl?: TerminalDefaultSettingsControl | undefined;
-	readonly folderPicker?: TerminalSettingsFolderPicker | undefined;
 	readonly interactionController?: TerminalInteractionSettingsController | undefined;
 	readonly launchProfileClient?: TerminalLaunchProfileControl | undefined;
 	readonly macosInputController?: MacosTerminalInputSettingsController | undefined;
@@ -36,10 +33,12 @@ interface TerminalBehaviorSettingsProps {
 	readonly userSettings: UserSettingsControl;
 }
 
-/** Selection and keys, new terminals, and launch profiles; each part needs its host control. */
+/**
+ * Selection and keys, terminal history, what a restart brings back, and launch profiles; each part
+ * but the restart switch needs its host control.
+ */
 export function TerminalBehaviorSettings({
 	defaultSettingsControl,
-	folderPicker,
 	interactionController,
 	launchProfileClient,
 	macosInputController,
@@ -87,11 +86,6 @@ export function TerminalBehaviorSettings({
 			)}
 			{defaultSettingsControl === undefined ? null : (
 				<SettingsGroup label={intl.formatMessage(terminalSettingsMessages.pageGroupOutput)}>
-					<NewTerminalFolderRow
-						folderPicker={folderPicker}
-						query={query}
-						userSettings={userSettings}
-					/>
 					<TerminalHistoryRow
 						control={defaultSettingsControl}
 						query={query}
@@ -99,6 +93,9 @@ export function TerminalBehaviorSettings({
 					/>
 				</SettingsGroup>
 			)}
+			<SettingsGroup label={intl.formatMessage(terminalSettingsMessages.pageGroupAfterRestart)}>
+				<RestoreTerminalsRow query={query} userSettings={userSettings} />
+			</SettingsGroup>
 			{launchProfileClient === undefined ? null : (
 				<TerminalLaunchProfileSettings client={launchProfileClient} query={query} />
 			)}
@@ -111,139 +108,30 @@ interface SettingRowProps {
 	readonly userSettings: UserSettingsControl;
 }
 
-/** The new terminal folder entries, in their order; each but `custom` is the word it stores. */
-const START_FOLDER_ENTRIES = ['workspace', 'home', 'follow', 'custom'] as const;
-
-type StartFolderEntry = (typeof START_FOLDER_ENTRIES)[number];
-
-/** Custom folder… chosen and not yet stored, while `terminal.new_cwd` still holds `over`. */
-interface PendingCustomFolder {
-	readonly over: string | null;
-	readonly via: 'field' | 'picker';
-}
-
-interface NewTerminalFolderRowProps extends SettingRowProps {
-	readonly folderPicker?: TerminalSettingsFolderPicker | undefined;
-}
-
-/**
- * Where a terminal the orchbee command creates starts. Custom folder… asks the folder picker when
- * there is one, and otherwise, or when the picker fails, opens the folder field; a stored custom
- * folder keeps that field under the choice, and emptying it restores the default.
- */
-function NewTerminalFolderRow({
-	folderPicker,
-	query,
-	userSettings,
-}: NewTerminalFolderRowProps): React.ReactNode {
+/** Whether a restart resumes supported Agents and shows other terminals' recent output again. */
+function RestoreTerminalsRow({ query, userSettings }: SettingRowProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
-	const setting = useSetting(userSettings, 'terminal.new_cwd');
-	const stored = startFolderEntry(setting.value);
-	const [pending, setPending] = React.useState<PendingCustomFolder | null>(null);
-	// A change of the stored value settles a pending Custom folder…, landed or not.
-	const custom = pending !== null && pending.over === setting.value ? pending.via : null;
-	const draft = useSettingDraft(stored === 'custom' ? (setting.value ?? '') : '', setting.failure);
-	const choose = (entry: StartFolderEntry): void => {
-		if (entry !== 'custom') {
-			setPending(null);
-			if (entry !== stored) setting.set(entry);
-			return;
-		}
-		const over = setting.value;
-		if (folderPicker === undefined) {
-			setPending({ over, via: 'field' });
-			return;
-		}
-		setPending({ over, via: 'picker' });
-		folderPicker.selectExistingFolder().then(
-			(result) => {
-				if (result.kind === 'failed') setPending({ over, via: 'field' });
-				else if (result.kind === 'cancelled' || result.path === over) setPending(null);
-				else setting.set(result.path);
-			},
-			() => setPending({ over, via: 'field' }),
-		);
-	};
-	const commit = (): void => {
-		const value = draft.draft.trim();
-		if (value !== '' && value !== setting.value) {
-			setting.set(value);
-			return;
-		}
-		setPending(null);
-		if (value === '' && stored === 'custom') setting.restore();
-	};
-	const label = intl.formatMessage(terminalSettingsMessages.pageNewTerminalFolderLabel);
+	const setting = useSetting(userSettings, 'terminal.restore_after_restart');
+	const label = intl.formatMessage(terminalSettingsMessages.pageRestoreTerminalsLabel);
 	return (
 		<SettingsRow
-			description={intl.formatMessage(terminalSettingsMessages.pageNewTerminalFolderDescription)}
-			effect='new-terminals'
+			description={intl.formatMessage(terminalSettingsMessages.pageRestoreTerminalsDescription)}
+			effect='next-restart'
 			label={label}
 			modified={setting.modified}
 			query={query}
-			searchTerms={['new_cwd', 'cwd', 'folder', 'directory']}
-			settingId='terminal.new-cwd'
+			settingId='terminal.restore-after-restart'
 			status={<SettingFailure message={setting.failureMessage} />}
-			onRestore={
-				setting.readOnly
-					? undefined
-					: (): void => {
-							setPending(null);
-							setting.restore();
-						}
-			}
+			onRestore={setting.readOnly ? undefined : setting.restore}
 		>
-			<span className={styles['folderChoice']}>
-				<SettingsSelect
-					disabled={setting.readOnly}
-					label={label}
-					options={START_FOLDER_ENTRIES.map((entry) => ({
-						label: intl.formatMessage(startFolderMessage(entry)),
-						value: entry,
-					}))}
-					value={custom === null ? stored : 'custom'}
-					onValueChange={choose}
-				/>
-				{stored === 'custom' || custom === 'field' ? (
-					<Input
-						aria-label={intl.formatMessage(terminalSettingsMessages.pageNewTerminalFolderPath)}
-						className={styles['pathInput']}
-						readOnly={setting.readOnly}
-						spellCheck={false}
-						value={draft.draft}
-						onBlur={commit}
-						onChange={(event) => draft.change(event.currentTarget.value)}
-						onKeyDown={commitOnEnter(commit)}
-					/>
-				) : null}
-			</span>
+			<Switch
+				aria-label={label}
+				checked={setting.value}
+				disabled={setting.readOnly}
+				onCheckedChange={setting.set}
+			/>
 		</SettingsRow>
 	);
-}
-
-/**
- * The entry a stored value shows as: unset, empty and `follow` are Same as the current terminal,
- * and any other text but `home` and `workspace`, `current` included, is a custom folder.
- */
-function startFolderEntry(value: string | null): StartFolderEntry {
-	if (value === null || value === '' || value === 'follow') return 'follow';
-	if (value === 'home' || value === 'workspace') return value;
-	return 'custom';
-}
-
-function startFolderMessage(
-	entry: StartFolderEntry,
-): (typeof terminalSettingsMessages)['pageNewTerminalFolderFollow'] {
-	switch (entry) {
-		case 'workspace':
-			return terminalSettingsMessages.pageNewTerminalFolderWorkspace;
-		case 'home':
-			return terminalSettingsMessages.pageNewTerminalFolderHome;
-		case 'follow':
-			return terminalSettingsMessages.pageNewTerminalFolderFollow;
-		case 'custom':
-			return terminalSettingsMessages.pageNewTerminalFolderCustom;
-	}
 }
 
 interface TerminalHistoryRowProps extends SettingRowProps {

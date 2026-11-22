@@ -462,6 +462,11 @@ export interface ProjectedTerminalOptions {
 	/** Copy a completed pointer or semantic-output selection, matching the legacy surface. */
 	readonly copyOnSelect?: boolean;
 	readonly creationId: CreationId;
+	/**
+	 * The text a drop of files pastes, read after the drop, or null when it has none. Without it the
+	 * terminal takes no file drops: only the host can read a dropped file's path.
+	 */
+	readonly droppedFileText?: () => Promise<string | null>;
 	readonly hostEpoch: HostEpoch;
 	readonly inputConfiguration?: TerminalInputConfiguration;
 	readonly inputEnabled?: boolean;
@@ -6328,7 +6333,8 @@ export class ProjectedTerminal {
 	readonly #handleDragOver = (event: DragEvent): void => {
 		if (!this.#canAdmitInput()) return;
 		const transfer = event.dataTransfer;
-		if (transfer === null || !this.#supportsPlainTextDrop(transfer)) return;
+		if (transfer === null) return;
+		if (!this.#supportsPlainTextDrop(transfer) && !this.#supportsFileDrop(transfer)) return;
 		event.preventDefault();
 		transfer.dropEffect = 'copy';
 	};
@@ -6336,19 +6342,38 @@ export class ProjectedTerminal {
 	readonly #handleDrop = (event: DragEvent): void => {
 		if (!this.#canAdmitInput()) return;
 		const transfer = event.dataTransfer;
-		if (transfer === null || !this.#supportsPlainTextDrop(transfer)) return;
+		if (transfer === null) return;
+		if (this.#supportsFileDrop(transfer)) {
+			event.preventDefault();
+			event.stopPropagation();
+			this.focus();
+			this.#observeDomPaste(this.#pasteDroppedFiles());
+			return;
+		}
+		if (!this.#supportsPlainTextDrop(transfer)) return;
 		event.preventDefault();
 		event.stopPropagation();
 		this.#observeDomPaste(this.paste(transfer.getData('text/plain'), 'drop'));
 	};
 
-	#observeDomPaste(result: Promise<ProjectedPasteResult>): void {
+	/** Pastes a drop of files as the host's text for it: their paths, as its own terminal types them. */
+	async #pasteDroppedFiles(): Promise<ProjectedPasteResult | null> {
+		const text = await this.#options.droppedFileText?.();
+		if (text === undefined || text === null || text === '') return null;
+		return await this.paste(text, 'drop');
+	}
+
+	#observeDomPaste(result: Promise<ProjectedPasteResult | null>): void {
 		void result.catch((error) => this.#errorEmitter.fire({ error, operation: 'command' }));
 	}
 
 	#supportsPlainTextDrop(transfer: DataTransfer): boolean {
 		const types = [...transfer.types];
 		return transfer.files.length === 0 && !types.includes('Files') && types.includes('text/plain');
+	}
+
+	#supportsFileDrop(transfer: DataTransfer): boolean {
+		return this.#options.droppedFileText !== undefined && [...transfer.types].includes('Files');
 	}
 
 	readonly #handleFocus = (): void => {

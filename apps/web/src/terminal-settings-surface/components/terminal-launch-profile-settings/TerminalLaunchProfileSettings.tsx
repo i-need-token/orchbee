@@ -1,5 +1,15 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { Button, Checkbox, Input, ProductIcon } from '@orchbee/ui/components';
+import {
+	Button,
+	Checkbox,
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+	Input,
+	ProductIcon,
+} from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { TerminalLaunchProfileControl } from '../../../terminal-launch-profile-control';
@@ -157,7 +167,11 @@ interface AddProfileRowProps {
 	readonly view: ReturnType<typeof useTerminalLaunchProfileSettings>;
 }
 
-/** The card's last line: an Add profile action that opens a name box in its place. */
+/**
+ * The card's last line: an Add profile action that lists the shells installed on the Server's
+ * machine, then Custom…, which opens a name box in its place; with no shell found it opens the name
+ * box at once.
+ */
 function AddProfileRow({
 	adding,
 	onAddingChange,
@@ -166,17 +180,54 @@ function AddProfileRow({
 }: AddProfileRowProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	if (!adding) {
-		return (
-			<button
-				className={styles['addRow']}
-				data-settings-row
-				disabled={view.addProfile.buttonDisabled}
-				type='button'
-				onClick={() => onAddingChange(true)}
-			>
+		const label = (
+			<>
 				<ProductIcon name='add' />
 				{intl.formatMessage(terminalSettingsMessages.pageProfilesAdd)}
-			</button>
+			</>
+		);
+		if (view.addProfile.shells.length === 0) {
+			return (
+				<button
+					className={styles['addRow']}
+					data-settings-row
+					disabled={view.addProfile.buttonDisabled}
+					type='button'
+					onClick={() => onAddingChange(true)}
+				>
+					{label}
+				</button>
+			);
+		}
+		return (
+			<DropdownMenu>
+				<DropdownMenuTrigger
+					className={styles['addRow']}
+					data-settings-row
+					disabled={view.addProfile.buttonDisabled}
+				>
+					{label}
+				</DropdownMenuTrigger>
+				<DropdownMenuContent>
+					{view.addProfile.shells.map((shell) => (
+						<DropdownMenuItem
+							key={shell.key}
+							onClick={() => {
+								shell.onSelect();
+								onSubmitted();
+							}}
+						>
+							<ProductIcon name='terminal' size='menu-leading' />
+							{shell.label}
+						</DropdownMenuItem>
+					))}
+					<DropdownMenuSeparator />
+					<DropdownMenuItem onClick={() => onAddingChange(true)}>
+						<ProductIcon name='edit' size='menu-leading' />
+						{view.addProfile.customLabel}
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
 		);
 	}
 	return (

@@ -116,7 +116,7 @@ fn kept_output_replays_only_into_its_own_terminal_and_never_outlives_its_reason(
     witness.until("restored terminals keep output again", SAVED, || {
         witness.kept().len() == 2
     });
-    witness.set_values(|values| values.restore_terminal_output = false);
+    witness.set_values(|values| values.restore_terminals = false);
     witness.until("every kept file is gone", SAVED, || {
         witness.kept().is_empty() && !witness.newest_checkpoint().contains("\"output\"")
     });
@@ -173,7 +173,7 @@ impl Witness {
                 ],
             }))
             .unwrap();
-            values.restore_terminal_output = true;
+            values.restore_terminals = true;
         });
         witness
     }

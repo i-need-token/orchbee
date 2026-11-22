@@ -57,6 +57,8 @@ pub(super) struct PageState {
     pub(super) drawn: bool,
     /// The last frame showed one column at a time.
     pub(super) narrow: bool,
+    /// The language the last frame showed, which names a profile Add profile makes.
+    pub(super) locale: crate::localization::Locale,
     pub(super) profile: usize,
     pub(super) argument: usize,
     pub(super) text: Option<LineEditor>,
@@ -204,11 +206,17 @@ impl PageState {
         })
     }
 
-    pub(super) fn presentation(&self, visible: usize, narrow: bool) -> SettingsDraw {
+    pub(super) fn presentation(
+        &self,
+        visible: usize,
+        narrow: bool,
+        locale: crate::localization::Locale,
+    ) -> SettingsDraw {
         SettingsDraw {
             token: self.token,
             lines: Some((self.first_visible(visible), visible)),
             narrow,
+            locale,
         }
     }
 
@@ -327,14 +335,9 @@ impl PageState {
         self.confirmed.text(row.text_key()?)
     }
 
-    /// The choice a finite row shows: its common value, or the folder entry its text gives.
+    /// The choice a finite row shows.
     pub(super) fn choice(&self, row: Row) -> Option<Choice> {
-        match row {
-            Row::NewTerminalFolder => Some(Choice::NewTerminalFolder(
-                crate::localization::StartFolder::of(self.text_value(row)),
-            )),
-            _ => Choice::from_values(row, &self.values),
-        }
+        Choice::from_values(row, &self.values)
     }
 
     /// The shown values with `row`'s field back at its default, as a restore asks.
@@ -630,7 +633,12 @@ impl<'a> PageView<'a> {
     pub(crate) fn first_visible(self, visible: usize) -> usize {
         self.state.first_visible(visible)
     }
-    pub(crate) fn presentation(self, visible: usize, narrow: bool) -> SettingsDraw {
-        self.state.presentation(visible, narrow)
+    pub(crate) fn presentation(
+        self,
+        visible: usize,
+        narrow: bool,
+        locale: crate::localization::Locale,
+    ) -> SettingsDraw {
+        self.state.presentation(visible, narrow, locale)
     }
 }

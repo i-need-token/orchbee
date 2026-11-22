@@ -211,9 +211,9 @@ fn each_change_sends_one_edit_and_only_its_row_waits_while_navigation_stays_free
         ),
         (Row::Sound, Change::Key, UserSettingsField::SoundEnabled),
         (
-            Row::RestoreOutput,
+            Row::RestoreTerminals,
             Change::Key,
-            UserSettingsField::RestoreTerminalOutput,
+            UserSettingsField::RestoreTerminals,
         ),
         (
             Row::AutomaticUpdates,
@@ -606,86 +606,6 @@ fn changes_made_while_one_is_in_flight_are_sent_in_order_one_at_a_time() {
         assert_eq!(notice, expected_notice, "{name}");
         assert!(!page(&editor).waits(a) && !page(&editor).waits(b), "{name}");
     }
-}
-
-/// Each folder entry writes its word and Custom folder… the typed folder; a stored value shows as
-/// its entry: unset, empty and `follow` as Same as the current terminal, and any other text,
-/// `current` included, as Custom folder… with that text on the row.
-#[test]
-fn each_folder_entry_writes_its_value_and_a_stored_value_shows_as_its_entry() {
-    use crate::localization::{Locale, StartFolder};
-    let path = SettingPath::parse("terminal.new_cwd").unwrap();
-    let file = |stored: Option<&str>| {
-        let mut file = snapshot(1, &UserSettingsValues::default(), &[]);
-        if let Some(stored) = stored {
-            file.values
-                .insert(path.clone(), Some(SettingScalar::Text(stored.to_owned())));
-            file.set.push(path.clone());
-        }
-        file
-    };
-    for (stored, entry) in [
-        (None, StartFolder::Follow),
-        (Some(""), StartFolder::Follow),
-        (Some("follow"), StartFolder::Follow),
-        (Some("home"), StartFolder::Home),
-        (Some("workspace"), StartFolder::Workspace),
-        (Some("current"), StartFolder::Custom),
-        (Some("~/项目"), StartFolder::Custom),
-        (Some("C:/work"), StartFolder::Custom),
-    ] {
-        let mut editor = open(&file(stored));
-        select(&mut editor, Row::NewTerminalFolder);
-        let shown = match entry {
-            StartFolder::Custom => stored.unwrap().to_owned(),
-            _ => Locale::EnUs
-                .settings_choice(Choice::NewTerminalFolder(entry))
-                .to_owned(),
-        };
-        assert_eq!(
-            Locale::EnUs.settings_value((page(&editor), Row::NewTerminalFolder)),
-            shown,
-            "{stored:?}"
-        );
-        assert!(editor.edit(Edit::Activate).is_none());
-        assert_eq!(
-            page(&editor).picker().map(ChoicePicker::original),
-            Some(Choice::NewTerminalFolder(entry)),
-            "{stored:?}"
-        );
-    }
-    let written = |stored: Option<&str>, index: usize, typed: &str| {
-        let mut editor = open(&file(stored));
-        select(&mut editor, Row::NewTerminalFolder);
-        editor.edit(Edit::Activate);
-        editor.edit(Edit::Home);
-        for _ in 0..index {
-            editor.edit(Edit::Next);
-        }
-        let mut submission = editor.edit(Edit::Activate);
-        for character in typed.chars() {
-            assert!(editor.edit(Edit::Insert(character)).is_none());
-        }
-        if !typed.is_empty() {
-            submission = editor.edit(Edit::Activate);
-        }
-        submission.map(|submission| match submission.operation {
-            SettingsOperation::Edit { changes } => changes,
-            _ => panic!("a change sends one edit"),
-        })
-    };
-    let set = |value: &str| {
-        Some(vec![SettingChange::Set {
-            key: path.clone(),
-            value: SettingValue::Text(value.to_owned()),
-        }])
-    };
-    assert_eq!(written(Some("C:/old"), 0, ""), set("workspace"));
-    assert_eq!(written(Some("C:/old"), 1, ""), set("home"));
-    assert_eq!(written(Some("C:/old"), 2, ""), set("follow"));
-    assert_eq!(written(None, 3, "D:/w"), set("D:/w"));
-    // The entry the row already shows writes nothing, so an unset key stays unset.
-    assert_eq!(written(None, 2, ""), None);
 }
 
 /// Stop its terminals ends everything that runs on a machine: the first Enter only states what

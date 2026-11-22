@@ -16,7 +16,7 @@ pub enum Category {
     Agents,
     /// The computers that run Workspaces: this one and the saved machines; it holds no setting.
     Machines,
-    /// This Client's version and the update control; it holds no setting.
+    /// This Client's version, the update control, and Automatic updates.
     About,
 }
 
@@ -57,13 +57,18 @@ impl Category {
 
     pub(crate) const fn groups(self) -> &'static [Group] {
         match self {
-            Self::General => &[Group::Language, Group::AfterRestart, Group::Updates],
+            Self::General => &[Group::Language],
             Self::Appearance => &[Group::AppAppearance, Group::TerminalColors],
             Self::Themes => &[Group::LightThemes, Group::DarkThemes],
-            Self::Terminal => &[Group::SelectionKeys, Group::Output, Group::LaunchProfiles],
+            Self::Terminal => &[
+                Group::SelectionKeys,
+                Group::Output,
+                Group::AfterRestart,
+                Group::LaunchProfiles,
+            ],
             Self::Notifications => &[Group::WhenToNotify, Group::SoundDelivery],
             Self::Keyboard => &[Group::Prefix],
-            Self::Agents => &[Group::AgentRestore, Group::AgentConfirmations],
+            Self::Agents => &[Group::AgentConfirmations],
             Self::Machines => &[Group::MachineList],
             Self::About => &[Group::About],
         }
@@ -84,14 +89,14 @@ impl Category {
     }
 
     /// Every category of settings but Themes ends with the line that points to the settings
-    /// file; Machines and About hold none.
+    /// file; Machines holds no setting and About's one setting needs no pointer.
     pub(crate) const fn config_file(self) -> bool {
         !matches!(self, Self::Themes | Self::Machines | Self::About)
     }
 
-    /// Search finds settings, so it skips Machines and About.
+    /// Search finds settings, so it skips Machines.
     const fn searched(self) -> bool {
-        !matches!(self, Self::Machines | Self::About)
+        !matches!(self, Self::Machines)
     }
 }
 
@@ -100,8 +105,6 @@ impl Category {
 pub enum Group {
     Language,
     AfterRestart,
-    /// Automatic updates; unnamed, since its one row names it.
-    Updates,
     AppAppearance,
     TerminalColors,
     LightThemes,
@@ -112,10 +115,9 @@ pub enum Group {
     WhenToNotify,
     SoundDelivery,
     Prefix,
-    AgentRestore,
     /// One row for each Agent whose routine confirmations Orchbee can answer.
     AgentConfirmations,
-    /// About's version and update rows; unnamed, since the category names it.
+    /// About's version, update and Automatic updates rows; unnamed, since the category names it.
     About,
     /// Settings › Machines: this computer and one row per saved machine; unnamed, since the
     /// category names it.
@@ -165,14 +167,11 @@ impl Group {
     /// rows below, and its place in a category's list.
     const fn words(self) -> GroupWords {
         match self {
-            Self::Language
-            | Self::Updates
-            | Self::Prefix
-            | Self::About
-            | Self::Machine
-            | Self::MachineEnd => UNNAMED,
+            Self::Language | Self::Prefix | Self::About | Self::Machine | Self::MachineEnd => {
+                UNNAMED
+            }
             Self::MachineList => UNNAMED.noted("No machine matches.", "没有匹配的机器。"),
-            Self::AfterRestart | Self::AgentRestore => titled("After a restart", "重启之后"),
+            Self::AfterRestart => titled("After a restart", "重启之后"),
             Self::AppAppearance => titled("App appearance", "应用外观"),
             Self::TerminalColors => titled("Terminal colors", "终端颜色"),
             Self::LightThemes => titled("Light theme", "浅色主题").described(
@@ -224,14 +223,13 @@ impl Group {
     pub(crate) fn rows(self) -> Vec<Row> {
         match self {
             Self::Language => vec![Row::Language],
-            Self::AfterRestart => vec![Row::RestoreOutput],
-            Self::Updates => vec![Row::AutomaticUpdates],
+            Self::AfterRestart => vec![Row::RestoreTerminals],
             Self::AppAppearance => vec![Row::Theme],
             Self::TerminalColors => vec![Row::TerminalTheme, Row::Foreground, Row::Background],
             Self::LightThemes => theme_rows(Row::LightTheme),
             Self::DarkThemes => theme_rows(Row::DarkTheme),
             Self::SelectionKeys => vec![Row::CopyOnSelect],
-            Self::Output => vec![Row::NewTerminalFolder, Row::Scrollback],
+            Self::Output => vec![Row::Scrollback],
             Self::LaunchProfiles => vec![Row::LaunchProfiles],
             Self::WhenToNotify => vec![
                 Row::Reminders,
@@ -240,14 +238,13 @@ impl Group {
             ],
             Self::SoundDelivery => vec![Row::Sound],
             Self::Prefix => vec![Row::PrefixKey],
-            Self::AgentRestore => vec![Row::ResumeAgents],
             Self::AgentConfirmations => vec![
                 Row::AutoAllowClaude,
                 Row::AutoAllowCodex,
                 Row::AutoAllowGemini,
                 Row::AutoAllowOpenCode,
             ],
-            Self::About => vec![Row::Version, Row::Updates],
+            Self::About => vec![Row::Version, Row::Updates, Row::AutomaticUpdates],
             // The saved machines' own rows come from the facts the TUI reports.
             Self::MachineList => vec![Row::AddMachine, Row::FindMachine, Row::ThisComputer],
             Self::Machine => vec![
@@ -323,6 +320,8 @@ impl Filter<'_> {
             Row::Foreground | Row::Background => self.custom_colors,
             Row::CompletionThreshold => self.completion_reminders,
             Row::AutomaticUpdates => self.unlisted || on_page("update.automatic"),
+            // A search lists settings; About's version and update control are information.
+            Row::Version | Row::Updates => self.query.split_whitespace().next().is_none(),
             _ => true,
         }
     }

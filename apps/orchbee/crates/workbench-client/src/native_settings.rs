@@ -66,6 +66,7 @@ pub(crate) struct SettingsDraw {
     token: Token,
     lines: Option<(usize, usize)>,
     narrow: bool,
+    locale: crate::localization::Locale,
 }
 impl SettingsDraw {
     pub(crate) const fn surface(token: Token) -> Self {
@@ -73,6 +74,7 @@ impl SettingsDraw {
             token,
             lines: None,
             narrow: false,
+            locale: crate::localization::Locale::EnUs,
         }
     }
     pub(crate) const fn token(self) -> Token {
@@ -137,7 +139,7 @@ impl Confirmed {
                 .iter()
                 .map(|key| key.as_str().to_owned())
                 .collect(),
-            texts: vec![text("terminal.new_cwd"), text("keys.prefix")],
+            texts: vec![text("keys.prefix")],
         }
     }
     fn sets(&self, key: &str) -> bool {
@@ -338,6 +340,7 @@ impl Editor {
             activation_ready: false,
             drawn: false,
             narrow: false,
+            locale: crate::localization::Locale::EnUs,
             profile: 0,
             argument: 0,
             text: None,
@@ -512,6 +515,7 @@ impl Editor {
         if let State::Open(page) = &mut self.state {
             page.drawn = true;
             page.narrow = draw.narrow;
+            page.locale = draw.locale;
             if let Some((first, visible)) = draw.lines {
                 page.visible_rows = visible;
                 page.viewport = first;

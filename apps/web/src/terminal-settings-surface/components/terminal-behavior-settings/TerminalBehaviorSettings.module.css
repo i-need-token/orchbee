@@ -14,16 +14,3 @@
 	color: var(--ob-sys-color-text-muted);
 	font: var(--ob-sys-typography-label-sm);
 }
-
-.folderChoice {
-	display: inline-flex;
-	flex-direction: column;
-	align-items: flex-end;
-	gap: var(--ob-ref-space-1-5);
-}
-
-.pathInput {
-	width: var(--ob-ref-container-3xs);
-	height: var(--ob-ref-size-control-sm);
-	font: var(--ob-sys-typography-code-sm);
-}

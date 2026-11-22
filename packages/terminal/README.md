@@ -670,8 +670,10 @@ current directory before the target is exposed. Quoted and escaped path syntax a
 only; the effect boundary receives the normalized path and separately validates it as untrusted
 input.
 
-Plain-text drops follow the same sanitization, review, ordering, and Host input path as paste. The
-package accepts no file drops and receives no filesystem authority.
+Plain-text drops follow the same sanitization, review, ordering, and Host input path as paste. A
+file drop is accepted only when the host supplies `droppedFileText`, because only the host can read
+a dropped file's path: the terminal takes focus, asks for the drop's text, and pastes it through the
+same path. The package itself reads no path and receives no filesystem authority.
 
 The off-screen accessibility mirror is a labeled `list` whose direct `listitem` rows preserve spaces, grapheme-to-column mappings, and absolute `aria-posinset`/`aria-setsize` positions. It labels rows and the cursor with caller-provided localized text. A separate polite status region announces only changed visible output, including localized deletion announcements. Retained-history inspection disables live updates without replacing the live-output baseline, so returning to the bottom announces only output changed since the last live frame.
 

@@ -13,6 +13,11 @@ export interface ProjectedTerminalPlatformEffects {
 	readonly openExternal?: (
 		target: string,
 	) => ProjectedTerminalSideEffectResult | Promise<ProjectedTerminalSideEffectResult>;
+	/**
+	 * The text a drop of files pastes, read after the drop; null when it has none. Only Desktop
+	 * supplies it, so elsewhere a terminal takes no file drops.
+	 */
+	readonly takeDroppedFileText?: () => Promise<string | null>;
 	readonly readClipboardText?: () =>
 		| ProjectedTerminalClipboardReadResult
 		| Promise<ProjectedTerminalClipboardReadResult>;

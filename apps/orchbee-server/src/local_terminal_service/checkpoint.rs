@@ -258,7 +258,7 @@ impl LocalTerminalService {
                 coordinator.hold_checkpoint_terminal(&target, directory, agent_resume)?;
                 continue;
             }
-            riders.restore_agent(coordinator, &target, &mut resumes);
+            let agent = riders.restore_agent(coordinator, &target, &mut resumes);
             let reference = create_reference()
                 .ok_or_else(|| io::Error::other("restore request identity unavailable"))?;
             let cwd = target
@@ -272,7 +272,7 @@ impl LocalTerminalService {
                 Some(handle),
                 capture.clone(),
             );
-            let output = riders.restored_output(&target);
+            let output = riders.restored_output(&target, agent);
             pending.push((
                 *coordinator.prepare_checkpoint_terminal(&target, inputs, cwd)?,
                 output,

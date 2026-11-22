@@ -78,9 +78,13 @@ renderer must not erase domain-specific controls, explanations, validation, or m
   reason and recovery beside the control.
 - Do not turn legal consent, irreversible deletion, or acknowledgement of a severe consequence into
   a casual toggle. Use the owning reviewed flow and confirmation boundary.
-- An information category, such as About, holds no setting: it states facts about the product and
-  offers their actions. It comes after every settings category, has no settings-file row, and stays
-  out of Settings search.
+- The page shows only settings people feel in the application. A key that changes only what the
+  `orchbee` command does stays in `config.toml`, where its reference and `orchbee config` describe
+  it.
+- An information category, such as About, states facts about the product and offers their actions;
+  it holds only a setting that governs those facts, such as automatic updates under the update
+  control. It comes after every settings category and has no settings-file row; Settings search
+  lists its settings and leaves its facts out.
 
 ## Surface and information architecture
 

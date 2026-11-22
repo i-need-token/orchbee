@@ -9,8 +9,6 @@ interface TerminalSettingsCategoryDefinition {
 	readonly icon: ProductIconName;
 	readonly id: TerminalSettingsCategory;
 	readonly label: MessageDescriptor;
-	/** Whether Settings search lists the category's rows; an information category holds no setting. */
-	readonly searchable: boolean;
 }
 
 /** The Settings categories in navigation order. */
@@ -20,49 +18,42 @@ export const TERMINAL_SETTINGS_CATEGORIES: readonly TerminalSettingsCategoryDefi
 		icon: 'settings',
 		id: 'general',
 		label: terminalSettingsMessages.pageCategoryGeneral,
-		searchable: true,
 	},
 	{
 		configFile: true,
 		icon: 'appearance',
 		id: 'appearance',
 		label: terminalSettingsMessages.pageCategoryAppearance,
-		searchable: true,
 	},
 	{
 		configFile: false,
 		icon: 'color',
 		id: 'themes',
 		label: terminalSettingsMessages.pageCategoryThemes,
-		searchable: true,
 	},
 	{
 		configFile: true,
 		icon: 'terminal',
 		id: 'terminal',
 		label: terminalSettingsMessages.pageCategoryTerminal,
-		searchable: true,
 	},
 	{
 		configFile: true,
 		icon: 'bell',
 		id: 'notifications',
 		label: terminalSettingsMessages.pageCategoryNotifications,
-		searchable: true,
 	},
 	{
 		configFile: true,
 		icon: 'keyboard',
 		id: 'keyboard',
 		label: terminalSettingsMessages.pageCategoryKeyboard,
-		searchable: true,
 	},
 	{
 		configFile: true,
 		icon: 'agent',
 		id: 'agents',
 		label: terminalSettingsMessages.pageCategoryAgents,
-		searchable: true,
 	},
 	// Last, after every setting, as Warp places it.
 	{
@@ -70,6 +61,5 @@ export const TERMINAL_SETTINGS_CATEGORIES: readonly TerminalSettingsCategoryDefi
 		icon: 'info',
 		id: 'about',
 		label: terminalSettingsMessages.pageCategoryAbout,
-		searchable: false,
 	},
 ];

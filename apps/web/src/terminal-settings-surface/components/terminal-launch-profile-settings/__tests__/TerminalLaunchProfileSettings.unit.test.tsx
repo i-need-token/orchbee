@@ -217,7 +217,7 @@ class TestTerminalLaunchProfileControl implements TerminalLaunchProfileControl {
 	readonly #listeners = new Set<() => void>();
 	#updateMustFail = false;
 	#snapshot: TerminalLaunchProfileClientSnapshot = {
-		capabilities: { loginShell: true },
+		capabilities: { installedShells: [], loginShell: true },
 		catalog: builtInCatalog(),
 		failureCode: null,
 		pending: false,

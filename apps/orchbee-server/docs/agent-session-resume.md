@@ -1,7 +1,7 @@
 # Agent session resume
 
-Status: implemented for the managed Windows and macOS Sessions: the `agents.resume_on_restore`
-setting, the retained format, capture, delivery after a restart at a prompt the Host confirms, the
+Status: implemented for the managed Windows and macOS Sessions: the
+`terminal.restore_after_restart` setting, the retained format, capture, delivery after a restart at a prompt the Host confirms, the
 one-shot notice when a resume is given up, carry-forward of a delivered reference, and two
 [process sources](#process-source) that need no hook: Claude Code's own run table, on Windows, and
 the conversation id bound on the Agent process's own command line.
@@ -435,7 +435,7 @@ cannot type, which no id grammar admits, skips the reference.
 
 ### Startup
 
-Startup reads `agents.resume_on_restore` once, from the settings the Server loaded. Off discards
+Startup reads `terminal.restore_after_restart` once, from the settings the Server loaded. Off discards
 every pending reference and starts no driver. A Presentation whose directory is unavailable is
 held without launching and keeps its reference
 ([held restore](workbench-checkpoint.md#held-restore)); see [Retry](#retry). The remaining
@@ -580,7 +580,9 @@ Client that connects later says nothing.
 
 ## Setting
 
-`agents.resume_on_restore` defaults to on. The Server reads it from the Session's last valid
+`terminal.restore_after_restart` defaults to on and also turns on
+[terminal output replay](workbench-checkpoint.md#terminal-output-replay), which skips a
+Presentation whose Agent resumes. The Server reads it from the Session's last valid
 settings before every capture, outside every lock, and once at startup to decide resuming. Off
 writes no row, pending ones included, and at startup discards every pending reference and types
 nothing. A `config.toml` that stops parsing keeps the last valid value; a Session before startup

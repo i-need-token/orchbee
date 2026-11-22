@@ -253,7 +253,6 @@ export function WebApplication({
 				requestAgent={requestAgent}
 				applicationLocaleController={applicationLocaleController}
 				controller={terminalSettingsController}
-				folderPicker={projectFolderAcquisition}
 				fontCatalog={BROWSER_LOCAL_FONT_CATALOG}
 				terminalInteractionSettingsController={terminalInteractionSettingsController}
 				keyboardShortcutController={keyboardShortcutSettingsController}

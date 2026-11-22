@@ -21,7 +21,7 @@ describe('useTerminalLaunchProfileSettings', () => {
 	it('projects the localized built-in profile and platform login capability', () => {
 		const snapshot = {
 			...TerminalLaunchProfileSnapshotSchema.parse({
-				capabilities: { loginShell: false },
+				capabilities: { installedShells: [], loginShell: false },
 				catalog: {
 					defaultProfileId: 'system-default',
 					profiles: [

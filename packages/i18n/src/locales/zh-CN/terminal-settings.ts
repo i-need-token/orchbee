@@ -151,9 +151,9 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.themes.appliesLight': '应用外观为浅色时才会使用。',
 	'terminal.settings.page.language.label': '语言',
 	'terminal.settings.page.language.description': '菜单和提示使用的语言。',
-	'terminal.settings.page.restoreOutput.label': '重启后恢复终端输出',
-	'terminal.settings.page.restoreOutput.description':
-		'重启后再次显示最近的输出。保存在本机，可能包含密钥等敏感信息。',
+	'terminal.settings.page.restoreTerminals.label': '重启后恢复终端',
+	'terminal.settings.page.restoreTerminals.description':
+		'恢复支持的智能体会话，其他终端再次显示最近的输出。保存在本机，可能包含密钥等敏感信息。',
 	'terminal.settings.page.automaticUpdates.label': '自动更新',
 	'terminal.settings.page.automaticUpdates.description':
 		'在后台下载并安装新版本。点击“更新”前不会重启任何内容。',
@@ -217,15 +217,17 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.permission.deniedDescription':
 		'在系统通知设置中允许 Orchbee，才能在应用外看到通知。',
 	'terminal.settings.page.permission.allow': '允许',
-	'terminal.settings.page.resumeAgents.label': '重启后恢复智能体会话',
-	'terminal.settings.page.resumeAgents.description':
-		'重启后恢复 Windows 上的 Claude Code；其他 Agent 需带会话 ID 启动。',
 	'terminal.settings.page.groups.agentConfirmations': '自动允许常规确认',
 	'terminal.settings.page.agentConfirmations.description': '替你按下智能体的单次允许。',
 	'terminal.settings.page.agentConfirmations.rowDescription':
 		'不检查命令内容，删除、上传等命令同样会执行。',
 	'terminal.settings.page.agentConfirmations.request': '可在 GitHub issue 中申请更多智能体。',
 	'terminal.settings.page.profiles.add': '添加启动配置',
+	'terminal.settings.page.profiles.addCustom': '自定义…',
+	'terminal.settings.page.profiles.shell.commandPrompt': '命令提示符',
+	'terminal.settings.page.profiles.shell.gitBash': 'Git Bash',
+	'terminal.settings.page.profiles.shell.powerShell': 'PowerShell',
+	'terminal.settings.page.profiles.shell.windowsPowerShell': 'Windows PowerShell',
 	'terminal.settings.page.profiles.edit': '编辑',
 	'terminal.settings.page.profiles.done': '完成',
 	'terminal.settings.page.profiles.useAsDefault': '设为默认',
@@ -247,11 +249,4 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.file.syntaxError':
 		'{path} 第 {line} 行第 {column} 列有语法错误 · 修正前以只读方式显示上次有效的设置',
 	'terminal.settings.file.unreadable': '无法读取 {path} · 恢复前以只读方式显示上次有效的设置',
-	'terminal.settings.page.newTerminalFolder.label': '新终端文件夹',
-	'terminal.settings.page.newTerminalFolder.description': '适用于 orchbee 命令新建的终端。',
-	'terminal.settings.page.newTerminalFolder.workspace': '工作区目录',
-	'terminal.settings.page.newTerminalFolder.home': '主目录',
-	'terminal.settings.page.newTerminalFolder.follow': '与当前终端相同',
-	'terminal.settings.page.newTerminalFolder.custom': '自定义目录…',
-	'terminal.settings.page.newTerminalFolder.path': '自定义目录路径',
 } as const satisfies Readonly<Record<TerminalSettingsMessageId, string>>;

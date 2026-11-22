@@ -23,12 +23,12 @@ impl LocalTerminalService {
             .unwrap_or_else(LaunchCapture::unavailable)
     }
 
-    /// Whether this Session records and resumes Agent sessions, read before the caller takes any
-    /// lock. Before startup installs configuration it reads as off.
-    #[cfg(any(windows, target_os = "macos"))]
-    pub(crate) fn agent_resume_enabled(&self) -> bool {
+    /// Whether a restart brings this Session's terminals back (`terminal.restore_after_restart`):
+    /// Agent sessions resume and other terminals replay their kept output. Read before the caller
+    /// takes any lock; before startup installs configuration it reads as off.
+    pub(crate) fn restores_terminals(&self) -> bool {
         self.configuration
-            .with_preferences(|values| values.resume_agents_on_restore)
+            .with_preferences(|values| values.restore_terminals)
             .unwrap_or(false)
     }
 

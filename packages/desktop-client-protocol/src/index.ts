@@ -13,6 +13,7 @@ export {
 	DesktopServerConnectionWindowMessageSchema,
 	DesktopServerConnectionWindowRequestSchema,
 	DesktopSystemErrorKindSchema,
+	type DesktopInstalledShell,
 	type DesktopServerConnectionBootstrap,
 	type DesktopServerConnectionPortRole,
 	type DesktopServerConnectionRead,
@@ -30,6 +31,11 @@ export type {
 	DesktopBackgroundStatusSummary,
 	DesktopSessionStopAnswer,
 } from './desktop-background-status-contract';
+
+export {
+	DESKTOP_FILE_DROP_WINDOW_MESSAGE,
+	DesktopFileDropWindowMessageSchema,
+} from './desktop-file-drop-contract';
 
 export {
 	DESKTOP_WINDOW_CAPTION_IPC_CHANNEL,

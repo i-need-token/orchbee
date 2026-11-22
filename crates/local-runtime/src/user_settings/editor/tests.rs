@@ -94,24 +94,27 @@ fn profiles(id: &str) -> (String, String, toml::Value) {
 #[test]
 fn set_changes_only_its_key_and_keeps_comments_order_and_unknown_keys() {
     let fixture = Fixture::new();
-    let original = "# my settings\n[terminal]\n# keep this\nrestore_output = false # inline note\nnew_cwd = 'home'\n\n[mystery]\nanswer = 42\n";
+    let original = "# my settings\n[terminal]\n# keep this\nrestore_after_restart = true # inline note\nnew_cwd = 'home'\n\n[mystery]\nanswer = 42\n";
     fixture.write(original);
     set_setting(
-        &["terminal", "restore_output"],
-        &toml::Value::Boolean(true),
+        &["terminal", "restore_after_restart"],
+        &toml::Value::Boolean(false),
         fixture.env(),
     )
     .unwrap();
     assert_eq!(
         fixture.text(),
-        original.replace("restore_output = false", "restore_output = true")
+        original.replace(
+            "restore_after_restart = true",
+            "restore_after_restart = false"
+        )
     );
     set_setting(&["appearance", "mode"], &string("dark"), fixture.env()).unwrap();
     let text = fixture.text();
-    assert!(text.starts_with(&original.replace("= false", "= true")));
+    assert!(text.starts_with(&original.replace("= true", "= false")));
     assert!(text.ends_with("[appearance]\nmode = \"dark\"\n"), "{text}");
     let load = crate::read_user_settings(fixture.env()).unwrap();
-    assert!(load.values.restore_terminal_output);
+    assert!(!load.values.restore_terminals);
     assert!(
         load.diagnostics
             .items()
@@ -135,7 +138,7 @@ fn set_changes_only_its_key_and_keeps_comments_order_and_unknown_keys() {
     let text = fixture.text();
     assert!(
         text.starts_with(
-            "# my settings\n[terminal]\n# keep this\nrestore_output = true # inline note\nnew_cwd = 'home'\n"
+            "# my settings\n[terminal]\n# keep this\nrestore_after_restart = false # inline note\nnew_cwd = 'home'\n"
         ),
         "{text}"
     );
@@ -168,7 +171,7 @@ fn set_changes_only_its_key_and_keeps_comments_order_and_unknown_keys() {
 fn restore_removes_the_key_and_only_tables_left_empty_without_comments() {
     let fixture = Fixture::new();
     fixture.write(
-        "[appearance]\nmode = 'dark'\n\n# notification choices\n[notifications]\nsound = true\n\n[terminal]\ncopy_on_select = true\nrestore_output = false\n",
+        "[appearance]\nmode = 'dark'\n\n# notification choices\n[notifications]\nsound = true\n\n[terminal]\ncopy_on_select = true\nrestore_after_restart = false\n",
     );
     restore_setting_default(&["appearance", "mode"], fixture.env()).unwrap();
     restore_setting_default(&["notifications", "sound"], fixture.env()).unwrap();
@@ -184,7 +187,7 @@ fn restore_removes_the_key_and_only_tables_left_empty_without_comments() {
             .unwrap()
             .keys()
             .collect::<Vec<_>>(),
-        ["restore_output"]
+        ["restore_after_restart"]
     );
     let before = fixture.text();
     restore_setting_default(&["general", "language"], fixture.env()).unwrap();
@@ -211,7 +214,7 @@ fn a_missing_file_is_created_with_only_the_key() {
 #[test]
 fn refusals_leave_the_file_untouched() {
     let fixture = Fixture::new();
-    let broken = "[terminal]\nrestore_output = true\nrestore_output = false\n";
+    let broken = "[terminal]\nrestore_after_restart = true\nrestore_after_restart = false\n";
     fixture.write(broken);
     let refused = set_setting(&["appearance", "mode"], &string("dark"), fixture.env());
     assert!(matches!(
@@ -332,13 +335,13 @@ fn a_set_to_the_registered_default_removes_the_key_and_any_other_value_is_writte
     let platform = super::super::registry::current_platform();
     let profiles = format!("terminal.profiles.{platform}");
     let default_profile = format!("terminal.default_profile.{platform}");
-    let original = "# my settings\n[terminal]\nrestore_output = true\n# keep this\ncopy_on_select = true # inline note\nnew_cwd = 'home'\n\n[mystery]\nanswer = 42\n";
+    let original = "# my settings\n[terminal]\nrestore_after_restart = false\n# keep this\ncopy_on_select = true # inline note\nnew_cwd = 'home'\n\n[mystery]\nanswer = 42\n";
     // (key, value, whether the file changes, the key's value in the file afterwards)
     let cases = [
         // A scalar key set to its default is removed, or stays absent, as a restore leaves it.
         (
-            "terminal.restore_output",
-            toml::Value::Boolean(false),
+            "terminal.restore_after_restart",
+            toml::Value::Boolean(true),
             true,
             None,
         ),
@@ -357,10 +360,10 @@ fn a_set_to_the_registered_default_removes_the_key_and_any_other_value_is_writte
         ),
         // Any other value is written.
         (
-            "terminal.restore_output",
-            toml::Value::Boolean(true),
+            "terminal.restore_after_restart",
+            toml::Value::Boolean(false),
             false,
-            Some(toml::Value::Boolean(true)),
+            Some(toml::Value::Boolean(false)),
         ),
         (
             "terminal.scrollback_bytes",
@@ -423,7 +426,7 @@ fn a_settings_path_that_names_a_folder_is_refused_as_unreadable_not_read_only() 
 #[test]
 fn an_external_edit_during_the_write_is_kept_and_the_edit_redone() {
     let fixture = Fixture::new();
-    fixture.write("[terminal]\nrestore_output = true\n");
+    fixture.write("[terminal]\nrestore_after_restart = true\n");
     let file = fixture.file();
     let mut reads = 0;
     let mut read = |target: &Path| {
@@ -431,7 +434,7 @@ fn an_external_edit_during_the_write_is_kept_and_the_edit_redone() {
         if reads == 2 {
             fs::write(
                 target,
-                "[terminal]\nrestore_output = true\ncopy_on_select = true\n",
+                "[terminal]\nrestore_after_restart = true\ncopy_on_select = true\n",
             )
             .unwrap();
         }
@@ -449,7 +452,7 @@ fn an_external_edit_during_the_write_is_kept_and_the_edit_redone() {
     );
     assert_eq!(
         fixture.text(),
-        "[terminal]\nrestore_output = true\ncopy_on_select = true\n\n[appearance]\nmode = \"dark\"\n"
+        "[terminal]\nrestore_after_restart = true\ncopy_on_select = true\n\n[appearance]\nmode = \"dark\"\n"
     );
     let mut writes = 0;
     let mut always_changing = |target: &Path| {
@@ -520,7 +523,7 @@ fn symlink_file(target: &Path, link: &Path) -> io::Result<()> {
 fn a_file_held_open_is_retried_then_reported() {
     use std::{os::windows::fs::OpenOptionsExt, thread};
     let fixture = Fixture::new();
-    fixture.write("[terminal]\nrestore_output = true\n");
+    fixture.write("[terminal]\nrestore_after_restart = true\n");
     let hold = || {
         OpenOptions::new()
             .read(true)

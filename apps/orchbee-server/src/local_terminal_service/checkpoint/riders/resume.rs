@@ -10,7 +10,7 @@ use crate::{
 };
 use orchbee_server::{RetainedAgentSession, WorkbenchRestoreTarget};
 use orchbee_workbench_protocol::{
-    PresentationBinding, TerminalPresentationId, UserSettingsValues, WorkbenchDirectoryPath,
+    PresentationBinding, TerminalPresentationId, WorkbenchDirectoryPath,
 };
 use std::sync::Arc;
 
@@ -30,14 +30,9 @@ pub(in crate::local_terminal_service::checkpoint) type Entries = Vec<RunTableEnt
 pub(super) struct Resume(bool);
 
 impl Resume {
-    /// The Session's current choice, read before the caller takes any lock.
-    pub(super) fn current(service: &LocalTerminalService) -> Self {
-        Self(service.agent_resume_enabled())
-    }
-
-    /// The startup read's choice, which decides a restore once.
-    pub(super) fn startup(values: &UserSettingsValues) -> Self {
-        Self(values.resume_agents_on_restore)
+    /// Agent resume, on or off.
+    pub(super) const fn new(on: bool) -> Self {
+        Self(on)
     }
 
     /// What Claude Code's run table names for each published Claude Code run, read while no lock
@@ -82,25 +77,28 @@ impl Resume {
     }
 
     /// Queues a restored Presentation's Agent reference to resume where it was recorded, or drops
-    /// it.
+    /// it; answers whether it queued one.
     pub(super) fn restore_agent(
         self,
         coordinator: &mut SessionCoordinator,
         target: &WorkbenchRestoreTarget,
         resumes: &mut Resumes,
-    ) {
-        if coordinator.has_pending_agent_session(target.presentation_id()) {
-            // A reference resumes only where it was recorded.
-            match target
-                .restored_directory()
-                .filter(|p| std::path::Path::new(p.as_str()).is_dir())
-            {
-                Some(directory) if self.0 => {
-                    resumes.push(target.presentation_id().clone(), directory.clone());
-                }
-                _ => {
-                    coordinator.take_pending_agent_session(target.presentation_id());
-                }
+    ) -> bool {
+        if !coordinator.has_pending_agent_session(target.presentation_id()) {
+            return false;
+        }
+        // A reference resumes only where it was recorded.
+        match target
+            .restored_directory()
+            .filter(|p| std::path::Path::new(p.as_str()).is_dir())
+        {
+            Some(directory) if self.0 => {
+                resumes.push(target.presentation_id().clone(), directory.clone());
+                true
+            }
+            _ => {
+                coordinator.take_pending_agent_session(target.presentation_id());
+                false
             }
         }
     }

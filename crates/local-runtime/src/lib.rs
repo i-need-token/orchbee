@@ -27,6 +27,8 @@ pub use host_appearance::read_windows_apps_use_light_theme;
 pub use host_system::WindowsVersion;
 #[cfg(windows)]
 pub use host_system::read_windows_version;
+mod installed_shells;
+pub use installed_shells::{InstalledShell, InstalledShellKind, installed_shells};
 #[cfg(unix)]
 mod host_name;
 #[cfg(unix)]

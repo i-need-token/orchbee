@@ -29,7 +29,11 @@ import {
 } from '../../user-settings';
 
 type CatalogChange =
-	| { readonly kind: 'create'; readonly name: string }
+	| {
+			readonly command: UserLaunchProfile['command'] | undefined;
+			readonly kind: 'create';
+			readonly name: string;
+	  }
 	| { readonly kind: 'delete'; readonly profileId: UserLaunchProfileId }
 	| { readonly kind: 'reset' }
 	| { readonly kind: 'select-default'; readonly profileId: UserLaunchProfileId }
@@ -64,8 +68,11 @@ export class ServerTerminalLaunchProfileClient implements TerminalLaunchProfileC
 	#refusal: SettingsRefusal | null = null;
 	#snapshot: TerminalLaunchProfileClientSnapshot;
 
-	constructor(settings: UserSettingsControl, loginShellAvailable: boolean) {
-		this.#capabilities = { loginShell: loginShellAvailable };
+	constructor(
+		settings: UserSettingsControl,
+		capabilities: TerminalLaunchProfileSnapshot['capabilities'],
+	) {
+		this.#capabilities = capabilities;
 		this.#settings = settings;
 		this.#observe(settings.getSnapshot().snapshot);
 		this.#snapshot = this.#project();
@@ -85,8 +92,11 @@ export class ServerTerminalLaunchProfileClient implements TerminalLaunchProfileC
 		return () => this.#listeners.delete(listener);
 	};
 
-	createProfile(name: string): Promise<TerminalLaunchProfileClientOperationResult> {
-		return this.#change({ kind: 'create', name });
+	createProfile(
+		name: string,
+		command?: UserLaunchProfile['command'],
+	): Promise<TerminalLaunchProfileClientOperationResult> {
+		return this.#change({ command, kind: 'create', name });
 	}
 
 	updateProfile(
@@ -227,10 +237,11 @@ function transitionCatalog(
 		if (profiles.length >= USER_LAUNCH_PROFILE_LIMITS.maximumProfileCount) {
 			return 'catalog-full';
 		}
-		// As in the TUI, a new profile starts as the built-in system shell, a login shell on macOS,
-		// at the end of the list, never as a copy of the profile last edited.
+		// As in the TUI, a new profile is the shell chosen from Add profile's list or the built-in
+		// system shell, a login shell on macOS, at the end of the list, never a copy of the profile
+		// last edited.
 		const created = {
-			command: { kind: 'system-shell', login: builtInLogin },
+			command: change.command ?? { kind: 'system-shell', login: builtInLogin },
 			id: nextProfileId(catalog),
 			name: change.name,
 		};

@@ -11,6 +11,7 @@ import {
 	DesktopServerConnectionDocumentSchema,
 	DesktopWindowCaptionColorSchema,
 	DesktopWindowFaultSiteSchema,
+	type DesktopInstalledShell,
 	type DesktopRelaunchPlace,
 	type DesktopServerConnectionBootstrap,
 	type DesktopServerConnectionPortRole,
@@ -33,6 +34,7 @@ import {
 	type DesktopWindowBackground,
 } from '../background-tray';
 import { isSameDesktopRendererOrigin } from '../desktop-renderer-protocol';
+import { detectInstalledShells } from '../installed-shells';
 import {
 	containListenerFault,
 	DesktopWindowFaultLog,
@@ -253,6 +255,8 @@ function isSupersededLoad(error: unknown): boolean {
 export class DesktopServerClientApplication {
 	/** The current document's connection, which Quit All's Session stop goes through. */
 	#document: DocumentConnection | undefined;
+	/** Read once, when the first document asks; a shell installed later shows after a restart. */
+	#installedShells: Promise<DesktopInstalledShell[]> | undefined;
 	readonly #options: DesktopServerClientApplicationOptions;
 	#opening: Promise<void> | undefined;
 	#window: BrowserWindow | undefined;
@@ -431,12 +435,16 @@ export class DesktopServerClientApplication {
 			if (!document.success) return;
 			end();
 			const request = requests;
-			void readServerStartAnswer(
-				options.clientExecutable,
-				options.sessionArguments,
-				options.clientEnvironment,
-			)
-				.then(({ negotiatedCapabilities, restore }) => {
+			this.#installedShells ??= detectInstalledShells(options.platform, options.clientEnvironment);
+			void Promise.all([
+				readServerStartAnswer(
+					options.clientExecutable,
+					options.sessionArguments,
+					options.clientEnvironment,
+				),
+				this.#installedShells,
+			])
+				.then(([{ negotiatedCapabilities, restore }, installedShells]) => {
 					if (request !== requests || window.isDestroyed()) return;
 					const refusal = restore.kind === 'refused' ? restore.refusal : null;
 					if (!everConnected && options.exitsOnFirstStartAnswer(refusal)) return;
@@ -448,6 +456,7 @@ export class DesktopServerClientApplication {
 							checkoutName: options.checkoutName,
 							defaultDirectory: app.getPath('home'),
 							distribution: options.distribution,
+							installedShells,
 							loginShellAvailable: options.platform !== 'win32',
 							// The relay's own handshake joins the same Server with the same Client, so it
 							// negotiates the names this start reported.

@@ -254,7 +254,7 @@ fn render_page(
         Some(content) => render_content(frame, content, top, narrow, page, locale, theme, hits),
         None => 1,
     };
-    page.presentation(visible, narrow)
+    page.presentation(visible, narrow, locale)
 }
 
 /// The left column: search and the seven categories.
@@ -1348,7 +1348,7 @@ fn render_option(
             on(theme, base, interaction, Role::AccentFocus),
         );
     }
-    if picker.original() == choice {
+    if picker.marks(choice) {
         put(
             frame,
             x,

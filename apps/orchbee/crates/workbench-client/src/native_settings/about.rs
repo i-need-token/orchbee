@@ -1,7 +1,7 @@
-//! The About category: this Client's version and the update control. It holds no setting and never
-//! reaches the Server's settings. What its Updates row shows mirrors the release update state the
-//! TUI owns (`crate::release_update`), and a press only records what it asks for, which the TUI
-//! takes.
+//! The About category's version and update control, which hold no setting and never reach the
+//! Server's settings; Automatic updates beside them is an ordinary setting row. What the Updates row
+//! shows mirrors the release update state the TUI owns (`crate::release_update`), and a press only
+//! records what it asks for, which the TUI takes.
 use crate::release_update::{UpdateCheck, UpdateRequest};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

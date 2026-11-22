@@ -133,7 +133,7 @@
 			"effect": "new-terminals",
 			"category": "general",
 			"group": "basics",
-			"page": true
+			"page": false
 		},
 		{
 			"path": "terminal.copy_on_select",
@@ -173,13 +173,13 @@
 			"page": true
 		},
 		{
-			"path": "terminal.restore_output",
+			"path": "terminal.restore_after_restart",
 			"type": "boolean",
-			"default": false,
+			"default": true,
 			"scope": "server",
 			"clients": "both",
 			"effect": "restart",
-			"category": "general",
+			"category": "terminal",
 			"group": "restore",
 			"page": true
 		},
@@ -597,17 +597,6 @@
 			"page": false
 		},
 		{
-			"path": "agents.resume_on_restore",
-			"type": "boolean",
-			"default": true,
-			"scope": "server",
-			"clients": "both",
-			"effect": "restart",
-			"category": "agents",
-			"group": "restore",
-			"page": true
-		},
-		{
 			"path": "agents.auto_allow.claude",
 			"type": "boolean",
 			"default": false,
@@ -670,7 +659,7 @@
 			"scope": "server",
 			"clients": "both",
 			"effect": "immediate",
-			"category": "general",
+			"category": "about",
 			"group": "updates",
 			"page": false
 		},
@@ -681,7 +670,7 @@
 			"scope": "server",
 			"clients": "both",
 			"effect": "immediate",
-			"category": "general",
+			"category": "about",
 			"group": "updates",
 			"page": true
 		}

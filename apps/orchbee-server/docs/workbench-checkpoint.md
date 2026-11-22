@@ -352,8 +352,8 @@ carries its bytes. macOS writes none until its Server can adopt a Host it did no
 
 ## Terminal output replay
 
-The `restoreTerminalOutput` preference (off by default) keeps each terminal's recent output on this
-computer and shows it again after a full Server restart, on every platform whose Session keeps a
+The `restoreTerminals` preference (`terminal.restore_after_restart`, on by default) keeps each
+terminal's recent output on this computer and shows it again after a full Server restart, on every platform whose Session keeps a
 checkpoint (Windows and macOS; a Linux Session keeps neither). `terminal_output.rs` owns the payload, the
 caps, the file numbers and an in-memory index of what each live terminal last kept;
 `local_terminal_service/terminal_output.rs` connects it to capture, saves and restore. The Server
@@ -387,7 +387,9 @@ save.
   local clock, such as one without a readable system time zone, shows the line without the time. It travels with the launch to the Worker,
   which stages it in the Host before the creation; the Host draws it into the new screen as output
   before the program's first byte and pushes it into history, so it is never typed into the PTY.
-  Agent resume is unchanged.
+  The same preference turns on [Agent resume](agent-session-resume.md): a Presentation whose
+  retained Agent reference resumes, at startup or on a held restore in its saved directory, replays
+  no output, because the resumed Agent shows its own conversation.
 - **Held restore.** A held Presentation keeps its file while held and replays it on Retry or Start
   in home folder.
 

@@ -19,6 +19,7 @@ const BOOTSTRAP = {
 	checkoutName: null,
 	defaultDirectory: 'C:\\Users\\someone',
 	distribution: 'release',
+	installedShells: [],
 	loginShellAvailable: false,
 	negotiatedCapabilities: ['update-check'],
 	quitAllAvailable: true,

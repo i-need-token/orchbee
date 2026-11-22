@@ -8,7 +8,10 @@ import {
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
-import type { TerminalLaunchProfileControl } from '../../../../terminal-launch-profile-control';
+import type {
+	InstalledShell,
+	TerminalLaunchProfileControl,
+} from '../../../../terminal-launch-profile-control';
 import { settingsRefusalMessage } from '../../../utils/settings-failure-message';
 
 interface ProfileDraft {
@@ -31,15 +34,26 @@ interface ProfileListItemView {
 	readonly selected: boolean;
 }
 
+/** A shell installed on the Server's machine, which Add profile adds under its name. */
+interface AddShellView {
+	readonly key: string;
+	readonly label: string;
+	readonly onSelect: () => void;
+}
+
 interface AddProfileView {
 	readonly buttonDisabled: boolean;
 	readonly buttonLabel: string;
+	/** Add profile's last entry, which opens the name box for a system-shell profile. */
+	readonly customLabel: string;
 	readonly inputDisabled: boolean;
 	readonly inputLabel: string;
 	readonly inputPlaceholder: string;
 	readonly inputValue: string;
 	readonly onInputChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onSubmit: React.FormEventHandler<HTMLFormElement>;
+	/** What Add profile lists before Custom…; empty when it opens the name box at once. */
+	readonly shells: readonly AddShellView[];
 }
 
 interface NameEditorView {
@@ -313,6 +327,16 @@ export function useTerminalLaunchProfileSettings(
 	const disabled = snapshot.pending || snapshot.readOnly;
 	const isDefault = selectedProfile.id === snapshot.catalog.defaultProfileId;
 	const canDelete = snapshot.catalog.profiles.length > 1 && !isDefault;
+	const create = async (name: string, command?: UserLaunchProfile['command']): Promise<boolean> => {
+		const previousIds = new Set(snapshot.catalog.profiles.map((profile) => profile.id));
+		const result = await client.createProfile(name, command);
+		if (result.kind !== 'completed') return false;
+		const created = result.snapshot.catalog.profiles.find(
+			(profile) => !previousIds.has(profile.id),
+		);
+		if (created !== undefined) setSelectedProfileId(created.id);
+		return true;
+	};
 	const addProfile = async (): Promise<void> => {
 		const name = UserLaunchProfileNameSchema.safeParse(newProfileName.trim());
 		if (!name.success) {
@@ -320,14 +344,21 @@ export function useTerminalLaunchProfileSettings(
 			return;
 		}
 		setLocalError(null);
-		const previousIds = new Set(snapshot.catalog.profiles.map((profile) => profile.id));
-		const result = await client.createProfile(name.data);
-		if (result.kind !== 'completed') return;
-		const created = result.snapshot.catalog.profiles.find(
-			(profile) => !previousIds.has(profile.id),
-		);
-		if (created !== undefined) setSelectedProfileId(created.id);
-		setNewProfileName('');
+		if (await create(name.data)) setNewProfileName('');
+	};
+	const shellName = (shell: InstalledShell): string => {
+		switch (shell.kind) {
+			case 'powershell':
+				return intl.formatMessage(terminalSettingsMessages.pageProfilesShellPowerShell);
+			case 'windows-powershell':
+				return intl.formatMessage(terminalSettingsMessages.pageProfilesShellWindowsPowerShell);
+			case 'command-prompt':
+				return intl.formatMessage(terminalSettingsMessages.pageProfilesShellCommandPrompt);
+			case 'git-bash':
+				return intl.formatMessage(terminalSettingsMessages.pageProfilesShellGitBash);
+			case 'named':
+				return shell.name;
+		}
 	};
 	const saveProfile = async (): Promise<boolean> => {
 		const trimmedName = draft.name.trim();
@@ -451,6 +482,7 @@ export function useTerminalLaunchProfileSettings(
 				disabled ||
 				snapshot.catalog.profiles.length >= USER_LAUNCH_PROFILE_LIMITS.maximumProfileCount,
 			buttonLabel: messages.add,
+			customLabel: intl.formatMessage(terminalSettingsMessages.pageProfilesAddCustom),
 			inputDisabled: disabled,
 			inputLabel: messages.addNameLabel,
 			inputPlaceholder: messages.addNamePlaceholder,
@@ -460,6 +492,21 @@ export function useTerminalLaunchProfileSettings(
 				event.preventDefault();
 				void addProfile();
 			},
+			shells: snapshot.capabilities.installedShells.map((shell) => {
+				const label = shellName(shell);
+				return {
+					key: shell.executable,
+					label,
+					onSelect: (): void => {
+						setLocalError(null);
+						void create(label, {
+							arguments: [...shell.arguments],
+							executable: shell.executable,
+							kind: 'custom-executable',
+						});
+					},
+				};
+			}),
 		},
 		commandEditor,
 		deleteAction: deleteConfirmation

@@ -1,0 +1,1 @@
+export { receiveDesktopFileDrops } from './receiveDesktopFileDrops';

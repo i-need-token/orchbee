@@ -617,8 +617,8 @@ Linux it runs also without automatic updates, the idle move, Agent resume, the c
 kept terminal output: the Worker shutdown request disposes every terminal, and after the Client
 listeners stop the owner removes the Session's socket files before it publishes the Stopped record,
 which is the receipt the next start consumes. A macOS start then relaunches every terminal from the
-final capture in its saved directory, showing its kept output first while `terminal.restore_output`
-is on, and resumes each retained Agent conversation in its managed zsh or bash under the
+final capture in its saved directory, showing its kept output first while
+`terminal.restore_after_restart` is on, and resumes each retained Agent conversation in its managed zsh or bash under the
 [Agent session resume contract](docs/agent-session-resume.md).
 Every stop the Server begins itself, on a signal or once its Worker exited and its Host is gone,
 uses one identity, and a later loss check retries that identity once its attempt failed. A later
@@ -1732,5 +1732,5 @@ publishes exactly one settings snapshot with a higher revision; a refused edit p
 nothing. A file that stops parsing or cannot be read keeps the last valid settings: terminal
 creation is not blocked, the snapshot reports `syntax-error` with its line and column or
 `unreadable`, and an edit against it is refused without writing. Turning
-`terminal.restore_output` off removes kept output at once on Windows and macOS, whichever editor
-turned it off.
+`terminal.restore_after_restart` off removes kept output at once on Windows and macOS, whichever
+editor turned it off.

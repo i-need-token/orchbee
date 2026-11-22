@@ -89,15 +89,6 @@ window and its fallback behavior; neither layer changes PTY geometry or retained
 
 A copy-on-select change is one edit and reaches installed presentations when its snapshot arrives.
 
-### Agent resume preference
-
-The Agents category's After a restart group exposes “Resume Agents after restart”, the
-`agents.resume_on_restore` key. The row reads and edits it through the window's settings control,
-not the interaction controller, because no installed presentation consumes it. The Server
-reads it at its next restart and before each checkpoint capture; the row has no capability gate.
-The [Server contract](../../orchbee-server/docs/agent-session-resume.md) owns what it records and
-resumes.
-
 ### Agent confirmation preference
 
 The Allow routine confirmations group holds one switch for each Agent type whose routine
@@ -109,19 +100,22 @@ decided. The group's closing line asks for more Agents in a GitHub issue and ope
 issue page where the host wires an external browser; elsewhere it is text. The
 [Server contract](../../orchbee-server/docs/agent-confirmation.md) owns what is answered.
 
-### Terminal output replay preference
+### Restore after restart preference
 
-General's After a restart group exposes “Restore terminal output after restart”, the
-`terminal.restore_output` key, off by default. Its description warns that output can contain
-secrets and is stored on this computer. Like Agent resume, the row edits the key through the
-settings control and has no capability gate; the Server reads it at each checkpoint capture
-and at startup. The [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) owns
-what is kept, when it is deleted and how it is replayed.
+The Terminal category's After a restart group exposes “Restore terminals after restart”, the
+`terminal.restore_after_restart` key, on by default. One switch resumes supported Agent
+conversations and shows every other terminal's recent output again; its description warns that
+output is stored on this computer and can contain secrets. The row edits the key through the
+window's settings control, not the interaction controller, because no installed presentation
+consumes it, and has no capability gate; the Server reads it at each checkpoint capture and at
+startup. The [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md#terminal-output-replay)
+owns what is kept, deleted and replayed, and the
+[Agent resume contract](../../orchbee-server/docs/agent-session-resume.md) what is resumed.
 
 ### Automatic updates preference
 
-General ends with “Automatic updates”, the `update.automatic` key, on by default, in an unnamed
-card. The row edits the key through the settings control, applies at once and has no capability
+About ends its card with “Automatic updates”, the `update.automatic` key, on by default, under the
+Updates row. A search lists it alone, without the version and Updates rows. The row edits the key through the settings control, applies at once and has no capability
 gate; the Server reads it before each background update check. It renders only while the settings
 registry marks the key for the page, which the
 [automatic updates proposal](../../../proposals/platform/automatic-updates.md#phases) turns on with
@@ -184,9 +178,11 @@ names remain exact user data and duplicate names do not merge identities. The La
 shows one profile per line with its Default label or a Use as default action, and an Edit action
 that opens the profile's editor on a child page named after it; Done or Back saves the draft and
 returns to the list, and a draft that cannot be saved keeps the page open with its notice. Add
-profile, the card's last line, opens a name box at the same height in its place and
-adds a new system-shell profile, without login mode, at the end of the list, as the TUI does;
-it never copies the profile last selected or edited. The editor can rename a profile,
+profile, the card's last line, lists the shells installed on the Server's machine that the
+connection bootstrap reports, then Custom…; a shell adds a custom-executable profile under its name
+with its path and arguments, and Custom…, or Add profile itself when no shell was found, opens a
+name box at the same height in its place that adds a system-shell profile. Either lands at the end
+of the list, as the TUI does, and never copies the profile last selected or edited. The editor can rename a profile,
 change its command and arguments, or delete a non-default profile after confirmation. The default
 and final profile cannot be deleted. The group's Restore default asks for confirmation in the
 group heading and replaces
@@ -215,20 +211,7 @@ Only the Desktop composition injects `TerminalDefaultSettingsControl`, filled fr
 bytes up to `1_000_000_000`, and notes that it applies to new terminals. The row commits one edit,
 and the TUI shows the same value in megabytes. The Worker gives that value to each terminal it
 launches after the save, so no Host application step can fail, and existing terminals are
-unchanged.
-
-The group's New terminal folder row edits `terminal.new_cwd` with a select of Workspace folder,
-Home folder, Same as the current terminal and Custom folder…, in the TUI's order and words. The
-first three store `workspace`, `home` and `follow`, and choosing the entry already shown stores
-nothing, so an unset key stays unset. Custom folder… asks the composition's folder picker, which
-only Desktop supplies through its native folder dialog; a cancelled dialog keeps the stored value,
-and without a picker, or when the dialog fails, the row opens its folder field instead. A stored
-custom folder keeps that field under the select, where Enter or leaving the field stores the typed
-folder and an emptied field restores the default. Unset, empty and `follow` show as Same as the
-current terminal; any other stored text, `current` included, shows as Custom folder… with the text
-in the field. The row's description says the setting applies to terminals the `orchbee` command
-creates, because the Desktop's and the TUI's own new Tab, split and Workspace do not read it.
-The control only reads; the page
+unchanged. The control only reads; the page
 warns that scrollback is unavailable until the first snapshot arrives. A composition without the
 control omits this group. The Terminal category remains visible only when that
 composition supplies another current Terminal setting.
@@ -395,14 +378,14 @@ The categories keep a stable product-outcome order instead of exposing implement
 
 | Category      | Groups                                                                                 |
 | ------------- | -------------------------------------------------------------------------------------- |
-| General       | Language (unnamed card); After a restart: restore terminal output; automatic updates   |
+| General       | Language (unnamed card)                                                                |
 | Appearance    | App appearance; Terminal colors, with custom text and background colors; Terminal text |
 | Themes        | Light theme; Dark theme                                                                |
-| Terminal      | Selection and keys; Output: new terminal folder, terminal history; Launch profiles     |
+| Terminal      | Selection and keys; Output: terminal history; After a restart; Launch profiles         |
 | Notifications | When to notify; Sound and delivery                                                     |
 | Keyboard      | Window and panel shortcuts                                                             |
-| Agents        | After a restart: resume Agents; Allow routine confirmations: one switch per Agent type |
-| About         | Version; Updates (unnamed card)                                                        |
+| Agents        | Allow routine confirmations: one switch per Agent type                                 |
+| About         | Version; Updates; Automatic updates (unnamed card)                                     |
 
 Every category but Themes and About ends with a "More options in config.toml" row that shows the path of
 the settings file the Session reads, taken from its snapshot, with a copy action. The renderer has
@@ -412,8 +395,9 @@ snapshot arrives.
 Navigation and search expose only categories and rows whose required capabilities are present: the
 Terminal category needs at least one of its controls, and Notifications needs the feedback
 controller. Roadmap-only controls remain absent.
-About is an information category: it holds no setting, so it has no settings-file row and search
-never lists it. Every composition that hands the page its build shows it; a served Web Client shows
+About holds the version and the update control, which are information, and the Automatic updates
+setting, so it has no settings-file row and search lists only Automatic updates from it. Every
+composition that hands the page its build shows the version and Updates rows; a served Web Client shows
 its Updates row unavailable for this installation and leaves Version out, because it knows neither.
 
 The page leaves out the terminal's regular and bold font weights, ligatures, padding and background
@@ -423,8 +407,8 @@ Settings and `config.toml` edit them.
 
 ## About and Check for updates
 
-About is the last category, after every setting, as Warp places it. One unnamed card holds two rows,
-in the TUI's words:
+About is the last category, as Warp places it. One unnamed card holds three rows, in the TUI's
+words:
 
 - **Version** shows the version the window runs, which Main states in the document's bootstrap, and
   the build (Release build, Test build, Development build) as its description.
@@ -441,6 +425,8 @@ in the TUI's words:
   `https://orchbee.com/#install` in the person's browser. A Session too old to check reads
   “Available once the Session updates. Or install from orchbee.com—terminals and Agents keep
   running.” in a neutral tone, with the same Get installer.
+- **Automatic updates** is the `update.automatic` switch of the
+  [Automatic updates preference](#automatic-updates-preference).
 
 Check for updates asks the Session Server to run its scheduled automatic-update job now, through the
 `workbench.update-check` request; the client never starts `orchbee update` itself.

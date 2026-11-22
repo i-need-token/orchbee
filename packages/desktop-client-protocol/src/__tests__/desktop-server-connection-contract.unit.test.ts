@@ -8,6 +8,7 @@ const BOOTSTRAP = {
 	checkoutName: null,
 	defaultDirectory: '/home/someone',
 	distribution: 'release',
+	installedShells: [],
 	loginShellAvailable: true,
 	negotiatedCapabilities: ['compatibility-window', 'update-check'],
 	quitAllAvailable: true,

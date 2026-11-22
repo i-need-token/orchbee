@@ -741,6 +741,9 @@ export async function startProjectedTerminalRenderer(
 			copyOnSelect: initialInteractionConfiguration.copyOnSelect,
 			trimTrailingBlankRows: initialTrimTrailingBlankRows,
 			inputEnabled: bootstrap.canInput !== false,
+			...(platformEffects.takeDroppedFileText === undefined
+				? {}
+				: { droppedFileText: platformEffects.takeDroppedFileText }),
 			labels: terminalLabels,
 			localFileEffects: bootstrap.localFileEffects === true,
 			port: {

@@ -326,7 +326,7 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
 
     // With the preference off at startup, the retained references are discarded unresumed, and
     // the next capture records none.
-    witness.set_values(|values| values.resume_agents_on_restore = false);
+    witness.set_values(|values| values.restore_terminals = false);
     witness.start_session();
     let runs = witness.calls().len();
     let viewing = witness.control(&rows[0].panel);

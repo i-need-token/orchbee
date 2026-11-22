@@ -710,7 +710,7 @@ fn syntax_errors_leave_defaults_and_name_the_line_and_column() {
 fn common_and_desktop_keys_parse_with_registry_types() {
     use orchbee_workbench_protocol::{AgentReminderMode, CompletionReminderMode};
     let load = parse(
-        "[general]\nlanguage = 'zh-CN'\n[appearance]\nmode = 'dark'\ndark_theme = 'dracula'\ncustom_foreground = '#ABCDEF'\n[terminal]\ncopy_on_select = true\nscrollback_bytes = 2000000000\nfont_size = 20\nfont_weight = 450\nmacos_option_as_alt = 'left'\n[notifications]\nagent_reminder = 'when-hidden'\ncompletion_reminder = 'hidden'\ncompletion_minimum_seconds = 30\n[agents]\nresume_on_restore = false\n[ui.toast]\ndelivery = 'system'\n",
+        "[general]\nlanguage = 'zh-CN'\n[appearance]\nmode = 'dark'\ndark_theme = 'dracula'\ncustom_foreground = '#ABCDEF'\n[terminal]\ncopy_on_select = true\nrestore_after_restart = false\nscrollback_bytes = 2000000000\nfont_size = 20\nfont_weight = 450\nmacos_option_as_alt = 'left'\n[notifications]\nagent_reminder = 'when-hidden'\ncompletion_reminder = 'hidden'\ncompletion_minimum_seconds = 30\n[ui.toast]\ndelivery = 'system'\n",
         Path::new(r"C:\config.toml"),
         &|_| None,
     );
@@ -721,7 +721,7 @@ fn common_and_desktop_keys_parse_with_registry_types() {
     );
     assert_eq!(values.dark_theme, "dracula");
     assert!(values.copy_on_select);
-    assert!(!values.resume_agents_on_restore);
+    assert!(!values.restore_terminals);
     assert_eq!(values.agent_notification_mode, AgentReminderMode::Hidden);
     assert_eq!(
         values.completion_reminder_mode,

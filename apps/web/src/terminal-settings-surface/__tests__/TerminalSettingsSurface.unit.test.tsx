@@ -28,20 +28,6 @@ import { colorThemesWithFixtures } from '../../__tests__/color-theme-fixtures';
 import { memoryUserSettings, type MemoryUserSettings } from '../../__tests__/memoryUserSettings';
 import { chooseSelectOption, selectedText, selectTrigger } from '../../__tests__/select-choice';
 
-/** The registry's page mark for `update.automatic` as a test sets it; null keeps the real mark. */
-const automaticUpdatesPage = vi.hoisted((): { listed: boolean | null } => ({ listed: null }));
-
-vi.mock(import('@orchbee/workbench-client-protocol'), async (importOriginal) => {
-	const actual = await importOriginal();
-	return {
-		...actual,
-		isSettingOnPage: (key) =>
-			key === 'update.automatic' && automaticUpdatesPage.listed !== null
-				? automaticUpdatesPage.listed
-				: actual.isSettingOnPage(key),
-	};
-});
-
 interface PreferenceStorage {
 	getItem(key: string): string | null;
 	setItem(key: string, value: string): void;
@@ -80,7 +66,6 @@ describe('TerminalSettingsSurface', () => {
 	}
 
 	afterEach(async () => {
-		automaticUpdatesPage.listed = null;
 		const failures: unknown[] = [];
 		for (const root of testResources.roots.splice(0)) {
 			try {
@@ -248,40 +233,6 @@ describe('TerminalSettingsSurface', () => {
 		expect(userSettings.getSnapshot().snapshot?.values['general.language']).toBe('en-US');
 	});
 
-	const automaticUpdatesCopy = {
-		'en-US': ['Automatic updates', 'Download and install new versions in the background.'],
-		'zh-CN': ['自动更新', '在后台下载并安装新版本。'],
-	} as const;
-
-	it('keeps Automatic updates off General while the registry does not list it', async () => {
-		for (const locale of ['en-US', 'zh-CN'] as const) {
-			automaticUpdatesPage.listed = false;
-			const { container } = await renderSurface({ locale });
-			const general = requiredElement(container.querySelector('[data-settings-content="general"]'));
-			expect(general.querySelector('[data-setting-id="general.automatic-updates"]')).toBeNull();
-			expect(general.textContent).not.toContain(automaticUpdatesCopy[locale][0]);
-		}
-	});
-
-	it('shows Automatic updates under General once the registry lists it, and applies it', async () => {
-		for (const locale of ['en-US', 'zh-CN'] as const) {
-			automaticUpdatesPage.listed = true;
-			const settings = memoryUserSettings();
-			const { container } = await renderSurface({ locale, settings });
-			const [label, description] = automaticUpdatesCopy[locale];
-			const row = requiredElement(
-				container.querySelector(
-					'[data-settings-content="general"] [data-setting-id="general.automatic-updates"]',
-				),
-			);
-			expect(row.textContent).toContain(description);
-			const toggle = requiredElement<HTMLElement>(row.querySelector(`[aria-label='${label}']`));
-			expect(toggle.getAttribute('aria-checked')).toBe('true');
-			await act(async () => toggle.click());
-			expect(settings.getSnapshot().snapshot?.values['update.automatic']).toBe(false);
-		}
-	});
-
 	it('applies copy on select live', async () => {
 		const controller = trackDisposable(
 			new TerminalSettingsController({
@@ -328,77 +279,6 @@ describe('TerminalSettingsSurface', () => {
 		expect(
 			controller.userSettings.getSnapshot().snapshot?.values['terminal.scrollback_bytes'],
 		).toBe(25_000_000);
-	});
-
-	it('writes each new terminal folder entry and shows a stored value as its entry', async () => {
-		const folderRow = async (
-			stored: string | undefined,
-			folderPicker?: TerminalSettingsSurfaceProps['folderPicker'],
-		) => {
-			const settings = memoryUserSettings({
-				values: stored === undefined ? {} : { 'terminal.new_cwd': stored },
-			});
-			const { container, openCategory } = await renderSurface({
-				props: {
-					folderPicker,
-					terminalDefaultSettingsControl: createTerminalDefaultSettingsControl(),
-				},
-				settings,
-			});
-			await openCategory('terminal');
-			const choice = selectTrigger(container, 'New terminal folder');
-			const field = (): HTMLInputElement | null =>
-				container.querySelector("input[aria-label='Custom folder path']");
-			const choose = async (entry: keyof typeof FOLDER_ENTRY_LABELS): Promise<void> => {
-				await chooseSelectOption(choice, FOLDER_ENTRY_LABELS[entry]);
-			};
-			const file = (): { set: boolean; value: unknown } => {
-				const snapshot = settings.getSnapshot().snapshot;
-				return {
-					set: snapshot?.set.includes('terminal.new_cwd') ?? false,
-					value: snapshot?.values['terminal.new_cwd'],
-				};
-			};
-			return { choice, choose, field, file };
-		};
-
-		for (const [stored, entry, folder] of [
-			[undefined, 'follow', null],
-			['', 'follow', null],
-			['follow', 'follow', null],
-			['home', 'home', null],
-			['workspace', 'workspace', null],
-			['current', 'custom', 'current'],
-			['~/项目', 'custom', '~/项目'],
-		] as const) {
-			const row = await folderRow(stored);
-			expect([stored, selectedText(row.choice), row.field()?.value ?? null]).toEqual([
-				stored,
-				FOLDER_ENTRY_LABELS[entry],
-				folder,
-			]);
-		}
-
-		for (const entry of ['workspace', 'home', 'follow'] as const) {
-			const row = await folderRow('C:\\old');
-			await row.choose(entry);
-			expect(row.file()).toEqual({ set: true, value: entry });
-		}
-		const unset = await folderRow(undefined);
-		await unset.choose('follow');
-		expect(unset.file().set).toBe(false);
-
-		const picked = await folderRow(undefined, {
-			selectExistingFolder: async () => ({ kind: 'selected', path: 'D:\\picked' }),
-		});
-		await picked.choose('custom');
-		expect(picked.file()).toEqual({ set: true, value: 'D:\\picked' });
-		expect(picked.field()?.value).toBe('D:\\picked');
-
-		const typed = await folderRow(undefined);
-		await typed.choose('custom');
-		await commitInput(requiredElement(typed.field()), 'D:\\typed');
-		expect(typed.file()).toEqual({ set: true, value: 'D:\\typed' });
 	});
 
 	it('shows Option as Alt only with its controller and applies it live', async () => {
@@ -618,11 +498,3 @@ function setInputValue(input: HTMLInputElement, value: string): void {
 	if (setter === undefined) throw new Error('The input value setter is unavailable.');
 	setter.call(input, value);
 }
-
-/** The New terminal folder entries' English names. */
-const FOLDER_ENTRY_LABELS = {
-	custom: 'Custom folder…',
-	follow: 'Same as the current terminal',
-	home: 'Home folder',
-	workspace: 'Workspace folder',
-} as const;

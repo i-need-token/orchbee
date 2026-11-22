@@ -62,6 +62,7 @@ import {
 import { bindDesktopBackgroundStatus, DesktopBackgroundStatusClient } from '../background-status';
 import { DesktopWindowUpdateClient } from '../window-update';
 import { DesktopWorkbench } from '../desktop-workbench';
+import { receiveDesktopFileDrops } from '../file-drop';
 import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
 import { SessionDisconnectedStatus } from '../session-disconnected-status';
 import { SessionUnavailable } from '../session-unavailable';
@@ -274,10 +275,10 @@ async function run(
 			: { checkoutName: bootstrap.checkoutName, environment: bootstrap.distribution };
 	const userSettings = new ServerUserSettingsClient(connection, session.snapshot.sessionId);
 	const terminalDefaultSettingsClient = new ServerTerminalDefaultSettingsClient(userSettings);
-	const terminalLaunchProfileClient = new ServerTerminalLaunchProfileClient(
-		userSettings,
-		bootstrap.loginShellAvailable,
-	);
+	const terminalLaunchProfileClient = new ServerTerminalLaunchProfileClient(userSettings, {
+		installedShells: bootstrap.installedShells,
+		loginShell: bootstrap.loginShellAvailable,
+	});
 	const applicationLocaleController = new ApplicationLocaleController({
 		documentElement,
 		preferredLocales,
@@ -382,7 +383,10 @@ async function run(
 		terminalHostName: bootstrap.terminalHostName,
 		terminalInputConfigurationSource: macosTerminalInputSettingsController,
 		terminalInteractionConfigurationSource: terminalInteractionSettingsController,
-		terminalPlatformEffects: browserPlatformEffects(targetWindow),
+		terminalPlatformEffects: {
+			...browserPlatformEffects(targetWindow),
+			takeDroppedFileText: receiveDesktopFileDrops(targetWindow),
+		},
 		terminalPresentationConfigurationSource: terminalSettingsController,
 		terminalRuntime: serverSessionServes(
 			bootstrap.negotiatedCapabilities,

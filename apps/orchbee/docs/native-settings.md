@@ -20,11 +20,12 @@ unusable, and framed groups under their headings. Every row shows its name, a on
 that is always visible, and its control at the row's end. Themes shows the light list and the dark
 list; the list the current appearance paints is tagged in use, and System follows the canvas. A row
 that only applies in some state, such as custom colors outside Custom or the reminder threshold while
-reminders are off, is hidden until it applies. General ends with Automatic updates
-(`update.automatic`) in an unnamed group; it shows only while the settings registry marks that key
-for the page, which the
+reminders are off, is hidden until it applies. Terminal's After a restart group holds one switch,
+`terminal.restore_after_restart`, which resumes supported Agents and replays every other terminal's
+kept output. About's unnamed group ends with Automatic updates (`update.automatic`) under the
+Updates row; it shows only while the settings registry marks that key for the page, which the
 [automatic updates proposal](../../../proposals/platform/automatic-updates.md#phases) turns on with
-its slice 1 switch. Agents holds the resume switch and the Allow routine confirmations group: a
+its slice 1 switch, and a search lists it alone. Agents holds the Allow routine confirmations group: a
 described heading, one switch for each Agent type the Server can answer for
 (`agents.auto_allow.<agent>`), and a closing line inside the frame that asks for more Agents in a
 GitHub issue. The page's last line names More options in `config.toml` and
@@ -61,20 +62,11 @@ row edits in place, applies on Enter, and Esc keeps the confirmed value. Left/Ri
 minus/plus controls step a number by its step and apply that step. Picking a theme line sends its slot,
 and the appearance that shows it in one edit; the focused uncommitted line previews, and Esc returns
 to the theme in use. Launch profiles open as a child page whose edits apply as one edit on leaving;
-an invalid catalog first focuses the failing field, and leaving again discards it. Custom colors are
+an invalid catalog first focuses the failing field, and leaving again discards it. Add profile
+lists the installed shells, then Custom…, in the choice list; a shell adds a profile running it under
+its name and Custom… adds a system-shell profile, each focused on its name. Custom colors are
 unavailable unless Custom is selected and login shells are unavailable on Windows; a focused
 unavailable row names its reason.
-
-New terminal folder (`terminal.new_cwd`) is a choice of Workspace folder, Home folder, Same as the
-current terminal and Custom folder…, in the Desktop's order and words. The first three store
-`workspace`, `home` and `follow`; choosing the entry the row already shows sends nothing, so an
-unset key stays unset. Custom folder… opens the row's text field on the custom folder the row shows,
-or empty, and Enter there stores the typed folder, which the Server validates as before; an empty
-field restores the default and Esc keeps the stored value. Unset, empty and `follow` show as Same as
-the current terminal; any other stored text, `current` included, shows as Custom folder… in the
-list and as the text itself on the row. The row's description says the setting applies to
-terminals the `orchbee` command creates: the TUI's and the Desktop's own new Tab, split and
-Workspace do not read it.
 
 One edit is in flight at a time, and nothing the person does is dropped silently. Every key of one
 input packet applies in order on the state the keys before it left, Enter and Del included; only a
@@ -139,9 +131,10 @@ a request ended shows on the status line until the next input.
 
 ## About
 
-About closes the category list and holds no setting: it shows no settings-file line, search skips
-it, and its rows never reach the Server's settings. Its unnamed group holds Version, which names
-this Client's version and its build kind (release, test or development), and Updates. Version has
+About closes the category list and shows no settings-file line. Its unnamed group holds Version,
+which names this Client's version and its build kind (release, test or development), Updates, and
+the Automatic updates switch; search lists only that switch, and Version and Updates never reach the
+Server's settings. Version has
 nothing to activate, so the status line names no primary key on it, nor on Updates while a check
 runs or none can.
 
@@ -248,29 +241,28 @@ Every shared key persists through the same edit of `config.toml`. The
 defaults. The native page applies each change at once and names new-terminal effects beside the row
 name:
 
-| Key                                | Before commit                                                                 | Effect after a confirmed edit or external observation                                                              |
-| ---------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `locale`                           | Whole-frame authored-copy preview; System uses the startup locale environment | Current application copy and later localized feedback; program bytes are unchanged                                 |
-| `applicationTheme`                 | Whole-frame chrome preview                                                    | Current chrome; independent of terminal display theme                                                              |
-| `lightTheme`                       | Picker candidate previews at Light                                            | Chrome and Theme terminal defaults while the light slot paints on a truecolor host                                 |
-| `darkTheme`                        | Picker candidate previews at Dark                                             | Chrome and Theme terminal defaults while the dark slot paints on a truecolor host                                  |
-| `terminalDisplayTheme`             | Theme/Host/Custom default-color preview                                       | Existing live and retained terminal presentation; explicit program colors remain exact                             |
-| `customForeground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked foregrounds in Custom; retained while other display themes are selected                    |
-| `customBackground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked backgrounds in Custom; retained while other display themes are selected                    |
-| `copyOnSelect`                     | No preview                                                                    | Later gesture completion, including a gesture already in progress; explicit Copy remains available                 |
-| `resumeAgentsOnRestore`            | No preview                                                                    | The Server's next restart from its checkpoint; Off also stops recording Agent session IDs at its next capture      |
-| `restoreTerminalOutput`            | No preview                                                                    | The Server's next capture keeps recent output and its next restart replays it; Off deletes every kept copy at once |
-| `agentNotificationMode`            | No preview                                                                    | Future eligible hidden-Agent transitions, without replay; host delivery and per-Agent mute still apply             |
-| `completionReminderMode`           | No preview                                                                    | Future fresh command completions; requires shell integration and respects focus policy                             |
-| `completionReminderMinimumSeconds` | No preview                                                                    | Later completion evaluation at the new duration threshold                                                          |
-| `soundEnabled`                     | No preview                                                                    | Eligible later reminders; host sound capability and per-Agent mute still apply                                     |
-| `scrollbackBytes`                  | No preview                                                                    | Newly created terminals capture the limit; existing/restored terminals keep theirs                                 |
-| `automaticUpdates`                 | No preview                                                                    | The Server's next background update check; Off stops the schedule and its downloads                                |
-| `autoAllowClaude`                  | No preview                                                                    | Confirmations Claude Code shows from now on; Off also stops an answer already decided                              |
-| `autoAllowCodex`                   | No preview                                                                    | Confirmations Codex shows from now on; Off also stops an answer already decided                                    |
-| `autoAllowGemini`                  | No preview                                                                    | Confirmations Gemini CLI shows from now on; Off also stops an answer already decided                               |
-| `autoAllowOpencode`                | No preview                                                                    | Confirmations OpenCode shows from now on; Off also stops an answer already decided                                 |
-| `launchProfiles`                   | Child-page edits apply as one edit on leaving                                 | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                 |
+| Key                                | Before commit                                                                 | Effect after a confirmed edit or external observation                                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `locale`                           | Whole-frame authored-copy preview; System uses the startup locale environment | Current application copy and later localized feedback; program bytes are unchanged                                                    |
+| `applicationTheme`                 | Whole-frame chrome preview                                                    | Current chrome; independent of terminal display theme                                                                                 |
+| `lightTheme`                       | Picker candidate previews at Light                                            | Chrome and Theme terminal defaults while the light slot paints on a truecolor host                                                    |
+| `darkTheme`                        | Picker candidate previews at Dark                                             | Chrome and Theme terminal defaults while the dark slot paints on a truecolor host                                                     |
+| `terminalDisplayTheme`             | Theme/Host/Custom default-color preview                                       | Existing live and retained terminal presentation; explicit program colors remain exact                                                |
+| `customForeground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked foregrounds in Custom; retained while other display themes are selected                                       |
+| `customBackground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked backgrounds in Custom; retained while other display themes are selected                                       |
+| `copyOnSelect`                     | No preview                                                                    | Later gesture completion, including a gesture already in progress; explicit Copy remains available                                    |
+| `restoreTerminals`                 | No preview                                                                    | The Server's next capture keeps output and Agent session IDs, and its next restart restores them; Off deletes every kept copy at once |
+| `agentNotificationMode`            | No preview                                                                    | Future eligible hidden-Agent transitions, without replay; host delivery and per-Agent mute still apply                                |
+| `completionReminderMode`           | No preview                                                                    | Future fresh command completions; requires shell integration and respects focus policy                                                |
+| `completionReminderMinimumSeconds` | No preview                                                                    | Later completion evaluation at the new duration threshold                                                                             |
+| `soundEnabled`                     | No preview                                                                    | Eligible later reminders; host sound capability and per-Agent mute still apply                                                        |
+| `scrollbackBytes`                  | No preview                                                                    | Newly created terminals capture the limit; existing/restored terminals keep theirs                                                    |
+| `automaticUpdates`                 | No preview                                                                    | The Server's next background update check; Off stops the schedule and its downloads                                                   |
+| `autoAllowClaude`                  | No preview                                                                    | Confirmations Claude Code shows from now on; Off also stops an answer already decided                                                 |
+| `autoAllowCodex`                   | No preview                                                                    | Confirmations Codex shows from now on; Off also stops an answer already decided                                                       |
+| `autoAllowGemini`                  | No preview                                                                    | Confirmations Gemini CLI shows from now on; Off also stops an answer already decided                                                  |
+| `autoAllowOpencode`                | No preview                                                                    | Confirmations OpenCode shows from now on; Off also stops an answer already decided                                                    |
+| `launchProfiles`                   | Child-page edits apply as one edit on leaving                                 | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                                    |
 
 Native host configuration is a separate admitted surface, not extra shared-editor
 rows. Windows TOML changes publish when the Server's sampler sees the edit, about
