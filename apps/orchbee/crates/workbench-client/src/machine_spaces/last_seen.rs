@@ -206,6 +206,17 @@ impl LastSeen {
             .collect()
     }
 
+    /// The saved machines whose last-seen entry lists at least one Workspace, which the hub
+    /// connects first.
+    pub fn machines_with_workspaces(&self) -> Vec<String> {
+        self.written
+            .iter()
+            .flatten()
+            .filter(|(_, entry)| !entry.workspaces.is_empty())
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
     /// Takes the machines' current answers: `fresh` holds each connected machine's checkpoint,
     /// `machines` every saved machine. A machine without a fresh answer keeps its entry; a machine
     /// no longer saved loses it. The list is written once answers settle.

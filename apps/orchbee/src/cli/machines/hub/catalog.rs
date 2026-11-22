@@ -17,8 +17,12 @@ use orchbee_machine_protocol::{
     hub::{Catalog, Event, MachineState, ReloadOutcome},
 };
 use orchbee_workbench_client::application::machine_credentials::SecretKind;
+use orchbee_workbench_client::application::machine_spaces::LastSeen;
 use orchbee_workbench_client::application::machines::{Connection, Error, Store};
 use std::time::{Duration, Instant};
+
+/// How many Machines a `presence` connection attempts at once; the rest wait for a slot.
+const SILENT_STARTS: usize = 4;
 
 #[derive(Debug)]
 pub(super) struct Machines {
@@ -26,6 +30,9 @@ pub(super) struct Machines {
     entries: Vec<Machine>,
     /// The last carrier number and login id given out in the hub's life.
     serials: Serials,
+    /// The Machines whose last-seen entry lists a Workspace, as the catalog was read: they take
+    /// the first start slots.
+    preferred: Vec<MachineId>,
 }
 
 /// What the hub knows around a transition, beside the carrier numbers the catalog keeps.
@@ -57,6 +64,7 @@ impl Machines {
             revision: Count::new(0).expect("zero is a count"),
             entries: Vec::new(),
             serials: Serials::default(),
+            preferred: Vec::new(),
         }
     }
 
@@ -88,10 +96,16 @@ impl Machines {
                     .map_err(|_| ReloadOutcome::InvalidCatalog)
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let preferred = LastSeen::in_data_root(root.clone())
+            .machines_with_workspaces()
+            .iter()
+            .filter_map(|id| MachineId::new(id).ok())
+            .collect();
         let machines = Self {
             revision,
             entries,
             serials: Serials::default(),
+            preferred,
         };
         machines
             .catalog()
@@ -263,6 +277,7 @@ impl Machines {
                 transition,
             );
         }
+        self.admit(conditions, &mut outcome);
         outcome
     }
 
@@ -282,7 +297,35 @@ impl Machines {
                 &mut transition,
             );
         }
+        self.admit(conditions, &mut outcome);
         outcome
+    }
+
+    /// Starts queued Machines while fewer than [`SILENT_STARTS`] attempts are under way: those
+    /// that listed a Workspace first, then catalog order.
+    fn admit(&mut self, conditions: &Conditions, outcome: &mut Outcome) {
+        let mut open = self.entries.iter().filter(|m| m.opening()).count();
+        if open >= SILENT_STARTS || !conditions.presence || conditions.closing {
+            return;
+        }
+        let mut queued: Vec<usize> = (0..self.entries.len())
+            .filter(|&at| self.entries[at].queued())
+            .collect();
+        queued.sort_by_key(|&at| !self.preferred.contains(self.entries[at].id()));
+        for at in queued {
+            if open >= SILENT_STARTS {
+                break;
+            }
+            let machine = &mut self.entries[at];
+            step(
+                machine,
+                &mut self.serials,
+                conditions,
+                outcome,
+                Machine::admit,
+            );
+            open += usize::from(self.entries[at].opening());
+        }
     }
 
     /// Replaces the catalog with `next`. A record whose id stays keeps its Machine, reconciled to
@@ -361,6 +404,8 @@ impl Machines {
         // Drafts the reread does not name stay their owners'.
         self.entries.append(&mut drafts);
         self.revision = next.revision;
+        self.preferred = next.preferred;
+        self.admit(conditions, &mut outcome);
         if catalog_changed && let Ok(catalog) = self.catalog() {
             outcome.events.insert(0, Event::Catalog(catalog));
         }

@@ -566,6 +566,12 @@ itself.
 - **Kept.** The hub keeps a Machine, retrying it by itself, while a `presence` connection is
   attached or once the Machine has been `online` since its last `disconnect`, permanent failure,
   or change. A command-line `connect` that fails therefore leaves no retry running behind it.
+- **Start slots.** A `presence` attachment, and a record a reload adds or changes while one is
+  attached, queue each idle Machine instead of starting it. The hub starts queued Machines while
+  fewer than four attempts of any kind run: first those whose entry in
+  `internal/state/machine-spaces.json`, read with the catalog, lists a Workspace, then catalog
+  order. A `connect` request and a retry start at once. A queued Machine reads as an idle one does
+  until its attempt starts.
 - **Retry policy.** The workbench Client crate's `machine_retry` owns it; the TUI uses the same
   schedule for its own attachment and its Session observers. After the n-th consecutive failure,
   from 0, the next attempt waits 500 ms × 2ⁿ, at most 120 seconds. A failure after 60 seconds or more `online`

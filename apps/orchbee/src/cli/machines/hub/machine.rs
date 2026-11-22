@@ -245,6 +245,8 @@ pub(super) struct Machine {
     /// The connection a draft Machine belongs to: only it sees the Machine, its events and its
     /// login episodes, until a reread catalog holds the Machine.
     owner: Option<u64>,
+    /// A `presence` connection wants it attempted silently once a start slot frees.
+    queued: bool,
 }
 
 impl Machine {
@@ -265,6 +267,7 @@ impl Machine {
             holds: Holds::default(),
             muted: false,
             owner: None,
+            queued: false,
         }
     }
 
@@ -444,9 +447,29 @@ impl Machine {
         effects
     }
 
-    /// A `presence` connection attached: an idle Machine is attempted silently.
-    pub(super) fn attach(&mut self, cx: &mut Context<'_>) -> Vec<Effect> {
-        if matches!(self.phase, Phase::Idle) {
+    /// A `presence` connection attached: an idle Machine waits for a start slot, in which it is
+    /// [attempted silently](Self::admit).
+    pub(super) fn attach(&mut self, _cx: &mut Context<'_>) -> Vec<Effect> {
+        if matches!(self.phase, Phase::Idle) && matches!(self.kind, Kind::Ssh(_)) {
+            self.queued = true;
+        }
+        Vec::new()
+    }
+
+    /// Waits for a start slot after a `presence` connection attached.
+    pub(super) const fn queued(&self) -> bool {
+        self.queued && matches!(self.phase, Phase::Idle)
+    }
+
+    /// Holds a start slot: an attempt is under way.
+    pub(super) const fn opening(&self) -> bool {
+        matches!(self.phase, Phase::Attempting(_))
+    }
+
+    /// A start slot freed: a queued Machine is attempted silently while a `presence` connection
+    /// is attached.
+    pub(super) fn admit(&mut self, cx: &mut Context<'_>) -> Vec<Effect> {
+        if self.queued() && cx.presence {
             self.start(false, None, cx)
         } else {
             Vec::new()
@@ -1274,6 +1297,7 @@ impl Machine {
         if cx.closing {
             return Vec::new();
         }
+        self.queued = false;
         cx.serials.carriers += 1;
         let carrier = cx.serials.carriers;
         let route = route.clone();

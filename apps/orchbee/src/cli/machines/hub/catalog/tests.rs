@@ -50,6 +50,7 @@ fn reread_catalog_that_reuses_draft_id_for_another_target_drops_draft_and_forget
             ssh("beta@other.invalid", "default"),
         )],
         serials: Serials::default(),
+        preferred: Vec::new(),
     };
 
     let outcome = machines.replace(next, &conditions());
@@ -85,6 +86,7 @@ fn constructed_catalog_and_draft_id_conflict_drops_duplicate_draft_and_forgets_a
             Machine::draft(shared_id.clone(), Route { target, session }, 9),
         ],
         serials: Serials::default(),
+        preferred: Vec::new(),
     };
 
     let next = Machines {
@@ -94,6 +96,7 @@ fn constructed_catalog_and_draft_id_conflict_drops_duplicate_draft_and_forgets_a
             ssh("saved@host.invalid", "default"),
         )],
         serials: Serials::default(),
+        preferred: Vec::new(),
     };
 
     let outcome = machines.replace(next, &conditions());
@@ -114,4 +117,57 @@ fn constructed_catalog_and_draft_id_conflict_drops_duplicate_draft_and_forgets_a
             outcome.effects
         );
     }
+}
+
+#[test]
+fn presence_attempts_four_machines_at_once_those_with_workspaces_first() {
+    use crate::cli::machines::hub::machine::End;
+    let ids: Vec<MachineId> = (1..=6_u32).map(|n| id(&format!("{n:032x}"))).collect();
+    let mut machines = Machines {
+        revision: Count::new(1).expect("valid revision"),
+        entries: ids
+            .iter()
+            .map(|id| Machine::new(id.clone(), ssh("dev@host.invalid", "default")))
+            .collect(),
+        serials: Serials::default(),
+        preferred: vec![ids[5].clone()],
+    };
+    let present = Conditions {
+        presence: true,
+        ..conditions()
+    };
+    let started = |outcome: &Outcome, machines: &Machines| -> Vec<(u64, MachineId)> {
+        outcome
+            .effects
+            .iter()
+            .filter_map(|effect| match effect {
+                Effect::Start { carrier, .. } => {
+                    Some((*carrier, machines.owner(*carrier)?.clone()))
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    let outcome = machines.each(&present, Machine::attach);
+    let first = started(&outcome, &machines);
+    assert_eq!(
+        first.iter().map(|(_, id)| id).collect::<Vec<_>>(),
+        [&ids[5], &ids[0], &ids[1], &ids[2]]
+    );
+    // An attempt that ends frees its slot for the next queued Machine.
+    let (carrier, ended) = first[1].clone();
+    let end = End::Exited {
+        code: Some(1),
+        stderr: Vec::new(),
+    };
+    let outcome = machines.update(&ended, &present, |machine, cx| {
+        machine.ended(carrier, &end, cx)
+    });
+    assert_eq!(
+        started(&outcome, &machines)
+            .into_iter()
+            .map(|(_, id)| id)
+            .collect::<Vec<_>>(),
+        [ids[3].clone()]
+    );
 }

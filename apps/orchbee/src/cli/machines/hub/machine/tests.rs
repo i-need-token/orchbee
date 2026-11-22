@@ -303,7 +303,8 @@ fn a_lost_link_reconnects_with_one_carrier_and_stale_carriers_change_nothing() {
 fn a_permanent_failure_waits_for_a_request_and_disconnect_cancels_waiters() {
     let mut hub = Hub::new(true);
     let mut machine = machine();
-    let first = started(&machine.attach(&mut hub.cx())).unwrap();
+    assert!(machine.attach(&mut hub.cx()).is_empty());
+    let first = started(&machine.admit(&mut hub.cx())).unwrap();
     machine.failed(
         first,
         refusal(RejectionReason::InitiatorTooOld),
@@ -352,7 +353,8 @@ fn closing_starts_nothing_and_answers_waiters_stopping() {
     let effects = machine.ended(first, &refused(), &mut hub.at(Duration::from_secs(1)).cx());
     assert_eq!(started(&effects), None);
     assert_eq!(machine.next_wake(), None);
-    assert_eq!(started(&machine.attach(&mut hub.cx())), None);
+    assert!(machine.attach(&mut hub.cx()).is_empty());
+    assert_eq!(started(&machine.admit(&mut hub.cx())), None);
     assert!(
         machine
             .tick(&mut hub.at(Duration::from_secs(3600)).cx())
@@ -368,7 +370,8 @@ fn a_record_a_reload_adds_changes_or_enables_is_attempted_while_presence_holds()
         let expected = |session: &str| presence.then(|| toward(session));
 
         let mut added = machine();
-        assert_eq!(attempted(&added.arrived(&mut hub.cx())), expected("far"));
+        assert!(added.arrived(&mut hub.cx()).is_empty());
+        assert_eq!(attempted(&added.admit(&mut hub.cx())), expected("far"));
 
         // A Machine kept online whose Session changes ends its carrier first.
         let mut changed = machine();
@@ -376,11 +379,15 @@ fn a_record_a_reload_adds_changes_or_enables_is_attempted_while_presence_holds()
         reach_online(&mut changed, &mut hub, first);
         let effects = changed.reconcile(ssh("other"), &mut hub.cx());
         assert!(ends(&effects, first));
-        assert_eq!(attempted(&effects), expected("other"));
+        assert_eq!(attempted(&effects), None);
+        assert_eq!(attempted(&changed.admit(&mut hub.cx())), expected("other"));
 
         let mut enabled = Machine::new(machine().id().clone(), Kind::Disabled);
-        let effects = enabled.reconcile(ssh("far"), &mut hub.cx());
-        assert_eq!(attempted(&effects), expected("far"));
+        assert_eq!(
+            attempted(&enabled.reconcile(ssh("far"), &mut hub.cx())),
+            None
+        );
+        assert_eq!(attempted(&enabled.admit(&mut hub.cx())), expected("far"));
 
         // An unchanged record keeps what it has, and a record that cannot connect starts nothing.
         let mut idle = machine();
@@ -404,8 +411,8 @@ fn a_connect_ended_by_a_changed_record_reads_cancelled_once() {
         replies(&effects),
         [ConnectOutcome::NotOnline(ConnectFailure::Cancelled)]
     );
-    // The silent attempt toward the new record owes that request nothing.
-    let second = started(&effects).unwrap();
+    // The silent attempt toward the new record, once admitted, owes that request nothing.
+    let second = started(&machine.admit(&mut hub.cx())).unwrap();
     assert!(replies(&reach_online(&mut machine, &mut hub, second)).is_empty());
     assert_eq!(machine.state(), &MachineState::Online);
 }
@@ -606,7 +613,8 @@ fn a_question_nobody_can_answer_ends_the_attempt_in_its_state_without_an_event()
             let mut hub = Hub::new(case == 0);
             let mut machine = machine();
             let effects = if case == 0 {
-                machine.attach(&mut hub.cx())
+                machine.attach(&mut hub.cx());
+                machine.admit(&mut hub.cx())
             } else {
                 machine.connect(waiter(1), &mut hub.cx())
             };
