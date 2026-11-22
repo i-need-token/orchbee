@@ -132,7 +132,7 @@ fn configured_command_dispatch_and_discovery_share_the_installed_catalog() {
 }
 
 #[test]
-fn configured_agent_cycle_captures_packet_tail_and_never_acts_inside_picker() {
+fn configured_agent_cycle_acts_and_leaves_the_packet_tail_to_the_terminal() {
     let keys =
         KeySettings::from_profile("[keys]\nprefix='ctrl+a'\nprevious_agent='alt+p'\nnext_agent=[]")
             .unwrap();
@@ -148,17 +148,10 @@ fn configured_agent_cycle_captures_packet_tail_and_never_acts_inside_picker() {
         *calls.borrow(),
         [
             Call::Forward(b"before".to_vec()),
-            Call::Action(ClientAction::PreviousAgent)
+            Call::Action(ClientAction::PreviousAgent),
+            Call::Forward(b"tail".to_vec())
         ]
     );
-    run(&mut view, &mut dispatcher, &mut port, b"\x1bp");
-    assert_eq!(
-        calls.borrow().len(),
-        2,
-        "picker captures configured direct keys"
-    );
-    view.machines
-        .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
     run(&mut view, &mut dispatcher, &mut port, b"\x01}");
     assert_eq!(
         calls.borrow().last(),
@@ -270,7 +263,7 @@ fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_p
 }
 
 #[test]
-fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_keys() {
+fn configured_agent_ordinal_uses_binding_digit_and_lists_actual_keys() {
     let keys =
         KeySettings::from_profile("[keys]\nprefix='ctrl+a'\nfocus_agent='alt+1..9'").unwrap();
     let mut view = ClientView::new(100);
@@ -285,14 +278,9 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_ke
         *calls.borrow(),
         [
             Call::Forward(b"before".to_vec()),
-            Call::Action(ClientAction::FocusAgent(2))
+            Call::Action(ClientAction::FocusAgent(2)),
+            Call::Forward(b"tail".to_vec())
         ]
-    );
-    run(&mut view, &mut dispatcher, &mut port, b"\x1b3");
-    assert_eq!(
-        calls.borrow().len(),
-        2,
-        "picker owns input while ordinal waits"
     );
     let numbered_agents = key_labels(&view, crate::client_view::PrefixAction::SelectAgentDigit);
     assert!(numbered_agents.contains(&crate::terminal_events::keys::tests::host_label("Alt+1")));
@@ -314,7 +302,7 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_ke
             .action(),
         Some(ClientAction::FocusAgent(2))
     );
-    run(&mut view, &mut dispatcher, &mut port, b"\x1b#tail");
+    run(&mut view, &mut dispatcher, &mut port, b"\x1b#");
     assert_eq!(
         calls.borrow().last(),
         Some(&Call::Action(ClientAction::FocusAgent(2)))

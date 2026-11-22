@@ -1346,8 +1346,9 @@ the local Session.
 
 ## Persistent TUI connections
 
-The Windows and macOS TUI discovers the saved catalog while open and offers a machine
-picker, opened with `Ctrl+b Shift+M`. There is no permanent footer indicator. Selection is by
+The Windows and macOS TUI discovers the saved catalog while open and lists every enabled
+machine's Workspaces in the sidebar; `Ctrl+b Shift+M` and the action menu's `Machines…` open
+Settings › Machines. There is no permanent footer indicator. Selection is by
 profile identity, not row index or label. Local remains
 available. A disabled, removed, ambiguous, or corrupt entry cannot silently
 become another machine. Enabled machines the hub reads `online` are observed for read-only
@@ -1595,7 +1596,7 @@ mutations.
 
 ## Cross-machine workspace navigation
 
-The machine picker has Machines, Workspaces and Agents modes. Every build withholds the sidebar Search entry and its key until search is finished, while the Machines action keeps opening the whole picker; see [withheld search](tui-shell-layout.md#withheld-search). Workspaces combines Local's last accepted canonical navigation with fresh enabled remote observations; rows carry machine identity, Session ID and a stable Workspace/context ID pair. Nullable Project membership is metadata, not part of selection identity, and labels and row positions never route a selection. Duplicate names are allowed, so same-named Workspaces show their names alone, as in the Sidebar, and the selected result's details name its Project or Ungrouped and the tail of its observed directory, which tells same-named results apart. Filtering never changes the main sidebar, and the query field's position does not move when the number of matches changes. Local retained navigation is a candidate list, not proof of remote liveness; offline or stale remote contexts are not selectable. Renaming, regrouping or reordering preserves selection identity; removal invalidates painted hits and cannot retarget a pending selection.
+The machine picker has Machines, Workspaces and Agents modes. Every build withholds the sidebar Search entry and its key until search is finished, while the Machines action opens Settings › Machines; see [withheld search](tui-shell-layout.md#withheld-search). Workspaces combines Local's last accepted canonical navigation with fresh enabled remote observations; rows carry machine identity, Session ID and a stable Workspace/context ID pair. Nullable Project membership is metadata, not part of selection identity, and labels and row positions never route a selection. Duplicate names are allowed, so same-named Workspaces show their names alone, as in the Sidebar, and the selected result's details name its Project or Ungrouped and the tail of its observed directory, which tells same-named results apart. Filtering never changes the main sidebar, and the query field's position does not move when the number of matches changes. Local retained navigation is a candidate list, not proof of remote liveness; offline or stale remote contexts are not selectable. Renaming, regrouping or reordering preserves selection identity; removal invalidates painted hits and cannot retarget a pending selection.
 
 Context selection inside an explicitly opened picker uses a separately admitted native lane, including
 when the destination machine is already active or cached. The candidate reads a
@@ -1698,13 +1699,14 @@ labels and tokens never replace the physical navigation target.
 `previous_agent`/`next_agent` actions use the same projector over every Agent the active source
 view admits, whatever status filter or query the picker shows. An eight-second intent
 waits for bounded observations, wraps relative to the exact current member, chooses
-last/first if it is absent, and excludes unavailable rows. Empty lists and a single
-already-focused target cause no attachment. Further keys or pointer input cancel a
-pending intent. An Agent on the current machine activates like a sidebar row: revalidated
-on a lane of the current Session, then reached by that Session's own navigation, with no
-new connection and no picker left on screen. An Agent on another machine uses the
-separately admitted, revalidated, drawable candidate. Both preserve the previous surface
-on failure.
+last/first if it is absent, and excludes unavailable rows. Nothing shows while it waits, and keys
+keep reaching the terminal; another choice cancels it. Empty lists, an intent that finds no Agent
+within the eight seconds and a single already-focused target change nothing, as in the GUI. Either
+way the Agent is chosen as its sidebar row is: on the current machine it is revalidated on a lane of
+the current Session, then reached by that Session's own navigation, with no new connection; on
+another machine it uses the separately admitted, revalidated, drawable candidate, behind the
+machine's card while that machine is not connected. Both preserve the previous surface on
+failure.
 
 ## Source-owned Agent views
 

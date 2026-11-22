@@ -205,8 +205,8 @@ fn newer_machine_owner_cannot_hide_or_reuse_cancelled_confirmation_cleanup() {
 
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O\x1b[I");
         port.active = false;
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02M");
-        assert!(view.machines.open);
+        view.machines.show();
+        dispatcher.machine_surface_changed();
 
         if retire_with_new_press {
             // A new non-wheel press retires the old cleanup record, then

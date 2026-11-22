@@ -2429,6 +2429,7 @@ impl InputDispatcher {
                 ClientAction::RequestRenameTab
                     | ClientAction::RequestRenamePanel
                     | ClientAction::OpenSettings
+                    | ClientAction::OpenMachines
                     | ClientAction::StartAgent
                     | ClientAction::RequestWorkspaceCreate
                     | ClientAction::RequestQuickWorkspace
@@ -2556,30 +2557,11 @@ impl InputDispatcher {
         }
         if view.machines.available {
             match action {
-                Some(ClientAction::OpenMachines)
-                    if view
-                        .capabilities()
-                        .supports(crate::tui_capabilities::Capability::SavedMachines) =>
-                {
-                    view.machines.show()
-                }
                 Some(ClientAction::PreviousAgent | ClientAction::NextAgent) => view
                     .machines
                     .navigate_agent(action == Some(ClientAction::PreviousAgent), now),
                 Some(ClientAction::FocusAgent(index)) => view.machines.focus_agent(index, now),
                 _ => {}
-            }
-            if matches!(
-                action,
-                Some(
-                    ClientAction::OpenMachines
-                        | ClientAction::PreviousAgent
-                        | ClientAction::NextAgent
-                        | ClientAction::FocusAgent(_)
-                )
-            ) {
-                self.machine_packet = true;
-                self.pointer.invalidate_map_with_port(port);
             }
         }
         if action == Some(ClientAction::TogglePointerCapture) {

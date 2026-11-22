@@ -613,7 +613,9 @@ impl Picker {
         true
     }
     pub fn wants_agents(&self) -> bool {
-        self.spaces.visible() || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
+        self.spaces.visible()
+            || self.pending_navigation.is_some()
+            || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
     }
     /// The shared Tab strip shows unread Agents even while the Sidebar is hidden.
     pub(crate) fn wants_agent_attention(&self) -> bool {

@@ -3274,8 +3274,8 @@ impl WorkbenchClientUi {
             | ClientAction::RequestWorkspaceOrganization => ClientActionDisposition::KeepNavigator,
             ClientAction::OpenActionMenu => ClientActionDisposition::KeepNavigator,
             ClientAction::OpenSettings => self.request_settings(),
-            ClientAction::OpenMachines
-            | ClientAction::ConfiguredCommand(_)
+            ClientAction::OpenMachines => self.request_machine_settings(),
+            ClientAction::ConfiguredCommand(_)
             | ClientAction::PreviousAgent
             | ClientAction::NextAgent
             | ClientAction::FocusAgent(_)

@@ -585,10 +585,7 @@ impl MenuAction {
                 built_in("workbench.client.update", C::Client, NONE),
             ),
             Self::Machines => declared(
-                words(
-                    "Browse machines, Workspaces and Agents",
-                    "浏览机器、工作区和智能体",
-                ),
+                words("Machines…", "机器…"),
                 built_in("orchbee.native.machines.open", C::Navigation, NONE),
             ),
             Self::Sidebar => declared(

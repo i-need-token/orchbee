@@ -55,12 +55,6 @@ fn ordinal_agent_focus_uses_source_sorted_targets_and_never_counts_placeholders(
         (Choice::Remote(disabled.id), Agents::Loading),
     ];
     picker.observe_agents(observations.clone());
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let text = paint(&picker, locale, 100, 30);
-        assert!(text.contains("1 remote /"));
-        assert!(text.contains("2 remote /"));
-        assert!(!text.contains("3 Local /") && !text.contains("3 本地 /"));
-    }
     assert!(picker.drive_agent_navigation(now));
     assert_eq!(
         picker.request.take(),
@@ -83,8 +77,7 @@ fn ordinal_agent_focus_uses_source_sorted_targets_and_never_counts_placeholders(
         observations[1].clone(),
     ]);
     picker.focus_agent(0, now);
-    assert!(picker.drive_agent_navigation(now));
-    assert_eq!(picker.error, Some("agents-unavailable"));
+    assert!(!picker.drive_agent_navigation(now));
     assert!(
         picker.request.is_none(),
         "unknown current source cannot select a foreign Agent"
@@ -92,7 +85,7 @@ fn ordinal_agent_focus_uses_source_sorted_targets_and_never_counts_placeholders(
 }
 
 #[test]
-fn ordinal_intent_waits_cancels_expires_and_absent_or_current_indices_do_not_attach() {
+fn ordinal_intent_waits_expires_and_absent_or_current_indices_do_not_attach() {
     use crate::machine_agents::test_support::checkpoint;
     let mut picker = picker();
     focus(&mut picker);
@@ -104,22 +97,17 @@ fn ordinal_intent_waits_cancels_expires_and_absent_or_current_indices_do_not_att
     ]);
     picker.focus_agent(0, now);
     assert!(!picker.drive_agent_navigation(now));
-    picker.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
-    assert!(!picker.drive_agent_navigation(now));
+    assert!(!picker.drive_agent_navigation(now + Duration::from_secs(8)));
     assert!(picker.request.is_none());
-    picker.focus_agent(0, now);
-    assert!(picker.drive_agent_navigation(now + Duration::from_secs(8)));
-    assert!(picker.request.is_none());
-    assert_eq!(picker.error, Some("agents-unavailable"));
     picker.observe_agents(vec![
         (Choice::Local, Agents::Ready(checkpoint(vec![agent_row()]))),
         (choice, Agents::Ready(checkpoint(Vec::new()))),
     ]);
     for index in [0, 8, u8::MAX] {
         picker.focus_agent(index, now);
-        assert!(picker.drive_agent_navigation(now));
+        assert!(!picker.drive_agent_navigation(now));
         assert!(
-            !picker.open && picker.request.is_none(),
+            picker.request.is_none(),
             "ordinal {index} must not reattach or wrap"
         );
     }
@@ -164,8 +152,6 @@ fn active_source_view_drives_list_and_global_cycle_and_failed_source_never_clear
         candidates[0].agent.as_ref().unwrap().target.member,
         blocked.target.member
     );
-    let text = paint(&picker, Locale::EnUs, 90, 24);
-    assert!(text.contains("Blocked"));
     picker.navigate_agent(false, Instant::now());
     assert!(picker.drive_agent_navigation(Instant::now()));
     assert_eq!(
@@ -247,7 +233,7 @@ fn unchanged_source_and_attention_versions_skip_projection_but_ack_reprojects_on
     assert!(picker.needs_agent_attention(Some((1, 0))));
 }
 #[test]
-fn agent_steps_reuse_this_machines_session_and_another_machine_stays_behind_the_picker() {
+fn agent_steps_choose_as_the_sidebar_does_on_this_and_another_machine() {
     use crate::machine_agents::test_support::checkpoint;
     let remote = profile(1, "remote", true);
     let choice = Choice::Remote(remote.id.clone());
@@ -299,7 +285,11 @@ fn agent_steps_reuse_this_machines_session_and_another_machine_stays_behind_the_
             context: Some(ClientStartupTarget::Agent(Box::new(elsewhere.target))),
         })
     );
-    assert!(picker.open, "another machine connects behind the picker");
+    assert!(!picker.open, "another machine connects without a picker");
+    assert_eq!(
+        picker.selection_scope().map(|scope| scope.origin),
+        Some(SelectionOrigin::Sidebar)
+    );
 }
 fn focus(picker: &mut Picker) {
     let target = agent_row().target;
@@ -466,18 +456,13 @@ fn agent_navigation_walks_every_agent_whatever_the_picker_filters_show() {
     assert_eq!(picker.request.take().unwrap().machine, remote);
 }
 #[test]
-fn agent_navigation_cancels_expires_and_never_selects_unavailable_or_empty_rows() {
+fn agent_navigation_expires_and_never_selects_unavailable_or_empty_rows() {
     let mut picker = picker();
     let now = Instant::now();
     picker.navigate_agent(false, now);
     picker.observe_agents(vec![(Choice::Local, Agents::Loading)]);
     assert!(!picker.drive_agent_navigation(now));
-    picker.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
-    assert!(!picker.drive_agent_navigation(now));
-    assert!(picker.request.is_none());
-    picker.navigate_agent(false, now);
-    assert!(picker.drive_agent_navigation(now + Duration::from_secs(8)));
-    assert_eq!(picker.error, Some("agents-unavailable"));
+    assert!(!picker.drive_agent_navigation(now + Duration::from_secs(8)));
     assert!(picker.request.is_none());
     for observation in [
         Agents::Unavailable,
@@ -485,7 +470,7 @@ fn agent_navigation_cancels_expires_and_never_selects_unavailable_or_empty_rows(
     ] {
         picker.observe_agents(vec![(Choice::Local, observation)]);
         picker.navigate_agent(true, now);
-        assert!(picker.drive_agent_navigation(now));
+        assert!(!picker.drive_agent_navigation(now));
         assert!(picker.request.is_none());
     }
     picker.observe_agents(vec![(

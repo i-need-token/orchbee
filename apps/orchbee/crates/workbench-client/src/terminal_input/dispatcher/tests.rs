@@ -2586,8 +2586,9 @@ fn machine_picker_owns_closing_packet_and_split_paste_across_surface_switch() {
                 )
                 .unwrap();
         };
-        dispatch(&mut dispatcher, &mut view, &mut port, b"\x02Mignored");
-        assert!(view.machines.open);
+        view.machines.show();
+        dispatcher.machine_surface_changed();
+        dispatch(&mut dispatcher, &mut view, &mut port, b"ignored");
         dispatch(&mut dispatcher, &mut view, &mut port, b"\x1b[200~hidden");
         // An asynchronous candidate wins while a paste is still being decoded.
         view.machines.open = false;
@@ -2602,13 +2603,7 @@ fn machine_picker_owns_closing_packet_and_split_paste_across_surface_switch() {
                 b"payload\x1b[201~visible"
             },
         );
-        assert_eq!(
-            *calls.borrow(),
-            [
-                Call::Action(ClientAction::OpenMachines),
-                Call::Forward(b"visible".to_vec())
-            ]
-        );
+        assert_eq!(*calls.borrow(), [Call::Forward(b"visible".to_vec())]);
         calls.borrow_mut().clear();
         view.machines.show();
         dispatch(&mut dispatcher, &mut view, &mut port, b"\r\x1b[");
@@ -2767,8 +2762,8 @@ fn machine_picker_retires_a_cancelled_link_release_before_the_next_pane_press() 
 
     publish(&mut dispatcher);
     dispatch(&mut dispatcher, &mut view, &mut port, b"\x1b[<16;2;2M");
-    dispatch(&mut dispatcher, &mut view, &mut port, b"\x02M");
-    assert!(view.machines.open);
+    view.machines.show();
+    dispatcher.machine_surface_changed();
     dispatch(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;2;2m");
     assert_eq!(port.links, 0, "the modal-owned release cannot activate");
 
@@ -2786,56 +2781,6 @@ fn machine_picker_retires_a_cancelled_link_release_before_the_next_pane_press() 
         [crate::terminal_input::PointerSelectionIntent::Start { .. }]
     ));
     assert!(port.forwarded.is_empty());
-}
-
-#[test]
-fn default_agent_cycle_opens_filtered_navigation_and_query_completion_is_captured() {
-    for (shortcut, action) in [
-        (b'{', ClientAction::PreviousAgent),
-        (b'}', ClientAction::NextAgent),
-    ] {
-        let calls = Rc::new(RefCell::new(Vec::new()));
-        let mut port = UnavailablePort(Rc::clone(&calls));
-        let mut dispatcher = InputDispatcher::default();
-        let mut view = ClientView::new(100);
-        view.machines.available = true;
-        let now = Instant::now();
-        for packet in [
-            vec![2, shortcut, b'x'],
-            b"/same\r".to_vec(),
-            b"\x1b".to_vec(),
-        ] {
-            dispatcher
-                .dispatch(
-                    &mut view,
-                    &packet,
-                    &mut port,
-                    now,
-                    |_, _| Ok::<bool, io::Error>(false),
-                    &mut |_| Ok(()),
-                )
-                .unwrap();
-        }
-        // Bare Escape is resolved after its bounded ambiguity window.
-        dispatcher
-            .dispatch(
-                &mut view,
-                &[],
-                &mut port,
-                now + Duration::from_secs(1),
-                |_, _| Ok::<bool, io::Error>(false),
-                &mut |_| Ok(()),
-            )
-            .unwrap();
-        assert_eq!(*calls.borrow(), [Call::Action(action)]);
-        assert!(view.machines.request.is_none());
-        assert!(!view.machines.open);
-        assert!(
-            !view
-                .machines
-                .drive_agent_navigation(now + Duration::from_secs(2))
-        );
-    }
 }
 
 #[test]

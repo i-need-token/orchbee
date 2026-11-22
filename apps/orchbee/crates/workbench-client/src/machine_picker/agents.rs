@@ -263,9 +263,9 @@ impl Picker {
     pub(crate) fn focus_agent(&mut self, index: u8, now: Instant) {
         self.request_agent(NavigationTarget::Index(index), now);
     }
+    /// Waits, without any overlay, for every machine's Agents to load, then goes to the target; with
+    /// none to go to, or none loaded within 8 seconds, nothing changes, as in the GUI.
     fn request_agent(&mut self, target: NavigationTarget, now: Instant) {
-        self.show();
-        self.set_mode(Mode::Agents);
         self.pending_navigation = Some(Navigation {
             target,
             deadline: now + Duration::from_secs(8),
@@ -275,14 +275,9 @@ impl Picker {
         let Some(intent) = self.pending_navigation else {
             return false;
         };
-        if !self.open || self.mode != Mode::Agents {
-            self.pending_navigation = None;
-            return false;
-        }
         if now >= intent.deadline {
             self.pending_navigation = None;
-            self.error = Some("agents-unavailable");
-            return true;
+            return false;
         }
         // Every Agent the source view admits, whatever status filter or query the picker shows.
         let all = self.project_agents(&View::default());
@@ -295,36 +290,13 @@ impl Picker {
             .filter(|r| r.enabled && r.agent.is_some())
             .collect();
         if rows.is_empty() {
-            if matches!(intent.target, NavigationTarget::Index(_))
-                && all
-                    .iter()
-                    .all(|r| matches!(r.fixed_status, Some("no-agents" | "agents-no-matches")))
-            {
-                self.open = false;
-
-                return true;
-            }
-            self.error = Some(
-                if all
-                    .iter()
-                    .all(|r| r.fixed_status == Some("agents-unavailable"))
-                {
-                    "agents-unavailable"
-                } else {
-                    "agents-no-matches"
-                },
-            );
-            return true;
+            return false;
         }
         let current = rows
             .iter()
             .position(|r| self.current_agent(&r.choice, r.agent.as_ref().unwrap()));
         let index = match intent.target {
-            NavigationTarget::Index(index) if usize::from(index) >= rows.len() => {
-                self.open = false;
-
-                return true;
-            }
+            NavigationTarget::Index(index) if usize::from(index) >= rows.len() => return false,
             NavigationTarget::Index(index) => usize::from(index),
             NavigationTarget::Cycle { reverse } => match (current, reverse) {
                 (Some(i), true) => (i + rows.len() - 1) % rows.len(),
@@ -333,19 +305,14 @@ impl Picker {
                 (None, false) => 0,
             },
         };
-        if current == Some(index) {
-            self.open = false;
-        } else {
-            let selection = rows[index].selection();
-            // The current machine's Session reaches its own Agent without a new connection, the
-            // way a sidebar activation does; only another machine needs a candidate behind this
-            // picker.
-            if rows[index].choice == self.current && self.begin_selection(SelectionOrigin::Sidebar)
-            {
-                self.open = false;
-            }
-            self.request = Some(selection);
+        if current == Some(index) || !self.begin_selection(SelectionOrigin::Sidebar) {
+            return false;
         }
+        // Chosen as a sidebar activation chooses: the current machine's Session reaches its own
+        // Agent without a new connection, and a machine that is not connected shows its card.
+        let selection = rows[index].selection();
+        self.request = Some(selection.clone());
+        self.note_choice(&selection);
         true
     }
     pub(super) fn agent_control(&mut self, control: Control) {

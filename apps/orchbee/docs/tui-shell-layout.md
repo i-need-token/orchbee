@@ -515,10 +515,9 @@ the host effects: `Capabilities::for_host()` sets `search` to `false`, while pur
 compose every entry point. The TUI leaves out the fixed Search row, whose plain-layout line then
 joins the list while a touch-spaced list leaves its lines blank, and the `/` key, which then
 behaves as an unbound sidebar key and leaves the action menu's search. Without New workspace either, the toggle keeps the
-first row on its own. The machine picker itself is the remote-machines feature and stays whole:
-`Ctrl+b Shift+M` and its action-menu row open it, with all three modes and Tab switching.
-Because the picker has no query field, those rows name it Browse machines, Workspaces and Agents
-(`浏览机器、工作区和智能体`) rather than search. The GUI withholds its Search too; see the
+first row on its own. Remote machines are not withheld: `Ctrl+b Shift+M` and its action-menu row,
+`Machines…` (`机器…`), open Settings › Machines, and the sidebar lists every machine's Workspaces.
+The GUI withholds its Search too; see the
 [Web Workbench](../../web/docs/workbench.md#release-withheld-search).
 
 ## Sidebar navigation model

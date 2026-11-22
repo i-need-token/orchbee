@@ -698,7 +698,7 @@ derived from the compiled environment stem, is the only owner of the decision.
 
 Sidebar Search is withheld in every build, not only in a release, until it is finished (ORC-424):
 the TUI leaves out the Search row and its `/` key, and its code stays in place. The Machines action
-(`Ctrl+b Shift+M`) still opens the whole machine picker, because remote machines ship. See
+(`Ctrl+b Shift+M`) opens Settings › Machines, because remote machines ship. See
 [shell layout](docs/tui-shell-layout.md#withheld-search).
 
 The `--skill` guide encloses withheld passages between `<!-- unreleased -->` and

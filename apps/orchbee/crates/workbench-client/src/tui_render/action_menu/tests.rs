@@ -1035,9 +1035,9 @@ fn wide_english_row_keeps_the_full_label_and_effective_chord_in_separate_slots()
 fn compact_chinese_row_truncates_only_the_label_and_keeps_a_custom_chord_whole() {
     let chord =
         crate::terminal_events::keys::tests::host_label("Ctrl+Alt+Shift+Super+PageDown Shift+M");
-    // Apple glyphs spell this chord in 15 cells instead of 37; the overlay keeps 23 cells beside
+    // Apple glyphs spell this chord in 15 cells instead of 37; the overlay keeps 9 cells beside
     // it either way, too few for the whole Chinese label, so only the label truncates.
-    let width = 23 + u16::try_from(display_width(&chord)).unwrap();
+    let width = 9 + u16::try_from(display_width(&chord)).unwrap();
     let height = 12;
     let mut client = ClientView::new(width);
     client.configure_keys(&configured_prefix("pagedown", true, true, true, true));
