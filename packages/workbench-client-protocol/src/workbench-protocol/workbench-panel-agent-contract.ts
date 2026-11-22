@@ -78,6 +78,7 @@ const AgentConfirmationWaitSchema = z.enum([
 	'person',
 	'changing',
 	'repeating',
+	'answered',
 	'host-too-old',
 ]);
 const AgentConfirmationPressSchema = z

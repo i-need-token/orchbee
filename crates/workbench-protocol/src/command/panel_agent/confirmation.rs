@@ -39,6 +39,8 @@ pub enum AgentConfirmationWait {
     Changing,
     /// The same confirmation kept coming back, so Orchbee stopped answering for this Agent run.
     Repeating,
+    /// Orchbee answered the confirmation, and it is still on screen.
+    Answered,
     HostTooOld,
 }
 

@@ -186,6 +186,9 @@ Three limits remain, and no observer outside the Agent can remove them:
   Enter.
 - A Server that starts while a prompt is on screen first sees the prompt then. If a person typed
   on that prompt earlier and the Agent has redrawn since, only the quiet time protects it.
+- A prompt that stays off the screen for more than ten seconds, for example while a person leaves
+  its highlight on another option, is a new prompt when it comes back, and only the quiet time
+  protects the person's last key. Within ten seconds it keeps the revision it was first seen at.
 
 ## Model
 
@@ -323,7 +326,8 @@ and the Workbench schemas.
 
 **Wait reasons** are a closed list, each with one localized sentence: file outside the Workspace,
 Workspace includes the home folder, protected file, path not understood, path not fully visible, marked dangerous by the Agent, not a prompt Orchbee answers, you typed or clicked in this terminal, the
-screen keeps changing, the same confirmation keeps coming back, and an older Orchbee started this
+screen keeps changing, the same confirmation keeps coming back, Orchbee answered but it is still
+on screen, and an older Orchbee started this
 terminal, said once the Worker has refused a send because the terminal's Host does not list
 `screen-gated-send`.
 

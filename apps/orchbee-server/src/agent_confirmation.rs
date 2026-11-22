@@ -46,6 +46,8 @@ pub(crate) enum Wait {
     Changing,
     /// The same confirmation came back after every press.
     Repeating,
+    /// Orchbee answered the confirmation, and it is still on screen.
+    Answered,
     /// The terminal's Host cannot check the screen before it types.
     HostTooOld,
 }

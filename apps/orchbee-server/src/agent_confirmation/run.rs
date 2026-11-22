@@ -10,6 +10,12 @@ use super::{Dialog, Kind, Wait};
 /// A prompt must stay the same this long, across this many observations, before it is answered.
 const SETTLE: Duration = Duration::from_secs(1);
 const SETTLE_OBSERVATIONS: u32 = 3;
+/// The settle time of a prompt that is the one pressed last: an Agent that hides a prompt it has
+/// not yet resolved has drawn what the key changed well within it.
+const REPEATED_SETTLE: Duration = Duration::from_secs(3);
+/// A prompt that comes back this soon after it left the screen unanswered keeps the revision it
+/// was first seen at, so a person who moved its highlight away and back still owns it.
+const RETURN: Duration = Duration::from_secs(10);
 /// The Host's quiet time after a person's input; a key refused for it is decided again after it.
 const QUIET: Duration = Duration::from_secs(3);
 /// Presses of one prompt in a row before pressing stops for the run.
@@ -137,6 +143,10 @@ struct Current {
     refusals: u8,
     /// The run already offered on this prompt.
     offered: bool,
+    /// When the Host said the key was written, or the send ended without saying.
+    answered_at: Option<Instant>,
+    /// The prompt was still on screen a settle time after it was answered.
+    stays: bool,
 }
 
 /// One Agent run's state.
@@ -151,6 +161,8 @@ pub(crate) struct Run {
     offers: u8,
     offer: bool,
     current: Option<Current>,
+    /// The last prompt that left the screen before a key was sent for it, and when it left.
+    left: Option<(Current, Instant)>,
     /// The prompt pressed last and how many times in a row.
     repeated: Option<(Dialog, u8)>,
     pressed: Option<Pressed>,
@@ -186,6 +198,7 @@ impl Run {
             offers: 0,
             offer: false,
             current: None,
+            left: None,
             repeated: None,
             pressed: None,
         }
@@ -207,30 +220,55 @@ impl Run {
     fn track(&mut self, now: Instant, seen: Seen<'_>) {
         self.blocked = seen.blocked;
         let Some((dialog, verdict)) = seen.dialog else {
-            self.current = None;
+            self.leave(now);
             self.offer = false;
             return;
         };
-        match &mut self.current {
-            Some(current) if current.dialog == *dialog => {
-                current.observations = current.observations.saturating_add(1);
-                current.verdict = verdict;
+        if let Some(current) = &mut self.current
+            && current.dialog == *dialog
+        {
+            current.observations = current.observations.saturating_add(1);
+            current.verdict = verdict;
+            current.stays |= current
+                .answered_at
+                .is_some_and(|at| now.saturating_duration_since(at) >= SETTLE);
+            return;
+        }
+        self.offer = false;
+        self.leave(now);
+        let returned = self.left.take_if(|(left, at)| {
+            left.dialog == *dialog && now.saturating_duration_since(*at) < RETURN
+        });
+        self.current = Some(match returned {
+            Some((mut left, _)) => {
+                left.verdict = verdict;
+                left.first_seen = now;
+                left.observations = 1;
+                left
             }
-            _ => {
-                self.offer = false;
-                self.current = Some(Current {
-                    dialog: dialog.clone(),
-                    verdict,
-                    first_revision: seen.frame.revision,
-                    first_seen: now,
-                    observations: 1,
-                    sent: Sent::No,
-                    person: false,
-                    retry_at: None,
-                    refusals: 0,
-                    offered: false,
-                });
-            }
+            None => Current {
+                dialog: dialog.clone(),
+                verdict,
+                first_revision: seen.frame.revision,
+                first_seen: now,
+                observations: 1,
+                sent: Sent::No,
+                person: false,
+                retry_at: None,
+                refusals: 0,
+                offered: false,
+                answered_at: None,
+                stays: false,
+            },
+        });
+    }
+
+    /// The prompt left the screen. One that no key was sent for is remembered for its return.
+    fn leave(&mut self, now: Instant) {
+        if let Some(current) = self.current.take()
+            && current.sent == Sent::No
+        {
+            self.left = Some((current, now));
         }
     }
 
@@ -267,8 +305,17 @@ impl Run {
         let Some(current) = &mut self.current else {
             return Step::Nothing;
         };
+        let settle = if self
+            .repeated
+            .as_ref()
+            .is_some_and(|(dialog, _)| *dialog == current.dialog)
+        {
+            REPEATED_SETTLE
+        } else {
+            SETTLE
+        };
         let settled = current.observations >= SETTLE_OBSERVATIONS
-            && now.saturating_duration_since(current.first_seen) >= SETTLE;
+            && now.saturating_duration_since(current.first_seen) >= settle;
         if !on {
             if !settings.offer || self.stopped {
                 self.offer = false;
@@ -330,6 +377,7 @@ impl Run {
                 self.count();
                 if let Some(current) = &mut self.current {
                     current.sent = Sent::Written;
+                    current.answered_at = Some(now);
                     let serial = self.pressed.as_ref().map_or(0, |pressed| pressed.serial);
                     self.pressed = Some(Pressed {
                         serial: serial.wrapping_add(1),
@@ -338,7 +386,12 @@ impl Run {
                     });
                 }
             }
-            Outcome::Unknown => self.count(),
+            Outcome::Unknown => {
+                self.count();
+                if let Some(current) = &mut self.current {
+                    current.answered_at = Some(now);
+                }
+            }
             Outcome::NotSent => {
                 if let Some(current) = &mut self.current {
                     current.sent = Sent::No;
@@ -373,7 +426,9 @@ impl Run {
         self.hold_pending = false;
     }
 
-    /// What Clients show. The choice stays as it was until the hold that Off owes is answered.
+    /// What Clients show. The choice stays as it was until the hold that Off owes is answered. A
+    /// readable dialog the run will not press says why whatever state the Agent is detected in;
+    /// without one, only an Agent detected as waiting does.
     pub(crate) fn facts(&self, settings: Settings) -> Facts {
         let on = self.on(settings);
         let choice = if settings.agent_type && (on || self.hold_pending) {
@@ -383,9 +438,10 @@ impl Run {
         } else {
             Choice::Off
         };
+        let waiting = self.blocked || self.current.is_some();
         let wait = if self.stopped {
-            self.blocked.then_some(Wait::Repeating)
-        } else if !on || !self.blocked {
+            waiting.then_some(Wait::Repeating)
+        } else if !on || !waiting {
             None
         } else if self.unsupported {
             Some(Wait::HostTooOld)
@@ -394,8 +450,12 @@ impl Run {
                 None => Some(Wait::NotAnswered),
                 Some(current) if current.person => Some(Wait::Person),
                 Some(current) => current.verdict.err().or_else(|| {
-                    (current.sent == Sent::No && current.refusals >= CHANGING_REFUSALS)
-                        .then_some(Wait::Changing)
+                    if current.stays {
+                        Some(Wait::Answered)
+                    } else {
+                        (current.sent == Sent::No && current.refusals >= CHANGING_REFUSALS)
+                            .then_some(Wait::Changing)
+                    }
                 }),
             }
         };

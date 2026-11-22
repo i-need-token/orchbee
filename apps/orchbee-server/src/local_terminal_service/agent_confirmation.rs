@@ -270,6 +270,7 @@ fn wait(wait: Wait) -> AgentConfirmationWait {
         Wait::Person => AgentConfirmationWait::Person,
         Wait::Changing => AgentConfirmationWait::Changing,
         Wait::Repeating => AgentConfirmationWait::Repeating,
+        Wait::Answered => AgentConfirmationWait::Answered,
         Wait::HostTooOld => AgentConfirmationWait::HostTooOld,
     }
 }

@@ -67,12 +67,15 @@ impl Bench {
         )
     }
 
-    /// Observes the same prompt until it has settled and returns what the run then asks for.
+    /// Observes the same prompt until the run asks for something, or for five seconds, and
+    /// returns what it then asks for.
     fn settle(&mut self, settings: Settings, dialog: &Dialog) -> Step {
         let mut step = Step::Nothing;
-        for _ in 0..4 {
-            assert_eq!(step, Step::Nothing);
+        for _ in 0..13 {
             step = self.see(settings, 400, Some((dialog, Ok(()))));
+            if step != Step::Nothing {
+                break;
+            }
         }
         step
     }
@@ -321,4 +324,102 @@ fn a_run_offers_at_most_twice_and_only_on_a_prompt_it_would_answer() {
     bench.run.choose(true);
     assert_eq!(bench.see(OFF, 50, Some((&prompt, Ok(())))), press(10, 10));
     assert!(!bench.run.facts(OFF).offer);
+}
+
+// A person moved the highlight off the accept and back: no layout read the screen in between.
+// The key still names the revision the prompt was first seen at, so the Host refuses it for the
+// person's keys in between instead of waiting out only its quiet time.
+#[test]
+fn a_prompt_that_leaves_and_comes_back_keeps_the_revision_it_was_first_seen_at() {
+    let prompt = dialog("cargo test");
+    let mut bench = Bench::new();
+    assert_eq!(bench.see(ON, 0, Some((&prompt, Ok(())))), Step::Nothing);
+    bench.revision = 11;
+    assert_eq!(bench.see(ON, 400, None), Step::Nothing);
+    bench.revision = 12;
+    assert_eq!(bench.settle(ON, &prompt), press(12, 10));
+    // Long after it left, the same prompt is a new one.
+    let mut bench = Bench::new();
+    assert_eq!(bench.see(ON, 0, Some((&prompt, Ok(())))), Step::Nothing);
+    bench.revision = 11;
+    assert_eq!(bench.see(ON, 400, None), Step::Nothing);
+    assert_eq!(bench.see(ON, 10_000, None), Step::Nothing);
+    bench.revision = 30;
+    assert_eq!(bench.settle(ON, &prompt), press(30, 30));
+}
+
+// The prompt pressed last comes back: it stays three seconds, not one, before it is pressed
+// again, so an Agent that hid it without resolving it has drawn what the key changed.
+#[test]
+fn the_prompt_pressed_last_settles_for_three_seconds() {
+    let prompt = dialog("cargo test");
+    let other = dialog("cargo build");
+    let mut bench = Bench::new();
+    assert!(matches!(bench.answer(&prompt), Step::Press(_)));
+    bench.revision += 1;
+    for _ in 0..8 {
+        assert_eq!(bench.see(ON, 400, Some((&prompt, Ok(())))), Step::Nothing);
+    }
+    assert!(matches!(
+        bench.see(ON, 400, Some((&prompt, Ok(())))),
+        Step::Press(_)
+    ));
+    // Another prompt settles in one second.
+    bench.end(Outcome::Written);
+    bench.revision += 1;
+    for _ in 0..3 {
+        assert_eq!(bench.see(ON, 400, Some((&other, Ok(())))), Step::Nothing);
+    }
+    assert!(matches!(
+        bench.see(ON, 400, Some((&other, Ok(())))),
+        Step::Press(_)
+    ));
+}
+
+// A readable dialog the run will not press says why whatever the Agent's detected state, and one
+// that stays after Orchbee answered it says that.
+#[test]
+fn a_dialog_the_run_leaves_says_why() {
+    let start = Instant::now();
+    let file = Dialog {
+        layout: "edit".into(),
+        kind: Kind::FileEdit,
+        text: vec![".env".into()],
+        marked: false,
+    };
+    let mut run = Run::new();
+    let look = |run: &mut Run, at: u64, shown: Option<(&Dialog, Result<(), Wait>)>| {
+        run.observe(
+            start + Duration::from_millis(at),
+            ON,
+            Seen {
+                frame: frame(10),
+                blocked: false,
+                dialog: shown,
+            },
+        )
+    };
+    for at in [0, 400, 800, 1200] {
+        look(&mut run, at, Some((&file, Err(Wait::ProtectedFile))));
+    }
+    assert_eq!(run.facts(ON).wait, Some(Wait::ProtectedFile));
+    // Without a readable dialog, an Agent not detected as waiting has no reason.
+    look(&mut run, 1600, None);
+    assert_eq!(run.facts(ON).wait, None);
+
+    let prompt = dialog("cargo test");
+    for outcome in [Outcome::Written, Outcome::Unknown] {
+        let mut bench = Bench::new();
+        assert_eq!(bench.settle(ON, &prompt), press(10, 10));
+        bench.end(outcome);
+        // Just after the answer the Agent may not have redrawn yet.
+        assert_eq!(bench.see(ON, 400, Some((&prompt, Ok(())))), Step::Nothing);
+        assert_eq!(bench.run.facts(ON).wait, None, "{outcome:?}");
+        assert_eq!(bench.see(ON, 700, Some((&prompt, Ok(())))), Step::Nothing);
+        assert_eq!(
+            bench.run.facts(ON).wait,
+            Some(Wait::Answered),
+            "{outcome:?}"
+        );
+    }
 }

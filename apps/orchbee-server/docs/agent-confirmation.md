@@ -18,7 +18,8 @@ Every other rule fails closed. A screen or a file path the module cannot read co
 that waits for the person, and each wait carries one reason from a closed list: the file is
 outside the Workspace, the Workspace holds the home folder, a protected file, a path not understood, a path not fully visible, marked
 dangerous by the Agent, not a prompt Orchbee answers, a person typed or clicked, the screen keeps
-changing, the same confirmation keeps coming back, and a terminal an older Orchbee started: its
+changing, the same confirmation keeps coming back, Orchbee answered and the dialog is still on
+screen, and a terminal an older Orchbee started: its
 Terminal Host does not list `screen-gated-send`, so the Worker refuses the send before anything
 reaches that Host, and the terminal keeps waiting for the person until it runs under a newer
 Host.
@@ -178,7 +179,10 @@ steps against the Terminal Host's gate.
 - **On.** The run is on by the person's choice for this run or by the saved setting for its Agent
   type.
 - **Settle.** A prompt is pressed only after it has been the same prompt for one second across
-  three observations. Another prompt starts its own wait.
+  three observations, or for three seconds when it is the prompt pressed last. Another prompt
+  starts its own wait. A prompt that left the screen before any key was sent for it and comes
+  back within ten seconds is the same prompt again: it settles anew but keeps the revision at
+  which it was first seen, so a person who moved its highlight away and back still owns it.
 - **Press.** The press names the frame read in that turn and the revision at which the prompt was
   first seen, which the [screen-gated key](../../terminal-host/docs/runtime-model.md#screen-gated-input)
   carries to the Host. A prompt is pressed once. A send whose answer leaves open whether the key
@@ -197,6 +201,11 @@ steps against the Terminal Host's gate.
   between starts the count again, and the person may turn the run on again.
 - **Offer.** While off, a run offers on a settled prompt it would answer, at most twice, and never
   after the person answered "no" to offers. An offer goes away with its prompt.
+- **Reasons.** While the run is on, a dialog it reads and will not press says why, whatever state
+  the Agent is detected in; a dialog still on screen a second after its key was written, or after
+  a send that did not say, says that Orchbee answered it and it is still on screen, and it is not
+  pressed again. Without a readable dialog only an Agent detected as waiting gives a reason: not a
+  prompt Orchbee answers.
 
 ## From a decision to the terminal
 

@@ -66,6 +66,8 @@ impl Locale {
         match (self, wait) {
             (Self::EnUs, W::LeavesWorkspace) => "file outside the Workspace, waiting for you",
             (Self::ZhCn, W::LeavesWorkspace) => "工作区外的文件，等你确认",
+            (Self::EnUs, W::Answered) => "Orchbee answered, but it is still on screen",
+            (Self::ZhCn, W::Answered) => "Orchbee 已应答，但确认仍在屏幕上",
             (Self::EnUs, W::HomeWorkspace) => {
                 "Workspace includes your home folder, waiting for you"
             }

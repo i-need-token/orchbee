@@ -8,6 +8,7 @@ export type WorkbenchAgentConfirmationAnswer = WorkbenchAgentConfirmationChoice 
 
 /** Why the confirmation an Agent shows now waits for the person. */
 export type WorkbenchAgentConfirmationWait =
+	| 'answered'
 	| 'changing'
 	| 'home-workspace'
 	| 'host-too-old'
