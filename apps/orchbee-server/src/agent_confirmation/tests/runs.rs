@@ -145,11 +145,11 @@ fn a_prompt_that_must_wait_is_never_pressed_and_says_why() {
     let prompt = dialog("rm -rf build");
     for _ in 0..6 {
         assert_eq!(
-            bench.see(ON, 500, Some((&prompt, Err(Wait::Destructive)))),
+            bench.see(ON, 500, Some((&prompt, Err(Wait::MarkedDangerous)))),
             Step::Nothing
         );
     }
-    assert_eq!(bench.run.facts(ON).wait, Some(Wait::Destructive));
+    assert_eq!(bench.run.facts(ON).wait, Some(Wait::MarkedDangerous));
     // The Agent waits on something no layout reads.
     assert_eq!(bench.see(ON, 500, None), Step::Nothing);
     assert_eq!(bench.run.facts(ON).wait, Some(Wait::NotAnswered));
@@ -293,7 +293,7 @@ fn a_run_offers_at_most_twice_and_only_on_a_prompt_it_would_answer() {
     let risky = dialog("rm -rf build");
     for _ in 0..5 {
         assert_eq!(
-            bench.see(OFF, 500, Some((&risky, Err(Wait::Destructive)))),
+            bench.see(OFF, 500, Some((&risky, Err(Wait::MarkedDangerous)))),
             Step::Nothing
         );
     }

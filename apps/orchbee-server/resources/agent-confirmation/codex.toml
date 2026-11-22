@@ -8,9 +8,9 @@
 # A reason row cannot start with the command's `$`, so the first `$` row is the command's, and
 # the command is every row from there to the two blank rows above the options.
 #
-# A dialog taller than the Panel fills the Panel, so no row lies above its title. Codex then
-# shortens the options behind an arrow, and in a short Panel writes `[… N lines] ctrl+a view all`
-# in place of the command rows it does not show.
+# Codex writes `[… N lines] ctrl+a view all` in place of command rows it does not show; that row
+# is command text. A dialog taller than the Panel fills the Panel, so no row lies above its title,
+# and Codex shortens the options behind an arrow: that dialog is not read.
 
 top = '  Would you like to run the following command\?'
 fence = '[^ ].*'
@@ -25,7 +25,7 @@ rows = [
 	'  Environment: local\n',
 	'\n',
 	'  Reason: [^\n]*\n(?:  [^$ \n][^\n]*\n){0,7}\n',
-	'(?P<text>  \$ [^\n]+\n(?:  [^$ \n][^\n]*\n){0,15})',
+	'(?P<text>  \$ [^\n]+\n(?:  [^$ \n][^\n]*\n)*)',
 	'\n',
 	'\n',
 	'› 1\. Yes, proceed \(y\)\n',

@@ -25,7 +25,6 @@ pub enum AgentConfirmationChoice {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentConfirmationWait {
-    Destructive,
     LeavesWorkspace,
     ProtectedFile,
     NotUnderstood,

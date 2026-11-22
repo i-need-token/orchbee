@@ -11,11 +11,11 @@ EXTENDS Naturals, Sequences, FiniteSets
 \* or never (a message that stays under way), and the Server may stop waiting
 \* for one that is still under way.
 \*
-\* Layout matching and the command and path checks are one pure function from
-\* a screen to "routine", "hold" or "work" and have rule tests. Durations are
-\* reduced to what they guard: the one-second settle to a sample count, and
-\* the Host's quiet time after a person's input to a flag that HostQuiet may
-\* clear. The longer settle for a prompt whose identity was just pressed only
+\* Layout matching and the path check are one pure function from a screen to
+\* "routine", "hold" or "work" and have rule tests; a command is not judged.
+\* Durations are reduced to what they guard: the one-second settle to a sample
+\* count, and the Host's quiet time after a person's input to a flag that
+\* HostQuiet may clear. The longer settle for a prompt whose identity was just pressed only
 \* delays Decide and is not modeled.
 \*
 \* Two assumptions about Agents are written into the actions and stated in

@@ -64,16 +64,14 @@ impl Locale {
     pub(crate) const fn confirmation_wait(self, wait: AgentConfirmationWait) -> &'static str {
         use AgentConfirmationWait as W;
         match (self, wait) {
-            (Self::EnUs, W::Destructive) => "destructive command, waiting for you",
-            (Self::ZhCn, W::Destructive) => "破坏性命令，等你确认",
-            (Self::EnUs, W::LeavesWorkspace) => "reaches outside the Workspace, waiting for you",
-            (Self::ZhCn, W::LeavesWorkspace) => "超出工作区，等你确认",
+            (Self::EnUs, W::LeavesWorkspace) => "file outside the Workspace, waiting for you",
+            (Self::ZhCn, W::LeavesWorkspace) => "工作区外的文件，等你确认",
             (Self::EnUs, W::ProtectedFile) => "protected file, waiting for you",
             (Self::ZhCn, W::ProtectedFile) => "受保护的文件，等你确认",
-            (Self::EnUs, W::NotUnderstood) => "command Orchbee cannot check, waiting for you",
-            (Self::ZhCn, W::NotUnderstood) => "Orchbee 无法检查的命令，等你确认",
-            (Self::EnUs, W::NotVisible) => "command or path not fully shown, waiting for you",
-            (Self::ZhCn, W::NotVisible) => "命令或路径未完整显示，等你确认",
+            (Self::EnUs, W::NotUnderstood) => "path Orchbee cannot read, waiting for you",
+            (Self::ZhCn, W::NotUnderstood) => "Orchbee 无法读取的路径，等你确认",
+            (Self::EnUs, W::NotVisible) => "path not fully shown, waiting for you",
+            (Self::ZhCn, W::NotVisible) => "路径未完整显示，等你确认",
             (Self::EnUs, W::MarkedDangerous) => "marked dangerous by the Agent, waiting for you",
             (Self::ZhCn, W::MarkedDangerous) => "智能体标记为危险，等你确认",
             (Self::EnUs, W::NotAnswered) => "not a routine confirmation, waiting for you",

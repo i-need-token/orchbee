@@ -1716,17 +1716,11 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Agent state tooltip while a confirmation waits for the person: the state name, then why Orchbee did not answer it.',
 	},
-	agentConfirmationWaitDestructive: {
-		id: 'workbench.agentConfirmation.wait.destructive',
-		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.destructive'],
-		description:
-			'Why a confirmation waits: the command deletes, overwrites, elevates, stops or sends something out.',
-	},
 	agentConfirmationWaitLeavesWorkspace: {
 		id: 'workbench.agentConfirmation.wait.leavesWorkspace',
 		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.leavesWorkspace'],
 		description:
-			'Why a confirmation waits: the command or file reaches outside the Workspace folder.',
+			'Why a confirmation waits: the file the Agent would create or edit is outside the Workspace folder.',
 	},
 	agentConfirmationWaitProtectedFile: {
 		id: 'workbench.agentConfirmation.wait.protectedFile',
@@ -1737,12 +1731,13 @@ export const workbenchMessages = defineMessages({
 	agentConfirmationWaitNotUnderstood: {
 		id: 'workbench.agentConfirmation.wait.notUnderstood',
 		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.notUnderstood'],
-		description: "Why a confirmation waits: the command has a shape Orchbee's check does not read.",
+		description:
+			"Why a confirmation waits: the file's path has a shape Orchbee does not read, such as a network path.",
 	},
 	agentConfirmationWaitNotVisible: {
 		id: 'workbench.agentConfirmation.wait.notVisible',
 		defaultMessage: enUSWorkbenchMessages['workbench.agentConfirmation.wait.notVisible'],
-		description: 'Why a confirmation waits: the command or path is not completely on screen.',
+		description: "Why a confirmation waits: the file's path is not completely on screen.",
 	},
 	agentConfirmationWaitMarkedDangerous: {
 		id: 'workbench.agentConfirmation.wait.markedDangerous',

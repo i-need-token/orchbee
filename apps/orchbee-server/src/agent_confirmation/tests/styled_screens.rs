@@ -154,14 +154,10 @@ fn every_captured_opencode_screen_reads_as_what_it_shows() {
             capture!("23-edit-with-sidebar"),
             Some(("edit-wide", Kind::FileEdit, &["aab-note.txt"], Ok(()))),
         ),
+        // A command is not judged.
         (
             capture!("30-rm-rf"),
-            Some((
-                "shell",
-                Kind::Command,
-                &["rm -rf ./aab-o1"],
-                Err(Wait::Destructive),
-            )),
+            Some(("shell", Kind::Command, &["rm -rf ./aab-o1"], Ok(()))),
         ),
         (
             capture!("31-write-env"),
@@ -189,9 +185,41 @@ fn every_captured_opencode_screen_reads_as_what_it_shows() {
                 Err(Wait::NotVisible),
             )),
         ),
-        // The box is full: rows of the command may be cut below what it shows.
-        (capture!("40-long-command-clipped"), None),
-        (capture!("41-long-command-clipped-wide"), None),
+        // The box is full and cuts the command below what it shows; the dialog is still whole.
+        (
+            capture!("40-long-command-clipped"),
+            Some((
+                "shell",
+                Kind::Command,
+                &[
+                    "mkdir aab-alpha-bravo-charlie-delta-echo-foxtrot-golf-hotel-india-",
+                    "juliet-kilo-lima-mike-november-oscar-papa-quebec-romeo-sierra-tango-",
+                    "uniform-victor-whiskey-xray-yankee-zulu-alpha-bravo-charlie-delta-",
+                    "echo-foxtrot-golf-hotel-india-juliet-kilo-lima-mike-november-oscar-",
+                    "papa-quebec-romeo-sierra-tango-uniform-victor-whiskey-xray-yankee-",
+                    "zulu-alpha-bravo-charlie-delta-echo-foxtrot-golf-hotel-india-juliet-",
+                ],
+                Ok(()),
+            )),
+        ),
+        (
+            capture!("41-long-command-clipped-wide"),
+            Some((
+                "shell-wide",
+                Kind::Command,
+                &[
+                    "mkdir aab-alpha-bravo-charlie-delta-echo-foxtrot-golf-hotel-india-juliet-kilo-lima-mike-november-",
+                    "oscar-papa-quebec-romeo-sierra-tango-uniform-victor-whiskey-xray-yankee-zulu-alpha-bravo-charlie-",
+                    "delta-echo-foxtrot-golf-hotel-india-juliet-kilo-lima-mike-november-oscar-papa-quebec-romeo-sierra-",
+                    "tango-uniform-victor-whiskey-xray-yankee-zulu-alpha-bravo-charlie-delta-echo-foxtrot-golf-hotel-",
+                    "india-juliet-kilo-lima-mike-november-oscar-papa-quebec-romeo-sierra-tango-uniform-victor-whiskey-",
+                    "xray-yankee-zulu-alpha-bravo-charlie-delta-echo-foxtrot-golf-hotel-india-juliet-kilo-lima-mike-",
+                    "november-oscar-papa-quebec-romeo-sierra-tango-uniform-victor-whiskey-xray-yankee-zulu-alpha-bravo-",
+                    "charlie-delta-echo-foxtrot-golf-hotel-india-juliet-kilo-lima-mike-november-oscar-papa-quebec-romeo-",
+                ],
+                Ok(()),
+            )),
+        ),
         (
             capture!("42-short-panel"),
             Some((
@@ -279,10 +307,10 @@ fn an_opencode_dialog_that_differs_from_its_layout_is_not_read() {
         }
         rows
     };
-    // Five rows are the most a command shows before the box may cut it.
-    assert!(read(&screen.replacen(command, &rows(5), 1)).is_some());
+    // Six rows are the most a command shows where the keys have a row of their own.
+    assert!(read(&screen.replacen(command, &rows(6), 1)).is_some());
     for (change, from, to) in [
-        ("a sixth command row", command.to_owned(), rows(6)),
+        ("a seventh command row", command.to_owned(), rows(7)),
         (
             "a second title inside the command",
             command.to_owned(),

@@ -1577,7 +1577,6 @@
 		},
 		"confirmationWait": {
 			"enum": [
-				"destructive",
 				"leaves-workspace",
 				"protected-file",
 				"not-understood",

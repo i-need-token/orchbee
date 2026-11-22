@@ -380,7 +380,7 @@ function createStoryAgentSource(
 
 /**
  * Three Claude Code terminals and how a Server answers their confirmations: the one in view is
- * offered, the next waits on a destructive command, the last is answered for this run.
+ * offered, the next waits on a protected file, the last is answered for this run.
  */
 const agentConfirmationsStory = (() => {
 	const fixture = createWorkspaceAgentOverviewStoryFixture();
@@ -401,7 +401,7 @@ const agentConfirmationsStory = (() => {
 		if (id !== undefined) rows.set(TerminalPresentationIdSchema.parse(id), confirmation);
 	};
 	show(offered, row({ offer: true }));
-	show(waiting, row({ choice: 'agent-type', wait: 'destructive' }));
+	show(waiting, row({ choice: 'agent-type', wait: 'protected-file' }));
 	show(
 		answered,
 		row({ choice: 'run', pressed: { kind: 'command', serial: 1, text: 'pnpm test' } }),

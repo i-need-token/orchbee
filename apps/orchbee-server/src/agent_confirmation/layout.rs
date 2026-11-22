@@ -13,8 +13,6 @@ use super::Kind;
 const SCREEN_BYTES: usize = 64 * 1024;
 const PATTERN_BYTES: usize = 8 * 1024;
 const COMPILED_BYTES: usize = 1 << 20;
-/// Rows of command or path text one dialog may hold; the command check bounds them again.
-const TEXT_ROWS: usize = 16;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -94,7 +92,8 @@ pub(crate) struct StyledRow {
 pub(crate) struct Dialog {
     pub(crate) layout: String,
     pub(crate) kind: Kind,
-    /// The command's rows without the dialog's gutter, or the path as one row.
+    /// The command's rows without the dialog's gutter, none when the Agent shows none, or the
+    /// path as one row.
     pub(crate) text: Vec<String>,
     /// The Agent drew its own danger marker.
     pub(crate) marked: bool,
@@ -299,10 +298,9 @@ impl Layout {
         {
             return None;
         }
+        // A command dialog whose Agent hides every command row reads as no text; the screen's
+        // bound bounds the rows.
         let rows: Vec<&str> = captures.name("text")?.as_str().lines().collect();
-        if rows.is_empty() || rows.len() > TEXT_ROWS {
-            return None;
-        }
         let text = if self.text.is_empty() {
             rows.iter().map(|row| (*row).to_owned()).collect()
         } else {

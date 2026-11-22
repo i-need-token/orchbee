@@ -156,6 +156,8 @@ pub(crate) struct Run {
     pressed: Option<Pressed>,
 }
 
+/// The first row of what was answered, marked as cut when it is longer, when more rows follow, or
+/// when the Agent showed none.
 fn shown(dialog: &Dialog) -> String {
     let mut text: String = dialog
         .text
@@ -166,7 +168,7 @@ fn shown(dialog: &Dialog) -> String {
         .text
         .first()
         .is_some_and(|row| row.chars().count() > PRESSED_CHARACTERS);
-    if cut || dialog.text.len() > 1 {
+    if cut || dialog.text.len() != 1 {
         text.push('…');
     }
     text

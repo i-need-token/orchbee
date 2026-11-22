@@ -77,15 +77,10 @@ fn every_captured_screen_reads_as_what_it_shows() {
             Some(("edit", Kind::FileEdit, &["aab-note.txt"], Ok(()))),
         ),
         (screen!("22-after-escape"), None),
-        // Claude Code drew no danger marker on either delete; the command check holds them.
+        // Claude Code drew no danger marker on either delete, and a command is not judged.
         (
             screen!("30-rm-rf"),
-            Some((
-                "bash",
-                Kind::Command,
-                &["rm -rf ./aab-dir"],
-                Err(Wait::Destructive),
-            )),
+            Some(("bash", Kind::Command, &["rm -rf ./aab-dir"], Ok(()))),
         ),
         (
             screen!("31-rm-dangerous-var"),
@@ -93,7 +88,7 @@ fn every_captured_screen_reads_as_what_it_shows() {
                 "bash",
                 Kind::Command,
                 &[r#"AAB_D=./aab-dir && rm -rf "$AAB_D/""#],
-                Err(Wait::Destructive),
+                Ok(()),
             )),
         ),
         (
@@ -152,7 +147,7 @@ fn every_captured_codex_screen_reads_as_what_it_shows() {
         (screen!("codex", "11-highlight-always"), None),
         (screen!("codex", "12-highlight-no"), None),
         (screen!("codex", "13-after-yes"), None),
-        // Codex writes files through the shell; PowerShell's quoting is more than the check reads.
+        // Codex writes files through the shell, so a file it writes is a command.
         (
             screen!("codex", "20-powershell-new-item"),
             Some((
@@ -162,18 +157,13 @@ fn every_captured_codex_screen_reads_as_what_it_shows() {
                     r#"New-Item -Path 'aab-note.txt' -ItemType File -Value "hello`n" -ErrorAction"#,
                     "Stop",
                 ],
-                Err(Wait::NotUnderstood),
+                Ok(()),
             )),
         ),
-        // Codex marks nothing as dangerous; the command check holds both.
+        // Codex marks nothing as dangerous.
         (
             screen!("codex", "30-rm-rf"),
-            Some((
-                "command",
-                Kind::Command,
-                &["rm -rf ./aab-dir"],
-                Err(Wait::Destructive),
-            )),
+            Some(("command", Kind::Command, &["rm -rf ./aab-dir"], Ok(()))),
         ),
         (
             screen!("codex", "31-git-push-force"),
@@ -181,7 +171,7 @@ fn every_captured_codex_screen_reads_as_what_it_shows() {
                 "command",
                 Kind::Command,
                 &["git push --force origin main"],
-                Err(Wait::Destructive),
+                Ok(()),
             )),
         ),
         (
@@ -211,7 +201,7 @@ fn every_captured_codex_screen_reads_as_what_it_shows() {
                     r#"New-Item -Path '..\aab-outside.txt' -ItemType File -Value "x`n""#,
                     "-ErrorAction Stop",
                 ],
-                Err(Wait::NotUnderstood),
+                Ok(()),
             )),
         ),
         (
@@ -220,7 +210,7 @@ fn every_captured_codex_screen_reads_as_what_it_shows() {
                 "command",
                 Kind::Command,
                 &[r#"New-Item -Path '.env' -ItemType File -Value "A=1`n" -ErrorAction Stop"#],
-                Err(Wait::ProtectedFile),
+                Ok(()),
             )),
         ),
     ];
@@ -269,21 +259,16 @@ fn every_captured_gemini_screen_reads_as_what_it_shows() {
                 "shell",
                 Kind::Command,
                 &["Remove-Item -Recurse -Force ./aab-g1"],
-                Err(Wait::Destructive),
+                Ok(()),
             )),
         ),
         (
             screen!("gemini", "32-move-to-env"),
-            Some((
-                "shell",
-                Kind::Command,
-                &["move .aenv .env"],
-                Err(Wait::ProtectedFile),
-            )),
+            Some(("shell", Kind::Command, &["move .aenv .env"], Ok(()))),
         ),
         // A redirection warning below the question is not the routine dialog.
         (screen!("gemini", "33-redirection-warning"), None),
-        // The last row starts with a hyphen: read as a row of its own, it names no program.
+        // A command wrapped over several rows is read row by row.
         (
             screen!("gemini", "40-long-command"),
             Some((
@@ -295,7 +280,7 @@ fn every_captured_gemini_screen_reads_as_what_it_shows() {
                     "e-thirteen-fourteen-fifteen-sixteen-seventeen-eighteen-nineteen-twenty",
                     "-twentyone-twentytwo",
                 ],
-                Err(Wait::NotUnderstood),
+                Ok(()),
             )),
         ),
         (
@@ -309,11 +294,14 @@ fn every_captured_gemini_screen_reads_as_what_it_shows() {
                     "ve-thirteen-fourteen-fifteen-sixteen-seventeen-eighteen-nineteen-twent",
                     "y-twentyone-twentytwo\"",
                 ],
-                Err(Wait::NotUnderstood),
+                Ok(()),
             )),
         ),
-        // In a short Panel the box around the command is drawn empty.
-        (screen!("gemini", "42-short-command-hidden"), None),
+        // In a short Panel the box around the command is drawn empty; the dialog is still whole.
+        (
+            screen!("gemini", "42-short-command-hidden"),
+            Some(("shell", Kind::Command, &[], Ok(()))),
+        ),
         // A long title and the counter together take two rows.
         (screen!("gemini", "43-title-wrapped"), None),
     ];
@@ -350,22 +338,6 @@ fn a_gemini_dialog_that_differs_from_its_layout_is_not_read() {
             outer("● 1. Allow once"),
             outer("● 1. Allow always"),
         ),
-        // In a short terminal Gemini CLI hides rows of the command, the first ones by default.
-        (
-            "hidden rows above the command",
-            command.clone(),
-            inner("... first 3 lines hidden (Ctrl+O to show) ...") + &command,
-        ),
-        (
-            "hidden rows in a narrow terminal",
-            command.clone(),
-            inner("... 3 hidden (Ctrl+O) ...") + &command,
-        ),
-        (
-            "hidden rows below the command, indented",
-            command.clone(),
-            command.clone() + &inner(" ... last 1 line hidden (Ctrl+O to show) ..."),
-        ),
         (
             "a command row outside the inner box",
             command.clone(),
@@ -375,6 +347,35 @@ fn a_gemini_dialog_that_differs_from_its_layout_is_not_read() {
         assert!(screen.contains(&from), "{change}");
         assert_eq!(read(&screen.replacen(&from, &to, 1)), None, "{change}");
     }
+    // In a short terminal Gemini CLI hides rows of the command, the first ones by default. The
+    // dialog is still whole, and its marker row is command text.
+    for (change, marker, text) in [
+        (
+            "hidden rows above the command",
+            inner("... first 3 lines hidden (Ctrl+O to show) ...") + &command,
+            [
+                "... first 3 lines hidden (Ctrl+O to show) ...",
+                "mkdir aab-dir",
+            ],
+        ),
+        (
+            "hidden rows in a narrow terminal",
+            inner("... 3 hidden (Ctrl+O) ...") + &command,
+            ["... 3 hidden (Ctrl+O) ...", "mkdir aab-dir"],
+        ),
+        (
+            "hidden rows below the command, indented",
+            command.clone() + &inner(" ... last 1 line hidden (Ctrl+O to show) ..."),
+            [
+                "mkdir aab-dir",
+                " ... last 1 line hidden (Ctrl+O to show) ...",
+            ],
+        ),
+    ] {
+        let dialog = read(&screen.replacen(&command, &marker, 1)).expect(change);
+        assert_eq!(dialog.text, rows(&text), "{change}");
+        assert_eq!(judge(&dialog, WINDOWS), Ok(()), "{change}");
+    }
     // A command row that imitates the box's own rows stays command text behind the two bars.
     let imitated = screen.replacen(
         &command,
@@ -383,7 +384,6 @@ fn a_gemini_dialog_that_differs_from_its_layout_is_not_read() {
     );
     let dialog = read(&imitated).expect("the layout still matches");
     assert_eq!(dialog.text, rows(&["mkdir aab-dir", "│ ● 1. Allow once"]));
-    assert_eq!(judge(&dialog, WINDOWS), Err(Wait::NotUnderstood));
     // Gemini CLI shortens a path beyond 35 characters with three dots; the rest is not shown.
     let (_, write) = screen!("gemini", "20-write-new-file");
     let title = outer("? WriteFile  Writing to aab-note.txt");
@@ -514,22 +514,21 @@ fn a_codex_dialog_that_differs_from_its_layout_is_not_read() {
         assert_eq!(read(&screen.replacen(from, to, 1)), None, "{change}");
     }
     assert_eq!(screen.matches(title).count(), 1);
-    // A command row that imitates an option row is command text, and not text the check reads.
+    // A command row that imitates an option row is command text.
     let imitated = screen.replacen(command, "  $ mkdir aab-dir2\n  › 1. Yes, proceed (y)\n", 1);
     let dialog = read(&imitated).expect("the layout still matches");
     assert_eq!(
         dialog.text,
         rows(&["mkdir aab-dir2", "› 1. Yes, proceed (y)"])
     );
-    assert_eq!(judge(&dialog, WINDOWS), Err(Wait::NotUnderstood));
-    // Codex's marker for rows it does not show is command text that is not all on the screen.
+    // Codex's marker for rows it does not show is command text in a dialog that is whole.
     let hidden = screen.replacen(
         command,
         "  $ mkdir aab-dir2\n  [… 9 lines] ctrl+a view all\n",
         1,
     );
     let dialog = read(&hidden).expect("the layout still matches");
-    assert_eq!(judge(&dialog, WINDOWS), Err(Wait::NotVisible));
+    assert_eq!(judge(&dialog, WINDOWS), Ok(()));
     // Another Agent's layouts never read Codex's screen.
     assert_eq!(
         layouts().read(AgentReportProvider::Claude, screen, None),
@@ -610,7 +609,7 @@ fn text_inside_the_dialog_cannot_pass_for_the_dialog() {
     );
     let dialog = read(&warned).expect("the layout still matches");
     assert_eq!(judge(&dialog, WINDOWS), Err(Wait::MarkedDangerous));
-    // A command row that imitates an option row is command text, and not text the check reads.
+    // A command row that imitates an option row is command text.
     let imitated = screen.replacen(
         "╌\n mkdir aab-dir\n",
         "╌\n │ mkdir aab-dir\n │ ❯ 1. Yes\n",
@@ -618,7 +617,6 @@ fn text_inside_the_dialog_cannot_pass_for_the_dialog() {
     );
     let dialog = read(&imitated).expect("the layout still matches");
     assert_eq!(dialog.text, rows(&["mkdir aab-dir", "❯ 1. Yes"]));
-    assert_eq!(judge(&dialog, WINDOWS), Err(Wait::NotUnderstood));
     // A truncated path is not completely on screen.
     let (_, create) = screen!("52-write-subdir");
     let cut = create.replacen(r" sub\dir\aab-deep.txt", r" sub\…\aab-deep.txt", 1);

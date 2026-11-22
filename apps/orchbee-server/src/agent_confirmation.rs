@@ -1,10 +1,9 @@
 //! Automatic confirmation: reads an Agent's confirmation dialog from a captured screen, judges
 //! what it asks for, and decides for one Agent run whether its one-time accept may be pressed.
-//! Everything here is pure and bounded. A screen, a rule or a command that cannot be read means
-//! the confirmation waits for a person; nothing in this module can fail a process.
+//! Everything here is pure and bounded. A screen or a path that cannot be read means the
+//! confirmation waits for a person; nothing in this module can fail a process.
 //! `../docs/agent-confirmation.md` owns the rules.
 
-mod command;
 mod layout;
 mod place;
 mod run;
@@ -27,15 +26,13 @@ pub(crate) enum Kind {
 /// each Client.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Wait {
-    /// The command deletes, overwrites, elevates, stops or sends something out.
-    Destructive,
-    /// The command or file reaches outside the Workspace.
+    /// The file is outside the Workspace.
     LeavesWorkspace,
     /// The file is one Orchbee never changes unattended.
     ProtectedFile,
-    /// The command has a shape the check does not read.
+    /// The path has a shape the path rules do not read.
     NotUnderstood,
-    /// The command or path is not completely on screen.
+    /// The path is not completely on screen.
     NotVisible,
     /// The Agent itself marks the request as dangerous.
     MarkedDangerous,
@@ -52,13 +49,14 @@ pub(crate) enum Wait {
 }
 
 /// Judges what a dialog asks for. `Ok` means its one-time accept may be pressed once every
-/// other rule holds.
+/// other rule holds. A command is never judged: a check of command text cannot be complete, so
+/// it would only give false assurance.
 pub(crate) fn judge(dialog: &Dialog, scope: Scope<'_>) -> Result<(), Wait> {
     if dialog.marked {
         return Err(Wait::MarkedDangerous);
     }
     match dialog.kind {
-        Kind::Command => command::check(&dialog.text, scope),
+        Kind::Command => Ok(()),
         Kind::FileCreate | Kind::FileEdit => match dialog.text.as_slice() {
             // An Agent shortens a long path with an ellipsis or with three dots.
             [path] if path.contains('…') || path.contains("...") => Err(Wait::NotVisible),

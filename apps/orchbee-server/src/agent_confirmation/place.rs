@@ -148,7 +148,7 @@ fn plain(text: &str) -> bool {
 
 /// Whether the Agent works inside the Workspace, the condition for a relative spelling to mean a
 /// place inside it.
-pub(super) fn settled(scope: Scope<'_>) -> bool {
+fn settled(scope: Scope<'_>) -> bool {
     let (Some(root), Some(directory)) = (scope.root, scope.directory) else {
         return false;
     };
@@ -193,27 +193,4 @@ pub(crate) fn check(text: &str, scope: Scope<'_>) -> Result<(), Wait> {
     } else {
         Err(Wait::LeavesWorkspace)
     }
-}
-
-fn absolute(text: &str) -> bool {
-    let bytes = text.as_bytes();
-    text.starts_with(['/', '\\'])
-        || (bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':')
-}
-
-/// Judges one command argument, which may or may not be a path. A relative word without a
-/// parent step stays where the Agent works; a home form, a parent step, a short name, a
-/// protected name and an absolute place outside the Workspace wait.
-pub(super) fn argument(text: &str, scope: Scope<'_>) -> Result<(), Wait> {
-    let mut steps = text.split(['/', '\\']);
-    if steps.clone().any(protected) {
-        return Err(Wait::ProtectedFile);
-    }
-    if text.starts_with('~') || steps.any(|step| step == ".." || step.contains('~')) {
-        return Err(Wait::LeavesWorkspace);
-    }
-    if absolute(text) {
-        return check(text, scope);
-    }
-    Ok(())
 }

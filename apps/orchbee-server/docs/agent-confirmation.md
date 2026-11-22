@@ -2,21 +2,26 @@
 
 The Server decides whether a confirmation an Agent shows may be answered for a person, and sends
 the key when it may. This reference owns the rules that decision is made of: how a dialog is read
-from a screen, which commands and paths wait, what one Agent run remembers, and how a decision
-reaches the terminal. The rules are the module `agent_confirmation`, which is pure and reads no
-file and no clock of its own; `local_terminal_service/agent_confirmation.rs` connects them to the
-screen sampler, the settings and the Clients. The
+from a screen, which files wait, what one Agent run remembers, and how a decision reaches the
+terminal. The rules are the module `agent_confirmation`, which is pure and reads no file and no
+clock of its own; `local_terminal_service/agent_confirmation.rs` connects them to the screen
+sampler, the settings and the Clients. The
 [proposal](../../../proposals/agent/automatic-confirmation.md) owns the design that is not built:
 the Agents after Claude Code, Codex, Gemini CLI and OpenCode.
 
-Every rule fails closed. A screen, a command or a path the module cannot read completely is one
-that waits for the person, and each wait carries one reason from a closed list: destructive
-command, leaves the Workspace, protected file, command not fully understood, command not fully
-visible, marked dangerous by the Agent, not a prompt Orchbee answers, a person typed or clicked,
-the screen keeps changing, the same confirmation keeps coming back, and a terminal an older
-Orchbee started: its Terminal Host does not list `screen-gated-send`, so the Worker refuses the
-send before anything reaches that Host, and the terminal keeps waiting for the person until it
-runs under a newer Host.
+A command is never judged. A command confirmation whose dialog a layout reads completely, with
+the one-time accept highlighted, is answered whatever the command says, also when the Agent wraps,
+cuts or hides the command inside that dialog: a check of command text cannot be complete, and one
+that is not gives false assurance. A command that deletes or uploads files runs like any other.
+
+Every other rule fails closed. A screen or a file path the module cannot read completely is one
+that waits for the person, and each wait carries one reason from a closed list: the file is
+outside the Workspace, a protected file, a path not understood, a path not fully visible, marked
+dangerous by the Agent, not a prompt Orchbee answers, a person typed or clicked, the screen keeps
+changing, the same confirmation keeps coming back, and a terminal an older Orchbee started: its
+Terminal Host does not list `screen-gated-send`, so the Worker refuses the send before anything
+reaches that Host, and the terminal keeps waiting for the person until it runs under a newer
+Host.
 
 A release build withholds the feature until it ships: the Server loads no layout, so it reads no
 dialog and offers, shows and presses nothing, and its registry does not know the settings below.
@@ -70,8 +75,10 @@ built, which the module's tests do.
 - **Captured text.** `rows` captures the command or path rows as `text` and may capture the
   Agent's own remarks as `notes`. Body rows start in a column the Agent's chrome does not use, so a
   command cannot draw a border or an option row that the pattern would take for the dialog's own.
-- **Bounds.** A screen over 64 KiB, a pattern over 8 KiB, a compiled expression over 1 MiB and
-  more than 16 captured rows are refused.
+  The rows a command shows are its text, including a row the Agent writes in place of rows it does
+  not show; a dialog that shows none of its command has no text.
+- **Bounds.** A screen over 64 KiB, a pattern over 8 KiB and a compiled expression over 1 MiB are
+  refused.
 - **Identity.** A prompt is its layout, its kind and its captured text. Two screens with the same
   three are the same prompt.
 
@@ -90,12 +97,11 @@ is not admitted.
 | OpenCode    | Shell command, file edit, by style          | Every other permission, and a dialog its box cuts       |
 
 Codex's reason rows cannot start with the command's `$`, so the first `$` row is the command's,
-and the command is every row from there to the two blank rows above the options. Where Codex
-writes files through PowerShell the command carries quotes, and the command check holds it.
-A Codex dialog taller than its Panel fills the Panel: no row lies above the title, the options
-are shortened behind an arrow, and in a short Panel a marker row stands in place of the command
-rows that are not shown. The fence, the option rows and the command check's rule for text that
-is not all on the screen each make such a dialog wait.
+and the command is every row from there to the two blank rows above the options. Codex writes
+files through PowerShell, so such a write is a command confirmation. A row such as
+`[… 9 lines] ctrl+a view all` in place of command rows Codex does not show is command text. A
+Codex dialog taller than its Panel fills the Panel: no row lies above the title and the options
+are shortened behind an arrow, so the fence and the option rows make such a dialog wait.
 
 Gemini CLI puts the command, or a file's new content, in a box inside the dialog's box, so a row a
 model supplies starts behind two bars and cannot draw a border, the question or an option. Four
@@ -108,8 +114,8 @@ rules come from how it draws:
   text with `: `, which a folder name may contain on macOS, so the path cannot be told from the
   text.
 - In a short terminal it draws the inner box empty, or hides rows of it behind a row that starts
-  with three dots. A layout needs a row of command text and no pattern takes such a row for one,
-  so the dialog is not read.
+  with three dots. The dialog is still whole and is read: the empty box has no text, and the row
+  with the dots is command text.
 - With several confirmations pending it ends the title row in a counter such as `1 of 2`, and
   Enter answers the dialog shown. The write layout takes the counter apart from the path, and a
   path with a space, which cannot be told from a path and a counter, is not read. A long title
@@ -126,75 +132,21 @@ rules come from how it draws:
   text above the options.
 - The box is at most 15 rows tall and cuts a longer command with no mark: after its sixth row
   where the keys have a row of their own, after its eighth where they sit beside the options from
-  80 columns on. A command that fills those rows waits. In a Panel shorter than the box its last
-  rows are cut, and no layout reads it.
+  80 columns on. Such a dialog is read with the rows it shows. In a Panel shorter than the box its
+  last rows are cut, and no layout reads it.
 - A file written whole and a file changed in place both show as an edit of the path. A path
   outside the Agent's folder is written from the home folder or in full, and a long path continues
   on rows of its own, which the path check does not take as one row.
 - From about 120 columns a sidebar may write the folder at the right end of the last row; a
   sidebar's text anywhere else in the dialog fails the match.
 
-## Command check
-
-The check reads text an Agent controls, so it is a trust boundary: no I/O, bounded input, no panic
-path. It lists what must wait, never what may run; a command word it does not list is routine. It
-never resolves quoting, escapes or expansion, so it never has to agree with a shell about them, and
-it reads POSIX shells, PowerShell and `cmd` the same way.
-
-1. **Bounds and characters.** At most 2048 bytes and five line breaks. Only printable ASCII and
-   letters or digits of other scripts are read; an ellipsis means the command is not fully visible.
-2. **Line breaks.** A dialog wraps long commands, so a break on screen may be a wrap inside a word,
-   a wrap at a space, or a new line that starts another command. Every reading of every break is
-   checked and the strongest reason found is the answer.
-3. **Structure.** The text is split into simple commands at `;`, `&`, `|`, new lines, parentheses
-   and braces, wherever they stand, inside quotes too. Command substitution, process substitution,
-   a here-document, a trailing line continuation and an unclosed quote wait.
-4. **Command word.** It waits when it contains a quote, a caret, a backslash, a backtick, a
-   variable, `=` or `~`, when it is not spelled like a program name or a path to one, or when it
-   is a keyword that starts a compound statement. The program is its last path step without case
-   and without `.exe`, `.cmd`, `.bat` or `.com`. A listed program glued to a switch, as `cmd`
-   reads `rd/s/q`, waits as that program.
-5. **Families.** `command/families.rs` lists programs with the options and subcommands that make
-   them wait, wherever those stand in the command. Before a word is compared, quotes, carets and
-   backslashes are removed from it and case is dropped. The families are: shells and interpreters
-   given code inline, with `pwsh`, `powershell`, `cmd` and `osascript` waiting in every form;
-   words that run another command; delete, overwrite and disk tools; Git commands that discard,
-   rewrite or publish, among them every `push`, `checkout` and `restore`; elevation; recursive
-   permission and owner changes; process, service, machine, registry and package-manager changes;
-   links; remote copies; and the destructive or outward subcommands of container, cluster,
-   infrastructure, hosting, cloud and publishing tools. A delete with a pattern such as `*` waits.
-6. **Statements and downloads.** `DROP`, `TRUNCATE`, `FLUSHALL`, `FLUSHDB` and `DELETE FROM` wait
-   in any command. A download program in a command that also feeds a shell waits.
-7. **Variables and places.** An argument with a variable waits: as leaving the Workspace for a home
-   form such as `$HOME` or `%USERPROFILE%`, otherwise as not understood. Every argument, the value
-   after an `=` and a drive path inside an argument are placed by the path rules below.
-   Redirection targets are placed like arguments; a redirection to the null device is the one
-   place outside the Workspace a command may name. A word that starts with `/` and is not inside
-   the Workspace waits, which also holds Windows switches such as `/s`.
-
-Every spelling the check covers is a row of `src/agent_confirmation/tests/commands.tsv`: the
-expected answer, the shell, and the command. Add a spelling as a row first, then make the check
-agree.
-
-The check cannot catch, and product copy must not claim otherwise:
-
-- A script, Makefile target, package script or test the Agent wrote or changed and then runs.
-- An alias, a shell function, or a program that deletes or overwrites by itself, and a destructive
-  command of a tool the families do not list.
-- A place named inside a quoted argument, inside an option the check does not split, or reached
-  through a link that already exists or through an earlier `cd`.
-- An Agent that draws a command other than the one it runs.
-- A folder the Agent runs the command in without drawing it. Gemini CLI can run a command in
-  another folder a person added to its workspace; the command is judged as run in the Agent's
-  folder.
-
 ## Path rules
 
 A path is placed by its spelling alone; no file system is read.
 
 - **Scope.** A path is judged against the Workspace's directory and the Agent process's working
-  directory. Without both, or when the working directory is not inside the Workspace, every
-  command and every path waits.
+  directory. Without both, or when the working directory is not inside the Workspace, every file
+  confirmation waits.
 - **Forms.** Windows drive paths, POSIX paths, and the POSIX spelling of a drive path (`/c/work`)
   are read. Drive paths compare without case; POSIX paths compare exactly. A network or device
   path, a drive-relative path, a stream, a short name, a wildcard, and a step that ends in a dot
@@ -214,7 +166,7 @@ A path is placed by its spelling alone; no file system is read.
 
 One Agent run keeps its state in Server memory. It ends with the Agent process and is forgotten by
 a Server restart. Each sampler turn gives the run the frame it read, whether the Agent waits, and
-the dialog with its answer from the checks; the run answers with nothing, one press, or a hold.
+the dialog with its verdict; the run answers with nothing, one press, or a hold.
 [`AgentConfirmationPress.tla`](../formal/tla/AgentConfirmationPress.tla) checks the order of these
 steps against the Terminal Host's gate.
 
@@ -274,6 +226,7 @@ steps against the Terminal Host's gate.
 - **Settings.** `agents.auto_allow.claude` turns answering on for every Claude Code run.
   `agents.auto_allow.codex` turns answering on for every Codex run.
   `agents.auto_allow.gemini` turns answering on for every Gemini CLI run.
+  `agents.auto_allow.opencode` turns answering on for every OpenCode run.
   `agents.auto_allow.offer` is true until a person answers "no" to an offer. No settings page
   shows it and it is not among the common values Clients read: the Server reads it from the
   settings file and writes it there on a "no".

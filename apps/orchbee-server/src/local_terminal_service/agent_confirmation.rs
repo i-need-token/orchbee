@@ -256,7 +256,6 @@ fn diagnose(outcome: Outcome) {
 
 fn wait(wait: Wait) -> AgentConfirmationWait {
     match wait {
-        Wait::Destructive => AgentConfirmationWait::Destructive,
         Wait::LeavesWorkspace => AgentConfirmationWait::LeavesWorkspace,
         Wait::ProtectedFile => AgentConfirmationWait::ProtectedFile,
         Wait::NotUnderstood => AgentConfirmationWait::NotUnderstood,

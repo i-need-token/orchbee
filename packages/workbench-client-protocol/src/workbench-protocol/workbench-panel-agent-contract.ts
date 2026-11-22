@@ -68,7 +68,6 @@ export const TerminalAgentBindingSchema = z
 /** The Server's routine-confirmation choice for one Agent: off, this run only, or every Agent of its type. */
 const AgentConfirmationChoiceSchema = z.enum(['off', 'run', 'agent-type']);
 const AgentConfirmationWaitSchema = z.enum([
-	'destructive',
 	'leaves-workspace',
 	'protected-file',
 	'not-understood',

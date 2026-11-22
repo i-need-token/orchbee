@@ -481,12 +481,10 @@ export const enUSWorkbenchMessages = {
 		'Stopped allowing: the same confirmation keeps coming back.',
 	'workbench.agentConfirmation.notChanged': "Couldn't apply the change.",
 	'workbench.agentConfirmation.waitStatus': '{status} · {reason}',
-	'workbench.agentConfirmation.wait.destructive': 'destructive command, waiting for you',
-	'workbench.agentConfirmation.wait.leavesWorkspace':
-		'reaches outside the Workspace, waiting for you',
+	'workbench.agentConfirmation.wait.leavesWorkspace': 'file outside the Workspace, waiting for you',
 	'workbench.agentConfirmation.wait.protectedFile': 'protected file, waiting for you',
-	'workbench.agentConfirmation.wait.notUnderstood': 'command Orchbee cannot check, waiting for you',
-	'workbench.agentConfirmation.wait.notVisible': 'command or path not fully shown, waiting for you',
+	'workbench.agentConfirmation.wait.notUnderstood': 'path Orchbee cannot read, waiting for you',
+	'workbench.agentConfirmation.wait.notVisible': 'path not fully shown, waiting for you',
 	'workbench.agentConfirmation.wait.markedDangerous':
 		'marked dangerous by the Agent, waiting for you',
 	'workbench.agentConfirmation.wait.notAnswered': 'not a routine confirmation, waiting for you',

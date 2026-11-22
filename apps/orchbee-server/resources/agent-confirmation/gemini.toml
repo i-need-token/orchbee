@@ -7,9 +7,7 @@
 # model's description, cut to one row.
 #
 # In a short terminal Gemini CLI draws the inner box empty, or hides rows of it behind a row
-# such as `... first 3 lines hidden (Ctrl+O to show) ...`. A layout needs at least one row of
-# command text and no pattern takes a row that starts with three dots for it, so that dialog is
-# not read.
+# such as `... first 3 lines hidden (Ctrl+O to show) ...`, which is then command text.
 #
 # With several confirmations pending, the title row ends in a counter such as `1 of 2`, and a
 # long title then takes a second row, which no layout reads. Enter answers the dialog shown.
@@ -24,7 +22,7 @@ rows = [
 	'╭─{20,}╮\n',
 	'│ \? Shell [^\n]*│\n',
 	'│ ╭─{20,}╮ │\n',
-	'(?P<text>(?:│ │ [^\n]*│ │\n){1,16})',
+	'(?P<text>(?:│ │ [^\n]*│ │\n)*)',
 	'│ ╰─{20,}╯ │\n',
 	'│ Allow execution of \[Shell\]\? +│\n',
 	'│ +│\n',
@@ -33,7 +31,7 @@ rows = [
 	'│   3\. No, suggest changes \(esc\) +│\n',
 	'╰─{20,}╯\n',
 ]
-text = ['│ │ (?P<text> *(?:[^. \n]|\.[^.\n]|\.\.[^.\n])[^\n]*?| *\.{0,2}) *│ │']
+text = ['│ │ (?P<text>.*?) *│ │']
 
 # Gemini CLI writes a new file and replaces an existing one through the same dialog, so the
 # write reads as an edit. The path is shortened with three dots beyond 35 characters, and a path

@@ -9,8 +9,9 @@
 
 An Agent that stops on a routine confirmation, such as "run `cargo test`?", keeps a person at the
 keyboard for an answer that is almost always yes. With automatic confirmation turned on, Orchbee
-presses the Agent's own one-time accept key for the person. It never answers a confirmation it
-cannot read completely, and it never answers a destructive one.
+presses the Agent's own one-time accept key for the person. It never answers a confirmation whose
+dialog it cannot read completely. It does not judge the command: one that deletes or uploads files
+is answered too.
 
 The feature types a key into a program that can run commands. This page therefore decides first
 when a key may be sent, and only then what a person sees.
@@ -32,9 +33,11 @@ Decided, unless marked otherwise.
 - **After a press** the status line says `Allowed: <command>` for a short time.
 - **When Orchbee does not press**, nothing changes from today: the Agent needs attention and the
   notification fires. Resting the pointer on the row's state gives the reason, such as
-  "destructive command, waiting for you".
-- **Destructive confirmations always wait.** No setting changes that, and there is no list a person
-  can edit in the first cut (Chosen).
+  "protected file, waiting for you".
+- **Commands are not checked.** Decided by the product owner on 2026-11-21: a check of command text
+  cannot be complete, so it gives false assurance. A recognised command confirmation with its
+  one-time accept highlighted is answered whatever the command says. No setting changes that, and
+  there is no list a person can edit in the first cut (Chosen).
 - **File changes inside the Workspace are allowed too.** A file outside the Workspace, or a
   protected file, always waits.
 - **First Agents:** Claude Code, Codex, OpenCode, Gemini CLI and Hermes Agent, shipped one at a
@@ -53,9 +56,9 @@ holds for the screen the key lands on.
 | Same Agent      | Two process samples around the screen capture select the same Agent process, by process id, creation time and provider, and the Terminal Host finds that process among the terminal's processes when it prepares the key                   |
 | Exact layout    | A frame the Server captured for this decision matches one bundled layout of that Agent completely, from the dialog's first row to the last row of the screen. A state the Agent reports about itself never stands in for the capture       |
 | One-time accept | The highlighted row is the Agent's one-time accept. Orchbee never moves the highlight and never picks a row that says always, session, or do not ask again                                                                                 |
-| Readable        | The whole command, or the whole file path, is on screen and contains only plain characters                                                                                                                                                 |
+| Readable        | The whole file path is on screen and contains only plain characters. A command may be wrapped, cut or hidden inside a dialog that is otherwise whole                                                                                       |
 | Not marked      | The Agent shows no danger marker of its own                                                                                                                                                                                                |
-| Passes check    | The command passes the [command check](#the-command-check); a file change passes the [path check](#file-changes)                                                                                                                           |
+| Passes check    | A file change passes the [path check](#file-changes); a [command is not judged](#commands)                                                                                                                                                 |
 | Settled         | The same prompt has been observed, unchanged in its layout, its command or path, and its highlighted row, for at least one second across at least three captures                                                                           |
 | Person is away  | No person typed or clicked in this terminal at or after the revision at which the prompt was first seen, and none in the three seconds before the key. The Terminal Host owns both facts                                                   |
 | Once            | No key was written for this prompt before. A send whose outcome is unknown counts as written; a key the Host refused does not                                                                                                              |
@@ -63,9 +66,9 @@ holds for the screen the key lands on.
 | Not repeating   | The same prompt has not come back unchanged after three presses in a row, counting written and unknown sends. The fourth time Orchbee stops pressing for the run, says so once, and the row's menu shows it off; the person may turn it on |
 
 Any rule that does not hold means the prompt waits for the person, exactly as today. A layout that
-does not match, a command that is only partly visible or paged, a command shape the check cannot
-read, an Agent danger marker, and a prompt that is not a tool confirmation (trust, login, update,
-MCP, plan, question) all wait. An Agent release that changes its wording stops matching by itself
+does not match, a dialog cut so that its options or its highlight are not on screen, an Agent
+danger marker, and a prompt that is not a tool confirmation (trust, login, update, MCP, plan,
+question) all wait. An Agent release that changes its wording stops matching by itself
 and goes back to waiting; nothing falls back to a looser match.
 
 Orchbee never sends digits, Tab, arrows, or text, and never changes an Agent's own configuration.
@@ -94,7 +97,7 @@ Host keeps them, and the
 [Worker send transaction](../../apps/orchbee-worker/docs/worker-send-transaction.md#screen-gated-refinement)
 owns how a Server send carries the key and the hold; what follows states the design and its
 reasons. The Server's rules are built too: its
-[confirmation reference](../../apps/orchbee-server/docs/agent-confirmation.md) owns how a dialog is read, which commands and paths wait, and what a
+[confirmation reference](../../apps/orchbee-server/docs/agent-confirmation.md) owns how a dialog is read, which files wait, and what a
 run remembers. No Server path calls those rules or builds such a send yet.
 
 The message names the key, the frame the Server matched by its generation and content revision,
@@ -210,9 +213,9 @@ run without faults. Removing the first-seen rule or the quiet time makes Person 
 removing the hold makes Off means off fail. Rule 4 of the gate is a backstop against a faulty
 sender; the modeled Server never needs it.
 
-The model treats layout matching, the command check and the path check as one pure function from
-a screen to routine, hold, or not a prompt. Those are deterministic transformations and are
-covered by rule tests over captured screens and command tables, as
+The model treats layout matching and the path check as one pure function from a screen to
+routine, hold, or not a prompt; a command is not judged. Those are deterministic transformations
+and are covered by rule tests over captured screens and path tables, as
 [Modeling and Correctness](../../docs/MODELING-AND-CORRECTNESS.md) assigns them. Durations are
 reduced to what they guard: the settle to a count of captures, and the quiet time to a flag that
 clears only under the second assumption below.
@@ -242,8 +245,8 @@ title anywhere, therefore waits.
 Gemini CLI draws its dialog as a box that starts in the first column and puts the command, or the
 new content of a file, in a second box inside it. Every row a model supplies therefore starts
 behind two bars and cannot draw a border, the question or an option. In a short terminal Gemini
-CLI draws the inner box empty or hides rows of it behind a row that starts with three dots; no
-layout takes such a row for command text, so that dialog waits. With several confirmations
+CLI draws the inner box empty or hides rows of it behind a row that starts with three dots; the
+dialog is still whole, so it is read with the rows it shows. With several confirmations
 pending, the title ends in a counter such as `1 of 2`, so a written file's path takes no space and
 the counter is matched apart from it; otherwise `.env   1 of 2` would not be the protected name.
 
@@ -254,32 +257,27 @@ moving over the dialog with no button pressed selects the option under it with n
 text. Chosen: when a screen holds an OpenCode dialog, the Server also reads the screen's styled
 rows at the frame of its text, and reads the dialog only while "Allow once" is drawn apart from the
 two other options. The styled read already serves Clients, so no protocol changes. The box cuts a
-long command without a mark, so a command that fills the box waits.
+long command without a mark, and the dialog is read with the rows it shows.
 
 - Layouts are compiled into the Server and never read from a local override or a downloaded
   catalog: a rule that can press a key ships only inside a signed release.
 - Layouts are matched exactly and not pinned to Agent versions (Decided as announced). Evidence
   for each layout is a set of screens captured from the real Agent, kept as test fixtures.
 
-## The command check
+## Commands
 
-The check is the only guard for Codex, OpenCode and Gemini CLI, which mark nothing as dangerous.
-It is also needed for Claude Code: its captured `rm -rf` confirmations carried no danger marker.
-The check reads text an Agent controls, so it is a trust boundary.
+Decided by the product owner on 2026-11-21, replacing the command check this page first chose:
+Orchbee does not judge a command. A check of command text cannot be complete. A script the Agent
+wrote, an alias, a tool no list names and a place reached through a link all pass such a check, so
+it gives false assurance. A command confirmation is answered once a layout reads its dialog
+completely with the one-time accept highlighted, whatever the command says, also when the command
+is long, wrapped or cut inside that dialog. The copy says so: commands are not checked, and one
+that deletes or uploads files runs too.
 
-Decided: the check is a list of what must wait, not a list of what may run. A command word it does
-not list is routine; a list of allowed commands would hold nearly every real command. A command
-word or a listed program's argument that hides behind a quote, a backtick, a caret, a backslash or
-a variable waits, and so does every shape whose reading differs between shells.
-
-The [Server reference](../../apps/orchbee-server/docs/agent-confirmation.md#command-check) owns the rules as built, the fixture every spelling is a
-row of, and the list of what the check can never catch. Chosen beyond the first draft of this page,
-each stricter than it: `pwsh`, `powershell` and `cmd` wait in every form, not only with inline
-code; every `git push`, `git checkout` and `git restore` waits; a delete with a pattern waits; and
-a Windows switch such as `/s` waits like a path outside the Workspace.
-
-Because of what the check cannot catch, the feature is described as "answers routine
-confirmations" and "destructive commands always wait", never as making an Agent safe.
+What still waits: a highlight on anything but the one-time accept, such as "always allow" or "for
+this session"; a dialog the Agent itself marks as dangerous; a dialog cut so that its options or
+highlight are not on screen; and every approval no layout reads, such as Codex's patch and network
+approvals, OpenCode's other permissions and Gemini CLI's replace-in-file confirmation.
 
 ## File changes
 
@@ -321,9 +319,8 @@ without it, shows nothing of the feature, and such a Server never presses: nothi
 The built contract is in the [Server reference](../../apps/orchbee-server/docs/agent-confirmation.md)
 and the Workbench schemas.
 
-**Wait reasons** are a closed list, each with one localized sentence: destructive command, leaves
-the Workspace, protected file, command not fully understood, command not fully visible, marked
-dangerous by the Agent, not a prompt Orchbee answers, you typed or clicked in this terminal, the
+**Wait reasons** are a closed list, each with one localized sentence: file outside the Workspace,
+protected file, path not understood, path not fully visible, marked dangerous by the Agent, not a prompt Orchbee answers, you typed or clicked in this terminal, the
 screen keeps changing, the same confirmation keeps coming back, and an older Orchbee started this
 terminal, said once the Worker has refused a send because the terminal's Host does not list
 `screen-gated-send`.
@@ -345,7 +342,7 @@ Both Clients use the same words. English and Simplified Chinese ship together.
 | Row menu             | Allow confirmations: Off · This Agent only · Always for {agent}               | 自动允许确认：关闭 · 仅此智能体 · {agent} 始终允许            |
 | After a press        | Allowed: {command}                                                            | 已允许：{command}                                             |
 | Stopped              | Stopped allowing: the same confirmation keeps coming back.                    | 已停止自动允许：同一个确认反复出现。                          |
-| Hover reason         | Needs attention · destructive command, waiting for you                        | 需要处理 · 破坏性命令，等你确认                               |
+| Hover reason         | Needs attention · protected file, waiting for you                             | 需要处理 · 受保护的文件，等你确认                             |
 | Settings group       | Allow routine confirmations                                                   | 自动允许常规确认                                              |
 | Change not applied   | Couldn't apply the change.                                                    | 没能应用更改。                                                |
 | Settings description | Presses the Agent's one-time Yes. Destructive commands always wait.           | 替你按下智能体的单次允许。破坏性命令始终等你确认。            |
@@ -388,20 +385,18 @@ it.
 | 0     | This proposal and the model                                                                                                        | No      |
 | 1     | Terminal Host: screen-gated key, its capability, protocol bindings and fixtures                                                    | No      |
 | 2     | Worker and Server-to-Worker protocol: the gated send and its outcomes                                                              | No      |
-| 3     | Server: layouts, command and path checks, the per-run decision, rule tests over captured Claude Code screens; no way to turn it on | No      |
+| 3     | Server: layouts, the path check, the per-run decision, rule tests over captured Claude Code screens; no way to turn it on | No      |
 | 4     | Settings keys, the row read and the two requests behind their capability, with schemas and bindings; the sampler wiring            | No      |
 | 5     | Both Clients together: offer, row menu, notices, hover reason, Settings, both locales. Claude Code only                            | Yes     |
 | 6–9   | Codex, OpenCode, Gemini CLI, Hermes Agent: layouts, captured screens, Settings switch, one merge each                              | Yes     |
 
-Codex is answered for its shell command confirmation only. Where Codex writes files through
-PowerShell, the command carries quotes, so it waits as not understood.
+Codex is answered for its shell command confirmation only, which also carries the files it writes
+through PowerShell.
 
 Gemini CLI is answered for its shell command confirmation and for its whole-file write, which
 creates a file or replaces one and is read as an edit of the path in the dialog's title. Its
 replace-in-file confirmation waits: the title joins the path and two pieces of the model's text
 with `: `, which a folder name may contain on macOS, so the path cannot be told from the text.
-Gemini CLI can run a command in another folder the person added to its workspace without drawing
-which; the command is judged as run in the Agent's folder.
 
 OpenCode is answered for its shell command confirmation and for its file edit, which also covers a
 file written whole. Every other permission waits. OpenCode runs a session's tools in that
@@ -420,12 +415,10 @@ protocol reference (1), the Worker send transaction (2), a new Server reference 
 
 - The model above, registered with the other protocol models.
 - Rule tests: every captured screen of every supported Agent maps to its expected outcome,
-  including each declined destructive capture; the command fixture, with the quoted, escaped and
-  wrapped spellings; a path table for both path forms.
+  including each delete it answers and each cut command; a path table for both path forms.
 - Host tests for each refusal rule of the gate, through the real input queue.
 - Server tests of the per-run decision with a controlled clock: settle, each refusal and what
   follows it, an unknown outcome, turning off with a key on its way, the repeat stop, and the
   offer count.
 - An end-to-end run in a development build for each Agent, in both Clients, in an empty scratch
-  folder: a routine command is allowed, a destructive one waits with its reason, and typing stops
-  a press.
+  folder: a command is allowed, a protected file waits with its reason, and typing stops a press.
