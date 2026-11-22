@@ -21,6 +21,21 @@ use std::{
 fn id(value: u128) -> WorkbenchRequestId {
     WorkbenchRequestId::parse(&format!("{value:032x}")).unwrap()
 }
+
+/// Whether the gate `free` probes comes free within one second. The read under test waits on a
+/// reply this fake has not sent, and its own deadline is five seconds away, so a gate it held
+/// across that wait stays held for the whole second; another thread's brief hold, such as close
+/// maintenance or the Worker carrier taking the registry, ends well inside it.
+fn frees(mut free: impl FnMut() -> bool) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(1);
+    while !free() {
+        if Instant::now() >= deadline {
+            return false;
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    true
+}
 struct Fixture {
     service: Arc<LocalTerminalService>,
     peer: LocalStream,
@@ -182,8 +197,8 @@ impl Fixture {
             }
         );
         // The read may wait for IPC only after both gates have been released.
-        assert!(self.service.workers.try_lock().is_ok());
-        assert!(self.service.coordinator.try_lock().is_ok());
+        assert!(frees(|| self.service.workers.try_lock().is_ok()));
+        assert!(frees(|| self.service.coordinator.try_lock().is_ok()));
         self.reply(
             &request,
             WorktreeJobOutcome::Start(WorktreeJobStartOutcome::Accepted),
@@ -366,8 +381,8 @@ fn status_poll(fixture: &mut Fixture, path: &str) -> WorktreeJobRequest {
             directory: path.as_bytes().to_vec()
         }
     );
-    assert!(fixture.service.coordinator.try_lock().is_ok());
-    assert!(fixture.service.workers.try_lock().is_ok());
+    assert!(frees(|| fixture.service.coordinator.try_lock().is_ok()));
+    assert!(frees(|| fixture.service.workers.try_lock().is_ok()));
     fixture.reply(
         &start,
         WorktreeJobOutcome::Start(WorktreeJobStartOutcome::Accepted),
@@ -545,8 +560,8 @@ fn foreground_query_waits_for_active_status_without_holding_session_or_registry_
     for _ in 0..6 {
         assert_status_is_not_admitted(&fixture, workspace.clone());
     }
-    assert!(fixture.service.coordinator.try_lock().is_ok());
-    assert!(fixture.service.workers.try_lock().is_ok());
+    assert!(frees(|| fixture.service.coordinator.try_lock().is_ok()));
+    assert!(frees(|| fixture.service.workers.try_lock().is_ok()));
     complete_status(&mut fixture, &poll);
     assert!(matches!(
         status.join().unwrap().outcome,
