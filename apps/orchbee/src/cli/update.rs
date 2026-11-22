@@ -26,7 +26,7 @@ mod platform;
 #[cfg(not(windows))]
 #[path = "update/unix.rs"]
 mod platform;
-pub(in crate::cli) mod restart_tier;
+pub(crate) mod restart_tier;
 mod retention;
 mod running_programs;
 mod session_restart;

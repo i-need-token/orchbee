@@ -62,7 +62,7 @@ fn reported_processes_keep_their_order_versions_and_unknown_values() {
             scope: format!("orchbee-native-{}", "1".repeat(32)),
             runtime: PathBuf::from(r"C:\runtime"),
             endpoint: Some(PathBuf::from(r"\\.\pipe\test")),
-            server: Server::Observed(result.clone()),
+            server: Server::Observed(result.clone(), None),
         })
     };
     let doc = report().document();

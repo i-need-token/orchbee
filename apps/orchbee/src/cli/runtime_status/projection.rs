@@ -81,7 +81,8 @@ pub(super) enum Absence {
     },
 }
 pub(super) enum Server {
-    Observed(QueryResult),
+    /// The Session's answer, and the `restart` member read for it.
+    Observed(QueryResult, Option<Value>),
     Absent(Absence),
 }
 pub(super) struct ServerReport {
@@ -202,12 +203,12 @@ impl Report {
                     }) => {
                         json!({"state":"not-running","reason":"endpoint-absent","movedTo":version})
                     }
-                    Server::Observed(result) => {
+                    Server::Observed(result, restart) => {
                         let mut server = json!({"state":"running",
                             "restartKeepsTerminals":result.restart_keeps_terminals(),
                             "processes":result.processes().iter().map(|entry| process(entry, true)).collect::<Vec<_>>()});
-                        if let Some(restart) = crate::cli::update::restart_tier::active(result) {
-                            server["restart"] = restart.json();
+                        if let Some(restart) = restart {
+                            server["restart"] = restart.clone();
                         }
                         server
                     }
@@ -233,7 +234,7 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
             // Each process is one line labelled by its role.
             let processes = match &report {
                 Report::Server(ServerReport {
-                    server: Server::Observed(result),
+                    server: Server::Observed(result, _),
                     ..
                 }) => result
                     .processes()

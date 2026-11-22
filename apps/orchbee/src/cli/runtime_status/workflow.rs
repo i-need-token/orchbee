@@ -20,7 +20,12 @@ use std::{
 
 /// macOS captures the interrupt pair as the release commands do, so an interruption ends the
 /// `query` and answers as cancelled; Windows arms its console interrupts.
-pub(super) fn run(scope: RuntimeStatusScope, format: OutputFormat, locale: Locale) -> Output {
+pub(super) fn run(
+    scope: RuntimeStatusScope,
+    format: OutputFormat,
+    locale: Locale,
+    restart: super::RestartTier,
+) -> Output {
     let deadline = Instant::now() + Duration::from_secs(5);
     let signals = match ArmedSignals::arm_interrupts_except_linux() {
         Ok(signals) => signals,
@@ -28,7 +33,7 @@ pub(super) fn run(scope: RuntimeStatusScope, format: OutputFormat, locale: Local
     };
     let result = match scope {
         RuntimeStatusScope::Client => client(deadline),
-        RuntimeStatusScope::Server => server(deadline, &signals),
+        RuntimeStatusScope::Server => server(deadline, &signals, restart),
     };
     let mut finalization = None;
     let result = match signals.finish() {
@@ -76,7 +81,11 @@ pub(super) fn client(deadline: Instant) -> Result<Report, Failure> {
 
 /// The selected Session's processes from one handshake `query`; no Session is a report, not a
 /// failure.
-pub(super) fn server(deadline: Instant, signals: &ArmedSignals) -> Result<Report, Failure> {
+pub(super) fn server(
+    deadline: Instant,
+    signals: &ArmedSignals,
+    restart: super::RestartTier,
+) -> Result<Report, Failure> {
     let (base, scope) = crate::local_activation::runtime_location().map_err(|_| {
         Failure::new(FailureKind::CheckFailed).details(crate::cli::stage_details("runtime-base"))
     })?;
@@ -99,7 +108,10 @@ pub(super) fn server(deadline: Instant, signals: &ArmedSignals) -> Result<Report
             let endpoint = session.client_socket_path();
             let server = match crate::cli::server_query::read(endpoint, deadline, signals.poll_fd())
             {
-                Ok(result) => Server::Observed(result),
+                Ok(result) => {
+                    let tier = restart(&result);
+                    Server::Observed(result, tier)
+                }
                 Err(ConnectClientError::ConnectFailed(error))
                     if matches!(
                         error.kind(),

@@ -43,6 +43,11 @@ impl Restart {
     }
 }
 
+/// The `restart` member `status server` and `doctor` carry for the Session `query` describes.
+pub(crate) fn document(query: &QueryResult) -> Option<Value> {
+    active(query).map(|restart| restart.json())
+}
+
 /// The decision for the Session `query` describes against the store's active release; `None` when
 /// no release store or active release reads, as in a development build.
 pub(in crate::cli) fn active(query: &QueryResult) -> Option<Restart> {

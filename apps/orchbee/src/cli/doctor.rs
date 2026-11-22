@@ -167,7 +167,11 @@ fn records() -> Check {
 /// The selected Session, as `status server` asks it with one handshake `query`.
 fn session(signals: &ArmedSignals) -> Option<Check> {
     super::execution::admit(super::execution::Capability::RuntimeStatus).ok()?;
-    match super::runtime_status::server_facts(Instant::now() + COLLECTOR_BUDGET, signals) {
+    match super::runtime_status::server_facts(
+        Instant::now() + COLLECTOR_BUDGET,
+        signals,
+        super::update::restart_tier::document,
+    ) {
         Ok(details) => {
             if details["server"]["state"] != "running" {
                 return Some(Check::new("not-applicable", None, details));

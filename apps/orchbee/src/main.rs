@@ -278,7 +278,7 @@ fn main() -> ExitCode {
                 cli::named_sessions::run(&command, format, locale)
             }
             Ok(invocation::Request::RuntimeStatus { scope, format }) => {
-                cli::runtime_status::run(scope, format, locale)
+                cli::runtime_status::run(scope, format, locale, cli::update::restart_tier::document)
             }
             Ok(invocation::Request::ServerStop { command, format }) => {
                 cli::server_stop_command(&command, format, locale)

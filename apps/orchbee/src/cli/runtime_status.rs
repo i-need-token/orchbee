@@ -10,6 +10,11 @@ use orchbee_local_client_protocol::ConnectClientError;
 mod projection;
 mod workflow;
 
+/// Reads the `restart` member for a Session's `query` answer: the restart tier the release store's
+/// active version gives it. The update command owns the store's manifests, so the caller passes it.
+pub(crate) type RestartTier =
+    fn(&orchbee_connection_handshake::QueryResult) -> Option<serde_json::Value>;
+
 pub(in crate::cli) use projection::{process_lines, processes_document};
 
 /// `doctor`'s installation facts: what `status client` reports, as its result object.
@@ -23,15 +28,21 @@ pub(in crate::cli) fn client_facts(
 pub(in crate::cli) fn server_facts(
     deadline: std::time::Instant,
     signals: &super::console_interrupt::ArmedSignals,
+    restart: RestartTier,
 ) -> Result<serde_json::Value, Failure> {
-    workflow::server(deadline, signals).map(|report| report.result())
+    workflow::server(deadline, signals, restart).map(|report| report.result())
 }
 
-pub(crate) fn run(scope: RuntimeStatusScope, format: OutputFormat, locale: Locale) -> Output {
+pub(crate) fn run(
+    scope: RuntimeStatusScope,
+    format: OutputFormat,
+    locale: Locale,
+    restart: RestartTier,
+) -> Output {
     if let Err(failure) = super::execution::admit(super::execution::Capability::RuntimeStatus) {
         return failure_output(failure, Some(format), locale);
     }
-    workflow::run(scope, format, locale)
+    workflow::run(scope, format, locale, restart)
 }
 
 /// Classifies a failed handshake `query`: a Session that predates the handshake, or belongs to

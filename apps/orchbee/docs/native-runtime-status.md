@@ -116,7 +116,7 @@ with reason `runtime-absent` or `endpoint-absent`, or `running` with `restartKee
 `processes`, and `restart` once the release store has an active version: the
 [restart tier](../../../proposals/platform/versioning-and-upgrade.md#restart-decision) that version
 gives the Session's Server and Worker (`none`, `recommended` or `required`), and in `hosts` each
-Host's own tier by process ID. `status` and `doctor` carry the same `restart` member, and text
+Host's own tier by process ID. `doctor` carries the same member in its Session check, and text
 labels it Restart for the update. A `not-running` Session the automatic update's idle move ended carries `movedTo`, the
 installed version it moved to, which the next start runs; a person's stop or a crash carries none. On Windows the scope is the Session name, the name of its runtime folder, and the read
 does not activate a missing named Session.
