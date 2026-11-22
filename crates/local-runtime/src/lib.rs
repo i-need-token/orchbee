@@ -47,12 +47,12 @@ pub use release_store::{
 mod keeper;
 pub use keeper::keeper_live;
 #[cfg(windows)]
-pub use keeper::{end_recorded_keeper, recorded_keeper};
-#[cfg(windows)]
 pub use keeper::{
     HeldTerminal, Holding, HoldingState, KEEPER_REPLY_BOUND, KeeperClient, KeeperProcess,
     KeeperRefusal, KeeperStatus, start_keeper,
 };
+#[cfg(windows)]
+pub use keeper::{end_recorded_keeper, recorded_keeper};
 mod automatic_updates;
 pub use automatic_updates::{
     AUTOMATIC_UPDATE_HELPER, CLIENT_FAILURE_HELPER, RELAUNCH_PROTOCOL_VARIABLE,
