@@ -189,9 +189,12 @@ Every release proves the window before Publish.
   numbered line every 100 ms. The older release's own automatic helper installs the new release from
   the gate feed, and the new Client joins the running Session and shows the probe's output. The
   probe then ends, and the idle move brings the Session up on the new version with its layout
-  unchanged. From P1b the probe keeps running instead, and a click restarts the Session: the new
-  pair adopts the probe's Host, and the layout survives. One path instead ends the older Server with
-  `exit` and starts the new Client, which adopts the probe's Host at activation.
+  unchanged. On a path from a release with P1b's hand-over (0.1.0-beta.23 on) the probe keeps
+  running instead, and the new release's `server restart`, which a click on Update runs, restarts
+  the Session: the new pair adopts the probe's Host, and the layout survives. When two or more paths
+  start from such releases, the oldest instead ends the older Server by its process id and starts
+  the new Client, which adopts the probe's Host at activation; no shipped command sends `exit` while
+  a terminal runs, and both ends leave the Host to the same cold adoption.
 - Each path checks that the probe kept its process id, that its numbers have no gap, and that the
   new Client joined.
 - From H4 of [Host handover](host-handover.md#phases), a path whose new release changes the Host also

@@ -12,6 +12,7 @@
 //     --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]
 //   node scripts/release-smoke-windows.mjs gate      v<older version> --release <assets address>
 //     --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]
+//     [--mode move|restart|adopt]
 //   node scripts/release-smoke-windows.mjs window-update <packaged Test window>
 //     --work <absolute new directory> [--diagnostics <absolute directory>]
 //
@@ -57,11 +58,16 @@
 //   PowerShell script that prints `probe-<process id>-<n>` every 100 ms and appends
 //   `<process id> <n>` to a record file in the work directory. The older Server's own automatic
 //   helper must activate the new release and window version; the new release's Client must then
-//   reach the same Server and read the probe's lines. The probe is told to end, cmd exits 0 and the
-//   Session closes its Panel; once the Server counts no terminal, the gate notes the layout and
-//   connects no Client while the idle move ends the older Server. The new Client then starts the
-//   Session, whose Server must run the new release with the same Workspaces and Tabs. The record
-//   must hold one process id and the numbers from 1 without a gap. A failure names the stage, prints
+//   reach the same Server and read the probe's lines. With `--mode move`, the default, the probe is
+//   told to end, cmd exits 0 and the Session closes its Panel; once the Server counts no terminal,
+//   the gate notes the layout and connects no Client while the idle move ends the older Server. The
+//   new Client then starts the Session, whose Server must run the new release with the same
+//   Workspaces and Tabs. With `--mode restart` the probe keeps running while the new release's
+//   `server restart` hands the Session over, and with `--mode adopt` while the gate ends the older
+//   Server by its process id and the new Client starts the Session, adopting the probe's Host cold;
+//   either way the new release's Server must serve the Session, the probe must go on as the same
+//   process, the new Client must read its newer lines, and the layout must stay, before the probe is
+//   told to end. The record must hold one process id and the numbers from 1 without a gap. A failure names the stage, prints
 //   the probe record's last line and the diagnostic log's tail, and says not to publish. A test
 //   build's Session is stopped at the end; a release build's stays for the discarded runner.
 // - window-update: the real-window Update check (scripts/release-window-update.mjs) of a packaged

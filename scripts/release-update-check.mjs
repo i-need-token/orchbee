@@ -68,6 +68,10 @@ const gatePoll = 2_000;
 // The probe ends itself after 30 minutes of lines, should the gate stop without ending it.
 const probeLimit = 18_000;
 const probeLine = /probe-(\d+)-(\d+)/gu;
+// `server restart` ends within its own 150 seconds.
+const restartDeadline = 180_000;
+// How the Session reaches the new release on a gate path; see `gatePathModes`.
+const gateModes = ['move', 'restart', 'adopt'];
 // Release builds support `--installer-window-v1` and window self-updates from 0.1.0-beta.14 on.
 const firstWindowRelease = '0.1.0-beta.14';
 const signatureSource = fileURLToPath(
@@ -541,12 +545,16 @@ export function parseGateArguments(argv, usage) {
 	const options = {};
 	for (let index = 0; index < rest.length; index += 2) {
 		const [option, value] = [rest[index], rest[index + 1]];
-		if (!['--release', '--feed', '--work', '--stem'].includes(option) || value === undefined)
+		if (
+			!['--release', '--feed', '--work', '--stem', '--mode'].includes(option) ||
+			value === undefined
+		)
 			throw new UsageError(usage);
 		options[option.slice(2)] = value;
 	}
 	const older = tag?.startsWith('v') ? tag.slice(1) : undefined;
 	const stem = options.stem ?? 'orchbee';
+	const mode = options.mode ?? 'move';
 	if (
 		!validVersion(older) ||
 		options.release === undefined ||
@@ -554,13 +562,15 @@ export function parseGateArguments(argv, usage) {
 		!path.isAbsolute(options.feed) ||
 		options.work === undefined ||
 		!path.isAbsolute(options.work) ||
-		!admittedStem(stem)
+		!admittedStem(stem) ||
+		!gateModes.includes(mode)
 	)
 		throw new UsageError(usage);
 	assetsSource(options.release, stem, usage);
 	return {
 		step: 'gate',
 		older,
+		mode,
 		stem,
 		release: options.release,
 		feed: options.feed,
@@ -654,6 +664,16 @@ function activeVersion(storeRoot) {
 	}
 }
 
+/** The process id the Session's `status server` lists for `role`, if it lists one. */
+function sessionProcess(program, env, role) {
+	const status = runDocument(program, ['status', 'server'], env, {
+		deadline: commandDeadline,
+		quiet: true,
+	});
+	return (status.document?.result?.server?.processes ?? []).find((each) => each.role === role)
+		?.processId;
+}
+
 function processExists(pid) {
 	try {
 		process.kill(pid, 0);
@@ -725,8 +745,9 @@ function verifyGateArchiveBeside(feedPath, member, what) {
  * Runs one pre-publish release gate path on Windows or macOS: installs `options.older` (and its
  * window version when both feeds carry `extensions.desktop`), starts its Session with a terminal
  * probe, waits for `--automatic-update-v1` to activate the new runtime and window versions, joins
- * with the new Client, confirms zero probe gaps, waits for the idle move, and verifies layout
- * preservation on the new Server.
+ * with the new Client, and brings the Session to the new release as `options.mode` says. `move`
+ * ends the probe, confirms zero gaps, waits for the idle move, and verifies layout preservation on
+ * the new Server; `restart` and `adopt` keep the probe running (see `keepProbeAcross`).
  */
 export function runGatePath(options, progress, port, usage) {
 	const { older, stem } = options;
@@ -894,6 +915,10 @@ export function runGatePath(options, progress, port, usage) {
 			);
 		log(`The Client of ${version} joined and reads probe line ${shown.at(-1)[2]}.`);
 
+		if (options.mode !== 'move') {
+			keepProbeAcross({ options, progress, server, newClient, env, record, terminal, pid });
+		}
+
 		progress.stage = 'ending the probe';
 		writeFileSync(stop, '', { flag: 'wx' });
 		const ended = Date.now();
@@ -908,6 +933,10 @@ export function runGatePath(options, progress, port, usage) {
 		}
 		const { last } = probeFacts(probeRecord(record));
 		log(`The probe printed lines 1 to ${last} as process ${pid}, without a gap, and ended.`);
+		if (options.mode !== 'move') {
+			log(`The path from ${older} passes.`);
+			return;
+		}
 		const layout = layoutOf(newClient, env);
 
 		progress.stage = `waiting for the idle move of ${older}`;
@@ -950,6 +979,93 @@ export function runGatePath(options, progress, port, usage) {
 	} finally {
 		port.finishGateSession?.({ sessionStarted, stem, olderClient, newClient, olderEnv, env, work });
 	}
+}
+
+/**
+ * Brings a gate path's Session to the new release while its probe runs: `restart` runs the new
+ * release's `server restart`, as a click on Update does, and `adopt` ends the older Server by its
+ * process id, as a crash would, and starts the Session with the new Client, which adopts the probe's
+ * Host cold. No shipped command sends the Server's `exit` while a terminal runs, and both ends leave
+ * the Host to the same adoption. Either way the new release's Server must serve the Session, the
+ * probe must go on as the same process without a gap, the new Client must read its newer lines, and
+ * the Workspaces and Tabs must stay.
+ */
+function keepProbeAcross({ options, progress, server, newClient, env, record, terminal, pid }) {
+	const { older, version } = options;
+	const layout = layoutOf(newClient, env);
+	const before = probeRecord(record).length;
+	if (options.mode === 'restart') {
+		progress.stage = `restarting the Session with ${version} while the probe runs`;
+		const restarted = runDocument(newClient, ['server', 'restart'], env, {
+			deadline: restartDeadline,
+		});
+		if (restarted.status !== 0)
+			throw new StepFailure(
+				`server restart exited ${restarted.status}, expected 0: ${JSON.stringify(restarted.document?.result ?? null)}`,
+			);
+	} else {
+		progress.stage = `ending the Server of ${older} while the probe runs`;
+		const worker = sessionProcess(newClient, env, 'worker');
+		process.kill(server.processId);
+		const ending = Date.now();
+		// The Worker ends by itself once its Server is gone.
+		while (processExists(server.processId) || (worker !== undefined && processExists(worker))) {
+			if (Date.now() - ending >= terminalDeadline)
+				throw new StepFailure(
+					`The Server or Worker of ${older} still runs ${terminalDeadline} ms after the Server was ended`,
+				);
+			sleep(terminalPoll);
+		}
+		progress.stage = `starting the Session on ${version}, which adopts the probe's Host`;
+		const started = runDocument(newClient, ['server', 'start'], env, {
+			deadline: commandDeadline,
+		});
+		if (started.status !== 0)
+			throw new StepFailure(`server start on ${version} exited ${started.status}, expected 0`);
+	}
+	const moved = sessionServer(newClient, env);
+	if (moved?.version !== version || moved.processId === server.processId)
+		throw new StepFailure(`The Session's Server reports ${JSON.stringify(moved)}, not ${version}`);
+	log(`The Session's Server runs ${version} as process ${moved.processId}.`);
+
+	progress.stage = 'checking that the probe kept running';
+	const checking = Date.now();
+	// Two more seconds of lines prove the probe outlived the change.
+	while (probeRecord(record).length < before + 20) {
+		if (Date.now() - checking >= terminalDeadline)
+			throw new StepFailure(
+				`The probe wrote no new line within ${terminalDeadline} ms of the Session's change`,
+			);
+		sleep(terminalPoll);
+	}
+	const facts = probeFacts(probeRecord(record));
+	if (facts.pid !== pid)
+		throw new StepFailure(`The probe runs as process ${facts.pid}, not ${pid}`);
+	const read = runDocument(
+		newClient,
+		['terminal', 'read', terminal, '--source', 'recent', '--lines', '50'],
+		env,
+		{ deadline: commandDeadline, quiet: true },
+	);
+	if (read.status !== 0)
+		throw new StepFailure(`terminal read after the change exited ${read.status}`);
+	const shown = [...String(read.document?.result?.content?.text ?? '').matchAll(probeLine)];
+	if (
+		shown.length === 0 ||
+		shown.some((match) => Number(match[1]) !== pid) ||
+		Number(shown.at(-1)[2]) <= before
+	)
+		throw new StepFailure(
+			`The Client of ${version} does not read the probe's lines after line ${before} from process ${pid}`,
+		);
+	const after = layoutOf(newClient, env);
+	if (after !== layout)
+		throw new StepFailure(
+			`The layout changed across the change:\n  before ${layout}\n  after  ${after}`,
+		);
+	log(
+		`The probe went on from line ${before} to ${facts.last} as process ${pid}, and the Client of ${version} reads line ${shown.at(-1)[2]}; the layout is unchanged.`,
+	);
 }
 
 /** What the owner must do after a failed update check: the channel must not move. */

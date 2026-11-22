@@ -25,8 +25,8 @@
 // - gate-paths: the older releases the release gate updates from to <version>, chosen from the
 //   repository's releases read through the GitHub API by selectGatePaths and selectMacosGatePaths
 //   below; writes `gate`, `gate-matrix`, `macos-gate` and `macos-gate-matrix`, each matrix holding
-//   one row `{"older": "v<version>"}` per path, to GITHUB_OUTPUT. No path is not a failure: the
-//   workflow then skips the gate jobs.
+//   one row `{"older": "v<version>"}` per path, a Windows row also its `mode` (gatePathModes), to
+//   GITHUB_OUTPUT. No path is not a failure: the workflow then skips the gate jobs.
 // - preconditions: the signing key variable holds an Ed25519 PKCS #8 PEM key whose public half is in
 //   RELEASE_KEYS of apps/orchbee/src/cli/update/signature.rs, and the npm token variable, when named,
 //   is not empty.
@@ -152,6 +152,9 @@ export function planRelease({ event, ref, version: requested, platforms }) {
  * window.
  */
 const gateFirstVersion = '0.1.0-beta.14';
+// From this release on a Windows Session hands its Server over in a restart, and a newer release
+// adopts its Host cold, so a gate path from it keeps its probe running.
+const gateRestartFirstVersion = '0.1.0-beta.23';
 // The release gate's window: the releases published in the last 90 days.
 const gateWindowDays = 90;
 
@@ -212,6 +215,23 @@ export function selectGatePaths({ releases, version, now, firstVersion = gateFir
 	// Ascending positions, so the paths list the newest older release first.
 	const picks = new Set([0, Math.min(1, count - 1), Math.floor(count / 2), count - 1]);
 	return [...picks].map((index) => `v${newestFirst[index]}`);
+}
+
+/**
+ * One gate matrix row per path of `paths` (tags, newest first), naming how the path brings the
+ * Session to the new release: `move` from a release before `firstVersion`, whose Server cannot be
+ * handed over, by the idle move once the probe ended; `restart` from a later one, by the restart a
+ * click on Update runs while the probe keeps running; and `adopt` for the oldest of two or more such
+ * paths, by ending the older Server so that the new release adopts the probe's Host cold.
+ */
+export function gatePathModes(paths, firstVersion = gateRestartFirstVersion) {
+	const rows = paths.map((older) => ({
+		older,
+		mode: compareVersions(older.slice(1), firstVersion) < 0 ? 'move' : 'restart',
+	}));
+	const restarts = rows.filter((row) => row.mode === 'restart');
+	if (restarts.length >= 2) restarts.at(-1).mode = 'adopt';
+	return rows;
 }
 
 /**
@@ -858,9 +878,10 @@ async function main(argv) {
 			now,
 			hasMacosRow,
 		});
+		const rows = gatePathModes(paths);
 		log(
 			paths.length > 0
-				? `The Windows release gate of ${options.version} updates from ${paths.join(', ')}.`
+				? `The Windows release gate of ${options.version} updates from ${rows.map(({ older, mode }) => `${older} (${mode})`).join(', ')}.`
 				: `The Windows release gate of ${options.version} runs no path: no Windows release from ${gateFirstVersion} on was published in the last ${gateWindowDays} days.`,
 		);
 		if (macosPaths.length > 0) {
@@ -878,7 +899,7 @@ async function main(argv) {
 		}
 		writeOutputs({
 			gate: String(paths.length > 0),
-			'gate-matrix': JSON.stringify({ include: paths.map((older) => ({ older })) }),
+			'gate-matrix': JSON.stringify({ include: rows }),
 			'macos-gate': String(macosPaths.length > 0),
 			'macos-gate-matrix': JSON.stringify({ include: macosPaths.map((older) => ({ older })) }),
 		});

@@ -1053,9 +1053,10 @@ jobs:
           retention-days: 3
 
   # One path of the release gate per older release the plan selected, on a fresh runner, from that
-  # release's published assets to this run's Windows archive and signed gate feed. With no path
-  # selected the job is skipped, since a job with no row fails, and `release-publish` goes on; a
-  # failed path stops the release before Publish. A rehearsal runs the same paths.
+  # release's published assets to this run's Windows archive and signed gate feed, brought over as
+  # the row's mode says (idle move, restart, or cold adoption). With no path selected the job is
+  # skipped, since a job with no row fails, and `release-publish` goes on; a failed path stops the
+  # release before Publish. A rehearsal runs the same paths.
   release-gate:
     name: Release gate from ${{ matrix.older }}
     needs: [release-plan, release-feed]
@@ -1096,8 +1097,9 @@ jobs:
       - name: Update from ${{ matrix.older }} while a terminal keeps running
         env:
           OLDER: ${{ matrix.older }}
+          MODE: ${{ matrix.mode }}
           GATE_FEED: ${{ runner.temp }}\gate\orchbee-${{ needs.release-plan.outputs.version }}-windows-x86_64.gate.feed.json
-        run: node scripts/release-smoke-windows.mjs gate $env:OLDER --release "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/releases/download/$env:OLDER/" --feed "$env:GATE_FEED" --work "$env:RUNNER_TEMP\gate-work"
+        run: node scripts/release-smoke-windows.mjs gate $env:OLDER --release "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/releases/download/$env:OLDER/" --feed "$env:GATE_FEED" --work "$env:RUNNER_TEMP\gate-work" --mode $env:MODE
 
   # The Apple silicon pre-publish gate path from the newest published macOS release to this run's
   # `macos-aarch64` runtime and window archives. Skipped when no macOS row is planned or no older
