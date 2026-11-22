@@ -2113,6 +2113,7 @@ impl PointerState {
                 | HitTarget::MachineLogin { .. }
                 | HitTarget::MachineWaiting { .. }
                 | HitTarget::MachineMove { .. }
+                | HitTarget::HostReplacement { .. }
                 | HitTarget::MachineCard { .. }
                 | HitTarget::TabClose { .. }
                 | HitTarget::PanelClose { .. }

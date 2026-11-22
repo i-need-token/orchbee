@@ -311,6 +311,13 @@ impl Picker {
             self.set_move_drawn(drawn);
             return;
         }
+        // A Host replacement's question, while no login or move asks.
+        if let Some(question) = self.host_replacement_question() {
+            let drawn = ViewportTier::from_area(frame.area()) != ViewportTier::TooSmall
+                && super::host_replacement::render(frame, question, locale, theme, hits);
+            self.set_host_replacement_drawn(drawn);
+            return;
+        }
         let Some(source) = self.picker_source() else {
             return;
         };

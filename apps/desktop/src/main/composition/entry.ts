@@ -373,6 +373,8 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 				sessionArguments,
 				resolveClientEnvironment(),
 			),
+		// Only Windows replaces a Terminal Host; a window with no background runtime stops nothing.
+		stopSession: () => background?.stopSession() ?? Promise.resolve(false),
 		watchPointer: watchWindowPointer,
 	});
 }

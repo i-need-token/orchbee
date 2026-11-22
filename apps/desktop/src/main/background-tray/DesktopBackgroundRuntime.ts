@@ -117,6 +117,12 @@ export class DesktopBackgroundRuntime implements DesktopWindowBackground {
 		this.#dispatch({ kind: 'session-ending' });
 	}
 
+	/** Stops the Session as Quit All does, without quitting; true once the stop has ended. */
+	async stopSession(): Promise<boolean> {
+		const result = await this.#sessionStop.stop().catch(() => undefined);
+		return result?.kind === 'stopped';
+	}
+
 	sessionStopAnswered(stopId: string, answer: DesktopSessionStopAnswer): void {
 		this.#sessionStop.answered(stopId, answer);
 	}

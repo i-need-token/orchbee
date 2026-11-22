@@ -10,7 +10,12 @@ const RESTART_DEADLINE_MILLISECONDS = 120_000;
 const RestartTierDocumentSchema = z.looseObject({
 	result: z.looseObject({
 		server: z.looseObject({
-			restart: z.looseObject({ tier: z.string() }).optional(),
+			restart: z
+				.looseObject({
+					hosts: z.array(z.looseObject({ tier: z.string() })).optional(),
+					tier: z.string(),
+				})
+				.optional(),
 		}),
 	}),
 	schema: z.literal('orchbee.status.server'),
@@ -24,9 +29,11 @@ const RestartDocumentSchema = z.looseObject({
 /**
  * What the active version's Client did for a switch to it: `not-needed` when it joins the Session
  * and its restart tier asks for nothing, `restarted` when it restarted the Session's Server and
- * Worker, keeping every terminal, and `failed` when it could not, so the update waits.
+ * Worker, keeping every terminal, `failed` when it could not, so the update waits, and
+ * `host-required` when a Terminal Host must be replaced, which no restart keeping its terminals can
+ * do: the person confirms a restart of every terminal first.
  */
-export type UpdateRestart = 'failed' | 'not-needed' | 'restarted';
+export type UpdateRestart = 'failed' | 'host-required' | 'not-needed' | 'restarted';
 
 /**
  * Decides and runs the Session restart a switch to the active version needs, through that version's
@@ -42,10 +49,9 @@ export async function restartForUpdate(
 	platform: NodeJS.Platform,
 ): Promise<UpdateRestart> {
 	if (platform !== 'win32') return joins ? 'not-needed' : 'failed';
-	if (joins) {
-		const tier = await readTier(executable, sessionArguments, environment);
-		if (tier !== 'recommended' && tier !== 'required') return 'not-needed';
-	}
+	const restart = await readRestart(executable, sessionArguments, environment);
+	if (restart?.hosts?.some((host) => host.tier === 'required') === true) return 'host-required';
+	if (joins && restart?.tier !== 'recommended' && restart?.tier !== 'required') return 'not-needed';
 	const outcome = await run(
 		executable,
 		[...sessionArguments, 'server', 'restart', '--format', 'json'],
@@ -56,11 +62,14 @@ export async function restartForUpdate(
 	return answer.success && answer.data.result.outcome === 'restarted' ? 'restarted' : 'failed';
 }
 
-async function readTier(
+async function readRestart(
 	executable: string,
 	sessionArguments: readonly string[],
 	environment: NodeJS.ProcessEnv,
-): Promise<string | undefined> {
+): Promise<
+	| { readonly hosts?: readonly { readonly tier: string }[] | undefined; readonly tier: string }
+	| undefined
+> {
 	const document = await run(
 		executable,
 		[...sessionArguments, 'status', 'server', '--format', 'json'],
@@ -68,7 +77,7 @@ async function readTier(
 		STATUS_DEADLINE_MILLISECONDS,
 	);
 	const answer = RestartTierDocumentSchema.safeParse(document);
-	return answer.success ? answer.data.result.server.restart?.tier : undefined;
+	return answer.success ? answer.data.result.server.restart : undefined;
 }
 
 /** Runs one command and parses its standard output as JSON; anything unreadable is `undefined`. */

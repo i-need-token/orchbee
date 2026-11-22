@@ -64,6 +64,10 @@ function requestIdOf(sent: readonly DesktopWindowUpdateMainMessage[]): string {
 }
 
 /** What the new version's Client does where a Session restart is not run: macOS's answer. */
+function stopNothing(): Promise<boolean> {
+	return Promise.resolve(false);
+}
+
 function restartAsBefore(_root: string, _version: string, joins: boolean): Promise<UpdateRestart> {
 	return Promise.resolve(joins ? 'not-needed' : 'failed');
 }
@@ -97,6 +101,7 @@ function create(options: {
 		readPointer: () => Promise.resolve(active),
 		recordEvent: () => undefined,
 		restartForVersion: options.restartForVersion ?? restartAsBefore,
+		stopSession: stopNothing,
 		startVersionClient,
 		watchPointer: (_root, onChange) => {
 			changed = onChange;
@@ -213,6 +218,7 @@ describe('DesktopWindowUpdate', () => {
 			readPointer: () => Promise.resolve(active),
 			recordEvent: () => undefined,
 			restartForVersion: restartAsBefore,
+			stopSession: stopNothing,
 			startVersionClient: () => Promise.resolve(started([])),
 			watchPointer: (_root, onChange) => {
 				if (!watchable) return null;
@@ -246,6 +252,7 @@ describe('DesktopWindowUpdate', () => {
 			readPointer,
 			recordEvent: () => undefined,
 			restartForVersion: restartAsBefore,
+			stopSession: stopNothing,
 			startVersionClient: () => Promise.resolve(started(['compatibility-window'])),
 			watchPointer: () => () => undefined,
 		});
@@ -272,6 +279,7 @@ describe('DesktopWindowUpdate', () => {
 				readPointer: () => Promise.resolve('0.3.0'),
 				recordEvent: () => undefined,
 				restartForVersion: restartAsBefore,
+				stopSession: stopNothing,
 				startVersionClient: () => Promise.resolve(started(['compatibility-window'])),
 				watchPointer: () => () => undefined,
 			});
@@ -295,6 +303,7 @@ describe('DesktopWindowUpdate', () => {
 			readPointer: () => Promise.resolve(active),
 			recordEvent: () => undefined,
 			restartForVersion: restartAsBefore,
+			stopSession: stopNothing,
 			startVersionClient: () => Promise.resolve(started(['compatibility-window'])),
 			// Simulates OS `fs.watch` coalescing or missing the pointer rename.
 			watchPointer: () => () => undefined,
@@ -329,6 +338,7 @@ describe('DesktopWindowUpdate', () => {
 			readPointer: () => Promise.resolve(active),
 			recordEvent: () => undefined,
 			restartForVersion: restartAsBefore,
+			stopSession: stopNothing,
 			startVersionClient: () =>
 				Promise.resolve(started(joinable ? ['compatibility-window'] : ['agent-input-area'])),
 			watchPointer: () => () => undefined,

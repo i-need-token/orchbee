@@ -158,6 +158,7 @@ export function Workbench({
 		shortcutPlatform,
 		terminalActionShortcutLabels,
 	});
+	const hostReplacementFocusRef = React.useRef<HTMLButtonElement | null>(null);
 	const view = useWorkbench({
 		actionRuntime,
 		agentObservationSource,
@@ -322,6 +323,48 @@ export function Workbench({
 									Enter
 								</Kbd>
 							) : null}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		);
+	const hostReplacementSurface =
+		view.hostReplacement === null ? null : (
+			<AlertDialog
+				open
+				onOpenChange={(open) => {
+					if (!open) view.hostReplacement?.cancel();
+				}}
+			>
+				<AlertDialogContent
+					className={styles['confirmationContent']}
+					initialFocus={hostReplacementFocusRef}
+				>
+					<AlertDialogHeader className={styles['confirmationHeader']}>
+						<AlertDialogTitle className={styles['confirmationTitle']}>
+							{view.hostReplacement.title}
+						</AlertDialogTitle>
+						<AlertDialogDescription className={styles['confirmationDescription']}>
+							{view.hostReplacement.description}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter className={styles['confirmationFooter']}>
+						<AlertDialogCancel onClick={view.hostReplacement.cancel}>
+							{view.hostReplacement.cancelLabel}
+							<Kbd aria-hidden='true' className={styles['confirmationShortcut']}>
+								Esc
+							</Kbd>
+						</AlertDialogCancel>
+						{/* Restart holds the focus, as in the TUI. */}
+						<AlertDialogAction
+							ref={hostReplacementFocusRef}
+							variant='destructive'
+							onClick={view.hostReplacement.confirm}
+						>
+							{view.hostReplacement.confirmLabel}
+							<Kbd aria-hidden='true' className={styles['confirmationShortcut']}>
+								Enter
+							</Kbd>
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
@@ -617,6 +660,7 @@ export function Workbench({
 				/>
 			)}
 			{projectWorkspaceConfirmationSurface}
+			{hostReplacementSurface}
 			{nameEditorSurface}
 			<WorkbenchProjectCreation
 				messages={view.projectCreationMessages}

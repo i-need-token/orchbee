@@ -23,8 +23,9 @@ export const DesktopRelaunchPlaceSchema = z.discriminatedUnion('kind', [
  * What Main sends the page over the window-update port: the newer window version the window offers
  * to switch to, or null while it offers none, whenever that changes and once when the port opens;
  * after a request it could not carry out, either that the update waits until no terminal runs or
- * that launching the newer window failed; or a request for the place the window shows, which the
- * page answers with a reply naming the same `requestId`.
+ * that launching the newer window failed; after a request whose Terminal Host must be replaced, the
+ * question the page asks before every terminal restarts; or a request for the place the window
+ * shows, which the page answers with a reply naming the same `requestId`.
  */
 export const DesktopWindowUpdateMainMessageSchema = z.discriminatedUnion('type', [
 	z.strictObject({
@@ -33,6 +34,7 @@ export const DesktopWindowUpdateMainMessageSchema = z.discriminatedUnion('type',
 	}),
 	z.strictObject({ type: z.literal('desktop-window-update-waiting') }),
 	z.strictObject({ type: z.literal('desktop-window-update-failed') }),
+	z.strictObject({ type: z.literal('desktop-window-update-host-replacement') }),
 	z.strictObject({
 		requestId: DesktopWindowRequestIdSchema,
 		type: z.literal('desktop-window-update-place-requested'),
@@ -43,8 +45,9 @@ export const DesktopWindowUpdateMainMessageSchema = z.discriminatedUnion('type',
  * What the page sends Main over the same port: a request to switch to the version Main last
  * offered, named so a request made for an earlier offer switches to nothing else, with the place
  * the window shows, which the relaunched window opens at; a request to refresh the offer from disk
- * once an update check settles; or the reply to a place request, with the place the window shows
- * (null for none), naming that request by `requestId`.
+ * once an update check settles; the person's answer to a Host replacement's question; or the reply
+ * to a place request, with the place the window shows (null for none), naming that request by
+ * `requestId`.
  */
 export const DesktopWindowUpdateRendererMessageSchema = z.discriminatedUnion('type', [
 	z.strictObject({
@@ -54,6 +57,10 @@ export const DesktopWindowUpdateRendererMessageSchema = z.discriminatedUnion('ty
 	}),
 	z.strictObject({
 		type: z.literal('desktop-window-update-refresh'),
+	}),
+	z.strictObject({
+		confirmed: z.boolean(),
+		type: z.literal('desktop-window-update-host-replacement-answer'),
 	}),
 	z.strictObject({
 		place: DesktopRelaunchPlaceSchema.nullable(),

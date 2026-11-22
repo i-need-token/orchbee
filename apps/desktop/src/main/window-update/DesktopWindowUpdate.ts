@@ -64,6 +64,11 @@ export interface DesktopWindowUpdateOptions {
 	/** Runs `server start --format json` through the bundled Client of window version `version`. */
 	readonly startVersionClient: (desktopRoot: string, version: string) => Promise<ServerStartAnswer>;
 	/**
+	 * Stops the Session through the window's page, as Quit All does, and settles true once the stop
+	 * has ended; a confirmed Host replacement runs it before the switch.
+	 */
+	readonly stopSession: () => Promise<boolean>;
+	/**
 	 * Calls back whenever the pointer may have changed; returns what ends the watch, or null when the
 	 * folder cannot be watched now.
 	 */
@@ -101,6 +106,14 @@ export class DesktopWindowUpdate {
 	readonly #options: DesktopWindowUpdateOptions;
 	readonly #ports = new Set<ServedPort>();
 	#reading: Promise<void> | null = null;
+	/** The Host replacement a document was asked about, until its answer. */
+	#replacing:
+		| {
+				readonly place: DesktopRelaunchPlace | null;
+				readonly served: ServedPort;
+				readonly version: string;
+		  }
+		| undefined;
 	#rereadRequested = false;
 	#stopWatching: (() => void) | undefined;
 
@@ -156,7 +169,7 @@ export class DesktopWindowUpdate {
 		try {
 			const answer = await this.#options.startVersionClient(root, version).catch(() => null);
 			if (this.#disposed) return false;
-			if (!(await this.#prepare(root, version, answer))) return false;
+			if ((await this.#prepare(root, version, answer)) !== 'ready') return false;
 			const place =
 				resolvePlace === undefined ? null : await Promise.resolve(resolvePlace()).catch(() => null);
 			if (this.#disposed) return false;
@@ -199,6 +212,9 @@ export class DesktopWindowUpdate {
 					return;
 				case 'desktop-window-update-requested':
 					void this.#request(served, message.data);
+					return;
+				case 'desktop-window-update-host-replacement-answer':
+					void this.#replaceHost(served, message.data.confirmed);
 					return;
 			}
 		});
@@ -279,6 +295,7 @@ export class DesktopWindowUpdate {
 		served.stopFollowingFocus();
 		this.#ports.delete(served);
 		served.pendingPlace?.settle(null);
+		if (this.#replacing?.served === served) this.#replacing = undefined;
 	}
 
 	/**
@@ -330,34 +347,39 @@ export class DesktopWindowUpdate {
 	}
 
 	/**
-	 * Whether version `version` can serve this window after its start `answer`: it joins the Session,
-	 * and restarts it first when it asks for that, or it cannot join and restarted it. Otherwise the
-	 * diagnostic log records why the update waits.
+	 * Whether version `version` can serve this window after its start `answer`: `ready` when it joins
+	 * the Session, and restarts it first when it asks for that, or it cannot join and restarted it;
+	 * `host-required` when a Terminal Host must be replaced first. Otherwise the diagnostic log
+	 * records why the update waits.
 	 */
 	async #prepare(
 		root: string,
 		version: string,
 		answer: ServerStartAnswer | null,
-	): Promise<boolean> {
+	): Promise<'host-required' | 'ready' | 'waiting'> {
 		const joins = answer?.negotiatedCapabilities.includes(COMPATIBILITY_WINDOW) === true;
 		const restart = await this.#options
 			.restartForVersion(root, version, joins)
 			.catch((): UpdateRestart => 'failed');
-		if (this.#disposed) return false;
+		if (this.#disposed) return 'waiting';
 		if (restart === 'restarted') {
 			this.#options.recordEvent('info', 'window-update-restarted');
-			return true;
+			return 'ready';
+		}
+		if (restart === 'host-required') {
+			this.#options.recordEvent('info', 'window-update-host-replacement');
+			return 'host-required';
 		}
 		if (joins) {
 			if (restart === 'not-needed') {
 				this.#options.recordEvent('info', 'window-update-joinable');
-				return true;
+				return 'ready';
 			}
 			this.#options.recordEvent('info', 'window-update-waiting', { reason: 'restart-failed' });
-			return false;
+			return 'waiting';
 		}
 		this.#recordWaiting(answer);
-		return false;
+		return 'waiting';
 	}
 
 	#recordWaiting(answer: ServerStartAnswer | null): void {
@@ -389,14 +411,54 @@ export class DesktopWindowUpdate {
 		try {
 			const answer = await this.#options.startVersionClient(root, version).catch(() => null);
 			if (this.#disposed) return;
-			if (await this.#prepare(root, version, answer)) {
+			const prepared = await this.#prepare(root, version, answer);
+			if (prepared === 'ready') {
 				const started = await this.#options.onJoinable(version, place).catch(() => false);
 				if (started === false && served.open) {
 					served.port.postMessage({ type: 'desktop-window-update-failed' });
 				}
 				return;
 			}
+			if (prepared === 'host-required' && served.open) {
+				this.#replacing = { place, served, version };
+				served.port.postMessage({ type: 'desktop-window-update-host-replacement' });
+				return;
+			}
 			if (served.open) served.port.postMessage({ type: 'desktop-window-update-waiting' });
+		} finally {
+			this.#checking = false;
+		}
+	}
+
+	/**
+	 * The person's answer to the Host replacement the document `served` asked about. Confirmed for
+	 * the current offer, it stops the Session and then switches, so the newer version starts it again
+	 * with every terminal restarted; declined, or once the stop fails, the update waits.
+	 */
+	async #replaceHost(served: ServedPort, confirmed: boolean): Promise<void> {
+		const replacing = this.#replacing;
+		if (replacing?.served !== served || this.#checking) return;
+		this.#replacing = undefined;
+		if (!confirmed || replacing.version !== this.#offer) {
+			if (served.open) served.port.postMessage({ type: 'desktop-window-update-waiting' });
+			return;
+		}
+		this.#checking = true;
+		try {
+			const stopped = await this.#options.stopSession().catch(() => false);
+			if (this.#disposed) return;
+			if (!stopped) {
+				this.#options.recordEvent('info', 'window-update-waiting', { reason: 'stop-failed' });
+				if (served.open) served.port.postMessage({ type: 'desktop-window-update-waiting' });
+				return;
+			}
+			this.#options.recordEvent('info', 'window-update-host-replaced');
+			const started = await this.#options
+				.onJoinable(replacing.version, replacing.place)
+				.catch(() => false);
+			if (started === false && served.open) {
+				served.port.postMessage({ type: 'desktop-window-update-failed' });
+			}
 		} finally {
 			this.#checking = false;
 		}

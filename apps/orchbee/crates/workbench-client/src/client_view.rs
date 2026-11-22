@@ -778,6 +778,10 @@ impl ClientView {
     pub fn update_refused(&mut self, switch: crate::release_update::UpdateSwitch) {
         self.notice = Some(match switch {
             crate::release_update::UpdateSwitch::Started => return,
+            crate::release_update::UpdateSwitch::HostReplacement => {
+                self.machines.ask_host_replacement();
+                return;
+            }
             crate::release_update::UpdateSwitch::Restarting => Notice::UpdateRestarting,
             crate::release_update::UpdateSwitch::Waiting => Notice::UpdateWaiting,
             crate::release_update::UpdateSwitch::Unavailable

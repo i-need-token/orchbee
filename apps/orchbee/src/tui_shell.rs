@@ -983,6 +983,14 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 }
                 None => {}
             }
+            // A Host replacement waits for the person's answer; declined, the update waits.
+            if let Some(confirmed) = view.machines.take_host_replacement_answer() {
+                if !surface.active().replace_host_for_update(confirmed) {
+                    view.update_refused(crate::release_update::UpdateSwitch::Waiting);
+                }
+                redraw = true;
+            }
+            redraw |= view.machines.tick_host_replacement(now);
             if let Some(machines) = &mut machines {
                 let change = machines.tick(surface, &mut view, dimensions, now, &mut |old| {
                     dispatcher.invalidate_hit_map(old);
@@ -1601,6 +1609,10 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn take_update_progress(&mut self) -> Option<crate::release_update::UpdateSwitch> {
         None
     }
+    /// The person's answer to a Host replacement's question; false when no replacement started.
+    fn replace_host_for_update(&mut self, _confirmed: bool) -> bool {
+        false
+    }
 
     fn client_control_tick(
         &mut self,
@@ -1682,6 +1694,9 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     }
     fn take_update_progress(&mut self) -> Option<crate::release_update::UpdateSwitch> {
         crate::workbench_client::WorkbenchClient::take_update_progress(self)
+    }
+    fn replace_host_for_update(&mut self, confirmed: bool) -> bool {
+        crate::workbench_client::WorkbenchClient::replace_host_for_update(self, confirmed)
     }
     fn local_runtime(&self) -> Option<std::path::PathBuf> {
         crate::workbench_client::WorkbenchClient::local_runtime(self).map(std::path::Path::to_owned)

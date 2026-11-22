@@ -258,11 +258,13 @@ async function run(
 		unavailable: updateCheckUnavailable(bootstrap),
 	});
 	const clientUpdate: WorkbenchClientUpdate = {
+		answerHostReplacement: windowUpdate.answerHostReplacement,
 		check: updateCheck,
 		getSnapshot: windowUpdate.getSnapshot,
 		request: windowUpdate.request,
 		subscribe: windowUpdate.subscribe,
 		subscribeFailed: windowUpdate.subscribeFailed,
+		subscribeHostReplacement: windowUpdate.subscribeHostReplacement,
 		subscribeWaiting: windowUpdate.subscribeWaiting,
 	};
 

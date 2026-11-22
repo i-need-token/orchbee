@@ -124,6 +124,9 @@ pub enum UpdateSwitch {
     Started,
     /// The Session's Server and Worker restart for the active version, keeping every terminal.
     Restarting,
+    /// A Terminal Host of the Session must be replaced, which restarts every terminal on it: the
+    /// TUI asks the person, and only a confirmed [`Updater::replace_host`] goes on.
+    HostReplacement,
 }
 
 /// The store watcher and the switch state of one TUI.
@@ -140,6 +143,9 @@ pub struct Updater {
     /// The restart a click started, with the version it leaves for.
     #[cfg(windows)]
     restart: Option<(String, restart::Job)>,
+    /// The version a Host replacement leaves for while the person has not answered.
+    #[cfg(windows)]
+    replacing: Option<String>,
 }
 
 /// The version a click chose to leave for, readable after the TUI that owns the [`Updater`] ended.
@@ -185,6 +191,8 @@ impl Updater {
             store_read: false,
             #[cfg(windows)]
             restart: None,
+            #[cfg(windows)]
+            replacing: None,
         }
     }
 
@@ -206,6 +214,8 @@ impl Updater {
             store_read: false,
             #[cfg(windows)]
             restart: None,
+            #[cfg(windows)]
+            replacing: None,
         };
         updater.observe(Some(ActiveRelease {
             version: version.to_owned(),
@@ -282,7 +292,7 @@ impl Updater {
         let joins = joins(marker, negotiated, (self.generations)(active));
         #[cfg(windows)]
         {
-            if self.restart.is_some() {
+            if self.restart.is_some() || self.replacing.is_some() {
                 return UpdateSwitch::Started;
             }
             if let Some(job) =
@@ -319,10 +329,45 @@ impl Updater {
                     self.restart = None;
                     UpdateSwitch::Waiting
                 }
+                restart::Progress::HostRequired => {
+                    let (version, _) = self.restart.take()?;
+                    self.replacing = Some(version);
+                    UpdateSwitch::HostReplacement
+                }
             })
         }
         #[cfg(not(windows))]
         None
+    }
+
+    /// The person's answer to [`UpdateSwitch::HostReplacement`]. Confirmed, it stops the local
+    /// Session whose runtime folder is `runtime` and reports through [`Self::take_restart`] as a
+    /// restart does; declined, or with no question asked, nothing changes and the update waits.
+    /// False when nothing started.
+    pub(crate) fn replace_host(
+        &mut self,
+        confirmed: bool,
+        runtime: Option<&std::path::Path>,
+    ) -> bool {
+        #[cfg(windows)]
+        {
+            let Some(version) = self.replacing.take() else {
+                return false;
+            };
+            let Some(job) = runtime
+                .filter(|_| confirmed)
+                .and_then(|runtime| restart::Job::replace_host(runtime.to_owned()))
+            else {
+                return false;
+            };
+            self.restart = Some((version, job));
+            true
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (confirmed, runtime);
+            false
+        }
     }
 
     /// Leaves for the store's active version when it is newer than this Client, as a click does,

@@ -171,6 +171,7 @@ impl Picker {
             || self.login.is_some()
             || self.waiting.is_some()
             || self.move_shown()
+            || self.host_replacement_shown()
             || self.card_shown()
     }
 

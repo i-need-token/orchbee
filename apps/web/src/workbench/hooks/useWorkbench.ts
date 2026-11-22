@@ -139,6 +139,10 @@ import {
 	useWorkbenchClientUpdate,
 	type WorkbenchClientUpdateView,
 } from './useWorkbenchClientUpdate';
+import {
+	useWorkbenchHostReplacement,
+	type WorkbenchHostReplacementView,
+} from './useWorkbenchHostReplacement';
 import type { WorkbenchClientUpdate } from '../types/workbench-client-update';
 import type { WorkbenchAgentNavigationInput } from '../model/project-workbench-agent-overview';
 import {
@@ -302,6 +306,8 @@ interface WorkbenchView {
 	readonly shortcuts: (() => void) | undefined;
 	/** The footer's Update control, present only while a newer version is offered. */
 	readonly update: WorkbenchClientUpdateView | undefined;
+	/** The question an Update asks before a Terminal Host replacement restarts every terminal. */
+	readonly hostReplacement: WorkbenchHostReplacementView | null;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string | undefined;
 	readonly sidebarFocusRequest: number;
@@ -739,6 +745,7 @@ export function useWorkbench({
 		scope: actions.scope,
 		suppressFailureNotice: suppressClientUpdateFailureNotice,
 	});
+	const hostReplacement = useWorkbenchHostReplacement(clientUpdate);
 	const startAgent = useMemoizedFn((input: WorkbenchAgentStartInput) => {
 		// No stacked dialogs: New Worktree… closes Start Agent and its form opens in its place.
 		agentDialogs.endStart(input.place === 'new-worktree');
@@ -1261,6 +1268,7 @@ export function useWorkbench({
 						actions.invoke(WORKBENCH_ACTION_IDS.openShortcuts, undefined, 'button');
 					},
 		update,
+		hostReplacement,
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
 		settingsShortcutLabel: visibleShortcutLabel(
 			formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),

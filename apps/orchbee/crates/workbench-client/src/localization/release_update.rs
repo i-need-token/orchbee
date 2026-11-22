@@ -81,6 +81,32 @@ impl Locale {
         }
     }
 
+    /// The title of the question asked before a Host replacement restarts every terminal.
+    pub(crate) const fn host_replacement_title(self) -> &'static str {
+        match self {
+            Self::EnUs => "Restart terminals to update?",
+            Self::ZhCn => "重启终端以完成更新？",
+        }
+    }
+
+    pub(crate) const fn host_replacement_sentence(self) -> &'static str {
+        match self {
+            Self::EnUs => {
+                "This update can't keep the terminals running. Each terminal restarts in its folder, and the programs running in them end."
+            }
+            Self::ZhCn => {
+                "此更新无法让终端继续运行。每个终端会在原来的文件夹中重新启动，其中运行的程序会结束。"
+            }
+        }
+    }
+
+    pub(crate) const fn host_replacement_confirm(self) -> &'static str {
+        match self {
+            Self::EnUs => "Restart",
+            Self::ZhCn => "重启",
+        }
+    }
+
     /// The one line a TUI started without the launcher prints when it leaves for `version`.
     pub(crate) fn update_without_launcher(self, version: &str) -> String {
         match self {

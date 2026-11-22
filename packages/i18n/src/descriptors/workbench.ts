@@ -1229,6 +1229,23 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Status notice after Update when the new version cannot join the running terminals yet; it takes effect once no terminal runs.',
 	},
+	updateHostReplacementTitle: {
+		id: 'workbench.update.hostReplacement.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.hostReplacement.title'],
+		description:
+			'Title of the confirmation after Update when the new version cannot keep the terminals running and must restart them; worded as the TUI asks it.',
+	},
+	updateHostReplacementDescription: {
+		id: 'workbench.update.hostReplacement.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.hostReplacement.description'],
+		description:
+			'Body of that confirmation: every terminal restarts in its folder and the programs in them end.',
+	},
+	updateHostReplacementConfirm: {
+		id: 'workbench.update.hostReplacement.confirm',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.hostReplacement.confirm'],
+		description: 'Destructive button of that confirmation, which restarts every terminal.',
+	},
 	environmentDevelopment: {
 		id: 'workbench.sidebar.environment.development',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.environment.development'],

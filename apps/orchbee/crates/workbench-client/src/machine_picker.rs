@@ -13,6 +13,7 @@ use std::{num::NonZeroU64, sync::Arc};
 mod agents;
 mod card;
 mod forget;
+mod host_replacement;
 mod login;
 mod login_notice;
 mod manage;
@@ -26,6 +27,7 @@ mod waiting;
 mod workspace_query;
 pub use agents::Control;
 use agents::Navigation;
+pub(crate) use host_replacement::HostReplacementQuestion;
 pub(crate) use login::{LoginControl, LoginOverlay};
 pub(crate) use login_notice::LoginNotice;
 pub(crate) use manage::{
@@ -376,6 +378,7 @@ pub struct Picker {
     waiting_deferred: Option<String>,
     /// A Workspace's move: the question it asks, whether it runs, and the notice it leaves.
     moving: moving::Moving,
+    host_replacement: host_replacement::HostReplacement,
     /// The card over the terminals of a machine that is not connected.
     cards: card::Cards,
     /// The machines that need a login and were seen on Settings › Machines since they began to.
@@ -449,6 +452,7 @@ impl Default for Picker {
             waiting: None,
             waiting_deferred: None,
             moving: moving::Moving::default(),
+            host_replacement: host_replacement::HostReplacement::default(),
             cards: card::Cards::default(),
             login_seen: Vec::new(),
             remote_notifications: Default::default(),
@@ -841,6 +845,7 @@ impl Picker {
         if self.login_key(key)
             || self.waiting_key(key)
             || self.move_key(key)
+            || self.host_replacement_key(key)
             || self.card_key(key)
             || key.kind == KeyKind::Release
         {

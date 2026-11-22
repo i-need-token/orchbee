@@ -565,6 +565,14 @@ impl WorkbenchClient {
             .and_then(crate::release_update::Updater::take_restart)
     }
 
+    /// The person's answer to a Host replacement's question; false when no replacement started.
+    pub fn replace_host_for_update(&mut self, confirmed: bool) -> bool {
+        let runtime = self.local_runtime.as_deref();
+        self.updater
+            .as_mut()
+            .is_some_and(|updater| updater.replace_host(confirmed, runtime))
+    }
+
     /// Whether a click on Update chose to leave for a newer version.
     pub fn leaves_for_update(&self) -> bool {
         self.updater

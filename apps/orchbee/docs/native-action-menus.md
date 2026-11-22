@@ -178,7 +178,13 @@ negotiated. On Windows the active version's own `orchbee` then decides in the ba
 the Session restarts first: it reads the Session's restart tier with `status server`, and when that
 tier is `recommended` or `required`, or the version cannot join, it runs `server restart`, which
 keeps every terminal, while the status line says Restarting Session… (`正在重启会话…`). A restart
-that answers `restarted` switches as a joining Session does; any other outcome switches nothing. When
+that answers `restarted` switches as a joining Session does; any other outcome switches nothing. A
+Terminal Host whose own tier is `required` cannot move to the new Worker, so no restart keeps its
+terminals: the TUI asks Restart terminals to update? (`重启终端以完成更新？`) and arms Restart as a
+move's question does. Cancel leaves the update waiting; Restart stops
+the Session through the TUI's own connection, as a stop action does, and once the stop has ended
+switches as a joining Session does, so the new version starts the Session and every terminal
+restarts in its folder from the final capture. When
 it joins, the TUI restores the console and exits with status `75` to an
 announcing [launcher](../../orchbee-launcher/README.md#relaunch-protocol). Without one, a macOS TUI
 replaces its own process with the store's active Client, read again, with the same arguments and

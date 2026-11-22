@@ -963,6 +963,7 @@ impl InputDispatcher {
             let login = view.machines.login().is_some()
                 || view.machines.waiting_shown()
                 || view.machines.move_shown()
+                || view.machines.host_replacement_shown()
                 || view.machines.card_shown();
             match item.kind {
                 DecodedKind::Key(key) => {
@@ -980,6 +981,7 @@ impl InputDispatcher {
                         .login_paste(text)
                         .and_then(|text| view.machines.waiting_paste(text))
                         .and_then(|text| view.machines.move_paste(text))
+                        .and_then(|text| view.machines.host_replacement_paste(text))
                         .and_then(|text| view.machines.manage_paste(text))
                     {
                         view.machines.paste_workspace_query(&text);

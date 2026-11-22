@@ -73,6 +73,10 @@ export const enUSWorkbenchMessages = {
 	'workbench.update.unavailable':
 		"Couldn't update here. Quit Orchbee and open it again, or run orchbee update.",
 	'workbench.update.waiting': 'This update applies when no terminal is running.',
+	'workbench.update.hostReplacement.title': 'Restart terminals to update?',
+	'workbench.update.hostReplacement.description':
+		"This update can't keep the terminals running. Each terminal restarts in its folder, and the programs running in them end.",
+	'workbench.update.hostReplacement.confirm': 'Restart',
 	'workbench.actions.unavailable': "This isn't available right now.",
 	'workbench.tabs.rename.notApplied': "Couldn't rename the Tab.",
 	'workbench.tabs.move.notApplied': "Couldn't move the Tab.",

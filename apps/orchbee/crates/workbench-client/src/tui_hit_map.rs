@@ -169,6 +169,11 @@ pub enum HitTarget {
         token: u64,
         confirm: bool,
     },
+    /// Cancel or Restart of the question painted before a Terminal Host replacement.
+    HostReplacement {
+        token: u64,
+        confirm: bool,
+    },
     /// Not now or the action of the card painted over a machine that is not connected.
     MachineCard {
         token: u64,

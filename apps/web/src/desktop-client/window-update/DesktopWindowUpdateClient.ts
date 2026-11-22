@@ -15,6 +15,7 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 	#disposed = false;
 	#offer: string | null = null;
 	readonly #failedListeners = new Set<() => void>();
+	readonly #hostReplacementListeners = new Set<() => void>();
 	readonly #listeners = new Set<() => void>();
 	readonly #port: MessagePort;
 	readonly #readPlace: () => DesktopRelaunchPlace | null;
@@ -54,6 +55,21 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 		return () => this.#listeners.delete(listener);
 	};
 
+	/** Answers the Host replacement question Main asked: whether every terminal may restart. */
+	readonly answerHostReplacement = (confirmed: boolean): void => {
+		if (this.#disposed) return;
+		const message: DesktopWindowUpdateRendererMessage = {
+			confirmed,
+			type: 'desktop-window-update-host-replacement-answer',
+		};
+		this.#port.postMessage(message);
+	};
+
+	readonly subscribeHostReplacement = (listener: () => void): (() => void) => {
+		this.#hostReplacementListeners.add(listener);
+		return () => this.#hostReplacementListeners.delete(listener);
+	};
+
 	readonly subscribeFailed = (listener: () => void): (() => void) => {
 		this.#failedListeners.add(listener);
 		return () => this.#failedListeners.delete(listener);
@@ -68,6 +84,7 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#failedListeners.clear();
+		this.#hostReplacementListeners.clear();
 		this.#listeners.clear();
 		this.#waitingListeners.clear();
 		this.#port.close();
@@ -92,6 +109,10 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 		}
 		if (message.data.type === 'desktop-window-update-failed') {
 			for (const listener of this.#failedListeners) listener();
+			return;
+		}
+		if (message.data.type === 'desktop-window-update-host-replacement') {
+			for (const listener of this.#hostReplacementListeners) listener();
 			return;
 		}
 		if (message.data.type === 'desktop-window-update-waiting') {

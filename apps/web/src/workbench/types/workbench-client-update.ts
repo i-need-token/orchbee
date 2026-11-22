@@ -17,6 +17,12 @@ export interface WorkbenchClientUpdate {
 	readonly subscribeFailed?: ((listener: () => void) => () => void) | undefined;
 	/** Calls back each time a requested switch waits until no terminal runs. */
 	readonly subscribeWaiting: (listener: () => void) => () => void;
+	/**
+	 * Calls back when a requested switch needs a new Terminal Host, which restarts every terminal;
+	 * the window asks the person and answers with {@link answerHostReplacement}.
+	 */
+	readonly subscribeHostReplacement?: ((listener: () => void) => () => void) | undefined;
+	readonly answerHostReplacement?: ((confirmed: boolean) => void) | undefined;
 }
 
 /**
