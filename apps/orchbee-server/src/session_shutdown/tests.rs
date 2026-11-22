@@ -99,6 +99,40 @@ fn retries_are_explicit_fenced_and_bounded_and_preserve_failure_progress() {
 }
 
 #[test]
+fn a_stop_still_failing_after_the_grace_becomes_an_exit_unless_a_retry_is_pending() {
+    let state = SessionShutdown::default();
+    assert!(!state.abandon_failed_stop(Duration::ZERO));
+    state.request(&request(1, StopAction::Start));
+    let first = attempt(&state);
+    assert!(!state.abandon_failed_stop(Duration::ZERO));
+    state.fail(
+        first,
+        StopPhase::BackgroundJobs,
+        StopFailure::ProcessWait,
+        0,
+    );
+    assert!(!state.abandon_failed_stop(Duration::from_secs(3600)));
+    // A pending retry holds the stop; its failure keeps the first failure's time.
+    state.request(&request(1, StopAction::Retry));
+    assert!(!state.abandon_failed_stop(Duration::ZERO));
+    let second = attempt(&state);
+    assert!(!state.abandon_failed_stop(Duration::ZERO));
+    state.fail(
+        second,
+        StopPhase::BackgroundJobs,
+        StopFailure::ProcessWait,
+        0,
+    );
+    assert!(state.abandon_failed_stop(Duration::ZERO));
+    assert!(!state.abandon_failed_stop(Duration::ZERO));
+    assert_eq!(state.take_within(Duration::ZERO), Some(Work::Exit));
+    assert!(matches!(
+        state.request(&request(1, StopAction::Status)).status,
+        SessionStopStatus::Failed { .. }
+    ));
+}
+
+#[test]
 fn drain_is_repeatable_and_closes_only_new_work() {
     let state = SessionShutdown::default();
     assert_eq!(state.offer_state(), ProcessState::Ready);

@@ -34,6 +34,9 @@ enum Progress {
 struct Entry {
     attempt: Attempt,
     progress: Progress,
+    /// When this stop's first attempt failed. Retries keep it, so a stop that keeps failing is
+    /// ended as surely as one nobody retries.
+    failing_since: Option<Instant>,
 }
 /// What the `drain` and `exit` control requests asked of this Server. The course only advances.
 #[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
@@ -131,6 +134,7 @@ impl SessionShutdown {
                     number: StopAttempt::new(1).expect("first attempt"),
                 },
                 progress: Progress::Queued,
+                failing_since: None,
             });
             self.changed.notify_all();
         }
@@ -460,6 +464,7 @@ impl SessionShutdown {
                 number: StopAttempt::new(1).expect("first attempt"),
             },
             progress: Progress::Queued,
+            failing_since: None,
         });
         self.changed.notify_all();
     }
@@ -531,14 +536,41 @@ impl SessionShutdown {
         failure: StopFailure,
         disposed_terminals: u32,
     ) {
-        self.update(
-            attempt,
-            Progress::Failed {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(entry) = state.entry.as_mut()
+            && entry.attempt == attempt
+            && matches!(entry.progress, Progress::Running(_))
+        {
+            entry.progress = Progress::Failed {
                 phase,
                 failure,
                 disposed_terminals,
-            },
+            };
+            entry.failing_since.get_or_insert_with(Instant::now);
+        }
+    }
+
+    /// Turns a failed stop into an `exit` once its first attempt failed at least `grace` ago and no
+    /// retry is pending or running, so the Server ends instead of refusing every Client for the
+    /// rest of its life. The stop stays recorded, so its status reads `failed` until the process
+    /// ends. Returns whether it did.
+    #[cfg(any(windows, test))]
+    pub(crate) fn abandon_failed_stop(&self, grace: Duration) -> bool {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let failed_long_ago = matches!(
+            state.entry,
+            Some(Entry {
+                progress: Progress::Failed { .. },
+                failing_since: Some(since),
+                ..
+            }) if since.elapsed() >= grace
         );
+        if !failed_long_ago || state.course >= Course::Exiting {
+            return false;
+        }
+        state.course = Course::Exiting;
+        self.changed.notify_all();
+        true
     }
     fn update(&self, attempt: Attempt, progress: Progress) {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());

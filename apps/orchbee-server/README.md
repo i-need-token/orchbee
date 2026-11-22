@@ -215,7 +215,8 @@ The stop is the ordinary Session stop under a fresh identity of the Server's own
 it asks nothing and disposes nothing, and its final capture keeps the layout for the next start,
 which runs the active version. Its Stopped record carries `moved_to`, the active version the check
 found, which `status server` reports as `movedTo`; a person's stop or a crash leaves none. A failed attempt is retried at each tick, since a recorded stop
-refuses every Client until it ends. A plugin hook job started in the moment between the Worker's
+refuses every Client until it ends; ten seconds after its first failure the Server ends as for an
+[`exit`](#managed-windows-session-shutdown) instead. A plugin hook job started in the moment between the Worker's
 answer and the stop goes unseen and ends with the Worker. The countdown rule names no platform type;
 only the Windows Session wires it.
 
@@ -261,7 +262,10 @@ Agent observation and Client listeners, waking and joining retained Client handl
 the stopped activation record. An activation guard excludes concurrent restart during publication
 and lifetime-lock release. Pipe absence or lost replies cannot prove completion. Failed attempts
 remain queryable while the control listener survives; after listener closure, the strict activation
-record remains a positive receipt. macOS runs this owner with the checkpoint saver and final
+record remains a positive receipt. A recorded stop refuses every Client, so on Windows a stop whose
+first attempt failed at least ten seconds ago, with no retry pending or running, becomes an `exit`:
+every terminal keeps running, the failed status stays readable until the process ends, and the
+next Client's Server adopts the Host. macOS runs this owner with the checkpoint saver and final
 capture, and Linux without them; [their startup](#managed-linux-and-macos-session-startup)
 describes what differs.
 

@@ -36,6 +36,12 @@ mod worker_loss;
 
 /// One stop attempt's cooperative deadline.
 const STOP_ATTEMPT_BUDGET: Duration = Duration::from_secs(60);
+/// How long after its first failed attempt a stop may still be retried before the Server ends as
+/// for an `exit`. The requester reads the failure within a second, and the idle move retries at
+/// each tick; a stop failing for a lasting cause would otherwise leave the Session refusing every
+/// Client until someone ends its processes.
+#[cfg(windows)]
+const FAILED_STOP_GRACE: Duration = Duration::from_secs(10);
 /// The most of an attempt the Worker may spend disposing terminals and stopping its Host. The rest
 /// of the attempt stays for the stages before and after it.
 const WORKER_STOP_BUDGET: Duration = Duration::from_secs(45);
@@ -478,8 +484,9 @@ impl Watch<'_> {
 
 /// Waits for a stop request or an `exit`, answering the `handover` steps of a restart meanwhile.
 /// Each tick looks at the Worker, which replaces a lost one, and feeds the idle move; a Worker exit
-/// no stop explains is recorded as this generation's failure first. While a restart holds the
-/// Session it watches only the restart. `None` means the Session record names the successor.
+/// no stop explains is recorded as this generation's failure first. A stop that failed and was not
+/// retried within [`FAILED_STOP_GRACE`] becomes an `exit`. While a restart holds the Session it
+/// watches only the restart. `None` means the Session record names the successor.
 #[cfg(windows)]
 fn next_work(
     owners: &mut Owners,
@@ -515,6 +522,10 @@ fn next_work(
             if restart.tick(owners, shutdown, &mut watch) == handover::Next::Leave {
                 return None;
             }
+            continue;
+        }
+        // The `exit` keeps every terminal running, and the next Client's Server adopts them.
+        if shutdown.abandon_failed_stop(FAILED_STOP_GRACE) {
             continue;
         }
         restart.look(owners);
