@@ -135,10 +135,25 @@
 			"sha256": "ae53f043efb489ed56914789ae78df933dba81734b7e472cfe70236e271d1f9a"
 		},
 		{
+			"path": "schemas/keeper/v1/fixtures/claimant-sequences.json"
+		},
+		{
+			"path": "schemas/keeper/v1/fixtures/claimant.json"
+		},
+		{
 			"path": "schemas/keeper/v1/fixtures/owner-sequences.json"
 		},
 		{
 			"path": "schemas/keeper/v1/fixtures/owner.json"
+		},
+		{
+			"path": "schemas/keeper/v1/fixtures/recovery-sequences.json"
+		},
+		{
+			"path": "schemas/keeper/v1/fixtures/recovery.json"
+		},
+		{
+			"path": "schemas/keeper/v1/fixtures/worker.json"
 		},
 		{
 			"path": "schemas/machine/v1/fixtures/boundary.json",

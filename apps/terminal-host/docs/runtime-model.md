@@ -1315,9 +1315,10 @@ On Windows, `orchbee-terminal-host keep` runs the Keeper: a process that holds d
 running terminal's seven handles for the Hosts of one Session, so a program outlives the Host that
 serves it, and that arbitrates which Host reads a terminal. The
 [Keeper contract](../../../schemas/keeper/README.md) owns its frames, admission, messages, holding
-states, and bounds; this section owns how the process meets them. Nothing starts a Keeper before
-the [Host handover](../../../proposals/platform/host-handover.md)'s H2, and no release Worker offers
-`keeper`, so no release Host holds a terminal before then. Rule: nothing a peer sends or does ends the Keeper or a holding, because the
+states, and bounds; this section owns how the process meets them. From the
+[Host handover](../../../proposals/platform/host-handover.md)'s H2 the Worker starts the Session's
+Keeper for a Host that offers `recovery`, which a Host on the product's ConPTY does, and that Host
+holds each running terminal there; a Host on the system ConHost holds none. Rule: nothing a peer sends or does ends the Keeper or a holding, because the
 Keeper may hold a program's last handles (`TH-034`).
 
 - **Endpoint**: the Keeper serves its own runtime directory and endpoint through the Host's Local

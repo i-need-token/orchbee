@@ -72,3 +72,8 @@ fixtures, not a compatibility artifact.
 - 0.1.0-beta.22: a Windows Terminal Host offers `keeper` and serves `AttachKeeper`, `DetachKeeper`,
   `KeeperLost`, `KeeperUnresponsive`, `TerminalUnheld`, and `holdingId`, which this release
   freezes; no release Worker offers `keeper`. Generations stay at 1.
+- 0.1.0-beta.23: the wire protocol declares the capability `recovery` with `RecoverTerminal` (106).
+  A release Worker offers `keeper`, and a Windows Terminal Host on the product's ConPTY offers
+  `recovery`, holds its running terminals in the Session's Keeper, and recovers those a Host that
+  ended left there; this release freezes the Keeper's claimant, Worker, and recovery fixture
+  groups. Generations stay at 1.

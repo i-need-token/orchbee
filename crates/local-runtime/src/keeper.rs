@@ -54,13 +54,13 @@ pub fn end_recorded_keeper(
     }
 }
 
-/// Whether release builds run the Keeper, true once the recovery acceptance passed on real Windows
+/// Whether release builds run the Keeper: true since the recovery acceptance passed on real Windows
 /// (`proposals/platform/host-handover.md`, decision 65). Development builds follow it, so a
 /// development Session never runs a Keeper that release builds do not.
-const IN_RELEASE_BUILDS: bool = false;
+const IN_RELEASE_BUILDS: bool = true;
 
 /// Whether this build runs the Keeper. Test builds always do, so tests and acceptance runs drive
-/// it; release and development builds do once `IN_RELEASE_BUILDS` is set. It is a constant
+/// it; release and development builds do while `IN_RELEASE_BUILDS` is set. It is a constant
 /// expression, so a caller may decide at compile time.
 pub const fn keeper_live() -> bool {
     match environment_kind() {
