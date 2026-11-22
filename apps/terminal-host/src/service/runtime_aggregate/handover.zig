@@ -74,6 +74,15 @@ pub fn reserveImport(self: anytype, creation_id: core_module.CreationId) !Import
     return .{ .terminal_id = terminal_id, .retained = retained };
 }
 
+/// Room for a recovered terminal under the terminal id it ran as, which no terminal of this Host
+/// may hold.
+pub fn reserveRecovery(self: anytype, creation_id: core_module.CreationId, terminal_id: core_module.TerminalId) !ImportSlot {
+    try self.core_state.reserveTerminal();
+    try self.core_state.validateImportAdmission(creation_id, terminal_id);
+    const retained = try self.allocator.create(RetainedTerminal);
+    return .{ .terminal_id = terminal_id, .retained = retained };
+}
+
 pub fn releaseImport(self: anytype, slot: ImportSlot) void {
     self.allocator.destroy(slot.retained);
 }

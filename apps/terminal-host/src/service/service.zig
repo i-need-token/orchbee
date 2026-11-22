@@ -13,6 +13,7 @@ const host_lifecycle = @import("host_lifecycle.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_request_dispatch = @import("request_dispatch.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
+const identifiers = @import("terminal-host-model").identifiers;
 const keepers_module = @import("keepers.zig");
 const moves_module = @import("moves/root.zig");
 const request_failure = @import("request_failure.zig");
@@ -26,6 +27,8 @@ const InputFailure = host_failure.InputFailure;
 
 pub const Options = struct {
     terminal_defaults: terminal_configuration.Configuration = .{},
+    /// A recovery Host's epoch, the lost Host's; null mints one.
+    host_epoch: ?identifiers.HostEpoch = null,
     trace_interactions: bool = false,
 };
 
@@ -69,7 +72,7 @@ pub const HostService = struct {
             .allocator = allocator,
             .keepers = .init(allocator),
             .moves = .init(allocator),
-            .runtime_aggregate = .initWithDefaults(allocator, options.terminal_defaults),
+            .runtime_aggregate = .initWithEpoch(allocator, options.terminal_defaults, options.host_epoch),
             .trace_interactions = options.trace_interactions,
         };
     }
@@ -157,9 +160,9 @@ pub const HostService = struct {
 
     /// A Worker session was admitted on the broker endpoint; `keeper` and `handover` tell whether
     /// its handshake negotiated each capability.
-    pub fn admitSession(self: *HostService, keeper: bool, handover: bool) void {
+    pub fn admitSession(self: *HostService, keeper: bool, handover: bool, recovery: bool) void {
         self.keepers.admit(keeper);
-        self.moves.admit(handover);
+        self.moves.admit(handover, recovery);
     }
 
     /// The facts a handshake reply reports, read on the dispatch thread.

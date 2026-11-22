@@ -21,6 +21,7 @@ export const MessageKind = {
 	restoreTerminal: 103,
 	claimTerminal: 104,
 	discardImport: 105,
+	recoverTerminal: 106,
 	readProcessInfo: 79,
 	applyTerminalTheme: 77,
 	attachTerminal: 20,
@@ -263,6 +264,12 @@ export const MESSAGE_CONTRACTS = {
 		eventEncoding: null,
 		name: 'DiscardImport',
 		request: { payloadEncoding: control, successKind: MessageKind.discardImport },
+		responseEncoding: control,
+	},
+	[MessageKind.recoverTerminal]: {
+		eventEncoding: null,
+		name: 'RecoverTerminal',
+		request: { payloadEncoding: control, successKind: MessageKind.recoverTerminal },
 		responseEncoding: control,
 	},
 	[MessageKind.readProcessInfo]: {
@@ -692,8 +699,8 @@ type RequestKindForEncoding<Encoding extends PayloadEncoding> = {
 		: never;
 }[MessageKind];
 
-// Only the Worker sends the Host handover requests, under the `keeper` and `handover`
-// capabilities; no TypeScript producer encodes them, so none is a client control request here.
+// Only the Worker sends the Host handover requests, under the `keeper`, `handover`, and
+// `recovery` capabilities; no TypeScript producer encodes them, so none is a client control request here.
 const WORKER_ONLY_CONTROL_REQUEST_KINDS = [
 	MessageKind.attachKeeper,
 	MessageKind.detachKeeper,
@@ -705,6 +712,7 @@ const WORKER_ONLY_CONTROL_REQUEST_KINDS = [
 	MessageKind.restoreTerminal,
 	MessageKind.claimTerminal,
 	MessageKind.discardImport,
+	MessageKind.recoverTerminal,
 ] as const;
 const workerOnlyControlRequestKinds: ReadonlySet<MessageKind> = new Set(
 	WORKER_ONLY_CONTROL_REQUEST_KINDS,

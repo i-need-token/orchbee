@@ -205,6 +205,7 @@ impl ConnectionKind {
                 HANDOVER,
                 KEEPER,
                 PROMPT_GATED_INPUT,
+                RECOVERY,
                 SCREEN_GATED_INPUT,
                 SCREEN_GATED_SEND,
             ]),

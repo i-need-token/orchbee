@@ -857,6 +857,16 @@
 				"success_kind": 105
 			},
 			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 106,
+			"name": "RecoverTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 106
+			},
+			"response_encoding": "control-json"
 		}
 	],
 	"protocol_limits": {

@@ -95,6 +95,8 @@ pub const Reply = struct {
     keeper: bool = false,
     /// Whether an accepted session's answer lists `handover`.
     handover: bool = false,
+    /// Whether an accepted session's answer lists `recovery`.
+    recovery: bool = false,
 
     pub const Kind = enum {
         /// The connection continues as the Worker session.
@@ -196,6 +198,7 @@ pub fn respond(
         .kind = kind,
         .keeper = lists(negotiated, "keeper"),
         .handover = lists(negotiated, "handover"),
+        .recovery = lists(negotiated, "recovery"),
     } };
 }
 

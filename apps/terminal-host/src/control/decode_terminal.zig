@@ -184,7 +184,7 @@ pub const testing = struct {
     pub const translateEnvironmentOverlayForTest = translateEnvironmentOverlay;
 };
 
-fn profileFromWire(profile: control_wire.TerminalProfile) ?terminal_profile.Profile {
+pub fn profileFromWire(profile: control_wire.TerminalProfile) ?terminal_profile.Profile {
     const color_scheme: terminal_profile.ColorScheme = if (std.mem.eql(u8, profile.colorScheme, "dark"))
         .dark
     else if (std.mem.eql(u8, profile.colorScheme, "light"))

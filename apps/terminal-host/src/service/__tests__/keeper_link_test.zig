@@ -270,7 +270,7 @@ const Fixture = struct {
         try self.worker.offer(scratch);
         try expectTag(try call(&self.worker, scratch, .{ .hello = .worker }), .hello);
         try expectTag(try call(&self.worker, scratch, .{ .register_host = self.self_process }), .register_host);
-        self.service.admitSession(true, false);
+        self.service.admitSession(true, false, false);
         try harness.testHandshake(&self.service, &self.connection, "4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b");
         return self;
     }

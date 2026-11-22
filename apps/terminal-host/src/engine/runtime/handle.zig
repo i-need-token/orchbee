@@ -64,6 +64,8 @@ pub const TerminalRuntime = opaque {
     pub const exportSettledHandover = HandoverHandle.exportSettledHandover;
     pub const prepareImport = HandoverHandle.prepareImport;
     pub const startImport = HandoverHandle.startImport;
+    pub const prepareRecovery = HandoverHandle.prepareRecovery;
+    pub const nudgeConsole = HandoverHandle.nudgeConsole;
 
     pub fn create(
         allocator: std.mem.Allocator,

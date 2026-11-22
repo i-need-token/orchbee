@@ -1513,6 +1513,15 @@ of either Host ends a program the other Host serves or may serve (`TH-033`).
   closes the pseudoconsole, terminates or changes the Job, signals, or writes input, and sends no
   `TerminalExited`. A discard or deadline that comes while the restore builds waits for the build
   and discards when it ends.
+- **Recovery**: a Host that offers `handover` also offers `recovery`, which works without
+  `handover`, and a Host started with `--host-epoch` serves that epoch, the lost Host's. `RecoverTerminal` starts an import with no
+  record for a program the Keeper kept after its Host ended: its build has the Keeper `inspect` the
+  holding first, requires the Keeper's facts to name the request's creation and terminal under this
+  Host's epoch and a known console build, checks the duplicates against those facts, builds an
+  empty engine at the request's size and profile, and continues as a restore, keeping the
+  terminal's identity. `ClaimTerminal`, `DiscardImport`, and the deadline then apply unchanged.
+  After its claim the Host resizes the console one row and back, so the console repaints its screen
+  and a full-screen program redraws; a failed resize leaves the terminal as it is.
 - **Settled terminals**: a settled terminal's record carries no mark and needs no Keeper; its import
   ends settled with its outcome already published, so it sends no `TerminalExited` and refuses
   `ClaimTerminal` as `not-running`, and the Worker disposes either copy as any settled terminal.

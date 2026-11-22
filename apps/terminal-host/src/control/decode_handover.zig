@@ -1,12 +1,15 @@
-//! The `handover` capability's requests on `worker-host`. Terminal and creation ids are 32 lowercase
-//! hexadecimal digits and a process is `{pid, creationTime}`, as `keeper` names it. A
-//! handover-record payload is binary: a 32-byte header, then the chunk.
+//! The `handover` and `recovery` capabilities' requests on `worker-host`. Terminal, creation,
+//! holding, and mark ids are 32 lowercase hexadecimal digits and a process is
+//! `{pid, creationTime}`, as `keeper` names it. A handover-record payload is binary: a 32-byte
+//! header, then the chunk.
 
 const std = @import("std");
-const identifiers = @import("terminal-host-model").identifiers;
+const model = @import("terminal-host-model");
+const identifiers = model.identifiers;
 const control_wire = @import("wire.zig");
 const decode_common = @import("decode_common.zig");
 const decode_keeper = @import("decode_keeper.zig");
+const decode_terminal = @import("decode_terminal.zig");
 
 const TerminalId = identifiers.TerminalId;
 const CreationId = identifiers.CreationId;
@@ -38,6 +41,22 @@ pub const Discard = union(enum) {
     import: CreationId,
     terminal: TerminalId,
 };
+
+/// `RecoverTerminal`: the holding and mark of a program the Keeper kept, the terminal it ran as,
+/// and its fresh engine's size, profile, and scrollback, null for the Host's default.
+pub const Recover = struct {
+    creation_id: CreationId,
+    terminal_id: TerminalId,
+    holding: [16]u8,
+    mark: [16]u8,
+    geometry: model.geometry.Geometry,
+    profile: model.profile.Profile,
+    scrollback_bytes: ?usize,
+    deadline_seconds: u8,
+};
+
+/// A decoded `RecoverTerminal`, whose profile borrows the parse until `deinit`.
+pub const RecoverRequest = decode_common.Decoded(WireRecover, Recover);
 
 /// One chunk of a record. `chunk` borrows the payload.
 pub const RecordChunk = struct {
@@ -71,6 +90,17 @@ const WireCreation = struct {
 const WireDiscard = struct {
     creationId: ?[]const u8 = null,
     terminalId: ?[]const u8 = null,
+};
+
+const WireRecover = struct {
+    creationId: []const u8,
+    terminalId: []const u8,
+    holding: []const u8,
+    mark: []const u8,
+    geometry: control_wire.Geometry,
+    terminalProfile: control_wire.TerminalProfile,
+    configuration: ?control_wire.TerminalConfiguration = null,
+    deadlineSeconds: u8,
 };
 
 pub fn decodeQuiesce(
@@ -139,6 +169,33 @@ pub fn decodeDiscard(
     else
         return error.InvalidField;
     return .{ .parsed = parsed, .value = value };
+}
+
+pub fn decodeRecover(allocator: std.mem.Allocator, payload: []const u8) decode_common.Error!RecoverRequest {
+    const parsed = try control_wire.decode(WireRecover, allocator, payload);
+    errdefer parsed.deinit();
+    const wire = parsed.value;
+    const geometry: model.geometry.Geometry = .{
+        .cell_pixel_height = wire.geometry.cellPixelHeight,
+        .cell_pixel_width = wire.geometry.cellPixelWidth,
+        .columns = wire.geometry.columns,
+        .rows = wire.geometry.rows,
+    };
+    if (!model.geometry.isValid(geometry)) return error.InvalidField;
+    const profile = decode_terminal.profileFromWire(wire.terminalProfile) orelse return error.InvalidField;
+    if (!model.profile.valid(profile)) return error.InvalidField;
+    const scrollback_bytes: ?usize = if (wire.configuration) |configuration| configuration.scrollbackBytes else null;
+    if (scrollback_bytes) |bytes| if (!model.configuration.valid(.{ .scrollback_bytes = bytes })) return error.InvalidField;
+    return .{ .parsed = parsed, .value = .{
+        .creation_id = try identifiers.parseLowerHex(CreationId, wire.creationId),
+        .terminal_id = try identifiers.parseLowerHex(TerminalId, wire.terminalId),
+        .holding = (try identifiers.parseLowerHex(CreationId, wire.holding)).bytes,
+        .mark = (try identifiers.parseLowerHex(CreationId, wire.mark)).bytes,
+        .geometry = geometry,
+        .profile = profile,
+        .scrollback_bytes = scrollback_bytes,
+        .deadline_seconds = try deadline(wire.deadlineSeconds),
+    } };
 }
 
 /// Checks a handover-record payload's header: the id, the offset, a length from 1 to 4 MiB that

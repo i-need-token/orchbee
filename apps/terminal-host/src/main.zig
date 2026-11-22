@@ -136,6 +136,7 @@ fn serveHeld(
 ) !void {
     var service = host_service.HostService.initWithOptions(allocator, .{
         .terminal_defaults = options.terminal_defaults,
+        .host_epoch = options.host_epoch,
         .trace_interactions = environment.contains("ORCHBEE_TERMINAL_HOST_TRACE"),
     });
     const serve_result = server.serveUntilIdle(&service);

@@ -52,11 +52,20 @@ pub const HostRuntimeAggregate = struct {
         allocator: std.mem.Allocator,
         defaults: terminal_configuration.Configuration,
     ) HostRuntimeAggregate {
+        return initWithEpoch(allocator, defaults, null);
+    }
+
+    /// `epoch` is a recovery Host's, the lost Host's; null mints one.
+    pub fn initWithEpoch(
+        allocator: std.mem.Allocator,
+        defaults: terminal_configuration.Configuration,
+        epoch: ?identifiers.HostEpoch,
+    ) HostRuntimeAggregate {
         return .{
             .allocator = allocator,
             .core_state = .initWithDefaults(
                 allocator,
-                identifiers.HostEpoch.random(),
+                epoch orelse identifiers.HostEpoch.random(),
                 defaults,
             ),
         };
@@ -124,6 +133,7 @@ pub const HostRuntimeAggregate = struct {
     // moves between Hosts.
     pub const exportInputs = handover.exportInputs;
     pub const reserveImport = handover.reserveImport;
+    pub const reserveRecovery = handover.reserveRecovery;
     pub const releaseImport = handover.releaseImport;
     pub const commitImport = handover.commitImport;
     pub const removeMoving = handover.removeMoving;

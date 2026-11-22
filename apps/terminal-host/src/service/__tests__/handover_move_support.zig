@@ -168,7 +168,7 @@ pub const Fixture = struct {
         const self = try allocate(a_kind);
         errdefer self.destroy();
         if (a_kind == .service) {
-            self.service.admitSession(true, true);
+            self.service.admitSession(true, true, true);
             try harness.testHandshake(&self.service, &self.connection, "4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d");
         }
         try self.startKeeper();
@@ -350,6 +350,11 @@ pub const Fixture = struct {
     /// Starts a Host process as the Worker would, admitted by the Keeper, and attaches the Keeper
     /// there. Host A runs as a process only in a fixture made for it.
     pub fn startHost(self: *Fixture, side: Side) !void {
+        return self.startHostWith(side, null);
+    }
+
+    /// `startHost`, for a recovery Host when `epoch` names the lost Host's epoch.
+    pub fn startHostWith(self: *Fixture, side: Side, epoch: ?[16]u8) !void {
         std.debug.assert(side == .b or self.a_kind == .process);
         std.debug.assert(self.hosts[@intFromEnum(side)] == null);
         var random: [16]u8 = undefined;
@@ -357,8 +362,11 @@ pub const Fixture = struct {
         const endpoint = std.fmt.bytesToHex(random, .lower);
         const directory = try self.privateDirectory("host");
         defer self.allocator.free(directory);
+        const epoch_text = if (epoch) |bytes| std.fmt.bytesToHex(bytes, .lower) else undefined;
+        const base = [_][]const u8{ self.host_path, "serve", "--runtime-directory", directory, "--endpoint-id", &endpoint };
+        const argv: []const []const u8 = if (epoch != null) &(base ++ [_][]const u8{ "--host-epoch", &epoch_text }) else &base;
         var child = try std.process.spawn(self.io, .{
-            .argv = &.{ self.host_path, "serve", "--runtime-directory", directory, "--endpoint-id", &endpoint },
+            .argv = argv,
             .stdin = .ignore,
             .stdout = .ignore,
             .stderr = .inherit,
@@ -368,8 +376,9 @@ pub const Fixture = struct {
         try expectTag(try keeperCall(&self.keeper.?.worker, self.arena(), .{ .register_host = process }), .register_host);
         var client = try connectWorker(self.allocator, directory, &endpoint);
         errdefer client.close();
-        const epoch = try hello(self.allocator, &client);
-        self.hosts[@intFromEnum(side)] = .{ .child = child, .handle = child.id.?, .identity = process, .endpoint = endpoint, .client = client, .epoch = epoch };
+        const served = try hello(self.allocator, &client);
+        if (epoch) |expected| if (!std.mem.eql(u8, &served, &expected)) return error.EpochNotTaken;
+        self.hosts[@intFromEnum(side)] = .{ .child = child, .handle = child.id.?, .identity = process, .endpoint = endpoint, .client = client, .epoch = served };
         try self.attach(side);
     }
 
@@ -410,6 +419,16 @@ pub const Fixture = struct {
         const code = support.exitCode(host.handle) orelse return error.HostStillRunning;
         self.killHost(side);
         return code;
+    }
+
+    /// A process Host's epoch.
+    pub fn epochOf(self: *const Fixture, side: Side) [16]u8 {
+        return self.hosts[@intFromEnum(side)].?.epoch;
+    }
+
+    /// The Worker's `assign` of an orphaned holding to `target` under `mark`.
+    pub fn assign(self: *Fixture, holding: [16]u8, target: message.Process, mark: [16]u8) !void {
+        try expectTag(try keeperCall(&self.keeper.?.worker, self.arena(), .{ .assign = .{ .holding = holding, .target = target, .mark = mark } }), .assign);
     }
 
     pub fn identity(self: *const Fixture, side: Side) message.Process {

@@ -16,6 +16,7 @@ const answers_module = @import("answers.zig");
 const record_export = @import("export.zig");
 const export_teardown = @import("export_teardown.zig");
 const record_import = @import("import.zig");
+const record_recover = @import("recover.zig");
 const creation_pipeline = @import("../creation_pipeline.zig");
 const host_outgoing = @import("../outgoing.zig");
 const host_request_context = @import("../request_context.zig");
@@ -36,6 +37,8 @@ pub const Moves = struct {
     importing: ?*record_import.Import = null,
     /// Whether the current Worker session negotiated `handover`.
     negotiated: bool = false,
+    /// Whether it negotiated `recovery` too.
+    recovery: bool = false,
     timer: ?platform.monotonic.Timer,
     stopped: bool = false,
 
@@ -47,15 +50,18 @@ pub const Moves = struct {
         };
     }
 
-    /// A Worker session was admitted; `negotiated` tells whether both sides listed `handover`.
-    pub fn admit(self: *Moves, negotiated: bool) void {
+    /// A Worker session was admitted; `negotiated` tells whether both sides listed `handover`, and
+    /// `recovery` whether they listed `recovery`, which a Host offers wherever it offers `handover`.
+    pub fn admit(self: *Moves, negotiated: bool, recovery: bool) void {
         self.negotiated = negotiated;
+        self.recovery = recovery;
     }
 
     /// The session ended. Its moves go on: an export resumes at its deadline and an import
     /// discards itself at its own, and the answers it was owed are dropped.
     pub fn disconnect(self: *Moves) void {
         self.negotiated = false;
+        self.recovery = false;
     }
 
     /// The request context's view, whether or not the session negotiated `handover`, since a
@@ -143,6 +149,10 @@ pub const Access = struct {
         return self.moves.negotiated;
     }
 
+    pub fn recoveryNegotiated(self: Access) bool {
+        return self.moves.recovery;
+    }
+
     /// One `handover` request of a session that negotiated it. What settled since the last turn
     /// comes first, so the request meets it.
     pub fn handle(
@@ -221,6 +231,8 @@ fn dispatch(
             defer decoded.deinit();
             record_import.discardImport(current, &moves.importing, to, decoded.value);
         },
+        // The import owns the decoded request from here.
+        .recover_terminal => record_recover.recoverTerminal(current, &moves.importing, to, try handover.decodeRecover(allocator, payload), context.terminal_admission),
         else => unreachable,
     }
 }
@@ -236,6 +248,7 @@ fn invalidPayload(operation: protocol.RequestOperation) []const u8 {
         .restore_terminal => "RestoreTerminal payload is invalid",
         .claim_terminal => "ClaimTerminal payload is invalid",
         .discard_import => "DiscardImport payload is invalid",
+        .recover_terminal => "RecoverTerminal payload is invalid",
         else => unreachable,
     };
 }

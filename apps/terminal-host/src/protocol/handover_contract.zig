@@ -1,5 +1,5 @@
-//! The Host handover kinds of the message registry, 90 to 105, which only a Worker that negotiated
-//! `keeper` or `handover` sends or receives. `contract.zig` owns every other kind.
+//! The Host handover kinds of the message registry, 90 to 106, which only a Worker that negotiated
+//! `keeper`, `handover`, or `recovery` sends or receives. `contract.zig` owns every other kind.
 
 const contract = @import("contract.zig");
 
@@ -26,6 +26,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
         M.restore_terminal => controlRequest("RestoreTerminal", .restore_terminal, M.restore_terminal),
         M.claim_terminal => controlRequest("ClaimTerminal", .claim_terminal, M.claim_terminal),
         M.discard_import => controlRequest("DiscardImport", .discard_import, M.discard_import),
+        M.recover_terminal => controlRequest("RecoverTerminal", .recover_terminal, M.recover_terminal),
         else => null,
     };
 }

@@ -91,4 +91,5 @@ pub const MessageKind = struct {
     pub const restore_terminal: u16 = 103;
     pub const claim_terminal: u16 = 104;
     pub const discard_import: u16 = 105;
+    pub const recover_terminal: u16 = 106;
 };

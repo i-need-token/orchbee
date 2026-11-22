@@ -161,9 +161,16 @@ pub const Dispatcher = struct {
             .import_terminal,
             .write_handover_record,
             .restore_terminal,
+            => if (self.context.moves) |moves| if (moves.negotiated()) {
+                try moves.handle(&self.context, request_contract.operation, connection_id, envelope, correlation_id, outgoing);
+            } else try self.notNegotiated(correlation_id, outgoing) else try self.notNegotiated(correlation_id, outgoing),
+            // A restored import's claim and discard serve a move and a recovery alike.
             .claim_terminal,
             .discard_import,
-            => if (self.context.moves) |moves| if (moves.negotiated()) {
+            => if (self.context.moves) |moves| if (moves.negotiated() or moves.recoveryNegotiated()) {
+                try moves.handle(&self.context, request_contract.operation, connection_id, envelope, correlation_id, outgoing);
+            } else try self.notNegotiated(correlation_id, outgoing) else try self.notNegotiated(correlation_id, outgoing),
+            .recover_terminal => if (self.context.moves) |moves| if (moves.recoveryNegotiated()) {
                 try moves.handle(&self.context, request_contract.operation, connection_id, envelope, correlation_id, outgoing);
             } else try self.notNegotiated(correlation_id, outgoing) else try self.notNegotiated(correlation_id, outgoing),
         }

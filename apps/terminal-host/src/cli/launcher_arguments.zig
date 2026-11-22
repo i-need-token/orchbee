@@ -2,15 +2,18 @@ const std = @import("std");
 
 const argument_options = @import("argument_options.zig");
 const local_ipc = @import("terminal-host-transport");
-const terminal_configuration = @import("terminal-host-model").configuration;
+const model = @import("terminal-host-model");
+const terminal_configuration = model.configuration;
 
 const endpoint_directory_option = "--endpoint-directory";
 const endpoint_id_option = "--endpoint-id";
+const host_epoch_option = "--host-epoch";
 const runtime_directory_option = "--runtime-directory";
 const scrollback_bytes_option = "--scrollback-bytes";
 const serve_option_names = [_][]const u8{
     endpoint_directory_option,
     endpoint_id_option,
+    host_epoch_option,
     runtime_directory_option,
     scrollback_bytes_option,
 };
@@ -36,6 +39,8 @@ pub const ServeOptions = struct {
     /// runtime directory. A Windows Host names a pipe instead and ignores it.
     endpoint_directory: ?[]const u8,
     endpoint_id: []const u8,
+    /// A recovery Host's epoch, the lost Host's, so its terminals keep their identities.
+    host_epoch: ?model.identifiers.HostEpoch,
     runtime_directory: []const u8,
     terminal_defaults: terminal_configuration.Configuration,
 };
@@ -81,9 +86,14 @@ fn parseServeOptions(options: argument_options.Options) !ServeOptions {
     }
     if (!local_ipc.validEndpointId(endpoint_id)) return error.InvalidEndpointId;
     if (!terminal_configuration.valid(terminal_defaults)) return error.InvalidScrollbackBytes;
+    const host_epoch = if (try options.optionalOne(host_epoch_option)) |value|
+        model.identifiers.parseLowerHex(model.identifiers.HostEpoch, value) catch return error.InvalidHostEpoch
+    else
+        null;
     return .{
         .endpoint_directory = endpoint_directory,
         .endpoint_id = endpoint_id,
+        .host_epoch = host_epoch,
         .runtime_directory = runtime_directory,
         .terminal_defaults = terminal_defaults,
     };

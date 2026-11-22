@@ -570,6 +570,49 @@ test "ending the old Host right after the quiesce leaves the program running, he
     report("the old Host ended right after the quiesce: the program and OpenConsole run on in an orphaned holding", .{});
 }
 
+/// The launch profile a recovery names, as the Worker resolves it.
+const recovery_profile = "{\"colorScheme\":\"dark\",\"defaultBackgroundRgb\":0,\"defaultCursorRgb\":null,\"defaultForegroundRgb\":16777215,\"deviceAttributes\":{\"primaryConformanceLevel\":62,\"primaryFeatures\":[22],\"secondaryDeviceType\":1,\"secondaryFirmwareVersion\":0,\"secondaryRomCartridge\":0,\"tertiaryUnitId\":0},\"enquiryResponse\":\"\",\"palette\":[" ++ ("0," ** 255) ++ "0],\"versionResponse\":\"Orchbee test\"}";
+
+test "a program whose Host ended runs on and comes back on a recovery Host of the same epoch" {
+    var f = try Fixture.createWith(.process);
+    defer f.destroy();
+    const id = try f.createTerminalWith(.a, f.probe, &.{"screen"});
+    _ = try f.awaitTitle(.a, id, "screen-ready", false, 10_000);
+    const processes = try processesOf(f, id, .a);
+    const lost = f.identity(.a);
+    const epoch = f.epochOf(.a);
+    f.killHost(.a);
+    const deadline = f.timer.read() + 5000 * ms;
+    const orphan = while (true) {
+        const entry = (try f.holdingOf(id)) orelse return error.TerminalNotHeld;
+        if (entry.state == .orphaned and entry.owner.eql(lost)) break entry;
+        if (f.timer.read() > deadline) return error.HoldingNotOrphaned;
+        try f.idle(20);
+    };
+    try std.testing.expect(f.running(id));
+
+    // The recovery Host takes the lost Host's epoch, so the terminal keeps its identity.
+    f.killHost(.b);
+    try f.startHostWith(.b, epoch);
+    var mark: [16]u8 = undefined;
+    f.io.random(&mark);
+    try f.assign(orphan.holding, f.identity(.b), mark);
+    const payload = try std.fmt.allocPrint(f.arena(), "{{\"creationId\":\"{s}\",\"deadlineSeconds\":30,\"geometry\":{{\"cellPixelHeight\":16,\"cellPixelWidth\":8,\"columns\":100,\"rows\":30}},\"holding\":\"{s}\",\"mark\":\"{s}\",\"terminalId\":\"{s}\",\"terminalProfile\":{s}}}", .{
+        &hex(orphan.facts.terminal.creation_id), &hex(orphan.holding), &hex(mark), &hex(id.bytes), recovery_profile,
+    });
+    const recovered = try f.call(.b, MessageKind.recover_terminal, .control_json, payload, 20_000);
+    try expectKind(recovered, MessageKind.recover_terminal);
+    try std.testing.expect((try moves.terminalIdOf(f.allocator, recovered.payload)).eql(id));
+    // The claim reads nothing before it: the program's screen comes back with the console's resize.
+    try expectKind(try f.claim(.b, id), MessageKind.claim_terminal);
+    try expectProcesses(f, id, .b, processes);
+    _ = try f.awaitTitle(.b, id, "size-100x30", false, 20_000);
+    _ = try f.typeAndAwait(.b, id, "k", "key-k", false);
+    try resizeAndAwait(f, .b, id, 90, 28);
+    try close(f, .b, id);
+    report("the program outlived its Host in the Keeper, and a recovery Host of the same epoch claimed it under its identity: input, a resize, and closing acted there", .{});
+}
+
 /// One move whose steps are timed, from the quiesce request to the claim's answer, which bounds
 /// the time the program's output is not read. The waits spin, so no step waits out a timer tick.
 fn timedMove(f: *Fixture, from: Side, id: TerminalId, name: []const u8, repetition: usize, rows: u64) !struct { copy: TerminalId, total_ns: u64 } {

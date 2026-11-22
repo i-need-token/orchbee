@@ -742,6 +742,13 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         Some(request(PayloadEncoding::ControlJson, 105)),
         Some(PayloadEncoding::ControlJson)
     ),
+    contract!(
+        106,
+        "RecoverTerminal",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 106)),
+        Some(PayloadEncoding::ControlJson)
+    ),
 ];
 
 const _: () = {

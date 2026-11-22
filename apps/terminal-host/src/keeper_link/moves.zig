@@ -34,10 +34,14 @@ pub const Body = union(enum) {
 
 /// What `inspect` answered and the handles this Host pulled after it.
 pub const Inspected = struct {
+    /// The terminal the holding last ran as.
+    terminal: message.Terminal,
     program: message.Process,
     console: message.Process,
     console_build: [32]u8,
     signal_format: u16,
+    /// How the program was started; a name this Host does not know reads as `other`.
+    launch_kind: platform.process.LaunchKind,
     /// This Host's duplicates in role order; the request's maker owns them.
     duplicates: if (is_windows) handles.Duplicates else void,
 };
@@ -169,6 +173,8 @@ fn make(link: *Link, body: Body) Result {
             };
             const duplicates = handles.pull(link.connection.?.keeper_process, values) catch return .pull_failed;
             return .{ .inspected = .{
+                .terminal = inspection.facts.terminal,
+                .launch_kind = launchKind(inspection.facts.launch),
                 .program = inspection.facts.program,
                 .console = inspection.facts.console,
                 .console_build = inspection.facts.console_build,
@@ -194,6 +200,20 @@ fn make(link: *Link, body: Body) Result {
             return result;
         },
     }
+}
+
+/// The launch name `hold` reported, such as `managed-powershell`, as this Host's kind.
+fn launchKind(name: []const u8) platform.process.LaunchKind {
+    inline for (@typeInfo(platform.process.LaunchKind).@"enum".fields) |field| {
+        const spelled = comptime spelled: {
+            var text: [field.name.len]u8 = undefined;
+            for (field.name, &text) |byte, *out| out.* = if (byte == '_') '-' else byte;
+            const final = text;
+            break :spelled &final;
+        };
+        if (std.mem.eql(u8, name, spelled)) return @field(platform.process.LaunchKind, field.name);
+    }
+    return .other;
 }
 
 fn claimedOutcome(result: Result) bool {

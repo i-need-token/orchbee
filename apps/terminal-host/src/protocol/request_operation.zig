@@ -36,7 +36,7 @@ pub const RequestOperation = enum {
     update_terminal_configuration,
     update_attachment_input_capability,
     write_input,
-    // Host handover, under the `keeper` and `handover` capabilities.
+    // Host handover, under the `keeper`, `handover`, and `recovery` capabilities.
     attach_keeper,
     detach_keeper,
     quiesce_terminal,
@@ -48,4 +48,5 @@ pub const RequestOperation = enum {
     restore_terminal,
     claim_terminal,
     discard_import,
+    recover_terminal,
 };

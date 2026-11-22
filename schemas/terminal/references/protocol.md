@@ -480,11 +480,12 @@ prompt first seen after the arrival is answered once the quiet time since the ar
 
 ## Host handover
 
-Kinds 90 to 105 move a running Windows terminal from one Terminal Host to another through the
-Keeper, whose own connection is [`../../keeper/README.md`](../../keeper/README.md). They belong to
-two `worker-host` capabilities: `keeper` covers `AttachKeeper`, `DetachKeeper`, and the events
-`KeeperLost`, `KeeperUnresponsive`, and `TerminalUnheld`; `handover` covers every other kind. A
-capability works only when both sides list it in the handshake. A request whose capability the
+Kinds 90 to 106 move a running Windows terminal from one Terminal Host to another through the
+Keeper, whose own connection is [`../../keeper/README.md`](../../keeper/README.md), and recover one
+whose Host ended. They belong to three `worker-host` capabilities: `keeper` covers `AttachKeeper`,
+`DetachKeeper`, and the events `KeeperLost`, `KeeperUnresponsive`, and `TerminalUnheld`; `recovery`
+covers `RecoverTerminal`, `ClaimTerminal`, and `DiscardImport`; and `handover` covers every kind but
+`keeper`'s and `RecoverTerminal`. A capability works only when both sides list it in the handshake. A request whose capability the
 connection did not negotiate fails with the non-retryable `TypedFailure` `not-negotiated` before any
 effect, and a Host sends no event of a capability the connection did not negotiate. The Worker is
 the only sender of these requests; no TypeScript producer exists, and the TypeScript control-request
@@ -508,6 +509,22 @@ its request's kind unless it names another.
 | `RestoreTerminal`     | `creationId`                                                  | `TerminalIdentity`                                                        |
 | `ClaimTerminal`       | `terminalId`                                                  | `terminalId`                                                              |
 | `DiscardImport`       | Exactly one of `creationId` (an import) or `terminalId`       | `outcome`, `discarded`, or `claimed` when the Keeper already moved it     |
+| `RecoverTerminal`     | See below                                                     | `TerminalIdentity`                                                        |
+
+`RecoverTerminal`, under `recovery`, which a Host offers wherever it offers `handover` and which
+admits `ClaimTerminal` and `DiscardImport` without `handover`, starts an import without a record
+for a program the Keeper kept after its Host ended, once the Worker has `assign`ed its holding to
+this Host. Its payload names `creationId` and `terminalId`, the terminal the program
+ran as under this Host's epoch; `holding` and `mark`, 32 lowercase hexadecimal digits each;
+`geometry`, as `StartTerminal` names it; `terminalProfile`, as a launch names it; an optional
+`configuration` with `scrollbackBytes`, the Host's default when absent; and `deadlineSeconds` 1-30.
+The Host inspects the holding, requires the Keeper's facts to name that creation and terminal, and
+answers the identity once the empty terminal is restored; `ClaimTerminal`, `DiscardImport`, and the
+deadline then apply as to a restore. A holding whose facts name another epoch or terminal fails
+`move-failed` with `claim-check`. The same recovery again answers as a repeated `RestoreTerminal`
+does, a recovery of a terminal the Host already reads answers its identity, and any other while an
+import is in progress fails `move-passing` with `moving`. A Host started with `--host-epoch` serves
+that epoch, so a recovered terminal keeps its identity.
 
 The events carry `keeper`; `TerminalUnheld` adds the `terminalId` that runs unheld and a `reason`:
 the Keeper's refusal reason, such as `draining` or `capacity`; `unsupported` when the Keeper answers
@@ -574,7 +591,8 @@ Their fixture files join the registry's
 [frozen fixtures](../../connection/README.md#frozen-fixtures) with that change, and the next release
 seals them. The import requests, `ImportTerminal`, `WriteHandoverRecord`, `RestoreTerminal`,
 `ClaimTerminal`, and `DiscardImport`, first meet another version with H3's Worker and freeze with
-H3's release.
+H3's release; `RecoverTerminal` reaches only a Host its Worker started from the same build and
+freezes with them.
 
 ## Message registry
 
@@ -588,7 +606,7 @@ H3's release.
 | `60-68`  | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                                                                                     |
 | `70-78`  | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                            |
 | `79-85`  | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`, `PromptLineInput=84`, `ScreenGatedKeyInput=85`                                                                                                                                                                                                                                                        |
-| `90-105` | Host handover                              | `AttachKeeper=90`, `DetachKeeper=91`, `KeeperLost=92`, `KeeperUnresponsive=93`, `TerminalUnheld=94`, `QuiesceTerminal=95`, `ReadHandoverRecord=96`, `HandoverRecordChunk=97`, `ResumeTerminal=98`, `DropTerminal=99`, `ImportTerminal=100`, `WriteHandoverRecord=101`, `HandoverRecordWritten=102`, `RestoreTerminal=103`, `ClaimTerminal=104`, `DiscardImport=105`                                                               |
+| `90-106` | Host handover                              | `AttachKeeper=90`, `DetachKeeper=91`, `KeeperLost=92`, `KeeperUnresponsive=93`, `TerminalUnheld=94`, `QuiesceTerminal=95`, `ReadHandoverRecord=96`, `HandoverRecordChunk=97`, `ResumeTerminal=98`, `DropTerminal=99`, `ImportTerminal=100`, `WriteHandoverRecord=101`, `HandoverRecordWritten=102`, `RestoreTerminal=103`, `ClaimTerminal=104`, `DiscardImport=105`, `RecoverTerminal=106`                                        |
 
 Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames and
 the identity-scoped metadata event. Initial resize-lease authority is returned by attachment

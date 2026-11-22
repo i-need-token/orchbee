@@ -1,10 +1,12 @@
-//! The build of a `RestoreTerminal`, which the creation pipeline runs as it runs a terminal's
-//! spawn. On the creator thread it decodes and checks the record and builds the engine; for a
-//! running terminal it then inspects the holding through the Keeper, pulls the seven duplicates,
-//! checks them against the record and the Keeper's facts, packs the console, and creates the
-//! threads behind the startup gate, which only the claim opens. A settled terminal needs none of
-//! that. The dispatch thread commits what it built, abandons what failed, and at teardown discards
-//! a built terminal without a `decline`.
+//! The build of a `RestoreTerminal` or a `RecoverTerminal`, which the creation pipeline runs as it
+//! runs a terminal's spawn. On the creator thread a restore decodes and checks the record and
+//! builds the engine; for a running terminal it then inspects the holding through the Keeper, pulls
+//! the seven duplicates, checks them against the record and the Keeper's facts, packs the console,
+//! and creates the threads behind the startup gate, which only the claim opens. A settled terminal
+//! needs none of that. A recovery has no record: it inspects first, checks the duplicates against
+//! the Keeper's facts and the identity the Worker named, and builds a fresh engine. The dispatch
+//! thread commits what it built, abandons what failed, and at teardown discards a built terminal
+//! without a `decline`.
 //!
 //! The creator thread never makes a link request itself: the dispatch thread owns the Keeper
 //! attachments, so the build posts its `inspect` here and the dispatch thread hands it to the one
@@ -23,9 +25,10 @@ const host_runtime_aggregate = @import("../runtime_aggregate/root.zig");
 const Aggregate = host_runtime_aggregate.HostRuntimeAggregate;
 const TerminalRuntime = terminal_engine.runtime.TerminalRuntime;
 const Facts = terminal_engine.runtime.HandoverFacts;
-const Preparation = terminal_engine.runtime.HandoverImportPreparation;
 const Program = terminal_engine.runtime.HandoverImportProgram;
+const Recovery = terminal_engine.runtime.HandoverRecovery;
 const Request = keeper_link.moves.Request;
+const Inspected = keeper_link.moves.Inspected;
 const Keeper = keeper_link.Keeper;
 const Details = host_response.FailureDetails;
 const handles = platform.keeper.handles;
@@ -39,12 +42,20 @@ pub const Outcome = enum {
     ended,
 };
 
+/// What a build makes its terminal from.
+pub const Source = union(enum) {
+    /// An import's whole record, which the facts borrow.
+    record: []const u8,
+    /// A program the Keeper kept after its Host ended. `holding` and `mark` name it, `identity` is
+    /// the terminal it ran as, and the rest sizes the fresh engine; the request owns the profile.
+    recovery: Recovery,
+};
+
 pub const Job = struct {
     allocator: std.mem.Allocator,
     creation_id: core_module.CreationId,
     slot: host_runtime_aggregate.ImportSlot,
-    /// The import's whole record, which the facts borrow.
-    record: []const u8,
+    source: Source,
     mutex: platform.thread_sync.Mutex = .{},
     /// The build's `inspect`, waiting for the dispatch thread.
     posted: ?*Request = null,
@@ -61,14 +72,21 @@ pub const Job = struct {
         allocator: std.mem.Allocator,
         creation_id: core_module.CreationId,
         slot: host_runtime_aggregate.ImportSlot,
-        record: []const u8,
+        source: Source,
     ) Job {
-        return .{ .allocator = allocator, .creation_id = creation_id, .slot = slot, .record = record };
+        return .{ .allocator = allocator, .creation_id = creation_id, .slot = slot, .source = source };
     }
 
     /// The build, on the creator thread. On error `failure` names the refusal and nothing remains.
     pub fn run(self: *Job) !*TerminalRuntime {
-        var prepared = TerminalRuntime.prepareImport(self.allocator, self.record) catch |err|
+        return switch (self.source) {
+            .record => |record| self.restore(record),
+            .recovery => |recovery| self.recover(recovery),
+        };
+    }
+
+    fn restore(self: *Job, record: []const u8) !*TerminalRuntime {
+        var prepared = TerminalRuntime.prepareImport(self.allocator, record) catch |err|
             return self.fail(refusal.restored(err), err);
         const program: Program = switch (prepared.facts.terminal.inputs.lifecycle) {
             .exited, .failed => .settled,
@@ -79,6 +97,50 @@ pub const Job = struct {
         };
         const runtime = TerminalRuntime.startImport(&prepared, program) catch |err|
             return self.fail(startFailure(err), err);
+        self.facts = prepared.facts;
+        return runtime;
+    }
+
+    /// A recovery: the claim checks against the Keeper's facts alone, then a fresh engine at the
+    /// Worker's size. The holding must name this Host's epoch and the terminal the Worker named.
+    fn recover(self: *Job, recovery: Recovery) !*TerminalRuntime {
+        if (comptime !platform.process.moves_supported) unreachable;
+        var inspected = try self.inspect(recovery.holding, recovery.mark);
+        const identity = recovery.identity;
+        const terminal = inspected.terminal;
+        const build = builds.find(inspected.console_build);
+        const known = if (build) |entry|
+            entry.signal_format == inspected.signal_format and entry.signal_format == builds.own.signal_format
+        else
+            false;
+        const named = std.mem.eql(u8, &terminal.creation_id, &identity.creation_id) and
+            std.mem.eql(u8, &terminal.host_epoch, &identity.host_epoch) and
+            std.mem.eql(u8, &terminal.terminal_id, &identity.terminal_id);
+        const program: handles.Identity = .{ .pid = inspected.program.pid, .created = inspected.program.created };
+        const host: handles.Identity = .{ .pid = inspected.console.pid, .created = inspected.console.created };
+        if (!known or !named or !handles.matches(inspected.duplicates, program, host) or
+            !handles.jobKillsOnClose(inspected.duplicates))
+        {
+            handles.closeAll(&inspected.duplicates);
+            if (!known) return self.fail(refusal.ineligible("unknown-console-build"), error.UnknownConsoleBuild);
+            return self.fail(refusal.failed("claim-check"), error.ClaimCheckFailed);
+        }
+        var prepared = TerminalRuntime.prepareRecovery(self.allocator, recovery, .{
+            .conpty_version = builds.own_version,
+            .open_console_sha256 = inspected.console_build,
+            .signal_format = inspected.signal_format,
+            .program = .{ .pid = program.pid, .created = program.created },
+            .console = .{ .pid = host.pid, .created = host.created },
+        }, inspected.launch_kind) catch |err| {
+            handles.closeAll(&inspected.duplicates);
+            return self.fail(startFailure(err), err);
+        };
+        const runtime = TerminalRuntime.startImport(&prepared, .{ .held = .{
+            .duplicates = inspected.duplicates,
+            .console_pid = host.pid,
+            .launch_kind = inspected.launch_kind,
+            .interactive_shell = prepared.facts.terminal.interactive_shell,
+        } }) catch |err| return self.fail(startFailure(err), err);
         self.facts = prepared.facts;
         return runtime;
     }
@@ -102,12 +164,7 @@ pub const Job = struct {
             return self.fail(refusal.ineligible("unknown-console-build"), error.UnknownConsoleBuild);
         if (build.signal_format != console.signal_format or build.signal_format != builds.own.signal_format)
             return self.fail(refusal.ineligible("unknown-console-build"), error.UnknownConsoleBuild);
-        var request: Request = .init(.{ .inspect = .{ .holding = holding, .mark = mark } });
-        if (!self.post(&request)) return self.fail(refusal.failed("no-keeper"), error.KeeperUnavailable);
-        const inspected = switch (request.wait()) {
-            .inspected => |value| value,
-            else => |result| return self.fail(self.unsent orelse refusal.keeper(result), error.KeeperUnavailable),
-        };
+        const inspected = try self.inspect(holding, mark);
         var duplicates = inspected.duplicates;
         const program: handles.Identity = .{ .pid = console.program.pid, .created = console.program.created };
         const host: handles.Identity = .{ .pid = console.console.pid, .created = console.console.created };
@@ -124,6 +181,16 @@ pub const Job = struct {
             .console_pid = host.pid,
             .launch_kind = facts.terminal.launch_kind,
             .interactive_shell = facts.terminal.interactive_shell,
+        };
+    }
+
+    /// `inspect` through the one attached Keeper; the caller owns the duplicates it pulled.
+    fn inspect(self: *Job, holding: [16]u8, mark: [16]u8) !Inspected {
+        var request: Request = .init(.{ .inspect = .{ .holding = holding, .mark = mark } });
+        if (!self.post(&request)) return self.fail(refusal.failed("no-keeper"), error.KeeperUnavailable);
+        return switch (request.wait()) {
+            .inspected => |value| value,
+            else => |result| self.fail(self.unsent orelse refusal.keeper(result), error.KeeperUnavailable),
         };
     }
 
@@ -185,8 +252,8 @@ pub const Job = struct {
         return request;
     }
 
-    /// Commits what the build made, on the dispatch thread. A running terminal names its record's
-    /// holding before any claim.
+    /// Commits what the build made, on the dispatch thread. A running terminal names its holding
+    /// before any claim.
     pub fn commit(self: *Job, aggregate: *Aggregate, runtime: *TerminalRuntime) void {
         aggregate.commitImport(self.slot, self.creation_id, runtime, &self.facts.?);
         if (comptime builtin.os.tag == .windows) {

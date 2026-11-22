@@ -2,6 +2,8 @@
 //! `ClaimTerminal`, `DiscardImport`, and the import's deadline. A Host keeps at most one import.
 //! The record arrives in order, the restore builds on the creation pipeline's creator thread, and
 //! the claim and `decline` go through the Keeper link, so the dispatch thread waits on neither.
+//! `recover.zig` starts an import with no record, for a program the Keeper kept after its Host
+//! ended, which then follows the same claim, discard, and deadline.
 //!
 //! The claim is the only commit: until the Keeper applies it the restored terminal reads nothing.
 //! Whichever answer first shows this Host `claimed`, to `claim` or to `decline`, completes the
@@ -52,6 +54,8 @@ pub const Import = struct {
     allocator: std.mem.Allocator,
     creation_id: core_module.CreationId,
     record: []u8,
+    /// A recovery's request, which its build reads; null for a move's import.
+    recovery: ?control.decode.handover.RecoverRequest = null,
     received: u32 = 0,
     deadline_at: u64,
     phase: Phase = .receiving,
@@ -137,11 +141,11 @@ pub fn restore(env: Env, slot: *?*Import, to: Pending, creation_id: core_module.
     if (admission == .closed) return env.answers.failure(to, refusal.draining);
     const reserved = env.aggregate.reserveImport(creation_id) catch |err|
         return env.answers.failure(to, host_failure.fromCore(err));
-    var reply = encodeIdentity(env, to, creation_id, reserved.terminal_id) catch {
+    var reply = encodeIdentity(env, to, MessageKind.restore_terminal, creation_id, reserved.terminal_id) catch {
         env.aggregate.releaseImport(reserved);
         return env.answers.failure(to, refusal.exhausted);
     };
-    self.job = .init(env.allocator, creation_id, reserved, self.record);
+    self.job = .init(env.allocator, creation_id, reserved, .{ .record = self.record });
     self.terminal_id = reserved.terminal_id;
     env.creations.beginRestore(env.aggregate, .{
         .connection_id = to.connection_id,
@@ -157,20 +161,24 @@ pub fn restore(env: Env, slot: *?*Import, to: Pending, creation_id: core_module.
     env.answers.handOver();
 }
 
-fn encodeIdentity(env: Env, to: Pending, creation_id: core_module.CreationId, terminal_id: core_module.TerminalId) !host_outgoing.Outgoing {
+pub fn encodeIdentity(env: Env, to: Pending, kind: u16, creation_id: core_module.CreationId, terminal_id: core_module.TerminalId) !host_outgoing.Outgoing {
     const epoch = env.aggregate.hostEpoch();
     const payload = try control.encode.terminalIdentity(env.allocator, creation_id, epoch, terminal_id);
     defer env.allocator.free(payload);
     var reply = host_outgoing.Outgoing.init(env.allocator);
     errdefer reply.deinit();
-    _ = try host_response.appendControlSuccess(&reply, .{ .kind = MessageKind.restore_terminal }, payload, host_response.responseDelivery(to.correlation_id, epoch));
+    _ = try host_response.appendControlSuccess(&reply, .{ .kind = kind }, payload, host_response.responseDelivery(to.correlation_id, epoch));
     return reply;
 }
 
 fn answerIdentity(env: Env, to: Pending, creation_id: core_module.CreationId, terminal_id: core_module.TerminalId) void {
+    answerIdentityAs(env, to, MessageKind.restore_terminal, creation_id, terminal_id);
+}
+
+pub fn answerIdentityAs(env: Env, to: Pending, kind: u16, creation_id: core_module.CreationId, terminal_id: core_module.TerminalId) void {
     const payload = control.encode.terminalIdentity(env.allocator, creation_id, env.aggregate.hostEpoch(), terminal_id) catch
         return env.answers.failure(to, refusal.exhausted);
-    env.answers.success(to, MessageKind.restore_terminal, .control_json, payload);
+    env.answers.success(to, kind, .control_json, payload);
 }
 
 /// A restore whose import ended answers the terminal its creation committed.
@@ -352,6 +360,10 @@ fn completeClaim(env: Env, slot: *?*Import) void {
     self.runtime.claimRestored();
     for (self.held_attachments) |attachment_id| self.runtime.detachInput(attachment_id);
     env.aggregate.setHandover(self.terminal_id, .restored, .none);
+    // A recovered terminal starts empty: a console resize makes the console repaint its screen and
+    // a full-screen program redraw. A failed nudge leaves the terminal as it is.
+    if (self.recovery != null) self.runtime.nudgeConsole() catch |err|
+        std.log.warn("terminal Host could not resize a recovered console: {s}", .{@errorName(err)});
     switch (self.asker) {
         .claim => answerNamed(env, self.asked, MessageKind.claim_terminal, self.terminal_id),
         .discard => answerDiscarded(env, self.asked, .claimed),
@@ -453,6 +465,7 @@ pub fn finish(env: Env, slot: *?*Import) void {
     if (self.phase == .restoring) std.debug.assert(self.job.outcome != .building);
     env.allocator.free(self.held_attachments);
     env.allocator.free(self.record);
+    if (self.recovery) |*request| request.deinit();
     env.allocator.destroy(self);
     slot.* = null;
 }
