@@ -34,6 +34,15 @@ pub(super) fn encode_request(request: &AdoptHostRequest) -> Vec<u8> {
                 bytes.extend(epoch.as_bytes());
             }
         }
+        AdoptHostTarget::Recovery { keeper, epoch } => {
+            bytes.push(3);
+            bytes.extend(keeper.process_id.get().to_be_bytes());
+            bytes.extend(keeper.creation_time.get().to_be_bytes());
+            bytes.push(u8::from(epoch.is_some()));
+            if let Some(epoch) = epoch {
+                bytes.extend(epoch.as_bytes());
+            }
+        }
     }
     encode_page(&mut bytes, request.key().page);
     bytes.extend(
@@ -81,6 +90,19 @@ pub(super) fn decode_request(payload: &[u8]) -> Result<AdoptHostRequest, Protoco
                 None
             };
             AdoptHostTarget::Host { process, epoch }
+        }
+        3 => {
+            let keeper = AdoptHostProcess {
+                process_id: NonZeroU32::new(reader.read_u32()?)
+                    .ok_or(ProtocolError::InvalidPayload)?,
+                creation_time: positive(reader.read_u64()?)?,
+            };
+            let epoch = if read_flag(&mut reader)? {
+                Some(HostEpoch::from_bytes(reader.read_array()?)?)
+            } else {
+                None
+            };
+            AdoptHostTarget::Recovery { keeper, epoch }
         }
         _ => return Err(ProtocolError::InvalidPayload),
     };
@@ -163,6 +185,7 @@ pub(super) fn encode_result(result: &AdoptHostResult) -> Vec<u8> {
                 AdoptHostFailure::HostMismatch => 4,
                 AdoptHostFailure::HostRefused => 5,
                 AdoptHostFailure::InventoryFailed => 6,
+                AdoptHostFailure::RecoveryFailed => 7,
             });
         }
     }
@@ -198,6 +221,7 @@ pub(super) fn decode_result(payload: &[u8]) -> Result<AdoptHostResult, ProtocolE
             4 => AdoptHostFailure::HostMismatch,
             5 => AdoptHostFailure::HostRefused,
             6 => AdoptHostFailure::InventoryFailed,
+            7 => AdoptHostFailure::RecoveryFailed,
             _ => return Err(ProtocolError::InvalidPayload),
         }),
         _ => return Err(ProtocolError::InvalidPayload),

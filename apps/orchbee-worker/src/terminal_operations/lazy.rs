@@ -305,8 +305,8 @@ pub(crate) fn run(
                 continue;
             };
             site.set(Site::HostStart);
-            let started =
-                start_host(cohort, runtime, Rc::clone(&drain)).map(|host| (prepared, host));
+            let started = start_host(cohort, runtime, Rc::clone(&drain), HostStart::First)
+                .map(|host| (prepared, host));
             let (prepared, (mut host, child)) = match started {
                 Ok(started) => {
                     crate::diagnostic_events::host_started();
@@ -363,6 +363,15 @@ pub(crate) fn run(
                 Err(error) => return Err(super::exit_cause::attach(error, &host)),
             }
             let mut managed_host = super::shutdown::ManagedHost::new(child);
+            // The Keeper starts once the first Host is ready and its Launch answered, so the start
+            // takes none of the Launch's bound; the Host then holds that terminal too. A failed
+            // start leaves the terminals unheld and the Worker serving.
+            #[cfg(windows)]
+            {
+                host.pacing.end_request();
+                let keeper = start_keeper(cohort, runtime, &host, &server, managed_host.child());
+                managed_host.keep(keeper);
+            }
             return super::run_admitted_with_handoff(
                 server,
                 &mut host,
@@ -394,6 +403,44 @@ pub(crate) fn run(
         plugins: &plugin_jobs,
     }
     .settle_exit(outcome)
+}
+
+/// Starts the Session's Keeper for the Host `host` that `child` is, and has that Host attach it,
+/// where the Host negotiated `keeper`; `None` when it did not or a step failed, which leaves the
+/// terminals unheld.
+#[cfg(windows)]
+pub(super) fn start_keeper(
+    cohort: &Cohort,
+    runtime: &Path,
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    child: Option<&orchbee_local_runtime::RetainedChild>,
+) -> Option<crate::session_keeper::SessionKeeper> {
+    let child = child.filter(|_| host.keeper())?;
+    let executable = cohort.executable(CohortArtifact::TerminalHost);
+    let mut keeper = match crate::session_keeper::SessionKeeper::start(runtime, &executable) {
+        Ok(keeper) => keeper,
+        Err(error) => {
+            crate::diagnostic_events::keeper_failed("start", error.as_ref());
+            return None;
+        }
+    };
+    let attached = child
+        .exact_identity()
+        .map_err(Box::<dyn Error>::from)
+        .and_then(|identity| keeper.attach(host, server, identity));
+    match attached {
+        Ok(()) => {
+            crate::diagnostic_events::keeper_started();
+            Some(keeper)
+        }
+        Err(error) => {
+            crate::diagnostic_events::keeper_failed("attach", error.as_ref());
+            // No terminal is held yet, so ending the Keeper ends no program.
+            keeper.end(Instant::now() + Duration::from_secs(2));
+            None
+        }
+    }
 }
 
 /// Where a managed Host start failed, named in its diagnostic record.
@@ -443,7 +490,7 @@ impl HostStartStage {
 /// A failed managed Host start: its stage, the time since the start began, the Host's exit code
 /// when it had exited, the failure itself, and whether this Worker may start a Host again.
 #[derive(Debug)]
-struct HostStartFailure {
+pub(super) struct HostStartFailure {
     stage: HostStartStage,
     elapsed: Duration,
     host_exit: Option<u32>,
@@ -456,6 +503,23 @@ struct HostStartFailure {
 }
 
 impl HostStartFailure {
+    /// Writes the failure's diagnostic record.
+    #[cfg(windows)]
+    pub(super) fn record(&self) {
+        crate::diagnostic_events::host_start_failed(
+            self.stage.token(),
+            self.error.as_ref(),
+            self.host_exit,
+            self.elapsed,
+        );
+    }
+
+    /// The failure itself.
+    #[cfg(windows)]
+    pub(super) fn into_error(self) -> Box<dyn Error> {
+        self.error
+    }
+
     /// The loop's end after a failure that leaves no retry, or the last of its starts: the Host
     /// never answered in time, ended before it was reached, or a local step failed.
     fn into_exit_cause(self) -> Box<dyn Error> {
@@ -485,10 +549,20 @@ const HOST_EXIT_GRACE: Duration = Duration::from_millis(250);
 /// one does.
 const HOST_START_ATTEMPTS: u32 = 3;
 
-fn start_host(
+/// Which Host a start makes: the Session's first, or a recovery Host in the slot of a Host that
+/// ended while the Keeper kept its programs, serving that Host's epoch when the bindings name one.
+#[derive(Clone, Copy)]
+pub(super) enum HostStart {
+    First,
+    #[cfg(windows)]
+    Recovery(Option<orchbee_capability_node_protocol::HostEpoch>),
+}
+
+pub(super) fn start_host(
     cohort: &Cohort,
     runtime: &Path,
     drain: Rc<RefCell<AgentDrain>>,
+    start: HostStart,
 ) -> Result<(HostBrokerConnection, orchbee_local_runtime::RetainedChild), HostStartFailure> {
     let began = Instant::now();
     let deadline = began + Duration::from_secs(5);
@@ -544,6 +618,27 @@ fn start_host(
         std::ffi::OsStr::new("--endpoint-id"),
         std::ffi::OsStr::new(&host_endpoint_id),
     ];
+    // A recovery Host serves the lost Host's epoch, so each recovered terminal keeps its identity.
+    #[cfg(windows)]
+    let epoch = match start {
+        HostStart::Recovery(Some(epoch)) => Some(
+            orchbee_terminal_protocol::HostEpoch::from_bytes(epoch.as_bytes())
+                .map_err(|error| permanent(HostStartStage::Spawn, error.into()))?
+                .to_text(),
+        ),
+        HostStart::First | HostStart::Recovery(None) => None,
+    };
+    #[cfg(windows)]
+    let mut arguments = arguments.to_vec();
+    #[cfg(windows)]
+    if let Some(epoch) = &epoch {
+        arguments.extend([
+            std::ffi::OsStr::new("--host-epoch"),
+            std::ffi::OsStr::new(epoch),
+        ]);
+    }
+    #[cfg(not(windows))]
+    let HostStart::First = start;
     // A macOS or Linux Host binds its endpoint in the socket folder, which the Session admitted.
     #[cfg(unix)]
     let socket_root = ModeCheckedLocalSessionRendezvous::socket_root_path();
@@ -563,7 +658,10 @@ fn start_host(
             orchbee_local_runtime::spawn_session_child(
                 &root,
                 runtime,
-                orchbee_local_runtime::SessionChild::Host,
+                match start {
+                    HostStart::First => orchbee_local_runtime::SessionChild::Host,
+                    HostStart::Recovery(_) => orchbee_local_runtime::SessionChild::RecoveryHost,
+                },
                 &executable,
                 &arguments,
                 deadline,

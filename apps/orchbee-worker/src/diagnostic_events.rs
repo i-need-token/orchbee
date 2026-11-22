@@ -247,11 +247,50 @@ pub(crate) fn host_started() {
     log_event(LogLevel::Info, "host-started", &[]);
 }
 
+/// The Session's Keeper started and its first Host attached it.
+#[cfg(windows)]
+pub(crate) fn keeper_started() {
+    log_event(LogLevel::Info, "keeper-started", &[]);
+}
+
+/// A Keeper step that failed, which leaves the terminals running, unheld or in the Keeper's care:
+/// its `step` token, the closed I/O error kind, and the operating-system error code it carries.
+#[cfg(windows)]
+pub(crate) fn keeper_failed(step: &'static str, error: &(dyn Error + 'static)) {
+    let mut fields = vec![error_kind(error), ("step", LogValue::Token(step))];
+    if let Some(code) = os_error(error) {
+        fields.push(("osError", LogValue::Count(u64::from(code))));
+    }
+    #[cfg(test)]
+    note("keeper-failed", &fields);
+    log_event(LogLevel::Warning, "keeper-failed", &fields);
+}
+
+/// The Session's Keeper ended or stopped answering, and another took its place.
+#[cfg(windows)]
+pub(crate) fn keeper_replaced() {
+    log_event(LogLevel::Info, "keeper-replaced", &[]);
+}
+
+/// The Host's dispatch stopped turning for `stalled`: `ended` when the Keeper held every terminal
+/// it runs and the Worker ended it, so recovery follows; otherwise the Host is left running.
+#[cfg(windows)]
+pub(crate) fn host_hung(ended: bool, stalled: Duration) {
+    log_event(
+        LogLevel::Warning,
+        "host-hung",
+        &[
+            ("ended", LogValue::Flag(ended)),
+            ("stalledMs", milliseconds(stalled)),
+        ],
+    );
+}
+
 /// What a replacement Worker's adoption found: its target, its outcome token, and the counts it
 /// read. A failed adoption also writes an `exited` record at site `adopt`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct AdoptionRecord {
-    /// `no-host` or `host`.
+    /// `no-host`, `host`, or `recovery`.
     pub(crate) target: &'static str,
     /// `adopted` or the failure token.
     pub(crate) outcome: &'static str,

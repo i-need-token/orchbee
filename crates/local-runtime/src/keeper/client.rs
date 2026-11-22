@@ -46,13 +46,15 @@ pub enum HoldingState {
     Unknown,
 }
 
-/// One holding the Keeper reported.
+/// One holding the Keeper reported, with the program and OpenConsole processes it holds.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Holding {
     pub holding: [u8; 16],
     pub owner: KeeperProcess,
     pub state: HoldingState,
     pub terminal: HeldTerminal,
+    pub program: KeeperProcess,
+    pub console: KeeperProcess,
 }
 
 /// What `status` reported: every holding, and every registered Host with whether it ended.
@@ -338,9 +340,11 @@ fn holding(entry: &Value) -> io::Result<Holding> {
         Some(_) => HoldingState::Unknown,
         None => return Err(invalid("a holding has no state")),
     };
-    let terminal = entry
+    let facts = entry
         .get("facts")
-        .and_then(|facts| facts.get("terminal"))
+        .ok_or_else(|| invalid("a holding has no facts"))?;
+    let terminal = facts
+        .get("terminal")
         .ok_or_else(|| invalid("a holding has no terminal"))?;
     Ok(Holding {
         holding: identity(entry.get("holding"))?,
@@ -351,6 +355,8 @@ fn holding(entry: &Value) -> io::Result<Holding> {
             host_epoch: identity(terminal.get("hostEpoch"))?,
             terminal_id: identity(terminal.get("terminalId"))?,
         },
+        program: process(facts.get("program"))?,
+        console: process(facts.get("console"))?,
     })
 }
 

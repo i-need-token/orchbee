@@ -42,6 +42,10 @@ fn host(prompt_gated_input: bool) -> TestResult<(HostBrokerConnection, UnixStrea
             host_epoch: HostEpoch::from_bytes(EPOCH)?,
             prompt_gated_input,
             screen_gated_send: prompt_gated_input,
+            #[cfg(windows)]
+            keeper: crate::host_connection::KeeperTerms::default(),
+            #[cfg(windows)]
+            keeper_events: std::cell::Cell::default(),
             negotiated_limits: NegotiatedHostLimits {
                 frame_bytes: 1_048_576,
                 input_bytes: 4096,

@@ -167,7 +167,11 @@ impl Supervision {
         let target = match presence {
             Ok(HostPresence::Spawning) => return Decision::Stop(Reason::HostSpawning),
             Ok(HostPresence::Gone) if never_ran() => AdoptHostTarget::NoHost,
-            Ok(HostPresence::Gone) => return Decision::Stop(Reason::HostGone),
+            // A running Keeper kept the lost Host's programs: the replacement recovers them.
+            Ok(HostPresence::Gone) => match recovery_target(owners) {
+                Some(target) => target,
+                None => return Decision::Stop(Reason::HostGone),
+            },
             Ok(HostPresence::NotStarted) => AdoptHostTarget::NoHost,
             Ok(HostPresence::Running(process)) => AdoptHostTarget::Host {
                 process: process.and_then(|(pid, creation)| {
@@ -200,6 +204,7 @@ impl Supervision {
     ) -> bool {
         // A take-back's first attempt counts against no cap; every later one does.
         let mut counted = cause == Cause::Loss;
+        let mut target = target;
         loop {
             if shutdown.ending() {
                 return false;
@@ -231,6 +236,14 @@ impl Supervision {
                     return false;
                 }
                 Next::Retry => {}
+            }
+            // A failed recovery leaves its recovery Host running, which the next attempt adopts
+            // with the orphans still in the Keeper; a Host gone again is recovered afresh.
+            if !matches!(target, AdoptHostTarget::NoHost) {
+                match retarget(owners) {
+                    Some(next) => target = next,
+                    None => return true,
+                }
             }
             let resume = Instant::now() + RETRY_SPACING;
             while Instant::now() < resume {
@@ -436,6 +449,40 @@ fn spawn(owners: &Owners, worker_id: WorkerId, deadline: Instant) -> io::Result<
     }
 }
 
+/// The recovery target when the Session record names a running Keeper, which only a Windows
+/// Session starts: its recorded identity, with the lost Host's epoch filled in from the bindings.
+fn recovery_target(owners: &Owners) -> Option<AdoptHostTarget> {
+    match owners.session_record.keeper_presence() {
+        Ok(HostPresence::Running(Some((pid, creation)))) => Some(AdoptHostTarget::Recovery {
+            keeper: AdoptHostProcess {
+                process_id: std::num::NonZeroU32::new(pid)?,
+                creation_time: std::num::NonZeroU64::new(creation)?,
+            },
+            epoch: None,
+        }),
+        _ => None,
+    }
+}
+
+/// The target for the next attempt after a failed one: the running Host, a recovery target while
+/// the Host is gone and a Keeper runs, or `None` when the Host is gone with nothing
+/// to recover from or cannot be observed, which stops as a gone Host does.
+fn retarget(owners: &Owners) -> Option<AdoptHostTarget> {
+    match owners.session_record.host_presence() {
+        Ok(HostPresence::Running(process)) => Some(AdoptHostTarget::Host {
+            process: process.and_then(|(pid, creation)| {
+                Some(AdoptHostProcess {
+                    process_id: std::num::NonZeroU32::new(pid)?,
+                    creation_time: std::num::NonZeroU64::new(creation)?,
+                })
+            }),
+            epoch: None,
+        }),
+        Ok(HostPresence::Gone) => recovery_target(owners),
+        _ => None,
+    }
+}
+
 /// Sends the replacement its `AdoptHost` pages, its first requests, and reads the last page's
 /// answer. A stop or an `exit` ends the replacement before the next page.
 fn adopt(
@@ -455,6 +502,13 @@ fn adopt(
         AdoptHostTarget::Host { process, .. } => (
             AdoptHostTarget::Host {
                 process,
+                epoch: shared_epoch(&bindings),
+            },
+            bindings,
+        ),
+        AdoptHostTarget::Recovery { keeper, .. } => (
+            AdoptHostTarget::Recovery {
+                keeper,
                 epoch: shared_epoch(&bindings),
             },
             bindings,
@@ -534,9 +588,9 @@ pub(super) fn send_pages(
                     AdoptHostFailure::HostUnverified
                     | AdoptHostFailure::HostMismatch
                     | AdoptHostFailure::HostRefused => Class::GiveUp,
-                    AdoptHostFailure::HostUnreachable | AdoptHostFailure::InventoryFailed => {
-                        Class::Retry
-                    }
+                    AdoptHostFailure::HostUnreachable
+                    | AdoptHostFailure::InventoryFailed
+                    | AdoptHostFailure::RecoveryFailed => Class::Retry,
                 };
                 return Adoption::Failed(adopt_failure_token(failure), class);
             }
@@ -720,6 +774,7 @@ fn adopt_failure_token(failure: AdoptHostFailure) -> &'static str {
         AdoptHostFailure::HostMismatch => "host-mismatch",
         AdoptHostFailure::HostRefused => "host-refused",
         AdoptHostFailure::InventoryFailed => "inventory-failed",
+        AdoptHostFailure::RecoveryFailed => "recovery-failed",
     }
 }
 

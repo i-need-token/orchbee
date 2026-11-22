@@ -47,6 +47,8 @@ pub use release_store::{
 mod keeper;
 pub use keeper::keeper_live;
 #[cfg(windows)]
+pub use keeper::{end_recorded_keeper, recorded_keeper};
+#[cfg(windows)]
 pub use keeper::{
     HeldTerminal, Holding, HoldingState, KEEPER_REPLY_BOUND, KeeperClient, KeeperProcess,
     KeeperRefusal, KeeperStatus, start_keeper,

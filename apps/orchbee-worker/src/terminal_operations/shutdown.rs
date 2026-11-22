@@ -50,6 +50,9 @@ impl HostOwner {
 pub(crate) struct ManagedHost {
     owner: HostOwner,
     state: HostState,
+    /// The Session's Keeper, which a stop ends once the Host is gone.
+    #[cfg(windows)]
+    keeper: Option<crate::session_keeper::SessionKeeper>,
 }
 
 impl ManagedHost {
@@ -57,6 +60,8 @@ impl ManagedHost {
         Self {
             owner: HostOwner::Started(child),
             state: HostState::Connected,
+            #[cfg(windows)]
+            keeper: None,
         }
     }
 
@@ -65,6 +70,53 @@ impl ManagedHost {
         Self {
             owner: HostOwner::Adopted(host),
             state: HostState::Connected,
+            #[cfg(windows)]
+            keeper: None,
+        }
+    }
+
+    /// Keeps `keeper`, the Session's Keeper this Worker started or adopted, until a stop ends it.
+    #[cfg(windows)]
+    pub(super) fn keep(&mut self, keeper: Option<crate::session_keeper::SessionKeeper>) {
+        self.keeper = keeper;
+    }
+
+    /// The Session's Keeper, while this Worker answers for one.
+    #[cfg(windows)]
+    pub(super) fn keeper(&mut self) -> Option<&mut crate::session_keeper::SessionKeeper> {
+        self.keeper.as_mut()
+    }
+
+    /// Takes the Session's Keeper from this owner, for its replacement.
+    #[cfg(windows)]
+    pub(super) fn take_keeper(&mut self) -> Option<crate::session_keeper::SessionKeeper> {
+        self.keeper.take()
+    }
+
+    /// The Host's process ID and creation time.
+    #[cfg(windows)]
+    pub(super) fn host_identity(&self) -> io::Result<(u32, u64)> {
+        match &self.owner {
+            HostOwner::Started(child) => child.exact_identity(),
+            HostOwner::Adopted(host) => host.identity(),
+        }
+    }
+
+    /// The Host's process as this Worker started it; an adopted Host has none.
+    #[cfg(windows)]
+    pub(super) const fn child(&self) -> Option<&RetainedChild> {
+        match &self.owner {
+            HostOwner::Started(child) => Some(child),
+            HostOwner::Adopted(_) => None,
+        }
+    }
+
+    /// The Host's process, for the hang check that may end it.
+    #[cfg(windows)]
+    pub(super) fn end_host(&mut self, deadline: Instant) -> io::Result<()> {
+        match &mut self.owner {
+            HostOwner::Started(child) => child.terminate_before(deadline).map(drop),
+            HostOwner::Adopted(host) => host.end_before(deadline),
         }
     }
 
@@ -113,6 +165,12 @@ impl ManagedHost {
         loop {
             match self.owner.exited() {
                 Ok(true) => {
+                    // The Host released every holding before it ended its terminals, so the
+                    // Keeper holds nothing and ending it ends no program.
+                    #[cfg(windows)]
+                    if let Some(mut keeper) = self.keeper.take() {
+                        keeper.end(deadline);
+                    }
                     return WorkerShutdownOutcome::Stopped {
                         host_epoch: epoch,
                         disposed_terminals: disposed,

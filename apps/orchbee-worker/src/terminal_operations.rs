@@ -44,6 +44,10 @@ mod lazy;
 pub(crate) use lazy::run as run_lazy;
 #[cfg(windows)]
 mod handoff;
+#[cfg(windows)]
+mod keeper_care;
+#[cfg(windows)]
+mod recovery;
 mod server_transport;
 mod shutdown;
 mod title_changes;
@@ -176,6 +180,10 @@ fn serve(
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
     let mut server = server;
+    #[cfg(windows)]
+    let mut aux = aux;
+    #[cfg(windows)]
+    let mut care = keeper_care::KeeperCare::new(std::time::Instant::now());
     let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
     loop {
         host.pacing.end_request();
@@ -184,8 +192,18 @@ fn serve(
         let (request, readable) = server_transport::receive_timed(&server, Some(host))?;
         #[cfg(windows)]
         let (request, readable) = loop {
+            // The Keeper's care runs between requests, never under a prepared handoff, so nothing
+            // changes under one.
+            let wake = match aux.managed_host.as_deref_mut() {
+                _ if handoff.is_prepared() => handoff.deadline(),
+                Some(managed) => {
+                    care.run(host, &server, managed);
+                    Some(care.due())
+                }
+                None => None,
+            };
             if let Some(received) =
-                server_transport::receive_until_timed(&server, Some(host), handoff.deadline())?
+                server_transport::receive_until_timed(&server, Some(host), wake)?
             {
                 break received;
             }

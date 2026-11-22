@@ -23,6 +23,8 @@ mod host_connection;
 mod plugin_job_operation;
 #[cfg(any(unix, windows))]
 mod plugin_jobs;
+#[cfg(windows)]
+mod session_keeper;
 #[cfg(any(unix, windows, test))]
 mod terminal_authorization;
 mod terminal_control_operation;

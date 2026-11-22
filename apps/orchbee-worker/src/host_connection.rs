@@ -38,6 +38,8 @@ pub(crate) use controllers::ControlGrant;
 mod exchange;
 mod host_colors;
 mod offer;
+#[cfg(windows)]
+pub(crate) use offer::source_commit;
 mod pacing;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod process_query;
@@ -88,6 +90,12 @@ pub(crate) struct HostBrokerConnection {
     prompt_gated_input: bool,
     /// The Host's answer listed `screen-gated-send`.
     screen_gated_send: bool,
+    /// The Host's answer listed `keeper` and `recovery`.
+    #[cfg(windows)]
+    keeper: KeeperTerms,
+    /// The Keeper events the Host sent since the Worker last took them.
+    #[cfg(windows)]
+    keeper_events: std::cell::Cell<KeeperEvents>,
     stream: UnixStream,
     /// The Host record every reader of `stream` continues.
     inbound: RefCell<events::PartialRecord>,
@@ -130,6 +138,24 @@ pub(crate) struct DialBounds {
     pub(crate) deadline: Instant,
 }
 
+/// Whether the Host's answer listed `keeper` and `recovery`.
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct KeeperTerms {
+    keeper: bool,
+    recovery: bool,
+}
+
+/// The Keeper events a Host sent: its Keeper ended (`KeeperLost`), missed a deadline
+/// (`KeeperUnresponsive`), or a terminal runs unheld (`TerminalUnheld`).
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct KeeperEvents {
+    pub(crate) lost: bool,
+    pub(crate) unresponsive: bool,
+    pub(crate) unheld: bool,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct NegotiatedHostLimits {
     pub(crate) frame_bytes: u32,
@@ -167,7 +193,7 @@ impl HostBrokerConnection {
     ) -> Result<Self, DialFailure> {
         let deadline = bounds.deadline;
         let offer = offer::local().map_err(DialFailure::Handshake)?;
-        let (mut transport, prompt_gated_input, screen_gated_send) = loop {
+        let (mut transport, answer) = loop {
             let mut transport =
                 admission::Admission::connect(endpoint, deadline).map_err(DialFailure::Connect)?;
             #[cfg(windows)]
@@ -184,13 +210,11 @@ impl HostBrokerConnection {
                 }
             }
             transport.set_deadline(deadline.min(Instant::now() + CANDIDATE_DEADLINE));
-            if let offer::Outcome::Answered {
-                prompt_gated_input,
-                screen_gated_send,
-            } = offer::exchange(&mut transport, &offer).map_err(DialFailure::Handshake)?
+            if let offer::Outcome::Answered(answer) =
+                offer::exchange(&mut transport, &offer).map_err(DialFailure::Handshake)?
             {
                 transport.set_deadline(deadline);
-                break (transport, prompt_gated_input, screen_gated_send);
+                break (transport, answer);
             }
             if Instant::now() + offer::RETRY_INTERVAL >= bounds.busy_until.min(deadline) {
                 return Err(DialFailure::Busy(offer::still_busy()));
@@ -210,8 +234,12 @@ impl HostBrokerConnection {
             endpoint: endpoint.to_owned(),
             host_epoch,
             negotiated_limits,
-            prompt_gated_input,
-            screen_gated_send,
+            prompt_gated_input: answer.prompt_gated_input,
+            screen_gated_send: answer.screen_gated_send,
+            #[cfg(windows)]
+            keeper: answer.keeper,
+            #[cfg(windows)]
+            keeper_events: std::cell::Cell::default(),
             stream: transport.stream,
             inbound: RefCell::default(),
             viewers: RefCell::new(HostViewers::default()),
@@ -231,17 +259,13 @@ impl HostBrokerConnection {
         let offer = offer::local()?;
         // A Host still ending the previous Worker session asks this one to dial again.
         let busy_deadline = Instant::now() + CANDIDATE_DEADLINE;
-        let (mut stream, prompt_gated_input, screen_gated_send) = loop {
+        let (mut stream, answer) = loop {
             let mut stream = UnixStream::connect(endpoint)?;
             require_same_effective_user(&stream)?;
             stream.set_read_timeout(Some(CANDIDATE_DEADLINE))?;
             stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT))?;
-            if let offer::Outcome::Answered {
-                prompt_gated_input,
-                screen_gated_send,
-            } = offer::exchange(&mut stream, &offer)?
-            {
-                break (stream, prompt_gated_input, screen_gated_send);
+            if let offer::Outcome::Answered(answer) = offer::exchange(&mut stream, &offer)? {
+                break (stream, answer);
             }
             if Instant::now() + offer::RETRY_INTERVAL >= busy_deadline {
                 return Err(offer::still_busy());
@@ -262,8 +286,12 @@ impl HostBrokerConnection {
             endpoint: endpoint.to_owned(),
             host_epoch,
             negotiated_limits,
-            prompt_gated_input,
-            screen_gated_send,
+            prompt_gated_input: answer.prompt_gated_input,
+            screen_gated_send: answer.screen_gated_send,
+            #[cfg(windows)]
+            keeper: answer.keeper,
+            #[cfg(windows)]
+            keeper_events: std::cell::Cell::default(),
             stream,
             inbound: RefCell::default(),
             viewers: RefCell::new(HostViewers::default()),
@@ -289,6 +317,16 @@ impl HostBrokerConnection {
         return None;
     }
 
+    /// The Host's `dispatch-progress` and terminal count, from one `query` control request as
+    /// [`Self::query_process`] sends it; `None` when the Host has not answered by `deadline` or its
+    /// answer carries no progress.
+    #[cfg(windows)]
+    pub(crate) fn query_progress(&self, deadline: Instant) -> Option<(u64, u32)> {
+        let (entry, progress) =
+            process_query::query_with_progress(&self.endpoint, deadline).ok()?;
+        Some((progress?, entry.terminals))
+    }
+
     pub(crate) const fn negotiated_limits(&self) -> NegotiatedHostLimits {
         self.negotiated_limits
     }
@@ -302,6 +340,24 @@ impl HostBrokerConnection {
     /// sender read.
     pub(crate) const fn screen_gated_send(&self) -> bool {
         self.screen_gated_send
+    }
+
+    /// Whether this Host holds its running terminals in a Keeper the Worker attaches.
+    #[cfg(windows)]
+    pub(crate) const fn keeper(&self) -> bool {
+        self.keeper.keeper
+    }
+
+    /// Whether this Host recovers a program the Keeper kept after its Host ended.
+    #[cfg(windows)]
+    pub(crate) const fn recovery(&self) -> bool {
+        self.keeper.recovery
+    }
+
+    /// The Keeper events the Host sent since the last call, which this call clears.
+    #[cfg(windows)]
+    pub(crate) fn take_keeper_events(&self) -> KeeperEvents {
+        self.keeper_events.take()
     }
 
     /// Routes one intact Host event to connection state. An event this Worker cannot use never
@@ -334,6 +390,18 @@ impl HostBrokerConnection {
         }
         if envelope.kind == 23 {
             return self.receive_lease(&envelope);
+        }
+        // `KeeperLost`, `KeeperUnresponsive`, and `TerminalUnheld` come only to a session that
+        // negotiated `keeper`; the Worker acts on them between Server requests.
+        #[cfg(windows)]
+        if (92..=94).contains(&envelope.kind) {
+            let mut events = self.keeper_events.get();
+            match envelope.kind {
+                92 => events.lost = true,
+                93 => events.unresponsive = true,
+                _ => events.unheld = true,
+            }
+            return self.keeper_events.set(events);
         }
         if envelope.payload_encoding == PayloadEncoding::ControlJson
             && let Ok(TerminalEffectEvent::ApplicationSignal(signal)) =

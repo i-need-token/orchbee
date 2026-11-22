@@ -11,6 +11,7 @@ mod error;
 mod frame_route;
 mod geometry;
 mod graphics_decode;
+mod handover;
 pub use graphics_decode::{
     GRAPHICS_DECODE_REQUEST_HEADER_BYTES, GRAPHICS_DECODE_RESULT_HEADER_BYTES,
     GraphicsDecodeRequest, GraphicsDecodeResult, MAXIMUM_GRAPHICS_PNG_BYTES,
@@ -77,6 +78,10 @@ pub use frame_route::{
     TERMINAL_FRAME_HEADER_BYTES, TerminalFrameRoute, inspect_terminal_frame_route,
 };
 pub use geometry::TerminalPixelGeometry;
+pub use handover::{
+    AttachKeeper, EncodedHandoverControl, HandoverControl, HandoverProcess, HandoverRefusal,
+    RecoverTerminal, decode_handover_control, decode_handover_refusal, encode_handover_control,
+};
 pub use history::{
     EncodedHistoryControl, HistoryAnchorStatus, HistoryChanged, HistoryControl, HistoryDemand,
     HistoryDemandAccepted, HistoryObserved, SetHistoryDemand, decode_history_control,

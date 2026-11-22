@@ -39,6 +39,14 @@ pub enum AdoptHostTarget {
         /// The Host epoch, when the Server knows it from a binding's Host identity.
         epoch: Option<HostEpoch>,
     },
+    /// The Host ended while the Session's Keeper kept its programs: the replacement adopts the
+    /// Keeper, starts a recovery Host and recovers each bound terminal into it.
+    Recovery {
+        /// The Keeper the Session record registered.
+        keeper: AdoptHostProcess,
+        /// The lost Host's epoch, which the recovery Host serves, when a binding names it.
+        epoch: Option<HostEpoch>,
+    },
 }
 
 /// Whether the Host terminal behind a binding has started its program.
@@ -112,7 +120,7 @@ impl AdoptHostRequest {
                 return Err(ProtocolError::InvalidPayload);
             }
             AdoptHostTarget::NoHost => None,
-            AdoptHostTarget::Host { epoch, .. } => epoch,
+            AdoptHostTarget::Host { epoch, .. } | AdoptHostTarget::Recovery { epoch, .. } => epoch,
         };
         let mut terminals = BTreeSet::new();
         let mut host_terminals = BTreeSet::new();
@@ -165,6 +173,9 @@ pub enum AdoptHostFailure {
     HostRefused,
     /// The Host inventory could not be read, or never stayed the same while it was read.
     InventoryFailed,
+    /// A program the Keeper kept was not recovered into the recovery Host; it runs on in the
+    /// Keeper, and a terminal already recovered stays recovered.
+    RecoveryFailed,
 }
 
 /// A page's answer.

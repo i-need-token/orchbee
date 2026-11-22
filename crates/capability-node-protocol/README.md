@@ -622,9 +622,11 @@ flag byte is `0` or `1`.
 An adoption is one or more pages, each its own request answered before the next is sent; the
 Worker applies them together only after the last. A page's body after its kind is the adoption ID
 (16), Worker ID (16), positive Worker generation (`u64`), the Host target, page index (`u16`, from
-0), last flag, binding count (`u16`, 0 through 256) and the bindings. The target tag is 1 NoHost or
-2 Host; Host adds the registered process (option: nonzero PID `u32`, nonzero creation time `u64`)
-and the Host epoch (option: 16). A binding is its product Terminal ID (16), Host creation, epoch and
+0), last flag, binding count (`u16`, 0 through 256) and the bindings. The target tag is 1 NoHost,
+2 Host or 3 Recovery; Host adds the registered process (option: nonzero PID `u32`, nonzero creation
+time `u64`) and the Host epoch (option: 16), and Recovery, for a Host that ended while the Keeper
+kept its programs, adds the registered Keeper (nonzero PID `u32`, nonzero creation time `u64`) and
+the lost Host's epoch (option: 16). A binding is its product Terminal ID (16), Host creation, epoch and
 terminal IDs (16 each), state (`u8`: 1 awaiting start, 2 started), the highest fence the Server
 issued (positive `u64`), and an optional Close in flight: Close operation ID (16), highest attempt
 generation (positive `u64`), step ordinal (`u8`, 1 through 32) and an effect-unknown flag. A page
@@ -638,8 +640,8 @@ bindings (the generation-local binding bound) and duplicates across pages are th
 A result echoes the adoption ID, Worker ID, generation, page index and last flag, then an outcome
 tag: 1 PageAccepted; 2 Adopted, with imported and quarantined counts (`u32` each), a missing count
 (`u16`, at most 1,024) and that many distinct missing Terminal IDs; or 3 Failed, with a failure tag:
-1 `host-gone`, 2 `host-unreachable`, 3 `host-unverified`, 4 `host-mismatch`, 5 `host-refused` or
-6 `inventory-failed`. PageAccepted answers only a page before the last, and Adopted or Failed only
+1 `host-gone`, 2 `host-unreachable`, 3 `host-unverified`, 4 `host-mismatch`, 5 `host-refused`,
+6 `inventory-failed` or 7 `recovery-failed`. PageAccepted answers only a page before the last, and Adopted or Failed only
 the last. A result is at most 16,439 payload bytes.
 
 The Worker's [adopt mode](../../apps/orchbee-worker/README.md#replacement-adoption) owns Host

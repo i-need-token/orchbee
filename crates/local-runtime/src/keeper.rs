@@ -13,6 +13,47 @@ pub use client::{
     KeeperRefusal, KeeperStatus,
 };
 
+/// The live Keeper the Active generation of the Session at `runtime` records, opened on its
+/// recorded identity, or `None` when the record names none or it is gone. The Keeper runs the
+/// Terminal Host's program.
+///
+/// # Errors
+///
+/// Returns an error when the record cannot be read, no longer names an Active generation in
+/// `runtime`, or names a Keeper that cannot be proven gone.
+#[cfg(windows)]
+pub fn recorded_keeper(
+    root: &crate::DataRoot,
+    runtime: &std::path::Path,
+) -> std::io::Result<Option<crate::ExactProcess>> {
+    match crate::durable_sessions::recorded_keeper(root, runtime)? {
+        Some(identity) => crate::ExactProcess::open(identity, crate::BlockerRole::TerminalHost),
+        None => Ok(None),
+    }
+}
+
+/// Ends the Keeper the generation `record` retains records, checked by its process ID and creation
+/// time, and waits until it exited or `deadline` passes: a stop without a Worker ends it once the
+/// Host is gone, since a Keeper may hold a program's last handles. A Keeper that is gone, or never
+/// started, counts as ended.
+///
+/// # Errors
+///
+/// Returns an error when the record cannot be read or the Keeper cannot be ended in time.
+#[cfg(windows)]
+pub fn end_recorded_keeper(
+    record: &crate::RetainedSessionRecord,
+    deadline: std::time::Instant,
+) -> std::io::Result<()> {
+    let Some(identity) = record.keeper_identity()? else {
+        return Ok(());
+    };
+    match crate::ExactProcess::open(identity, crate::BlockerRole::TerminalHost)? {
+        Some(keeper) => keeper.end_before(deadline),
+        None => Ok(()),
+    }
+}
+
 /// Whether release builds run the Keeper, true once the recovery acceptance passed on real Windows
 /// (`proposals/platform/host-handover.md`, decision 65). Development builds follow it, so a
 /// development Session never runs a Keeper that release builds do not.
@@ -30,8 +71,9 @@ pub const fn keeper_live() -> bool {
 
 /// Starts the Session's Keeper from `executable`, the Terminal Host's program, as the recorded
 /// Worker's registered child in the Host's folder of `runtime`, and waits until its endpoint
-/// listens or `deadline` passes. A Keeper that exits first, or does not listen in time, fails;
-/// one that did not listen in time is ended first, so no Keeper outlives a failed start.
+/// listens or `deadline` passes, and answers it with its exact identity, its process ID and
+/// creation time. A Keeper that exits first, or does not listen in time, fails; one that did not
+/// listen in time is ended first, so no Keeper outlives a failed start.
 ///
 /// # Errors
 ///
@@ -42,7 +84,7 @@ pub fn start_keeper(
     runtime: &std::path::Path,
     executable: &std::path::Path,
     deadline: std::time::Instant,
-) -> std::io::Result<crate::RetainedChild> {
+) -> std::io::Result<(crate::RetainedChild, (u32, u64))> {
     use crate::ModeCheckedLocalSessionRendezvous as Rendezvous;
     use std::{ffi::OsStr, io, thread, time::Duration};
 
@@ -69,7 +111,8 @@ pub fn start_keeper(
             return Err(io::Error::other("the Keeper exited before it listened"));
         }
         if orchbee_local_ipc::endpoint_exists(&endpoint)? {
-            return Ok(child);
+            let identity = child.exact_identity()?;
+            return Ok((child, identity));
         }
         if std::time::Instant::now() >= deadline {
             // A Keeper holds nothing before a Host attaches it, so ending it ends no program.

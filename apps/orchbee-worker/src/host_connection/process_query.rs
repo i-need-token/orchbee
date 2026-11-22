@@ -19,6 +19,19 @@ use super::admission::Admission;
 /// Returns an error when the Host cannot be reached, refuses, answers with anything but its own
 /// Terminal Host entry, or has not answered by `deadline`.
 pub(super) fn query(endpoint: &Path, deadline: Instant) -> Result<ProcessEntry, Box<dyn Error>> {
+    query_with_progress(endpoint, deadline).map(|(entry, _progress)| entry)
+}
+
+/// The entry the Host at `endpoint` reports for itself, with the `dispatch-progress` its answer
+/// carries when it carries one.
+///
+/// # Errors
+///
+/// As [`query`].
+pub(super) fn query_with_progress(
+    endpoint: &Path,
+    deadline: Instant,
+) -> Result<(ProcessEntry, Option<u64>), Box<dyn Error>> {
     let mut transport = Admission::connect(endpoint, deadline)?;
     let request = ControlRequest {
         kind: RequestKind::Query,
@@ -41,8 +54,15 @@ pub(super) fn query(endpoint: &Path, deadline: Instant) -> Result<ProcessEntry, 
     for connection in &mut entry.connections {
         connection.capabilities = None;
     }
-    Ok(entry)
+    let progress = result
+        .extensions()
+        .get(DISPATCH_PROGRESS)
+        .and_then(|progress| progress.as_u64());
+    Ok((entry, progress))
 }
+
+/// The `query-result` extension that counts the Host's completed dispatch-loop turns.
+const DISPATCH_PROGRESS: &str = "dispatch-progress";
 
 #[cfg(all(test, windows))]
 mod tests;

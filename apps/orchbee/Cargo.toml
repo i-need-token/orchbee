@@ -189,6 +189,12 @@ path = "tests/cli_windows_output_replay.rs"
 name = "cli_windows_worker_replacement"
 path = "tests/cli_windows_worker_replacement.rs"
 
+# Keep these real Sessions, four Host kills and recoveries, a hung Host, and a Session stop away
+# from aggregate suite deadlines.
+[[test]]
+name = "cli_windows_host_recovery"
+path = "tests/cli_windows_host_recovery.rs"
+
 # Keep these two real Sessions, a Session start, a flooding endpoint and two helper processes
 # away from aggregate suite deadlines.
 [[test]]

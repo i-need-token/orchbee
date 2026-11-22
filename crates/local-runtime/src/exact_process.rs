@@ -72,6 +72,11 @@ impl ExactProcess {
         Ok(())
     }
 
+    /// The recorded identity this process matched: its process ID and creation time.
+    pub fn identity(&self) -> (u32, u64) {
+        (self.identity.pid(), self.identity.creation_time())
+    }
+
     /// This process with the right to end it held from now on, for a holder that may have to end
     /// it later. A process this account may not end fails, naming it.
     pub fn endable(mut self) -> io::Result<Self> {

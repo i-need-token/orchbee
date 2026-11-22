@@ -254,6 +254,14 @@ struct TerminalSummaryWire {
     failure: RequiredNullable<FailurePairWire>,
     #[serde(default)]
     failure_containment: RequiredNullable<FailureContainmentWire>,
+    /// Added for a held terminal on a connection that negotiated `keeper`; the Worker finds
+    /// holdings through the Keeper, so the member is checked and not kept.
+    #[serde(default)]
+    holding_id: Option<String>,
+    /// Added on a connection that negotiated `handover`, which no Worker offers before moves;
+    /// checked and not kept.
+    #[serde(default, rename = "handoverState")]
+    _handover_state: Option<HandoverStateWire>,
     phase: TerminalPhaseWire,
     #[serde(default)]
     process: RequiredNullable<ProcessObservationWire>,
@@ -513,7 +521,27 @@ fn terminal_list_from_wire(wire: TerminalListWire) -> Result<InventoryControl, P
     }))
 }
 
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum HandoverStateWire {
+    Quiesced,
+    Moved,
+    Restored,
+}
+
 fn terminal_summary_from_wire(wire: TerminalSummaryWire) -> Result<TerminalSummary, ProtocolError> {
+    if wire.holding_id.as_deref().is_some_and(|holding| {
+        holding.len() != 32
+            || !holding
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            || holding.bytes().all(|byte| byte == b'0')
+    }) {
+        return Err(ProtocolError::new(
+            ProtocolErrorCode::InvalidField,
+            "a terminal summary's holdingId is not 32 lowercase hexadecimal digits",
+        ));
+    }
     let core = TerminalSummaryCore {
         configuration: configuration_from_wire(wire.configuration)?,
         configuration_revision: canonical_u64(&wire.configuration_revision)?,

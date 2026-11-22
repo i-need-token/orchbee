@@ -200,7 +200,7 @@ struct TerminalLaunchWire {
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct TerminalProfileWire {
+pub(crate) struct TerminalProfileWire {
     color_scheme: ColorSchemeWire,
     default_background_rgb: SafeInteger,
     #[serde(default)]
@@ -417,7 +417,7 @@ fn terminal_profile_from_wire(wire: TerminalProfileWire) -> Result<TerminalProfi
     })
 }
 
-fn terminal_profile_to_wire(value: &TerminalProfile) -> TerminalProfileWire {
+pub(crate) fn terminal_profile_to_wire(value: &TerminalProfile) -> TerminalProfileWire {
     TerminalProfileWire {
         color_scheme: match value.color_scheme {
             ColorScheme::Dark => ColorSchemeWire::Dark,
@@ -556,7 +556,7 @@ fn validate_terminal_launch(value: &TerminalLaunch) -> Result<(), ProtocolError>
     validate_terminal_profile(&value.terminal_profile)
 }
 
-fn validate_terminal_profile(value: &TerminalProfile) -> Result<(), ProtocolError> {
+pub(crate) fn validate_terminal_profile(value: &TerminalProfile) -> Result<(), ProtocolError> {
     validate_rgb(value.default_background_rgb)?;
     if let Some(color) = value.default_cursor_rgb {
         validate_rgb(color)?;

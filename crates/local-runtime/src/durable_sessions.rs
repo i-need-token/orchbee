@@ -509,6 +509,28 @@ fn remove_private(path: &Path) -> io::Result<()> {
     }
 }
 
+/// The Keeper the Active generation of the Session at `runtime` records, for the Worker that adopts
+/// it; `None` when the record names no identified Keeper.
+#[cfg(windows)]
+pub(crate) fn recorded_keeper(
+    root: &DataRoot,
+    runtime: &Path,
+) -> io::Result<Option<ProcessIdentity>> {
+    let scope = runtime
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or(io::ErrorKind::InvalidInput)?;
+    let directory = Directory::open(root)?.ok_or(io::ErrorKind::NotFound)?;
+    let active = directory.read(scope)?.ok_or(io::ErrorKind::NotFound)?;
+    if active.lifecycle != Lifecycle::Active || !active.uses_runtime(runtime) {
+        return Err(io::ErrorKind::InvalidData.into());
+    }
+    Ok(active
+        .processes
+        .registration(crate::process_registration::ProcessRole::Keeper)
+        .identity())
+}
+
 /// The Server retains one exact activation generation, never a pathname-only stop authority.
 pub struct RetainedSessionRecord {
     directory: Directory,
@@ -595,6 +617,26 @@ impl RetainedSessionRecord {
     /// Observation grants no termination authority.
     pub fn host_presence(&self) -> io::Result<HostPresence> {
         self.child_presence(crate::process_registration::ProcessRole::Host)
+    }
+    /// The Keeper this generation records now, by its process ID and creation time; `None` when
+    /// it records none.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the record cannot be read or no longer names this generation.
+    #[cfg(windows)]
+    pub(crate) fn keeper_identity(&self) -> io::Result<Option<ProcessIdentity>> {
+        let current = self
+            .directory
+            .read(&self.scope)?
+            .ok_or(io::ErrorKind::NotFound)?;
+        if !current.same_active_generation(&self.active) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        Ok(current
+            .processes
+            .registration(crate::process_registration::ProcessRole::Keeper)
+            .identity())
     }
     /// What this generation's Keeper is now, in the same terms as [`Self::host_presence`]. POSIX
     /// starts no Keeper, so there it reads as never started.

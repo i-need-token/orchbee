@@ -70,6 +70,38 @@ impl AdoptedHost {
             orchbee_local_runtime::host_lock_held(&self.runtime).map(|held| !held)
         }
     }
+
+    /// The adopted Host's process ID and creation time.
+    #[cfg(windows)]
+    pub(crate) fn identity(&self) -> io::Result<(u32, u64)> {
+        let pid = self.process.GetProcessId().map_err(io::Error::other)?;
+        let (creation, _, _, _) = self.process.GetProcessTimes().map_err(io::Error::other)?;
+        Ok((pid, u64::from(creation)))
+    }
+
+    /// Ends the adopted Host and waits until it exited or `deadline` passes; one that already
+    /// exited counts as ended.
+    #[cfg(windows)]
+    pub(crate) fn end_before(&self, deadline: Instant) -> io::Result<()> {
+        use winsafe::co;
+        if self.exited()? {
+            return Ok(());
+        }
+        self.process.TerminateProcess(1).or_else(|error| {
+            if self.exited()? {
+                Ok(())
+            } else {
+                Err(io::Error::other(error))
+            }
+        })?;
+        let wait = deadline.saturating_duration_since(Instant::now());
+        let milliseconds = u32::try_from(wait.as_millis()).unwrap_or(u32::MAX);
+        match self.process.WaitForSingleObject(Some(milliseconds)) {
+            Ok(co::WAIT::OBJECT_0) => Ok(()),
+            Ok(_) => Err(io::Error::from(io::ErrorKind::TimedOut)),
+            Err(error) => Err(io::Error::other(error)),
+        }
+    }
 }
 
 /// A verified Host with its connection, its owner and its complete inventory.
@@ -201,8 +233,10 @@ fn verify(
     if process.process_id.get() <= 4 {
         return Err(unverified("the recorded Host process is a system process"));
     }
+    // The right to end it serves the hang check, which ends a hung Host whose terminals the
+    // Keeper holds.
     let handle = match HPROCESS::OpenProcess(
-        co::PROCESS::QUERY_LIMITED_INFORMATION | co::PROCESS::SYNCHRONIZE,
+        co::PROCESS::QUERY_LIMITED_INFORMATION | co::PROCESS::SYNCHRONIZE | co::PROCESS::TERMINATE,
         false,
         process.process_id.get(),
     ) {
@@ -279,7 +313,7 @@ fn verify(
 
 /// Reads every page of one inventory generation, from its start again when it changed, at most
 /// [`MAXIMUM_INVENTORY_RESTARTS`] times.
-fn read_inventory(
+pub(crate) fn read_inventory(
     host: &HostBrokerConnection,
     server: &LocalStream,
     correlation: CorrelationId,

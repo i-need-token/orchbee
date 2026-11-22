@@ -208,6 +208,16 @@ fn launch_environment(
     entries
 }
 
+/// The profile a recovered terminal starts with: the system's display mode and the default color
+/// themes, since a recovery runs with no Client preference at hand.
+#[cfg(windows)]
+pub(super) fn recovery_profile() -> TerminalProfile {
+    terminal_profile(
+        super::system_terminal_colors(),
+        &orchbee_local_runtime::UserColorThemes::default(),
+    )
+}
+
 // The effective default colors choose the scheme, cursor, and palette through the terminal theme;
 // the cursor style, device attributes, and query responses are the same for every launch.
 fn terminal_profile(

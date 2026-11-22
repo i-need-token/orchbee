@@ -114,6 +114,16 @@ impl RetainedChild {
         .map(Self)
         .map_err(system)
     }
+    /// The held process's exact identity: its process ID and its creation time as a `FILETIME`,
+    /// which a peer that checks processes by both, such as the Keeper, compares.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the creation time cannot be read.
+    pub fn exact_identity(&self) -> io::Result<(u32, u64)> {
+        self.identity()
+            .map(|identity| (identity.pid(), identity.creation_time()))
+    }
     /// The operating-system process identifier of the held process.
     pub fn id(&self) -> Option<u32> {
         Some(self.0.dwProcessId)

@@ -588,6 +588,11 @@ fn settle_without_worker(
     }
     shutdown.phase(attempt, StopPhase::HostExit);
     end_orphaned_host(owners, deadline).map_err(|error| failure(StopPhase::HostExit, error))?;
+    // A Keeper may hold the last handles of a program whose Host ended, so the stop ends it once
+    // the Host is gone, checked by its recorded identity; stopping still ends every program.
+    #[cfg(windows)]
+    orchbee_local_runtime::end_recorded_keeper(&owners.session_record, deadline)
+        .map_err(|error| failure(StopPhase::HostExit, error))?;
     Ok(())
 }
 

@@ -21,10 +21,17 @@ waits up to 250 milliseconds to observe (the Host's failure codes are in its
 [executable interface](../terminal-host/README.md#executable-interface)); and `elapsedMs`, the
 milliseconds since the start began.
 
-A replacement Worker records its adoption as `adoption`: `target` (`no-host` or `host`), `outcome`
-(`adopted` or the failure token, such as `host-gone`), the `imported`, `quarantined` and `missing`
-counts, `pages`, `inventoryRestarts` and `elapsedMs` since the last page arrived. A failed adoption
-also ends the Worker with an `exited` record at site `adopt`.
+A replacement Worker records its adoption as `adoption`: `target` (`no-host`, `host` or
+`recovery`), `outcome` (`adopted` or the failure token, such as `host-gone`), the `imported`,
+`quarantined` and `missing` counts, `pages`, `inventoryRestarts` and `elapsedMs` since the last page
+arrived. A failed adoption also ends the Worker with an `exited` record at site `adopt`.
+
+On Windows the Worker records the [Session's Keeper](#the-sessions-keeper): `keeper-started` once
+its first Host attached it, `keeper-replaced` when one that ended or stopped answering was replaced,
+and `keeper-failed` for a step that failed, with `error`, `osError` and `step` (`start`, `attach`,
+`adopt`, `replace`, `discard`, `hold` when the Host runs a terminal its Keeper does not hold, or
+`end`). `host-hung` records a Host whose dispatch stopped turning: `stalledMs`, and `ended` when the
+Worker ended it.
 
 A failed `exited` also names where and why the Worker stopped: `site`, the step it was serving
 (`server-receive`, `server-send`, `viewer`, `process-read`, `lifecycle`, `graphics`, `control`,
@@ -260,6 +267,21 @@ The last page is answered within 18 seconds of its arrival, inside the Server's 
   it is never attached, sent input, named in a title or drained, and a Start naming it is refused.
   A binding the inventory lacks or contradicts is reported missing.
 
+A `Recovery` target names the Session's Keeper, which kept the programs of a Host that ended. The
+Worker adopts that Keeper, requiring the recorded process ID and creation time, starts a recovery
+Host in the Host's slot that serves the lost epoch, registers it with the Keeper and has it attach
+the Keeper. For each binding, the orphaned holding of that epoch with the binding's identity is
+assigned to the recovery Host under a mark derived from the holding and that Host, so a retry assigns
+it again without effect; `RecoverTerminal` restores it at 80 by 24 cells with the system's display
+mode and the default color themes, and `ClaimTerminal` completes it. The recovery Host's inventory
+is then read and imported as for a Host. A failed step is `recovery-failed`, recorded with reason
+`host-protocol`: the programs not yet recovered run on in the Keeper, a terminal already recovered
+stays recovered, and the next replacement adopts the recovery Host. Adopting a Host while the record
+names a live Keeper adopts the Keeper too and recovers the orphans of that Host's epoch the same way
+before its inventory is read again; a Keeper that cannot be adopted leaves the terminals unheld and
+the adoption going on. Once an import succeeded, each orphan of the Host's epoch that no binding
+names is discarded, which ends its program.
+
 After `Adopted` the Worker serves the admitted loop with the imported kernel. Its stop still
 inventories, forces and disposes every Host terminal, then waits for the adopted Host to exit: on
 Windows on the retained process handle, and on macOS and Linux until the Host lock is free. `exit`
@@ -278,6 +300,25 @@ A real Windows Host witness in `src/terminal_host_operation/tests.rs` starts a t
 connection, drops it, adopts the Host with a second, imports the terminal and has it answer. Kernel
 tests in `src/terminal_authorization/import/tests.rs` cover the fence floor, Close receipts,
 quarantine and missing bindings. The macOS and Linux verification has no Host witness yet.
+
+## The Session's Keeper
+
+On Windows, where the Host offers `keeper`, the managed Worker starts the Session's Keeper once its
+first Host is ready and that Host's first Launch is answered, registers the Host with it and has the
+Host attach it, so the Host holds each running terminal there. A replacement Worker adopts the
+recorded Keeper instead. A failed Keeper step leaves the terminals running unheld and the Worker
+serving. A stop ends the Keeper once the Host is gone.
+
+Between Server requests, never under a prepared handoff, the Worker cares for the Keeper every two
+seconds. A Keeper the Host reports lost, or reports unresponsive and that does not answer the Worker
+within its two-second reply bound either, is ended and replaced, and the Host attaches the new one;
+a failed replacement leaves the Worker without a Keeper. The same care reads the Host's
+`dispatch-progress` with a `query` on a control lane, within one second. A count that has not
+changed for 10 seconds, or a Host that has not answered for as long, counts as hung: the Worker ends
+the Host only when the Keeper holds, for that Host, at least as many terminals as the Host's last
+answer counted and every live child process of the Host is the program or OpenConsole of one of
+those holdings, and recovery then follows as for a crash. Otherwise the Host is left running and the
+stall recorded once.
 
 ## Worktree discovery job
 
