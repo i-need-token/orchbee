@@ -241,6 +241,34 @@ impl super::CliText {
         }
     }
 
+    /// The line for a running Session that needs a restart for the active version: `required` when
+    /// that version cannot join it. Only Windows restarts a Session while terminals run.
+    pub(crate) fn cli_update_session_restart(self, name: &str, required: bool) -> String {
+        let option = if name == "default" {
+            String::new()
+        } else {
+            format!(" --session {name}")
+        };
+        match (self.locale, cfg!(windows), required) {
+            (Locale::EnUs, true, false) => format!(
+                "Session {name} should restart to finish the update: click Update in Orchbee, or run `orchbee server restart{option}`. Terminals keep running."
+            ),
+            (Locale::EnUs, true, true) => format!(
+                "Session {name} must restart before the new version can join it: click Update in Orchbee, or run `orchbee server restart{option}`. Terminals keep running."
+            ),
+            (Locale::EnUs, false, _) => {
+                format!("Session {name} takes the update when no terminal is running.")
+            }
+            (Locale::ZhCn, true, false) => format!(
+                "会话 {name} 建议重启以完成更新：在 Orchbee 中点击“更新”，或运行 `orchbee server restart{option}`。终端会继续运行。"
+            ),
+            (Locale::ZhCn, true, true) => format!(
+                "会话 {name} 需要重启，新版本才能加入：在 Orchbee 中点击“更新”，或运行 `orchbee server restart{option}`。终端会继续运行。"
+            ),
+            (Locale::ZhCn, false, _) => format!("会话 {name} 将在没有终端运行时更新。"),
+        }
+    }
+
     /// The `no-release` diagnostic naming the channel and this updater's platform, such as
     /// `macos-aarch64`, whose feed the server does not know.
     pub(crate) fn cli_update_no_release(self, channel: &str, platform: &str) -> String {

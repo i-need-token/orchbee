@@ -149,12 +149,22 @@ function interpretRefusal(document: unknown, platform: NodeJS.Platform): ServerR
 	const details = incompatible.data.failure.details;
 	switch (details.reason) {
 		case 'client-too-old':
+			return {
+				kind: 'refused',
+				refusal: {
+					desktopVersion: details.clientVersion,
+					reason: 'desktop-too-old',
+					sessionVersion: details.sessionVersion ?? null,
+				},
+			};
 		case 'session-too-old':
 			return {
 				kind: 'refused',
 				refusal: {
 					desktopVersion: details.clientVersion,
-					reason: details.reason === 'client-too-old' ? 'desktop-too-old' : 'session-too-old',
+					reason: 'session-too-old',
+					// Only Windows restarts a Session's Server while its terminals run.
+					restartable: platform === 'win32',
 					sessionVersion: details.sessionVersion ?? null,
 				},
 			};

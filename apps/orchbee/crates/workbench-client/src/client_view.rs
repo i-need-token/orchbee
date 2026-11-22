@@ -773,9 +773,12 @@ impl ClientView {
     pub fn password_not_saved(&mut self) {
         self.notice = Some(Notice::PasswordNotSaved);
     }
-    /// A click on Update that did not switch says why.
-    pub(crate) fn update_refused(&mut self, switch: crate::release_update::UpdateSwitch) {
+    /// A click on Update that did not switch says why, and its restart says what it reached; a
+    /// click whose decision is still to come says nothing yet.
+    pub fn update_refused(&mut self, switch: crate::release_update::UpdateSwitch) {
         self.notice = Some(match switch {
+            crate::release_update::UpdateSwitch::Started => return,
+            crate::release_update::UpdateSwitch::Restarting => Notice::UpdateRestarting,
             crate::release_update::UpdateSwitch::Waiting => Notice::UpdateWaiting,
             crate::release_update::UpdateSwitch::Unavailable
             | crate::release_update::UpdateSwitch::Leave => Notice::UpdateUnavailable,

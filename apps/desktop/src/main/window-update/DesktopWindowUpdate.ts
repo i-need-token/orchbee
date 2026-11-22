@@ -7,7 +7,7 @@ import {
 } from '@orchbee/desktop-client-protocol';
 
 import type { DesktopDiagnosticRecorder } from '../diagnostics';
-import type { ServerStartAnswer } from '../server-connection';
+import type { ServerStartAnswer, UpdateRestart } from '../server-connection';
 import { resolveWindowUpdateOffer } from './window-update-offer';
 
 /**
@@ -52,6 +52,15 @@ export interface DesktopWindowUpdateOptions {
 	/** The active window version the pointer names, or null. */
 	readonly readPointer: (desktopRoot: string) => Promise<string | null>;
 	readonly recordEvent: DesktopDiagnosticRecorder;
+	/**
+	 * Through the bundled Client of window version `version`, restarts the Session's Server and Worker
+	 * when that version asks for it or cannot join (`joins` false), keeping every terminal.
+	 */
+	readonly restartForVersion: (
+		desktopRoot: string,
+		version: string,
+		joins: boolean,
+	) => Promise<UpdateRestart>;
 	/** Runs `server start --format json` through the bundled Client of window version `version`. */
 	readonly startVersionClient: (desktopRoot: string, version: string) => Promise<ServerStartAnswer>;
 	/**
@@ -80,8 +89,9 @@ interface ServedPort {
 /**
  * The window's Update control, as Main owns it: the newer window version the pointer names, offered
  * to every document, and a document's request, or a Setup launch's, to switch to it. A request first
- * checks that the new version's Client joins this Session; when it cannot, a document is told the
- * update waits, and a Setup launch falls back to focusing this window.
+ * checks that the new version's Client joins this Session, and has that Client restart the Session
+ * when it asks for it or cannot join; when neither serves, a document is told the update waits, and
+ * a Setup launch falls back to focusing this window.
  */
 export class DesktopWindowUpdate {
 	#checking = false;
@@ -106,6 +116,11 @@ export class DesktopWindowUpdate {
 	/** The newer window version this window offers, or null while it offers none. */
 	get offeredVersion(): string | null {
 		return this.#offer;
+	}
+
+	/** Whether a switch is being checked or prepared, a Session restart included. */
+	get checking(): boolean {
+		return this.#checking;
 	}
 
 	/** Reads the pointer and follows its changes; a window outside a version folder offers nothing. */
@@ -141,11 +156,7 @@ export class DesktopWindowUpdate {
 		try {
 			const answer = await this.#options.startVersionClient(root, version).catch(() => null);
 			if (this.#disposed) return false;
-			if (answer?.negotiatedCapabilities.includes(COMPATIBILITY_WINDOW) !== true) {
-				this.#recordWaiting(answer);
-				return false;
-			}
-			this.#options.recordEvent('info', 'window-update-joinable');
+			if (!(await this.#prepare(root, version, answer))) return false;
 			const place =
 				resolvePlace === undefined ? null : await Promise.resolve(resolvePlace()).catch(() => null);
 			if (this.#disposed) return false;
@@ -318,6 +329,37 @@ export class DesktopWindowUpdate {
 		}
 	}
 
+	/**
+	 * Whether version `version` can serve this window after its start `answer`: it joins the Session,
+	 * and restarts it first when it asks for that, or it cannot join and restarted it. Otherwise the
+	 * diagnostic log records why the update waits.
+	 */
+	async #prepare(
+		root: string,
+		version: string,
+		answer: ServerStartAnswer | null,
+	): Promise<boolean> {
+		const joins = answer?.negotiatedCapabilities.includes(COMPATIBILITY_WINDOW) === true;
+		const restart = await this.#options
+			.restartForVersion(root, version, joins)
+			.catch((): UpdateRestart => 'failed');
+		if (this.#disposed) return false;
+		if (restart === 'restarted') {
+			this.#options.recordEvent('info', 'window-update-restarted');
+			return true;
+		}
+		if (joins) {
+			if (restart === 'not-needed') {
+				this.#options.recordEvent('info', 'window-update-joinable');
+				return true;
+			}
+			this.#options.recordEvent('info', 'window-update-waiting', { reason: 'restart-failed' });
+			return false;
+		}
+		this.#recordWaiting(answer);
+		return false;
+	}
+
 	#recordWaiting(answer: ServerStartAnswer | null): void {
 		if (answer === null || answer.negotiatedCapabilities.length === 0) {
 			this.#options.recordEvent('info', 'window-update-waiting', {
@@ -347,15 +389,13 @@ export class DesktopWindowUpdate {
 		try {
 			const answer = await this.#options.startVersionClient(root, version).catch(() => null);
 			if (this.#disposed) return;
-			if (answer?.negotiatedCapabilities.includes(COMPATIBILITY_WINDOW) === true) {
-				this.#options.recordEvent('info', 'window-update-joinable');
+			if (await this.#prepare(root, version, answer)) {
 				const started = await this.#options.onJoinable(version, place).catch(() => false);
 				if (started === false && served.open) {
 					served.port.postMessage({ type: 'desktop-window-update-failed' });
 				}
 				return;
 			}
-			this.#recordWaiting(answer);
 			if (served.open) served.port.postMessage({ type: 'desktop-window-update-waiting' });
 		} finally {
 			this.#checking = false;

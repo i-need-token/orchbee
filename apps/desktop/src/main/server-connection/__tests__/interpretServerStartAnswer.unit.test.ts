@@ -32,7 +32,12 @@ describe('interpretServerStartAnswer', () => {
 		});
 		expect(restoreOf(admission('session-too-old', versions), true)).toEqual({
 			kind: 'refused',
-			refusal: { desktopVersion: '1.2.0', reason: 'session-too-old', sessionVersion: '1.6.0' },
+			refusal: {
+				desktopVersion: '1.2.0',
+				reason: 'session-too-old',
+				restartable: false,
+				sessionVersion: '1.6.0',
+			},
 		});
 		expect(restoreOf(admission('environment-mismatch'), true)).toEqual({
 			kind: 'refused',
@@ -47,7 +52,12 @@ describe('interpretServerStartAnswer', () => {
 	it('leaves out the version of a Session that predates the handshake', () => {
 		expect(restoreOf(admission('session-too-old', { clientVersion: '1.2.0' }), true)).toEqual({
 			kind: 'refused',
-			refusal: { desktopVersion: '1.2.0', reason: 'session-too-old', sessionVersion: null },
+			refusal: {
+				desktopVersion: '1.2.0',
+				reason: 'session-too-old',
+				restartable: false,
+				sessionVersion: null,
+			},
 		});
 	});
 

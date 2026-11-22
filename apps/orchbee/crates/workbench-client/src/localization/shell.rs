@@ -460,6 +460,8 @@ impl Locale {
             (Self::ZhCn, Some(Notice::PasswordNotSaved)) => "没能保存密码。",
             (Self::EnUs, Some(Notice::NoNotificationTarget)) => "No Agent notification",
             (Self::ZhCn, Some(Notice::NoNotificationTarget)) => "没有智能体通知",
+            (Self::EnUs, Some(Notice::UpdateRestarting)) => "Restarting Session…",
+            (Self::ZhCn, Some(Notice::UpdateRestarting)) => "正在重启会话…",
             (Self::EnUs, Some(Notice::UpdateWaiting)) => {
                 "This update applies when no terminal is running."
             }
@@ -560,6 +562,7 @@ impl Locale {
             | Notice::MachineRefused(_)
             | Notice::PasswordNotSaved
             | Notice::NoNotificationTarget
+            | Notice::UpdateRestarting
             | Notice::UpdateWaiting
             | Notice::NavigatorChanged
             | Notice::ResizeBusy

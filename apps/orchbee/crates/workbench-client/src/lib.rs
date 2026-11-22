@@ -363,8 +363,8 @@ pub mod application {
 
     pub mod release_update {
         pub use crate::release_update::{
-            ClientGenerations, Departure, Launcher, RELAUNCH_STATUS, UpdateDeparture, Updater,
-            depart,
+            ClientGenerations, Departure, Launcher, RELAUNCH_STATUS, UpdateDeparture, UpdateSwitch,
+            Updater, depart,
         };
     }
 

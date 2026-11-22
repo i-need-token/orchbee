@@ -174,7 +174,12 @@ or macOS in a test or release build that the automatic-update switch admits. Its
 sentence, Update · Switch to Orchbee {version}. Terminals keep running. Choosing it checks that the
 new version joins the running Session: the Session's answer lists `compatibility-window` and the
 active manifest's `client` component lists the `client-server` generation this connection
-negotiated. When it joins, the TUI restores the console and exits with status `75` to an
+negotiated. On Windows the active version's own `orchbee` then decides in the background whether
+the Session restarts first: it reads the Session's restart tier with `status server`, and when that
+tier is `recommended` or `required`, or the version cannot join, it runs `server restart`, which
+keeps every terminal, while the status line says Restarting Session… (`正在重启会话…`). A restart
+that answers `restarted` switches as a joining Session does; any other outcome switches nothing. When
+it joins, the TUI restores the console and exits with status `75` to an
 announcing [launcher](../../orchbee-launcher/README.md#relaunch-protocol). Without one, a macOS TUI
 replaces its own process with the store's active Client, read again, with the same arguments and
 environment and no blocked signal, so the new version opens in the same terminal under the same

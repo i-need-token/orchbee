@@ -87,7 +87,7 @@ pub(in crate::cli) fn client_generations(directory: &Path) -> Option<GenerationR
 
 /// The release whose `release.json` lies in the version folder `root`, when the store pointer names
 /// those bytes and the folder is named after its version; `None` without a manifest.
-fn bound_release(root: &Path) -> Result<Option<Release>, ()> {
+pub(super) fn bound_release(root: &Path) -> Result<Option<Release>, ()> {
     let file = match open_release_file(root, "release.json") {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),

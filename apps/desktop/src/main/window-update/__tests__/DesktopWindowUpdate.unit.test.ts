@@ -5,7 +5,7 @@ import {
 } from '@orchbee/desktop-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ServerStartAnswer } from '../../server-connection';
+import type { ServerStartAnswer, UpdateRestart } from '../../server-connection';
 import {
 	DesktopWindowUpdate,
 	type DesktopWindowUpdateFocus,
@@ -63,12 +63,22 @@ function requestIdOf(sent: readonly DesktopWindowUpdateMainMessage[]): string {
 	return request.requestId;
 }
 
+/** What the new version's Client does where a Session restart is not run: macOS's answer. */
+function restartAsBefore(_root: string, _version: string, joins: boolean): Promise<UpdateRestart> {
+	return Promise.resolve(joins ? 'not-needed' : 'failed');
+}
+
 function started(negotiatedCapabilities: readonly string[]): ServerStartAnswer {
 	return { negotiatedCapabilities, restore: { kind: 'intact' } };
 }
 
 function create(options: {
 	readonly active: string | null;
+	readonly restartForVersion?: (
+		root: string,
+		version: string,
+		joins: boolean,
+	) => Promise<UpdateRestart>;
 	readonly startVersionClient?: (root: string, version: string) => Promise<ServerStartAnswer>;
 }) {
 	let active = options.active;
@@ -86,6 +96,7 @@ function create(options: {
 		ownVersion: '0.2.0',
 		readPointer: () => Promise.resolve(active),
 		recordEvent: () => undefined,
+		restartForVersion: options.restartForVersion ?? restartAsBefore,
 		startVersionClient,
 		watchPointer: (_root, onChange) => {
 			changed = onChange;
@@ -149,6 +160,24 @@ describe('DesktopWindowUpdate', () => {
 		expect(document.sent).not.toContainEqual({ type: 'desktop-window-update-waiting' });
 	});
 
+	it('switches once the new version restarted a Session it could not join', async () => {
+		const restartForVersion = vi.fn<
+			(root: string, version: string, joins: boolean) => Promise<UpdateRestart>
+		>(() => Promise.resolve('restarted'));
+		const { onJoinable, update } = create({
+			active: '0.3.0',
+			restartForVersion,
+			startVersionClient: () => Promise.resolve(started([])),
+		});
+		await settle();
+		const document = fakePort();
+		update.serve(document.port, document.focus);
+		document.request('0.3.0', PLACE);
+		await settle();
+		expect(restartForVersion).toHaveBeenCalledWith(ROOT, '0.3.0', false);
+		expect(onJoinable).toHaveBeenCalledWith('0.3.0', PLACE);
+	});
+
 	it('ignores a request for anything but the current offer, and one made while a check runs', async () => {
 		let finish: ((answer: ServerStartAnswer) => void) | undefined;
 		const { startVersionClient, update } = create({
@@ -183,6 +212,7 @@ describe('DesktopWindowUpdate', () => {
 			ownVersion: '0.2.0',
 			readPointer: () => Promise.resolve(active),
 			recordEvent: () => undefined,
+			restartForVersion: restartAsBefore,
 			startVersionClient: () => Promise.resolve(started([])),
 			watchPointer: (_root, onChange) => {
 				if (!watchable) return null;
@@ -215,6 +245,7 @@ describe('DesktopWindowUpdate', () => {
 			ownVersion: '0.2.0',
 			readPointer,
 			recordEvent: () => undefined,
+			restartForVersion: restartAsBefore,
 			startVersionClient: () => Promise.resolve(started(['compatibility-window'])),
 			watchPointer: () => () => undefined,
 		});
@@ -240,6 +271,7 @@ describe('DesktopWindowUpdate', () => {
 				ownVersion: '0.2.0',
 				readPointer: () => Promise.resolve('0.3.0'),
 				recordEvent: () => undefined,
+				restartForVersion: restartAsBefore,
 				startVersionClient: () => Promise.resolve(started(['compatibility-window'])),
 				watchPointer: () => () => undefined,
 			});
@@ -262,6 +294,7 @@ describe('DesktopWindowUpdate', () => {
 			ownVersion: '0.2.0',
 			readPointer: () => Promise.resolve(active),
 			recordEvent: () => undefined,
+			restartForVersion: restartAsBefore,
 			startVersionClient: () => Promise.resolve(started(['compatibility-window'])),
 			// Simulates OS `fs.watch` coalescing or missing the pointer rename.
 			watchPointer: () => () => undefined,
@@ -295,6 +328,7 @@ describe('DesktopWindowUpdate', () => {
 			ownVersion: '0.2.0',
 			readPointer: () => Promise.resolve(active),
 			recordEvent: () => undefined,
+			restartForVersion: restartAsBefore,
 			startVersionClient: () =>
 				Promise.resolve(started(joinable ? ['compatibility-window'] : ['agent-input-area'])),
 			watchPointer: () => () => undefined,

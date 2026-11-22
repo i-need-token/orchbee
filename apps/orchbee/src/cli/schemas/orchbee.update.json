@@ -128,6 +128,48 @@
 						}
 					}
 				},
+				"sessions": {
+					"description": "Each running Session of this environment that answered, with the restart the active version needs; present only after a run that finished.",
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["name", "restart"],
+						"properties": {
+							"name": {
+								"type": "string",
+								"minLength": 1
+							},
+							"restart": {
+								"type": "object",
+								"additionalProperties": false,
+								"required": ["tier", "hosts"],
+								"properties": {
+									"tier": {
+										"enum": ["none", "recommended", "required"]
+									},
+									"hosts": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"additionalProperties": false,
+											"required": ["processId", "tier"],
+											"properties": {
+												"processId": {
+													"type": "integer",
+													"minimum": 1
+												},
+												"tier": {
+													"enum": ["none", "recommended", "required"]
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				},
 				"interrupted": {
 					"type": "boolean"
 				},

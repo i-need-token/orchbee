@@ -70,6 +70,7 @@ function describe(
 				command,
 				desktopVersion: refusal.desktopVersion,
 				hasSessionVersion: String(refusal.sessionVersion !== null),
+				restartable: String(refusal.restartable),
 				sessionVersion: refusal.sessionVersion ?? '',
 			});
 		case 'other-environment':

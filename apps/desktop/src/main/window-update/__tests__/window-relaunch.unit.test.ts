@@ -13,6 +13,7 @@ const WORKSPACE = '0123456789abcdef0123456789abcdef';
 const SESSION_TOO_OLD: DesktopSessionRefusal = {
 	desktopVersion: '0.3.0',
 	reason: 'session-too-old',
+	restartable: true,
 	sessionVersion: '0.1.0',
 };
 

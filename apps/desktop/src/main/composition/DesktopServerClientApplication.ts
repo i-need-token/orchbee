@@ -92,6 +92,8 @@ export interface DesktopServerClientApplicationOptions {
 		askPlace(): Promise<DesktopRelaunchPlace | null>;
 		/** Switches to an offered newer version whose Client joins the Session; true once started. */
 		switchIfOffered(resolvePlace: () => Promise<DesktopRelaunchPlace | null>): Promise<boolean>;
+		/** A switch is being checked or prepared; its own Session restart ends this connection. */
+		readonly checking: boolean;
 	};
 }
 
@@ -502,7 +504,9 @@ export class DesktopServerClientApplication {
 				const update = options.windowUpdate;
 				if (await update.switchIfOffered(() => update.askPlace())) return;
 			}
-			if (state !== 'absent') {
+			// A switch that restarted the Session relaunches this window itself, or waits; the reload
+			// follows only once it settled without leaving.
+			if (state !== 'absent' && !options.windowUpdate.checking) {
 				if (current()) window.webContents.reload();
 				return;
 			}

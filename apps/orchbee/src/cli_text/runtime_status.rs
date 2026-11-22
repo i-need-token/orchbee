@@ -50,6 +50,7 @@ impl super::CliText {
             "role-unknown" => ("Unknown process", "未知进程"),
             "restartKeepsTerminals" => ("Restart keeps terminals", "重启保留终端"),
             "movedTo" => ("Moved to version", "已迁移到版本"),
+            "restart" => ("Restart for the update", "为更新重启"),
             "platform" => ("Platform", "平台"),
             "architecture" => ("Architecture", "架构"),
             "profile" => ("Build profile", "构建类型"),
@@ -95,6 +96,9 @@ impl super::CliText {
             "unknown" => ("Unknown", "未知"),
             "debug" => ("Debug", "调试"),
             "release" => ("Release", "发布"),
+            "none" => ("Not needed", "不需要"),
+            "recommended" => ("Recommended", "建议"),
+            "required" => ("Required", "必需"),
             _ => return token,
         };
         match self.locale {

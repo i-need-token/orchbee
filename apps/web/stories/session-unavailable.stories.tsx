@@ -33,6 +33,7 @@ const desktopTooOld = {
 const sessionTooOld = {
 	desktopVersion: '1.6.0',
 	reason: 'session-too-old',
+	restartable: true,
 	sessionVersion: '1.2.0',
 } as const;
 const otherEnvironment = { reason: 'other-environment' } as const;

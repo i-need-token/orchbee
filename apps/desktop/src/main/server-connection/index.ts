@@ -5,4 +5,6 @@ export type { DesktopPathRefusal } from './interpretPathRefusal';
 export type { ServerStartAnswer } from './interpretServerStartAnswer';
 export { readServerState } from './readServerState';
 export { readServerStopStatus } from './readServerStopStatus';
+export { restartForUpdate } from './restartForUpdate';
+export type { UpdateRestart } from './restartForUpdate';
 export type { ServerStopStatus } from './readServerStopStatus';

@@ -726,7 +726,11 @@ impl TerminalInputPort for Port {
         self.update.as_mut().map_or(
             crate::release_update::UpdateSwitch::Unavailable,
             |(updater, marker)| {
-                updater.switch(*marker, orchbee_connection_handshake::Generation::new(1))
+                updater.switch(
+                    *marker,
+                    orchbee_connection_handshake::Generation::new(1),
+                    None,
+                )
             },
         )
     }

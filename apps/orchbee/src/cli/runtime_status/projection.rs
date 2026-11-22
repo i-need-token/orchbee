@@ -202,9 +202,15 @@ impl Report {
                     }) => {
                         json!({"state":"not-running","reason":"endpoint-absent","movedTo":version})
                     }
-                    Server::Observed(result) => json!({"state":"running",
-                        "restartKeepsTerminals":result.restart_keeps_terminals(),
-                        "processes":result.processes().iter().map(|entry| process(entry, true)).collect::<Vec<_>>()}),
+                    Server::Observed(result) => {
+                        let mut server = json!({"state":"running",
+                            "restartKeepsTerminals":result.restart_keeps_terminals(),
+                            "processes":result.processes().iter().map(|entry| process(entry, true)).collect::<Vec<_>>()});
+                        if let Some(restart) = crate::cli::update::restart_tier::active(result) {
+                            server["restart"] = restart.json();
+                        }
+                        server
+                    }
                 };
                 json!({"scope":report.scope,"runtimeDirectory":path(&report.runtime),
                 "endpoint":report.endpoint.as_deref().map(path),"server":server,
@@ -270,6 +276,9 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
                             &value["server"]["restartKeepsTerminals"],
                         ));
                     }
+                    if value["server"]["restart"].is_object() {
+                        entries.push(("restart", &value["server"]["restart"]["tier"]));
+                    }
                     entries.push(("client", &value["clientVersion"]));
                     entries
                 }
@@ -312,7 +321,7 @@ fn display(label: &str, value: &Value, locale: Locale) -> String {
         Value::String(value) => escape(
             if matches!(
                 label,
-                "server" | "state" | "reason" | "mode" | "profile" | "delivery"
+                "server" | "state" | "reason" | "mode" | "profile" | "delivery" | "restart"
             ) {
                 CliText::new(locale).cli_runtime_status_value(value)
             } else {

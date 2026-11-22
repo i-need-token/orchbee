@@ -35,7 +35,7 @@ export const zhCNSessionConnectionMessages = {
 	'session.connection.unavailable.serverNotStarted':
 		'{cause, select, missing {Orchbee 无法启动此会话：系统找不到它的程序文件。请重新安装 Orchbee，或检查该文件是否被安全软件移除。} denied {Orchbee 无法启动此会话：系统拒绝访问它的程序文件，可能是安全软件或系统策略阻止了它。} code {Orchbee 无法启动此会话：系统拒绝运行它的程序（错误 {code}）。} other {Orchbee 无法启动此会话：系统拒绝运行它的程序。}}',
 	'session.connection.unavailable.sessionTooOld':
-		'{hasSessionVersion, select, true {正在运行的会话（{sessionVersion}）版本过旧，无法与 Orchbee Desktop {desktopVersion} 配合。请运行 <command>orchbee server stop</command>，然后重试。} other {正在运行的会话由早于版本检查的 Orchbee 启动。请用启动它的那个 Orchbee 运行 <command>server stop</command>，然后重试。}}',
+		'{hasSessionVersion, select, true {正在运行的会话（{sessionVersion}）版本过旧，无法与 Orchbee Desktop {desktopVersion} 配合。{restartable, select, true {请运行 <command>orchbee server restart</command>，然后重试。终端会继续运行。} other {请运行 <command>orchbee server stop</command>，然后重试。}}} other {正在运行的会话由早于版本检查的 Orchbee 启动。请用启动它的那个 Orchbee 运行 <command>server stop</command>，然后重试。}}',
 	'session.connection.unavailable.title': 'Orchbee 会话不可用',
 	'session.connection.unavailable.tryAgain': '重试',
 	'session.connection.workbenchFailed.description':

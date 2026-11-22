@@ -26,8 +26,10 @@ mod platform;
 #[cfg(not(windows))]
 #[path = "update/unix.rs"]
 mod platform;
+pub(in crate::cli) mod restart_tier;
 mod retention;
 mod running_programs;
+mod session_restart;
 mod signature;
 mod source_path;
 mod uninstall;
@@ -306,6 +308,8 @@ struct Report {
     configuration_failure: Option<super::configuration::Error>,
     /// The window part, when the run had one.
     desktop: Option<window::WindowReport>,
+    /// Each running Session's restart for the active version, read once the update finished.
+    sessions: Vec<session_restart::SessionRestart>,
 }
 impl Report {
     fn new() -> Self {
@@ -324,6 +328,7 @@ impl Report {
             up_to_date: false,
             configuration_failure: None,
             desktop: None,
+            sessions: Vec::new(),
         }
     }
     /// Records why the settings file stopped the run and returns the run's error.
@@ -357,6 +362,13 @@ fn document(
     });
     if let Some(window) = &report.desktop {
         document["result"]["desktop"] = window.document();
+    }
+    if error.is_none() && !interrupted {
+        document["result"]["sessions"] = report
+            .sessions
+            .iter()
+            .map(session_restart::SessionRestart::json)
+            .collect();
     }
     document
 }
@@ -562,6 +574,9 @@ pub(crate) fn run(
         &mut context,
         &mut report,
     );
+    if result.is_ok() {
+        report.sessions = session_restart::observe(context.signals.poll_fd());
+    }
     let completion_diagnostic = context.completion_diagnostic.take();
     let storage_cause = context.storage_cause.take();
     let settled = settle(context, &report, result);
@@ -622,6 +637,16 @@ pub(crate) fn run(
             if let Some(window) = &report.desktop {
                 text.push_str(&window_line(window, CliText::new(locale)));
                 text.push('\n');
+            }
+            if settled.error.is_none() && !settled.interrupted {
+                for line in report
+                    .sessions
+                    .iter()
+                    .filter_map(|session| session.line(locale))
+                {
+                    text.push_str(&line);
+                    text.push('\n');
+                }
             }
             let window_pending = report
                 .desktop

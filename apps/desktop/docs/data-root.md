@@ -35,8 +35,8 @@ without migration.
 
 On Windows and macOS Main appends `started`, `startup-failed`, `renderer-gone` with Electron's reason
 and whether the page was reloaded or the person asked, `renderer-crash-answered` with their choice,
-diagnostic bundle outcomes, Window Update's `window-update-joinable` and `window-update-waiting`
-with its reason, `window-relaunch-started`, `window-relaunch-failed` and
+diagnostic bundle outcomes, Window Update's `window-update-joinable`, `window-update-restarted`
+and `window-update-waiting` with its reason, `window-relaunch-started`, `window-relaunch-failed` and
 `window-relaunch-gave-way`, the faults it contains without ending (`main-fault-contained` with the
 kind, listener site, error class and a named error code for a listener throw, or a throw or
 rejection nothing else handled, the window's `window-fault` with its site and

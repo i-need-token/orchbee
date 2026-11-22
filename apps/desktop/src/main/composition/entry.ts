@@ -41,7 +41,11 @@ import {
 	DesktopSecureKeyboardEntry,
 	DesktopSecureKeyboardEntryActions,
 } from '../secure-keyboard-entry';
-import { readServerStartAnswer, readServerStopStatus } from '../server-connection';
+import {
+	readServerStartAnswer,
+	readServerStopStatus,
+	restartForUpdate,
+} from '../server-connection';
 import { createUpgradeBackup } from '../upgrade-backup';
 import { DesktopWindowActions } from '../window-actions';
 import {
@@ -355,6 +359,14 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 		ownVersion: app.getVersion(),
 		readPointer: readWindowPointer,
 		recordEvent,
+		restartForVersion: (root, version, joins) =>
+			restartForUpdate(
+				path.join(versionCohort(root, version), clientName),
+				sessionArguments,
+				resolveClientEnvironment(),
+				joins,
+				process.platform,
+			),
 		startVersionClient: (root, version) =>
 			readServerStartAnswer(
 				path.join(versionCohort(root, version), clientName),

@@ -974,6 +974,15 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 dispatcher.invalidate_hit_map_for_control(terminal_input);
                 redraw = true;
             }
+            // A click's restart reaches the shell whichever surface now holds the update offer.
+            match surface.active().take_update_progress() {
+                Some(crate::release_update::UpdateSwitch::Leave) => return Ok(LoopExit::User),
+                Some(progress) => {
+                    view.update_refused(progress);
+                    redraw = true;
+                }
+                None => {}
+            }
             if let Some(machines) = &mut machines {
                 let change = machines.tick(surface, &mut view, dimensions, now, &mut |old| {
                     dispatcher.invalidate_hit_map(old);
@@ -1588,6 +1597,10 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn leaves_for_update(&self) -> bool {
         false
     }
+    /// The next report of a restart a click on Update started, once.
+    fn take_update_progress(&mut self) -> Option<crate::release_update::UpdateSwitch> {
+        None
+    }
 
     fn client_control_tick(
         &mut self,
@@ -1666,6 +1679,9 @@ impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     fn leaves_for_update(&self) -> bool {
         crate::workbench_client::WorkbenchClient::leaves_for_update(self)
+    }
+    fn take_update_progress(&mut self) -> Option<crate::release_update::UpdateSwitch> {
+        crate::workbench_client::WorkbenchClient::take_update_progress(self)
     }
     fn local_runtime(&self) -> Option<std::path::PathBuf> {
         crate::workbench_client::WorkbenchClient::local_runtime(self).map(std::path::Path::to_owned)

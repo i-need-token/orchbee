@@ -336,14 +336,16 @@ fn activate(
 pub enum Rejoined {
     /// A Server serves the Session again: the one a restart handed it to, or one someone started.
     Joined(LocalClient),
-    /// The idle move ended the Server to move the Session to the store's active version, and no
-    /// Server serves it until a Client starts one.
+    /// The Session moved past this Client: the idle move ended the Server to run the store's
+    /// active version, and no Server serves it until a Client starts one, or a restart handed it
+    /// to a newer Server that refuses this Client as too old.
     Moved,
 }
 
 /// Waits until `deadline` for a Server to serve the local Session whose runtime folder is
-/// `runtime` again, connecting only: it never starts one. A Session the idle move ended answers
-/// [`Rejoined::Moved`], so the caller starts the store's active version. `cancelled` ends the wait.
+/// `runtime` again, connecting only: it never starts one. A Session the idle move ended, or a
+/// newer Server that refuses this Client, answers [`Rejoined::Moved`], so the caller leaves for or
+/// starts the store's active version. `cancelled` ends the wait.
 pub fn rejoin_local_session(
     runtime: &Path,
     deadline: Instant,
@@ -373,9 +375,15 @@ pub fn rejoin_local_session(
         // A runtime folder that cannot be admitted now reads as no Server yet.
         if let Ok(session) =
             ModeCheckedLocalSessionRendezvous::validate_mode_checked(base, scope.clone())
-            && let Reached::Client(client) = connect(&session, &cohort, deadline)?
         {
-            return Ok(Rejoined::Joined(client));
+            match connect(&session, &cohort, deadline) {
+                Ok(Reached::Client(client)) => return Ok(Rejoined::Joined(client)),
+                Ok(_) => {}
+                Err(refused) if matches!(refused.failure, StartupFailure::ClientTooOld(_)) => {
+                    return Ok(Rejoined::Moved);
+                }
+                Err(failure) => return Err(failure),
+            }
         }
         if matches!(
             orchbee_local_runtime::session_moved_to(&root, runtime),

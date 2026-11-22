@@ -1672,6 +1672,33 @@
 								"restartKeepsTerminals": {
 									"type": ["boolean", "null"]
 								},
+								"restart": {
+									"type": "object",
+									"required": ["tier", "hosts"],
+									"additionalProperties": false,
+									"properties": {
+										"tier": {
+											"enum": ["none", "recommended", "required"]
+										},
+										"hosts": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"required": ["processId", "tier"],
+												"additionalProperties": false,
+												"properties": {
+													"processId": {
+														"type": "integer",
+														"minimum": 1
+													},
+													"tier": {
+														"enum": ["none", "recommended", "required"]
+													}
+												}
+											}
+										}
+									}
+								},
 								"processes": {
 									"type": "array",
 									"minItems": 1,

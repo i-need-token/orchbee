@@ -3,8 +3,9 @@
 //! how the TUI leaves for it. The store is read on a background thread; the switch itself is the
 //! TUI's exit: a launcher that announced the relaunch protocol starts the active version; without
 //! one a macOS TUI replaces itself with that version, and elsewhere the TUI names the command that
-//! opens it. About's Check for updates asks the Session Server to run its update job now; see
-//! [`check`].
+//! opens it. On Windows a click first restarts the Session for the active version when that
+//! version asks for it, keeping every terminal; see [`restart`]. About's Check for updates asks the
+//! Session Server to run its update job now; see [`check`].
 
 use crate::background_thread::BackgroundThread;
 use crate::localization::Locale;
@@ -110,7 +111,7 @@ pub enum UpdateRequest {
     Switch,
 }
 
-/// What a click on Update came to.
+/// What a click on Update came to, or what its restart reached since.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UpdateSwitch {
     /// The control is no longer Ready, so the click is refused.
@@ -119,6 +120,10 @@ pub enum UpdateSwitch {
     Waiting,
     /// The TUI leaves for the active version.
     Leave,
+    /// The active version decides on a restart first; its progress follows.
+    Started,
+    /// The Session's Server and Worker restart for the active version, keeping every terminal.
+    Restarting,
 }
 
 /// The store watcher and the switch state of one TUI.
@@ -132,6 +137,9 @@ pub struct Updater {
     check: check::Check,
     /// A store reading arrived since the check last looked.
     store_read: bool,
+    /// The restart a click started, with the version it leaves for.
+    #[cfg(windows)]
+    restart: Option<(String, restart::Job)>,
 }
 
 /// The version a click chose to leave for, readable after the TUI that owns the [`Updater`] ended.
@@ -175,6 +183,8 @@ impl Updater {
             leaving: UpdateDeparture::default(),
             check: check::Check::default(),
             store_read: false,
+            #[cfg(windows)]
+            restart: None,
         }
     }
 
@@ -194,6 +204,8 @@ impl Updater {
             leaving: UpdateDeparture::default(),
             check: check::Check::default(),
             store_read: false,
+            #[cfg(windows)]
+            restart: None,
         };
         updater.observe(Some(ActiveRelease {
             version: version.to_owned(),
@@ -254,17 +266,63 @@ impl Updater {
         &self.control
     }
 
-    /// Runs a click against the current control and the Session's handshake answer. A switch
-    /// records the version the TUI leaves for in its [`UpdateDeparture`].
-    pub(crate) fn switch(&mut self, marker: bool, negotiated: Option<Generation>) -> UpdateSwitch {
+    /// Runs a click against the current control and the Session's handshake answer. On Windows,
+    /// with the local Session `session` named, the active version decides on a restart first and
+    /// [`Self::take_restart`] reports what followed; a click during that restart changes nothing.
+    /// A switch records the version the TUI leaves for in its [`UpdateDeparture`].
+    pub(crate) fn switch(
+        &mut self,
+        marker: bool,
+        negotiated: Option<Generation>,
+        session: Option<&str>,
+    ) -> UpdateSwitch {
         let (UpdateControl::Ready { version }, Some(active)) = (&self.control, &self.active) else {
             return UpdateSwitch::Unavailable;
         };
-        if !joins(marker, negotiated, (self.generations)(active)) {
+        let joins = joins(marker, negotiated, (self.generations)(active));
+        #[cfg(windows)]
+        {
+            if self.restart.is_some() {
+                return UpdateSwitch::Started;
+            }
+            if let Some(job) =
+                session.and_then(|session| restart::Job::start(active, session.to_owned(), joins))
+            {
+                self.restart = Some((version.clone(), job));
+                return UpdateSwitch::Started;
+            }
+        }
+        #[cfg(not(windows))]
+        let _ = session;
+        if !joins {
             return UpdateSwitch::Waiting;
         }
         self.leaving.set(version.clone());
         UpdateSwitch::Leave
+    }
+
+    /// The next report of the restart a click started, once: [`UpdateSwitch::Restarting`] when it
+    /// began, then [`UpdateSwitch::Leave`] with the version recorded, or [`UpdateSwitch::Waiting`]
+    /// when nothing changed.
+    pub(crate) fn take_restart(&mut self) -> Option<UpdateSwitch> {
+        #[cfg(windows)]
+        {
+            let progress = self.restart.as_ref()?.1.poll()?;
+            Some(match progress {
+                restart::Progress::Restarting => UpdateSwitch::Restarting,
+                restart::Progress::Leave => {
+                    let (version, _) = self.restart.take()?;
+                    self.leaving.set(version);
+                    UpdateSwitch::Leave
+                }
+                restart::Progress::Waiting => {
+                    self.restart = None;
+                    UpdateSwitch::Waiting
+                }
+            })
+        }
+        #[cfg(not(windows))]
+        None
     }
 
     /// Leaves for the store's active version when it is newer than this Client, as a click does,
@@ -390,5 +448,7 @@ fn read_store() -> Option<Option<ActiveRelease>> {
 }
 
 mod check;
+#[cfg(windows)]
+mod restart;
 #[cfg(test)]
 mod tests;

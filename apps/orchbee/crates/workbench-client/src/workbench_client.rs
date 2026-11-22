@@ -558,6 +558,13 @@ impl WorkbenchClient {
             .is_some_and(|native| native.set_rejoining(rejoining))
     }
 
+    /// The next report of a restart a click on Update started, once.
+    pub fn take_update_progress(&mut self) -> Option<crate::release_update::UpdateSwitch> {
+        self.updater
+            .as_mut()
+            .and_then(crate::release_update::Updater::take_restart)
+    }
+
     /// Whether a click on Update chose to leave for a newer version.
     pub fn leaves_for_update(&self) -> bool {
         self.updater
@@ -1108,7 +1115,13 @@ impl TerminalInputPort for WorkbenchClient {
             return crate::release_update::UpdateSwitch::Unavailable;
         };
         let (marker, negotiated) = crate::release_update::session_facts(self.origin.as_ref());
-        updater.switch(marker, negotiated)
+        // The local Session's runtime folder carries its name.
+        let session = self
+            .local_runtime
+            .as_deref()
+            .and_then(std::path::Path::file_name)
+            .and_then(std::ffi::OsStr::to_str);
+        updater.switch(marker, negotiated, session)
     }
 
     fn take_settings_update(&mut self) -> Option<crate::release_update::UpdateRequest> {

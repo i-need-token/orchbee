@@ -1107,7 +1107,8 @@ pub fn render_terminal_shell_with_resize<'a>(
         let update_notice = view.notice().filter(|notice| {
             matches!(
                 notice,
-                crate::client_view::Notice::UpdateWaiting
+                crate::client_view::Notice::UpdateRestarting
+                    | crate::client_view::Notice::UpdateWaiting
                     | crate::client_view::Notice::UpdateUnavailable
             )
         });

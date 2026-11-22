@@ -46,6 +46,8 @@ pub enum Notice {
     PasswordNotSaved,
     /// Go to the Agent that notified found no current Agent card; nothing moved.
     NoNotificationTarget,
+    /// Update restarts the Session's Server and Worker for the active version first.
+    UpdateRestarting,
     /// Update found that the active version cannot join this Session yet; nothing switched.
     UpdateWaiting,
     /// Update found the control no longer Ready, as after the store moved back; nothing switched.

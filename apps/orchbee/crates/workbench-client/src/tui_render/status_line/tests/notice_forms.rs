@@ -310,6 +310,7 @@ fn every_client_notice() -> Vec<Notice> {
         Notice::UnknownPrefix,
         Notice::PointerInputDropped,
         Notice::PasswordNotSaved,
+        Notice::UpdateRestarting,
         Notice::UpdateWaiting,
         Notice::UpdateUnavailable,
     ];
@@ -401,6 +402,7 @@ fn every_client_notice() -> Vec<Notice> {
             | Notice::UnknownPrefix
             | Notice::PointerInputDropped
             | Notice::PasswordNotSaved
+            | Notice::UpdateRestarting
             | Notice::UpdateWaiting
             | Notice::UpdateUnavailable => {}
         }

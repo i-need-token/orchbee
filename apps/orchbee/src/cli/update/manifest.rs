@@ -43,7 +43,7 @@ pub(super) struct Release {
     pub files: Vec<Artifact>,
     /// The `client-server` generations the `client` component lists, when it lists that kind.
     pub client_server: Option<GenerationRange>,
-    /// Every component this updater reads, with its version and security floor.
+    /// Every component this updater reads, with its version, floors and generations.
     pub components: Vec<Component>,
 }
 /// One known component of a release.
@@ -52,6 +52,15 @@ pub(super) struct Component {
     pub version: String,
     /// The lowest version of this component that has no known security defect, when stated.
     pub security_floor: Option<String>,
+    /// The lowest running version of this component that needs no restart to be recommended.
+    pub recommended_floor: Option<String>,
+    pub connections: Connections,
+}
+/// The generations a component lists for the connections a restart decision compares.
+#[derive(Clone, Copy, Default)]
+pub(super) struct Connections {
+    pub client_server: Option<GenerationRange>,
+    pub worker_host: Option<GenerationRange>,
 }
 pub(super) struct Artifact {
     pub path: String,
@@ -185,26 +194,19 @@ fn components(
             return None;
         }
         if KNOWN_COMPONENTS.contains(&id) {
-            let (connections, version, security_floor) = component(value, files)?;
+            let mut component = component(value, files)?;
             if id == "client" {
-                client_server = connections;
+                client_server = component.connections.client_server;
             }
-            known.push(Component {
-                id: id.to_owned(),
-                version,
-                security_floor,
-            });
+            id.clone_into(&mut component.id);
+            known.push(component);
         }
     }
     Some((client_server, known))
 }
 
-/// Answers the component's `client-server` generations, when it lists that kind, its version and
-/// its security floor.
-fn component(
-    value: &Value,
-    files: &[Artifact],
-) -> Option<(Option<GenerationRange>, String, Option<String>)> {
+/// Answers the component, with an empty `id` the caller fills in.
+fn component(value: &Value, files: &[Artifact]) -> Option<Component> {
     let object = closed_object(
         value,
         &["id", "version", "files", "connections"],
@@ -218,6 +220,7 @@ fn component(
         }
     }
     let security_floor = object.get("securityFloor").and_then(semantic_version);
+    let recommended_floor = object.get("recommendedFloor").and_then(semantic_version);
     let listed = object.get("files")?.as_array()?;
     if listed.is_empty() || listed.len() > FILE_COUNT_LIMIT {
         return None;
@@ -230,17 +233,23 @@ fn component(
         }
     }
     let connections = connections(object.get("connections")?.as_object()?)?;
-    Some((connections, version, security_floor))
+    Some(Component {
+        id: String::new(),
+        version,
+        security_floor,
+        recommended_floor,
+        connections,
+    })
 }
 
 /// Each connection kind with its generation range. Kinds this build does not know are validated
 /// and ignored, as unknown components are, so a later connection never makes older updaters refuse.
-/// Answers the `client-server` range, when listed.
-fn connections(object: &Map<String, Value>) -> Option<Option<GenerationRange>> {
+/// Answers the ranges a restart decision compares, when listed.
+fn connections(object: &Map<String, Value>) -> Option<Connections> {
     if object.len() > CONNECTION_LIMIT {
         return None;
     }
-    let mut client_server = None;
+    let mut listed = Connections::default();
     for (kind, value) in object {
         name(kind, 64, false)?;
         let entry = closed_object(value, &["generations"], &[])?;
@@ -249,10 +258,12 @@ fn connections(object: &Map<String, Value>) -> Option<Option<GenerationRange>> {
         let highest = generation(range.get("highest")?)?;
         let range = GenerationRange::new(lowest, highest).ok()?;
         if kind == ConnectionKind::ClientServer.name() {
-            client_server = Some(range);
+            listed.client_server = Some(range);
+        } else if kind == ConnectionKind::WorkerHost.name() {
+            listed.worker_host = Some(range);
         }
     }
-    Some(client_server)
+    Some(listed)
 }
 
 fn generation(value: &Value) -> Option<Generation> {
