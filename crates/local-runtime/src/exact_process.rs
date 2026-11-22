@@ -146,8 +146,10 @@ impl ExactProcess {
             self.identity.pid(),
         )
         .map_err(system)?;
+        // Not InvalidData, which a restart's reservation keeps for a record naming no running
+        // generation.
         if process_observation::identity(&end)? != self.identity {
-            return Err(io::ErrorKind::InvalidData.into());
+            return Err(io::Error::other("the process ID names another process"));
         }
         Ok(end)
     }

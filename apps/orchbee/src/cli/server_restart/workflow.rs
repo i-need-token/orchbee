@@ -6,16 +6,19 @@
 //! successor. A successor that ended names a refusal in its exit code; otherwise, once what the
 //! attempt left in the record is cleared, the record and the Client endpoint tell where the restart
 //! ended: in the successor's Check, after it started its Worker with the running Server keeping or
-//! taking back the Session, or with no Server serving it. Cancelled or out of time once the
-//! successor runs, it stops waiting and leaves the restart to finish or fail by itself.
+//! taking back the Session, or with no Server serving it. Only an endpoint found gone proves that
+//! no Server serves: one that does not answer in time may still have its Server. Cancelled or out of
+//! time once the successor runs, it stops waiting and leaves the restart to finish or fail by
+//! itself.
 
 use super::{FailedPhase, Refusal, Restart};
 use crate::cli::console_interrupt::ArmedSignals;
-use orchbee_connection_handshake::{EnvironmentName, ProcessRole, QueryResult};
+use orchbee_connection_handshake::{EnvironmentName, ProcessRole, ProcessState, QueryResult};
+use orchbee_local_client_protocol::ConnectClientError;
 use orchbee_local_runtime::{
     Cohort, CohortArtifact, DataRoot, JobPlacement, LockAttempt, LogLevel, LogValue,
-    ModeCheckedLocalSessionRendezvous as Rendezvous, ModeCheckedSessionLock, RestartCleared,
-    RestartRefusal, RestartReservation, SessionCatalog, SessionScope,
+    ModeCheckedLocalSessionRendezvous as Rendezvous, ModeCheckedSessionLock, RendezvousError,
+    RestartCleared, RestartRefusal, RestartReservation, SessionCatalog, SessionScope,
 };
 use std::{
     ffi::OsStr,
@@ -34,19 +37,35 @@ const QUERY: Duration = Duration::from_secs(2);
 const ASK: Duration = Duration::from_millis(500);
 /// How long clearing what an ended attempt left may take.
 const CLEAR: Duration = Duration::from_secs(10);
+/// How many queries one look at the Client endpoint makes before a Server that does not answer is
+/// judged.
+const LOOKS: u32 = 3;
+/// The pause between two queries of one look.
+const LOOK_PAUSE: Duration = Duration::from_millis(250);
+/// How long the look once the successor ended may take.
+const LAST_LOOK: Duration = Duration::from_secs(7);
 
 /// Runs one restart until `deadline`. A signal ends the wait as [`Restart::TimedOut`], which the
 /// caller reports as cancelled.
 pub(super) fn restart(deadline: Instant, signals: &mut ArmedSignals) -> Restart {
-    let Some((base, session)) = session() else {
-        return Restart::Refused(Refusal::NotRunning);
+    let (base, session) = match session() {
+        Ok(found) => found,
+        // Without its runtime folder no Server can listen for the Session.
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Restart::Refused(Refusal::NotRunning);
+        }
+        Err(_) => return Restart::Failed(FailedPhase::Start),
     };
     let environment = orchbee_local_runtime::environment_name();
-    match query(&session, &environment, deadline, signals) {
-        Some(answer) if answer.restart_keeps_terminals() == Some(true) => {}
-        Some(_) => return Restart::SessionTooOld,
-        None if cancelled(signals) => return Restart::TimedOut,
-        None => return Restart::Refused(Refusal::NotRunning),
+    match look(&session, &environment, deadline, Some(&mut *signals)) {
+        Endpoint::Answered(answer) if answer.restart_keeps_terminals() == Some(true) => {}
+        Endpoint::Answered(_) | Endpoint::Predates => return Restart::SessionTooOld,
+        Endpoint::Refused => return Restart::Refused(Refusal::Busy),
+        Endpoint::Gone => return Restart::Refused(Refusal::NotRunning),
+        Endpoint::Cancelled => return Restart::TimedOut,
+        // A Server may hold the endpoint without answering in time; the successor's Check asks it
+        // again and decides, whatever its version.
+        Endpoint::Silent => {}
     }
     let Some(start) = Start::prepare(deadline) else {
         return Restart::Failed(FailedPhase::Start);
@@ -79,9 +98,16 @@ pub(super) fn restart(deadline: Instant, signals: &mut ArmedSignals) -> Restart 
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             return Restart::Refused(Refusal::Busy);
         }
-        // The record names no running generation of this Session: it stopped or is stopping.
+        // The record names no running generation of this Session: it stopped, or a stop is
+        // ending it while its Server still answers. A Server that serves as usual beside it
+        // leaves a record no restart can use.
         Err(error) if error.kind() == io::ErrorKind::InvalidData => {
-            return Restart::Refused(Refusal::NotRunning);
+            return match look(&session, &environment, deadline, Some(&mut *signals)) {
+                Endpoint::Gone => Restart::Refused(Refusal::NotRunning),
+                Endpoint::Cancelled => Restart::TimedOut,
+                Endpoint::Answered(answer) if ready(&answer) => Restart::Refused(Refusal::Records),
+                _ => Restart::Refused(Refusal::Busy),
+            };
         }
         Err(_) => return Restart::Failed(FailedPhase::Start),
     };
@@ -174,12 +200,15 @@ impl Start {
     }
 }
 
-/// The Session this invocation names, when its runtime folder exists.
-fn session() -> Option<(PathBuf, Rendezvous)> {
-    let (base, scope) = crate::local_activation::runtime_location().ok()?;
-    let scope = SessionScope::parse(&scope).ok()?;
-    let session = Rendezvous::validate_mode_checked(&base, scope).ok()?;
-    Some((base, session))
+/// The Session this invocation names; `NotFound` when its runtime folder does not exist.
+fn session() -> io::Result<(PathBuf, Rendezvous)> {
+    let (base, scope) = crate::local_activation::runtime_location()?;
+    let scope = SessionScope::parse(&scope).map_err(|_| io::ErrorKind::InvalidInput)?;
+    let session = Rendezvous::validate_mode_checked(&base, scope).map_err(|error| match error {
+        RendezvousError::System { source, .. } => source,
+        _ => io::ErrorKind::InvalidData.into(),
+    })?;
+    Ok((base, session))
 }
 
 fn cancelled(signals: &mut ArmedSignals) -> bool {
@@ -201,6 +230,77 @@ fn query(
         signals.poll_fd(),
     )
     .ok()
+}
+
+/// What one look at the Session's Client endpoint found.
+enum Endpoint {
+    /// A Server answered `query`.
+    Answered(QueryResult),
+    /// A Server refused the query: it holds the endpoint and answers, only not this request now.
+    Refused,
+    /// The Server predates the handshake, so it cannot hand its terminals over.
+    Predates,
+    /// No Server holds the endpoint: two queries in a row found none listening.
+    Gone,
+    /// No Server answered in time, yet the endpoint was not found gone: its Server may be busy.
+    Silent,
+    /// A signal interrupted the look.
+    Cancelled,
+}
+
+/// Looks at the Session's Client endpoint with up to [`LOOKS`] queries before `deadline`, until a
+/// Server answers or the endpoint is found gone twice in a row. `signals`, when given, may end the
+/// look.
+fn look(
+    session: &Rendezvous,
+    environment: &EnvironmentName,
+    deadline: Instant,
+    mut signals: Option<&mut ArmedSignals>,
+) -> Endpoint {
+    let mut gone = 0;
+    for attempt in 0..LOOKS {
+        if attempt > 0 {
+            thread::sleep(LOOK_PAUSE.min(deadline.saturating_duration_since(Instant::now())));
+        }
+        if Instant::now() >= deadline {
+            break;
+        }
+        let answer = orchbee_local_client_protocol::exchange_query_before(
+            session.client_socket_path(),
+            environment.clone(),
+            deadline.min(Instant::now() + QUERY),
+            signals.as_deref().and_then(ArmedSignals::poll_fd),
+        );
+        match answer {
+            Ok(answer) => return Endpoint::Answered(answer),
+            Err(ConnectClientError::Refused(_) | ConnectClientError::Rejected(_)) => {
+                return Endpoint::Refused;
+            }
+            Err(ConnectClientError::PredatesHandshake) => return Endpoint::Predates,
+            Err(ConnectClientError::ConnectFailed(error))
+                if error.kind() == io::ErrorKind::NotFound =>
+            {
+                gone += 1;
+                if gone == 2 {
+                    return Endpoint::Gone;
+                }
+                continue;
+            }
+            Err(_) if signals.as_deref_mut().is_some_and(cancelled) => {
+                return Endpoint::Cancelled;
+            }
+            Err(_) => {}
+        }
+        gone = 0;
+    }
+    Endpoint::Silent
+}
+
+/// Whether the answering Server accepts new work, neither draining nor ending.
+fn ready(answer: &QueryResult) -> bool {
+    answer.processes().first().is_some_and(|server| {
+        server.role == ProcessRole::Server && server.state == ProcessState::Ready
+    })
 }
 
 /// Whether the Server answering is the successor this invocation started.
@@ -229,7 +329,14 @@ fn ended(
     if let Some(refusal) = refusal {
         return match refusal {
             RestartRefusal::Unsupported => Restart::SessionTooOld,
-            RestartRefusal::NotServing => Restart::Refused(Refusal::NotRunning),
+            // The successor could not reach the running Server, which may still serve: it ended in
+            // its Check, and nothing changed.
+            RestartRefusal::NotServing => {
+                match look(session, environment, Instant::now() + LAST_LOOK, None) {
+                    Endpoint::Gone => Restart::Refused(Refusal::NotRunning),
+                    _ => Restart::Failed(FailedPhase::Check),
+                }
+            }
             RestartRefusal::Busy | RestartRefusal::NotRecorded => Restart::Refused(Refusal::Busy),
             RestartRefusal::BackgroundPrograms => Restart::Refused(Refusal::BackgroundPrograms),
             RestartRefusal::Clients => Restart::Refused(Refusal::Clients),
@@ -241,7 +348,12 @@ fn ended(
     // The record names the successor, which ended before it served, or the running Server ended
     // during the restart too: no Server serves, and the next start brings the Session back with
     // every terminal.
-    if matches!(cleared, Ok(RestartCleared::Committed)) || !served(session, environment) {
+    if matches!(cleared, Ok(RestartCleared::Committed))
+        || matches!(
+            look(session, environment, Instant::now() + LAST_LOOK, None),
+            Endpoint::Gone
+        )
+    {
         return Restart::Failed(FailedPhase::Open);
     }
     Restart::Failed(match cleared {
@@ -255,17 +367,6 @@ fn ended(
         // the record cannot be read. The running Server serves either way.
         _ => FailedPhase::Takeover,
     })
-}
-
-/// Whether a Server answers the Session's Client endpoint.
-fn served(session: &Rendezvous, environment: &EnvironmentName) -> bool {
-    orchbee_local_client_protocol::exchange_query_before(
-        session.client_socket_path(),
-        environment.clone(),
-        Instant::now() + QUERY,
-        None,
-    )
-    .is_ok()
 }
 
 /// The namespace owner, waited for until `deadline`.

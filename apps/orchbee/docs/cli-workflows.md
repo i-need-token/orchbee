@@ -133,13 +133,18 @@ workflow, in phase order:
   failure before anything starts.
 - A refusal (exit 3, or 4 when no Server runs) leaves nothing changed: the command removes its
   successor entry and ends the processes it names.
+- No Server runs (`not-running`) only when the Session's Client endpoint is found gone twice in a
+  row. A Server that holds the endpoint without answering in time may still serve: before the
+  restart the successor's Check asks it again, and after it the result names where the restart
+  ended, never `not-running` or `open`.
 - A failure (exit 9) names where the restart ended once the command has cleared its entry: `start`
   when the successor could not be started, `check` when it ended in its Check before starting its
   Worker, `takeover` when it ended later and the running Server keeps or took back the Session, and
-  `open` with no Server serving the Session, after the commit or because the running Server ended
-  too. Every terminal keeps running, and after `open` the next start brings the Session back. The
-  phase comes from the successor entry the command clears, the only trace a successor that was
-  ended leaves: an entry that names a Worker means the running Server may have held the Session.
+  `open` with no Server serving the Session, after the commit or because the running Server's
+  endpoint is gone too. Every terminal keeps running, and after `open` the next start brings the
+  Session back. The phase comes from the successor entry the command clears, the only trace a
+  successor that was ended leaves: an entry that names a Worker means the running Server may have
+  held the Session.
 - The fixed deadline covers the whole command; a timed-out wait (exit 7) leaves the restart running.
 - Ctrl+C stops the wait only (exit 130); the restart continues by itself, and its successor or the
   running Server clears its entry.
