@@ -99,6 +99,8 @@ impl Locale {
         match (self, record) {
             (Self::EnUs, VersionedRecord::Machines) => "The saved machine list".into(),
             (Self::ZhCn, VersionedRecord::Machines) => "已保存的机器列表".into(),
+            (Self::EnUs, VersionedRecord::MachineSpaces) => "The machine Workspace list".into(),
+            (Self::ZhCn, VersionedRecord::MachineSpaces) => "机器工作区列表".into(),
             (Self::EnUs, VersionedRecord::PluginRegistry) => "The plugin registry".into(),
             (Self::ZhCn, VersionedRecord::PluginRegistry) => "插件注册表".into(),
             (Self::EnUs, VersionedRecord::SessionLifecycle) => session.map_or_else(
@@ -130,6 +132,10 @@ impl Locale {
             (Self::ZhCn, VersionedRecord::Machines) => {
                 "不显示已保存的机器，所做更改只保留到 Orchbee 退出。"
             }
+            (Self::EnUs, VersionedRecord::MachineSpaces) => {
+                "A machine's Workspaces show only while it is connected."
+            }
+            (Self::ZhCn, VersionedRecord::MachineSpaces) => "机器的工作区只在连上时显示。",
             (Self::EnUs, VersionedRecord::PluginRegistry) => {
                 "Plugins don't load, and installing or removing plugins is unavailable."
             }

@@ -32,6 +32,8 @@ pub(crate) use backup::{back_up, persist_migration};
 pub enum VersionedRecord {
     /// `internal/state/machines.json`.
     Machines,
+    /// `internal/state/machine-spaces.json`.
+    MachineSpaces,
     /// `internal/plugins/registry.json`.
     PluginRegistry,
     /// `sessions/<session>/session.json`.
@@ -42,8 +44,9 @@ pub enum VersionedRecord {
 
 impl VersionedRecord {
     /// Every native record, in the order `config check` lists them.
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::Machines,
+        Self::MachineSpaces,
         Self::PluginRegistry,
         Self::SessionLifecycle,
         Self::TuiPosition,
@@ -53,6 +56,7 @@ impl VersionedRecord {
     pub const fn token(self) -> &'static str {
         match self {
             Self::Machines => "machines",
+            Self::MachineSpaces => "machine-spaces",
             Self::PluginRegistry => "plugin-registry",
             Self::SessionLifecycle => "session",
             Self::TuiPosition => "tui-position",
@@ -74,6 +78,7 @@ impl VersionedRecord {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Machines => "machines",
+            Self::MachineSpaces => "machine-spaces",
             Self::PluginRegistry => "registry",
             Self::SessionLifecycle => "session",
             Self::TuiPosition => "tui-position",
@@ -84,6 +89,7 @@ impl VersionedRecord {
     pub const fn file_name(self) -> &'static str {
         match self {
             Self::Machines => "machines.json",
+            Self::MachineSpaces => "machine-spaces.json",
             Self::PluginRegistry => "registry.json",
             Self::SessionLifecycle => "session.json",
             Self::TuiPosition => "tui-position.json",
@@ -356,8 +362,8 @@ fn unusable(
 }
 
 /// A versioned record kept as one private JSON file whose writer lock and staging file sit beside
-/// it, named after [`VersionedRecord::name`]: the onboarding and machine records in
-/// `internal/state/` and a Session's TUI position. A read takes no lock and keeps a migration in
+/// it, named after [`VersionedRecord::name`]: the machine records in `internal/state/` and a
+/// Session's TUI position. A read takes no lock and keeps a migration in
 /// memory; [`Self::acquire`] opens the record under the writer lock and persists one first.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VersionedFile {

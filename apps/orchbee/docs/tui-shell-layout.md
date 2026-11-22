@@ -540,6 +540,11 @@ Workspaces outside any Project, in the same machine order. A Workspace on anothe
 short, a machine name over twelve cells shortens first, then the Workspace name down to four
 cells, then the machine name down to `@` and four cells, always in its middle so that its last
 three cells stay. Row and heading menus and drags stay with targets of the machine on screen.
+A machine that is not connected keeps the Workspaces it listed when last read, from this run or
+from [the last-seen list](machines.md#catalog-and-transitions): each of its rows is two lines, the
+name line muted and the machine's state word, such as `Offline`, beneath it, with no location,
+folded Agent states or Close. A machine whose Workspaces answer again is connected whatever the
+hub last said.
 Grouped ordinary and Git-worktree-backed Workspaces share the same level; every Workspace
 owns its Agent children. `machine_spaces::Checkpoint` retains Project IDs and labels from
 the same fenced Snapshot as Workspaces, including empty Projects with their own menu and

@@ -139,6 +139,8 @@ pub(super) struct Manager {
     moves: moving::Mover,
     agents: crate::machine_agents::Collector,
     spaces: crate::machine_spaces::Collector,
+    /// What each saved machine listed when last connected, kept across restarts.
+    last_seen: crate::machine_spaces::LastSeen,
     space_git: Option<bool>,
     wakeup: crate::workbench_client::UiWakeup,
     /// Clients no longer presented, kept until their threads end: dropping one only requests stop
@@ -245,6 +247,7 @@ impl Manager {
             // Host process titles have no publication source; canonical Agent facts also push.
             agents: crate::machine_agents::Collector::new(wakeup.clone(), true),
             spaces: crate::machine_spaces::Collector::new(wakeup.clone(), false),
+            last_seen: crate::machine_spaces::LastSeen::configured(),
             space_git: None,
             wakeup,
             retired: Vec::new(),
@@ -556,6 +559,11 @@ impl Manager {
                 .tick(space_sources, now, crate::machine_spaces::read_metadata)
         };
         change.redraw |= view.machines.observe_spaces(spaces);
+        if self.catalog_ok {
+            let saved: Vec<_> = self.profiles.iter().map(|p| p.id.clone()).collect();
+            self.last_seen
+                .observe(view.machines.fresh_spaces(), &saved, now);
+        }
         // The UI loop runs at least this often, so a hold's bound needs no wake of its own.
         change.redraw |= view.machines.advance_space_holds(now);
         // Failed observers retain their background transport guard until both collectors have
@@ -985,11 +993,24 @@ impl Manager {
                 {
                     report_selection_failure(view, "removed");
                 }
+                let enabled = |profiles: &[Profile]| -> Vec<ProfileId> {
+                    profiles
+                        .iter()
+                        .filter(|p| p.enabled)
+                        .map(|p| p.id.clone())
+                        .collect()
+                };
+                let seed =
+                    !self.catalog_ok || enabled(&self.profiles) != enabled(&catalog.profiles);
                 self.profiles = catalog.profiles;
                 self.catalog_ok = true;
                 self.discovery
                     .reconcile(&self.profiles, Some(catalog.revision), Instant::now());
                 view.machines.replace(&self.profiles);
+                if seed {
+                    view.machines
+                        .seed_last_seen(self.last_seen.checkpoints(&enabled(&self.profiles)));
+                }
                 if view.machines.error == Some("catalog") {
                     view.machines.error = None;
                 }

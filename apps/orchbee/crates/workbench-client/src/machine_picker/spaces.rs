@@ -291,6 +291,90 @@ impl Picker {
         self.rebuild_workspaces(selected);
     }
 
+    /// Lists what each machine showed when this computer last read it, until it answers again.
+    /// The rows read as kept from an earlier answer, so they stay through the machine's absence.
+    pub fn seed_last_seen(
+        &mut self,
+        seen: Vec<(
+            crate::machines::ProfileId,
+            std::sync::Arc<crate::machine_spaces::Checkpoint>,
+        )>,
+    ) -> bool {
+        use crate::machine_spaces::checkpoint::Observation;
+        let mut changed = false;
+        for (id, checkpoint) in seen {
+            let choice = Choice::Remote(id);
+            if self
+                .space_observations
+                .iter()
+                .any(|(machine, _)| machine == &choice)
+                || !self
+                    .rows
+                    .iter()
+                    .any(|row| row.enabled && row.choice == choice)
+            {
+                continue;
+            }
+            self.space_observations
+                .push((choice.clone(), Observation::Ready(checkpoint)));
+            self.space_stale.push(choice);
+            changed = true;
+        }
+        if changed {
+            let selected = self.selection();
+            self.rebuild_workspaces(selected);
+        }
+        changed
+    }
+
+    /// Each saved machine's checkpoint as it answered last, without those kept from earlier.
+    pub fn fresh_spaces(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &crate::machines::ProfileId,
+            &crate::machine_spaces::Checkpoint,
+        ),
+    > {
+        use crate::machine_spaces::checkpoint::Observation;
+        self.space_observations
+            .iter()
+            .filter_map(|(choice, observation)| match (choice, observation) {
+                (Choice::Remote(id), Observation::Ready(checkpoint))
+                    if !self.space_stale.contains(choice) =>
+                {
+                    Some((id, checkpoint.as_ref()))
+                }
+                _ => None,
+            })
+    }
+
+    /// The state word of a machine that is not connected, whose rows then read muted: what the
+    /// hub reports of it, or `unknown` while its rows are kept from an earlier answer and the hub
+    /// reports nothing. This computer, and a machine whose Workspaces just answered, are connected
+    /// whatever the hub last said.
+    pub(crate) fn unconnected_state(&self, choice: &Choice) -> Option<&'static str> {
+        use crate::machine_overview::Observation;
+        if *choice == Choice::Local
+            || self
+                .fresh_spaces()
+                .any(|(id, _)| matches!(choice, Choice::Remote(c) if c == id))
+        {
+            return None;
+        }
+        match &self
+            .rows
+            .iter()
+            .find(|row| &row.choice == choice)?
+            .observation
+        {
+            Some(Observation::Online(_)) => None,
+            Some(observation) if observation.key() == "online" => None,
+            Some(observation) => Some(observation.key()),
+            None => self.space_stale.contains(choice).then_some("unknown"),
+        }
+    }
+
     pub(crate) fn space_checkpoint_stale(&self, row: &Row) -> bool {
         self.space_stale.contains(&row.choice)
             || self

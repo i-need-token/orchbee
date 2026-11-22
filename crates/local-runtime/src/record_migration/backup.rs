@@ -57,6 +57,11 @@ pub fn inspect_records(root: &DataRoot, session: Option<&str>) -> Vec<RecordNoti
     let mut found = vec![
         (VersionedRecord::Machines, root.state(), "machines.json"),
         (
+            VersionedRecord::MachineSpaces,
+            root.state(),
+            "machine-spaces.json",
+        ),
+        (
             VersionedRecord::PluginRegistry,
             root.plugins(),
             "registry.json",

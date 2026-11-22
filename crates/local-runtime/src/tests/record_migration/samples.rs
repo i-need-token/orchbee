@@ -28,7 +28,9 @@ fn version(bytes: &[u8]) -> u64 {
 const fn samples_owner(record: VersionedRecord) -> &'static str {
     match record {
         VersionedRecord::PluginRegistry | VersionedRecord::SessionLifecycle => "local-runtime",
-        VersionedRecord::Machines | VersionedRecord::TuiPosition => "workbench-client",
+        VersionedRecord::Machines
+        | VersionedRecord::MachineSpaces
+        | VersionedRecord::TuiPosition => "workbench-client",
     }
 }
 

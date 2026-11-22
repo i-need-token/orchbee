@@ -851,8 +851,10 @@ impl Picker {
                         SidebarRow::Agent { .. } => false,
                     },
                     create: menu && matches!(&target, SidebarTarget::Project { .. }),
-                    // Session Close requires the endpoint menu capability.
+                    // Session Close requires the endpoint menu capability, and a machine that
+                    // is not connected offers no Close.
                     close: menu
+                        && self.unconnected_state(target.machine()).is_none()
                         && matches!(
                             &target,
                             SidebarTarget::Context {

@@ -20,6 +20,7 @@ use std::{
 const MAXIMUM_ROWS: usize = 4096;
 const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 pub(crate) mod checkpoint;
+pub mod last_seen;
 pub(crate) mod navigation_projection;
 pub use checkpoint::Checkpoint;
 pub(crate) use checkpoint::{Git, HeldRow, ProjectSummary, Row};

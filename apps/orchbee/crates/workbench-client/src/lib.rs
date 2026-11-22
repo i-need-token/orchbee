@@ -330,7 +330,9 @@ pub mod application {
     }
 
     pub mod machine_spaces {
-        pub use crate::machine_spaces::{Collector, read_git_of, read_metadata, read_with_git};
+        pub use crate::machine_spaces::{
+            Collector, last_seen::LastSeen, read_git_of, read_metadata, read_with_git,
+        };
     }
 
     pub mod machine_status {

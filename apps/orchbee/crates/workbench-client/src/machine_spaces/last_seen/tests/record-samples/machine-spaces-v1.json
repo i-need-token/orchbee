@@ -1,0 +1,28 @@
+{
+	"machines": {
+		"6f1c2a9e4b7d40e8a3c5d1f2e0b9a874": {
+			"projects": [
+				{
+					"id": "3b8e1f0c9a2d47e6b5c4d3e2f1a09b87",
+					"label": "orchbee"
+				}
+			],
+			"sessionId": "8c7d6e5f4a3b29180716253443526170",
+			"workspaces": [
+				{
+					"id": "1a2b3c4d5e6f40718293a4b5c6d7e8f9",
+					"label": "api",
+					"projectId": "3b8e1f0c9a2d47e6b5c4d3e2f1a09b87",
+					"terminalContextId": "9f8e7d6c5b4a43210fedcba987654321"
+				},
+				{
+					"id": "2b3c4d5e6f7a48192a3b4c5d6e7f8091",
+					"label": null,
+					"projectId": null,
+					"terminalContextId": "8e7d6c5b4a3f42100edcba9876543210"
+				}
+			]
+		}
+	},
+	"version": 1
+}

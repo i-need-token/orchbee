@@ -54,6 +54,18 @@ struct FolderPart {
 }
 
 impl ProjectedSidebarLines {
+    /// Paints every cell muted, glyphs included: a row of a machine that is not connected shows
+    /// what it was when last seen.
+    fn mute(&mut self, theme: &Theme) {
+        let muted = theme.style(Role::TextMuted);
+        for line in self.lines.iter_mut().chain(&mut self.trailing) {
+            line.style = line.style.patch(muted);
+            for span in &mut line.spans {
+                span.style = span.style.patch(muted);
+            }
+        }
+    }
+
     pub(in crate::tui_render) fn new(lines: Vec<Line<'static>>) -> Self {
         Self {
             lines,
@@ -137,6 +149,8 @@ struct Context<'a> {
     directory: Option<&'a str>,
     /// That directory by its folder's name, never the whole path.
     folder: Option<String>,
+    /// The state word of the row's machine while it is not connected.
+    unconnected: Option<&'static str>,
 }
 impl<'a> Context<'a> {
     fn new(view: &'a ClientView, row: &'a Row, locale: Locale) -> Self {
@@ -165,6 +179,10 @@ impl<'a> Context<'a> {
             held,
             directory,
             folder,
+            unconnected: view
+                .machines
+                .unconnected_state(&row.choice)
+                .map(|key| locale.machine_picker_text(key)),
         }
     }
     fn git(&self) -> Option<&'a crate::machine_spaces::Git> {
@@ -489,7 +507,26 @@ fn lines(
         trailing.push(Line::default());
         slots.push(first_slot(0));
     }
-    if shape.folded {
+    if let Some(word) = context.unconnected {
+        // A machine that is not connected: the identity line reads muted, and its state word
+        // takes the second line in place of the location and the folded Agents' states.
+        lines.truncate(1);
+        trailing.truncate(1);
+        slots.truncate(1);
+        names.retain(|(line, _)| *line == 0);
+        folder = folder.filter(|part| part.line == 0);
+        let muted = theme.style(Role::TextMuted);
+        for span in &mut lines[0].spans {
+            span.style = span.style.patch(muted);
+        }
+        trailing[0] = Line::default();
+        lines.push(Line::from(Span::styled(
+            display_label(word),
+            text_style(Role::TextSecondary),
+        )));
+        trailing.push(Line::default());
+        slots.push(0);
+    } else if shape.folded {
         // The renderer paints the Agent status line over this reserved second line.
         names.retain(|(line, _)| *line != 1);
         folder = folder.filter(|part| part.line != 1);
@@ -526,6 +563,9 @@ fn lines(
 /// A folded Workspace always has a second line for its Agents' status line.
 fn context_height(view: &ClientView, row: &Row, locale: Locale, folded: bool) -> u16 {
     let context = Context::new(view, row, locale);
+    if context.unconnected.is_some() {
+        return 2;
+    }
     let mut height = 0;
     for tokens in view.machines.space_settings().rows() {
         if context.keeps(tokens, height == 0) {
@@ -1446,7 +1486,10 @@ pub(super) fn render(
         };
         let markers = if unread { UNREAD_CELLS } else { 0 };
         let status_agents = match row {
-            SidebarRow::Context { row: context, .. } if folded(view, row) => {
+            SidebarRow::Context { row: context, .. }
+                if folded(view, row)
+                    && view.machines.unconnected_state(&context.choice).is_none() =>
+            {
                 view.machines.workspace_agent_rows(context)
             }
             _ => Vec::new(),
@@ -1480,13 +1523,19 @@ pub(super) fn render(
                     folded: folded(view, row),
                 },
             ),
-            SidebarRow::Agent { row, .. } => agent_tokens::projection(
-                view,
-                row,
-                locale,
-                theme,
-                text_width.saturating_sub(markers),
-            ),
+            SidebarRow::Agent { row, .. } => {
+                let mut projected = agent_tokens::projection(
+                    view,
+                    row,
+                    locale,
+                    theme,
+                    text_width.saturating_sub(markers),
+                );
+                if view.machines.unconnected_state(&row.choice).is_some() {
+                    projected.mute(theme);
+                }
+                projected
+            }
         };
         let names = std::mem::take(&mut projected_lines.names);
         let folder = projected_lines.folder.take();

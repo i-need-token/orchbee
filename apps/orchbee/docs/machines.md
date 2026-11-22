@@ -22,6 +22,15 @@ cannot be routed to, chosen, or discovered, and leaves every other machine usabl
 credential, password, port, key path, or the remote platform. Duplicate target/session pairs may
 have distinct IDs. At most 128 KiB is admitted.
 
+`internal/state/machine-spaces.json`, the last-seen list, keeps what each enabled saved machine
+last answered of its Workspaces: its Session ID, Projects by ID and label, and Workspaces by ID,
+terminal context, label and Project. The TUI reads it once when it starts, lists an entry for an
+enabled machine that has not answered yet, writes the whole list two seconds after an answer
+changes it, and drops the entries of machines no longer saved, so a machine that is not connected
+still lists its Workspaces after a restart. The last writer wins; a change in the two seconds
+before the TUI exits is not kept. A list this build cannot use reads as empty and is never
+rewritten; at most 1 MiB is admitted.
+
 Every command that names a saved machine takes `<id|label>` and resolves it with the one rule
 that `--machine` uses: an exact ID first, otherwise the only machine with that exact,
 case-sensitive label. No match is `not-found`; several machines with that label are
