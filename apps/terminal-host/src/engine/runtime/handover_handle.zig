@@ -90,7 +90,7 @@ pub fn Type(comptime Runtime: type) type {
         pub fn prepareRecovery(
             allocator: std.mem.Allocator,
             recovery: handover_recover.Recovery,
-            console: handover.ConsoleFacts,
+            console: ?handover.ConsoleFacts,
             launch_kind: platform.process.LaunchKind,
         ) !handover_restore.Prepared {
             return handover_recover.prepare(allocator, recovery, console, launch_kind);

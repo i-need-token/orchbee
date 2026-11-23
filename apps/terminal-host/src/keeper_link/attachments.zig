@@ -209,7 +209,7 @@ pub const Attachments = struct {
 
     /// Queues a move request on `keeper`'s link; without one, completes it as `failed` at once.
     pub fn submit(self: *const Attachments, keeper: message.Process, request: *moves.Request) void {
-        if (comptime !is_windows) return request.complete(.failed);
+        if (comptime !supported) return request.complete(.failed);
         const link = self.find(keeper) orelse return request.complete(.failed);
         _ = moves.submit(link, request);
     }

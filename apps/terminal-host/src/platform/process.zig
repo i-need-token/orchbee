@@ -1,3 +1,4 @@
+const std = @import("std");
 const builtin = @import("builtin");
 
 const posix_process = @import("process_posix.zig");
@@ -64,16 +65,29 @@ pub fn resumeRead(process: *Process) !void {
     return process.pty.resumeRead();
 }
 
-/// Whether terminals can move to and from this Host: only Windows Hosts hold them in a Keeper.
+/// Whether terminals can move to and from this Host: only Windows Hosts move them yet.
 pub const moves_supported = builtin.os.tag == .windows;
 
-/// A held console whose duplicates a claim checked, as `Process.adopt` takes it.
-pub const Held = if (moves_supported) Process.Held else void;
+/// Whether this Host recovers a program the Keeper kept after its Host ended.
+pub const recovery_supported = moves_supported or builtin.os.tag == .macos;
+
+/// A held console whose duplicates a claim checked, or on macOS a recovered PTY master and its
+/// leader, as `Process.adopt` takes it.
+pub const Held = if (recovery_supported) Process.Held else void;
+
+/// Closes what a `Held` holds, for an adoption that did not take it.
+pub fn closeHeld(held: *Held) void {
+    switch (builtin.os.tag) {
+        .windows => @import("keeper.zig").handles.closeAll(&held.duplicates),
+        .macos => _ = std.posix.system.close(held.master),
+        else => unreachable,
+    }
+}
 
 /// Wakes the terminal's wait thread without its program's end, so a terminal that leaves this Host
-/// joins it. Only a Host that moves terminals calls it.
+/// joins it. Only a Host that moves or recovers terminals calls it.
 pub fn stopWait(process: *Process) void {
-    if (comptime !moves_supported) unreachable;
+    if (comptime !recovery_supported) unreachable;
     process.stopWait();
 }
 

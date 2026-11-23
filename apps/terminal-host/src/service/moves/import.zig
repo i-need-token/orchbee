@@ -229,7 +229,9 @@ fn committed(env: Env, slot: *?*Import) void {
     const facts = self.job.facts.?;
     self.job.facts = null;
     self.held_attachments = facts.held_attachments;
-    if (facts.console) |console| {
+    // A macOS recovery has no console: its claim names the leader the build checked.
+    const program: @FieldType(restore_build.Job, "leader") = if (facts.console) |console| .{ .pid = console.program.pid, .created = console.program.created } else self.job.leader;
+    if (program) |leader| {
         const inputs = facts.terminal.inputs;
         self.runtime = env.aggregate.runtimeFor(self.terminal_id).?;
         self.keeper = self.job.keeper.?;
@@ -238,7 +240,7 @@ fn committed(env: Env, slot: *?*Import) void {
             .claim = .{
                 .holding = inputs.holding_id.?,
                 .mark = inputs.mark_id.?,
-                .program = .{ .pid = console.program.pid, .created = console.program.created },
+                .program = .{ .pid = leader.pid, .created = leader.created },
                 .terminal = .{
                     .creation_id = self.creation_id.bytes,
                     .host_epoch = env.aggregate.hostEpoch().bytes,

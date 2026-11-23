@@ -20,6 +20,17 @@ const ExitResult = process_types.ExitResult;
 /// How often a leader no link parents any more is checked for its end.
 const end_poll_ns = 50 * std.time.ns_per_ms;
 
+/// A recovered terminal's PTY master and leader, which the claim checks passed: the leader is not
+/// this Host's child. `Process.adopt` owns the master once it returns.
+pub const Held = struct {
+    master: std.posix.fd_t,
+    leader: struct { pid: std.posix.pid_t, created: u64 },
+    /// The Keeper parents the leader.
+    parented: bool,
+    launch_kind: process_types.LaunchKind,
+    interactive_shell: bool,
+};
+
 /// A Keeper that starts a terminal's leader for the Host and parents it.
 pub const Spawn = struct {
     context: *anyopaque,
@@ -78,6 +89,11 @@ pub const Record = struct {
     parent_serial: u64 = 0,
     exit: ?ExitResult = null,
     reap: enum { idle, requested, done } = .idle,
+    /// Set when the terminal leaves this Host: the wait for the leader's end returns.
+    stopped: bool = false,
+    /// A recovered leader the Keeper parents, until the link that claims its holding becomes its
+    /// parent: the Keeper keeps it once it ends.
+    claims_parent: bool = false,
 
     /// A record for the PTY whose master is `master`; its slave name is read now.
     pub fn create(allocator: std.mem.Allocator, master: std.posix.fd_t) !*Record {
@@ -111,6 +127,33 @@ pub const Record = struct {
         self.leader_created = created;
         self.parent = .parented;
         self.parent_serial = serial;
+        self.claims_parent = false;
+        self.condition.broadcast();
+    }
+
+    /// Whether a process keeps the ended leader, so its session identifier stays its own: this Host
+    /// for a leader it forked, or the Keeper that parents it, until its `reap`.
+    pub fn keepsLeader(self: *Record, adopted: bool) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return switch (self.parent) {
+            .none => !adopted or self.claims_parent,
+            .parented => true,
+            .released, .lost => false,
+        };
+    }
+
+    /// Whether the leader still runs with its recorded start time.
+    pub fn leaderRuns(self: *const Record, leader: std.posix.pid_t) bool {
+        return self.leader_created != 0 and keeper_darwin.processStart(@intCast(leader)) == self.leader_created;
+    }
+
+    /// The terminal leaves this Host: the wait for its leader's end returns null.
+    pub fn stop(self: *Record) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.stopped = true;
+        self.condition.broadcast();
     }
 
     pub fn isParented(self: *Record) bool {
@@ -160,16 +203,24 @@ pub const Record = struct {
     }
 
     /// The wait thread: the parented leader's exit, once the parent sent it. A leader no link
-    /// parents any more is watched by its start time and ends with an unknown status.
-    pub fn awaitExit(self: *Record, leader: std.posix.pid_t) ExitResult {
-        {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            while (self.exit == null and self.parent == .parented) self.condition.wait(&self.mutex);
+    /// parents, such as a recovered one its Host forked, is watched by its start time and ends with
+    /// an unknown status. Null once the terminal leaves this Host.
+    pub fn awaitExit(self: *Record, leader: std.posix.pid_t) ?ExitResult {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (true) {
+            if (self.stopped) return null;
             if (self.exit) |status| return status;
+            if (self.parent == .parented or (self.parent == .none and self.claims_parent)) {
+                self.condition.wait(&self.mutex);
+                continue;
+            }
+            self.mutex.unlock();
+            const runs = self.leaderRuns(leader);
+            if (runs) monotonic.sleep(end_poll_ns);
+            self.mutex.lock();
+            if (!runs and !self.stopped and self.exit == null and self.parent != .parented) return .{ .unknown = 0 };
         }
-        while (keeper_darwin.processStart(@intCast(leader)) == self.leader_created) monotonic.sleep(end_poll_ns);
-        return .{ .unknown = 0 };
     }
 
     /// The identity release: asks the parent to reap the leader and waits until it did, or until

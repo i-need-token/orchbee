@@ -49,7 +49,8 @@ pub const Prepared = struct {
         self.release(false);
     }
 
-    /// `adopted` is comptime, since only `start`, on a Host that moves terminals, adopts a console.
+    /// `adopted` is comptime, since only `start`, on a Host that moves or recovers terminals, adopts
+    /// a program.
     fn release(self: *Prepared, comptime adopted: bool) void {
         const runtime = self.runtime;
         const allocator = runtime.allocator;
@@ -63,7 +64,8 @@ pub const Prepared = struct {
 
 /// How a prepared terminal reaches its program.
 pub const Program = union(enum) {
-    /// A running terminal's held console, whose duplicates the claim checks passed.
+    /// A running terminal's held console, whose duplicates the claim checks passed, or on macOS a
+    /// recovered PTY master and its leader.
     held: pty_process.Held,
     /// A settled terminal, whose program ended on the old Host.
     settled,
@@ -142,18 +144,20 @@ pub fn prepare(allocator: std.mem.Allocator, record: []const u8) !Prepared {
     };
 }
 
-/// Starts a prepared terminal. A running one adopts its held console and starts every worker
-/// behind the startup gate, held for the move until its claim. `start` owns the duplicates: on
-/// failure they close and nothing remains of the runtime. A settled one starts nothing.
+/// Starts a prepared terminal. A running one adopts its held program and starts every worker
+/// behind the startup gate, held for the move until its claim. `start` owns what the program holds:
+/// on failure it closes and nothing remains of the runtime. A settled one starts nothing.
 pub fn start(prepared: *Prepared, program: Program, spawner: anytype) !void {
-    // Only a Host that moves terminals imports one.
-    if (comptime !pty_process.moves_supported) unreachable;
+    // Only a Host that moves or recovers terminals imports one.
+    if (comptime !pty_process.recovery_supported) unreachable;
     const self = prepared.runtime;
     switch (program) {
-        .settled => settle(self, prepared.facts.terminal),
+        // Only a moved record arrives settled.
+        .settled => if (comptime pty_process.moves_supported) settle(self, prepared.facts.terminal) else unreachable,
         .held => |held| {
+            var owned = held;
             self.process = pty_process.Process.adopt(self.allocator, held) catch |err| {
-                platform.keeper.handles.closeAll(&held.duplicates);
+                pty_process.closeHeld(&owned);
                 prepared.abandon();
                 return err;
             };

@@ -1,5 +1,7 @@
 //! Move requests on a Keeper link: `mark`, `resume`, `inspect` with the pull of the seven
-//! duplicates or of a program's, `claim`, and `decline`. Their maker, the dispatch thread or a restore build, owns
+//! duplicates or of a program's, `claim`, and `decline`. A macOS link makes only a recovery's:
+//! `inspect`, whose reply carries the master, `claim`, `decline`, and `forget`; a claimed holding
+//! whose leader the Keeper parents makes the link its parent. Their maker, the dispatch thread or a restore build, owns
 //! each request and keeps it until the link completes it; the link thread makes the request, one
 //! at a time with the holds and releases, and completes every request it has not made once the
 //! link ends. A completion wakes the service loop, which polls; a build waits.
@@ -18,8 +20,14 @@ const message = keeper_protocol.message;
 const thread_sync = platform.thread_sync;
 const handles = platform.keeper.handles;
 const is_windows = builtin.os.tag == .windows;
+const is_macos = builtin.os.tag == .macos;
+const supported = is_windows or is_macos;
 const Gate = platform.keeper.Gate;
-const Link = if (is_windows) @import("link_windows.zig").Link else void;
+const Link = switch (builtin.os.tag) {
+    .windows => @import("link_windows.zig").Link,
+    .macos => @import("link_darwin.zig").Link,
+    else => void,
+};
 
 pub const Body = union(enum) {
     mark: message.Mark,
@@ -35,8 +43,31 @@ pub const Body = union(enum) {
     forget: *Gate,
 };
 
-/// What `inspect` answered and the handles this Host pulled after it.
-pub const Inspected = struct {
+/// What `inspect` answered and the handles this Host pulled after it; on macOS, the PTY holding's
+/// facts and the master its reply carried.
+pub const Inspected = if (is_windows) WindowsInspected else PtyInspected;
+
+pub const PtyInspected = struct {
+    /// The terminal the holding last ran as.
+    terminal: message.Terminal,
+    /// The leader, as the Keeper checked it at its hold.
+    program: message.Process,
+    launch_kind: platform.process.LaunchKind,
+    /// The master's duplicate; the request's maker owns it.
+    master: std.posix.fd_t,
+    slave: [message.pty.maximum_slave_bytes]u8,
+    slave_length: usize,
+    /// The Keeper parents the leader.
+    parented: bool,
+    /// The parented leader ended; the Keeper keeps it until the owner's `reap`.
+    ended: bool,
+
+    pub fn slaveName(self: *const PtyInspected) []const u8 {
+        return self.slave[0..self.slave_length];
+    }
+};
+
+const WindowsInspected = struct {
     /// The terminal the holding last ran as.
     terminal: message.Terminal,
     program: message.Process,
@@ -119,7 +150,7 @@ pub const Request = struct {
 /// Queues `request` on `link`; false when the link no longer makes requests, and then the request
 /// is already completed as `failed`.
 pub fn submit(link: *Link, request: *Request) bool {
-    if (comptime !is_windows) unreachable;
+    if (comptime !supported) unreachable;
     {
         link.mutex.lock();
         defer link.mutex.unlock();
@@ -136,7 +167,7 @@ pub fn submit(link: *Link, request: *Request) bool {
 
 /// Completes every queued request as `failed`; the link makes no more.
 pub fn completeAll(link: *Link) void {
-    if (comptime !is_windows) unreachable;
+    if (comptime !supported) unreachable;
     var taken = taken: {
         link.mutex.lock();
         defer link.mutex.unlock();
@@ -150,7 +181,7 @@ pub fn completeAll(link: *Link) void {
 
 /// Makes every queued request in order, on the link thread.
 pub fn serve(link: *Link) void {
-    if (comptime !is_windows) unreachable;
+    if (comptime !supported) unreachable;
     while (next(link)) |request| request.complete(make(link, request.body));
 }
 
@@ -163,14 +194,19 @@ fn next(link: *Link) ?*Request {
 
 fn make(link: *Link, body: Body) Result {
     switch (body) {
-        .mark => |mark| return applied(link.call(.{ .mark = mark })),
+        .mark => |mark| {
+            if (comptime !is_windows) unreachable;
+            return applied(callLink(link, .{ .mark = mark }));
+        },
         .@"resume" => |item| {
-            const result = answered(link.call(.{ .@"resume" = item.marked }));
+            if (comptime !is_windows) unreachable;
+            const result = answered(callLink(link, .{ .@"resume" = item.marked }));
             if (claimedOutcome(result)) forget(link, item.gate);
             return result;
         },
         .inspect => |marked| {
-            const reply = switch (link.call(.{ .inspect = marked })) {
+            if (comptime is_macos) return inspectPty(link, marked);
+            const reply = switch (callLink(link, .{ .inspect = marked })) {
                 .reply => |reply| reply,
                 else => |other| return unanswered(other),
             };
@@ -198,7 +234,8 @@ fn make(link: *Link, body: Body) Result {
             } };
         },
         .inspect_program => |marked| {
-            const reply = switch (link.call(.{ .inspect = marked })) {
+            if (comptime !is_windows) unreachable;
+            const reply = switch (callLink(link, .{ .inspect = marked })) {
                 .reply => |reply| reply,
                 else => |other| return unanswered(other),
             };
@@ -227,7 +264,7 @@ fn make(link: *Link, body: Body) Result {
         .claim => |item| {
             // The adopted slot must be tracked, so the room is taken before the claim is sent.
             link.held.ensureUnusedCapacity(link.allocator, 1) catch return .failed;
-            const result = applied(link.call(.{ .claim = item.claim }));
+            const result = applied(callLink(link, .{ .claim = item.claim }));
             if (result == .done) adopt(link, item.gate, item.claim.holding);
             return result;
         },
@@ -237,11 +274,52 @@ fn make(link: *Link, body: Body) Result {
         },
         .decline => |item| {
             link.held.ensureUnusedCapacity(link.allocator, 1) catch return .failed;
-            const result = answered(link.call(.{ .decline = item.marked }));
+            const result = answered(callLink(link, .{ .decline = item.marked }));
             if (claimedOutcome(result)) if (item.gate) |gate| adopt(link, gate, item.marked.holding);
             return result;
         },
     }
+}
+
+/// One request on the link thread; a macOS link's requests here carry no descriptor.
+fn callLink(link: *Link, body: message.Request.Body) Link.Outcome {
+    return if (comptime is_macos) link.call(body, &.{}) else link.call(body);
+}
+
+/// `inspect` of a PTY holding on macOS: the reply's facts, and the master it carried.
+fn inspectPty(link: *Link, marked: message.Marked) Result {
+    const reply = switch (callLink(link, .{ .inspect = marked })) {
+        .reply => |reply| reply,
+        else => |other| return unanswered(other),
+    };
+    const master = link.connection.?.takeReceived();
+    const inspection = switch (reply) {
+        .inspect_pty => |inspection| inspection,
+        .refused => |reason| return .{ .refused = reason },
+        else => {
+            if (master) |descriptor| platform.posix_compat.close(descriptor);
+            return .unsupported;
+        },
+    };
+    const facts = inspection.facts;
+    const descriptor = master orelse return .pull_failed;
+    if (facts.slave.len > message.pty.maximum_slave_bytes) {
+        platform.posix_compat.close(descriptor);
+        return .pull_failed;
+    }
+    // The slave's name borrows the call's arena, so it is copied.
+    var inspected: PtyInspected = .{
+        .terminal = facts.terminal,
+        .program = facts.leader,
+        .launch_kind = launchKind(facts.launch),
+        .master = descriptor,
+        .slave = undefined,
+        .slave_length = facts.slave.len,
+        .parented = inspection.parented,
+        .ended = inspection.ended != null,
+    };
+    @memcpy(inspected.slave[0..facts.slave.len], facts.slave);
+    return .{ .inspected = inspected };
 }
 
 /// The launch name `hold` reported, such as `managed-powershell`, as this Host's kind.
@@ -312,4 +390,9 @@ fn forget(link: *Link, gate: *Gate) void {
 fn adopt(link: *Link, gate: *Gate, holding: [16]u8) void {
     gate.adopt(link.index, link.serial, link.wake, holding);
     link.held.appendAssumeCapacity(.{ .gate = gate, .holding = holding });
+    // A claimed leader the Keeper parents is reaped through this link from now on.
+    if (comptime is_macos) {
+        const record: *platform.keeper.parent.Record = @fieldParentPtr("gate", gate);
+        if (record.claims_parent) record.parentedBy(link.serial, record.leader_created);
+    }
 }

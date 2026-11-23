@@ -64,6 +64,19 @@ pub const PosixPty = if (builtin.os.tag == .windows) void else struct {
         };
     }
 
+    /// A PTY from the master of a terminal another Host opened, which a Keeper passed on; there
+    /// is no slave. On error the caller still owns `master`.
+    pub fn adopt(master: posix.fd_t) !PosixPty {
+        try setCloseOnExec(master);
+        const abort_pipe = try posix_compat.pipe2(.{ .CLOEXEC = true });
+        return .{
+            .abort_read_fd = abort_pipe[0],
+            .abort_write_fd = abort_pipe[1],
+            .master = master,
+            .slave = null,
+        };
+    }
+
     pub fn deinit(self: *PosixPty) void {
         if (self.slave) |slave| _ = posix.system.close(slave);
         self.closeMaster();

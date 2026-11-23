@@ -4,7 +4,9 @@
 //! the seven duplicates, checks them against the record and the Keeper's facts, packs the console,
 //! and creates the threads behind the startup gate, which only the claim opens. A settled terminal
 //! needs none of that. A recovery has no record: it inspects first, checks the duplicates against
-//! the Keeper's facts and the identity the Worker named, and builds a fresh engine. The dispatch
+//! the Keeper's facts and the identity the Worker named, and builds a fresh engine; on macOS the
+//! `inspect` carries the PTY master, which must still be its slave's, and the leader must still run
+//! or be kept ended by the Keeper. Only Windows Hosts restore an import. The dispatch
 //! thread commits what it built, abandons what failed, and at teardown discards a built terminal
 //! without a `decline`.
 //!
@@ -64,6 +66,8 @@ pub const Job = struct {
     keeper: ?Keeper = null,
     /// Why the dispatch thread could not hand the `inspect` to a Keeper.
     unsent: ?Details = null,
+    /// A macOS recovery's leader, which the claim names.
+    leader: ?@FieldType(Inspected, "program") = null,
     failed: ?Details = null,
     facts: ?Facts = null,
     outcome: Outcome = .building,
@@ -80,7 +84,7 @@ pub const Job = struct {
     /// The build, on the creator thread. On error `failure` names the refusal and nothing remains.
     pub fn run(self: *Job) !*TerminalRuntime {
         return switch (self.source) {
-            .record => |record| self.restore(record),
+            .record => |record| if (comptime platform.process.moves_supported) self.restore(record) else unreachable,
             .recovery => |recovery| self.recover(recovery),
         };
     }
@@ -104,18 +108,15 @@ pub const Job = struct {
     /// A recovery: the claim checks against the Keeper's facts alone, then a fresh engine at the
     /// Worker's size. The holding must name this Host's epoch and the terminal the Worker named.
     fn recover(self: *Job, recovery: Recovery) !*TerminalRuntime {
-        if (comptime !platform.process.moves_supported) unreachable;
+        if (comptime !platform.process.recovery_supported) unreachable;
+        if (comptime builtin.os.tag == .macos) return self.recoverPty(recovery);
         var inspected = try self.inspect(recovery.holding, recovery.mark);
-        const identity = recovery.identity;
-        const terminal = inspected.terminal;
         const build = builds.find(inspected.console_build);
         const known = if (build) |entry|
             entry.signal_format == inspected.signal_format and entry.signal_format == builds.own.signal_format
         else
             false;
-        const named = std.mem.eql(u8, &terminal.creation_id, &identity.creation_id) and
-            std.mem.eql(u8, &terminal.host_epoch, &identity.host_epoch) and
-            std.mem.eql(u8, &terminal.terminal_id, &identity.terminal_id);
+        const named = namesTerminal(inspected.terminal, recovery.identity);
         const program: handles.Identity = .{ .pid = inspected.program.pid, .created = inspected.program.created };
         const host: handles.Identity = .{ .pid = inspected.console.pid, .created = inspected.console.created };
         if (!known or !named or !handles.matches(inspected.duplicates, program, host) or
@@ -143,6 +144,44 @@ pub const Job = struct {
         } }) catch |err| return self.fail(startFailure(err), err);
         self.facts = prepared.facts;
         return runtime;
+    }
+
+    /// A macOS recovery: the master the `inspect` carried must still be its slave's, and the leader
+    /// must still run with its start time, or have ended under the Keeper that parents it, which
+    /// keeps it until this Host's `reap`.
+    fn recoverPty(self: *Job, recovery: Recovery) !*TerminalRuntime {
+        const inspected = try self.inspect(recovery.holding, recovery.mark);
+        const leader = inspected.program;
+        const darwin = platform.keeper.darwin;
+        const kept = inspected.parented and inspected.ended;
+        if (!namesTerminal(inspected.terminal, recovery.identity) or
+            !darwin.masterOf(inspected.master, inspected.slaveName()) or
+            (!kept and darwin.processStart(leader.pid) != leader.created))
+        {
+            platform.posix_compat.close(inspected.master);
+            return self.fail(refusal.failed("claim-check"), error.ClaimCheckFailed);
+        }
+        var prepared = TerminalRuntime.prepareRecovery(self.allocator, recovery, null, inspected.launch_kind) catch |err| {
+            platform.posix_compat.close(inspected.master);
+            return self.fail(startFailure(err), err);
+        };
+        const runtime = TerminalRuntime.startImport(&prepared, .{ .held = .{
+            .master = inspected.master,
+            .leader = .{ .pid = @intCast(leader.pid), .created = leader.created },
+            .parented = inspected.parented,
+            .launch_kind = inspected.launch_kind,
+            .interactive_shell = prepared.facts.terminal.interactive_shell,
+        } }) catch |err| return self.fail(startFailure(err), err);
+        self.leader = leader;
+        self.facts = prepared.facts;
+        return runtime;
+    }
+
+    /// Whether the holding ran as the terminal the Worker named, under this Host's epoch.
+    fn namesTerminal(terminal: anytype, identity: anytype) bool {
+        return std.mem.eql(u8, &terminal.creation_id, &identity.creation_id) and
+            std.mem.eql(u8, &terminal.host_epoch, &identity.host_epoch) and
+            std.mem.eql(u8, &terminal.terminal_id, &identity.terminal_id);
     }
 
     fn startFailure(err: anyerror) Details {
@@ -256,7 +295,7 @@ pub const Job = struct {
     /// before any claim.
     pub fn commit(self: *Job, aggregate: *Aggregate, runtime: *TerminalRuntime) void {
         aggregate.commitImport(self.slot, self.creation_id, runtime, &self.facts.?);
-        if (comptime builtin.os.tag == .windows) {
+        if (comptime platform.process.recovery_supported) {
             if (self.facts.?.terminal.inputs.holding_id) |holding| platform.keeper.gate(runtime.keeperSubject()).?.name(holding);
         }
         self.outcome = .committed;

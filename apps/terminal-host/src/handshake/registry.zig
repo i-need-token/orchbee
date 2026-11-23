@@ -24,10 +24,11 @@ pub const worker_host = struct {
     /// leaves no person's input, which the Hosts of 0.1.0-beta.22 recorded; a Worker sends a gated
     /// key only under this name.
     /// `screen-gated-prompt`: applies the screen gate to a bracketed paste and Enter together.
+    /// `recovery`, on macOS: this Host recovers a terminal the Keeper kept after its Host ended.
     pub const capabilities: []const []const u8 = if (builtin.os.tag == .windows)
         &.{ "background-programs", "keeper", "prompt-gated-input", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
     else if (builtin.os.tag == .macos)
-        &.{ "keeper", "prompt-gated-input", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
+        &.{ "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
     else
         &.{ "prompt-gated-input", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" };
     /// `capabilities` with `handover` and `recovery`, on Windows only: this Host moves running

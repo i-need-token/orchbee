@@ -30,11 +30,11 @@ pub const Recovery = struct {
 
 /// The recovered terminal's runtime, running no worker yet, and the facts its commit and claim
 /// read, with `console` and `launch_kind` as the Keeper reported them; the runtime borrows neither
-/// `recovery` nor `console`.
+/// `recovery` nor `console`. A macOS terminal has no console facts.
 pub fn prepare(
     allocator: std.mem.Allocator,
     recovery: Recovery,
-    console: handover.ConsoleFacts,
+    console: ?handover.ConsoleFacts,
     launch_kind: platform.process.LaunchKind,
 ) !handover_restore.Prepared {
     png_decoder.install();

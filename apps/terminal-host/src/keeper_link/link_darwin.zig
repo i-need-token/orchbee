@@ -2,7 +2,8 @@
 //! then holds each terminal the dispatch thread queues by sending its PTY master with `hold-pty`,
 //! starts the leader of each new terminal a creation hands it with `spawn`, releases each holding
 //! that ends or that a detach gives back, reaps each parented leader its terminal asks for, reads
-//! the `exited` events the Keeper sends between requests, and watches the Keeper process. Every
+//! the `exited` events the Keeper sends between requests, makes the recovery's `inspect`, `claim`,
+//! and `decline` (`moves.zig`), and watches the Keeper process. Every
 //! request waits at most the Keeper's reply deadline; after one miss the link fails every later
 //! request at once, so release first never waits on this Keeper again. The thread settles every
 //! gate slot it touched, and ends the parent of every leader it parents, before it reports the
@@ -15,6 +16,7 @@ const connect = @import("connect_darwin.zig");
 const notice = @import("notice.zig");
 const holds = @import("hold_darwin.zig");
 const parenting = @import("parent_darwin.zig");
+const move_requests = @import("moves.zig");
 
 const message = keeper_protocol.message;
 const thread_sync = platform.thread_sync;
@@ -62,6 +64,8 @@ pub const Link = struct {
     parent: bool = false,
     /// Creations waiting for their `spawn`, in order.
     spawns: std.ArrayList(*SpawnCall) = .empty,
+    /// Move requests the link has not made yet, in order.
+    moves: std.ArrayList(*move_requests.Request) = .empty,
     /// Creations that may still hand this link a `spawn`; the link is freed only once none does.
     users: u32 = 0,
     phase: Phase = .connecting,
@@ -98,6 +102,7 @@ pub const Link = struct {
         self.queue.deinit(self.allocator);
         self.notices.deinit(self.allocator);
         self.spawns.deinit(self.allocator);
+        self.moves.deinit(self.allocator);
         self.held.deinit(self.allocator);
         platform.posix_compat.close(self.wake);
         self.allocator.free(self.socket_path);
@@ -145,6 +150,10 @@ pub const Link = struct {
             wake_events.signal(self.wake);
         }
         return waiting.wait();
+    }
+
+    pub fn wakeThread(self: *Link) void {
+        wake_events.signal(self.wake);
     }
 
     pub fn requestDetach(self: *Link) void {
@@ -263,6 +272,7 @@ pub const Link = struct {
             const standing = self.requests();
             if (standing.stop) return self.stop();
             self.serveReleases(standing.detach);
+            if (!self.keeperEnded()) move_requests.serve(self);
             if (!self.keeperEnded()) self.serveSpawns(standing.detach);
             if (!self.keeperEnded()) parenting.serveReaps(self);
             if (!self.keeperEnded()) self.serveHolds(standing.detach);
@@ -466,6 +476,7 @@ pub const Link = struct {
     }
 
     fn finish(self: *Link) void {
+        move_requests.completeAll(self);
         if (self.connection) |*connection| connection.close();
         self.connection = null;
         self.mutex.lock();

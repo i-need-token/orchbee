@@ -42,10 +42,20 @@ pub const Connection = struct {
     pty: bool = false,
     /// The Keeper's answer listed `parent`, so it takes `spawn` and `reap` and sends `exited`.
     parent: bool = false,
+    /// The master an `inspect` reply carried, until the request's maker takes it.
+    received: ?posix.fd_t = null,
 
     pub fn close(self: *Connection) void {
         self.closeStream();
+        if (self.takeReceived()) |descriptor| platform.posix_compat.close(descriptor);
         self.* = undefined;
+    }
+
+    /// The descriptor the last reply carried, which the caller then owns.
+    pub fn takeReceived(self: *Connection) ?posix.fd_t {
+        const descriptor = self.received;
+        self.received = null;
+        return descriptor;
     }
 
     pub fn closeStream(self: *Connection) void {
@@ -88,8 +98,14 @@ pub const Connection = struct {
             const payload = try self.readFrame(arena, watch, timer, keeper_protocol.frame.readPayload);
             switch (keeper_protocol.decode.acceptorPayload(arena, payload) catch return error.Closed) {
                 .reply => |reply| {
-                    // No reply this Host makes carries descriptors yet.
-                    if (self.stream) |*stream| stream.discardDescriptors();
+                    // Only an `inspect` of a PTY holding carries one, its master; a reply whose
+                    // descriptor did not arrive leaves none to take.
+                    if (self.stream) |*stream| {
+                        var one: [1]posix.fd_t = undefined;
+                        if (reply.body.descriptorCount() == 1 and stream.takeDescriptors(&one)) {
+                            self.received = one[0];
+                        } else stream.discardDescriptors();
+                    }
                     return reply;
                 },
                 .exited => |exited| self.deliver(exited),

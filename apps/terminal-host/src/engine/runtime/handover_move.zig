@@ -133,7 +133,7 @@ fn readerParked(self: *state.State) bool {
 /// Host's own handles close, and the runtime is freed. Nothing ends, is signalled, or is written,
 /// and the Job keeps its limits.
 pub fn drop(self: *state.State) void {
-    if (comptime !pty_process.moves_supported) unreachable;
+    if (comptime !pty_process.recovery_supported) unreachable;
     {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
