@@ -203,12 +203,17 @@ impl<'a> Sources<'a> {
     }
 }
 
-fn by_product(rows: &mut [Row<'_>]) {
-    rows.sort_by_key(|row| row.product.to_lowercase());
+fn by_popularity(rows: &mut [Row<'_>]) {
+    rows.sort_by_cached_key(|row| {
+        (
+            crate::agent_provider::popularity_rank(row.id),
+            row.product.to_lowercase(),
+        )
+    });
 }
 
 /// The picker's rows: Recent (at most three that may start, most recent first), then the rest.
-/// After a completed lookup the rest is Installed A–Z and a Not found group that stays folded into
+/// After a completed lookup the rest is Installed by popularity and a Not found group that stays folded into
 /// one row, named by whether it holds not found rows, rows that can't be checked or both, until it
 /// is opened or a query searches it; its heading is named the same way by the rows it lists. While
 /// no lookup has completed and the last
@@ -239,14 +244,14 @@ pub(crate) fn items(sources: &Sources<'_>, query: &str, expanded: bool) -> Vec<I
         .copied()
         .filter(|row| startable(row) && !recent.iter().any(|listed| listed.id == row.id))
         .collect();
-    by_product(&mut rest);
+    by_popularity(&mut rest);
     let mut unavailable: Vec<Row<'_>> = sources
         .rows
         .iter()
         .copied()
         .filter(|row| !startable(row) && row.state != State::Checking)
         .collect();
-    by_product(&mut unavailable);
+    by_popularity(&mut unavailable);
 
     let mut rows = Vec::new();
     let group = |rows: &mut Vec<Item>, group: Group, listed: &[Row<'_>]| {

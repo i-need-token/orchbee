@@ -996,14 +996,15 @@ neither reads the other's source.
   heading, and only it, carries `holds` too, named the same way by the provider rows listed under it,
   so the opened fold or a query titles that group as the fold row would. The rule is the
   one display rule for both Clients: Recent (the first three `recent` providers that are `found`),
-  Installed (every other `found` row, A–Z by product name) and the fold holding every row neither
-  `found` nor `checking`, A–Z, as `not-found` or `cant-check`. While any row is `checking` there is
+  Installed (every other `found` row, by the Clients' shared popularity list, then A–Z by product
+  name) and the fold holding every row neither `found` nor `checking`, in that order, as `not-found`
+  or `cant-check`. While any row is `checking` there is
   no fold row, but a
   query or an opened fold still lists the rows already known as the Not found group; a `checking`
   row is never listed. This holds from the first lookup on and keeps the last rows while a later
   lookup runs or fails (`running` or `failed` with `checkedAt` set). After a `failed` or
   `unsupported` lookup with `checkedAt` null, Recent (the first three `recent` providers not
-  `not-found`), Not checked (every other row not `not-found`, A–Z) and Not found. A provider in
+  `not-found`), Not checked (every other row not `not-found`, in that order) and Not found. A provider in
   Recent is never repeated in another group. A query, trimmed and ignoring case, keeps the rows
   whose product name, command or id contains it, searches the folded rows as the open Not found
   group, and a group without a row shows no heading. Case catalogs hold only the

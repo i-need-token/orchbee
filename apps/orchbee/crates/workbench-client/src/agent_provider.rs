@@ -57,6 +57,47 @@ pub fn choices() -> impl Iterator<Item = ProviderChoice> {
     CANONICAL_IDS.iter().filter_map(|id| choice(id))
 }
 
+/// Agents most popular first: public npm weekly downloads, then GitHub stars and reach for those
+/// not on npm, as read on 2026-11-22. The wire catalog keeps its own fixed order. The Web Client
+/// keeps the same list, and the shared Agent start rows corpus holds the two together.
+const POPULARITY: &[&str] = &[
+    "codex",
+    "claude-code",
+    "opencode",
+    "cursor",
+    "openclaw",
+    "github-copilot",
+    "gemini",
+    "hermes",
+    "pi",
+    "antigravity",
+    "omp",
+    "qwen-code",
+    "codebuddy",
+    "grok",
+    "kimi",
+    "cline",
+    "command-code",
+    "letta",
+    "kilo",
+    "droid",
+    "qodercli",
+    "amp",
+    "devin",
+    "kiro",
+    "mastracode",
+    "reasonix",
+    "snow",
+];
+
+/// A provider's place in the default Agent order; one not ranked follows every ranked one.
+pub fn popularity_rank(canonical: &str) -> usize {
+    POPULARITY
+        .iter()
+        .position(|id| *id == canonical)
+        .unwrap_or(POPULARITY.len())
+}
+
 /// The catalog entry for a canonical id; aliases and report labels stay absent.
 pub fn choice(canonical: &str) -> Option<ProviderChoice> {
     let provider = AgentReportProvider::from_native_provider_id(canonical)?;

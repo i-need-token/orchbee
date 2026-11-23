@@ -76,6 +76,7 @@ export {
 	AGENT_YOLO_PROVIDERS,
 	agentOverridesYolo,
 	agentYoloFlag,
+	compareAgentsByPopularity,
 	parseAgentArguments,
 	type AgentYoloProvider,
 } from './agent-launch-settings';

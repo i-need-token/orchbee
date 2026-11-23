@@ -99,7 +99,7 @@ rule: they are disabled with Terminal disconnected exactly when the shortcut wou
 notice. A panel too small for the bar keeps the row enabled; choosing it shows the bar's notice.
 
 The global menu, its new-Tab submenu, the `[v]` new-Tab menu and Start Agent ▸ include a query row;
-the last two scroll after ten rows. Printable characters and Space edit the
+the last two scroll after twelve rows. Printable characters and Space edit the
 query directly; Backspace removes the previous grapheme, Ctrl+u clears it from the end, and the
 other shared readline keys of the [native line editor](native-line-editor.md) edit it at its cursor
 while arrows and Home/End keep navigating the menu. The query is limited

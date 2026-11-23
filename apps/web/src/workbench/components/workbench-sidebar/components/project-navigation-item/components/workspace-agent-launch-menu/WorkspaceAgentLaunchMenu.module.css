@@ -1,6 +1,18 @@
-/* As wide as the row's other menus. */
+/* As wide as the row's other menus, and as long as the other Agent lists. */
 .popup {
+	display: flex;
+	flex-direction: column;
 	width: var(--ob-ref-size-menu);
+}
+
+.search {
+	flex: none;
+}
+
+.list {
+	min-height: 0;
+	max-height: calc(var(--ob-ref-size-menu-list) - var(--ob-ref-size-control-lg));
+	overflow-x: hidden;
 }
 
 /* Where the list's first row would be, its text on the search field's text. */

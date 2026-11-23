@@ -10,6 +10,7 @@ import {
 	agentOverridesYolo,
 	agentYoloFlag,
 	agentYoloKey,
+	compareAgentsByPopularity,
 	parseAgentArguments,
 	type AgentYoloProvider,
 	type SettingsSnapshot,
@@ -86,7 +87,7 @@ export function AgentLaunchSettings({
 	const description = intl.formatMessage(messages.pageAgentLaunchDescription);
 	const offered = (agents?.agents ?? [])
 		.filter((agent) => snapshot?.values[agentArgumentsKey(agent.providerId)] !== undefined)
-		.sort((left, right) => left.productName.localeCompare(right.productName, 'en'));
+		.sort(compareAgentsByPopularity);
 	const matching = offered.filter((agent) =>
 		matchesSettingsQuery(
 			query,

@@ -27,6 +27,8 @@
 
 .results {
 	min-height: 0;
+	/* A separator reaches past the rows into the menu's padding; that is no reason to scroll. */
+	overflow-x: hidden;
 	overflow-y: auto;
 	overscroll-behavior: contain;
 }

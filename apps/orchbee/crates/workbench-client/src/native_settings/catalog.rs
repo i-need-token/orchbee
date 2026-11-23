@@ -247,11 +247,19 @@ impl Group {
             Self::SoundDelivery => vec![Row::Sound],
             Self::Prefix => vec![Row::PrefixKey],
             Self::AgentLaunch => {
-                let mut rows: Vec<_> = AgentStartSelector::all()
+                let mut providers: Vec<_> = AgentStartSelector::all().collect();
+                providers.sort_by_cached_key(|provider| {
+                    (
+                        crate::agent_provider::popularity_rank(provider.agent().id()),
+                        Row::AgentLaunchProvider(*provider)
+                            .name(Locale::EnUs)
+                            .to_ascii_lowercase(),
+                    )
+                });
+                providers
+                    .into_iter()
                     .map(Row::AgentLaunchProvider)
-                    .collect();
-                rows.sort_by_cached_key(|row| row.name(Locale::EnUs).to_ascii_lowercase());
-                rows
+                    .collect()
             }
             Self::AgentConfirmations => vec![
                 Row::AutoAllowClaude,

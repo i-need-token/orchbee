@@ -83,9 +83,9 @@ fn a_late_lookup_result_leaves_the_open_menu_unchanged() {
     let opened = open_menu(&mut ui, &route);
     select(&mut ui, &mut route, &MenuAction::StartAgentInTab("codex"));
 
-    // Amp sorts before Codex, so the picker would now list it first.
+    // The picker would now list one more Agent.
     ui.board.install_start_catalog_t(&["amp", "codex"]);
-    assert_eq!(ui.board.menu_agents(), ["amp", "codex"]);
+    assert_eq!(ui.board.menu_agents().len(), 2);
     route.send(&mut ui, b"");
     assert_eq!(menu_actions(&ui), opened, "the open menu keeps its rows");
 

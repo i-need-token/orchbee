@@ -94,11 +94,12 @@ export function WorkspaceAgentLaunchMenu({
 			>
 				<ComboboxSearch
 					aria-label={menu.searchLabel}
+					className={styles['search']}
 					placeholder={menu.searchLabel}
 					spellCheck={false}
 				/>
 				{choices.length === 0 ? <p className={styles['empty']}>{menu.emptyLabel(query)}</p> : null}
-				<ComboboxList>
+				<ComboboxList className={styles['list']}>
 					{(choice: WorkspaceAgentChoice) => (
 						<ComboboxItem key={choice.providerId} value={choice}>
 							{menu.mark(workspace.id, choice.providerId)}

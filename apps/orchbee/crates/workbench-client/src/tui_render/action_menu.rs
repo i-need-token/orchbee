@@ -52,7 +52,7 @@ struct Keys {
 
 /// One menu frame's rows, candidate and natural size, before it is placed.
 /// The rows an Agent list shows before it scrolls.
-const AGENT_LIST_ROWS: usize = 10;
+const AGENT_LIST_ROWS: usize = 12;
 /// The cells a cascaded list's query row leaves for the query itself.
 const QUERY_ROOM: usize = 12;
 

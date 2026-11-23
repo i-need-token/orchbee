@@ -56,10 +56,7 @@
 			},
 			"query": "",
 			"expanded": false,
-			"expected": {
-				"status": "looking",
-				"rows": []
-			}
+			"expected": { "status": "looking", "rows": [] }
 		},
 		{
 			"name": "first lookup lists the known rows when the fold is opened",
@@ -767,10 +764,7 @@
 			},
 			"query": "zzz",
 			"expanded": true,
-			"expected": {
-				"status": null,
-				"rows": []
-			}
+			"expected": { "status": null, "rows": [] }
 		},
 		{
 			"name": "an empty fold shows no fold row",
@@ -801,13 +795,13 @@
 				"status": null,
 				"rows": [
 					{ "kind": "heading", "group": "installed" },
+					{ "kind": "provider", "providerId": "codex", "group": "installed", "detail": "command" },
 					{
 						"kind": "provider",
 						"providerId": "claude-code",
 						"group": "installed",
 						"detail": "command"
 					},
-					{ "kind": "provider", "providerId": "codex", "group": "installed", "detail": "command" },
 					{
 						"kind": "provider",
 						"providerId": "openclaw",
@@ -946,6 +940,12 @@
 					},
 					{
 						"kind": "provider",
+						"providerId": "opencode",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
 						"providerId": "cursor",
 						"group": "not-checked",
 						"detail": "command"
@@ -953,12 +953,6 @@
 					{
 						"kind": "provider",
 						"providerId": "openclaw",
-						"group": "not-checked",
-						"detail": "command"
-					},
-					{
-						"kind": "provider",
-						"providerId": "opencode",
 						"group": "not-checked",
 						"detail": "command"
 					},
@@ -1084,13 +1078,19 @@
 					{ "kind": "heading", "group": "not-checked" },
 					{
 						"kind": "provider",
+						"providerId": "codex",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
 						"providerId": "claude-code",
 						"group": "not-checked",
 						"detail": "command"
 					},
 					{
 						"kind": "provider",
-						"providerId": "codex",
+						"providerId": "opencode",
 						"group": "not-checked",
 						"detail": "command"
 					},
@@ -1102,24 +1102,269 @@
 					},
 					{
 						"kind": "provider",
-						"providerId": "gemini",
-						"group": "not-checked",
-						"detail": "command"
-					},
-					{
-						"kind": "provider",
 						"providerId": "openclaw",
 						"group": "not-checked",
 						"detail": "command"
 					},
 					{
 						"kind": "provider",
-						"providerId": "opencode",
+						"providerId": "gemini",
 						"group": "not-checked",
 						"detail": "command"
 					},
 					{ "kind": "provider", "providerId": "pi", "group": "not-checked", "detail": "command" },
 					{ "kind": "provider", "providerId": "snow", "group": "not-checked", "detail": "command" }
+				]
+			}
+		},
+		{
+			"name": "Installed lists every found Agent by popularity, then A-Z",
+			"catalog": {
+				"revision": "2",
+				"startable": true,
+				"lookup": { "status": "complete", "checkedAt": 1 },
+				"recent": [],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "found" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "found"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "found"
+					},
+					{ "providerId": "cursor", "productName": "Cursor", "command": "agent", "state": "found" },
+					{ "providerId": "devin", "productName": "Devin", "command": "devin", "state": "found" },
+					{
+						"providerId": "antigravity",
+						"productName": "Antigravity CLI",
+						"command": "agy",
+						"state": "found"
+					},
+					{ "providerId": "cline", "productName": "Cline", "command": "cline", "state": "found" },
+					{ "providerId": "omp", "productName": "OMP", "command": "omp", "state": "found" },
+					{
+						"providerId": "mastracode",
+						"productName": "Mastracode",
+						"command": "mastracode",
+						"state": "found"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "found"
+					},
+					{
+						"providerId": "github-copilot",
+						"productName": "GitHub Copilot CLI",
+						"command": "copilot",
+						"state": "found"
+					},
+					{ "providerId": "kimi", "productName": "Kimi", "command": "kimi", "state": "found" },
+					{
+						"providerId": "kiro",
+						"productName": "Kiro CLI",
+						"command": "kiro-cli",
+						"state": "found"
+					},
+					{ "providerId": "droid", "productName": "Droid", "command": "droid", "state": "found" },
+					{ "providerId": "amp", "productName": "Amp", "command": "amp", "state": "found" },
+					{ "providerId": "grok", "productName": "Grok", "command": "grok", "state": "found" },
+					{
+						"providerId": "hermes",
+						"productName": "Hermes",
+						"command": "hermes",
+						"state": "found"
+					},
+					{ "providerId": "kilo", "productName": "Kilo", "command": "kilo", "state": "found" },
+					{
+						"providerId": "qodercli",
+						"productName": "Qoder CLI",
+						"command": "qoder",
+						"state": "found"
+					},
+					{
+						"providerId": "qwen-code",
+						"productName": "Qwen Code",
+						"command": "qwen",
+						"state": "found"
+					},
+					{ "providerId": "letta", "productName": "Letta", "command": "letta", "state": "found" },
+					{ "providerId": "maki", "productName": "Maki", "command": "maki", "state": "found" },
+					{ "providerId": "muse", "productName": "Muse", "command": "muse", "state": "found" },
+					{
+						"providerId": "atomcode",
+						"productName": "AtomCode",
+						"command": "atomcode",
+						"state": "found"
+					},
+					{
+						"providerId": "codebuddy",
+						"productName": "CodeBuddy Code",
+						"command": "codebuddy",
+						"state": "found"
+					},
+					{
+						"providerId": "command-code",
+						"productName": "Command Code",
+						"command": "command-code",
+						"state": "found"
+					},
+					{
+						"providerId": "deveco",
+						"productName": "DevEco Code",
+						"command": "deveco",
+						"state": "found"
+					},
+					{ "providerId": "mimo", "productName": "MiMo Code", "command": "mimo", "state": "found" },
+					{
+						"providerId": "reasonix",
+						"productName": "Reasonix",
+						"command": "reasonix",
+						"state": "found"
+					},
+					{ "providerId": "snow", "productName": "Snow CLI", "command": "snow", "state": "found" },
+					{
+						"providerId": "minimax-code",
+						"productName": "MiniMax Code",
+						"command": "mcode",
+						"state": "found"
+					},
+					{ "providerId": "mothx", "productName": "MothX", "command": "mothx", "state": "found" },
+					{ "providerId": "jcode", "productName": "J-Code", "command": "jcode", "state": "found" },
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "found"
+					},
+					{
+						"providerId": "prime-agent",
+						"productName": "Prime Agent",
+						"command": "prime-agent",
+						"state": "found"
+					}
+				]
+			},
+			"query": "",
+			"expanded": false,
+			"expected": {
+				"status": null,
+				"rows": [
+					{ "kind": "heading", "group": "installed" },
+					{ "kind": "provider", "providerId": "codex", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "installed",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "opencode",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "cursor", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "openclaw",
+						"group": "installed",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "github-copilot",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "gemini", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "hermes", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "pi", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "antigravity",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "omp", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "qwen-code",
+						"group": "installed",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "codebuddy",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "grok", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "kimi", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "cline", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "command-code",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "letta", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "kilo", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "droid", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "qodercli",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "amp", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "devin", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "kiro", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "mastracode",
+						"group": "installed",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "reasonix",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "snow", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "atomcode",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "deveco", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "jcode", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "maki", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "mimo", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "minimax-code",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "mothx", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "muse", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "prime-agent",
+						"group": "installed",
+						"detail": "command"
+					}
 				]
 			}
 		}

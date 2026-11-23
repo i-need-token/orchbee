@@ -56,8 +56,8 @@ not supported and the new-Tab menu has no Agent rows.
 
 Groups follow the list order, by the display rule both Clients share
 ([rows corpus](../../../schemas/workbench/README.md)): **Recent** holds the first three of the
-catalog's recent providers that were found; **Installed** holds every other found provider, A–Z by
-product name; the rest fold into one row that expands on `Enter` or a click and scrolls the N
+catalog's recent providers that were found; **Installed** holds every other found provider, most popular
+first, then A–Z by product name; the rest fold into one row that expands on `Enter` or a click and scrolls the N
 providers into view with the cursor on the first. The row says what it holds: "N more not found on
 this computer" when every folded provider is not found, "N more couldn't be checked" when none is,
 and "N more not found or not checked" for some of each. Opened, or listed by a query, the group's
@@ -72,7 +72,7 @@ folded row, a query or an opened fold lists the providers already known, and the
 the lookup is running. A later lookup keeps the last rows while it runs or if it fails. When no
 lookup has ever completed on the Session's machine and the last one failed or cannot run there, the
 status row says "Couldn't check installed Agents" and every provider not known to be missing is
-listed under "Not checked on this machine" A–Z, after Recent.
+listed under "Not checked on this machine" in the same order, after Recent.
 
 Installed is a hint, not a promise. The lookup searches the `PATH` a new shell on that machine
 starts with, before its profile runs: a version manager's shim directory stored in the system or

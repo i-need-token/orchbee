@@ -1,3 +1,5 @@
+import { compareAgentsByPopularity } from '@orchbee/workbench-client-protocol';
+
 /** What the dialog needs of one catalog row; the parsed wire catalog satisfies it. */
 interface WorkbenchAgentStartEntry<Provider extends string = string> {
 	readonly command: string;
@@ -80,7 +82,9 @@ export function projectWorkbenchAgentStartRows<Provider extends string>(
 		if (entry === undefined || recent.includes(entry)) continue;
 		if (unchecked ? entry.state !== 'not-found' : entry.state === 'found') recent.push(entry);
 	}
-	const rest = alphabetical(catalog.agents.filter((entry) => !recent.includes(entry)));
+	const rest = catalog.agents
+		.filter((entry) => !recent.includes(entry))
+		.sort(compareAgentsByPopularity);
 	const rows: WorkbenchAgentStartRow<Provider>[] = [];
 	const list = (
 		group: WorkbenchAgentStartGroup,
@@ -138,15 +142,4 @@ function holdsOf(entries: readonly WorkbenchAgentStartEntry[]): WorkbenchAgentSt
 	const notFound = entries.filter((entry) => entry.state === 'not-found').length;
 	if (notFound === 0) return 'cant-check';
 	return notFound === entries.length ? 'not-found' : 'both';
-}
-
-function alphabetical<Entry extends { readonly productName: string }>(
-	entries: readonly Entry[],
-): Entry[] {
-	return [...entries].sort((left, right) => {
-		const a = left.productName.toLowerCase();
-		const b = right.productName.toLowerCase();
-		if (a === b) return 0;
-		return a < b ? -1 : 1;
-	});
 }

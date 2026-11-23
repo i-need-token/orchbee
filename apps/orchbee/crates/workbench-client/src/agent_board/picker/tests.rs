@@ -132,10 +132,18 @@ fn the_picker_lists_every_corpus_case_as_the_shared_rule_says() {
 
 #[test]
 fn the_cursor_rests_on_the_most_recent_provider_else_the_first_installed() {
-    let cases: [(&[&str], &str); 2] = [(&["gemini"], "gemini"), (&[], "claude-code")];
-    for (recent, expected) in cases {
+    let cases: [&[&str]; 2] = [&["gemini"], &[]];
+    for recent in cases {
         let catalog = test_catalog(&["codex", "gemini", "claude-code"], recent);
         let rows = items(&Sources::new(&catalog, &[]), "", false);
+        let first = rows
+            .iter()
+            .find_map(|row| match row {
+                Item::Provider { id, .. } => Some(*id),
+                _ => None,
+            })
+            .unwrap();
+        let expected = recent.first().copied().unwrap_or(first);
         let picker = Picker::new(Places::new(None, |_| false));
         let index = picker.cursor_index(&rows).unwrap();
         assert!(
@@ -364,20 +372,12 @@ fn new_tab_menu_lists_the_pickers_found_providers() {
     }
     let cases = [
         Case {
-            name: "recent leads, then installed by product name",
+            name: "recent leads, then installed",
             recent: &["gemini"],
-            installed: &["codex", "gemini", "claude-code"],
+            installed: &["codex", "gemini"],
             missing: &[],
             pending: &[],
-            expect: &["gemini", "claude-code", "codex"],
-        },
-        Case {
-            name: "installed alone, by product name",
-            recent: &[],
-            installed: &["pi", "amp"],
-            missing: &[],
-            pending: &[],
-            expect: &["amp", "pi"],
+            expect: &["gemini", "codex"],
         },
         Case {
             name: "a provider still being checked waits; found so far is listed",

@@ -44,6 +44,62 @@ export const WorkbenchAgentStartProviderSchema = z.enum([
 ]);
 export type WorkbenchAgentStartProvider = z.output<typeof WorkbenchAgentStartProviderSchema>;
 
+/**
+ * Agents most popular first: public npm weekly downloads, then GitHub stars and reach for those not
+ * on npm, as read on 2026-11-22. The wire catalog keeps its own fixed order. The TUI keeps the same
+ * list, and the shared Agent start rows corpus holds the two together.
+ */
+const AGENT_POPULARITY = [
+	'codex',
+	'claude-code',
+	'opencode',
+	'cursor',
+	'openclaw',
+	'github-copilot',
+	'gemini',
+	'hermes',
+	'pi',
+	'antigravity',
+	'omp',
+	'qwen-code',
+	'codebuddy',
+	'grok',
+	'kimi',
+	'cline',
+	'command-code',
+	'letta',
+	'kilo',
+	'droid',
+	'qodercli',
+	'amp',
+	'devin',
+	'kiro',
+	'mastracode',
+	'reasonix',
+	'snow',
+] as const satisfies readonly WorkbenchAgentStartProvider[];
+
+const AGENT_POPULARITY_RANK = new Map<string, number>(
+	AGENT_POPULARITY.map((provider, rank) => [provider, rank]),
+);
+
+function agentPopularityRank(provider: string): number {
+	return AGENT_POPULARITY_RANK.get(provider) ?? AGENT_POPULARITY.length;
+}
+
+/** The default Agent order: most popular first, then A-Z by product name. */
+export function compareAgentsByPopularity(
+	left: { readonly productName: string; readonly providerId: string },
+	right: { readonly productName: string; readonly providerId: string },
+): number {
+	const order = agentPopularityRank(left.providerId) - agentPopularityRank(right.providerId);
+	if (order !== 0) return order;
+	const a = left.productName.toLowerCase();
+	const b = right.productName.toLowerCase();
+	if (a === b) return 0;
+	return a < b ? -1 : 1;
+}
+
 const MAXIMUM_AGENT_ARGUMENT_INPUT_BYTES = 2048;
 const MAXIMUM_CUSTOM_ARGUMENTS = 24;
 const utf8 = new TextEncoder();
