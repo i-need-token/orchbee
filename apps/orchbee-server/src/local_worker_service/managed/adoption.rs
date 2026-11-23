@@ -12,7 +12,7 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    AdoptBinding, AdoptHostKind, AdoptHostSlot, AdoptHostTarget, TerminalId,
+    AdoptBinding, AdoptHostKind, AdoptHostSlot, AdoptHostTarget, AdoptMovedBinding,
 };
 use orchbee_local_runtime::{HostPresence, LogField, LogLevel, LogValue, RetainedSessionRecord};
 
@@ -154,13 +154,14 @@ impl Adopting {
     }
 
     /// Sends the adopting Worker `handle` the `AdoptHost` pages for `bindings` and answers the
-    /// offered terminals the Host's inventory lacked; any failure fails the start. One attempt: a
-    /// failed start leaves the Host to the next activation.
+    /// offered terminals the Host's inventory lacked and those a move left in another adopted Host;
+    /// any failure fails the start. One attempt: a failed start leaves the Host to the next
+    /// activation.
     fn adopt(
         &self,
         handle: &WorkerRequestHandle,
         bindings: Vec<AdoptBinding>,
-    ) -> io::Result<Vec<TerminalId>> {
+    ) -> io::Result<crate::local_terminal_service::Offered> {
         match replacement::send_pages(handle, self.target.clone(), bindings, || false) {
             Adoption::Adopted { outcome, .. } => {
                 let fields: [LogField; 5] = [
@@ -174,7 +175,15 @@ impl Adopting {
                     ("elapsedMs", LogValue::Count(milliseconds(self.started))),
                 ];
                 orchbee_local_runtime::log_event(LogLevel::Info, HOST_ADOPTED, &fields);
-                Ok(outcome.missing)
+                let moved = outcome
+                    .moved
+                    .iter()
+                    .map(|moved| AdoptMovedBinding {
+                        terminal_id: moved.terminal_id,
+                        identity: moved.to,
+                    })
+                    .collect();
+                Ok((outcome.missing, moved))
             }
             Adoption::Failed(failure, _) => {
                 failed_record(failure, self.started.elapsed());

@@ -16,8 +16,8 @@ use std::{
 use orchbee_capability_node_protocol::{
     AdoptBinding, AdoptHostFailure, AdoptHostKind, AdoptHostOutcome, AdoptHostPage,
     AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest, AdoptHostSlot, AdoptHostTarget,
-    HostEpoch, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS, OperationId, TerminalId, WorkerGeneration,
-    WorkerId,
+    HostEpoch, HostTerminalIdentity, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS, OperationId, TerminalId,
+    WorkerGeneration, WorkerId,
 };
 use orchbee_local_runtime::{HostPresence, LogField, LogLevel, LogValue, RetainedChild};
 
@@ -312,6 +312,18 @@ impl Supervision {
             };
             return failed(Stage::Adopt, "unavailable", class, Some(generation));
         }
+        // A binding closed since the loss keeps nothing to rebind, and a poisoned coordinator
+        // fails every later operation.
+        if let Some(placement) = WorkerPlacement::of(&handle) {
+            for moved in &outcome.moved {
+                let _ = owners.terminals.rebind_moved(
+                    placement,
+                    moved.terminal_id,
+                    moved.from,
+                    moved.to,
+                );
+            }
+        }
         let lost_worker = std::mem::replace(&mut owners.worker, child);
         let lost_carrier = std::mem::replace(&mut owners.carrier, carrier);
         owners.handle = handle;
@@ -323,6 +335,13 @@ impl Supervision {
             .terminals
             .terminal_runtime()
             .set(TerminalRuntimeState::Serving);
+        #[cfg(windows)]
+        if let (Some(kept), Ok(worker)) = (
+            &mut owners.checkpoint,
+            super::stop::checkpoint_worker(&owners.handle),
+        ) {
+            kept.start_turns(&owners.terminals, &owners.handle, worker);
+        }
         adopted_record(generation, &outcome, started.elapsed());
         Attempt::Adopted
     }
@@ -593,14 +612,33 @@ pub(super) fn send_pages(
                 imported,
                 quarantined,
                 missing,
-                moved: _,
+                moved,
             } if last => {
+                // Each moved binding names one this adoption sent, from the identity it was sent
+                // with.
+                let Some(moved) = moved
+                    .into_iter()
+                    .map(|moved| {
+                        let sent = bindings
+                            .iter()
+                            .find(|binding| binding.terminal_id == moved.terminal_id)?;
+                        Some(Moved {
+                            terminal_id: moved.terminal_id,
+                            from: sent.identity,
+                            to: moved.identity,
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()
+                else {
+                    return Adoption::Failed("protocol", Class::Retry);
+                };
                 return Adoption::Adopted {
                     sent: bindings.iter().map(|binding| binding.terminal_id).collect(),
                     outcome: Adopted {
                         imported,
                         quarantined,
                         missing,
+                        moved,
                     },
                 };
             }
@@ -755,6 +793,16 @@ pub(super) struct Adopted {
     pub(super) imported: u32,
     pub(super) quarantined: u32,
     pub(super) missing: Vec<TerminalId>,
+    /// The bindings whose terminal a move left in another adopted Host than the one they name.
+    pub(super) moved: Vec<Moved>,
+}
+
+/// A binding the adoption found moved: the identity it was sent with and the one it runs as.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Moved {
+    pub(super) terminal_id: TerminalId,
+    pub(super) from: HostTerminalIdentity,
+    pub(super) to: HostTerminalIdentity,
 }
 
 #[derive(Clone, Copy, Debug)]

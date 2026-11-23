@@ -79,7 +79,9 @@ impl TerminalCoordinator {
                 | TerminalPhase::Started {
                     identity: actual, ..
                 },
-            ) if actual == expected => Some(WorkerRetirement::new(binding.authorization, actual)),
+            ) if names(expected, actual) => {
+                Some(WorkerRetirement::new(binding.authorization, actual))
+            }
             (None, TerminalPhase::Unavailable(None))
                 if matches!(
                     binding.create_outcome,
@@ -152,4 +154,13 @@ impl TerminalCoordinator {
             action: TerminalLifecycleAction::Retire,
         })
     }
+}
+
+/// Whether a Close that disposed `expected` ended the binding that runs as `actual`: the same Host
+/// terminal, or the one it moved from, since a move keeps the creation and a Close the Server began
+/// before it recorded the move still names the old identity.
+fn names(expected: HostTerminalIdentity, actual: HostTerminalIdentity) -> bool {
+    expected == actual
+        || (expected.creation_id() == actual.creation_id()
+            && expected.host_epoch() != actual.host_epoch())
 }

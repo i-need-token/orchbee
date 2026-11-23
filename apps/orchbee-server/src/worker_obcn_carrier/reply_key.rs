@@ -45,6 +45,8 @@ pub(super) enum ReplyKey {
     AgentIntegrationJob(OperationId),
     AgentProbeJob(OperationId),
     AdoptHost(AdoptHostPageKey),
+    #[cfg(windows)]
+    MoveTurn(OperationId),
 }
 
 impl ReplyKey {
@@ -94,6 +96,8 @@ impl ReplyKey {
                 Self::AgentProbeJob(request.operation_id)
             }
             WorkerOperationRequest::AdoptHost(request) => Self::AdoptHost(request.key()),
+            #[cfg(windows)]
+            WorkerOperationRequest::MoveTurn(request) => Self::MoveTurn(request.request_id),
         }
     }
 
@@ -171,6 +175,10 @@ impl ReplyKey {
                 result.operation_id == id
             }
             (Self::AdoptHost(key), Message::AdoptHostResult(result)) => result.key() == key,
+            #[cfg(windows)]
+            (Self::MoveTurn(id), Message::TerminalMoveTurnResult(result)) => {
+                result.request.request_id == id
+            }
             (key, Message::WorkerRequestDeclined(declined)) => key.declined() == *declined,
             _ => false,
         }
@@ -205,6 +213,8 @@ impl ReplyKey {
             Self::AgentIntegrationJob(id) => (Kind::AgentIntegrationJob, id),
             Self::AgentProbeJob(id) => (Kind::AgentProbeJob, id),
             Self::AdoptHost(key) => (Kind::AdoptHost, key.adoption_id),
+            #[cfg(windows)]
+            Self::MoveTurn(id) => (Kind::MoveTurn, id),
         };
         WorkerRequestDeclined::operation(kind, id)
     }

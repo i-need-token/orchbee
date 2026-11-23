@@ -1,8 +1,11 @@
 //! Hands the bindings of a lost Worker to the replacement Worker that adopts its Host, each with
-//! the Close in flight on it, and moves them and those Closes into the replacement's generation
-//! once it adopted. It sends nothing to a Worker.
+//! the Close in flight on it, moves them and those Closes into the replacement's generation once it
+//! adopted, and rebinds a terminal the replacement moved to another Host. It sends nothing to a
+//! Worker.
 
-use orchbee_capability_node_protocol::{AdoptBinding, AdoptCloseInFlight, TerminalId};
+use orchbee_capability_node_protocol::{
+    AdoptBinding, AdoptCloseInFlight, HostTerminalIdentity, TerminalId,
+};
 
 use super::SessionCoordinator;
 use crate::terminal_coordinator::{AdoptionImport, WorkerPlacement};
@@ -58,5 +61,18 @@ impl SessionCoordinator {
             );
         }
         import
+    }
+
+    /// Rebinds the binding of `terminal` that `worker` holds from `from` to `to`, the Host terminal
+    /// that Worker moved it to; whether one still named `from`. A Close in flight on it keeps the
+    /// identity it began with, which the Worker still serves.
+    pub(crate) fn rebind_moved(
+        &mut self,
+        worker: WorkerPlacement,
+        terminal: TerminalId,
+        from: HostTerminalIdentity,
+        to: HostTerminalIdentity,
+    ) -> bool {
+        self.terminals.rebind_moved(worker, terminal, from, to)
     }
 }

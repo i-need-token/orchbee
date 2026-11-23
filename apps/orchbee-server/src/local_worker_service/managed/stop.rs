@@ -285,6 +285,15 @@ fn start(
     owners.terminals.start_agent_resume(resumes)?;
     if let Some(kept) = &mut owners.checkpoint {
         kept.start_saver(&owners.terminals, checkpoint_worker(&owners.handle)?)?;
+        // Only a Worker that adopted its Hosts can hold an older one.
+        #[cfg(windows)]
+        if owners.adopted {
+            kept.start_turns(
+                &owners.terminals,
+                &owners.handle,
+                checkpoint_worker(&owners.handle)?,
+            );
+        }
     }
     let identity = local_client_service::ServerIdentity::local(Some(cohort), owners.worker.id());
     owners.serving = identity.serving_worker();

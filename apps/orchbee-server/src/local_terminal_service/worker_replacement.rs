@@ -1,10 +1,11 @@
 //! What a replacement Worker takes over from the terminal service: the lost generation's settled
-//! bindings to adopt, and, once it adopted their Host, their move into its generation together with
-//! the moment the Session's jobs start using it. It sends nothing to a Worker.
+//! bindings to adopt, once it adopted their Host their move into its generation together with the
+//! moment the Session's jobs start using it, and the rebinding of each terminal it moves to another
+//! Host. It sends nothing to a Worker.
 
 use std::{io, num::NonZeroU64};
 
-use orchbee_capability_node_protocol::{AdoptBinding, TerminalId};
+use orchbee_capability_node_protocol::{AdoptBinding, HostTerminalIdentity, TerminalId};
 
 use super::LocalTerminalService;
 use crate::terminal_coordinator::{AdoptionImport, WorkerPlacement};
@@ -52,5 +53,21 @@ impl LocalTerminalService {
             return Ok(None);
         }
         Ok(Some(import))
+    }
+
+    /// Rebinds the binding of `terminal` that `worker` holds from `from` to `to`, the Host terminal
+    /// that Worker moved it to; whether one still named `from`.
+    pub(crate) fn rebind_moved(
+        &self,
+        worker: WorkerPlacement,
+        terminal: TerminalId,
+        from: HostTerminalIdentity,
+        to: HostTerminalIdentity,
+    ) -> io::Result<bool> {
+        Ok(self
+            .coordinator
+            .lock()
+            .map_err(|_| io::Error::other("Session coordinator poisoned"))?
+            .rebind_moved(worker, terminal, from, to))
     }
 }

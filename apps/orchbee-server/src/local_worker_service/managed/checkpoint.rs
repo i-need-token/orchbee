@@ -20,6 +20,8 @@ use std::{
 use std::{thread, time::Duration};
 pub(super) mod autosave;
 mod bindings;
+#[cfg(windows)]
+mod moves;
 
 /// Whether this platform's managed Session keeps a checkpoint: it restores the last one when it
 /// starts, saves while it runs and publishes a final one when it stops. A Linux Session keeps none
@@ -36,6 +38,10 @@ pub(super) struct Kept {
     /// What keeps the binding record, where this platform keeps one; the saver and the final
     /// capture write through it, one at a time.
     bindings: Option<Arc<Mutex<bindings::Writer>>>,
+    /// The move turns of a Worker that adopted its Hosts, which record each rebinding through the
+    /// binding record before the next turn.
+    #[cfg(windows)]
+    turns: Option<moves::Turns>,
 }
 
 impl Kept {
@@ -55,8 +61,37 @@ impl Kept {
         Ok(())
     }
 
-    /// Stops the background writer; a write in progress returns first.
+    /// Starts the move turns of the Worker `handle` names, which adopted its Hosts, in place of any
+    /// earlier generation's.
+    #[cfg(windows)]
+    pub(super) fn start_turns(
+        &mut self,
+        terminals: &Arc<LocalTerminalService>,
+        handle: &crate::worker_obcn_carrier::WorkerRequestHandle,
+        worker: orchbee_workbench_protocol::WorkerId,
+    ) {
+        if let Some(writer) = &self.bindings {
+            self.turns = moves::Turns::start(
+                handle.clone(),
+                Arc::clone(terminals),
+                Arc::clone(writer),
+                worker,
+            );
+        }
+    }
+
+    /// Whether move turns were started for this Session's Worker, even if they ended since.
+    #[cfg(windows)]
+    pub(super) const fn turns_started(&self) -> bool {
+        self.turns.is_some()
+    }
+
+    /// Stops the move turns and the background writer; a write in progress returns first.
     pub(super) fn stop_saver_before(&mut self, deadline: Instant) -> io::Result<()> {
+        #[cfg(windows)]
+        if let Some(turns) = &self.turns {
+            turns.stop();
+        }
         match &mut self.saver {
             Some(saver) => saver.stop_before(deadline),
             None => Ok(()),
@@ -225,6 +260,8 @@ pub(super) fn load(
         saver: None,
         suppress_initial_empty,
         bindings,
+        #[cfg(windows)]
+        turns: None,
     };
     Ok((record, Some(kept), checkpoint))
 }
@@ -258,6 +295,7 @@ pub(super) fn take(
         saver: None,
         suppress_initial_empty: false,
         bindings: Some(Arc::new(Mutex::new(bindings))),
+        turns: None,
     };
     Ok((record, kept, checkpoint))
 }

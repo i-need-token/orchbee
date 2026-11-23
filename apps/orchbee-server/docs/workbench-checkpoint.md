@@ -336,7 +336,9 @@ carries its bytes. macOS writes none until its Server can adopt a Host it did no
   in flight, and the Workbench revision on every poll; it writes 500 ms after the first change it
   has not written, without restarting that wait for later changes, and skips bytes identical to the
   last ones it wrote. While the Host is starting or cannot be observed, the write waits one second.
-  Every final capture, of a stop or an `exit`, writes it right after the final checkpoint. A stop
+  On Windows the Server's [move turns](../README.md#managed-worker-replacement) write it at
+  once after each rebinding, before the next turn, and before the first turn. Every final capture,
+  of a stop or an `exit`, writes it right after the final checkpoint. A stop
   removes it once the Worker's disposal, or the stop after that Worker exited, ended the Host, so
   nothing is left to adopt; an `exit` keeps the Host running and leaves the record in place.
 - **Adoption.** A Server started for a generation that kept its predecessor's running Hosts decodes

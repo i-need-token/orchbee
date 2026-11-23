@@ -1,10 +1,11 @@
 //! Moves the settled bindings of a lost Worker into the generation of the replacement that adopted
-//! their Host. A binding with an operation in flight at the loss is never moved: that operation
-//! settles against the generation it was issued to, as `LocalTerminalCoordinator`'s
-//! `ImportBinding` requires.
+//! their Host, and a binding whose terminal that replacement moved to another Host onto it. A
+//! binding with an operation in flight at the loss is never moved: that operation settles against
+//! the generation it was issued to, as `LocalTerminalCoordinator`'s `ImportBinding` requires.
 
 use orchbee_capability_node_protocol::{
-    AdoptBinding, AdoptBindingState, TerminalId, TerminalOperationAuthorization,
+    AdoptBinding, AdoptBindingState, HostTerminalIdentity, TerminalId,
+    TerminalOperationAuthorization,
 };
 
 use super::{TerminalCoordinator, TerminalPhase, WorkerPlacement, matches_placement};
@@ -76,6 +77,34 @@ impl TerminalCoordinator {
             import.imported += 1;
         }
         import
+    }
+
+    /// Rebinds the binding of `terminal` that `worker` holds, whose Host terminal `from` moved and
+    /// runs as `to` (`proposals/platform/host-handover.md`, Rebinding): it keeps its operation,
+    /// fence and lease, and every fact read through it follows. A binding that no longer names
+    /// `from`, closed or rebound meanwhile, is left alone. Returns whether one was rebound.
+    pub(crate) fn rebind_moved(
+        &mut self,
+        worker: WorkerPlacement,
+        terminal: TerminalId,
+        from: HostTerminalIdentity,
+        to: HostTerminalIdentity,
+    ) -> bool {
+        let Some(binding) = self.bindings.values_mut().find(|binding| {
+            binding.authorization.terminal_id() == terminal
+                && matches_placement(binding.authorization, worker)
+        }) else {
+            return false;
+        };
+        match &mut binding.phase {
+            TerminalPhase::AwaitingStart(identity) | TerminalPhase::Started { identity, .. }
+                if *identity == from =>
+            {
+                *identity = to;
+                true
+            }
+            _ => false,
+        }
     }
 }
 

@@ -45,6 +45,8 @@ mod agent_resume;
 mod agent_start_delivery;
 mod checkpoint;
 pub(crate) use checkpoint::CheckpointRestore;
+#[cfg(windows)]
+pub(crate) use checkpoint::Offered;
 mod close_maintenance;
 mod connected_hosts;
 mod controller_connection;
@@ -419,6 +421,8 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
     match handle.request(request) {
         #[cfg(any(windows, test))]
         Ok(WorkerOperationResult::Handoff(_)) => Completion::Unknown,
+        #[cfg(windows)]
+        Ok(WorkerOperationResult::MoveTurn(_)) => Completion::Unknown,
         Ok(WorkerOperationResult::Shutdown(_)) => Completion::Unknown,
         Ok(WorkerOperationResult::Launch(result)) => Completion::Launch(result),
         Ok(WorkerOperationResult::Start(result)) => Completion::Start(result),

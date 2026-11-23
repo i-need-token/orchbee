@@ -1482,6 +1482,9 @@ development builds until H4 through one constant, `moves_live`, and test builds 
   fact keyed by that identity follow, and the binding record is written before the next turn.
   Presentations name the product terminal, so the Workbench does not change. A `Moved` for a
   binding that no longer has the old identity, closed meanwhile, changes nothing.
+- Rule: a Close the Server began before it rebound still names the old identity, which the Worker
+  translates; its retirement ends the binding that moved from it, since a move keeps the creation
+  id under another epoch.
 
 ### A terminal in two Hosts
 
@@ -1512,7 +1515,7 @@ development builds until H4 through one constant, `moves_live`, and test builds 
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | S1    | The Rust codec for H1's requests and answers, `moves_live`, and `TerminalMoveTurn` and `Adopted`'s `moved` in the Worker protocol                               | Built  |
 | S2    | The Worker's move: due terminals, the steps, abort, the kernel's rebinding and translation, controllers and viewers, the drop at the next turn, and diagnostics | Built  |
-| S3    | The Server's turns and rebinding, and the binding record                                                                                                        | Open   |
+| S3    | The Server's turns and rebinding, and the binding record                                                                                                        | Built  |
 | S4    | An adoption of a terminal seen in two Hosts                                                                                                                     | Open   |
 | S5    | The image section                                                                                                                                               | Open   |
 | S6    | The [H3 acceptance](#acceptance) on real Windows                                                                                                                | Open   |

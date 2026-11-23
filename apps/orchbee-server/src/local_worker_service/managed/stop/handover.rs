@@ -498,7 +498,8 @@ fn retake(owners: &Owners) -> bool {
     }
 }
 
-/// Starts a saver in place of the stopped one; a saver that does not start is reported only.
+/// Starts a saver in place of the stopped one, and move turns in place of stopped ones; a saver
+/// that does not start is reported only.
 fn restart_saver(owners: &mut Owners) {
     let Some(kept) = &mut owners.checkpoint else {
         return;
@@ -506,7 +507,13 @@ fn restart_saver(owners: &mut Owners) {
     let started = kept
         .stop_saver_before(Instant::now() + END)
         .and_then(|()| checkpoint_worker(&owners.handle))
-        .and_then(|worker| kept.start_saver(&owners.terminals, worker));
+        .and_then(|worker| {
+            kept.start_saver(&owners.terminals, worker.clone())?;
+            if kept.turns_started() {
+                kept.start_turns(&owners.terminals, &owners.handle, worker);
+            }
+            Ok(())
+        });
     if let Err(error) = started {
         diagnostic("saver", &error);
     }

@@ -129,6 +129,8 @@ impl WorkerOperationRequest {
             Self::TitleChanges(_) => "title-changes",
             Self::HostQuery(_) => "host-query",
             Self::AdoptHost(_) => "adopt-host",
+            #[cfg(windows)]
+            Self::MoveTurn(_) => "move-turn",
         }
     }
 }
