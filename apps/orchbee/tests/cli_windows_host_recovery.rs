@@ -1,13 +1,14 @@
-//! Host recovery across a real managed Session (`proposals/platform/host-handover.md`, H2
+//! Host recovery across a real managed Session (`proposals/platform/host-handover.md`, H2 and B1
 //! acceptance): the CLI, Server, Worker and Zig Host under test, and a terminal that counts once a
 //! second. A Host ended by its process ID, or whose dispatch thread stops, is replaced by a recovery
 //! Host that takes the terminal back from the Session's Keeper with its program still running.
 //! Past the cap the Server gives up and the program runs on in the Keeper; the confirmed stop then
-//! ends it. The oracle is what the CLI reads and lists and the program's own process; nothing
-//! imports Server internals.
+//! ends it. A configured `shell` command the Host runs keeps running through a Server and Worker
+//! restart and through its Host's end, and completes. The oracle is what the CLI reads and lists
+//! and the programs' own processes; nothing imports Server internals.
 //!
-//! A Host holds only a terminal on the product's ConPTY in the Keeper, so these witnesses run only
-//! when asked for, with `ORCHBEE_TEST_CONPTY_DIR` naming a verified bundle.
+//! A Host offers `recovery`, and so starts a Keeper, only on the product's ConPTY, so these
+//! witnesses run only when asked for, with `ORCHBEE_TEST_CONPTY_DIR` naming a verified bundle.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -40,6 +41,8 @@ const STOPPED: Duration = Duration::from_secs(60);
 const POLL: Duration = Duration::from_millis(250);
 /// Replacement attempts allowed in ten minutes.
 const CAP: usize = 3;
+/// Bounds the configured command's start in the Host, and its end once released.
+const COMMAND: Duration = Duration::from_secs(20);
 
 #[test]
 #[ignore = "needs the product's ConPTY in ORCHBEE_TEST_CONPTY_DIR and four recoveries; run explicitly"]
@@ -138,6 +141,106 @@ fn a_host_whose_dispatch_stops_is_ended_and_recovered() {
         last_tick(&read_terminal(&fixture, &terminal)).filter(|tick| *tick > shown)
     });
     eprintln!("hang: recovered in {:?}", stopped.elapsed());
+}
+
+#[test]
+#[ignore = "needs the product's ConPTY in ORCHBEE_TEST_CONPTY_DIR, a restart and a recovery; run explicitly"]
+fn a_configured_shell_command_runs_through_a_restart_and_its_hosts_end_and_completes() {
+    require_product_conpty();
+    let fixture = Fixture::new("orchbee-program-recovery-", &[]);
+    let _logs = Logs(&fixture);
+    // The terminal starts the Host and its Keeper; a command before any Host runs in the Worker.
+    let (terminal, shown) = ticker(&fixture);
+    let first = worker(&fixture).expect("a Worker serves");
+    let host = host_of(first);
+    let release = fixture.path("work\\release.txt");
+    let done = fixture.path("work\\done.txt");
+    let id = configure_waiting_command(&fixture, &release, &done);
+    let invoked = fixture.run(&["command", "invoke", &id, "--session", "default"]);
+    assert_eq!(invoked.code, Some(0), "{invoked}");
+    // The ticker's cmd came first; the command's is the Host's newest.
+    let command = until("the Host starts the command", COMMAND, || {
+        let mut programs = children(&host, "cmd.exe");
+        (programs.len() >= 2).then(|| programs.pop()).flatten()
+    });
+
+    let restarted = fixture.run(&["server", "restart", "--session", "default"]);
+    assert_eq!(restarted.code, Some(0), "{restarted}");
+    let second = until("a new Worker serves after the restart", RECOVERED, || {
+        worker(&fixture).filter(|serving| *serving != first)
+    });
+    assert!(
+        !signaled(&host, Duration::ZERO),
+        "the Host ended with the restart"
+    );
+    assert!(
+        !signaled(&command, Duration::ZERO),
+        "the command ended with the restart"
+    );
+
+    let killed = Instant::now();
+    host.TerminateProcess(1).unwrap();
+    assert!(
+        signaled(&host, Duration::from_secs(10)),
+        "the Host did not end"
+    );
+    until("a Worker recovers the Host", RECOVERED, || {
+        worker(&fixture).filter(|serving| *serving != second)
+    });
+    assert!(
+        !signaled(&command, Duration::ZERO),
+        "the command ended with its Host"
+    );
+    until("the count goes on", RETURNED, || {
+        last_tick(&read_terminal(&fixture, &terminal)).filter(|tick| *tick > shown)
+    });
+    eprintln!("program: recovered in {:?}", killed.elapsed());
+
+    fs::write(&release, "go").unwrap();
+    until("the command completes", COMMAND, || {
+        fs::metadata(&done).is_ok().then_some(())
+    });
+    assert!(
+        signaled(&command, COMMAND),
+        "the command's process did not end after it completed"
+    );
+}
+
+/// Adds a `shell` command that waits until `release` exists, then writes `done` and exits, has the
+/// default Session reload, and answers the command's catalog ID.
+fn configure_waiting_command(fixture: &Fixture, release: &str, done: &str) -> String {
+    let path = orchbee_local_runtime::user_settings_path(fixture.state_environment())
+        .unwrap()
+        .expect("the fixture has a settings location");
+    let mut settings = fs::read_to_string(&path).unwrap_or_default();
+    settings.push_str(&format!(
+        "\n[[keys.command]]\ntype = \"shell\"\ncommand = 'for /l %i in (1,1,900) do @if exist \"{release}\" (echo done>\"{done}\"& exit 0) else ping -n 2 127.0.0.1 >nul'\n"
+    ));
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(&path, settings).unwrap();
+    let reloaded = fixture.run(&["config", "reload", "--session", "default"]);
+    assert_eq!(reloaded.code, Some(0), "{reloaded}");
+    let listed = fixture.run(&["command", "list", "--session", "default"]);
+    assert_eq!(listed.code, Some(0), "{listed}");
+    shell_command_id(&listed.document).unwrap_or_else(|| panic!("no shell command in {listed}"))
+}
+
+/// The ID of the first `shell` entry anywhere in a `command list` document.
+fn shell_command_id(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::Object(object) => {
+            if object.get("action").and_then(serde_json::Value::as_str) == Some("shell")
+                && let Some(id) = object.get("id").and_then(serde_json::Value::as_str)
+            {
+                return Some(id.to_owned());
+            }
+            object.values().find_map(shell_command_id)
+        }
+        serde_json::Value::Array(items) => items.iter().find_map(shell_command_id),
+        _ => None,
+    }
 }
 
 /// Prints the fixture's diagnostic logs when its test fails, before the fixture removes them.
