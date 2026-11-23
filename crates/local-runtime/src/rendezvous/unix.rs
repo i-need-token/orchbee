@@ -525,8 +525,24 @@ impl ModeCheckedLocalSessionRendezvous {
         ] {
             self.remove_socket(sockets, role)?;
         }
-        // A starting Host removes a stale endpoint itself while it holds this lock, so whoever
-        // holds the lock owns that name.
+        self.remove_free_host_socket(sockets)
+    }
+
+    /// Removes the Host's socket while no Terminal Host holds its lock, for the Session lifetime
+    /// owner that freed the registered slot of a Host that ended: a Host killed before its stop
+    /// leaves its socket, which the next Host start in that slot would meet.
+    #[cfg(target_os = "macos")]
+    pub fn remove_host_endpoint(&self, lifetime: &ModeCheckedSessionLock) -> std::io::Result<()> {
+        self.require_lock(lifetime, LockKind::SessionLifetime)?;
+        match &self.sockets {
+            Some(sockets) => self.remove_free_host_socket(sockets),
+            None => Ok(()),
+        }
+    }
+
+    /// A starting Host removes a stale endpoint itself while it holds the Host lock, so whoever
+    /// holds the lock owns that name; the socket goes only while the lock is free.
+    fn remove_free_host_socket(&self, sockets: &OwnedFd) -> std::io::Result<()> {
         let host = host_lock(&self.paths.runtime_directory, self.expected_uid)?;
         if matches!(host, HostLock::Free { .. }) {
             self.remove_socket(sockets, SocketRole::Host)?;

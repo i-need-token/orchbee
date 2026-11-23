@@ -163,7 +163,8 @@ impl Supervision {
                 .is_ok_and(|bindings| bindings.is_empty())
         };
         // A macOS Host that ended before any binding settled still holds its registered slot,
-        // which is freed so the replacement starts a Host there as after one that never ran.
+        // and one killed before its stop leaves its socket too; both are freed so the replacement
+        // starts a Host there as after one that never ran.
         #[cfg(target_os = "macos")]
         let never_ran = || {
             owners
@@ -177,6 +178,10 @@ impl Supervision {
                         Instant::now() + RECORD_WAIT,
                     )
                     .unwrap_or(false)
+                && owners
+                    .session
+                    .remove_host_endpoint(&owners.lifetime)
+                    .is_ok()
         };
         #[cfg(not(unix))]
         let never_ran = || {

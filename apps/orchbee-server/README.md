@@ -320,7 +320,8 @@ Worker recorded on Windows; a Session that never started a Host is adopted as no
 registers no Host and runs one, in the first slot, so a Host lock no process holds reads as gone.
 On Linux and macOS, which run no Keeper, a gone first Host stops the Server only when the lost
 Worker held a settled binding; otherwise the Server replaces the Worker with no Host, on macOS after
-freeing that Host's registered slot. A Host still spawning never ran.
+freeing that Host's registered slot and removing the socket a killed Host left. A Host still
+spawning never ran.
 
 On Windows a Host gone while the record names a running Keeper, which kept that Host's programs, is
 replaced rather than stopped: `AdoptHost` names a Recovery slot with the Keeper's recorded process,

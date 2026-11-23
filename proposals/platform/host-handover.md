@@ -1635,9 +1635,11 @@ POSIX. Rows 81 to 92 of the [decision record](#decision-record) list the picks.
 ### Process identities on macOS
 
 - Chosen: a registration names a process by its id and its start time, which `proc_pidinfo` reports
-  with `PROC_PIDTBSDINFO` in microseconds. Observation also compares the program's file name, read
-  with `proc_pidpath`. A start time stays fixed for the life of a process and differs for a later
-  process that reuses the id, as a creation time does on Windows.
+  with `PROC_PIDTBSDINFO` in microseconds. A start time stays fixed for the life of a process and
+  differs for a later process that reuses the id, as a creation time does on Windows. The kernel
+  refuses that read for another account's process, so where such a process holds a recorded id,
+  observation compares its program's file name, read with `proc_pidpath`: another program means the
+  recorded process is gone, and the same one stays unknown.
 - Chosen: a registered child starts with `posix_spawn` under `POSIX_SPAWN_START_SUSPENDED` and
   `POSIX_SPAWN_CLOEXEC_DEFAULT`. Its creator publishes the identity and then sends `SIGCONT`, so a
   child runs only once identified, as on Windows. A creator that cannot publish ends the suspended
@@ -1647,6 +1649,10 @@ POSIX. Rows 81 to 92 of the [decision record](#decision-record) list the picks.
   unreaped.
 - Presence comes from the registrations, as on Windows. The Host lock stays each Host's guard of its
   endpoint name, and no longer tells whether the Session has a Host.
+- Chosen: until the Keeper runs on macOS, a gone first Host whose lost Worker settled no binding
+  leaves nothing to keep, as on Linux. The Server frees that Host's registered slot under the
+  record's writer lock, and removes the socket a killed Host left while no Host holds the Host
+  lock, before it replaces the Worker, so the replacement can start a Host there.
 
 ### Restart and Host set on macOS
 
@@ -1741,7 +1747,7 @@ the new release.
 
 | Slice | Content                                                                                                                                                         | Status |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| M1    | Process identities on macOS: registrations with start times, suspended registered starts, observation, and presence by registration                             | Open   |
+| M1    | Process identities on macOS: registrations with start times, suspended registered starts, observation, and presence by registration                             | Built  |
 | M2    | Cold adoption at activation and `server restart` on macOS, with the Update click's restart and the required Host replacement; the restart acceptance on the Mac | Open   |
 | M3    | The Host set on macOS: new terminals on the Worker's own Host, and drained older Hosts                                                                          | Open   |
 | M4    | The Keeper on macOS: keep mode, admission, `spawn`, POSIX `hold`, `exited` and `reap`, the Host's side, and the Worker's start and adoption of it               | Open   |
@@ -1993,5 +1999,6 @@ without `background-programs` never receives it.
 | 90  | The macOS Keeper update runs only with no mark and every holding's owner live, after the new program passes the check mode                                                                                                                                                                                                                                                                                                                                                   | A crash past `execve` must leave every master in a Host                                                                                                                                                                                         | Rule                                                               |
 | 91  | Background programs on macOS start through `spawn`, with pipes in place of a PTY                                                                                                                                                                                                                                                                                                                                                                                             | One owner model for terminals and background programs                                                                                                                                                                                           | Chosen                                                             |
 | 92  | `keeper_live` and `moves_live` turn on for macOS separately from Windows, once the H5 acceptance passes on the real Mac                                                                                                                                                                                                                                                                                                                                                      | Windows is on already                                                                                                                                                                                                                           | Chosen                                                             |
+| 93  | Until the Keeper runs on macOS, the Server frees the registered slot of a gone first Host whose lost Worker settled no binding, and replaces the Worker with no Host                                                                                                                                                                                                                                                                                                         | Stopping the Server, as a gone Host with no Keeper does on Windows                                                                                                                                                                              | Chosen                                                             |
 
 Nothing waits on the owner; each Chosen row stays open to a veto.
