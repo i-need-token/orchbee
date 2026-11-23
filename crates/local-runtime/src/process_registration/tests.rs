@@ -308,7 +308,7 @@ fn a_spawning_host_needs_an_identified_worker_and_an_identified_host_none() {
             identity: identity(3, 30),
             epoch: None,
         }],
-        None,
+        crate::process_registration::KeptKeepers::default(),
     );
     let read: SessionProcesses =
         serde_json::from_value(serde_json::to_value(&adopting).unwrap()).unwrap();

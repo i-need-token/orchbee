@@ -690,13 +690,19 @@ clean-stop publication. `spawn_server` requires the catalog and matching activat
 which as `JobPlacement`; the remote link helper uses it so a Session outlives the `ssh`
 connection's Job. `spawn_session_child` requires the exact registered direct parent for Worker,
 Host or Keeper. A Session has four Host slots, `host` and `host1` to `host3`, and a Host starts into
-a slot no Host holds; a record writes a slot past the first, or its Keeper slot, only once one is
-reserved. The recorded Worker alone starts a Keeper, the first or one that replaces a Keeper
-observed gone, and a recovery Host, which takes a Host's slot only once the Host recorded there is
-observed gone under the record's writer lock. `record_session_host_epoch` writes the epoch a Host
-answered with into its slot while the slot still names that process, so a Server pairs each Host
-with the terminals that carry its epoch, and `release_session_host` frees a slot that still names a
-Host its Worker drained and saw end. Each
+a slot no Host holds; a record writes a slot past the first, or a Keeper slot, only once one is
+reserved. A Session has two Keeper slots, `keeper` and `keeper1`, each with its own endpoint, and
+`current_keeper` names the current Keeper's slot once it is the second; while both slots name a
+Keeper, the other is one a Keeper update started or replaced. The recorded Worker alone starts a
+Keeper, into a slot whose Keeper is observed gone: the first, one that replaces a Keeper, or the
+one an update starts beside the current one, and a recovery Host, which takes a Host's slot only
+once the Host recorded there is observed gone under the record's writer lock.
+`record_session_host_epoch` writes the epoch a Host answered with into its slot while the slot still
+names that process, so a Server pairs each Host with the terminals that carry its epoch, and
+`release_session_host` frees a slot that still names a Host its Worker drained and saw end.
+`make_session_keeper_current` moves `current_keeper` to a slot that still names the given Keeper,
+and `release_session_keeper` frees a Keeper slot that is not the current one and still names the
+Keeper its Worker ended. Each
 child is created suspended and released only after its identity is flushed. A failed start's I/O
 error keeps the failed operation's kind and operating-system code and names its step,
 `SessionChildStep::of`: registration, creation or release. Explicit confirmed

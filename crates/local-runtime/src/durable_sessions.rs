@@ -101,16 +101,16 @@ impl Record {
         })
     }
     /// The record of a new generation, which adopts `hosts`, the Hosts its predecessor left
-    /// running, and `keeper`, the Keeper it left running beside them.
+    /// running, and `keepers`, the Keepers it left running beside them.
     pub(crate) fn registered(
         runtime: &Path,
         name: &SessionName,
         activation_id: [u8; 16],
         hosts: &[crate::process_registration::KeptHost],
-        keeper: Option<crate::process_registration::ProcessIdentity>,
+        keepers: crate::process_registration::KeptKeepers,
     ) -> io::Result<Self> {
         let mut record = Self::new(runtime, name, Some(activation_id), Lifecycle::Active)?;
-        record.processes = SessionProcesses::adopting(hosts, keeper);
+        record.processes = SessionProcesses::adopting(hosts, keepers);
         Ok(record)
     }
     /// The runtime folder this record's generation uses.
@@ -512,13 +512,13 @@ fn remove_private(path: &Path) -> io::Result<()> {
     }
 }
 
-/// The Keeper the Active generation of the Session at `runtime` records, for the Worker that adopts
-/// it; `None` when the record names no identified Keeper.
+/// The Keepers the Active generation of the Session at `runtime` records, for the Worker that adopts
+/// one: each slot's identified Keeper and the current Keeper's slot.
 #[cfg(windows)]
-pub(crate) fn recorded_keeper(
+pub(crate) fn recorded_keepers(
     root: &DataRoot,
     runtime: &Path,
-) -> io::Result<Option<ProcessIdentity>> {
+) -> io::Result<crate::process_registration::KeptKeepers> {
     let scope = runtime
         .file_name()
         .and_then(|value| value.to_str())
@@ -528,10 +528,22 @@ pub(crate) fn recorded_keeper(
     if active.lifecycle != Lifecycle::Active || !active.uses_runtime(runtime) {
         return Err(io::ErrorKind::InvalidData.into());
     }
-    Ok(active
-        .processes
-        .registration(crate::process_registration::ProcessRole::Keeper)
-        .identity())
+    Ok(keepers_of(&active.processes))
+}
+
+/// Each Keeper slot's identified Keeper in `processes`, and the current Keeper's slot.
+#[cfg(windows)]
+fn keepers_of(
+    processes: &crate::process_registration::SessionProcesses,
+) -> crate::process_registration::KeptKeepers {
+    crate::process_registration::KeptKeepers {
+        slots: crate::KeeperSlot::ALL.map(|slot| {
+            processes
+                .registration(crate::process_registration::ProcessRole::Keeper(slot))
+                .identity()
+        }),
+        current: processes.current_keeper(),
+    }
 }
 
 /// The Server retains one exact activation generation, never a pathname-only stop authority.
@@ -691,14 +703,13 @@ impl RetainedSessionRecord {
             })
             .collect()
     }
-    /// The Keeper this generation records now, by its process ID and creation time; `None` when
-    /// it records none.
+    /// Each Keeper this generation records now, by its process ID and creation time, in slot order.
     ///
     /// # Errors
     ///
     /// Returns an error when the record cannot be read or no longer names this generation.
     #[cfg(windows)]
-    pub(crate) fn keeper_identity(&self) -> io::Result<Option<ProcessIdentity>> {
+    pub(crate) fn keeper_identities(&self) -> io::Result<[Option<ProcessIdentity>; 2]> {
         let current = self
             .directory
             .read(&self.scope)?
@@ -706,18 +717,29 @@ impl RetainedSessionRecord {
         if !current.same_active_generation(&self.active) {
             return Err(io::ErrorKind::InvalidData.into());
         }
-        Ok(current
-            .processes
-            .registration(crate::process_registration::ProcessRole::Keeper)
-            .identity())
+        Ok(keepers_of(&current.processes).slots)
     }
-    /// What this generation's Keeper is now, in the same terms as [`Self::hosts`]. POSIX
-    /// starts no Keeper, so there it reads as never started.
+    /// What this generation's Keeper is now, in the same terms as [`Self::hosts`]: the current
+    /// Keeper while it runs, otherwise one running in the other slot, which an adopting Worker
+    /// then takes. Neither running, an unknown or spawning slot reads as such, and otherwise the
+    /// current slot's presence. POSIX starts no Keeper, so there it reads as never started.
     pub fn keeper_presence(&self) -> io::Result<HostPresence> {
-        role_presence(
-            &self.current()?,
-            crate::process_registration::ProcessRole::Keeper,
-        )
+        let record = self.current()?;
+        let current = record.processes.current_keeper();
+        let [mine, other] = [current, current.other()].map(|slot| {
+            role_presence(
+                &record,
+                crate::process_registration::ProcessRole::Keeper(slot),
+            )
+        });
+        let (mine, other) = (mine?, other?);
+        Ok(match (mine, other) {
+            (HostPresence::Running(_), _) => mine,
+            (_, HostPresence::Running(_)) => other,
+            (HostPresence::Unknown, _) | (_, HostPresence::Unknown) => HostPresence::Unknown,
+            (HostPresence::Spawning, _) | (_, HostPresence::Spawning) => HostPresence::Spawning,
+            _ => mine,
+        })
     }
     /// The record as it stands now, which must still name this generation.
     fn current(&self) -> io::Result<Record> {

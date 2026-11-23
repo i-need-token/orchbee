@@ -581,6 +581,8 @@ fn keep_shutdown_releases_the_host_without_a_terminal_request() {
             hosts: vec![(&host, &mut owner)],
             #[cfg(windows)]
             keeper: &mut None,
+            #[cfg(windows)]
+            retiring: &mut None,
         }),
     )
     .unwrap();

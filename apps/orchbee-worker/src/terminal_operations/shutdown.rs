@@ -63,6 +63,8 @@ pub(super) struct StopHosts<'a> {
     pub(super) epoch: HostEpoch,
     #[cfg(windows)]
     pub(super) keeper: &'a mut Option<crate::session_keeper::SessionKeeper>,
+    #[cfg(windows)]
+    pub(super) retiring: &'a mut Option<crate::session_keeper::RetiringKeeper>,
 }
 
 impl ManagedHost {
@@ -317,6 +319,10 @@ fn end(
     #[cfg(windows)]
     if let Some(mut keeper) = stop.keeper.take() {
         keeper.end(deadline);
+    }
+    #[cfg(windows)]
+    if let Some(mut retiring) = stop.retiring.take() {
+        retiring.end_with_session(deadline);
     }
     WorkerShutdownOutcome::Stopped {
         host_epoch: stop.epoch,

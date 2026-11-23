@@ -42,7 +42,7 @@ impl BlockerRole {
             ProcessRole::Server => Self::Server,
             ProcessRole::Worker => Self::Worker,
             // The Keeper runs the Terminal Host's program, and ending it ends what a Host would.
-            ProcessRole::Host(_) | ProcessRole::Keeper => Self::TerminalHost,
+            ProcessRole::Host(_) | ProcessRole::Keeper(_) => Self::TerminalHost,
         }
     }
 }

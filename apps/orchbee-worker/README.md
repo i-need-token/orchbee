@@ -28,9 +28,11 @@ arrived. A failed adoption also ends the Worker with an `exited` record at site 
 
 On Windows the Worker records the [Session's Keeper](#the-sessions-keeper): `keeper-started` once
 its first Host attached it, `keeper-replaced` when one that ended or stopped answering was replaced,
-and `keeper-failed` for a step that failed, with `error`, `osError` and `step` (`start`, `attach`,
-`adopt`, `replace`, `discard`, `hold` when the Host runs a terminal its Keeper does not hold, or
-`end`). `host-hung` records a Host whose dispatch stopped turning: `stalledMs`, and `ended` when the
+`keeper-updated` with the `terminals` and `programs` the new Keeper held and `elapsedMs` when an
+update committed, `keeper-update-failed` with `error`, `osError`, `step` (`start`, `attach`,
+`compare` or `commit`) and `attempt` when one rolled back, and `keeper-failed` for a step that
+failed, with `error`, `osError` and `step` (`start`, `attach`, `adopt`, `replace`, `discard`, `hold`
+when the Host runs a terminal its Keeper does not hold, `detach`, `release`, or `end`). `host-hung` records a Host whose dispatch stopped turning: `stalledMs`, and `ended` when the
 Worker ended it. `host-epoch-unrecorded` records, with `error`, a Host epoch the Session record did
 not take. `host-draining` records the `slot` of an older Host the Worker told to drain, and
 `host-drained` its end: `slot`, and `released` once the Session record freed that slot.
@@ -379,11 +381,24 @@ prepared handoff: first right after the answer that admitted its Host, then ever
 Host that offers both `keeper` and `recovery` and has no Keeper gets one: the Worker starts it,
 registers the Host with it and has the Host attach it, so the Host holds each running terminal
 there. A Host without `recovery`, such as one on the system ConHost, gets none, since no Host could
-take a kept program back. A replacement Worker adopts the recorded Keeper instead. Every Host the
-Worker holds attaches the one Keeper, a Host the Worker starts later at its next care; an attachment
-that fails is recorded once and leaves that Host's terminals unheld. A failed Keeper step leaves the
-terminals running unheld and the Worker serving; Keeper starts are 30 seconds apart, and after three
-failed ones the Worker starts no more. A stop ends the Keeper once every Host is gone.
+take a kept program back. A replacement Worker adopts the recorded Keeper instead: the current one,
+or the one live Keeper left in the other slot, which it makes current, and it retires a live Keeper
+in the slot it did not adopt. Every Host the Worker holds attaches the one Keeper, a Host the Worker
+starts later at its next care; an attachment that fails is recorded once and leaves that Host's
+terminals unheld. A failed Keeper step leaves the terminals running unheld and the Worker serving;
+Keeper starts are 30 seconds apart, and after three failed ones the Worker starts no more. A stop
+ends the Keeper, and a Keeper still retiring, once every Host is gone.
+
+An adopted Keeper whose program is not the Worker's own Host program, by canonical path, is updated
+before any move: once every Host that holds in Keepers is attached to it and it holds nothing
+moving, orphaned or unknown, the Worker starts a new Keeper from its own program in the other slot,
+has every such Host attach it, waits up to two seconds until the new Keeper holds every terminal and
+program holding the old one does, by holding id, Host and processes, and commits by making the new
+slot current. The old Keeper then retires: each Host detaches it, at the next care again when a
+detach fails, then the Worker ends it and frees its slot, so no Host reports it lost. A failure
+before the commit retires the new Keeper instead; the next attempt follows 30 seconds later, and
+after three the old Keeper stays. Move turns answer `Waiting` while an update is due and while a
+Keeper retires.
 
 A Host exchange between requests does not watch the Server, so a request that arrives meanwhile
 waits for it, at most three seconds for an `AttachKeeper`, and that request's bound runs from when

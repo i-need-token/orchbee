@@ -1539,6 +1539,82 @@ development builds until H4 through one constant, `moves_live`, and test builds 
 | S5    | The image section                                                                                                                                               | Built  |
 | S6    | The [H3 acceptance](#acceptance) on real Windows                                                                                                                | Built  |
 
+## H4 design
+
+Decided in the main session on 2026-11-23 from the [phase table](#phases), H1's picks for the
+Keeper update, and decision 14. It covers Windows; macOS reaches the same row with H5. Each pick is
+marked Chosen, which the owner may veto, or Rule.
+
+### The Keeper update
+
+- Chosen: the Worker updates the Keeper when the Keeper it adopted runs another Terminal Host
+  program than its own Host, compared by canonical image path. A Keeper the Worker started, or
+  one that runs its own program, needs no update.
+- Rule: the update comes before any move. While it is due or under way, a move turn answers
+  `Waiting`, and recoveries wait as [updating the Keeper](#updating-the-keeper) says. It starts only
+  while every Host the Worker holds is attached to the current Keeper and no move is under way.
+- Chosen: the Session record gains a second Keeper slot, written only while it is in use, with an
+  endpoint id of its own derived from the runtime and the slot. An update starts the new Keeper in
+  the free slot and clears the old one when it ends, so the Keeper's slot alternates.
+- The steps: reserve the free slot; start the new Keeper from the own Host's program at that slot's
+  endpoint as the Worker's registered child; register every Host with it and send each Host
+  `AttachKeeper` for it, so each Host holds every terminal and program there under the same holding
+  id; compare both Keepers' `status`, terminal and program holdings, holding by holding, by id,
+  owner, and processes; send each Host `DetachKeeper` for the old Keeper; send the old Keeper
+  `exit`, which then holds nothing; clear the old slot.
+- Chosen: the Hosts detach the old Keeper before its `exit`, amending H1's order. A Host whose
+  Keeper link ends without a detach reports that Keeper lost, which starts H2's replacement; after
+  every detach the old Keeper holds nothing, and its `exit` ends nothing.
+- A failure before the first `DetachKeeper` rolls the update back: each Host that attached the new
+  Keeper detaches it, the new Keeper gets `exit`, and its slot is cleared, so the old Keeper stays
+  in charge. After the first detach the new Keeper holds everything, as the comparison showed, so a
+  failed detach is retried at the Worker's next care, every 2 seconds, and the old Keeper's `exit`
+  waits for every detach. A Host lost meanwhile fails the update, as decision 60 says.
+- Chosen: a rolled-back update is tried again 30 seconds later, three times in all; then the Worker
+  moves terminals under the old Keeper, which still arbitrates each move, and its next generation
+  tries again.
+- Chosen: the record names the current Keeper's slot, and the commit is the write that moves it to
+  the new slot. A Worker that adopts a Session whose record registers two live Keepers adopts the
+  current one and retires the other: each Host detaches it, then the Worker ends it and clears its
+  slot. With one live Keeper it adopts that one, in either slot, and makes its slot current. A stop
+  ends both, and cold recovery keeps each live one in its slot.
+- Chosen: retiring a Keeper, the old one after a commit or the new one after a rollback, ends it
+  once every Host detached it, rather than sending `exit`: it then holds nothing either way.
+- Chosen: the update waits while the old Keeper holds anything moving, orphaned, or in an unknown
+  state, and while another Keeper still retires, so no Host needs a third attachment.
+- Diagnostics: `keeper-updated` with the counts of terminal and program holdings and `elapsedMs`,
+  and `keeper-update-failed` with the step and the attempt; every failure before the commit rolls
+  back.
+
+### The confirmation and status
+
+- Rule 14 holds: at a security floor, the confirmation names the terminals that cannot move.
+- Chosen: each Host in `status server`'s `restart.hosts` adds `terminals`, the count it runs, and
+  `moves`: true when the active release moves terminals and its Worker adopts that Host, which
+  needs a shared `worker-host` generation. The text output names a Host whose terminals stay.
+- Chosen: a click asks before the restart only for a `required` Host that does not move. Otherwise
+  it restarts; then, while a `required` Host still runs terminals, it reads `status server` every 2
+  seconds until that count has not changed for 6 seconds, since each turn moves one idle terminal,
+  and asks the question for the terminals left, naming their count. Confirmed, it stops and starts
+  the Session as S11 does; declined, those terminals stay on their Host as in P1c, and the TUI
+  switches.
+
+### The release gate
+
+- From H4, a path whose new release ships another Terminal Host build also checks that the
+  Session's Keeper process changed and runs the new release's program, that the probe's terminal
+  moved to the new release's Host with its program's process id and its numbers intact, and that the
+  old Host and the old Keeper exited. A path from a release whose Host predates H1 keeps P1c's check.
+
+### H4 slices
+
+| Slice | Content                                                                                                              | Status |
+| ----- | -------------------------------------------------------------------------------------------------------------------- | ------ |
+| S1    | The Keeper update: the second slot, the steps, rollback and retries, adoption and stop with two Keepers, diagnostics | Built  |
+| S2    | The confirmation reduced to terminals that cannot move, and `status server`'s `terminals` and `moves`                | Open   |
+| S3    | The release gate's H4 checks                                                                                         | Open   |
+| S4    | The [H3 and H4 acceptance](#acceptance) on real Windows, and `moves_live` turned on in release builds                | Open   |
+
 ## B1 design
 
 The main session settled this design on 2026-11-22 from

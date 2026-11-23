@@ -53,7 +53,7 @@ pub use keeper::{
     KeeperRefusal, KeeperStatus, ProgramHolding, start_keeper,
 };
 #[cfg(windows)]
-pub use keeper::{end_recorded_keeper, recorded_keeper};
+pub use keeper::{RecordedKeepers, end_recorded_keeper, recorded_keepers};
 pub use keeper::{keeper_live, moves_live};
 mod automatic_updates;
 pub use automatic_updates::{
@@ -168,7 +168,10 @@ mod registered_child;
 pub use activation_record::{ActivationState, RetainedActivationRecord};
 pub use registered_child::{SessionChild, SessionChildStep, spawn_session_child};
 #[cfg(windows)]
-pub use registered_child::{record_session_host_epoch, release_session_host};
+pub use registered_child::{
+    make_session_keeper_current, record_session_host_epoch, release_session_host,
+    release_session_keeper,
+};
 mod durable_sessions;
 pub use durable_sessions::{
     Fenced, HostPresence, HostSlotPresence, RetainedSessionRecord, Successor, session_moved_to,
@@ -230,7 +233,7 @@ pub use rendezvous::host_lock_held;
 #[cfg(windows)]
 pub use rendezvous::{CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME};
 pub use rendezvous::{
-    EntryKind, EntryObservation, HOST_SCOPE_NAME, HostSlot, LockAttempt, LockKind, MAXIMUM_HOSTS,
+    EntryKind, EntryObservation, HOST_SCOPE_NAME, HostSlot, KeeperSlot, LockAttempt, LockKind, MAXIMUM_HOSTS,
     ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock, RendezvousError,
     SessionHolderObservation, SessionLifetimeObservation, SessionScope, acquire_past_probes,
 };

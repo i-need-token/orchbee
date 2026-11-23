@@ -13,9 +13,9 @@ pub enum SessionChild {
     /// so the programs the Keeper kept can be recovered into it. Only the recorded Worker starts
     /// it.
     RecoveryHost(crate::HostSlot),
-    /// The Session's Keeper, which only the recorded Worker starts: the first one, or one that
-    /// replaces a Keeper proven gone.
-    Keeper,
+    /// The Session's Keeper in a slot, which only the recorded Worker starts: the first one, one
+    /// that replaces a Keeper proven gone, or the one a Keeper update starts beside the current one.
+    Keeper(crate::KeeperSlot),
 }
 
 /// The step of a registered child's start that failed. A failed [`spawn_session_child`] carries it
@@ -48,7 +48,10 @@ impl SessionChildStep {
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub use windows::{record_session_host_epoch, release_session_host, spawn_session_child};
+pub use windows::{
+    make_session_keeper_current, record_session_host_epoch, release_session_host,
+    release_session_keeper, spawn_session_child,
+};
 #[cfg(windows)]
 pub(crate) use windows::{spawn_registered, spawn_registered_with};
 #[cfg(not(windows))]

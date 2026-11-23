@@ -203,9 +203,9 @@ impl Moves {
         let Some((old, terminal, from)) = due else {
             return Ok(TerminalMoveTurnOutcome::Waiting);
         };
-        // Both Hosts hold their terminals in the Session's Keeper, which no replacement is under
-        // way for.
-        if care.replacing()
+        // Both Hosts hold their terminals in the Session's Keeper, which no replacement or update
+        // is due or under way for.
+        if hosts.keeper_changing(care)
             || !hosts.keeper_attached(old)
             || hosts.connection(old).keeper_troubled()
         {

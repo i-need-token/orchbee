@@ -442,8 +442,12 @@ fn a_live_host_is_kept_for_adoption_only_when_the_binding_record_names_it() {
             processes
                 .identify(ProcessRole::Host(crate::HostSlot::FIRST), host)
                 .unwrap();
-            processes.reserve_keeper(Creator::Process(worker)).unwrap();
-            processes.identify(ProcessRole::Keeper, keeper).unwrap();
+            processes
+                .reserve_keeper(crate::KeeperSlot::First, Creator::Process(worker))
+                .unwrap();
+            processes
+                .identify(ProcessRole::Keeper(crate::KeeperSlot::First), keeper)
+                .unwrap();
         }
         directory.publish(&scope, &record).unwrap();
         let named = if case == "this-host" {
@@ -494,7 +498,10 @@ fn a_live_host_is_kept_for_adoption_only_when_the_binding_record_names_it() {
                     identity: host,
                     epoch: None,
                 }],
-                Some(keeper),
+                crate::process_registration::KeptKeepers {
+                    slots: [Some(keeper), None],
+                    current: crate::KeeperSlot::First,
+                },
             )
         );
     }

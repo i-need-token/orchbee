@@ -354,6 +354,48 @@ pub(crate) fn keeper_replaced() {
     log_event(LogLevel::Info, "keeper-replaced", &[]);
 }
 
+/// The Worker replaced the Session's Keeper with one that runs its own program: the new Keeper
+/// held `terminals` terminal holdings and `programs` program holdings, and the update took
+/// `elapsed` up to its commit.
+#[cfg(windows)]
+pub(crate) fn keeper_updated(terminals: usize, programs: usize, elapsed: Duration) {
+    log_event(
+        LogLevel::Info,
+        "keeper-updated",
+        &[
+            ("terminals", count(terminals)),
+            ("programs", count(programs)),
+            ("elapsedMs", milliseconds(elapsed)),
+        ],
+    );
+}
+
+/// A Keeper update failed at `step` on its `attempt`, from 1, and was rolled back, so the old
+/// Keeper stays: the closed I/O error kind and the operating-system error code it carries.
+#[cfg(windows)]
+pub(crate) fn keeper_update_failed(
+    step: &'static str,
+    attempt: u32,
+    error: &(dyn Error + 'static),
+) {
+    let mut fields = vec![
+        error_kind(error),
+        ("step", LogValue::Token(step)),
+        ("attempt", LogValue::Count(u64::from(attempt))),
+    ];
+    if let Some(code) = os_error(error) {
+        fields.push(("osError", LogValue::Count(u64::from(code))));
+    }
+    #[cfg(test)]
+    note("keeper-update-failed", &fields);
+    log_event(LogLevel::Warning, "keeper-update-failed", &fields);
+}
+
+#[cfg(windows)]
+fn count(value: usize) -> LogValue {
+    LogValue::Count(u64::try_from(value).unwrap_or(u64::MAX))
+}
+
 /// The Host's dispatch stopped turning for `stalled`: `ended` when the Keeper held every terminal
 /// it runs and the Worker ended it, so recovery follows; otherwise the Host is left running.
 #[cfg(windows)]

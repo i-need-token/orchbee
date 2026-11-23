@@ -93,6 +93,10 @@ pub(super) struct HostSet<'a> {
     /// The Session's Keeper this Worker answers for, which a stop ends once every Host is gone.
     #[cfg(windows)]
     keeper: Option<crate::session_keeper::SessionKeeper>,
+    /// A Keeper an update replaced or rolled back, or an adoption found beside the current one,
+    /// until every Host detached it and it ended.
+    #[cfg(windows)]
+    retiring: Option<crate::session_keeper::RetiringKeeper>,
 }
 
 impl<'a> HostSet<'a> {
@@ -123,6 +127,8 @@ impl<'a> HostSet<'a> {
             may_start: true,
             #[cfg(windows)]
             keeper: None,
+            #[cfg(windows)]
+            retiring: None,
         }
     }
 
@@ -171,12 +177,26 @@ impl<'a> HostSet<'a> {
         });
     }
 
-    /// Keeps `keeper`, the Session's Keeper this Worker started or adopted.
+    /// Keeps `keeper`, the Session's Keeper this Worker started or adopted, and retires a live
+    /// Keeper its adoption found in the other slot.
     #[cfg(windows)]
-    pub(super) fn keep(&mut self, keeper: Option<crate::session_keeper::SessionKeeper>) {
+    pub(super) fn keep(&mut self, mut keeper: Option<crate::session_keeper::SessionKeeper>) {
+        if let Some(other) = keeper
+            .as_mut()
+            .and_then(crate::session_keeper::SessionKeeper::take_other)
+        {
+            self.retiring = Some(other);
+        }
         if keeper.is_some() {
             self.keeper = keeper;
         }
+    }
+
+    /// Whether moves wait for the Session's Keeper, which `care` looks after: its replacement or
+    /// update is due or under way, or a Keeper still retires.
+    #[cfg(windows)]
+    pub(super) fn keeper_changing(&self, care: &super::keeper_care::KeeperCare) -> bool {
+        care.keeper_changing(self.keeper.as_ref(), self.retiring.is_some())
     }
 
     /// Whether this Worker owns its Hosts in a managed Session.
@@ -367,6 +387,8 @@ impl<'a> HostSet<'a> {
             epoch,
             #[cfg(windows)]
             keeper: &mut self.keeper,
+            #[cfg(windows)]
+            retiring: &mut self.retiring,
         })
     }
 }
@@ -380,7 +402,7 @@ impl HostSet<'_> {
         care: &mut super::keeper_care::KeeperCare,
         server: &UnixStream,
     ) -> Option<Instant> {
-        use super::keeper_care::{Cared, KeeperSlot};
+        use super::keeper_care::{Cared, Keepers};
         let began = Instant::now();
         let program = self
             .starter
@@ -399,11 +421,12 @@ impl HostSet<'_> {
                 })
             })
             .collect();
-        let keeper = KeeperSlot {
+        let keepers = Keepers {
             keeper: &mut self.keeper,
+            retiring: &mut self.retiring,
             program,
         };
-        let cared_began = care.run(&mut cared, keeper, server);
+        let cared_began = care.run(&mut cared, keepers, server);
         let checked = self.drain_empty();
         cared_began
             .or_else(|| (checked && super::server_transport::readable_now(server)).then_some(began))

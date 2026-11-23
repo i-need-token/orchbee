@@ -2,10 +2,11 @@
 //! (`proposals/platform/host-handover.md`, the hang check and the Keeper's life from H2). It runs
 //! between Server requests: it starts the Session's Keeper when none runs and a Host recovers
 //! terminals, has each Host the Worker holds attach that Keeper, replaces a Keeper a Host reports
-//! lost, or reports unresponsive and that does not answer the Worker either, and ends a Host whose
-//! dispatch has stopped turning once the Keeper holds every terminal it runs, so recovery follows as
-//! for a crash. A hang check never ends a Host that runs a terminal the Keeper does not hold, and no
-//! step here ends the Worker.
+//! lost, or reports unresponsive and that does not answer the Worker either, updates an adopted
+//! Keeper that runs another installation's program and retires the Keeper an update leaves
+//! (`update`), and ends a Host whose dispatch has stopped turning once the Keeper holds every
+//! terminal it runs, so recovery follows as for a crash. A hang check never ends a Host that runs a
+//! terminal the Keeper does not hold, and no step here ends the Worker.
 //!
 //! A Server request that arrives while the care runs waits for it, so the care answers when it
 //! began, and that request's bound runs from then. A request that meets a hung Host first keeps the
@@ -26,8 +27,10 @@ use super::shutdown::ManagedHost;
 use crate::{
     diagnostic_events,
     host_connection::HostBrokerConnection,
-    session_keeper::{Serving, SessionKeeper},
+    session_keeper::{RetiringKeeper, Serving, SessionKeeper},
 };
+
+mod update;
 
 /// How often the Worker cares for the Keeper and reads each Host's `dispatch-progress`.
 const PERIOD: Duration = Duration::from_secs(2);
@@ -54,6 +57,8 @@ pub(super) struct KeeperCare {
     failed_starts: u32,
     /// Whether the Keeper ended or stopped answering and waits for its replacement.
     replacing: bool,
+    /// Whether the Keeper runs another installation's program and is updated.
+    update: update::KeeperUpdate,
 }
 
 /// What the care saw of one Host.
@@ -78,10 +83,11 @@ pub(super) struct Cared<'a> {
     pub(super) watch: &'a mut HostWatch,
 }
 
-/// The Session's Keeper this Worker answers for, and the Session runtime folder and Terminal Host
-/// program a new one starts from.
-pub(super) struct KeeperSlot<'a> {
+/// The Session's Keeper this Worker answers for, the Keeper it retires, and the Session runtime
+/// folder and Terminal Host program a new one starts from.
+pub(super) struct Keepers<'a> {
     pub(super) keeper: &'a mut Option<SessionKeeper>,
+    pub(super) retiring: &'a mut Option<RetiringKeeper>,
     pub(super) program: Option<(&'a Path, &'a Path)>,
 }
 
@@ -115,12 +121,14 @@ impl KeeperCare {
             next_start: now,
             failed_starts: 0,
             replacing: false,
+            update: update::KeeperUpdate::new(now),
         }
     }
 
-    /// Whether the Keeper ended or stopped answering and waits for its replacement.
-    pub(super) const fn replacing(&self) -> bool {
-        self.replacing
+    /// Whether moves wait for the Session's Keeper `keeper`: it waits for its replacement, an
+    /// update of it is due or not yet judged, or another Keeper still `retiring`.
+    pub(super) fn keeper_changing(&self, keeper: Option<&SessionKeeper>, retiring: bool) -> bool {
+        self.replacing || retiring || self.update.pending(keeper)
     }
 
     /// When the next care is due.
@@ -133,19 +141,19 @@ impl KeeperCare {
     pub(super) fn run(
         &mut self,
         hosts: &mut [Cared<'_>],
-        keeper: KeeperSlot<'_>,
+        keepers: Keepers<'_>,
         server: &LocalStream,
     ) -> Option<Instant> {
         let began = Instant::now();
         if began < self.due {
             return None;
         }
-        self.care(hosts, keeper);
+        self.care(hosts, keepers);
         self.due = Instant::now() + PERIOD;
         super::server_transport::readable_now(server).then_some(began)
     }
 
-    fn care(&mut self, hosts: &mut [Cared<'_>], keeper: KeeperSlot<'_>) {
+    fn care(&mut self, hosts: &mut [Cared<'_>], mut keepers: Keepers<'_>) {
         let (mut lost, mut unresponsive) = (false, false);
         for host in hosts.iter() {
             let events = host.connection.take_keeper_events();
@@ -160,24 +168,26 @@ impl KeeperCare {
         }
         // A Keeper a Host reports unresponsive is replaced only when it does not answer the Worker
         // either within its reply bound.
-        if let Some(current) = keeper.keeper.as_mut()
+        if let Some(current) = keepers.keeper.as_mut()
             && (lost || (unresponsive && current.status().is_err()))
         {
             self.replacing = true;
         }
-        if self.replacing || keeper.keeper.is_none() {
-            self.start(hosts, keeper);
-            return;
+        if self.replacing || keepers.keeper.is_none() {
+            self.start(hosts, &mut keepers);
+        } else {
+            offer(hosts, keepers.keeper);
+            self.update.run(hosts, &mut keepers);
+            for host in hosts.iter_mut() {
+                probe(host, keepers.keeper);
+            }
         }
-        offer(hosts, keeper.keeper);
-        for host in hosts.iter_mut() {
-            probe(host, keeper.keeper);
-        }
+        update::retire(hosts, &mut keepers);
     }
 
     /// Starts the Session's Keeper for a Host that recovers terminals, ending first the Keeper it
     /// replaces, and has every Host attach it. A failed start leaves the terminals running unheld.
-    fn start(&mut self, hosts: &mut [Cared<'_>], keeper: KeeperSlot<'_>) {
+    fn start(&mut self, hosts: &mut [Cared<'_>], keepers: &mut Keepers<'_>) {
         let now = Instant::now();
         // Only a Host that can take a kept program back gets a Keeper.
         let Some(first) = hosts
@@ -189,12 +199,17 @@ impl KeeperCare {
         if self.failed_starts >= START_ATTEMPTS || now < self.next_start {
             return;
         }
-        let Some((runtime, executable)) = keeper.program else {
+        let Some((runtime, executable)) = keepers.program else {
             return;
         };
         self.next_start = now + START_SPACING;
         let replaced = std::mem::take(&mut self.replacing);
-        if let Some(mut lost) = keeper.keeper.take() {
+        // A replacement takes the lost Keeper's slot, and a first Keeper the record's current one.
+        let slot = match keepers.keeper.as_ref() {
+            Some(lost) => Ok(lost.slot()),
+            None => SessionKeeper::current_slot(runtime),
+        };
+        if let Some(mut lost) = keepers.keeper.take() {
             lost.end(now + END_BOUND);
         }
         for host in hosts.iter_mut() {
@@ -202,13 +217,10 @@ impl KeeperCare {
             host.watch.attached = false;
         }
         let host = &mut hosts[first];
-        let started = host
-            .managed
-            .host_identity()
-            .map_err(Into::into)
-            .and_then(|process| {
-                SessionKeeper::start_attached(runtime, executable, host.connection, process)
-            });
+        let started = slot.and_then(|slot| {
+            let process = host.managed.host_identity()?;
+            SessionKeeper::start_attached(runtime, slot, executable, host.connection, process)
+        });
         match started {
             Ok(started) => {
                 if replaced {
@@ -218,8 +230,8 @@ impl KeeperCare {
                 }
                 host.watch.offered = true;
                 host.watch.attached = true;
-                *keeper.keeper = Some(started);
-                offer(hosts, keeper.keeper);
+                *keepers.keeper = Some(started);
+                offer(hosts, keepers.keeper);
             }
             Err(error) => {
                 self.failed_starts += 1;

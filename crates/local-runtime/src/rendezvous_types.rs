@@ -36,6 +36,43 @@ impl HostSlot {
         self.0
     }
 }
+
+/// One of a Session's two Keeper slots, each with its own registration and endpoint. The current
+/// Keeper runs in one; a Keeper update starts the Keeper that replaces it in the other, so the
+/// current Keeper's slot alternates. Only a Windows Session runs a Keeper.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum KeeperSlot {
+    /// The slot a Session's one Keeper ran in before an update could start a second.
+    #[default]
+    First,
+    Second,
+}
+
+impl KeeperSlot {
+    /// Both slots, in order.
+    pub const ALL: [Self; 2] = [Self::First, Self::Second];
+
+    /// The other slot.
+    #[must_use]
+    pub const fn other(self) -> Self {
+        match self {
+            Self::First => Self::Second,
+            Self::Second => Self::First,
+        }
+    }
+
+    pub(crate) const fn index(self) -> usize {
+        match self {
+            Self::First => 0,
+            Self::Second => 1,
+        }
+    }
+
+    pub(crate) fn is_first(&self) -> bool {
+        *self == Self::First
+    }
+}
 const SESSION_LIFETIME_LOCK_NAME: &str = "session-lifetime.lock";
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SessionScope(String);

@@ -29,6 +29,7 @@ use crate::{
 
 const TYPED_FAILURE_KIND: u16 = 5;
 const ATTACH_KEEPER_KIND: u16 = 90;
+const DETACH_KEEPER_KIND: u16 = 91;
 const CLAIM_TERMINAL_KIND: u16 = 104;
 const RECOVER_TERMINAL_KIND: u16 = 106;
 const MAXIMUM_DEADLINE_SECONDS: u8 = 30;
@@ -70,6 +71,9 @@ pub struct RecoverTerminal {
 pub enum HandoverControl {
     AttachKeeper(AttachKeeper),
     KeeperAttached(HandoverProcess),
+    /// `DetachKeeper`: the Keeper the Host stops holding its terminals in.
+    DetachKeeper(HandoverProcess),
+    KeeperDetached,
     ClaimTerminal(TerminalId),
     TerminalClaimed(TerminalId),
     RecoverTerminal(Box<RecoverTerminal>),
@@ -127,9 +131,12 @@ pub fn decode_handover_control(
         return answer;
     }
     match (kind, role) {
-        (ATTACH_KEEPER_KIND, MessageRole::Response) => decode_wire::<KeeperAttachedWire>(payload)
+        (ATTACH_KEEPER_KIND, MessageRole::Response) => decode_wire::<KeeperWire>(payload)
             .and_then(|wire| process_from_wire(&wire.keeper))
             .map(HandoverControl::KeeperAttached),
+        (DETACH_KEEPER_KIND, MessageRole::Response) => {
+            decode_wire::<EmptyWire>(payload).map(|EmptyWire {}| HandoverControl::KeeperDetached)
+        }
         (CLAIM_TERMINAL_KIND, MessageRole::Response) => decode_wire::<TerminalTargetWire>(payload)
             .and_then(|wire| terminal_from_wire(&wire.terminal_id))
             .map(HandoverControl::TerminalClaimed),
@@ -170,9 +177,21 @@ pub fn encode_handover_control(
         HandoverControl::KeeperAttached(keeper) => (
             ATTACH_KEEPER_KIND,
             MessageRole::Response,
-            serialize_wire(&KeeperAttachedWire {
+            serialize_wire(&KeeperWire {
                 keeper: process_to_wire(*keeper),
             })?,
+        ),
+        HandoverControl::DetachKeeper(keeper) => (
+            DETACH_KEEPER_KIND,
+            MessageRole::Request,
+            serialize_wire(&KeeperWire {
+                keeper: process_to_wire(*keeper),
+            })?,
+        ),
+        HandoverControl::KeeperDetached => (
+            DETACH_KEEPER_KIND,
+            MessageRole::Response,
+            serialize_wire(&EmptyWire {})?,
         ),
         HandoverControl::ClaimTerminal(terminal) => (
             CLAIM_TERMINAL_KIND,
@@ -253,11 +272,17 @@ struct AttachKeeperWire {
     endpoint_id: String,
 }
 
+/// The Keeper an `AttachKeeper` answer or a `DetachKeeper` request names.
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct KeeperAttachedWire {
+struct KeeperWire {
     keeper: ProcessWire,
 }
+
+/// The empty object a `DetachKeeper` answer carries.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct EmptyWire {}
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

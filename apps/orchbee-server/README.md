@@ -275,9 +275,10 @@ on Windows exactly as on Linux and macOS: after the final capture it sends the H
 control request, which ends every terminal the Worker would have disposed, and continues once the
 retained record observes the Host's registered identity gone, within 45 seconds. A failed or
 unanswered request fails the attempt in its host-exit phase; the Host is never ended by force. On
-Windows the stop then ends the Session's Keeper, checked by its recorded process ID and creation
-time, since a Keeper may hold the last handles of a program whose Host ended; a Keeper gone or never
-started counts as ended, and one not ended by the deadline fails the attempt in the same phase. A
+Windows the stop then ends each Keeper the record names, checked by its recorded process ID and
+creation time, since a Keeper may hold the last handles of a program whose Host ended; a Keeper gone
+or never started counts as ended, and one not ended by the deadline fails the attempt in the same
+phase. A
 stop is therefore never refused only because its Worker is gone.
 A Server whose Worker was lost with no replacement serving, whose Host is gone and, on Windows, whose
 Keeper is gone or never started, with no stop admitted, begins its own stop under a fresh identity,
@@ -381,8 +382,8 @@ On Windows a Server can start for a generation that kept its predecessor's runni
 the Server and Worker ended, by a crash or an `exit`, while its Hosts kept their terminals. Crash
 recovery admits that generation only when the Session's
 [binding record](docs/workbench-checkpoint.md#binding-record) names each running Host, and
-publishes it with those Hosts' registrations, the Session's Keeper's while it runs, and no Server or
-Worker
+publishes it with those Hosts' registrations, each Keeper slot's while its Keeper runs, and no
+Server or Worker
 ([cold recovery](../../crates/local-runtime/docs/windows-crash-recovery.md#cold-recovery-transitions)),
 so the adopting Worker adopts that Keeper instead of starting a second one.
 The Server learns it at startup from that record: each registered Host it observes running is

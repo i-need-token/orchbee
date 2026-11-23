@@ -47,7 +47,7 @@ pub fn spawn_session_child(
         SessionChild::ReplacementWorker => Reservation::ReplacementWorker,
         SessionChild::Host(slot) => Reservation::Fresh(ProcessRole::Host(slot)),
         SessionChild::RecoveryHost(slot) => Reservation::RecoveryHost(slot),
-        SessionChild::Keeper => Reservation::Keeper,
+        SessionChild::Keeper(slot) => Reservation::Keeper(slot),
     };
     spawn_reserved_with(
         &directory,
@@ -106,6 +106,49 @@ pub fn release_session_host(
     })
 }
 
+/// Makes `slot` of the Active record of the Session whose runtime folder is `runtime` the current
+/// Keeper's, while it still names `process`: the Worker commits a Keeper update, or adopts the one
+/// live Keeper an update left in the other slot.
+pub fn make_session_keeper_current(
+    root: &DataRoot,
+    runtime: &Path,
+    slot: crate::KeeperSlot,
+    process: (u32, u64),
+    deadline: Instant,
+) -> io::Result<()> {
+    let identity = crate::process_registration::ProcessIdentity::new(process.0, process.1)
+        .ok_or(io::ErrorKind::InvalidInput)?;
+    edit_active_record(root, runtime, deadline, |processes| {
+        if processes.current_keeper() == slot {
+            return Ok(false);
+        }
+        processes
+            .make_keeper_current(slot, identity)
+            .map_err(|_| io::ErrorKind::InvalidData)?;
+        Ok(true)
+    })
+}
+
+/// Frees Keeper `slot` of the Active record of the Session whose runtime folder is `runtime`, while
+/// it still names `process` and is not the current Keeper's: the Worker ended the Keeper an update
+/// replaced or rolled back once no Host held anything in it.
+pub fn release_session_keeper(
+    root: &DataRoot,
+    runtime: &Path,
+    slot: crate::KeeperSlot,
+    process: (u32, u64),
+    deadline: Instant,
+) -> io::Result<()> {
+    let identity = crate::process_registration::ProcessIdentity::new(process.0, process.1)
+        .ok_or(io::ErrorKind::InvalidInput)?;
+    edit_active_record(root, runtime, deadline, |processes| {
+        processes
+            .release_keeper(slot, identity)
+            .map_err(|_| io::ErrorKind::InvalidData)?;
+        Ok(true)
+    })
+}
+
 /// Applies `edit` to the process registrations of the Active record whose runtime folder is
 /// `runtime`, under the record's writer lock taken before `deadline`, and publishes the record
 /// when `edit` changed it.
@@ -154,8 +197,8 @@ enum Reservation {
     ReplacementWorker,
     /// A Host slot, returned to spawning for a recovery Host once the Host recorded there is gone.
     RecoveryHost(crate::HostSlot),
-    /// The Keeper slot, for the first Keeper or one that replaces a Keeper proven gone.
-    Keeper,
+    /// A Keeper slot that names no live Keeper.
+    Keeper(crate::KeeperSlot),
 }
 
 impl Reservation {
@@ -164,7 +207,7 @@ impl Reservation {
             Self::Fresh(role) => role,
             Self::ReplacementWorker => ProcessRole::Worker,
             Self::RecoveryHost(slot) => ProcessRole::Host(slot),
-            Self::Keeper => ProcessRole::Keeper,
+            Self::Keeper(slot) => ProcessRole::Keeper(slot),
         }
     }
 }
@@ -250,7 +293,7 @@ fn spawn_reserved_with<T>(
         }
         let creator = match role {
             ProcessRole::Server => Creator::Activator,
-            ProcessRole::Worker | ProcessRole::Host(_) | ProcessRole::Keeper => {
+            ProcessRole::Worker | ProcessRole::Host(_) | ProcessRole::Keeper(_) => {
                 Creator::Process(process_observation::current_identity()?)
             }
         };
@@ -264,12 +307,15 @@ fn spawn_reserved_with<T>(
                 record.processes.reserve_recovery_host(slot, creator)
             }
             Reservation::RecoveryHost(_) => return Err(io::ErrorKind::ResourceBusy.into()),
-            Reservation::Keeper
-                if process_observation::role_absent(&record.processes, ProcessRole::Keeper) =>
+            Reservation::Keeper(slot)
+                if process_observation::role_absent(
+                    &record.processes,
+                    ProcessRole::Keeper(slot),
+                ) =>
             {
-                record.processes.reserve_keeper(creator)
+                record.processes.reserve_keeper(slot, creator)
             }
-            Reservation::Keeper => return Err(io::ErrorKind::ResourceBusy.into()),
+            Reservation::Keeper(_) => return Err(io::ErrorKind::ResourceBusy.into()),
         }
         .map_err(|_| io::ErrorKind::InvalidData)?;
         directory.publish(scope, &record)?;

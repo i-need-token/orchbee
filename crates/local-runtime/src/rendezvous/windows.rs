@@ -164,15 +164,19 @@ impl ModeCheckedLocalSessionRendezvous {
         )
         .into()
     }
-    /// The Keeper's endpoint id: the Host's address math under its own domain, so the Keeper's pipe
-    /// belongs to this Session alone and a Worker that adopts the Keeper derives it again.
-    pub fn keeper_endpoint_id(runtime: &Path) -> String {
-        hashed_id(b"orchbee-windows-keeper-v1\0", runtime)
+    /// A Keeper slot's endpoint id: the Host's address math under its own domain, so the Keeper's
+    /// pipe belongs to this Session alone and a Worker that adopts the Keeper derives it again. The
+    /// first slot keeps the id the Session's one Keeper had before an update could start a second.
+    pub fn keeper_endpoint_id(runtime: &Path, slot: crate::KeeperSlot) -> String {
+        match slot {
+            crate::KeeperSlot::First => hashed_id(b"orchbee-windows-keeper-v1\0", runtime),
+            crate::KeeperSlot::Second => hashed_id(b"orchbee-windows-keeper-second-v1\0", runtime),
+        }
     }
-    pub fn keeper_endpoint_path(runtime: &Path) -> PathBuf {
+    pub fn keeper_endpoint_path(runtime: &Path, slot: crate::KeeperSlot) -> PathBuf {
         format!(
             r"\\.\pipe\orchbee-terminal-host-{}",
-            Self::keeper_endpoint_id(runtime)
+            Self::keeper_endpoint_id(runtime, slot)
         )
         .into()
     }

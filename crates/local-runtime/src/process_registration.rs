@@ -1,5 +1,5 @@
 //! Generation-local ownership facts. Operating-system observations confer no kill authority.
-use crate::{HostSlot, MAXIMUM_HOSTS};
+use crate::{HostSlot, KeeperSlot, MAXIMUM_HOSTS};
 use serde::{Deserialize, Deserializer, Serialize, de};
 use std::num::{NonZeroU32, NonZeroU64};
 
@@ -32,18 +32,24 @@ pub(crate) enum ProcessRole {
     Worker,
     /// The Terminal Host in one of the Session's Host slots.
     Host(HostSlot),
-    /// The Terminal Host's Keeper, which the Worker starts once its first Host is ready and which
-    /// keeps a Host's programs running when that Host ends.
-    Keeper,
+    /// The Terminal Host's Keeper in one of its two slots, which the Worker starts once its first
+    /// Host is ready and which keeps a Host's programs running when that Host ends.
+    Keeper(KeeperSlot),
 }
-pub(crate) const ROLES: [ProcessRole; 3 + MAXIMUM_HOSTS] = [
+pub(crate) const ROLES: [ProcessRole; 4 + MAXIMUM_HOSTS] = [
     ProcessRole::Server,
     ProcessRole::Worker,
     ProcessRole::Host(HostSlot::ALL[0]),
     ProcessRole::Host(HostSlot::ALL[1]),
     ProcessRole::Host(HostSlot::ALL[2]),
     ProcessRole::Host(HostSlot::ALL[3]),
-    ProcessRole::Keeper,
+    ProcessRole::Keeper(KeeperSlot::First),
+    ProcessRole::Keeper(KeeperSlot::Second),
+];
+/// The Keeper role of both slots, in order.
+pub(crate) const KEEPER_ROLES: [ProcessRole; 2] = [
+    ProcessRole::Keeper(KeeperSlot::First),
+    ProcessRole::Keeper(KeeperSlot::Second),
 ];
 /// The Host role of every slot, in order.
 pub(crate) const HOST_ROLES: [ProcessRole; MAXIMUM_HOSTS] = [
@@ -115,6 +121,14 @@ pub(crate) struct SessionProcesses {
     /// Written only once a Keeper is reserved, so a record without one reads as it did before.
     #[serde(skip_serializing_if = "Registration::is_not_started")]
     keeper: Registration,
+    /// The second Keeper slot, written only once a Keeper update reserves it.
+    #[serde(skip_serializing_if = "Registration::is_not_started")]
+    keeper1: Registration,
+    /// The slot of the Session's current Keeper, written only while it is the second. While both
+    /// slots name a Keeper, the other names one an update started and has not committed, or one a
+    /// committed update replaced.
+    #[serde(skip_serializing_if = "KeeperSlot::is_first")]
+    current_keeper: KeeperSlot,
 }
 
 impl<'de> Deserialize<'de> for SessionProcesses {
@@ -133,6 +147,10 @@ impl<'de> Deserialize<'de> for SessionProcesses {
             host3: Registration,
             #[serde(default)]
             keeper: Registration,
+            #[serde(default)]
+            keeper1: Registration,
+            #[serde(default)]
+            current_keeper: KeeperSlot,
         }
         let wire = Wire::deserialize(deserializer)?;
         let processes = Self {
@@ -143,20 +161,22 @@ impl<'de> Deserialize<'de> for SessionProcesses {
             host2: wire.host2,
             host3: wire.host3,
             keeper: wire.keeper,
+            keeper1: wire.keeper1,
+            current_keeper: wire.current_keeper,
         };
         // A Host or a Keeper is reserved only by an identified Worker. An identified Host or Keeper
         // needs no registered Worker: a replacement Worker returns its slot to spawning while the
         // Host and Keeper it adopts keep their identities, and a generation that adopts its
         // predecessor's running Host starts with that Host alone. An older reader refuses both
-        // instead of misreading them, and a record with a Keeper.
+        // instead of misreading them, a record with a Keeper, and one with a second Keeper.
         let reserved_by_worker = |slot: Registration| {
             slot == Registration::Spawning && processes.worker.identity().is_none()
         };
         if (processes.worker != Registration::NotStarted && processes.server.identity().is_none())
             || HOST_ROLES
                 .into_iter()
+                .chain(KEEPER_ROLES)
                 .any(|role| reserved_by_worker(processes.registration(role)))
-            || reserved_by_worker(processes.keeper)
         {
             return Err(de::Error::custom(
                 "child registration requires its identified parent",
@@ -220,9 +240,9 @@ pub(crate) enum RecoveryVerdict {
 
 impl SessionProcesses {
     /// The registrations of a generation that adopts `hosts`, the Hosts its predecessor left
-    /// running, each in its slot with the epoch it recorded, and `keeper`, the Keeper it left
+    /// running, each in its slot with the epoch it recorded, and `keepers`, the Keepers it left
     /// running beside them: its Server and Worker are not started yet.
-    pub(crate) fn adopting(hosts: &[KeptHost], keeper: Option<ProcessIdentity>) -> Self {
+    pub(crate) fn adopting(hosts: &[KeptHost], keepers: KeptKeepers) -> Self {
         let mut processes = Self::default();
         for kept in hosts {
             *processes.registration_mut(ProcessRole::Host(kept.slot)) = Registration::Identified {
@@ -230,13 +250,21 @@ impl SessionProcesses {
                 epoch: kept.epoch,
             };
         }
-        if let Some(keeper) = keeper {
-            processes.keeper = Registration::Identified {
-                identity: keeper,
-                epoch: None,
-            };
+        for slot in KeeperSlot::ALL {
+            if let Some(identity) = keepers.slots[slot.index()] {
+                *processes.registration_mut(ProcessRole::Keeper(slot)) = Registration::Identified {
+                    identity,
+                    epoch: None,
+                };
+            }
         }
+        processes.current_keeper = keepers.current;
         processes
+    }
+
+    /// The slot of the Session's current Keeper.
+    pub(crate) const fn current_keeper(&self) -> KeeperSlot {
+        self.current_keeper
     }
 
     /// The Hosts these registrations name as identified, each with its slot and epoch.
@@ -263,6 +291,14 @@ impl SessionProcesses {
             .any(|role| self.registration(role) == Registration::Spawning)
     }
 
+    /// Whether either Keeper slot is still spawning.
+    #[cfg(any(windows, test))]
+    fn keeper_spawning(&self) -> bool {
+        KEEPER_ROLES
+            .into_iter()
+            .any(|role| self.registration(role) == Registration::Spawning)
+    }
+
     /// Whether this generation created no process. Without a Server no Worker started and no Host
     /// spawned, so an identified Host is one an adopting generation kept from its predecessor.
     pub(crate) fn is_unstarted(&self) -> bool {
@@ -279,7 +315,8 @@ impl SessionProcesses {
                 2 => self.host2,
                 _ => self.host3,
             },
-            ProcessRole::Keeper => self.keeper,
+            ProcessRole::Keeper(KeeperSlot::First) => self.keeper,
+            ProcessRole::Keeper(KeeperSlot::Second) => self.keeper1,
         }
     }
     fn registration_mut(&mut self, role: ProcessRole) -> &mut Registration {
@@ -292,7 +329,8 @@ impl SessionProcesses {
                 2 => &mut self.host2,
                 _ => &mut self.host3,
             },
-            ProcessRole::Keeper => &mut self.keeper,
+            ProcessRole::Keeper(KeeperSlot::First) => &mut self.keeper,
+            ProcessRole::Keeper(KeeperSlot::Second) => &mut self.keeper1,
         }
     }
     #[cfg(any(windows, test))]
@@ -304,7 +342,7 @@ impl SessionProcesses {
         let required = match role {
             ProcessRole::Server => Some(Creator::Activator),
             ProcessRole::Worker => self.server.identity().map(Creator::Process),
-            ProcessRole::Host(_) | ProcessRole::Keeper => {
+            ProcessRole::Host(_) | ProcessRole::Keeper(_) => {
                 self.worker.identity().map(Creator::Process)
             }
         };
@@ -333,7 +371,7 @@ impl SessionProcesses {
         if self.worker == Registration::NotStarted {
             return Err(RegistrationError::NoWorker);
         }
-        if self.host_spawning() || self.keeper == Registration::Spawning {
+        if self.host_spawning() || self.keeper_spawning() {
             return Err(RegistrationError::HostSpawning);
         }
         self.worker = Registration::Spawning;
@@ -394,17 +432,54 @@ impl SessionProcesses {
         *registration = Registration::NotStarted;
         Ok(())
     }
-    /// Reserves the Keeper slot for a Keeper the recorded Worker starts: the first one, or one that
-    /// replaces a Keeper proven gone, which the caller observed under the record's writer lock.
+    /// Reserves the Keeper slot `slot` for a Keeper the recorded Worker starts: the first one, one
+    /// that replaces a Keeper proven gone, or the one a Keeper update starts beside the current
+    /// one; the caller observed any Keeper the slot named gone under the record's writer lock.
     #[cfg(windows)]
-    pub(crate) fn reserve_keeper(&mut self, creator: Creator) -> Result<(), RegistrationError> {
+    pub(crate) fn reserve_keeper(
+        &mut self,
+        slot: KeeperSlot,
+        creator: Creator,
+    ) -> Result<(), RegistrationError> {
         if self.worker.identity().map(Creator::Process) != Some(creator) {
             return Err(RegistrationError::WrongCreator);
         }
-        if self.keeper == Registration::Spawning {
+        let registration = self.registration_mut(ProcessRole::Keeper(slot));
+        if *registration == Registration::Spawning {
             return Err(RegistrationError::AlreadyStarted);
         }
-        self.keeper = Registration::Spawning;
+        *registration = Registration::Spawning;
+        Ok(())
+    }
+    /// Makes `slot`, which must name `identity`, the slot of the current Keeper: the Worker commits
+    /// a Keeper update once the Keeper there holds everything the current one holds, or adopts the
+    /// one live Keeper left in the other slot.
+    #[cfg(windows)]
+    pub(crate) fn make_keeper_current(
+        &mut self,
+        slot: KeeperSlot,
+        identity: ProcessIdentity,
+    ) -> Result<(), RegistrationError> {
+        if self.registration(ProcessRole::Keeper(slot)).identity() != Some(identity) {
+            return Err(RegistrationError::NotThatHost);
+        }
+        self.current_keeper = slot;
+        Ok(())
+    }
+    /// Frees `slot`, which must still name `identity` and not be the current Keeper's: the Worker
+    /// ended the Keeper an update replaced or rolled back, which held nothing then.
+    #[cfg(windows)]
+    pub(crate) fn release_keeper(
+        &mut self,
+        slot: KeeperSlot,
+        identity: ProcessIdentity,
+    ) -> Result<(), RegistrationError> {
+        if slot == self.current_keeper
+            || self.registration(ProcessRole::Keeper(slot)).identity() != Some(identity)
+        {
+            return Err(RegistrationError::NotThatHost);
+        }
+        *self.registration_mut(ProcessRole::Keeper(slot)) = Registration::NotStarted;
         Ok(())
     }
     /// The registrations once a restart committed: `server` and `worker`, the successor pair, take
@@ -416,12 +491,12 @@ impl SessionProcesses {
         server: ProcessIdentity,
         worker: ProcessIdentity,
     ) -> Result<(), RegistrationError> {
-        if self.host_spawning() || self.keeper == Registration::Spawning {
+        if self.host_spawning() || self.keeper_spawning() {
             return Err(RegistrationError::HostSpawning);
         }
         let kept: Vec<_> = HOST_ROLES
             .into_iter()
-            .chain([ProcessRole::Keeper])
+            .chain(KEEPER_ROLES)
             .filter_map(|role| self.registration(role).identity())
             .collect();
         if server == worker || kept.contains(&server) || kept.contains(&worker) {
@@ -475,6 +550,14 @@ impl SessionProcesses {
         }
         live.map_or(RecoveryVerdict::Gone, RecoveryVerdict::Live)
     }
+}
+
+/// The Keepers a generation keeps from its predecessor: each live one in its slot, and the slot of
+/// the current one.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct KeptKeepers {
+    pub(crate) slots: [Option<ProcessIdentity>; 2],
+    pub(crate) current: KeeperSlot,
 }
 
 /// A Host a generation keeps from its predecessor: its slot, process and recorded epoch.

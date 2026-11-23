@@ -87,6 +87,14 @@ impl ExactProcess {
         Ok(self)
     }
 
+    /// The full path of the program the process runs.
+    pub fn image_path(&self) -> io::Result<std::path::PathBuf> {
+        self.handle
+            .QueryFullProcessImageName(co::PROCESS_NAME::WIN32)
+            .map(Into::into)
+            .map_err(system)
+    }
+
     /// Whether the process has exited.
     pub fn exited(&self) -> io::Result<bool> {
         match self.handle.WaitForSingleObject(Some(0)).map_err(system)? {
