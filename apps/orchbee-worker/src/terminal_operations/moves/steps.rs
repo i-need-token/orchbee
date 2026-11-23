@@ -139,7 +139,7 @@ impl Move<'_> {
                 return self.abort("import", unexpected, Some(Imported::Record), record_bytes);
             }
             Err(error) => {
-                let refused = classify(error)?;
+                let refused = on_new(classify(error)?);
                 return self.abort("import", refused, Some(Imported::Record), record_bytes);
             }
         }
@@ -159,7 +159,7 @@ impl Move<'_> {
                 return self.abort("restore", unexpected, Some(Imported::Record), record_bytes);
             }
             Err(error) => {
-                let refused = classify(error)?;
+                let refused = on_new(classify(error)?);
                 return self.abort("restore", refused, Some(Imported::Record), record_bytes);
             }
         };
@@ -241,7 +241,7 @@ impl Move<'_> {
                 Ok(HandoverControl::HandoverRecordWritten(written))
                     if written.creation_id == creation && written.received_bytes == end => {}
                 Ok(_) => return Ok(Err(Refused::Failed("unexpected"))),
-                Err(error) => return classify(error).map(Err),
+                Err(error) => return classify(error).map(|refused| Err(on_new(refused))),
             }
             offset = end;
         }
@@ -343,6 +343,15 @@ impl Move<'_> {
                 })
             }
         }
+    }
+}
+
+/// A refusal from the new Host: a record it finds ineligible fails the move, since every other
+/// terminal's record would meet the same Host.
+const fn on_new(refused: Refused) -> Refused {
+    match refused {
+        Refused::Ineligible(reason) => Refused::Failed(reason),
+        refused => refused,
     }
 }
 
