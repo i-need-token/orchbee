@@ -144,7 +144,7 @@ pub(super) fn run(
             std::ffi::OsStr::new(worker_id),
         ]);
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let mut worker = orchbee_local_runtime::spawn_session_child(
         &orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
             .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?,
@@ -154,7 +154,7 @@ pub(super) fn run(
         &arguments,
         deadline,
     )?;
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     let mut worker = orchbee_local_runtime::spawn_retained(&executable, &arguments)?;
     let mut carrier = None;
     let admitted = admit_worker(

@@ -22,6 +22,25 @@ impl Process {
         arguments: &[&OsStr],
         path: Option<&OsStr>,
     ) -> io::Result<Self> {
+        Self::start(executable, arguments, path, false)
+    }
+
+    /// As [`Self::spawn`], with the child stopped before its first instruction until it receives
+    /// `SIGCONT`, so its creator can publish its identity first.
+    pub(super) fn spawn_suspended(
+        executable: &Path,
+        arguments: &[&OsStr],
+        path: Option<&OsStr>,
+    ) -> io::Result<Self> {
+        Self::start(executable, arguments, path, true)
+    }
+
+    fn start(
+        executable: &Path,
+        arguments: &[&OsStr],
+        path: Option<&OsStr>,
+        suspended: bool,
+    ) -> io::Result<Self> {
         // Every caller names an exact resolved artifact. A relative path would be read against
         // `/`, after the directory change, and macOS can report a started child as failed then.
         if executable.is_relative() {
@@ -44,6 +63,7 @@ impl Process {
             Path::new("/"),
             None,
             false,
+            suspended,
         )?;
         Ok(Self { id, status: None })
     }

@@ -25,7 +25,7 @@ use super::{
 
 const MAXIMUM_SESSIONS: usize = 256;
 /// How long recovery waits for the processes a leftover successor entry names to end.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const SUCCESSOR_END_BUDGET: std::time::Duration = std::time::Duration::from_secs(5);
 const RUNTIME_FILES: &[&str] = &[
     "activation.started",
@@ -240,7 +240,7 @@ impl SessionCatalog {
         let Some(mut record) = self.durable.read(scope)? else {
             return Ok(None);
         };
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         if let Some(successor) = crate::Successor::of(&record)
             && let Err(error) = crate::ExactProcess::end_successor(
                 &successor,
@@ -368,6 +368,23 @@ impl SessionCatalog {
     ) -> io::Result<crate::RetainedChild> {
         session.require_lock(activation, crate::LockKind::Activation)?;
         let scope = self.scope_of(session.runtime_directory())?;
+        // The Session's terminals inherit a `PATH` that ends with this cohort's folder.
+        #[cfg(target_os = "macos")]
+        return crate::registered_child::spawn_registered_with(
+            &self.durable,
+            scope,
+            crate::process_registration::ProcessRole::Server,
+            executable,
+            arguments,
+            deadline,
+            |path, words| {
+                let search = crate::session_path::server_path(path);
+                crate::RetainedChild::spawn_suspended_with_path(path, words, search.as_deref())
+                    .map(|child| (child, ()))
+            },
+        )
+        .map(|(child, ())| child);
+        #[cfg(not(target_os = "macos"))]
         crate::registered_child::spawn_registered(
             &self.durable,
             scope,
@@ -427,10 +444,41 @@ impl SessionCatalog {
             scope,
             runtime,
             reservation,
-            executable,
-            arguments,
+            (executable, arguments),
             deadline,
+            crate::RetainedChild::spawn_suspended_outside_job,
         )
+    }
+
+    /// Creates the successor Server of a restart that keeps terminals and names it in the Session
+    /// record as the successor `reservation` names, then resumes it; the namespace owner and
+    /// matching activation guard are the creation capability, as for [`Self::spawn_server`]. A
+    /// restart whose successor still runs refuses with `AlreadyExists`.
+    #[cfg(target_os = "macos")]
+    pub fn spawn_successor(
+        &self,
+        session: &Rendezvous,
+        activation: &crate::ModeCheckedSessionLock,
+        reservation: crate::RestartReservation,
+        executable: &Path,
+        arguments: &[&std::ffi::OsStr],
+        deadline: Instant,
+    ) -> io::Result<crate::RetainedChild> {
+        session.require_lock(activation, crate::LockKind::Activation)?;
+        let runtime = session.runtime_directory();
+        let scope = self.scope_of(runtime)?;
+        crate::successor_record::spawn_server(
+            &self.durable,
+            scope,
+            runtime,
+            reservation,
+            (executable, arguments),
+            deadline,
+            |path, words| {
+                crate::RetainedChild::spawn_suspended(path, words).map(|child| (child, ()))
+            },
+        )
+        .map(|(child, ())| child)
     }
 
     /// Every Session of `root`, `default` first and the rest by name without letter case. A
@@ -972,16 +1020,17 @@ fn free_endpoints(runtime: &Path, kept: &[KeptHost]) -> io::Result<()> {
 /// Terminal Host that still holds its lock is the one process that may serve.
 #[cfg(unix)]
 fn no_endpoints(runtime: &Path) -> io::Result<()> {
-    if crate::rendezvous::host_lock_held(runtime)? {
+    free_endpoints(runtime, &[])
+}
+
+/// [`no_endpoints`] beside the Host `kept` names, which a macOS generation that adopts it leaves
+/// holding its lock; a Linux generation keeps no Host.
+#[cfg(unix)]
+fn free_endpoints(runtime: &Path, kept: &[KeptHost]) -> io::Result<()> {
+    if kept.is_empty() && crate::rendezvous::host_lock_held(runtime)? {
         return Err(io::ErrorKind::WouldBlock.into());
     }
     Ok(())
-}
-
-/// A POSIX generation keeps no Host, so this is [`no_endpoints`].
-#[cfg(unix)]
-fn free_endpoints(runtime: &Path, _kept: &[KeptHost]) -> io::Result<()> {
-    no_endpoints(runtime)
 }
 
 /// Whether recovery may go on after `verdict`, the process verdict `snapshot` gave on
@@ -994,7 +1043,7 @@ fn adoptable(
 ) -> Option<Vec<KeptHost>> {
     match verdict {
         RecoveryVerdict::Gone => Some(Vec::new()),
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         RecoveryVerdict::Live(crate::process_registration::ProcessRole::Host(_)) => {
             Some(snapshot.present_hosts(processes))
         }
@@ -1011,9 +1060,9 @@ fn names_kept_hosts(folder: &Path, kept: &[KeptHost]) -> bool {
     if kept.is_empty() {
         return true;
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     return crate::session_store::bindings::names_hosts(folder, kept);
-    #[cfg(unix)]
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         let _ = folder;
         false
@@ -1023,7 +1072,7 @@ fn names_kept_hosts(folder: &Path, kept: &[KeptHost]) -> bool {
 /// The Hosts the crashed generation `previous` left running, which the next generation keeps
 /// registered: none after a stop, and none of a slot without a Host or whose Host is gone; a Host
 /// still spawning names an ended attempt, as recovery reads it. An unknown observation refuses.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn kept_hosts(previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
     let Some(previous) = previous.filter(|record| record.lifecycle == Lifecycle::Crashed) else {
         return Ok(Vec::new());
@@ -1044,8 +1093,8 @@ fn kept_hosts(previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
     Ok(kept)
 }
 
-/// A POSIX generation keeps no Host.
-#[cfg(unix)]
+/// A Linux generation keeps no Host.
+#[cfg(all(unix, not(target_os = "macos")))]
 fn kept_hosts(_previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
     Ok(Vec::new())
 }
@@ -1055,7 +1104,7 @@ fn kept_hosts(_previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
 /// current one with the Hosts, which stay attached to it, instead of starting another, and a stop
 /// ends the Keepers that hold their programs. None without a kept Host, whose Worker would adopt no
 /// Keeper, and none that cannot be observed, which leaves it unrecorded as before.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn kept_keepers(
     previous: Option<&Record>,
     kept: &[KeptHost],
@@ -1078,8 +1127,8 @@ fn kept_keepers(
     }
 }
 
-/// A POSIX generation keeps no Keeper.
-#[cfg(unix)]
+/// A Linux generation keeps no Keeper.
+#[cfg(all(unix, not(target_os = "macos")))]
 fn kept_keepers(
     _previous: Option<&Record>,
     _kept: &[KeptHost],

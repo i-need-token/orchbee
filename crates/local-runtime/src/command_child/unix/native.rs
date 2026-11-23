@@ -50,6 +50,7 @@ fn start(
         &directory,
         Some([input.as_fd(), output.as_fd(), errors.as_fd()]),
         true,
+        false,
     )
     .map_err(not_created)?;
     Ok(id)

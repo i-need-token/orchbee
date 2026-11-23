@@ -3,6 +3,8 @@ use crate::{HostSlot, KeeperSlot, MAXIMUM_HOSTS};
 use serde::{Deserialize, Deserializer, Serialize, de};
 use std::num::{NonZeroU32, NonZeroU64};
 
+/// A registered process: its ID and when it started, as Windows reports its creation time (100 ns
+/// units since 1601) or as macOS reports its start time (microseconds since 1970).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ProcessIdentity {
@@ -10,7 +12,7 @@ pub(crate) struct ProcessIdentity {
     creation_time: NonZeroU64,
 }
 impl ProcessIdentity {
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     pub(crate) fn new(pid: u32, creation_time: u64) -> Option<Self> {
         Some(Self {
             pid: NonZeroU32::new(pid)?,
@@ -20,7 +22,7 @@ impl ProcessIdentity {
     pub(crate) fn pid(self) -> u32 {
         self.pid.get()
     }
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     pub(crate) fn creation_time(self) -> u64 {
         self.creation_time.get()
     }
@@ -59,7 +61,7 @@ pub(crate) const HOST_ROLES: [ProcessRole; MAXIMUM_HOSTS] = [
     ProcessRole::Host(HostSlot::ALL[3]),
 ];
 
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Creator {
     Activator,
@@ -83,7 +85,7 @@ impl Registration {
     fn is_not_started(&self) -> bool {
         *self == Self::NotStarted
     }
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     pub(crate) const fn identified(identity: ProcessIdentity) -> Self {
         Self::Identified {
             identity,
@@ -201,7 +203,7 @@ impl<'de> Deserialize<'de> for SessionProcesses {
     }
 }
 
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RegistrationError {
     WrongCreator,
@@ -213,15 +215,15 @@ pub(crate) enum RegistrationError {
     /// A Host or a Keeper still spawning blocks a replacement Worker.
     HostSpawning,
     /// A recovery Host takes the place only of a registered Host.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     NoHost,
     /// An epoch is written only for the identified Host it names.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     NotThatHost,
 }
 
 #[cfg_attr(
-    not(any(windows, test)),
+    not(any(windows, target_os = "macos", test)),
     allow(dead_code, reason = "POSIX observes no registered process")
 )]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -268,7 +270,7 @@ impl SessionProcesses {
     }
 
     /// The Hosts these registrations name as identified, each with its slot and epoch.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn identified_hosts(&self) -> Vec<KeptHost> {
         HostSlot::ALL
             .into_iter()
@@ -284,7 +286,7 @@ impl SessionProcesses {
     }
 
     /// Whether any Host slot is still spawning.
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     fn host_spawning(&self) -> bool {
         HOST_ROLES
             .into_iter()
@@ -292,7 +294,7 @@ impl SessionProcesses {
     }
 
     /// Whether either Keeper slot is still spawning.
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     fn keeper_spawning(&self) -> bool {
         KEEPER_ROLES
             .into_iter()
@@ -333,7 +335,7 @@ impl SessionProcesses {
             ProcessRole::Keeper(KeeperSlot::Second) => &mut self.keeper1,
         }
     }
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     pub(crate) fn reserve(
         &mut self,
         role: ProcessRole,
@@ -360,7 +362,7 @@ impl SessionProcesses {
     /// failed replacement is known to have left no process: the caller holds that proof. The Host
     /// and the Keeper keep their registrations, identified or not started; either still spawning
     /// blocks it.
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     pub(crate) fn reserve_replacement_worker(
         &mut self,
         creator: Creator,
@@ -381,7 +383,7 @@ impl SessionProcesses {
     /// ended while the Keeper kept its programs. Only the recorded Worker takes it, and only once
     /// the recorded Host is proven gone: the caller observed its exact identity gone under the
     /// record's writer lock.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn reserve_recovery_host(
         &mut self,
         slot: HostSlot,
@@ -400,7 +402,7 @@ impl SessionProcesses {
     /// Writes `epoch` for the Host in `slot`, which must still be `identity`: the Worker that
     /// started or adopted it writes the epoch the Host answered with, so the Server can pair the
     /// Host with the terminals that carry it.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn record_host_epoch(
         &mut self,
         slot: HostSlot,
@@ -419,7 +421,7 @@ impl SessionProcesses {
     }
     /// Frees `slot`, which must still name `identity`: the Worker that drained that Host saw it end
     /// normally, so no Host is left there to adopt or recover, and a later Host may start in it.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn release_host(
         &mut self,
         slot: HostSlot,
@@ -435,7 +437,7 @@ impl SessionProcesses {
     /// Reserves the Keeper slot `slot` for a Keeper the recorded Worker starts: the first one, one
     /// that replaces a Keeper proven gone, or the one a Keeper update starts beside the current
     /// one; the caller observed any Keeper the slot named gone under the record's writer lock.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn reserve_keeper(
         &mut self,
         slot: KeeperSlot,
@@ -454,7 +456,7 @@ impl SessionProcesses {
     /// Makes `slot`, which must name `identity`, the slot of the current Keeper: the Worker commits
     /// a Keeper update once the Keeper there holds everything the current one holds, or adopts the
     /// one live Keeper left in the other slot.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn make_keeper_current(
         &mut self,
         slot: KeeperSlot,
@@ -468,7 +470,7 @@ impl SessionProcesses {
     }
     /// Frees `slot`, which must still name `identity` and not be the current Keeper's: the Worker
     /// ended the Keeper an update replaced or rolled back, which held nothing then.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn release_keeper(
         &mut self,
         slot: KeeperSlot,
@@ -485,7 +487,7 @@ impl SessionProcesses {
     /// The registrations once a restart committed: `server` and `worker`, the successor pair, take
     /// the Server and Worker slots, and the Host and the Keeper keep their registrations. A Host or
     /// a Keeper still spawning, or an identity that would own two roles, refuses.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn hand_over(
         &mut self,
         server: ProcessIdentity,
@@ -506,7 +508,7 @@ impl SessionProcesses {
         self.worker = Registration::identified(worker);
         Ok(())
     }
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     pub(crate) fn identify(
         &mut self,
         role: ProcessRole,

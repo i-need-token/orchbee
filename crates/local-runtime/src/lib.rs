@@ -52,7 +52,7 @@ pub use keeper::{
     HeldTerminal, Holding, HoldingState, KEEPER_REPLY_BOUND, KeeperClient, KeeperProcess,
     KeeperRefusal, KeeperStatus, ProgramHolding, start_keeper,
 };
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub use keeper::{RecordedKeepers, end_recorded_keeper, recorded_keepers};
 pub use keeper::{keeper_live, moves_live};
 mod automatic_updates;
@@ -144,6 +144,12 @@ mod host_capacity_native;
 #[cfg(target_os = "macos")]
 #[allow(
     unsafe_code,
+    reason = "reviewed libproc reads of a process's start time and program are isolated here"
+)]
+mod process_identity_native;
+#[cfg(target_os = "macos")]
+#[allow(
+    unsafe_code,
     reason = "reviewed posix_spawn attributes, file actions and child waits are isolated here"
 )]
 mod retained_spawn_native;
@@ -167,7 +173,7 @@ pub use recovery_blocker::{BlockerRole, RecoveryBlocker};
 mod registered_child;
 pub use activation_record::{ActivationState, RetainedActivationRecord};
 pub use registered_child::{SessionChild, SessionChildStep, spawn_session_child};
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub use registered_child::{
     make_session_keeper_current, record_session_host_epoch, release_session_host,
     release_session_keeper,
@@ -176,13 +182,13 @@ mod durable_sessions;
 pub use durable_sessions::{
     Fenced, HostPresence, HostSlotPresence, RetainedSessionRecord, Successor, session_moved_to,
 };
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod exact_process;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub use exact_process::ExactProcess;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod successor_record;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub use successor_record::{
     RestartCleared, RestartRefusal, RestartReservation, SuccessorRecord, clear_restart,
 };
@@ -233,8 +239,8 @@ pub use rendezvous::host_lock_held;
 #[cfg(windows)]
 pub use rendezvous::{CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME};
 pub use rendezvous::{
-    EntryKind, EntryObservation, HOST_SCOPE_NAME, HostSlot, KeeperSlot, LockAttempt, LockKind, MAXIMUM_HOSTS,
-    ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock, RendezvousError,
+    EntryKind, EntryObservation, HOST_SCOPE_NAME, HostSlot, KeeperSlot, LockAttempt, LockKind,
+    MAXIMUM_HOSTS, ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock, RendezvousError,
     SessionHolderObservation, SessionLifetimeObservation, SessionScope, acquire_past_probes,
 };
 #[cfg(windows)]

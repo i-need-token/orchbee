@@ -16,7 +16,7 @@ pub use client::{
 /// The live Keepers the Active generation of the Session records: the current Keeper's slot, and
 /// each live one with its slot, opened on its recorded identity. Both slots name one only while a
 /// Keeper update runs or after one was cut short.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub struct RecordedKeepers {
     pub current: crate::KeeperSlot,
     pub live: Vec<(crate::KeeperSlot, crate::ExactProcess)>,
@@ -29,7 +29,7 @@ pub struct RecordedKeepers {
 ///
 /// Returns an error when the record cannot be read, no longer names an Active generation in
 /// `runtime`, or names a Keeper that cannot be proven gone.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub fn recorded_keepers(
     root: &crate::DataRoot,
     runtime: &std::path::Path,
@@ -58,7 +58,7 @@ pub fn recorded_keepers(
 /// # Errors
 ///
 /// Returns an error when the record cannot be read or a Keeper cannot be ended in time.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub fn end_recorded_keeper(
     record: &crate::RetainedSessionRecord,
     deadline: std::time::Instant,

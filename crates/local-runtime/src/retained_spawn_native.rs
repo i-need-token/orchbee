@@ -37,8 +37,9 @@ const NULL_DEVICE: &CStr = c"/dev/null";
 /// whatever this thread blocks or ignores. Its three standard streams are the descriptors in
 /// `standard`, each at least 3 and duplicated onto 0 to 2 in order, or `/dev/null` when it is
 /// `None`. With `process_group`, the child leads a new process group whose identifier is its own.
-/// It inherits no other descriptor. Returns the child's process identifier; the caller reaps it
-/// through [`wait`].
+/// With `suspended`, the child starts stopped, before its first instruction, until it receives
+/// `SIGCONT`. It inherits no other descriptor. Returns the child's process identifier; the caller
+/// reaps it through [`wait`].
 pub(crate) fn spawn(
     executable: &Path,
     arguments: &[&OsStr],
@@ -46,6 +47,7 @@ pub(crate) fn spawn(
     directory: &Path,
     standard: Option<[BorrowedFd<'_>; 3]>,
     process_group: bool,
+    suspended: bool,
 ) -> io::Result<u32> {
     let program = c_string(executable.as_os_str().as_bytes())?;
     let arguments = arguments
@@ -89,6 +91,9 @@ pub(crate) fn spawn(
     if process_group {
         attributes.lead_process_group()?;
         flags |= libc::POSIX_SPAWN_SETPGROUP;
+    }
+    if suspended {
+        flags |= libc::POSIX_SPAWN_START_SUSPENDED;
     }
     attributes.set_flags(flags)?;
 

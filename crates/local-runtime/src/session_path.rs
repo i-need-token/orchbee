@@ -15,11 +15,16 @@ use std::{
 /// `executable` lies in, ends the Server's `PATH` when no entry names it. A development cohort's
 /// folder is a build output folder and is left off.
 pub fn spawn_session_server(executable: &Path, arguments: &[&OsStr]) -> io::Result<RetainedChild> {
-    let path = match (environment_kind(), executable.parent()) {
+    RetainedChild::spawn_with_path(executable, arguments, server_path(executable).as_deref())
+}
+
+/// The `PATH` a Session Server started from `executable` gets, or `None` when it keeps this
+/// process's own, as [`spawn_session_server`] gives it.
+pub(crate) fn server_path(executable: &Path) -> Option<OsString> {
+    match (environment_kind(), executable.parent()) {
         (EnvironmentKind::Development, _) | (_, None) => None,
         (_, Some(folder)) => with_folder(std::env::var_os("PATH").as_deref(), folder),
-    };
-    RetainedChild::spawn_with_path(executable, arguments, path.as_deref())
+    }
 }
 
 /// `inherited` with `folder` appended, or `None` when it stays as it is: an unset or empty `PATH`,

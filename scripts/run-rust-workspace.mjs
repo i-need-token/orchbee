@@ -60,6 +60,16 @@ const unsafeBoundaries = Object.freeze([
 		systemTests: 'crates/local-runtime/src/host_capacity_native/tests.rs',
 		reason: 'reviewed Mach host statistics and sysctl reads are isolated here',
 	},
+	{
+		name: 'orchbee-local-runtime',
+		manifest: 'crates/local-runtime/Cargo.toml',
+		library: 'crates/local-runtime/src/lib.rs',
+		cfg: 'target_os = "macos"',
+		module: 'process_identity_native',
+		system: 'crates/local-runtime/src/process_identity_native.rs',
+		systemTests: 'crates/local-runtime/src/process_identity_native/tests.rs',
+		reason: "reviewed libproc reads of a process's start time and program are isolated here",
+	},
 ]);
 const task = process.argv[2];
 // CI runs the test task as parts in parallel jobs, because one job ran for an hour. Together the

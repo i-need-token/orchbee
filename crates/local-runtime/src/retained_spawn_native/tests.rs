@@ -30,6 +30,7 @@ fn a_descriptor_open_across_exec_reaches_no_child() {
         Path::new("/"),
         None,
         false,
+        false,
     )
     .unwrap();
     drop(kept);
@@ -65,6 +66,7 @@ fn a_child_runs_in_its_directory_with_its_arguments_and_exactly_its_environment(
         Path::new("/tmp"),
         None,
         false,
+        false,
     )
     .unwrap();
     let status = ExitStatus::from_raw(wait(child, true).unwrap().unwrap());
@@ -82,6 +84,7 @@ fn a_missing_executable_starts_nothing() {
         &search_path(),
         Path::new("/"),
         None,
+        false,
         false,
     )
     .unwrap_err();

@@ -314,11 +314,13 @@ action that applies follows:
 | The cap allows no attempt                                  | Give up                           |
 | Otherwise                                                  | Replace the Worker                |
 
-On Windows the retained record observes each Host slot by its registered process ID and creation
-time, and `AdoptHost` names each running Host in its slot with the epoch its Worker recorded; a
-Session that never started a Host is adopted as no Host. POSIX registers no Host and runs one, in
-the first slot, so a Host lock no process holds reads as gone; there the Server stops itself only when the lost Worker held a settled binding,
-and otherwise replaces it with no Host. A Host still spawning never ran.
+On Windows and macOS the retained record observes each Host slot by its registered process ID and
+creation or start time, and `AdoptHost` names each running Host in its slot, with the epoch its
+Worker recorded on Windows; a Session that never started a Host is adopted as no Host. Linux
+registers no Host and runs one, in the first slot, so a Host lock no process holds reads as gone.
+On Linux and macOS, which run no Keeper, a gone first Host stops the Server only when the lost
+Worker held a settled binding; otherwise the Server replaces the Worker with no Host, on macOS after
+freeing that Host's registered slot. A Host still spawning never ran.
 
 On Windows a Host gone while the record names a running Keeper, which kept that Host's programs, is
 replaced rather than stopped: `AdoptHost` names a Recovery slot with the Keeper's recorded process,

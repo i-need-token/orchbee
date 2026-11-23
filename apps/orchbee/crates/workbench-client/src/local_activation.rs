@@ -554,7 +554,10 @@ fn connect_or_activate(
                         }),
                 };
                 // The Session's terminals inherit a `PATH` that ends with this cohort's folder.
-                #[cfg(not(windows))]
+                #[cfg(target_os = "macos")]
+                let child =
+                    catalog.spawn_server(session, &_activation, &executable, &arguments, deadline);
+                #[cfg(all(unix, not(target_os = "macos")))]
                 let child = orchbee_local_runtime::spawn_session_server(&executable, &arguments);
                 Some(child.map_err(|error| {
                     fallback::observe(

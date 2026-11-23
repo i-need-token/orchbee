@@ -31,13 +31,14 @@ pub enum SessionChildStep {
 }
 
 impl SessionChildStep {
-    /// The step a failed start names, when `error` came from one. Only Windows registers children.
+    /// The step a failed start names, when `error` came from one. Only Windows and macOS register
+    /// children.
     pub fn of(error: &std::io::Error) -> Option<Self> {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         {
-            windows::step_of(error)
+            registered::step_of(error)
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         {
             let _unregistered = error;
             None
@@ -45,16 +46,18 @@ impl SessionChildStep {
     }
 }
 
+#[cfg(any(windows, target_os = "macos"))]
+mod registered;
 #[cfg(windows)]
-mod windows;
-#[cfg(windows)]
-pub use windows::{
+pub(crate) use registered::spawn_registered;
+#[cfg(any(windows, target_os = "macos"))]
+pub(crate) use registered::spawn_registered_with;
+#[cfg(any(windows, target_os = "macos"))]
+pub use registered::{
     make_session_keeper_current, record_session_host_epoch, release_session_host,
     release_session_keeper, spawn_session_child,
 };
-#[cfg(windows)]
-pub(crate) use windows::{spawn_registered, spawn_registered_with};
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn spawn_session_child(
     _root: &crate::DataRoot,
     _runtime: &std::path::Path,
@@ -66,9 +69,9 @@ pub fn spawn_session_child(
     Err(std::io::ErrorKind::Unsupported.into())
 }
 
-/// POSIX registers no process identities, so it creates no registered child and refuses before any
+/// Linux registers no process identities, so it creates no registered child and refuses before any
 /// effect.
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 pub(crate) fn spawn_registered(
     _directory: &crate::durable_sessions::Directory,
     _scope: &str,

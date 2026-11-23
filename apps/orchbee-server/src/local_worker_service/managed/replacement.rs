@@ -44,6 +44,9 @@ const RETRY_SPACING: Duration = Duration::from_secs(1);
 /// The admission deadline of one replacement, from its creation.
 const ADMISSION_BUDGET: Duration = Duration::from_secs(20);
 const POLL: Duration = Duration::from_millis(10);
+/// How long freeing a gone Host's slot waits for the Session record's writer lock.
+#[cfg(target_os = "macos")]
+const RECORD_WAIT: Duration = Duration::from_secs(2);
 
 const WORKER_LOST: &str = "worker-lost";
 const WORKER_REPLACED: &str = "worker-replaced";
@@ -150,14 +153,30 @@ impl Supervision {
 
     /// The action for a Worker proven gone while no stop is admitted.
     fn decide(&self, owners: &Owners, lost: WorkerPlacement, cause: Cause) -> Decision {
-        // A POSIX Host lock that no process holds also reads as gone for a Host that never
+        // A Linux Host lock that no process holds also reads as gone for a Host that never
         // started; only a binding the lost Worker settled shows that one ran.
-        #[cfg(unix)]
+        #[cfg(all(unix, not(target_os = "macos")))]
         let never_ran = || {
             owners
                 .terminals
                 .adoption_bindings(lost)
                 .is_ok_and(|bindings| bindings.is_empty())
+        };
+        // A macOS Host that ended before any binding settled still holds its registered slot,
+        // which is freed so the replacement starts a Host there as after one that never ran.
+        #[cfg(target_os = "macos")]
+        let never_ran = || {
+            owners
+                .terminals
+                .adoption_bindings(lost)
+                .is_ok_and(|bindings| bindings.is_empty())
+                && owners
+                    .session_record
+                    .release_gone_host(
+                        orchbee_local_runtime::HostSlot::FIRST,
+                        Instant::now() + RECORD_WAIT,
+                    )
+                    .unwrap_or(false)
         };
         #[cfg(not(unix))]
         let never_ran = || {
@@ -435,7 +454,7 @@ fn spawn(owners: &Owners, worker_id: WorkerId, deadline: Instant) -> io::Result<
                 .flat_map(|ticket| [OsStr::new("--ticket"), OsStr::new(ticket.as_str())]),
         )
         .collect();
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     return orchbee_local_runtime::spawn_session_child(
         &orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
             .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?,
@@ -445,7 +464,7 @@ fn spawn(owners: &Owners, worker_id: WorkerId, deadline: Instant) -> io::Result<
         &arguments,
         deadline,
     );
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = deadline;
         orchbee_local_runtime::spawn_retained(&owners.worker_executable, &arguments)
@@ -466,7 +485,8 @@ fn running_keeper(owners: &Owners) -> Option<AdoptHostProcess> {
 /// and a recovery for each registered Host that is gone while a Keeper kept its programs, each with
 /// the epoch its Worker recorded. A Host still spawning stops, as a gone Host with no Keeper does,
 /// and one that cannot be observed gives up. `never_ran` answers whether a gone Host in the first
-/// slot never ran, which only a POSIX Host lock leaves open.
+/// slot leaves nothing to keep: on Linux one that never ran, which a free Host lock leaves open,
+/// and on macOS one that ended before any binding settled, whose slot it frees.
 fn host_target(owners: &Owners, never_ran: impl Fn() -> bool) -> Result<AdoptHostTarget, Decision> {
     let Ok(hosts) = owners.session_record.hosts() else {
         return Err(Decision::GiveUp(Reason::HostUnverified));

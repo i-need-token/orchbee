@@ -1,4 +1,5 @@
-//! Direct creators publish durable ownership while their child's initial thread is suspended.
+//! Direct creators publish durable ownership while their child is suspended: on Windows its initial
+//! thread, on macOS the whole process before its first instruction.
 use crate::{
     DataRoot, RetainedChild,
     durable_sessions::{Directory, Lifecycle},
@@ -212,6 +213,7 @@ impl Reservation {
     }
 }
 
+#[cfg(windows)]
 pub(crate) fn spawn_registered(
     directory: &Directory,
     scope: &str,

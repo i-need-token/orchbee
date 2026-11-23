@@ -303,6 +303,39 @@ no failure panics.
 - **Wrapping.** The processor ticks are 32-bit counters; the free share takes their difference
   modulo 2³², exact while fewer than 2³² ticks pass between two readings.
 
+## macOS process identity
+
+A macOS Session registers its Server, Worker and Terminal Host in its record as a Windows Session
+does (`proposals/platform/host-handover.md`, H5 design), naming each by its process ID and its start
+time in microseconds. Nothing holds a POSIX process ID open, so whoever observes or ends a
+registered process reads its start time again first, and a process with that ID and another start
+time is a later process. The reads come from the private `src/process_identity_native.rs` adapter,
+this crate's fourth authored unsafe boundary: `proc_pidinfo` with `PROC_PIDTBSDINFO` for the start
+time and state, and `proc_pidpath` for the program. Callers get gone, a start time or denied, and a
+path or `None`; no failure panics.
+
+- **Start time.** The call gets a zeroed `proc_bsdinfo` with its exact size, and the reading is used
+  only when the kernel wrote exactly that many bytes; the structure holds only integers, so every
+  bit pattern is valid. `ESRCH` reads as gone, as does a zombie (`SZOMB`), which has ended and only
+  waits to be reaped. `EPERM`, the kernel's answer for another account's process, reads as denied.
+  A zero or overflowing start time is refused as invalid data.
+- **Program.** `proc_pidpath` needs no right to the process. It gets an owned buffer of
+  `PROC_PIDPATHINFO_MAXSIZE` bytes with that length and returns how many it wrote; only those are
+  read.
+- **Denied.** A live process keeps its ID and its program until it ends, so an ID another account's
+  process holds can name the recorded process only when that process runs a program with the
+  recorded role's file name. Observation reads such a process as unknown, which refuses recovery,
+  and one running another program as gone.
+
+A registered child starts stopped: its creator passes `POSIX_SPAWN_START_SUSPENDED` to the retained
+spawn, publishes the child's identity, and only then sends `SIGCONT`, so a child that was never
+published runs no instruction; a failed publication ends it while it is still stopped.
+
+The adjacent safe test finds a child's start time between readings taken around its spawn and the
+same on a second read, reads its program's file name, finds it gone once killed but still unreaped
+and again once reaped, and reads process 1, root's `launchd`, as denied with its program path still
+readable.
+
 ## Data root
 
 `DataRoot` is the one owner of every path in an environment's data root, the folder that holds
@@ -545,13 +578,15 @@ layout unreadable, so the root is refused until the file is removed, and a cut-s
 record reads as invalid and grants no restart. Neither host claims power-loss durability: a folder
 flush is best effort.
 
-Process registration is not ported. On macOS and Linux a durable record's Server, Worker and Host
-registry stays `not-started`, no observation ever reports a role absent, and `spawn_server` and
-`spawn_session_child` return `io::ErrorKind::Unsupported`. Recovering an Active Session there rests
-on its free activation and lifetime locks and a free Host lock. A socket outlives its listener until
-its owner removes it, unlike a Windows pipe, so socket files never count as a live process: the
-Server removes the Session's stale ones under its lifetime lock before it binds, and its own once its
-stop completes, and only a held Host lock refuses recovery, activation and deletion. `host_lock_held`
+macOS registers processes as Windows does ([macOS process identity](#macos-process-identity));
+Linux does not. On Linux a durable record's Server, Worker and Host registry stays `not-started`,
+no observation ever reports a role absent, and `spawn_server` and `spawn_session_child` return
+`io::ErrorKind::Unsupported`. Recovering an Active Session there rests on its free activation and
+lifetime locks and a free Host lock; macOS also requires its registered identities gone. A socket
+outlives its listener until its owner removes it, unlike a Windows pipe, so on both socket files
+never count as a live process: the Server removes the Session's stale ones under its lifetime lock
+before it binds, and its own once its stop completes, and a held Host lock refuses recovery,
+activation and deletion. `host_lock_held`
 is that probe for other processes: a replacement Worker requires the lock held before it dials the
 Host it adopts, and waits for it to come free when it stops that Host. A free lock is taken for the
 instant of the probe, so only a caller that no Host of the Session can be starting beside may ask.
@@ -647,8 +682,8 @@ Named and default Sessions keep one bounded private lifecycle record each,
 `session.pending` beside it and the Session's checkpoints in the same folder. Each record binds the
 name, which matches its folder without letter case, and the runtime folder in use to Active,
 Crashed, Stopped with a nonzero stop identity, or Deleting. Only current numeric version 1 with all
-fields, including the Server/Worker/Host PID and creation-FILETIME registry, which macOS and Linux
-leave unstarted (see [process registration](#private-storage-on-macos-and-linux)), is admitted. Other
+fields, including the Server/Worker/Host process ID and creation-time registry, which Linux leaves
+unstarted (see [process registration](#private-storage-on-macos-and-linux)), is admitted. Other
 versions or shapes return InvalidData; reads never migrate records. Effect paths derive from
 admitted inputs, never serialized paths.
 
@@ -669,9 +704,10 @@ still reserved decides nothing: recovery reads it under the record writer lock, 
 holds across the whole creation, so its attempt ended without an identity and its child never runs.
 Recovery publishes Crashed before reconciling its marker and beginning a fresh generation.
 Live/unknown identity, pending deletion and orphan storage refuse recovery.
-macOS and Linux register no process identities, so there recovery requires the free activation and
-lifetime guards and a free Host lock, which the Host holds for its whole life; socket files are
-never evidence, and a Stopped record needs only its receipt until those platforms keep checkpoints.
+Linux registers no process identities, so there recovery requires the free activation and lifetime
+guards and a free Host lock, which the Host holds for its whole life; macOS requires that lock free
+beside its registered identities gone. Socket files are never evidence on either, and a Stopped
+record needs only its receipt until those platforms keep checkpoints.
 A record that names another runtime folder, after `ORCHBEE_RUNTIME_BASE` changed, starts through the
 new folder only once Stopped; Active and Crashed refuse until their own folder recovers them.
 Activation atomically publishes the current Active record before marker, Server or storage effects.
@@ -1171,10 +1207,11 @@ terminate descendants. Managed startup uses it before the Worker can create a Ho
 Server's Worker supervision to prove a lost Worker gone and to end a replacement that will not
 serve; later cleanup belongs to the Worker shutdown protocol. `RetainedSessionRecord::hosts`
 reports each of the current generation's Host slots for that supervision, with the epoch its Worker
-recorded: on Windows not started, spawning, gone, running with its registered process ID and
-creation time, or unknown, where a live process with the registered ID but another creation time is
-gone; on POSIX the first slot runs while a process holds the Host lock and is gone otherwise, and
-the others never start. It grants no termination authority.
+recorded: on Windows and macOS not started, spawning, gone, running with its registered process ID
+and creation or start time, or unknown, where a live process with the registered ID but another
+time is gone; on Linux the first slot runs while a process holds the Host lock and is gone
+otherwise, and the others never start. On macOS `release_gone_host` frees a slot whose registered
+Host is gone, for a replacement Worker that keeps no Host there. It grants no termination authority.
 Dropping `RetainedChild` continues to release observation ownership without terminating anything.
 `RetainedChild::id` reports the held process identifier, which the Server lists for its Worker in
 the handshake's `query` reply.

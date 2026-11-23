@@ -47,6 +47,51 @@ impl RetainedChild {
         };
         Ok(Self(Some(child)))
     }
+    /// As [`Self::spawn`], with the child stopped before its first instruction until
+    /// [`Self::resume`], so its creator can publish its identity first.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn spawn_suspended(
+        executable: &std::path::Path,
+        arguments: &[&std::ffi::OsStr],
+    ) -> io::Result<Self> {
+        Self::spawn_suspended_with_path(executable, arguments, None)
+    }
+    /// As [`Self::spawn_suspended`], with `path` as the child's `PATH` when given.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn spawn_suspended_with_path(
+        executable: &std::path::Path,
+        arguments: &[&std::ffi::OsStr],
+        path: Option<&std::ffi::OsStr>,
+    ) -> io::Result<Self> {
+        Process::spawn_suspended(executable, arguments, path).map(|child| Self(Some(child)))
+    }
+    /// The held child's registered identity: its process ID and start time. It is not reaped
+    /// while held, so its ID names no other process.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn identity(&self) -> io::Result<crate::process_registration::ProcessIdentity> {
+        let id = self.id().ok_or(io::ErrorKind::NotFound)?;
+        crate::process_observation::identity(id)
+    }
+    /// Lets a child [`Self::spawn_suspended`] started run.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn resume(&mut self) -> io::Result<()> {
+        let id = self.id().ok_or(io::ErrorKind::NotFound)?;
+        let pid = nix::unistd::Pid::from_raw(
+            i32::try_from(id).map_err(|_| io::Error::from(io::ErrorKind::InvalidData))?,
+        );
+        nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGCONT).map_err(io::Error::from)
+    }
+    /// The held child's exact identity: its process ID and its start time in microseconds, which a
+    /// peer that checks processes by both, such as the Keeper, compares.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the start time cannot be read.
+    #[cfg(target_os = "macos")]
+    pub fn exact_identity(&self) -> io::Result<(u32, u64)> {
+        self.identity()
+            .map(|identity| (identity.pid(), identity.creation_time()))
+    }
     /// The operating-system process identifier of the held child.
     pub fn id(&self) -> Option<u32> {
         self.0.as_ref().map(Process::id)

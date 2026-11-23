@@ -8,8 +8,8 @@
 //! identity, the Worker first.
 
 use crate::{
-    BlockerRole, DataRoot, ExactProcess, JobPlacement,
-    ModeCheckedLocalSessionRendezvous as Rendezvous, RetainedChild,
+    BlockerRole, DataRoot, ExactProcess, ModeCheckedLocalSessionRendezvous as Rendezvous,
+    RetainedChild,
     durable_sessions::{self as durable, Directory, Lifecycle, Record, RecordWriter, Successor},
     process_observation,
     process_registration::{ProcessIdentity, ProcessRole},
@@ -108,20 +108,20 @@ pub struct RestartReservation {
     pub activation_id: [u8; 16],
 }
 
-/// Creates the successor Server of a restart suspended outside the creator's Job where the Job
-/// lets it leave, names it in the Session record of `scope` as the successor `reservation` names,
-/// and resumes it. The record must be Active, use `runtime`, and name its Server. An earlier entry
-/// whose Server still runs is a restart in progress and refuses with `AlreadyExists`; one whose
-/// Server is gone is cleared first, its Worker ended by its recorded identity.
-pub(crate) fn spawn_server(
+/// Creates the successor Server of a restart suspended through `create`, names it in the Session
+/// record of `scope` as the successor `reservation` names, and resumes it, answering what `create`
+/// reports beside it. The record must be Active, use `runtime`, and name its Server. An earlier
+/// entry whose Server still runs is a restart in progress and refuses with `AlreadyExists`; one
+/// whose Server is gone is cleared first, its Worker ended by its recorded identity.
+pub(crate) fn spawn_server<T>(
     directory: &Directory,
     scope: &str,
     runtime: &Path,
     reservation: RestartReservation,
-    executable: &Path,
-    arguments: &[&OsStr],
+    (executable, arguments): (&Path, &[&OsStr]),
     deadline: Instant,
-) -> io::Result<(RetainedChild, JobPlacement)> {
+    create: impl FnOnce(&Path, &[&OsStr]) -> io::Result<(RetainedChild, T)>,
+) -> io::Result<(RetainedChild, T)> {
     let RestartReservation {
         ticket,
         activation_id,
@@ -134,7 +134,7 @@ pub(crate) fn spawn_server(
         ExactProcess::end_successor(&entry, deadline)?;
         durable::remove_successor(&mut record, entry.ticket());
     }
-    let (mut child, placement) = RetainedChild::spawn_suspended_outside_job(executable, arguments)?;
+    let (mut child, created) = create(executable, arguments)?;
     let released = (|| -> io::Result<()> {
         let identity = child.identity()?;
         durable::reserve_successor(&mut record, ticket, identity, activation_id)?;
@@ -155,7 +155,7 @@ pub(crate) fn spawn_server(
         }
         return Err(error);
     }
-    Ok((child, placement))
+    Ok((child, created))
 }
 
 /// Clears what the restart `reservation` names left in the Session record of the Session `session`

@@ -30,13 +30,14 @@ pub(super) enum HostStartStage {
     Directory,
     /// Checking the endpoint address, or an endpoint that existed before the start.
     Endpoint,
-    /// Registering the Host in the Session record before creating it; only Windows registers.
-    #[cfg(windows)]
+    /// Registering the Host in the Session record before creating it; only Windows and macOS
+    /// register.
+    #[cfg(any(windows, target_os = "macos"))]
     Registration,
     /// Creating the Host process.
     Spawn,
-    /// Publishing the created Host's identity and releasing its initial thread.
-    #[cfg(windows)]
+    /// Publishing the created Host's identity and letting it run.
+    #[cfg(any(windows, target_os = "macos"))]
     Release,
     /// The Host exited, or could not be observed, before its endpoint appeared.
     Exited,
@@ -54,10 +55,10 @@ impl HostStartStage {
         match self {
             Self::Directory => "directory",
             Self::Endpoint => "endpoint",
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             Self::Registration => "registration",
             Self::Spawn => "spawn",
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             Self::Release => "release",
             Self::Exited => "exited",
             Self::Connect => "connect",
@@ -266,7 +267,7 @@ pub(super) fn start_host(
         ],
     ]
     .concat();
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let mut child = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
         .map_err(|_| io::Error::from(io::ErrorKind::NotFound))
         .and_then(|root| {
@@ -275,6 +276,7 @@ pub(super) fn start_host(
                 runtime,
                 match start {
                     HostStart::Fresh(slot) => orchbee_local_runtime::SessionChild::Host(slot),
+                    #[cfg(windows)]
                     HostStart::Recovery(slot, _) => {
                         orchbee_local_runtime::SessionChild::RecoveryHost(slot)
                     }
@@ -296,7 +298,7 @@ pub(super) fn start_host(
                 ..failed(stage, error.into())
             }
         })?;
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     let mut child = orchbee_local_runtime::spawn_retained(&executable, &arguments)
         .map_err(|error| failed(HostStartStage::Spawn, error.into()))?;
     let dialed = |child: &mut orchbee_local_runtime::RetainedChild,
@@ -397,10 +399,10 @@ pub(super) fn start_host(
             Ok((host, child))
         }
         // A Host still running could later bind the endpoint a second start dials, one that bound
-        // its endpoint before it ended leaves that endpoint behind, and a Windows registration
-        // outlives the process; each leaves this Worker no further start.
+        // its endpoint before it ended leaves that endpoint behind, and a Windows or macOS
+        // registration outlives the process; each leaves this Worker no further start.
         Err(failure) => Err(HostStartFailure {
-            retryable: cfg!(not(windows))
+            retryable: cfg!(not(any(windows, target_os = "macos")))
                 && matches!(child.try_wait(), Ok(Some(_)))
                 && endpoint_absent(&endpoint),
             ..failure
