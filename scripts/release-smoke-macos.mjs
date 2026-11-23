@@ -12,6 +12,7 @@
 //     --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]
 //   node scripts/release-smoke-macos.mjs gate       v<older version> --release <assets address>
 //     --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]
+//     [--mode move|restart|adopt]
 //   node scripts/release-smoke-macos.mjs window-update <packaged Test window>
 //     --work <absolute new directory> [--diagnostics <absolute directory>]
 //
@@ -62,9 +63,15 @@
 //   macOS release to the release being made, before Publish. Installs the older runtime and window
 //   into the work folder's HOME, starts its Session with `ORCHBEE_UPDATE_FEED` naming `--feed` and
 //   a terminal running a Python probe, waits for `--automatic-update-v1` to activate the new
-//   runtime and signed `Orchbee.app` window version, joins with the new Client, confirms zero probe
-//   gaps, waits for the idle move, and verifies layout preservation on the new Server before
-//   stopping the Session cleanly.
+//   runtime and signed `Orchbee.app` window version, joins with the new Client, and reaches the new
+//   Server as `--mode` says, as the Windows gate does: `move`, the default, ends the probe and waits
+//   for the idle move; `restart` and `adopt` keep the probe running across the new release's
+//   `server restart` or the cold adoption. From an older release whose Host offers `handover`, when
+//   the new release's Worker moves that Host's terminals, the probe's terminal must also move to the
+//   new release's Host and the older Hosts must exit, while the Session's Keeper keeps its process
+//   id and its program becomes the new release's Terminal Host, found by its `keep` command line.
+//   The gate then confirms zero probe gaps and layout preservation on the new Server before stopping
+//   the Session cleanly.
 // - window-update: the real-window Update check (scripts/release-window-update.mjs) of a packaged
 //   Test window, the folder holding the application and its `desktop-files.json` that
 //   `pnpm desktop:package:test` writes below apps/desktop/out/test. HOME and TMPDIR lie in the work
@@ -121,7 +128,7 @@ import { FEED_DOMAIN, loadKey, signatureDocument } from './sign-release-manifest
 const usage =
 	'Usage: node scripts/release-smoke-macos.mjs <disk-image|archive|install-script|npm> <artifacts> --work <absolute new directory>\n' +
 	'       node scripts/release-smoke-macos.mjs update v<version> --release <assets address> --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]\n' +
-	'       node scripts/release-smoke-macos.mjs gate v<older version> --release <assets address> --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]\n' +
+	'       node scripts/release-smoke-macos.mjs gate v<older version> --release <assets address> --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>] [--mode move|restart|adopt]\n' +
 	'       node scripts/release-smoke-macos.mjs window-update <packaged Test window> --work <absolute new directory> [--diagnostics <absolute directory>]';
 const installScript = fileURLToPath(new URL('../apps/website/public/install.sh', import.meta.url));
 const testSigningKey = fileURLToPath(
@@ -366,6 +373,24 @@ function expectWindowVersion(root, version, application = undefined) {
 function expectGone(filename, what) {
 	if (lstatSync(filename, { throwIfNoEntry: false }) !== undefined)
 		throw new StepFailure(`${what} ${filename} is still there`);
+}
+
+/**
+ * The Keepers whose program lies inside `folder`: processes `ps` reports there whose arguments start
+ * with that program and `keep`. A Keeper that re-executed reports its new program.
+ */
+function keepersInside(folder) {
+	const result = spawnSync('/bin/ps', ['-axo', 'pid=,args='], { encoding: 'utf8' });
+	if (result.status !== 0) throw new StepFailure(`ps exited ${result.status}`);
+	return result.stdout
+		.split('\n')
+		.map((line) => /^\s*(\d+)\s+(.+)$/u.exec(line))
+		.filter((match) => {
+			if (match === null) return false;
+			const keep = / keep(?: |$)/u.exec(match[2]);
+			return keep !== null && inside(folder, match[2].slice(0, keep.index));
+		})
+		.map((match) => ({ pid: Number(match[1]) }));
 }
 
 /** The processes whose program lies inside `work`, as `ps` reports their start paths. */
@@ -781,6 +806,10 @@ const updatePort = {
 				);
 		}
 	},
+	// The Session's Keepers that run version `version`'s Terminal Host program.
+	keepers: (root, version) => keepersInside(path.join(root, 'versions', version)),
+	// The Keeper updates by re-executing in place, so it keeps its process id.
+	keeperKeepsProcess: true,
 	finishGateSession({ sessionStarted, stem, olderClient, newClient, olderEnv, work }) {
 		if (!sessionStarted || processesInside(work).length === 0) return;
 		const client = existsSync(newClient) ? newClient : olderClient;

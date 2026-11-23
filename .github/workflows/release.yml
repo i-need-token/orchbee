@@ -1143,8 +1143,9 @@ jobs:
       - name: Update from ${{ matrix.older }} while a terminal keeps running
         env:
           OLDER: ${{ matrix.older }}
+          MODE: ${{ matrix.mode }}
           GATE_FEED: ${{ runner.temp }}/gate/orchbee-${{ needs.release-plan.outputs.version }}-macos-aarch64.gate.feed.json
-        run: node scripts/release-smoke-macos.mjs gate "$OLDER" --release "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$OLDER/" --feed "$GATE_FEED" --work "$RUNNER_TEMP/gate-work"
+        run: node scripts/release-smoke-macos.mjs gate "$OLDER" --release "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$OLDER/" --feed "$GATE_FEED" --work "$RUNNER_TEMP/gate-work" --mode "$MODE"
 
   # Joins every row's artifacts, each with the feed signature `release-feed` made beside its feed,
   # into the one set `release-publish` publishes: one row unchanged, several with one main npm

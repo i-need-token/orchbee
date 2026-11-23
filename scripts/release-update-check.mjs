@@ -74,7 +74,7 @@ const restartDeadline = 180_000;
 // a path from it on whose new release moves terminals also checks the move (see `handoverStart`).
 const handoverSince = '0.1.0-beta.23';
 // The new Worker updates the Keeper, then moves one idle terminal every two seconds, and an older
-// Host left without a terminal and its retired Keeper then exit.
+// Host left without a terminal and, on Windows, its retired Keeper then exit.
 const handoverDeadline = 120_000;
 // How the Session reaches the new release on a gate path; see `gatePathModes`.
 const gateModes = ['move', 'restart', 'adopt'];
@@ -1150,9 +1150,10 @@ function handoverStart({ options, port, storeRoot, newClient, env }) {
 }
 
 /**
- * H4's checks once the Session runs the new release: the older Hosts and the older release's
- * Keepers exited, one Keeper runs the new release's program, and every Host the Session lists is
- * the new release's, with the probe's terminal on it.
+ * H4's checks once the Session runs the new release: the older Hosts exited, no Keeper runs the
+ * older release's program, one Keeper runs the new release's program, and every Host the Session
+ * lists is the new release's, with the probe's terminal on it. Where `port.keeperKeepsProcess`, as on
+ * macOS, the Keeper updated in place, so the one running the new release's program is an older one.
  */
 function expectHandover({ options, progress, port, storeRoot, newClient, env, handover }) {
 	const { older, version } = options;
@@ -1170,10 +1171,13 @@ function expectHandover({ options, progress, port, storeRoot, newClient, env, ha
 				terminals,
 				version: hostVersion,
 			}));
+		const keepers = port.keepers(storeRoot, version).map((keeper) => keeper.pid);
 		const facts = {
 			olderHosts: handover.hosts.filter((each) => processExists(each)),
-			olderKeepers: handover.keepers.filter((each) => processExists(each)),
-			keepers: port.keepers(storeRoot, version).map((keeper) => keeper.pid),
+			olderKeepers: handover.keepers.filter(
+				(each) => processExists(each) && !keepers.includes(each),
+			),
+			keepers,
 			hosts,
 		};
 		if (
@@ -1181,12 +1185,15 @@ function expectHandover({ options, progress, port, storeRoot, newClient, env, ha
 			facts.olderHosts.length === 0 &&
 			facts.olderKeepers.length === 0 &&
 			facts.keepers.length === 1 &&
+			(!port.keeperKeepsProcess || handover.keepers.includes(facts.keepers[0])) &&
 			hosts.length > 0 &&
 			hosts.every((host) => host.version === version) &&
 			hosts.some((host) => host.terminals > 0)
 		) {
 			log(
-				`The probe's terminal moved to the Host of ${version}, Keeper ${facts.keepers[0]} runs ${version}, and the Hosts ${handover.hosts.join(', ')} and Keepers ${handover.keepers.join(', ') || 'none'} of ${older} exited.`,
+				port.keeperKeepsProcess
+					? `The probe's terminal moved to the Host of ${version}, Keeper ${facts.keepers[0]} kept its process and runs ${version}, and the Hosts ${handover.hosts.join(', ')} of ${older} exited.`
+					: `The probe's terminal moved to the Host of ${version}, Keeper ${facts.keepers[0]} runs ${version}, and the Hosts ${handover.hosts.join(', ')} and Keepers ${handover.keepers.join(', ') || 'none'} of ${older} exited.`,
 			);
 			return;
 		}

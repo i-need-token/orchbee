@@ -25,8 +25,7 @@
 // - gate-paths: the older releases the release gate updates from to <version>, chosen from the
 //   repository's releases read through the GitHub API by selectGatePaths and selectMacosGatePaths
 //   below; writes `gate`, `gate-matrix`, `macos-gate` and `macos-gate-matrix`, each matrix holding
-//   one row `{"older": "v<version>"}` per path, a Windows row also its `mode` (gatePathModes), to
-//   GITHUB_OUTPUT. No path is not a failure: the workflow then skips the gate jobs.
+//   one row `{"older": "v<version>", "mode": <mode>}` per path (gatePathModes), to GITHUB_OUTPUT. No path is not a failure: the workflow then skips the gate jobs.
 // - preconditions: the signing key variable holds an Ed25519 PKCS #8 PEM key whose public half is in
 //   RELEASE_KEYS of apps/orchbee/src/cli/update/signature.rs, and the npm token variable, when named,
 //   is not empty.
@@ -901,7 +900,7 @@ async function main(argv) {
 			gate: String(paths.length > 0),
 			'gate-matrix': JSON.stringify({ include: rows }),
 			'macos-gate': String(macosPaths.length > 0),
-			'macos-gate-matrix': JSON.stringify({ include: macosPaths.map((older) => ({ older })) }),
+			'macos-gate-matrix': JSON.stringify({ include: gatePathModes(macosPaths) }),
 		});
 		return;
 	}
