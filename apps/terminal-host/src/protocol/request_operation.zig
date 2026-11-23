@@ -49,4 +49,10 @@ pub const RequestOperation = enum {
     claim_terminal,
     discard_import,
     recover_terminal,
+    // Background programs, under the `background-programs` capability.
+    start_program,
+    cancel_program,
+    read_program_output,
+    dispose_program,
+    list_programs,
 };

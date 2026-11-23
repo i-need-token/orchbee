@@ -14,8 +14,9 @@ pub const worker_host = struct {
     pub const name = "worker-host";
     pub const generations: message.GenerationRange = .{ .lowest = 1, .highest = 1 };
     /// Every capability the registry declares for `worker-host`, in its order.
-    pub const declared_capabilities: []const []const u8 = &.{ "handover", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-send" };
-    /// The declared capabilities this Host implements and offers. `keeper`, on Windows only: this
+    pub const declared_capabilities: []const []const u8 = &.{ "background-programs", "handover", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-send" };
+    /// The declared capabilities this Host implements and offers. `background-programs`, on Windows
+    /// only: this Host runs programs without a terminal for its Worker. `keeper`, on Windows only: this
     /// Host attaches Keepers, holds its running terminals there, and releases them first.
     /// `prompt-gated-input`: this Host types a `PromptLineInput` only at a confirmed idle prompt.
     /// `screen-gated-input`: this Host types a `ScreenGatedKeyInput` only on the frame it names.
@@ -23,14 +24,14 @@ pub const worker_host = struct {
     /// leaves no person's input, which the Hosts of 0.1.0-beta.22 recorded; a Worker sends a gated
     /// key only under this name.
     pub const capabilities: []const []const u8 = if (builtin.os.tag == .windows)
-        &.{ "keeper", "prompt-gated-input", "screen-gated-input", "screen-gated-send" }
+        &.{ "background-programs", "keeper", "prompt-gated-input", "screen-gated-input", "screen-gated-send" }
     else
         &.{ "prompt-gated-input", "screen-gated-input", "screen-gated-send" };
     /// `capabilities` with `handover` and `recovery`, on Windows only: this Host moves running
     /// terminals to and from another Host through the Keeper, and recovers a program the Keeper
     /// kept after its Host ended. Each works without the other.
     pub const capabilities_with_handover: []const []const u8 = if (builtin.os.tag == .windows)
-        &.{ "handover", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-send" }
+        &.{ "background-programs", "handover", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-send" }
     else
         capabilities;
 

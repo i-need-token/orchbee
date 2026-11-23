@@ -867,6 +867,63 @@
 				"success_kind": 106
 			},
 			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 110,
+			"name": "StartProgram",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 110
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 111,
+			"name": "ProgramExited",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 112,
+			"name": "CancelProgram",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 112
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 113,
+			"name": "ReadProgramOutput",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 113
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 114,
+			"name": "DisposeProgram",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 114
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 115,
+			"name": "ListPrograms",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 115
+			},
+			"response_encoding": "control-json"
 		}
 	],
 	"protocol_limits": {

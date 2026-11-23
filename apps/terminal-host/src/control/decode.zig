@@ -27,6 +27,8 @@ pub const decodeDetachKeeper = keeper.decodeDetachKeeper;
 
 /// The `handover` capability's requests.
 pub const handover = @import("decode_handover.zig");
+/// The `background-programs` capability's requests.
+pub const program = @import("decode_program.zig");
 
 pub const CreateTerminal = terminal.CreateTerminal;
 pub const StartTerminal = terminal.StartTerminal;

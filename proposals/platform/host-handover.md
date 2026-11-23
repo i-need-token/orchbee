@@ -1406,6 +1406,122 @@ coordinator's brief. Each pick is marked Chosen, which the owner may veto, or Ru
 | S5    | The recovery target in `AdoptHost`, the Server's decision for a gone Host with a running Keeper, recovery in adopt mode, the hang check, and the stop without a Worker       | Built  |
 | S6    | The [H2 acceptance](#acceptance) on real Windows, `keeper_live` on in release, and the freezes of row 42                                                                     | Built  |
 
+## B1 design
+
+The main session settled this design on 2026-11-22 from
+[background programs](#background-programs-the-worker-runs), H2's recovery, and P1b's restart. Each
+pick is marked Chosen, which the owner may veto, or Rule, and rows 66 to 75 of the
+[decision record](#decision-record) list them with their reasons.
+
+### Scope
+
+- Rule: B1 runs on Windows, where the restart, the Keeper, and recovery run. On macOS and Linux the
+  Worker keeps starting configured `shell` commands itself until H5 brings the Keeper there.
+- Chosen: a background program's move to another Host comes with H3, which moves terminals across
+  versions, and starting new programs on the newest Host comes with P1c. B1 builds the Host's
+  program owner, its Keeper holding, recovery, and adoption, so the Host move in B1's acceptance is
+  a recovery: the Host ended by process id, and its programs continue in the recovery Host. H3's
+  acceptance repeats it with a move.
+- Rule: the Host owns a program only over a connection that negotiated the `worker-host` capability
+  `background-programs`. A Worker serving a Host without it, such as a Host an update restart
+  adopted from an older release, starts its programs itself, and the restart waits for those as P1b
+  says.
+
+### The Host's program owner
+
+- `StartProgram` starts the Worker's prepared command as a process without a console window, inside
+  a fresh kill-on-close Job given at creation, resumed only once it is in the Job, and inheriting
+  only its three standard handles: the null device as input, and for each output the null device or
+  a pipe the Host reads.
+- The command is an absolute `executable`, `arguments` quoted as a terminal launch quotes them, with
+  a batch script run through the command processor as there, and an optional `rawArgument` appended
+  unquoted, as a configured command's text reaches the command processor today. A batch script with
+  a raw argument is refused.
+- Chosen: the environment is the Host's own process environment, which it inherited from the Worker
+  that started it, with the request's delta applied: the Worker's context removals and the intent's
+  variables. A terminal's fresh registry projection is not used, because a background program
+  inherits the Session's environment today.
+- Each captured stream keeps its first 64 KiB and reads on to its end, discarding the rest and
+  marking itself truncated.
+- When the root process exits, the Host ends the Job's remaining members, as the Worker's owner does
+  today, waits for the captured streams to end, and sends `ProgramExited` with the root's exit code,
+  or as cancelled after `CancelProgram`. The program stays listed until the Worker disposes it.
+- Rule: at most 32 running programs, the Worker's own limit, and 64 listed; a start beyond either
+  fails `program-limit`.
+- Chosen: `StartProgram` carries the Worker's `label`, opaque text of at most 2 KiB that the Host and
+  the Keeper return but never read, so a replacement Worker can rebuild its records. The Worker's
+  label holds a log's header and as many whole arguments of its command as fit.
+- A `StartProgram` naming a listed `programId` answers that program with `existing` and starts
+  nothing; the Worker compares the label.
+
+### The program protocol
+
+Kinds 110 to 115 belong to `background-programs`, every request a control request answered by its
+own kind; S3 adds `RecoverProgram` (116), which also needs `recovery`. The current contract lives in
+[`schemas/terminal/references/protocol.md`](../../schemas/terminal/references/protocol.md#background-programs).
+
+| Request             | Payload                                                                                                                   | Successful answer                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `StartProgram`      | `programId`, `executable`, `arguments`, optional `rawArgument`, `directory`, `environment`, `capture` per stream, `label` | `programId`, `process`, `existing`                                 |
+| `CancelProgram`     | `programId`                                                                                                               | `programId`, `outcome`: `cancelling` or `exited`                   |
+| `ReadProgramOutput` | `programId`, `stream`: `stdout` or `stderr`, `offset`, once exited                                                        | up to 24 KiB from `offset` as base64 `data`, and `end`             |
+| `DisposeProgram`    | `programId`, once exited; an unknown one succeeds                                                                         | `programId`                                                        |
+| `ListPrograms`      | optional `after`, the last id of the previous page                                                                        | up to 16 programs with state, exit, streams, and label, and `next` |
+| `RecoverProgram`    | `programId`, `holding`, `mark`, `deadlineSeconds` 1-30 (S3)                                                               | `programId`, `process`                                             |
+
+Chunked reads and pages keep every answer far below the 64 KiB control bound, and a label of at most
+2,048 base64 characters needs no escaping. `ProgramExited` is an event with `programId`, `process`,
+the exit code or `cancelled`, and each captured stream's byte count and truncation. A connection
+without `background-programs` never receives it.
+
+### The Keeper holding
+
+- The `keeper` capability `programs` adds `hold-program` from a Host: `holding`, `handles` with the
+  program's Job and process and the read end of each captured stream, and `facts` with the program's
+  process, `programId`, and `label`. The Keeper checks each object's type, the program's identity,
+  and its membership in the Job, as for `hold`.
+- Chosen: a Keeper without `programs` answers `unsupported`, and the program runs held by its Host
+  alone, so that Host's loss ends it, as a terminal's did before H2.
+- A program holding takes a terminal holding's states and transitions. `inspect-result` answers its
+  handles and facts, `claim` names `program` without `terminal`, and `status` lists program holdings,
+  with `kind` `program`, only to a Worker connection that negotiated `programs`. Rule: the move's
+  model covers them unchanged, because a program holding takes a subset of a terminal holding's
+  transitions and its invariants hold with holding read for terminal.
+- The Host holds each program right after its start once a Keeper is attached, holds the programs
+  it already runs when one attaches, and releases a holding after the program completes and before
+  `ProgramExited`.
+
+### Recovery and adoption
+
+- A Worker that adopts a Host lists its programs and rebuilds a record from each label: a running
+  program reports its exit when it ends, and an exited one is collected and disposed.
+- In recovery, after the terminals, the Worker assigns each orphaned program holding of the lost Host
+  to the recovery Host and sends `RecoverProgram`. The recovery Host inspects the holding, claims it,
+  and reads the program's exit through the process handle, so a program that ended during the loss
+  still reports its code.
+- Chosen: a recovered program's capture restarts at zero, and its exit reports both streams
+  truncated, as recovery seeds no screen.
+- A program whose recovery fails keeps running in the Keeper and fails the replacement, as a
+  terminal's does.
+
+### The Server's counts
+
+- `Running` reports the programs the Worker runs itself and, apart, those its Host runs. The
+  restart's check and the `background-programs` query extension count only the Worker's own,
+  because those are what a restart ends; the idle move still waits for every one, because it
+  replaces the Host.
+- The Worker's ordinary stop cancels only its own programs. A confirmed Session stop ends the Host's
+  programs with the Host and the Keeper.
+
+### B1 slices
+
+| Slice | Content                                                                                                                    | Status |
+| ----- | -------------------------------------------------------------------------------------------------------------------------- | ------ |
+| S1    | The program protocol, its fixtures, and the Host's program owner on Windows, witnessed with real processes                 |        |
+| S2    | The Worker's Host-owned records, adoption through `ListPrograms`, the Worker-owned fallback, and the Server's split counts |        |
+| S3    | The Keeper's `programs`, the Host's holds, `RecoverProgram`, and recovery in the replacement Worker                        |        |
+| S4    | The [B1 acceptance](#acceptance) on real Windows                                                                           |        |
+
 ## Acceptance
 
 - **H1**, on real Windows in a test-owned Session: a same-build move of a terminal running a
@@ -1500,5 +1616,15 @@ coordinator's brief. Each pick is marked Chosen, which the owner may veto, or Ru
 | 63  | The Worker reads its Host's `dispatch-progress` every 2 seconds, and a count that has not grown for 10 seconds, while the Keeper holds every running terminal of that Host, makes the Worker end the Host and recover; a Host that leaves an exchange unanswered for its 10-second bound is checked the same way before the Worker exits, with two reads a second apart                                                                                                      | 10 seconds is the Worker's exchange bound, after which a silent Host already counts as lost, and ending a Host whose terminals are all held ends no program                                                                                     | Chosen (H2)                                                        |
 | 64  | A Keeper that ends, or does not answer the Worker within its 2-second reply bound, is ended and replaced by the Worker, and the Hosts hold again after `KeeperLost`                                                                                                                                                                                                                                                                                                          | H1's Hosts hold again in the next Keeper they attach                                                                                                                                                                                            | Chosen (H2)                                                        |
 | 65  | `keeper_live` turns on in release once the H2 acceptance passes on real Windows                                                                                                                                                                                                                                                                                                                                                                                              | The Phases row: H2 is on as soon as it passes                                                                                                                                                                                                   | Rule (H2)                                                          |
+| 66  | B1 runs on Windows; macOS and Linux keep the Worker's owner until H5                                                                                                                                                                                                                                                                                                                                                                                                         | The restart, the Keeper, and recovery run only there                                                                                                                                                                                            | Rule                                                               |
+| 67  | A program's move to another Host comes with H3, and new programs on the newest Host with P1c; B1's Host move is a recovery                                                                                                                                                                                                                                                                                                                                                   | Moves and rollover are not on before those phases                                                                                                                                                                                               | Chosen                                                             |
+| 68  | The Host owns a program only over a connection that negotiated `background-programs`; otherwise the Worker owns it and the restart waits                                                                                                                                                                                                                                                                                                                                     | An update restart can adopt a Host of an older release                                                                                                                                                                                          | Rule                                                               |
+| 69  | A Host-owned program gets the Host's process environment with the request's delta                                                                                                                                                                                                                                                                                                                                                                                            | Background programs inherit the Session's environment today                                                                                                                                                                                     | Chosen                                                             |
+| 70  | Completion ends the Job's remaining members, as the Worker's owner does today                                                                                                                                                                                                                                                                                                                                                                                                | Keeps what a finished command leaves behind unchanged                                                                                                                                                                                           | Rule                                                               |
+| 71  | The Worker's opaque label of at most 2 KiB travels with the program through the Host and the Keeper                                                                                                                                                                                                                                                                                                                                                                          | A replacement Worker rebuilds its records without a file of its own, and 256 labels fit one Keeper frame                                                                                                                                        | Chosen                                                             |
+| 72  | A Keeper without `programs` leaves programs held by their Host alone                                                                                                                                                                                                                                                                                                                                                                                                         | An older Keeper stays usable; its programs lose only recovery                                                                                                                                                                                   | Chosen                                                             |
+| 73  | Program holdings take the terminal holding's states and transitions, so the move's model is unchanged                                                                                                                                                                                                                                                                                                                                                                        | One state machine for every holding                                                                                                                                                                                                             | Rule                                                               |
+| 74  | A recovered program's capture restarts at zero and reports truncated                                                                                                                                                                                                                                                                                                                                                                                                         | Recovery seeds no screen either                                                                                                                                                                                                                 | Chosen                                                             |
+| 75  | The restart counts only the Worker's own programs; the idle move counts every one                                                                                                                                                                                                                                                                                                                                                                                            | A restart keeps the Host; the idle move replaces it                                                                                                                                                                                             | Rule                                                               |
 
 Nothing waits on the owner; each Chosen row stays open to a veto.

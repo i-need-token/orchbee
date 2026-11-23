@@ -173,6 +173,14 @@ pub const Dispatcher = struct {
             .recover_terminal => if (self.context.moves) |moves| if (moves.recoveryNegotiated()) {
                 try moves.handle(&self.context, request_contract.operation, connection_id, envelope, correlation_id, outgoing);
             } else try self.notNegotiated(correlation_id, outgoing) else try self.notNegotiated(correlation_id, outgoing),
+            .start_program,
+            .cancel_program,
+            .read_program_output,
+            .dispose_program,
+            .list_programs,
+            => if (self.context.programs) |programs| {
+                try programs.handle(&self.context, request_contract.operation, envelope, correlation_id, outgoing);
+            } else try self.notNegotiated(correlation_id, outgoing),
         }
     }
 

@@ -28,6 +28,24 @@ pub fn environmentForLaunch(
     return environment;
 }
 
+/// The Host's own process environment with `delta` applied, on every system: the environment a
+/// background program inherits, unlike a terminal's fresh Windows projection.
+pub fn inheritedEnvironmentForLaunch(
+    allocator: std.mem.Allocator,
+    delta: []const process_types.EnvironmentDelta,
+) !std.process.Environ.Map {
+    var environment = try currentEnvironment().createMap(allocator);
+    errdefer environment.deinit();
+    for (delta) |entry| {
+        if (entry.value) |value| {
+            try environment.put(entry.name, value);
+        } else {
+            _ = environment.orderedRemove(entry.name);
+        }
+    }
+    return environment;
+}
+
 pub fn environmentVariableOwned(
     allocator: std.mem.Allocator,
     name: []const u8,

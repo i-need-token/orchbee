@@ -92,4 +92,10 @@ pub const MessageKind = struct {
     pub const claim_terminal: u16 = 104;
     pub const discard_import: u16 = 105;
     pub const recover_terminal: u16 = 106;
+    pub const start_program: u16 = 110;
+    pub const program_exited: u16 = 111;
+    pub const cancel_program: u16 = 112;
+    pub const read_program_output: u16 = 113;
+    pub const dispose_program: u16 = 114;
+    pub const list_programs: u16 = 115;
 };

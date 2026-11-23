@@ -186,7 +186,7 @@ pub fn decode_handover_refusal(
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ProcessWire {
+pub(crate) struct ProcessWire {
     pid: SafeInteger,
     creation_time: String,
 }
@@ -264,7 +264,7 @@ fn process_to_wire(value: HandoverProcess) -> ProcessWire {
     }
 }
 
-fn process_from_wire(wire: &ProcessWire) -> Result<HandoverProcess, ProtocolError> {
+pub(crate) fn process_from_wire(wire: &ProcessWire) -> Result<HandoverProcess, ProtocolError> {
     let pid = u32::try_from(wire.pid.get())
         .ok()
         .and_then(NonZeroU32::new)
@@ -285,7 +285,7 @@ fn terminal_from_wire(value: &str) -> Result<TerminalId, ProtocolError> {
     TerminalId::parse(value).map_err(|_error| invalid_field("a handover answer names no terminal"))
 }
 
-fn hex(bytes: &[u8; 16]) -> String {
+pub(crate) fn hex(bytes: &[u8; 16]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut text = String::with_capacity(32);
     for byte in bytes {

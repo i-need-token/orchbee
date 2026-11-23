@@ -594,19 +594,77 @@ seals them. The import requests, `ImportTerminal`, `WriteHandoverRecord`, `Resto
 H3's release; `RecoverTerminal` reaches only a Host its Worker started from the same build and
 freezes with them.
 
+## Background programs
+
+Kinds 110 to 115 let a Worker run a program without a terminal in its Windows Terminal Host, so the
+program outlives the Worker that started it. They belong to the `worker-host` capability
+`background-programs`. A request on a connection that did not negotiate it fails with the
+non-retryable `TypedFailure` `not-negotiated` before any effect, and a Host sends `ProgramExited`
+only on a connection that negotiated it. The Worker is the only sender of these requests; the
+TypeScript control-request encoder refuses them.
+
+A program id is 32 lowercase hexadecimal digits, not all zero, and the Worker chooses it. The Host
+keeps each program in its own kill-on-close Job. When the program's first process exits, the Host
+ends the Job's remaining members, reads both captured streams to their end, and records the exit. A
+program stays listed, running or exited, until the Worker disposes of it, and it outlives the
+connection that started it: a replacement Worker lists the Host's programs to collect their
+outcomes. A Host runs at most 32 programs at once and lists at most 64. While a program runs, the
+Host neither ends when idle nor finishes a drain, and a draining Host admits no new program.
+
+| Request             | Payload                                                                                                      | Successful answer                                |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| `StartProgram`      | `{arguments, capture: {stderr, stdout}, directory, environment, executable, label, programId, rawArgument?}` | `{existing, process, programId}`                 |
+| `CancelProgram`     | `{programId}`                                                                                                | `{outcome: "cancelling" or "exited", programId}` |
+| `ReadProgramOutput` | `{offset, programId, stream: "stderr" or "stdout"}`                                                          | `{data, end, offset, programId, stream}`         |
+| `DisposeProgram`    | `{programId}`                                                                                                | `{programId}`                                    |
+| `ListPrograms`      | `{after?}`                                                                                                   | `{next?, programs}`                              |
+
+`StartProgram` names an absolute `executable` and `directory`. The Host quotes `arguments` by the
+Windows command-line rules and appends `rawArgument` after them unquoted, for a command that hands
+its own text to a shell; a batch script runs through the system command processor and refuses
+`rawArgument`. `environment` changes the Host's own environment: `{name, value}` sets a variable and
+`{name, value: null}` removes one, and names are unique ignoring ASCII case. Each stream that
+`capture` selects reaches the Host, which keeps its first 64 KiB; the other stream and standard input
+use the null device. `label`, at most 2,048 characters of the base64 alphabet, is the Worker's own
+record of the program, which the Host returns in `ListPrograms` and never reads. A start whose
+`programId` the Host already lists answers that program with `existing: true` and starts nothing.
+A start fails with the retryable `program-limit` at either limit, with `host-draining`, with the
+retryable `resource-exhausted`, or with `spawn-failed`, whose `reason` is `not-found`,
+`invalid-command`, or `failed`.
+
+`CancelProgram` ends a running program's Job, and `ProgramExited` then reports the program as
+cancelled; for a program that already exited it answers `exited` and changes nothing.
+`ReadProgramOutput` returns at most 24 KiB of an exited program's stream from `offset`, base64 in
+`data`, and `end` is true when the stream ends there; an uncaptured stream is empty.
+`ReadProgramOutput` and `DisposeProgram` of a running program fail with the retryable
+`invalid-phase`. `DisposeProgram` of a program the Host does not list succeeds, while
+`CancelProgram` and `ReadProgramOutput` of one fail with `missing-resource`.
+
+`ListPrograms` returns up to 16 programs in ascending id order, starting after `after`, each as
+`{exit?, label, process, programId, state: "exited" or "running", stderr?, stdout?}`; `next`, the
+last listed id, is present exactly when more follow. `ProgramExited` carries
+`{exit, process, programId, stderr?, stdout?}`. `exit` is `{code}` or `{cancelled: true}`, and each
+captured stream is `{bytes, truncated}`. The Host sends `ProgramExited` once for each program, to the
+connection that negotiated the capability when the program exited or, failing one, to the next; a
+Worker reads a report it already has as known.
+
+No release Worker offers `background-programs` before the release that moves configured commands
+into the Host, and these kinds freeze with it.
+
 ## Message registry
 
-| Range    | Group                                      | Kinds                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| -------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1-5`    | Connection                                 | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                                                                                    |
-| `10-19`  | Inventory and lifecycle                    | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `StartTerminal=16`, `TerminalStartAccepted=17`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                                                                                |
-| `20-25`  | Attachment                                 | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`, `UpdateAttachmentInputCapability=24`, `ClaimResizeLease=25`                                                                                                                                                                                                                                                                       |
-| `30-39`  | Input and size                             | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`, `PasteAutoInput=39`                                                                                                                                                                                                                                              |
-| `41-58`  | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56`, `TerminalMetadataChanged=57`, `TerminalApplicationSignal=58` |
-| `60-68`  | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                                                                                     |
-| `70-78`  | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                            |
-| `79-85`  | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`, `PromptLineInput=84`, `ScreenGatedKeyInput=85`                                                                                                                                                                                                                                                        |
-| `90-106` | Host handover                              | `AttachKeeper=90`, `DetachKeeper=91`, `KeeperLost=92`, `KeeperUnresponsive=93`, `TerminalUnheld=94`, `QuiesceTerminal=95`, `ReadHandoverRecord=96`, `HandoverRecordChunk=97`, `ResumeTerminal=98`, `DropTerminal=99`, `ImportTerminal=100`, `WriteHandoverRecord=101`, `HandoverRecordWritten=102`, `RestoreTerminal=103`, `ClaimTerminal=104`, `DiscardImport=105`, `RecoverTerminal=106`                                        |
+| Range     | Group                                      | Kinds                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1-5`     | Connection                                 | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                                                                                    |
+| `10-19`   | Inventory and lifecycle                    | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `StartTerminal=16`, `TerminalStartAccepted=17`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                                                                                |
+| `20-25`   | Attachment                                 | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`, `UpdateAttachmentInputCapability=24`, `ClaimResizeLease=25`                                                                                                                                                                                                                                                                       |
+| `30-39`   | Input and size                             | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`, `PasteAutoInput=39`                                                                                                                                                                                                                                              |
+| `41-58`   | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56`, `TerminalMetadataChanged=57`, `TerminalApplicationSignal=58` |
+| `60-68`   | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                                                                                     |
+| `70-78`   | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                            |
+| `79-85`   | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`, `PromptLineInput=84`, `ScreenGatedKeyInput=85`                                                                                                                                                                                                                                                        |
+| `90-106`  | Host handover                              | `AttachKeeper=90`, `DetachKeeper=91`, `KeeperLost=92`, `KeeperUnresponsive=93`, `TerminalUnheld=94`, `QuiesceTerminal=95`, `ReadHandoverRecord=96`, `HandoverRecordChunk=97`, `ResumeTerminal=98`, `DropTerminal=99`, `ImportTerminal=100`, `WriteHandoverRecord=101`, `HandoverRecordWritten=102`, `RestoreTerminal=103`, `ClaimTerminal=104`, `DiscardImport=105`, `RecoverTerminal=106`                                        |
+| `110-115` | Background programs                        | `StartProgram=110`, `ProgramExited=111`, `CancelProgram=112`, `ReadProgramOutput=113`, `DisposeProgram=114`, `ListPrograms=115`                                                                                                                                                                                                                                                                                                   |
 
 Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames and
 the identity-scoped metadata event. Initial resize-lease authority is returned by attachment

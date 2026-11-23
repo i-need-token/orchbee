@@ -134,6 +134,7 @@ pub const PayloadEncoding = enum(u8) {
 
 pub const RequestOperation = @import("request_operation.zig").RequestOperation;
 const handover_contract = @import("handover_contract.zig");
+const program_contract = @import("program_contract.zig");
 
 pub const RequestMessageContract = struct {
     operation: RequestOperation,
@@ -429,7 +430,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
             M.terminal_theme_result,
         ),
         M.terminal_theme_result => responseOnly("TerminalThemeResult", .control_json),
-        else => handover_contract.messageContract(kind),
+        else => handover_contract.messageContract(kind) orelse program_contract.messageContract(kind),
     };
 }
 

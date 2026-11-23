@@ -749,6 +749,48 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         Some(request(PayloadEncoding::ControlJson, 106)),
         Some(PayloadEncoding::ControlJson)
     ),
+    contract!(
+        110,
+        "StartProgram",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 110)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        111,
+        "ProgramExited",
+        Some(PayloadEncoding::ControlJson),
+        None,
+        None
+    ),
+    contract!(
+        112,
+        "CancelProgram",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 112)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        113,
+        "ReadProgramOutput",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 113)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        114,
+        "DisposeProgram",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 114)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        115,
+        "ListPrograms",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 115)),
+        Some(PayloadEncoding::ControlJson)
+    ),
 ];
 
 const _: () = {

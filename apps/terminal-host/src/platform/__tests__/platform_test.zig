@@ -11,4 +11,5 @@ comptime {
     _ = @import("conpty_windows_test.zig");
     _ = @import("windows_termination_test.zig");
     _ = @import("session_member_retry_test.zig");
+    _ = @import("program_windows_test.zig");
 }

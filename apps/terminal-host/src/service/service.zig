@@ -15,6 +15,7 @@ const host_request_dispatch = @import("request_dispatch.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
 const identifiers = @import("terminal-host-model").identifiers;
 const keepers_module = @import("keepers.zig");
+const programs_module = @import("programs/root.zig");
 const moves_module = @import("moves/root.zig");
 const request_failure = @import("request_failure.zig");
 const terminal_configuration = @import("terminal-host-model").configuration;
@@ -54,6 +55,8 @@ pub const HostService = struct {
     lifecycle: ServiceLifecycle = .running,
     /// The moves between Hosts; teardown settles them before any terminal's release.
     moves: moves_module.Moves,
+    /// The background programs the Host runs for its Worker; teardown ends them.
+    programs: programs_module.Programs,
     /// The `drain` and `exit` lifecycle that queries report; only the dispatch thread changes it.
     process_state: host_lifecycle.State = .ready,
     runtime_aggregate: host_runtime_aggregate.HostRuntimeAggregate,
@@ -72,6 +75,7 @@ pub const HostService = struct {
             .allocator = allocator,
             .keepers = .init(allocator),
             .moves = .init(allocator),
+            .programs = .init(allocator),
             .runtime_aggregate = .initWithEpoch(allocator, options.terminal_defaults, options.host_epoch),
             .trace_interactions = options.trace_interactions,
         };
@@ -98,6 +102,7 @@ pub const HostService = struct {
         // Moving terminals settle before any release, which would end a program the other Host
         // serves.
         self.moves.teardown(&self.runtime_aggregate, &self.creations, &self.keepers.attachments);
+        self.programs.teardown();
         self.keepers.releaseAll(&self.runtime_aggregate);
         try self.runtime_aggregate.deinitChecked(first_attempt);
         try self.finishTeardown();
@@ -165,6 +170,11 @@ pub const HostService = struct {
         self.moves.admit(handover, recovery);
     }
 
+    /// Whether the admitted Worker session negotiated `background-programs`.
+    pub fn admitPrograms(self: *HostService, negotiated: bool) void {
+        self.programs.admit(negotiated);
+    }
+
     /// The facts a handshake reply reports, read on the dispatch thread.
     pub fn candidateFacts(self: *const HostService) candidate_admission.Facts {
         return .{
@@ -199,11 +209,11 @@ pub const HostService = struct {
     /// A creation admitted before a `drain` counts as a terminal until it settles.
     pub fn controlExitDue(self: *const HostService) bool {
         const creating: usize = @intFromBool(self.creations.creating());
-        return host_lifecycle.endsNow(self.process_state, self.runtime_aggregate.terminalCount() + creating);
+        return host_lifecycle.endsNow(self.process_state, self.runtime_aggregate.terminalCount() + creating + self.programs.running());
     }
 
     pub fn canStopWhenIdle(self: *const HostService) bool {
-        return self.runtime_aggregate.isEmpty() and !self.creations.creating();
+        return self.runtime_aggregate.isEmpty() and !self.creations.creating() and self.programs.running() == 0;
     }
 
     /// Advances engine-owned state while no broker is connected. Outcome
@@ -268,6 +278,10 @@ pub const HostService = struct {
             .active => |active| .{ .connection_id = active.connection_id, .outgoing = &outgoing },
             .awaiting_hello, .closing => null,
         });
+        self.programs.deliver(self.runtime_aggregate.hostEpoch(), switch (connection.*) {
+            .active => |active| .{ .connection_id = active.connection_id, .outgoing = &outgoing },
+            .awaiting_hello, .closing => null,
+        });
         return outgoing;
     }
 
@@ -307,6 +321,7 @@ pub const HostService = struct {
             &self.creations,
             self.keepers.forSession(),
             self.moves.access(&self.keepers.attachments),
+            self.programs.forSession(),
             connection,
             record,
         );
