@@ -126,6 +126,7 @@ pub fn handleDispose(
     ) catch |err| {
         response.commitFailure(switch (err) {
             error.TerminalRuntimeMissing => host_failure.fromCore(error.InvalidPhase),
+            error.KeeperReleasePending => host_failure.keeper_release_pending,
             else => host_failure.fromCore(@errorCast(err)),
         });
         return;

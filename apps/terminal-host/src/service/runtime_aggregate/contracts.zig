@@ -296,7 +296,7 @@ pub const CapabilityUpdateError = AttachError;
 
 pub const ResizeLeaseClaimError = core_module.CoreError;
 
-pub const DisposeError = core_module.CoreError || error{TerminalRuntimeMissing};
+pub const DisposeError = core_module.CoreError || error{ TerminalRuntimeMissing, KeeperReleasePending };
 
 pub const DisposeResult = union(enum) {
     transition: core_module.TransitionOutcome,

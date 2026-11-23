@@ -160,7 +160,8 @@ existing Host inventory, force and dispose contracts under one request deadline 
 Each inventory request selects the first remaining terminal; force is sent once per selected active
 terminal in an attempt, and disposal requires a disposable observed phase and an exact acknowledgement.
 The inventory read that observes a settled phase can leave its outcome unpublished until the Host's
-next event poll, so a disposal refused as `outcome-publication-pending` is asked again for the same
+next event poll, and a macOS terminal's disposal first starts its Keeper's release, so a disposal
+refused as `outcome-publication-pending` or `keeper-release-pending` is asked again for the same
 terminal after a 10-millisecond pause until the request deadline; any other Host refusal ends the
 attempt. Prepared target cleanup retires local viewer/controller ownership only after that
 acknowledgement.

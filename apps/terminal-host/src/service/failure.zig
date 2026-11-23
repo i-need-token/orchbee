@@ -14,6 +14,12 @@ pub const InteractionFailure = terminal_history.HistoryError || error{
     TerminalRuntimeUnavailable,
 };
 
+pub const keeper_release_pending: Details = .{
+    .code = "keeper-release-pending",
+    .message = "a Keeper is still releasing the terminal",
+    .retryable = true,
+};
+
 pub const runtime_state_diverged: Details = .{
     .code = "internal-error",
     .message = "Host and terminal runtime state diverged",

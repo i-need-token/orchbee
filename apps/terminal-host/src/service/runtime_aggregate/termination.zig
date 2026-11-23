@@ -134,6 +134,10 @@ pub fn disposeTerminal(
     // RetainedTerminal still binds it to this session; a failed shutdown
     // leaves the complete retained record intact for a safe retry.
     runtime.?.shutdown() catch |err| {
+        // A macOS terminal's Keepers release it only once it is disposed. The
+        // release this shutdown started settles within the Keeper's reply
+        // deadline and blocks no cleanup, so the owner asks again.
+        if (err == error.KeeperReleasePending) return error.KeeperReleasePending;
         const cleanup_failure = host_runtime_maintenance.cleanupFailure(err);
         _ = self.core_state.retainedCleanupBlocked(
             terminal_id,

@@ -18,6 +18,7 @@ use std::time::Instant;
 /// The Host refuses to dispose a settled terminal until its next event poll publishes the outcome;
 /// the refusal is retryable and leaves the terminal unchanged.
 const OUTCOME_PUBLICATION_PENDING: &str = "outcome-publication-pending";
+const KEEPER_RELEASE_PENDING: &str = "keeper-release-pending";
 
 pub(super) struct Failure {
     pub(super) stage: ShutdownStage,
@@ -176,8 +177,14 @@ impl Exchange<'_> {
             match self.send(stage, control.kind, &control.payload)? {
                 Ok(record) => break record,
                 // The inventory read settled this terminal; the Host's next event poll publishes
-                // its outcome, so the same disposal is asked again within the stop's deadline.
-                Err(refusal) if dispose && refusal.code == OUTCOME_PUBLICATION_PENDING => {
+                // its outcome, or the disposal started a Keeper's release, which settles within
+                // the Keeper's reply deadline. Either way the same disposal is asked again within
+                // the stop's deadline.
+                Err(refusal)
+                    if dispose
+                        && (refusal.code == OUTCOME_PUBLICATION_PENDING
+                            || refusal.code == KEEPER_RELEASE_PENDING) =>
+                {
                     if !super::pause_before(self.deadline) {
                         return Err(failed(stage, ShutdownFailure::Deadline, false));
                     }

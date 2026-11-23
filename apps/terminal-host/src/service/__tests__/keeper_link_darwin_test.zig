@@ -317,12 +317,21 @@ const Fixture = struct {
         }
     }
 
-    /// Disposes the ended terminal and waits until the Keeper no longer holds it.
+    /// Disposes the ended terminal, asking again while its Keeper releases it, and waits until
+    /// the Keeper no longer holds it.
     fn disposeReleased(self: *Fixture, id: TerminalId) !void {
         const payload = try harness.testTerminalTargetPayload(id);
         defer self.allocator.free(payload);
-        _ = try self.awaitAnswer(try self.request(MessageKind.dispose_terminal, payload), 5000);
         const deadline = self.timer.read() + 5000 * ms;
+        while (true) {
+            const record = try self.awaitAnswer(try self.request(MessageKind.dispose_terminal, payload), 5000);
+            if (record.kind == MessageKind.dispose_terminal) break;
+            if (std.mem.indexOf(u8, record.payload, "keeper-release-pending") == null or self.timer.read() > deadline) {
+                report("DisposeTerminal failed: {s}", .{record.payload});
+                return error.DisposeRefused;
+            }
+            try self.tick();
+        }
         while (try self.holding(id) != null) {
             if (self.timer.read() > deadline) return error.HoldingNotReleased;
             try self.tick();

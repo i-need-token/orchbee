@@ -2012,10 +2012,11 @@ retry only operations whose retry class makes that safe. It must reconcile or as
 non-replayable operations such as input.
 
 A failed disposal keeps the complete retained terminal. Pending outcome publication returns
-`outcome-publication-pending`; blocked runtime cleanup returns one retryable typed code derived from
-the exact owner phase: `cleanup-contain-process`, `cleanup-release-output`, or
-`cleanup-release-process-identity`. Neither barrier is flattened into a permanent phase failure or
-a generic termination failure.
+`outcome-publication-pending`, and a Keeper release the disposal started, which a macOS terminal
+first needs at its disposal, returns `keeper-release-pending` without blocking cleanup; blocked
+runtime cleanup returns one retryable typed code derived from the exact owner phase:
+`cleanup-contain-process`, `cleanup-release-output`, or `cleanup-release-process-identity`. No
+barrier is flattened into a permanent phase failure or a generic termination failure.
 
 ## Commit discipline
 
