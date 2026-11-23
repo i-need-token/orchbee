@@ -12,7 +12,7 @@
 .row {
 	position: relative;
 	display: grid;
-	grid-template-columns: max-content minmax(0, 1fr) auto;
+	grid-template-columns: var(--ob-ref-size-icon-sm) minmax(0, 1fr) auto;
 	column-gap: var(--ob-ref-space-1-5);
 	height: var(--ob-ref-size-control-sm);
 	margin-inline-start: var(--ob-ref-space-3);
@@ -90,13 +90,7 @@
 
 .glyph {
 	grid-column: 1;
-	gap: var(--ob-ref-space-1);
 	justify-content: center;
-}
-
-.state {
-	display: inline-flex;
-	align-items: center;
 }
 
 .text {
