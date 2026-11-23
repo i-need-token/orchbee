@@ -11,14 +11,14 @@ use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     CorrelationId, HandoverControl, LifecycleControl, PayloadEncoding, ProjectionDemand,
-    TerminalId, TerminalTarget, decode_attachment_control, decode_lifecycle_control,
+    ResumeOutcome, TerminalId, TerminalTarget, decode_attachment_control, decode_lifecycle_control,
     decode_transport_envelope, encode_attachment_control, encode_lifecycle_control,
 };
 
-use super::steps::classify;
+use super::steps::{classify, contradiction};
 use crate::{
     host_connection::{HostBrokerConnection, NotStarted, UnexpectedAnswer, exchange_within},
-    session_keeper::{Serving, request},
+    session_keeper::{HostRefusal, Serving, request},
     worker_identity::fresh_identity,
 };
 
@@ -97,26 +97,52 @@ pub(super) fn end_old_copy(
     let ended = if settled {
         dispose(old, server, terminal)?
     } else {
-        let drop = HandoverControl::DropTerminal(terminal);
-        match request(old, Serving::Within(server, STEP_BUDGET), &drop) {
-            Ok(HandoverControl::TerminalDropped(dropped)) => dropped == terminal,
-            Ok(_) => false,
-            Err(error) => {
-                let refused = classify(error)?;
-                crate::diagnostic_events::terminal_move_failed(
-                    "drop",
-                    refused.class(),
-                    refused.reason(),
-                    false,
-                );
-                false
-            }
-        }
+        drop_moved(old, server, terminal)?
     };
     if ended {
         old.forget_moved(identity);
     }
     Ok(ended)
+}
+
+/// Drops a running old copy, which ends no program; whether it is gone. While the Keeper holding
+/// its mark answers, the old Host takes a drop only once it saw `claimed` itself, which its own
+/// deadline or a resume tells it. A drop refused as moving therefore resumes through that Keeper,
+/// which answers `claimed-elsewhere` for the terminal the new Host claimed, and drops again.
+fn drop_moved(
+    old: &HostBrokerConnection,
+    server: &UnixStream,
+    terminal: TerminalId,
+) -> Result<bool, Box<dyn Error>> {
+    let drop = HandoverControl::DropTerminal(terminal);
+    match request(old, Serving::Within(server, STEP_BUDGET), &drop) {
+        Ok(answer) => return Ok(answer == HandoverControl::TerminalDropped(terminal)),
+        Err(error) if HostRefusal::moving(error.as_ref()) => {}
+        Err(error) => return refused("drop", error),
+    }
+    let resume = HandoverControl::ResumeTerminal(terminal);
+    match request(old, Serving::Within(server, STEP_BUDGET), &resume) {
+        Ok(HandoverControl::TerminalResumed(resumed)) if resumed.terminal_id == terminal => {
+            // The new Host claimed the terminal, so the Keeper names it the owner.
+            if resumed.outcome != ResumeOutcome::ClaimedElsewhere {
+                return Err(contradiction());
+            }
+        }
+        Ok(_) => return Ok(false),
+        Err(error) => return refused("resume", error),
+    }
+    match request(old, Serving::Within(server, STEP_BUDGET), &drop) {
+        Ok(answer) => Ok(answer == HandoverControl::TerminalDropped(terminal)),
+        Err(error) => refused("drop", error),
+    }
+}
+
+/// Reports a refused step of the old copy's end, which the next turn tries again; a lost exchange
+/// is the error.
+fn refused(step: &'static str, error: Box<dyn Error>) -> Result<bool, Box<dyn Error>> {
+    let refused = classify(error)?;
+    crate::diagnostic_events::terminal_move_failed(step, refused.class(), refused.reason(), false);
+    Ok(false)
 }
 
 /// Disposes a settled terminal's old copy; whether the Host accepted.

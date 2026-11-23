@@ -66,6 +66,17 @@ impl Fixture {
     /// Creates a private temporary root named after `prefix` with the shared directories and
     /// `directories`, stages the cohort under test and starts both Sessions.
     pub fn new(prefix: &'static str, directories: &[&str]) -> Self {
+        Self::open(prefix, directories, true)
+    }
+
+    /// As [`Fixture::new`], but the Hosts use the system ConHost even when
+    /// `ORCHBEE_TEST_CONPTY_DIR` names the product's: no Keeper holds their terminals, so none
+    /// moves to another Host, as in a release before moves are turned on.
+    pub fn with_system_console(prefix: &'static str, directories: &[&str]) -> Self {
+        Self::open(prefix, directories, false)
+    }
+
+    fn open(prefix: &'static str, directories: &[&str], product_console: bool) -> Self {
         // A test that failed while holding the turn has already released its Sessions.
         let turn = TURN.lock().unwrap_or_else(PoisonError::into_inner);
         let mut nonce = [0; 16];
@@ -85,7 +96,7 @@ impl Fixture {
             prefix,
             _turn: turn,
         };
-        fixture.stage();
+        fixture.stage(product_console);
         for session in ["default", "host"] {
             let started = fixture.run(&["server", "start", "--session", session]);
             assert_eq!(started.code, Some(0), "{started}");
@@ -97,7 +108,7 @@ impl Fixture {
     /// private cohort. `cargo test` builds only the CLI and `zig-out` keeps whichever Host was
     /// installed last, so after a rebase either peer or the Host could otherwise predate the code
     /// under test and fail as if that code were wrong.
-    fn stage(&self) {
+    fn stage(&self, product_console: bool) {
         let built = Path::new(env!("CARGO_BIN_EXE_orchbee")).parent().unwrap();
         let mut artifacts = serde_json::Map::new();
         for (name, artifact, source) in [
@@ -131,7 +142,7 @@ impl Fixture {
         // The product ships a pinned ConPTY beside its Host; a build without one uses the system
         // ConHost, which drops the private markers the shell's reader sends. Point this at a
         // verified bundle to witness the product's own console host too.
-        if let Some(bundle) = std::env::var_os("ORCHBEE_TEST_CONPTY_DIR") {
+        if product_console && let Some(bundle) = std::env::var_os("ORCHBEE_TEST_CONPTY_DIR") {
             let target = self.root.join("cohort/conpty");
             fs::create_dir_all(&target).unwrap();
             for file in ["conpty.dll", "OpenConsole.exe"] {

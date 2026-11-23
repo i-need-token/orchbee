@@ -1,8 +1,11 @@
 //! The Server's move turns on Windows (`proposals/platform/host-handover.md`, H3 design). While a
-//! Worker that adopted its Hosts serves, a thread sends it a move turn every 2 seconds; each terminal
-//! it moved is rebound, and the binding record names the new Host before the next turn, which tells
-//! the Worker to drop the old copy. The turns end at `Done`, at a turn the Worker declines or cannot
-//! answer, and when the Session stops, after which they never write the record.
+//! Worker that adopted its Hosts serves, a thread sends it a move turn every 2 seconds. The binding
+//! record is written before and right after every turn, so it names each Host a turn started and
+//! each terminal it moved; a Server that ends between turns then leaves no running Host the record
+//! lacks, which would block the Session's recovery, and the next turn, which tells the Worker to
+//! drop a moved terminal's old copy, finds the record naming the new one. The turns end at `Done`,
+//! at a turn the Worker declines or cannot answer, and when the Session stops, after which they
+//! never write the record.
 
 use std::{
     io,
@@ -28,7 +31,7 @@ use crate::{
     },
 };
 
-/// The pause between two turns, and between two attempts to record a rebinding.
+/// The pause between two turns, and between two attempts to write the record before one.
 const SPACING: Duration = Duration::from_secs(2);
 
 /// The thread that sends one Worker generation its move turns.
@@ -90,8 +93,6 @@ struct Turn {
 
 impl Turn {
     fn run(&self, wait: &mpsc::Receiver<()>) {
-        // A binding the adoption found moved is recorded before the first turn too.
-        let mut unrecorded = true;
         loop {
             match wait.recv_timeout(SPACING) {
                 Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => return,
@@ -100,14 +101,12 @@ impl Turn {
             if self.stopped.load(Ordering::SeqCst) {
                 return;
             }
-            // The Worker drops a moved terminal's old copy at the next turn, so the record names
-            // its new Host first.
-            if unrecorded {
-                match self.record() {
-                    Some(true) => unrecorded = false,
-                    Some(false) => continue,
-                    None => return,
-                }
+            // A turn may drop a moved terminal's old copy, so a record that waits for a Host, or
+            // cannot be written, holds it. Unchanged bytes are not written again.
+            match self.record() {
+                Some(true) => {}
+                Some(false) => continue,
+                None => return,
             }
             let Ok(request) = self.request() else {
                 return;
@@ -131,7 +130,6 @@ impl Turn {
                         {
                             return;
                         }
-                        unrecorded = true;
                     }
                     TerminalMoveTurnOutcome::Waiting => {}
                     TerminalMoveTurnOutcome::Done => return,
@@ -139,6 +137,12 @@ impl Turn {
                 Err(WorkerRequestError::Backpressure) => {}
                 // A decline, a lost wire, a replaced generation or an answer of another kind.
                 Ok(_) | Err(_) => return,
+            }
+            // At once, so a Server that ends before the next turn leaves a record naming the Host
+            // this turn started and the copy it moved; one that waits now is written before the
+            // next turn.
+            if self.record().is_none() {
+                return;
             }
         }
     }

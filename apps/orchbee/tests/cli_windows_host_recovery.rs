@@ -7,8 +7,11 @@
 //! restart and through its Host's end, and completes. A restart from a second installation
 //! (`proposals/platform/versioning-and-upgrade.md`, P1c acceptance) starts new terminals and new
 //! programs on that installation's own Host while the old terminal goes on, and the old Host ends
-//! once it runs nothing. The oracle is what the CLI reads and lists, the diagnostic log and the
-//! programs' own processes; nothing imports Server internals.
+//! once it runs nothing. With moves on, as in a test build (H3 acceptance), such a restart moves an
+//! idle terminal to the new installation's Host with its program running, keys typed meanwhile
+//! arrive once and in order, the old Host ends once its last terminal moved, and a Server ended
+//! right after a move adopts the terminal from the new Host. The oracle is what the CLI reads and
+//! lists, the diagnostic log and the programs' own processes; nothing imports Server internals.
 //!
 //! A Host offers `recovery`, and so starts a Keeper, only on the product's ConPTY, so these
 //! witnesses run only when asked for, with `ORCHBEE_TEST_CONPTY_DIR` naming a verified bundle.
@@ -54,6 +57,18 @@ const POLL: Duration = Duration::from_millis(250);
 const CAP: usize = 3;
 /// Bounds the configured command's start in the Host, and its end once released.
 const COMMAND: Duration = Duration::from_secs(20);
+/// The folder of the third installation a second rollover restarts into.
+const THIRD: &str = "cohort-third";
+/// Bounds a move once a restart's Worker serves. Keys typed a little over two seconds apart hold it
+/// off until a Server turn, every two seconds, finds the terminal idle in a gap.
+const MOVED: Duration = Duration::from_secs(180);
+/// The pause between keys: just past the two seconds a terminal stays idle before it is due, so a
+/// move a turn starts in a gap is under way when the next key arrives, or ended just before.
+const KEY_GAP: Duration = Duration::from_millis(2050);
+/// How long a terminal stays without input before it is due to move.
+const IDLE_MILLISECONDS: u64 = 2000;
+/// Bounds the Worker's end once its Server was ended.
+const WORKER_ENDED: Duration = Duration::from_secs(15);
 
 #[test]
 #[ignore = "needs the product's ConPTY in ORCHBEE_TEST_CONPTY_DIR and four recoveries; run explicitly"]
@@ -219,7 +234,8 @@ fn a_configured_shell_command_runs_through_a_restart_and_its_hosts_end_and_compl
 
 #[test]
 fn a_restart_into_another_installation_runs_new_work_on_its_host_and_drains_the_old_one() {
-    let fixture = Fixture::new("orchbee-host-rollover-", &[]);
+    // Without a Keeper the old terminal stays in its Host, as in a release before moves.
+    let fixture = Fixture::with_system_console("orchbee-host-rollover-", &[]);
     let _logs = Logs(&fixture);
     let (terminal, panel, shown) = labeled_ticker(&fixture, LABEL);
     let first = worker(&fixture).expect("a Worker serves");
@@ -302,6 +318,240 @@ fn a_restart_into_another_installation_runs_new_work_on_its_host_and_drains_the_
         signaled(&command, COMMAND),
         "the command's process did not end after it completed"
     );
+}
+
+#[test]
+#[ignore = "needs the product's ConPTY in ORCHBEE_TEST_CONPTY_DIR; run explicitly"]
+fn restarts_into_other_installations_move_the_terminal_and_a_server_ended_after_a_move_adopts_it() {
+    require_product_conpty();
+    let fixture = Fixture::new("orchbee-host-move-", &[]);
+    let _logs = Logs(&fixture);
+    let terminal = echoing_ticker(&fixture);
+    let first = worker(&fixture).expect("a Worker serves");
+    let old = host_of(first);
+    let program = program_of(&old);
+
+    // A restart into a second installation moves the terminal to that installation's Host once it
+    // is idle, while keys go on arriving.
+    fixture.install_again(SECOND);
+    let second = restart_from(&fixture, SECOND, first);
+    let mut typed = String::new();
+    let mut sends: Vec<(u64, u64)> = Vec::new();
+    let deadline = Instant::now() + MOVED;
+    let moved = 'typing: loop {
+        let text = format!("{},", sends.len());
+        let began = time_of_day_milliseconds();
+        let sent = fixture.run(&["terminal", "send", &terminal, "--text", &text]);
+        assert_eq!(sent.code, Some(0), "{sent}");
+        sends.push((began, time_of_day_milliseconds()));
+        typed.push_str(&text);
+        let gap = Instant::now() + KEY_GAP;
+        while Instant::now() < gap {
+            if let Some(moved) = moves(&fixture).into_iter().next() {
+                break 'typing moved;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the terminal did not move within {MOVED:?}"
+            );
+            thread::sleep(POLL);
+        }
+    };
+    assert_eq!(moved["fields"]["settled"], false, "{moved}");
+    let elapsed = moved["fields"]["elapsedMs"].as_u64().unwrap();
+    let claimed = time_of_day(&moved);
+    let quiesced = claimed - elapsed;
+    // Input reached the Worker after its send began and before it ended, and a move starts only
+    // two seconds after the last input it relayed.
+    let (relayed, _) = sends
+        .iter()
+        .rev()
+        .find(|(_, ended)| *ended < quiesced)
+        .copied()
+        .expect("a key was sent before the move");
+    assert!(
+        quiesced + 20 >= relayed + IDLE_MILLISECONDS,
+        "the move began {} ms after the last key before it",
+        quiesced.saturating_sub(relayed)
+    );
+    let during = sends
+        .iter()
+        .filter(|(began, ended)| *began <= claimed && *ended >= quiesced)
+        .count();
+    eprintln!(
+        "moved in {elapsed} ms; {during} of {} keys were typed while it ran",
+        sends.len()
+    );
+    let sent = fixture.run(&["terminal", "send", &terminal, "--text", "end,"]);
+    assert_eq!(sent.code, Some(0), "{sent}");
+    typed.push_str("end,");
+
+    // Its last terminal gone, the old Host ends; the program runs on under the new Host.
+    assert!(
+        signaled(&old, DRAINED),
+        "the old Host did not end once its last terminal moved"
+    );
+    assert!(
+        !signaled(&program, Duration::ZERO),
+        "the program ended with the move"
+    );
+    assert_runs_from(&fixture, &host_of(second), SECOND);
+    expect_keys(&fixture, &terminal, &typed);
+    expect_counts_once(&recent(&fixture, &terminal));
+
+    // A restart into a third installation moves it again, and a Server ended right after that move
+    // adopts it from the third installation's Host.
+    fixture.install_again(THIRD);
+    let before = moves(&fixture).len();
+    let third = restart_from(&fixture, THIRD, second);
+    let server = server_of(&fixture);
+    let third_worker =
+        HPROCESS::OpenProcess(co::PROCESS::SYNCHRONIZE, false, third).expect("open the Worker");
+    until("the terminal moves again", MOVED, || {
+        (moves(&fixture).len() > before).then_some(())
+    });
+    server.TerminateProcess(1).unwrap();
+    assert!(
+        signaled(&third_worker, WORKER_ENDED),
+        "the Worker outlived its Server"
+    );
+    until("the Session starts again", RECOVERED, || {
+        let started = fixture.run_from(THIRD, &["server", "start", "--session", "default"]);
+        (started.code == Some(0)).then_some(())
+    });
+    let shown = until("the adopted terminal counts", RETURNED, || {
+        last_tick(&read_terminal(&fixture, &terminal))
+    });
+    until("the adopted terminal counts on", RETURNED, || {
+        last_tick(&read_terminal(&fixture, &terminal)).filter(|tick| *tick > shown)
+    });
+    assert!(
+        !signaled(&program, Duration::ZERO),
+        "the program ended with the Server"
+    );
+    let sent = fixture.run(&["terminal", "send", &terminal, "--text", "adopted,"]);
+    assert_eq!(sent.code, Some(0), "{sent}");
+    typed.push_str("adopted,");
+    expect_keys(&fixture, &terminal, &typed);
+    expect_counts_once(&recent(&fixture, &terminal));
+}
+
+/// Restarts the default Session from the installation in `folder` and answers the Worker that
+/// serves once `previous` no longer does.
+fn restart_from(fixture: &Fixture, folder: &str, previous: u32) -> u32 {
+    let restarted = fixture.run_from(folder, &["server", "restart", "--session", "default"]);
+    assert_eq!(restarted.code, Some(0), "{restarted}");
+    until("a new Worker serves after the restart", RECOVERED, || {
+        worker(fixture).filter(|serving| *serving != previous)
+    })
+}
+
+/// The default Session's Server, opened to be ended and waited on, as `status server` lists it.
+fn server_of(fixture: &Fixture) -> CloseHandleGuard<HPROCESS> {
+    let status = fixture.run(&["status", "server", "--session", "default"]);
+    assert_eq!(status.code, Some(0), "{status}");
+    let pid = status.document["result"]["server"]["processes"]
+        .as_array()
+        .and_then(|processes| processes.iter().find(|process| process["role"] == "server"))
+        .and_then(|process| process["processId"].as_u64())
+        .and_then(|pid| u32::try_from(pid).ok())
+        .unwrap_or_else(|| panic!("{status}"));
+    HPROCESS::OpenProcess(
+        co::PROCESS::TERMINATE | co::PROCESS::SYNCHRONIZE,
+        false,
+        pid,
+    )
+    .unwrap_or_else(|error| panic!("open Server {pid}: {error}"))
+}
+
+fn assert_runs_from(fixture: &Fixture, host: &HPROCESS, folder: &str) {
+    let image = host
+        .QueryFullProcessImageName(co::PROCESS_NAME::WIN32)
+        .unwrap();
+    assert!(
+        fs::canonicalize(&image)
+            .unwrap()
+            .starts_with(fs::canonicalize(fixture.path(folder)).unwrap()),
+        "the Host runs {image}, not the {folder} installation's Host"
+    );
+}
+
+/// Every `terminal-moved` record the fixture's Workers wrote.
+fn moves(fixture: &Fixture) -> Vec<serde_json::Value> {
+    logs(fixture)
+        .into_iter()
+        .flat_map(|(_, text)| {
+            text.lines()
+                .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+                .filter(|record| record["event"] == "terminal-moved")
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// The UTC time of day of `record`, in milliseconds, which the log writes as
+/// `YYYY-MM-DDTHH:MM:SS.mmmZ`.
+fn time_of_day(record: &serde_json::Value) -> u64 {
+    let time = record["time"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{record}"));
+    let field = |range: std::ops::Range<usize>| time[range].parse::<u64>().unwrap();
+    ((field(11..13) * 60 + field(14..16)) * 60 + field(17..19)) * 1000 + field(20..23)
+}
+
+fn time_of_day_milliseconds() -> u64 {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap();
+    u64::try_from(now.as_millis()).unwrap() % 86_400_000
+}
+
+/// Waits until the probe has written every key of `typed`, once and in order.
+fn expect_keys(fixture: &Fixture, terminal: &str, typed: &str) {
+    let deadline = Instant::now() + RETURNED;
+    loop {
+        let read = keys(&recent(fixture, terminal));
+        if read == typed {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline && typed.starts_with(&read),
+            "keys arrived as {read:?}, typed {typed:?}"
+        );
+        thread::sleep(POLL);
+    }
+}
+
+/// The keys the probe read, in its order.
+fn keys(text: &str) -> String {
+    text.lines()
+        .filter_map(|line| line.strip_prefix("key ")?.chars().next())
+        .collect()
+}
+
+/// Every count `text` shows follows the one before it by one.
+fn expect_counts_once(text: &str) {
+    let counts: Vec<u64> = text.lines().filter_map(tick).collect();
+    assert!(counts.len() > 2, "no counts: {text}");
+    for pair in counts.windows(2) {
+        assert_eq!(
+            pair[1],
+            pair[0] + 1,
+            "a count was lost or repeated: {counts:?}"
+        );
+    }
+}
+
+/// The recent lines of `terminal`, history included.
+fn recent(fixture: &Fixture, terminal: &str) -> String {
+    let read = fixture.run(&[
+        "terminal", "read", terminal, "--source", "recent", "--lines", "1000",
+    ]);
+    assert_eq!(read.code, Some(0), "{read}");
+    read.document["result"]["content"]["text"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned()
 }
 
 /// Adds a `shell` command that waits until `release` exists, then writes `done` and exits, has the
@@ -412,6 +662,43 @@ fn labeled_ticker(fixture: &Fixture, label: &str) -> (String, String, u64) {
         "@echo off\r\nfor /l %%i in (1,1,1000000) do (\r\n  echo tick %%i\r\n  ping -n 2 127.0.0.1 >nul\r\n)\r\n",
     )
     .unwrap();
+    let (terminal, panel) = open_script(fixture, label, &script);
+    // The Keeper starts once the Launch is answered; a few counts later it holds the terminal.
+    let shown = until("the terminal counts", RETURNED, || {
+        last_tick(&read_terminal(fixture, &terminal)).filter(|tick| *tick >= 3)
+    });
+    (terminal, panel, shown)
+}
+
+/// Opens the default Session's Workspace running, through cmd, a Windows PowerShell probe that
+/// counts twice a second and writes each key it reads on a line of its own, and returns its
+/// terminal once the Keeper holds it.
+fn echoing_ticker(fixture: &Fixture) -> String {
+    let probe = fixture.path("probe.ps1");
+    fs::write(
+        &probe,
+        "$i = 0\r\nwhile ($true) {\r\n  while ([Console]::KeyAvailable) { [Console]::WriteLine('key ' + [Console]::ReadKey($true).KeyChar) }\r\n  $i += 1\r\n  [Console]::WriteLine('tick ' + $i)\r\n  Start-Sleep -Milliseconds 500\r\n}\r\n",
+    )
+    .unwrap();
+    let script = fixture.path("probe.cmd");
+    let shell = system_program("WindowsPowerShell\\v1.0\\powershell.exe");
+    fs::write(
+        &script,
+        format!(
+            "@echo off\r\n\"{shell}\" -NoProfile -ExecutionPolicy Bypass -File \"{probe}\"\r\n"
+        ),
+    )
+    .unwrap();
+    let (terminal, _) = open_script(fixture, LABEL, &script);
+    until("the probe counts", RETURNED, || {
+        last_tick(&read_terminal(fixture, &terminal)).filter(|tick| *tick >= 8)
+    });
+    terminal
+}
+
+/// Opens a Workspace labeled `label` in the default Session running `script` through cmd, and
+/// returns its terminal and its Panel.
+fn open_script(fixture: &Fixture, label: &str, script: &str) -> (String, String) {
     let shell = system_program("cmd.exe");
     let work = fixture.path("work");
     let mut words = vec![
@@ -429,7 +716,7 @@ fn labeled_ticker(fixture: &Fixture, label: &str) -> (String, String, u64) {
         "--arg",
         "/c",
         "--arg",
-        &script,
+        script,
     ];
     let environment = fixture.terminal_environment();
     words.extend(environment.iter().map(String::as_str));
@@ -450,11 +737,7 @@ fn labeled_ticker(fixture: &Fixture, label: &str) -> (String, String, u64) {
         .and_then(|terminal| terminal["terminalId"].as_str())
         .unwrap_or_else(|| panic!("{listed}"))
         .to_owned();
-    // The Keeper starts once the Launch is answered; a few counts later it holds the terminal.
-    let shown = until("the terminal counts", RETURNED, || {
-        last_tick(&read_terminal(fixture, &terminal)).filter(|tick| *tick >= 3)
-    });
-    (terminal, panel, shown)
+    (terminal, panel)
 }
 
 /// The default Session's serving Worker, by process ID, as `status server` lists it.
@@ -573,13 +856,14 @@ fn read_terminal(fixture: &Fixture, terminal: &str) -> String {
 
 /// The highest count `text` shows.
 fn last_tick(text: &str) -> Option<u64> {
-    text.lines()
-        .filter_map(|line| {
-            let rest = &line[line.find("tick ")? + "tick ".len()..];
-            let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
-            digits.parse().ok()
-        })
-        .max()
+    text.lines().filter_map(tick).max()
+}
+
+/// The count `line` shows.
+fn tick(line: &str) -> Option<u64> {
+    let rest = &line[line.find("tick ")? + "tick ".len()..];
+    let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+    digits.parse().ok()
 }
 
 fn until<T>(what: &str, within: Duration, mut probe: impl FnMut() -> Option<T>) -> T {

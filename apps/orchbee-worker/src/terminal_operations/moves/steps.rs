@@ -355,7 +355,7 @@ const fn on_new(refused: Refused) -> Refused {
     }
 }
 
-fn contradiction() -> Box<dyn Error> {
+pub(super) fn contradiction() -> Box<dyn Error> {
     std::io::Error::new(
         std::io::ErrorKind::InvalidData,
         "the two Hosts disagree on whether a terminal moved",

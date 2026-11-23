@@ -282,7 +282,7 @@ The last page is answered within 18 seconds of its arrival, inside the Server's 
   run ([H3 design](../../proposals/platform/host-handover.md#a-terminal-in-two-hosts)). The copy
   that runs owns the terminal, or, when none does, the one quiesced copy; two that run, or no owner,
   leave the copies to the import. A `moved` copy, or a quiesced one beside a running owner, is
-  dropped; a `restored` import is discarded; a quiesced owner is resumed. A copy whose drop or
+  dropped, the quiesced one resumed through its Keeper first when it refuses the drop as moving; a `restored` import is discarded; a quiesced owner is resumed. A copy whose drop or
   discard is refused, or unanswered before the deadline, stays and is quarantined. A binding that named another
   copy is imported as its owner and answered in `moved`, at most 16. A discard answering `claimed`,
   or a resume answering `claimed-elsewhere`, is `inventory-failed`, and a lost Host exchange
@@ -368,7 +368,9 @@ other failure stops moves for the Worker's life. After the claim the kernel bind
 its new identity and runs requests that name the old one against it, answering them in their own
 words; each controller attaches to the own Host under its identities and consumed sequence, and each
 viewer closes, so its Client attaches again. The next turn drops the old copy, or disposes it when
-the program had ended, and an older Host left with no terminal drains as above.
+the program had ended, and an older Host left with no terminal drains as above. The old Host takes
+the drop only once it saw `claimed` itself, which its mark's deadline tells it, so a drop it refuses
+as moving first resumes the copy through the Keeper, which answers `claimed-elsewhere`.
 
 ## The Session's Keeper
 

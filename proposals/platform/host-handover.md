@@ -1472,6 +1472,13 @@ development builds until H4 through one constant, `moves_live`, and test builds 
 - Each turn tells the Worker that the Server recorded every rebinding answered before it, so the
   Worker drops the old copies at the start of the next turn. An older Host left without a terminal
   drains and exits as P1c's do.
+- Chosen: the old Host reports a terminal moved only after its own `resume` got `claimed`, and
+  refuses a drop as `moving` until then while its Keeper answers. The Worker therefore answers that
+  refusal with `ResumeTerminal`, which the Host sends to the Keeper and which answers
+  `claimed-elsewhere`, and drops again, instead of waiting for the mark's deadline. An adoption does
+  the same for a quiesced copy beside a running owner; without it, as H3's acceptance run found,
+  the copy stays quarantined, holding OpenConsole's reference, so the terminal can never settle in
+  its new Host.
 - A settled terminal moves as a record without the claim, as [the Host's side](#the-hosts-side)
   allows, and its old copy is disposed as any settled terminal is.
 
@@ -1479,7 +1486,12 @@ development builds until H4 through one constant, `moves_live`, and test builds 
 
 - Chosen: on `Moved`, the Server rebinds: the binding keeps its product terminal, operation, fence,
   and lease, and takes the new Host terminal identity; titles, Agent observation, and every other
-  fact keyed by that identity follow, and the binding record is written before the next turn.
+  fact keyed by that identity follow, and the binding record is written at once and again before
+  the next turn.
+- Chosen: the Server writes the binding record before and right after every turn, not only after a
+  rebinding, so it names a Host a turn started before any terminal moves there. Otherwise a Server
+  ended between that turn and the move leaves a running Host the record lacks, which blocks the
+  Session's cold recovery until a person ends it, as H3's acceptance run found.
   Presentations name the product terminal, so the Workbench does not change. A `Moved` for a
   binding that no longer has the old identity, closed meanwhile, changes nothing.
 - Rule: a Close the Server began before it rebound still names the old identity, which the Worker
@@ -1525,7 +1537,7 @@ development builds until H4 through one constant, `moves_live`, and test builds 
 | S3    | The Server's turns and rebinding, and the binding record                                                                                                        | Built  |
 | S4    | An adoption of a terminal seen in two Hosts                                                                                                                     | Built  |
 | S5    | The image section                                                                                                                                               | Built  |
-| S6    | The [H3 acceptance](#acceptance) on real Windows                                                                                                                | Open   |
+| S6    | The [H3 acceptance](#acceptance) on real Windows                                                                                                                | Built  |
 
 ## B1 design
 

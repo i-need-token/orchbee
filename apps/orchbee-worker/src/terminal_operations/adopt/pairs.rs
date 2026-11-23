@@ -2,7 +2,9 @@
 //! (`proposals/platform/host-handover.md`, A terminal in two Hosts). A move keeps the creation id,
 //! so the copies pair by it: the copy that runs owns the terminal, or, when none runs, the quiesced
 //! one it was leaving. A copy a move left behind is dropped, an import never claimed is discarded,
-//! and a quiesced owner resumes. A binding that names another copy than the owner is rebound to it,
+//! and a quiesced owner resumes. Beside a running owner, a quiesced copy whose Keeper answers is
+//! dropped only once its Host saw `claimed`, so a drop it refuses as moving resumes it through that
+//! Keeper first, which answers `claimed-elsewhere`. A binding that names another copy than the owner is rebound to it,
 //! which the Server does as for a move turn. A copy no binding names stays as any other the import
 //! quarantines.
 
@@ -25,7 +27,7 @@ use super::Found;
 use crate::{
     host_adoption as host,
     host_connection::{HostBrokerConnection, HostFailure},
-    session_keeper::{Serving, request},
+    session_keeper::{HostRefusal, Serving, request},
     terminal_authorization::InventoryTerminal,
 };
 
@@ -92,7 +94,13 @@ pub(super) fn pair(
             let host = &found[*index].host;
             let gone = match copy.handover {
                 Some(HandoverState::Restored) => discard(host, server, copy.identity, deadline)?,
-                _ => drop_copy(host, server, copy.identity, deadline)?,
+                _ => drop_copy(
+                    host,
+                    server,
+                    copy.identity,
+                    owner.handover.is_none(),
+                    deadline,
+                )?,
             };
             if gone {
                 ended.push(copy.identity);
@@ -134,24 +142,38 @@ fn owner(group: &[HostCopy]) -> Option<HostCopy> {
     }
 }
 
-/// Drops a copy a move left behind, which ends no program; whether it is gone.
+/// Drops a copy a move left behind, which ends no program; whether it is gone. Beside an owner that
+/// runs, which the Keeper names, a drop refused as moving resumes the copy through its Keeper,
+/// which answers `claimed-elsewhere`, and drops it again.
 fn drop_copy(
     host: &HostBrokerConnection,
     server: &UnixStream,
     copy: HostTerminalIdentity,
+    owner_runs: bool,
     deadline: Instant,
 ) -> Result<bool, host::Failed> {
     let terminal = terminal(copy)?;
-    let Some(answer) = exchange(
-        host,
-        server,
-        &HandoverControl::DropTerminal(terminal),
-        deadline,
-    )?
-    else {
-        return Ok(false);
-    };
-    Ok(answer == HandoverControl::TerminalDropped(terminal))
+    let drop = HandoverControl::DropTerminal(terminal);
+    match ask(host, server, &drop, deadline)? {
+        Answer::Given(answer) => return Ok(answer == HandoverControl::TerminalDropped(terminal)),
+        Answer::Moving if owner_runs => {}
+        Answer::Moving | Answer::Refused => return Ok(false),
+    }
+    let resume = HandoverControl::ResumeTerminal(terminal);
+    match exchange(host, server, &resume, deadline)? {
+        Some(HandoverControl::TerminalResumed(resumed)) if resumed.terminal_id == terminal => {
+            if resumed.outcome != ResumeOutcome::ClaimedElsewhere {
+                return Err(unsettled(
+                    "a copy a move left resumed beside the running one",
+                ));
+            }
+        }
+        _ => return Ok(false),
+    }
+    Ok(
+        exchange(host, server, &drop, deadline)?
+            == Some(HandoverControl::TerminalDropped(terminal)),
+    )
 }
 
 /// Discards an import never claimed; whether it is gone.
@@ -196,22 +218,44 @@ fn exchange(
     control: &HandoverControl,
     deadline: Instant,
 ) -> Result<Option<HandoverControl>, host::Failed> {
+    Ok(match ask(host, server, control, deadline)? {
+        Answer::Given(answer) => Some(answer),
+        Answer::Moving | Answer::Refused => None,
+    })
+}
+
+/// What a Host made of one request of the pairing.
+enum Answer {
+    Given(HandoverControl),
+    /// Refused because the terminal is still moving.
+    Moving,
+    /// Refused otherwise, or the adoption had no room left.
+    Refused,
+}
+
+fn ask(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    control: &HandoverControl,
+    deadline: Instant,
+) -> Result<Answer, host::Failed> {
     let left = deadline.saturating_duration_since(Instant::now());
     if left.is_zero() {
-        return Ok(None);
+        return Ok(Answer::Refused);
     }
     match request(
         host,
         Serving::Within(server, left.min(STEP_BUDGET)),
         control,
     ) {
-        Ok(answer) => Ok(Some(answer)),
+        Ok(answer) => Ok(Answer::Given(answer)),
         Err(error) if HostFailure::find(error.as_ref()).is_some() => Err(host::Failed {
             failure: AdoptHostFailure::HostUnreachable,
             restarts: 0,
             error,
         }),
-        Err(_) => Ok(None),
+        Err(error) if HostRefusal::moving(error.as_ref()) => Ok(Answer::Moving),
+        Err(_) => Ok(Answer::Refused),
     }
 }
 

@@ -76,6 +76,16 @@ impl std::fmt::Display for HostRefusal {
 
 impl Error for HostRefusal {}
 
+impl HostRefusal {
+    /// Whether `error` is a Host's refusal of a step because the terminal is still moving: a
+    /// quiesced terminal whose Keeper answers takes a drop only once its Host saw `claimed`.
+    pub(crate) fn moving(error: &(dyn Error + 'static)) -> bool {
+        error.downcast_ref::<Self>().is_some_and(|refusal| {
+            refusal.0.code == "move-passing" && refusal.0.reason.as_deref() == Some("moving")
+        })
+    }
+}
+
 impl SessionKeeper {
     /// Starts the Session's Keeper from `executable`, the Terminal Host's program, as this
     /// Worker's registered child, and connects to it.
