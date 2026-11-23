@@ -631,7 +631,7 @@ it says inferred.
 | H0    | The four prototypes                                                                                                                                                                                                                                                                                                                                                                                                             | About 1 week, about 6.5 agent-days in parallel       | Now, beside slice 1 and P1a                                                                                                                 |
 | H1    | The Keeper on Windows; the record, quiesce, export, import, and claim in the Host; the dispatch thread's progress in `query`; a model of the move under [modeling and correctness](../../docs/MODELING-AND-CORRECTNESS.md), whose invariants are one reader per terminal and a reader for every running terminal; a same-build move between two Host processes in tests; [H1 design](#h1-design) gives the decisions and slices | About 3 weeks after its decision run, in two streams | After H0; ships dark in the first release it is ready for: its Hosts can deposit, export, import, and claim, but no Keeper starts before H2 |
 | H2    | Recovery: the Worker replaces a Host that crashed or hung, and the new Host takes its terminals from the Keeper; a Keeper that crashed or stopped answering is replaced, and the Hosts deposit again                                                                                                                                                                                                                            | 1.5–2 weeks                                          | After H1; on as soon as it passes                                                                                                           |
-| H3    | Moves across versions by the Worker: timing, the hold, rebinding, the Server's binding record, P1a's import for a terminal seen in two Hosts, the image section, and diagnostics                                                                                                                                                                                                                                                | 2.5–3 weeks after its decision run                   | After H1 and P1c                                                                                                                            |
+| H3    | Moves across versions by the Worker: timing, the hold, rebinding, the Server's binding record, P1a's import for a terminal seen in two Hosts, the image section, and diagnostics; [H3 design](#h3-design) gives the decisions and slices                                                                                                                                                                                        | 2.5–3 weeks after its decision run                   | After H1 and P1c                                                                                                                            |
 | H4    | Moves in updates: the [Keeper update](#updating-the-keeper) on Windows, the release gate's checks of both, the confirmation reduced to terminals that cannot move, status, and the switch turned on                                                                                                                                                                                                                             | About 1.5 weeks                                      | After H2, H3, and P2                                                                                                                        |
 | H5    | macOS: the Keeper as parent and its re-execution in place, claims by `SCM_RIGHTS` 64 descriptors per message with a short count failing the claim, the quiesce, recovery, and the gate on macOS                                                                                                                                                                                                                                 | 3–4 weeks                                            | After the first macOS package, before macOS automatic updates                                                                               |
 | B1    | [Background programs in the Host](#background-programs-the-worker-runs)                                                                                                                                                                                                                                                                                                                                                         | 1.5–2 weeks                                          | Right after P1b                                                                                                                             |
@@ -1412,6 +1412,111 @@ coordinator's brief. Each pick is marked Chosen, which the owner may veto, or Ru
 | S5    | The recovery target in `AdoptHost`, the Server's decision for a gone Host with a running Keeper, recovery in adopt mode, the hang check, and the stop without a Worker       | Built  |
 | S6    | The [H2 acceptance](#acceptance) on real Windows, `keeper_live` on in release, and the freezes of row 42                                                                     | Built  |
 
+## H3 design
+
+Settled on 2026-11-23 by the main session, which decides and records each pick as vetoable. It
+builds on H1's Host requests, P1c's Host set, and H2's Keeper. Moves stay off in release and
+development builds until H4 through one constant, `moves_live`, and test builds run them, as
+`keeper_live` did for H2.
+
+### Turns
+
+- Chosen: the Server paces moves and the Worker picks them. Only a replacement, which includes a
+  cold adoption, can hold an older Host, so while a replacement serves, the Server sends
+  `TerminalMoveTurn` every 2 seconds. The Worker answers `Moved`, naming the product terminal and
+  its old and new Host terminal identities; `Waiting`, when an older Host still runs a terminal but
+  none is due; or `Done`, when no terminal is left that can move. After `Done`, or a declined turn
+  from a Worker that predates them, the Server sends no turn until its next replacement.
+- Chosen: a move runs inside its turn, in the Worker's serialized request loop. Requests that the
+  Server writes meanwhile wait in the stream in order and run after the move: that is the hold.
+  Keys typed during a move reach the new Host once and in order, no other request for the moving
+  terminal runs during it, and the Worker keeps no held-input queue, so the 64 KiB abort of
+  [What a person sees](#what-a-person-sees) has nothing to bound. Every terminal's requests wait
+  for the move: about 50 milliseconds at the default scrollback, 0.7 seconds at 100 MB of history,
+  and at most the mark's 5-second deadline when a move aborts, all inside the Server's 20-second
+  response window. Vetoable: moving asynchronously with a hold per terminal, if the pause shared
+  by every terminal proves noticeable.
+- Rule: a terminal of an older Host is due 2 seconds after the Worker last relayed input, a paste,
+  or a resize to it, or 10 minutes after the first turn found it waiting. A turn moves at most one
+  terminal. The Worker moves into its own Host, which it starts first when none runs, and only when
+  both Hosts advertise `handover`, its Keeper is attached to both, and no Keeper replacement is
+  under way.
+- Rule: the first move that fails stops moves for the rest of that Worker's life, and the next
+  replacement, which runs a newer version, tries again. A move fails when a step is refused as
+  failed, or the new Host refuses the record as ineligible. A refusal as passing leaves the terminal
+  due at the next turn. A refusal as ineligible from the old Host, such as `system-console`,
+  `unheld`, `holds-image`, or `too-large`, leaves that terminal where it runs for the rest of the
+  Worker's life, and the turns go on with the others.
+
+### The steps of a move
+
+1. `QuiesceTerminal` on the old Host, naming the new Host's process and a 5-second mark deadline,
+   answers the record's size.
+2. `ReadHandoverRecord` from the old Host and `WriteHandoverRecord` to the new one, in chunks of up
+   to 4 MiB, after `ImportTerminal` names the binding's creation id, the size, and the same
+   deadline. The Worker relays the bytes without parsing them.
+3. `RestoreTerminal` answers the new Host terminal identity; `ClaimTerminal` commits.
+
+- Chosen: a moved terminal keeps its creation id, so its two Host terminal identities differ only
+  by epoch and terminal id, and an adoption can pair its copies.
+- Before the claim, a refusal or failure aborts: `ResumeTerminal` on the old Host and
+  `DiscardImport` on the new one. A lost exchange at any step ends the Worker, as any lost Host
+  exchange does, and the replacement decides by the two inventories, below.
+- After the claim, the Worker's operation kernel holds the binding as an imported one with its
+  fence and the new identity, and translates requests that name the old identity for the rest of
+  its life. Each controller grant of the terminal becomes a controller attachment in the new Host
+  with the same viewer and controller identities, capability revision, and consumed sequence, so
+  held input reaches the program through it. Each read-only viewer closes, so its next Poll answers
+  that the terminal runtime is unavailable and its Client attaches again: every Client checks the
+  Host epoch in each record of a projection, so a viewer cannot follow its terminal.
+- Each turn tells the Worker that the Server recorded every rebinding answered before it, so the
+  Worker drops the old copies at the start of the next turn. An older Host left without a terminal
+  drains and exits as P1c's do.
+- A settled terminal moves as a record without the claim, as [the Host's side](#the-hosts-side)
+  allows, and its old copy is disposed as any settled terminal is.
+
+### Rebinding
+
+- Chosen: on `Moved`, the Server rebinds: the binding keeps its product terminal, operation, fence,
+  and lease, and takes the new Host terminal identity; titles, Agent observation, and every other
+  fact keyed by that identity follow, and the binding record is written before the next turn.
+  Presentations name the product terminal, so the Workbench does not change. A `Moved` for a
+  binding that no longer has the old identity, closed meanwhile, changes nothing.
+
+### A terminal in two Hosts
+
+- Chosen: an adoption that finds a binding's terminal quiesced or moved in one adopted Host, and a
+  running terminal with the same creation id in another, imports the running one, drops the other
+  copy, and lists the binding in `Adopted`'s new `moved` with its new identity, which the Server
+  rebinds as for a turn. A restored import that was never claimed is discarded, and the binding
+  stays with its old Host, which resumes it.
+
+### The image section
+
+- Chosen: the record gains an image section with each screen's images, as decoded pixels with
+  their identifiers, numbers, format, and size, and their placements, each with its image, its
+  placement identifier, its anchor as a row counted from the top of the screen's history and a
+  column, its z-index, its size in cells, and its source rectangle, bounded by the Host's 32 MiB of
+  decoded storage per screen. An animation with more than one frame, a virtual, relative, or
+  Unicode-placeholder placement, and a transmission in progress still answer `holds-image`.
+
+### Diagnostics
+
+- The Worker records `terminal-moved` with the two slots, the record's size, whether the terminal
+  was settled, and the milliseconds from the quiesce to the claim; and `terminal-move-failed` with
+  the step, the refusal's class and reason, and whether moves stopped.
+
+### H3 slices
+
+| Slice | Content                                                                                                                                                         | Status |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| S1    | The Rust codec for H1's requests and answers, `moves_live`, and `TerminalMoveTurn` and `Adopted`'s `moved` in the Worker protocol                               | Open   |
+| S2    | The Worker's move: due terminals, the steps, abort, the kernel's rebinding and translation, controllers and viewers, the drop at the next turn, and diagnostics | Open   |
+| S3    | The Server's turns and rebinding, and the binding record                                                                                                        | Open   |
+| S4    | An adoption of a terminal seen in two Hosts                                                                                                                     | Open   |
+| S5    | The image section                                                                                                                                               | Open   |
+| S6    | The [H3 acceptance](#acceptance) on real Windows                                                                                                                | Open   |
+
 ## B1 design
 
 The main session settled this design on 2026-11-22 from
@@ -1544,6 +1649,11 @@ without `background-programs` never receives it.
 - **H2**: ending a Host by process id, or stopping its dispatch thread, brings every terminal back
   within seconds with its program still running; a fourth failure inside 10 minutes leaves the
   terminal running and shown as Can't reconnect.
+- **H3**, in a test build on real Windows: after a restart into another installation, a terminal
+  running a numbered-line probe moves to the new Host 2 seconds after its last input, with its
+  program's process id unchanged and no number lost or repeated; keys typed during the move arrive
+  once and in order; the old Host exits once its last terminal moved; and a Server ended right after
+  a move adopts the terminal from the new Host.
 - **H3 and H4**: with Claude Code or a long-running script in a terminal, an update that changes the
   Host replaces the Keeper, moves the terminal to the new Host, and the old Host and old Keeper exit;
   keys typed during the move arrive once and in order; ending the new Host right after a claim brings
@@ -1632,5 +1742,10 @@ without `background-programs` never receives it.
 | 73  | Program holdings take the terminal holding's states and transitions, so the move's model is unchanged                                                                                                                                                                                                                                                                                                                                                                        | One state machine for every holding                                                                                                                                                                                                             | Rule                                                               |
 | 74  | A recovered program's capture restarts at zero and reports truncated                                                                                                                                                                                                                                                                                                                                                                                                         | Recovery seeds no screen either                                                                                                                                                                                                                 | Chosen                                                             |
 | 75  | The restart counts only the Worker's own programs; the idle move counts every one                                                                                                                                                                                                                                                                                                                                                                                            | A restart keeps the Host; the idle move replaces it                                                                                                                                                                                             | Rule                                                               |
+| 76  | The Server sends a move turn every 2 seconds while a replacement serves; the Worker picks the terminal and answers `Moved`, `Waiting`, or `Done`                                                                                                                                                                                                                                                                                                                             | Only a replacement can hold an older Host; the Worker sees input and its Hosts, the Server owns the bindings                                                                                                                                    | Chosen (H3)                                                        |
+| 77  | A move runs inside its turn in the Worker's serialized request loop; requests written meanwhile wait in the stream, and that is the hold                                                                                                                                                                                                                                                                                                                                     | No held-input queue and no request for the terminal during a move; every terminal pauses for the move, inside the response window                                                                                                               | Chosen (H3)                                                        |
+| 78  | A moved terminal keeps its creation id; its controllers move to the new Host, and its read-only viewers close for their Clients to attach again                                                                                                                                                                                                                                                                                                                              | An adoption pairs the two copies; held input arrives; a Client checks the Host epoch of every projection record                                                                                                                                 | Chosen (H3)                                                        |
+| 79  | The Server rebinds on `Moved` and records it before the next turn; the Worker drops the old copy at that turn                                                                                                                                                                                                                                                                                                                                                                | The binding record names the new Host before the old one can exit                                                                                                                                                                               | Chosen (H3)                                                        |
+| 80  | The image section carries still images and plain placements; animations, virtual, relative, and Unicode-placeholder placements, and transmissions in progress keep their terminal on its Host                                                                                                                                                                                                                                                                                | The common case moves; the rest keeps the P1c behavior                                                                                                                                                                                          | Chosen (H3)                                                        |
 
 Nothing waits on the owner; each Chosen row stays open to a veto.
