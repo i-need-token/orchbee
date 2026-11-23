@@ -80,7 +80,8 @@
 
 .glyph,
 .text,
-.unread {
+.unread,
+.mark {
 	position: relative;
 	z-index: var(--ob-ref-layer-raised);
 	display: flex;
@@ -128,9 +129,16 @@
 	content: '·';
 }
 
+/* The product marks line up down the list, whether or not a row has the dot before its mark. */
+.end {
+	display: flex;
+	grid-column: 3;
+	align-items: stretch;
+	gap: var(--ob-ref-space-1-5);
+}
+
 /* The dot's cell reaches 4 px past it on each side, so the pointer finds its tooltip. */
 .unread {
-	grid-column: 3;
 	margin-inline: calc(var(--ob-ref-space-1) * -1);
 	padding-inline: var(--ob-ref-space-1);
 }

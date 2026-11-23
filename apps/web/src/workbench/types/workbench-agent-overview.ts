@@ -12,6 +12,8 @@ export interface WorkbenchAgentConfirmationOfferView {
 
 interface WorkbenchWorkspaceAgentRowView {
 	readonly accessibleLabel: string;
+	/** The reported Agent, which picks its product mark. */
+	readonly providerId: string;
 	/** The Agent's product name, or a custom report's own name. */
 	readonly agentLabel: string;
 	/**

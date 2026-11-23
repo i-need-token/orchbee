@@ -20,7 +20,9 @@ export const AGENT_PRODUCT_MARKS: ReadonlyMap<string, ReactNode> = new Map(
 		atomcode: artwork(new URL('./marks/atomcode.png', import.meta.url)),
 		'command-code': artwork(new URL('./marks/command-code.png', import.meta.url)),
 		droid: artwork(new URL('./marks/droid.svg', import.meta.url)),
-		jcode: artwork(new URL('./marks/jcode.svg', import.meta.url)),
+		jcode: (
+			<circle cx='12' cy='12' fill='none' r='7.125' stroke='currentColor' strokeWidth='4.875' />
+		),
 		letta: artwork(new URL('./marks/letta.jpg', import.meta.url)),
 		maki: artwork(new URL('./marks/maki.png', import.meta.url)),
 		mothx: artwork(new URL('./marks/mothx.png', import.meta.url)),

@@ -583,8 +583,7 @@ describe('Workbench Project and Workspace management', { timeout: 15_000 }, () =
 		});
 		const workspaceRow = workspaceButton.closest('[data-workspace-id]');
 		const agentName = `Codex, Ready, ${targetTabTitle} · Panel 1 · Main terminal`;
-		const agentButton = screen.getByRole('button', { name: agentName });
-		expect(agentButton.closest('li')?.textContent).toContain('Codex');
+		screen.getByRole('button', { name: agentName });
 
 		// Folded, the row's second line lists the states, and the fold outlasts a folded Project and a
 		// hidden sidebar.

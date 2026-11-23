@@ -6,12 +6,14 @@ import {
 	TooltipTrigger,
 } from '@orchbee/ui/components';
 import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
-import type { MouseEvent, ReactNode } from 'react';
+import { useId, type MouseEvent, type ReactNode } from 'react';
 
 import type {
 	WorkbenchAgentConfirmationChooseInput,
 	WorkbenchPanelTargetInput,
 } from '../../../../../../actions/workbench-action-ids';
+import { hasAgentProductMark } from '../../../../../../../agent-provider-icon';
+import { AgentProviderMark } from '../../../../../../../agent-provider-mark';
 import { WorkbenchAgentStateGlyph } from '../../../../../workbench-agent-state-glyph/WorkbenchAgentStateGlyph';
 import type {
 	WorkbenchActionMenuChoice,
@@ -33,9 +35,10 @@ interface WorkspaceAgentListProps {
 }
 
 /**
- * A Workspace's Agents, one line each as in the TUI: the state glyph, title · provider, and the
- * unread dot. The glyph names its state under the pointer, with why a confirmation waits where one
- * does, and the dot says Unread. A right-click opens the Agent's menu: Rename, which only a Panel's
+ * A Workspace's Agents, one line each as in the TUI: the state glyph, the title, the unread dot, and
+ * the provider's product mark at the row's end, or its name where it has no mark. The glyph names
+ * its state under the pointer, with why a confirmation waits where one does, the mark names its
+ * product, and the dot says Unread. A right-click opens the Agent's menu: Rename, which only a Panel's
  * primary terminal offers, Allow confirmations where the Server answers them for this Agent, then
  * Close, which asks first.
  */
@@ -47,11 +50,13 @@ export function WorkspaceAgentList({
 	overview,
 	renameAgentPanel,
 }: WorkspaceAgentListProps): ReactNode {
+	const markPrefix = useId();
 	return (
 		<ul className={styles['list']} data-slot='workbench-sidebar-workspace-agents'>
 			{overview.rows.map((row, index) => {
 				const title = row.titleLabel === '' ? row.agentLabel : row.titleLabel;
 				const provider = row.titleLabel === '' ? null : row.agentLabel;
+				const marked = provider !== null && hasAgentProductMark(row.providerId);
 				const panel = {
 					panelId: row.panelId,
 					tabId: row.tabId,
@@ -160,16 +165,31 @@ export function WorkspaceAgentList({
 								render={<span className={styles['text']} />}
 							>
 								<span className={styles['title']}>{title}</span>
-								{provider === null ? null : <span className={styles['provider']}>{provider}</span>}
+								{provider === null || marked ? null : (
+									<span className={styles['provider']}>{provider}</span>
+								)}
 							</SidebarTruncationTooltip>
-							{row.unreadLabel === undefined ? null : (
-								<Tooltip>
-									<TooltipTrigger render={<span className={styles['unread']} />}>
-										<span className={styles['dot']} />
-									</TooltipTrigger>
-									<TooltipContent side='bottom'>{row.unreadLabel}</TooltipContent>
-								</Tooltip>
-							)}
+							<span className={styles['end']}>
+								{row.unreadLabel === undefined ? null : (
+									<Tooltip>
+										<TooltipTrigger render={<span className={styles['unread']} />}>
+											<span className={styles['dot']} />
+										</TooltipTrigger>
+										<TooltipContent side='bottom'>{row.unreadLabel}</TooltipContent>
+									</Tooltip>
+								)}
+								{marked ? (
+									<Tooltip>
+										<TooltipTrigger render={<span className={styles['mark']} />}>
+											<AgentProviderMark
+												gradientPrefix={`${markPrefix}-${row.presentationId}`}
+												providerId={row.providerId}
+											/>
+										</TooltipTrigger>
+										<TooltipContent side='bottom'>{provider}</TooltipContent>
+									</Tooltip>
+								) : null}
+							</span>
 						</ContextMenuTrigger>
 						<WorkbenchActionContextMenuContent entries={menuEntries} />
 					</ContextMenu>

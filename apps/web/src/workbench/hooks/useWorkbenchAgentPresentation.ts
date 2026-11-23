@@ -328,6 +328,7 @@ export function useWorkbenchAgentPresentation({
 							panelId: destination.panelId,
 							presentationId: destination.presentationId,
 							primary: destination.terminalPosition.kind === 'primary',
+							providerId: observation.agent,
 							status,
 							tabId: destination.tabId,
 							terminalContextId: destination.terminalContextId,

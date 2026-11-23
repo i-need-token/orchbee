@@ -14,3 +14,15 @@ export const WORKBENCH_AGENT_PROVIDER_ORDER: readonly string[] = [
 	'qwen',
 	...AGENT_PRODUCT_MARKS.keys(),
 ];
+
+const MARKED_AGENTS: ReadonlySet<string> = new Set([
+	...WORKBENCH_AGENT_PROVIDER_ORDER,
+	'claude-code',
+	'github-copilot',
+	'qwen-code',
+]);
+
+/** Whether a reported Agent label or Agent start provider id draws its own product mark. */
+export function hasAgentProductMark(agent: string): boolean {
+	return MARKED_AGENTS.has(agent);
+}
