@@ -26,7 +26,7 @@ A replacement Worker records its adoption as `adoption`: `target` (`no-host`, `h
 `quarantined` and `missing` counts, `pages`, `inventoryRestarts` and `elapsedMs` since the last page
 arrived. A failed adoption also ends the Worker with an `exited` record at site `adopt`.
 
-On Windows the Worker records the [Session's Keeper](#the-sessions-keeper): `keeper-started` once
+On Windows and macOS the Worker records the [Session's Keeper](#the-sessions-keeper): `keeper-started` once
 its first Host attached it, `keeper-replaced` when one that ended or stopped answering was replaced,
 `keeper-updated` with the `terminals` and `programs` the new Keeper held and `elapsedMs` when an
 update committed, `keeper-update-failed` with `error`, `osError`, `step` (`start`, `attach`,
@@ -349,8 +349,8 @@ Launch, as in the lazy loop, while the older Hosts keep serving. A new program w
 starts as it does before any Host. A Host query and a title read ask every Host; title changes come
 from one projection the Hosts share. Between requests the Worker reads every Host's events, and the
 loss of any Host ends the Worker as before, so the next replacement adopts the others and recovers
-the lost one; on macOS, which runs no Keeper yet, the Server replaces the Worker without a lost Host
-whose terminals no settled binding names, and otherwise stops.
+the lost one; on macOS, which recovers no Host yet, the Server replaces the Worker without a lost
+Host whose terminals no settled binding names, and otherwise stops, even while a Keeper runs.
 
 While it holds its own Host, the Worker checks each older Host between requests at most every two
 seconds and tells one that runs no terminal and no program to drain. A drained Host takes nothing
@@ -378,21 +378,23 @@ as moving first resumes the copy through the Keeper, which answers `claimed-else
 
 ## The Session's Keeper
 
-On Windows the managed Worker cares for the Session's Keeper between Server requests, never under a
-prepared handoff: first right after the answer that admitted its Host, then every two seconds. A
-Host that offers both `keeper` and `recovery` and has no Keeper gets one: the Worker starts it,
-registers the Host with it and has the Host attach it, so the Host holds each running terminal
-there. A Host without `recovery`, such as one on the system ConHost, gets none, since no Host could
-take a kept program back. A replacement Worker adopts the recorded Keeper instead: the current one,
-or the one live Keeper left in the other slot, which it makes current, and it retires a live Keeper
-in the slot it did not adopt. Every Host the Worker holds attaches the one Keeper, a Host the Worker
+On Windows and macOS the managed Worker cares for the Session's Keeper between Server requests,
+never under a prepared handoff: first right after the answer that admitted its Host, then every two
+seconds. A macOS Worker runs it only where its build runs the Keeper, a test build until H5's M9,
+and offers its Hosts `keeper` alone. A Host that offers both `keeper` and `recovery`, or on macOS
+`keeper`, and has no Keeper gets one: the Worker starts it, registers the Host with it and has the
+Host attach it, so the Host holds each running terminal there. A Windows Host without `recovery`,
+such as one on the system ConHost, gets none, since no Host could take a kept program back. A
+replacement Worker adopts the recorded Keeper instead: the current one, or the one live Keeper left
+in the other slot, which it makes current, and on Windows it retires a live Keeper in the slot it
+did not adopt. Every Host the Worker holds attaches the one Keeper, a Host the Worker
 starts later at its next care; an attachment that fails is recorded once and leaves that Host's
 terminals unheld. A failed Keeper step leaves the terminals running unheld and the Worker serving;
 Keeper starts are 30 seconds apart, and after three failed ones the Worker starts no more. A stop
 ends the Keeper, and a Keeper still retiring, once every Host is gone.
 
-An adopted Keeper whose program is not the Worker's own Host program, by canonical path, is updated
-before any move: once every Host that holds in Keepers is attached to it and it holds nothing
+On Windows an adopted Keeper whose program is not the Worker's own Host program, by canonical path,
+is updated before any move: once every Host that holds in Keepers is attached to it and it holds nothing
 moving, orphaned or unknown, the Worker starts a new Keeper from its own program in the other slot,
 has every such Host attach it, waits up to two seconds until the new Keeper holds every terminal and
 program holding the old one does, by holding id, Host and processes, and commits by making the new
@@ -406,8 +408,8 @@ A Host exchange between requests does not watch the Server, so a request that ar
 waits for it, at most three seconds for an `AttachKeeper`, and that request's bound runs from when
 the care began. A Keeper the Host reports lost, or reports unresponsive and that does not answer the
 Worker within its two-second reply bound either, is ended and replaced, and the Host attaches the
-new one. The same care reads the Host's `dispatch-progress` with a `query` on a control lane, within
-one second. A count that has not
+new one. On Windows the same care reads the Host's `dispatch-progress` with a `query` on a control
+lane, within one second. A count that has not
 changed for 10 seconds, or a Host that has not answered for as long, counts as hung: the Worker ends
 the Host only when the Keeper holds, for that Host, at least as many terminals as the Host's last
 answer counted and every live child process of the Host is the program or OpenConsole of one of

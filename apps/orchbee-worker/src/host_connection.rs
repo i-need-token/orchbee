@@ -39,7 +39,9 @@ mod exchange;
 mod host_colors;
 mod offer;
 #[cfg(windows)]
-pub(crate) use offer::{HostStopping, source_commit};
+pub(crate) use offer::HostStopping;
+#[cfg(any(windows, target_os = "macos"))]
+pub(crate) use offer::source_commit;
 mod pacing;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod process_query;
@@ -98,10 +100,10 @@ pub(crate) struct HostBrokerConnection {
     /// The Host's answer listed `screen-gated-prompt`.
     screen_gated_prompt: bool,
     /// The Host's answer listed `keeper`, `recovery`, and `handover`.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     keeper: KeeperTerms,
     /// The Keeper events the Host sent since the Worker last took them.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     keeper_events: std::cell::Cell<KeeperEvents>,
     /// The Host's answer listed `background-programs`.
     background_programs: bool,
@@ -154,18 +156,19 @@ pub(crate) struct DialBounds {
     pub(crate) deadline: Instant,
 }
 
-/// Whether the Host's answer listed `keeper`, `recovery`, and `handover`.
-#[cfg(windows)]
+/// Whether the Host's answer listed `keeper`, `recovery`, and, on Windows, `handover`.
+#[cfg(any(windows, target_os = "macos"))]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct KeeperTerms {
     keeper: bool,
     recovery: bool,
+    #[cfg(windows)]
     handover: bool,
 }
 
 /// The Keeper events a Host sent: its Keeper ended (`KeeperLost`), missed a deadline
 /// (`KeeperUnresponsive`), or a terminal runs unheld (`TerminalUnheld`).
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct KeeperEvents {
     pub(crate) lost: bool,
@@ -254,9 +257,9 @@ impl HostBrokerConnection {
             prompt_gated_input: answer.prompt_gated_input,
             screen_gated_send: answer.screen_gated_send,
             screen_gated_prompt: answer.screen_gated_prompt,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             keeper: answer.keeper,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             keeper_events: std::cell::Cell::default(),
             background_programs: answer.background_programs,
             program_exits: RefCell::default(),
@@ -310,9 +313,9 @@ impl HostBrokerConnection {
             prompt_gated_input: answer.prompt_gated_input,
             screen_gated_send: answer.screen_gated_send,
             screen_gated_prompt: answer.screen_gated_prompt,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             keeper: answer.keeper,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             keeper_events: std::cell::Cell::default(),
             background_programs: answer.background_programs,
             program_exits: RefCell::default(),
@@ -372,13 +375,13 @@ impl HostBrokerConnection {
     }
 
     /// Whether this Host holds its running terminals in a Keeper the Worker attaches.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) const fn keeper(&self) -> bool {
         self.keeper.keeper
     }
 
     /// Whether this Host recovers a program the Keeper kept after its Host ended.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) const fn recovery(&self) -> bool {
         self.keeper.recovery
     }
@@ -398,7 +401,7 @@ impl HostBrokerConnection {
     }
 
     /// The Keeper events the Host sent since the last call, which this call clears.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn take_keeper_events(&self) -> KeeperEvents {
         self.keeper_events.take()
     }
@@ -494,7 +497,7 @@ impl HostBrokerConnection {
         }
         // `KeeperLost`, `KeeperUnresponsive`, and `TerminalUnheld` come only to a session that
         // negotiated `keeper`; the Worker acts on them between Server requests.
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         if (92..=94).contains(&envelope.kind) {
             let mut events = self.keeper_events.get();
             match envelope.kind {

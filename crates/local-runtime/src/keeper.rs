@@ -5,9 +5,9 @@
 //! (`apps/terminal-host/docs/runtime-model.md`, Keeper).
 use crate::{EnvironmentKind, environment_kind};
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod client;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub use client::{
     HeldTerminal, Holding, HoldingState, KEEPER_REPLY_BOUND, KeeperClient, KeeperProcess,
     KeeperRefusal, KeeperStatus, ProgramHolding,
@@ -72,10 +72,10 @@ pub fn end_recorded_keeper(
     Ok(())
 }
 
-/// Whether release builds run the Keeper: true since the recovery acceptance passed on real Windows
-/// (`proposals/platform/host-handover.md`, decision 65). Development builds follow it, so a
-/// development Session never runs a Keeper that release builds do not.
-const IN_RELEASE_BUILDS: bool = true;
+/// Whether release builds run the Keeper: on Windows since the recovery acceptance passed there
+/// (`proposals/platform/host-handover.md`, decision 65); macOS joins with H5's M9. Development builds
+/// follow it, so a development Session never runs a Keeper that release builds do not.
+const IN_RELEASE_BUILDS: bool = cfg!(windows);
 
 /// Whether this build runs the Keeper. Test builds always do, so tests and acceptance runs drive
 /// it; release and development builds do while `IN_RELEASE_BUILDS` is set. It is a constant
@@ -105,13 +105,14 @@ pub const fn moves_live() -> bool {
 /// Starts the Session's Keeper in `slot` from `executable`, the Terminal Host's program, as the
 /// recorded Worker's registered child in the Host's folder of `runtime`, and waits until its endpoint
 /// listens or `deadline` passes, and answers it with its exact identity, its process ID and
-/// creation time. A Keeper that exits first, or does not listen in time, fails; one that did not
-/// listen in time is ended first, so no Keeper outlives a failed start.
+/// creation time. On macOS its socket sits in the Hosts' endpoint folder, where each Host finds it.
+/// A Keeper that exits first, or does not listen in time, fails; one that did not listen in time is
+/// ended first, so no Keeper outlives a failed start.
 ///
 /// # Errors
 ///
 /// Returns an error when the registration, the creation, or the wait fails.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub fn start_keeper(
     root: &crate::DataRoot,
     runtime: &std::path::Path,
@@ -125,13 +126,20 @@ pub fn start_keeper(
     let directory = Rendezvous::host_runtime_directory(runtime);
     let endpoint_id = Rendezvous::keeper_endpoint_id(runtime, slot);
     let endpoint = Rendezvous::keeper_endpoint_path(runtime, slot);
+    #[cfg(target_os = "macos")]
+    let endpoint_directory = Rendezvous::socket_root_path();
     let arguments = [
         OsStr::new("keep"),
         OsStr::new("--runtime-directory"),
         directory.as_os_str(),
         OsStr::new("--endpoint-id"),
         OsStr::new(&endpoint_id),
+        #[cfg(target_os = "macos")]
+        OsStr::new("--endpoint-directory"),
+        #[cfg(target_os = "macos")]
+        endpoint_directory.as_os_str(),
     ];
+    let readiness = Readiness::before(&endpoint)?;
     let mut child = crate::spawn_session_child(
         root,
         runtime,
@@ -144,7 +152,7 @@ pub fn start_keeper(
         if child.try_wait()?.is_some() {
             return Err(io::Error::other("the Keeper exited before it listened"));
         }
-        if orchbee_local_ipc::endpoint_exists(&endpoint)? {
+        if readiness.listening()? {
             let identity = child.exact_identity()?;
             return Ok((child, identity));
         }
@@ -157,5 +165,60 @@ pub fn start_keeper(
             ));
         }
         thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// When the Keeper's endpoint counts as serving: on Windows once its pipe exists.
+#[cfg(windows)]
+struct Readiness<'a>(&'a std::path::Path);
+
+#[cfg(windows)]
+impl<'a> Readiness<'a> {
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "the macOS readiness reads the socket first"
+    )]
+    fn before(endpoint: &'a std::path::Path) -> std::io::Result<Self> {
+        Ok(Self(endpoint))
+    }
+
+    fn listening(&self) -> std::io::Result<bool> {
+        orchbee_local_ipc::endpoint_exists(self.0)
+    }
+}
+
+/// When the Keeper's socket counts as serving: it is this user's socket with its final mode, which
+/// the Keeper sets once it listens, as a Host does, and not the socket found before the start. A
+/// Keeper that ended without removing its socket leaves it in place until the new one, holding the
+/// endpoint's lifetime lock, replaces it, so only a socket bound after the start counts.
+#[cfg(target_os = "macos")]
+struct Readiness<'a> {
+    endpoint: &'a std::path::Path,
+    /// The device and inode of the socket found before the start.
+    stale: Option<(u64, u64)>,
+}
+
+#[cfg(target_os = "macos")]
+impl<'a> Readiness<'a> {
+    fn before(endpoint: &'a std::path::Path) -> std::io::Result<Self> {
+        use std::os::unix::fs::MetadataExt;
+        let stale = match std::fs::symlink_metadata(endpoint) {
+            Ok(status) => Some((status.dev(), status.ino())),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error),
+        };
+        Ok(Self { endpoint, stale })
+    }
+
+    fn listening(&self) -> std::io::Result<bool> {
+        use std::os::unix::fs::{FileTypeExt, MetadataExt};
+        match std::fs::symlink_metadata(self.endpoint) {
+            Ok(status) => Ok(status.file_type().is_socket()
+                && status.uid() == nix::unistd::geteuid().as_raw()
+                && status.mode() & 0o7777 == 0o600
+                && self.stale != Some((status.dev(), status.ino()))),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
     }
 }

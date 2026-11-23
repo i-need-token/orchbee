@@ -39,7 +39,7 @@ impl HostSlot {
 
 /// One of a Session's two Keeper slots, each with its own registration and endpoint. The current
 /// Keeper runs in one; a Keeper update starts the Keeper that replaces it in the other, so the
-/// current Keeper's slot alternates. Only a Windows Session runs a Keeper.
+/// current Keeper's slot alternates. Only a Windows or macOS Session runs a Keeper.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum KeeperSlot {
@@ -345,13 +345,17 @@ pub(crate) fn endpoint_id(runtime_base: &[u8], session: &str) -> String {
     format!("{:x}", hash.finalize())[..32].to_owned()
 }
 
+/// The Session scope name of the first Host's runtime folder, which holds its fatal record and log,
+/// and on POSIX its lifetime lock.
+pub const HOST_SCOPE_NAME: &str = "host";
+
 /// The Session scope that names the runtime folder of the Host in `slot`, which holds its fatal
 /// record and log, and on POSIX its lifetime lock: `host` for the first slot, `host-<n>` for the
 /// others.
 pub(crate) fn slot_scope_name(slot: HostSlot) -> String {
     match slot.index() {
-        0 => crate::rendezvous::HOST_SCOPE_NAME.to_owned(),
-        index => format!("{}-{index}", crate::rendezvous::HOST_SCOPE_NAME),
+        0 => HOST_SCOPE_NAME.to_owned(),
+        index => format!("{HOST_SCOPE_NAME}-{index}"),
     }
 }
 
@@ -378,6 +382,21 @@ pub(crate) fn slot_endpoint_id(runtime_id: &str, slot: HostSlot) -> String {
             format!("{:x}", hash.finalize())[..32].to_owned()
         }
     }
+}
+
+/// The endpoint id of a macOS Keeper slot of the POSIX runtime whose socket names start with
+/// `runtime_id`: that name hashed under the slot's own domain, so the Keeper's socket belongs to this
+/// Session alone, keeps the Host's length, and a Worker that adopts the Keeper derives it again.
+#[cfg(target_os = "macos")]
+pub(crate) fn keeper_endpoint_id(runtime_id: &str, slot: KeeperSlot) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    hash.update(match slot {
+        KeeperSlot::First => b"orchbee-posix-keeper-v1\0".as_slice(),
+        KeeperSlot::Second => b"orchbee-posix-keeper-second-v1\0".as_slice(),
+    });
+    hash.update(runtime_id.as_bytes());
+    format!("{:x}", hash.finalize())[..32].to_owned()
 }
 
 /// What one Session socket is for.

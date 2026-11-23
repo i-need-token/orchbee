@@ -5,7 +5,7 @@ Sessions. It covers cooperating current-user cohort processes and ordinary proce
 The Client owns activation; Server and Worker register their directly created Worker and Terminal
 Host respectively. Workbench checkpoint interpretation remains owned by Server. macOS follows the
 same registration, successor entry and cold adoption rules
-([macOS process identity](../README.md#macos-process-identity)); it runs no Keeper.
+([macOS process identity](../README.md#macos-process-identity)); its Keeper recovers nothing yet.
 
 ## State and inputs
 

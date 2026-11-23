@@ -56,7 +56,7 @@ enum Phase {
 
 struct Adopted {
     found: Vec<Found>,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     keeper: Option<crate::session_keeper::SessionKeeper>,
     kernel: AuthorizedHostOperationKernel,
 }
@@ -118,13 +118,13 @@ pub(crate) fn run(
                 {
                     plugin_jobs.adopt(&programs);
                 }
-                #[cfg(windows)]
+                #[cfg(any(windows, target_os = "macos"))]
                 let offered = found.offered;
-                #[cfg(not(windows))]
+                #[cfg(not(any(windows, target_os = "macos")))]
                 let offered = false;
                 hosts.add(found.slot, found.host, found.managed, offered);
             }
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             hosts.keep(adopted.keeper);
             super::run_admitted_with_handoff(
                 server,
@@ -217,7 +217,7 @@ fn serve_until_adopted(
                     return adoption.no_host(Vec::new());
                 }
                 let correlation = CorrelationId::from_bytes(key.adoption_id.as_bytes())?;
-                #[cfg(windows)]
+                #[cfg(any(windows, target_os = "macos"))]
                 let mut keeper = KeeperAdoption {
                     runtime,
                     named: target.keeper(),
@@ -237,7 +237,7 @@ fn serve_until_adopted(
                         cohort,
                         runtime,
                         channel,
-                        #[cfg(windows)]
+                        #[cfg(any(windows, target_os = "macos"))]
                         &mut keeper,
                         &bindings,
                     ) {
@@ -253,7 +253,7 @@ fn serve_until_adopted(
                 }
                 return adoption.import(
                     found,
-                    #[cfg(windows)]
+                    #[cfg(any(windows, target_os = "macos"))]
                     keeper.keeper,
                     &bindings,
                 );
@@ -271,10 +271,10 @@ fn adopt_slot(
     cohort: &Cohort,
     runtime: &Path,
     channel: host::Channel<'_>,
-    #[cfg(windows)] keeper: &mut KeeperAdoption<'_>,
+    #[cfg(any(windows, target_os = "macos"))] keeper: &mut KeeperAdoption<'_>,
     bindings: &[orchbee_capability_node_protocol::AdoptBinding],
 ) -> Result<Option<Found>, host::Failed> {
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     let _ = bindings;
     let refused = |error: &str| host::Failed {
         failure: AdoptHostFailure::HostRefused,
@@ -290,7 +290,7 @@ fn adopt_slot(
         let _ = (cohort, channel);
         return Err(refused("a POSIX Session runs one Host"));
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let keeper_channel = (channel.server, channel.correlation, channel.deadline);
     let found = match slot.kind {
         AdoptHostKind::Host { process } => {
@@ -328,7 +328,8 @@ fn adopt_slot(
                 }),
             }
         }
-        // Only a Windows Session starts a Keeper, so no other Server sends this target.
+        // A Windows Worker recovers; a macOS one fails the recovery until H5's M5, and no Linux
+        // Session starts a Keeper.
         #[cfg(not(windows))]
         AdoptHostKind::Recovery => {
             let _ = (cohort, channel);
@@ -339,7 +340,7 @@ fn adopt_slot(
             })
         }
     }?;
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     if matches!(slot.kind, AdoptHostKind::Host { .. }) {
         return with_keeper(found, keeper, keeper_channel, bindings).map(Some);
     }
@@ -383,7 +384,7 @@ struct Found {
     host: HostBrokerConnection,
     managed: shutdown::ManagedHost,
     /// Whether the Session's Keeper was offered to the Host during the adoption.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     offered: bool,
     inventory: Vec<crate::terminal_authorization::InventoryTerminal>,
     restarts: u32,
@@ -396,7 +397,7 @@ impl Found {
             slot,
             host: found.host,
             managed: shutdown::ManagedHost::adopted(found.owner),
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             offered: false,
             inventory: found.inventory,
             restarts: found.restarts,
@@ -419,7 +420,7 @@ impl Found {
 
 /// The Session's Keeper an adoption answers for, adopted once, when the first Host that holds in
 /// one needs it: the one the target names, or any the Session record names when it names none.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 struct KeeperAdoption<'a> {
     runtime: &'a Path,
     named: Option<orchbee_capability_node_protocol::AdoptHostProcess>,
@@ -427,7 +428,7 @@ struct KeeperAdoption<'a> {
     tried: bool,
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 impl KeeperAdoption<'_> {
     /// The adopted Keeper; a failed adoption is recorded once and leaves none.
     fn adopted(&mut self) -> Option<&mut crate::session_keeper::SessionKeeper> {
@@ -445,10 +446,11 @@ impl KeeperAdoption<'_> {
 }
 
 /// An adopted Host with the Session's Keeper, where the record names a live one: the Host holds in
-/// it, and the orphans of the Host's epoch a binding names are recovered into it before its
-/// inventory is read again. A Keeper that cannot be adopted leaves the terminals unheld and the
+/// it, and on Windows the orphans of the Host's epoch a binding names are recovered into it before
+/// its inventory is read again. A Keeper that cannot be adopted leaves the terminals unheld and the
 /// adoption going on; a recovery that fails fails it.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
+#[cfg_attr(target_os = "macos", expect(unused_variables))]
 fn with_keeper(
     mut adopted: Found,
     keeper: &mut KeeperAdoption<'_>,
@@ -482,18 +484,22 @@ fn with_keeper(
             return Ok(adopted);
         }
     };
-    let restarts = adopted.restarts;
-    let recovered =
-        super::recovery::recover_orphans(keeper, &adopted.host, server, process, bindings)
-            .map_err(|error| host::Failed {
-                failure: AdoptHostFailure::RecoveryFailed,
-                restarts,
-                error,
-            })?;
-    if recovered > 0 {
-        let (inventory, more) = host::read_inventory(&adopted.host, server, correlation, deadline)?;
-        adopted.inventory = inventory;
-        adopted.restarts += more;
+    #[cfg(windows)]
+    {
+        let restarts = adopted.restarts;
+        let recovered =
+            super::recovery::recover_orphans(keeper, &adopted.host, server, process, bindings)
+                .map_err(|error| host::Failed {
+                    failure: AdoptHostFailure::RecoveryFailed,
+                    restarts,
+                    error,
+                })?;
+        if recovered > 0 {
+            let (inventory, more) =
+                host::read_inventory(&adopted.host, server, correlation, deadline)?;
+            adopted.inventory = inventory;
+            adopted.restarts += more;
+        }
     }
     Ok(adopted)
 }
@@ -535,7 +541,9 @@ impl Adoption<'_> {
     fn import(
         self,
         mut found: Vec<Found>,
-        #[cfg(windows)] keeper: Option<crate::session_keeper::SessionKeeper>,
+        #[cfg(any(windows, target_os = "macos"))] keeper: Option<
+            crate::session_keeper::SessionKeeper,
+        >,
         bindings: &[orchbee_capability_node_protocol::AdoptBinding],
     ) -> Result<Phase, Box<dyn Error>> {
         let target = if found.iter().any(|found| found.target == "recovery") {
@@ -638,7 +646,7 @@ impl Adoption<'_> {
         }
         Ok(Phase::Host(Box::new(Adopted {
             found,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             keeper,
             kernel,
         })))

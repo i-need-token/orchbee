@@ -1,8 +1,8 @@
 //! Native Windows refinement of the lock/marker state machine; pipes are not
 //! filesystem socket leaves and are authenticated only at connection admission.
 use crate::rendezvous_types::{
-    HostSlot, LockKind, RendezvousError, SessionHolderObservation, SessionLifetimeObservation,
-    SessionScope,
+    HOST_SCOPE_NAME, HostSlot, LockKind, RendezvousError, SessionHolderObservation,
+    SessionLifetimeObservation, SessionScope,
 };
 use crate::{HeldLock, private_filesystem as permissions};
 use sha2::{Digest, Sha256};
@@ -14,7 +14,6 @@ use std::{
 };
 
 pub const CLIENT_PENDING_SOCKET_NAME: &str = "client-pending.sock";
-pub const HOST_SCOPE_NAME: &str = "host";
 // Unix-only compatibility names; Windows Host addressing uses host_endpoint_id.
 pub const HOST_ENDPOINT_ID: &str = "00000000000000000000000000000001";
 pub const HOST_ENDPOINT_NAME: &str = "00000000000000000000000000000001.s";

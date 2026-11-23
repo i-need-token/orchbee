@@ -579,7 +579,7 @@ fn keep_shutdown_releases_the_host_without_a_terminal_request() {
             )
             .unwrap(),
             hosts: vec![(&host, &mut owner)],
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             keeper: &mut None,
             #[cfg(windows)]
             retiring: &mut None,

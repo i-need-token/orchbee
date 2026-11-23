@@ -22,7 +22,8 @@ pub const KEEPER_REPLY_BOUND: Duration = Duration::from_secs(2);
 const MAGIC: [u8; 4] = *b"OBKP";
 const MAXIMUM_PAYLOAD: usize = 1_048_576;
 
-/// A process as the Keeper names it: its ID and its creation time as a FILETIME.
+/// A process as the Keeper names it: its ID and its creation time, a FILETIME on Windows and the
+/// start time in microseconds since 1970 on macOS.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct KeeperProcess {
     pub pid: u32,
@@ -101,7 +102,11 @@ impl KeeperClient {
     /// Returns an error when the Keeper cannot be reached by `deadline`, refuses the offer or the
     /// hello, or answers outside the contract.
     pub fn connect(endpoint: &Path, offer: &Offer, deadline: Instant) -> io::Result<(Self, bool)> {
+        #[cfg(windows)]
         let mut stream = LocalStream::connect_before(endpoint, deadline)?;
+        // A Unix socket's connect completes or fails at once.
+        #[cfg(unix)]
+        let mut stream = LocalStream::connect(endpoint)?;
         let remaining = remaining(deadline)?;
         stream.set_read_timeout(Some(remaining))?;
         stream.set_write_timeout(Some(remaining))?;

@@ -61,7 +61,7 @@ pub(crate) struct ManagedHost {
 pub(super) struct StopHosts<'a> {
     pub(super) hosts: Vec<(&'a HostBrokerConnection, &'a mut ManagedHost)>,
     pub(super) epoch: HostEpoch,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) keeper: &'a mut Option<crate::session_keeper::SessionKeeper>,
     #[cfg(windows)]
     pub(super) retiring: &'a mut Option<crate::session_keeper::RetiringKeeper>,
@@ -316,7 +316,7 @@ fn end(
     }
     // Each Host released every holding before it ended its terminals, so the Keeper holds nothing
     // and ending it ends no program.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     if let Some(mut keeper) = stop.keeper.take() {
         keeper.end(deadline);
     }

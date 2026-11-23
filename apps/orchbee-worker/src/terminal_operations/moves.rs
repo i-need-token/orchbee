@@ -22,7 +22,7 @@ use orchbee_capability_node_protocol::{
 use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_terminal_protocol::HandoverProcess;
 
-use super::{host_set::HostSet, keeper_care::KeeperCare};
+use super::host_set::HostSet;
 use crate::terminal_authorization::AuthorizedHostOperationKernel;
 use steps::{Ended, Move, Refused};
 pub(super) use translate::{lifecycle_answer, viewer_answer};
@@ -102,12 +102,11 @@ impl Moves {
         &mut self,
         hosts: &mut HostSet<'_>,
         kernel: &mut AuthorizedHostOperationKernel,
-        care: &KeeperCare,
         server: &UnixStream,
         readable: Instant,
     ) -> Result<TerminalMoveTurnOutcome, Box<dyn Error>> {
         self.end_old_copy(hosts, server)?;
-        let outcome = self.next(hosts, kernel, care, server, readable)?;
+        let outcome = self.next(hosts, kernel, server, readable)?;
         // The Server sends no turn after `Done`, so an old copy still to end keeps them coming.
         Ok(match outcome {
             TerminalMoveTurnOutcome::Done if self.old_copy.is_some() => {
@@ -158,7 +157,6 @@ impl Moves {
         &mut self,
         hosts: &mut HostSet<'_>,
         kernel: &mut AuthorizedHostOperationKernel,
-        care: &KeeperCare,
         server: &UnixStream,
         readable: Instant,
     ) -> Result<TerminalMoveTurnOutcome, Box<dyn Error>> {
@@ -205,7 +203,7 @@ impl Moves {
         };
         // Both Hosts hold their terminals in the Session's Keeper, which no replacement or update
         // is due or under way for.
-        if hosts.keeper_changing(care)
+        if hosts.keeper_changing()
             || !hosts.keeper_attached(old)
             || hosts.connection(old).keeper_troubled()
         {

@@ -479,7 +479,7 @@ fn spawn(owners: &Owners, worker_id: WorkerId, deadline: Instant) -> io::Result<
     }
 }
 
-/// The Keeper the Session record names running, which only a Windows Session starts.
+/// The Keeper the Session record names running, which a Windows or macOS Session starts.
 fn running_keeper(owners: &Owners) -> Option<AdoptHostProcess> {
     match owners.session_record.keeper_presence() {
         Ok(HostPresence::Running(Some(process))) => {
@@ -514,9 +514,11 @@ fn host_target(
                 process: process.and_then(crate::binding_record::registered_process),
             },
             HostPresence::Gone if never_ran(host.slot, host.epoch) => continue,
-            // A running Keeper kept the lost Host's programs: the replacement recovers them.
+            // A running Keeper kept the lost Host's programs: the replacement recovers them. A macOS
+            // Worker recovers none before H5's M5, so there the Session stops as without a Keeper.
             HostPresence::Gone => {
-                keeper = Some(running_keeper(owners).ok_or(Decision::Stop(Reason::HostGone))?);
+                let running = running_keeper(owners).filter(|_| cfg!(windows));
+                keeper = Some(running.ok_or(Decision::Stop(Reason::HostGone))?);
                 AdoptHostKind::Recovery
             }
         };

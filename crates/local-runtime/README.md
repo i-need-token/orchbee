@@ -1115,6 +1115,7 @@ For one trusted, existing, exactly normalized absolute per-user runtime base, th
 | Worker socket              | `<socket-folder>/<id>-worker.sock`                                            |
 | Host endpoint              | `<socket-folder>/<id>-host.sock`                                              |
 | Later Host slot (macOS)    | `<runtime-base>/<session>/host-<n>` and `<socket-folder>/<slot-id>-host.sock` |
+| Keeper endpoint (macOS)    | `<socket-folder>/<keeper-id>-host.sock`                                       |
 | Agent observation endpoint | `<socket-folder>/<id>-agent.sock`                                             |
 
 `<id>` is the first 32 hex digits of SHA-256 over `orchbee-posix-runtime-v1`, a NUL byte, the
@@ -1124,8 +1125,11 @@ ID, is 94 bytes, inside the 103 that macOS allows. The pending name is the trans
 bind the Server renames onto the Client socket; the Host receives `<id>` and the socket folder as
 `--endpoint-id` and `--endpoint-directory`; a macOS Host in a later slot receives `<slot-id>`, the
 first 32 hex digits of SHA-256 over `orchbee-posix-host-slot-v1`, a NUL byte, the slot index as one
-byte, and `<id>`. The derived paths are pure joins that answer even when the folders cannot be
-inspected.
+byte, and `<id>`. A macOS Keeper receives `<keeper-id>`, the first 32 hex digits of SHA-256 over
+`orchbee-posix-keeper-v1` for the first Keeper slot or `orchbee-posix-keeper-second-v1` for the
+second, a NUL byte, and `<id>`, with the socket folder and the `host` folder as its runtime
+directory; `start_keeper` counts it listening once its socket carries the final mode. The derived
+paths are pure joins that answer even when the folders cannot be inspected.
 
 The socket folder's parent must belong to root and carry the sticky bit. Preparation creates the
 socket folder as 0700 when it is missing; every open requires a real folder of the effective user

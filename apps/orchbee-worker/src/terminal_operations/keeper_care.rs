@@ -1,12 +1,13 @@
-//! The Worker's care of the Session's Keeper and of its Hosts' dispatch on Windows
+//! The Worker's care of the Session's Keeper, and on Windows of its Hosts' dispatch
 //! (`proposals/platform/host-handover.md`, the hang check and the Keeper's life from H2). It runs
-//! between Server requests: it starts the Session's Keeper when none runs and a Host recovers
-//! terminals, has each Host the Worker holds attach that Keeper, replaces a Keeper a Host reports
-//! lost, or reports unresponsive and that does not answer the Worker either, updates an adopted
-//! Keeper that runs another installation's program and retires the Keeper an update leaves
-//! (`update`), and ends a Host whose dispatch has stopped turning once the Keeper holds every
-//! terminal it runs, so recovery follows as for a crash. A hang check never ends a Host that runs a
-//! terminal the Keeper does not hold, and no step here ends the Worker.
+//! between Server requests: it starts the Session's Keeper when none runs and a Host holds
+//! terminals there, has each Host the Worker holds attach that Keeper, and replaces a Keeper a Host
+//! reports lost, or reports unresponsive and that does not answer the Worker either. On Windows it
+//! also updates an adopted Keeper that runs another installation's program and retires the Keeper
+//! an update leaves (`update`), and ends a Host whose dispatch has stopped turning once the Keeper
+//! holds every terminal it runs, so recovery follows as for a crash (`hang`); macOS gains both with
+//! H5's M7 and M5. A hang check never ends a Host that runs a terminal the Keeper does not hold, and
+//! no step here ends the Worker.
 //!
 //! A Server request that arrives while the care runs waits for it, so the care answers when it
 //! began, and that request's bound runs from then. A request that meets a hung Host first keeps the
@@ -20,27 +21,26 @@ use std::{
 };
 
 use orchbee_local_ipc::LocalStream;
-use orchbee_local_runtime::{HoldingState, KeeperProcess, KeeperStatus};
-use winsafe::{HPROCESS, HPROCESSLIST, co};
 
 use super::shutdown::ManagedHost;
+#[cfg(windows)]
+use crate::session_keeper::RetiringKeeper;
 use crate::{
     diagnostic_events,
     host_connection::HostBrokerConnection,
-    session_keeper::{RetiringKeeper, Serving, SessionKeeper},
+    session_keeper::{Serving, SessionKeeper},
 };
 
+#[cfg(windows)]
+mod hang;
+#[cfg(windows)]
 mod update;
 
-/// How often the Worker cares for the Keeper and reads each Host's `dispatch-progress`.
+#[cfg(windows)]
+pub(super) use hang::after_unanswered;
+
+/// How often the Worker cares for the Keeper and, on Windows, reads each Host's `dispatch-progress`.
 const PERIOD: Duration = Duration::from_secs(2);
-/// How long one `dispatch-progress` read may take.
-const PROBE_BOUND: Duration = Duration::from_secs(1);
-/// How long a count that has not grown, or a Host that has not answered, counts as hung.
-const HANG_BOUND: Duration = Duration::from_secs(10);
-/// How far apart the two `dispatch-progress` reads lie that check a Host which left an exchange
-/// unanswered: a dispatch loop that still turns does so every 20 milliseconds while idle.
-const RECHECK_GAP: Duration = Duration::from_secs(1);
 /// How long ending a hung Host or a replaced Keeper waits for it to exit.
 const END_BOUND: Duration = Duration::from_secs(2);
 /// How long after one Keeper start the next may begin, so a Keeper that keeps ending is not
@@ -58,6 +58,7 @@ pub(super) struct KeeperCare {
     /// Whether the Keeper ended or stopped answering and waits for its replacement.
     replacing: bool,
     /// Whether the Keeper runs another installation's program and is updated.
+    #[cfg(windows)]
     update: update::KeeperUpdate,
 }
 
@@ -68,11 +69,15 @@ pub(super) struct HostWatch {
     /// Whether this Host attached the Session's current Keeper.
     attached: bool,
     /// The last `dispatch-progress` the Host answered, and when it last changed.
+    #[cfg(windows)]
     progress: Option<u64>,
+    #[cfg(windows)]
     turned: Instant,
     /// The terminals the Host's last answer counted.
+    #[cfg(windows)]
     terminals: Option<u32>,
     /// Whether the current stall was recorded; a Host left running is recorded once per stall.
+    #[cfg(windows)]
     recorded: bool,
 }
 
@@ -87,24 +92,31 @@ pub(super) struct Cared<'a> {
 /// folder and Terminal Host program a new one starts from.
 pub(super) struct Keepers<'a> {
     pub(super) keeper: &'a mut Option<SessionKeeper>,
+    #[cfg(windows)]
     pub(super) retiring: &'a mut Option<RetiringKeeper>,
     pub(super) program: Option<(&'a Path, &'a Path)>,
 }
 
 impl HostWatch {
     /// A Host the Session's current Keeper was already `offered` to, or not yet.
+    #[cfg_attr(not(windows), expect(unused_variables))]
     pub(super) const fn new(now: Instant, offered: bool) -> Self {
         Self {
             offered,
             attached: offered,
+            #[cfg(windows)]
             progress: None,
+            #[cfg(windows)]
             turned: now,
+            #[cfg(windows)]
             terminals: None,
+            #[cfg(windows)]
             recorded: false,
         }
     }
 }
 
+#[cfg(windows)]
 impl HostWatch {
     /// Whether this Host holds its running terminals in the Session's current Keeper.
     pub(super) const fn attached(&self) -> bool {
@@ -121,12 +133,14 @@ impl KeeperCare {
             next_start: now,
             failed_starts: 0,
             replacing: false,
+            #[cfg(windows)]
             update: update::KeeperUpdate::new(now),
         }
     }
 
     /// Whether moves wait for the Session's Keeper `keeper`: it waits for its replacement, an
     /// update of it is due or not yet judged, or another Keeper still `retiring`.
+    #[cfg(windows)]
     pub(super) fn keeper_changing(&self, keeper: Option<&SessionKeeper>, retiring: bool) -> bool {
         self.replacing || retiring || self.update.pending(keeper)
     }
@@ -177,23 +191,28 @@ impl KeeperCare {
             self.start(hosts, &mut keepers);
         } else {
             offer(hosts, keepers.keeper);
-            self.update.run(hosts, &mut keepers);
-            for host in hosts.iter_mut() {
-                probe(host, keepers.keeper);
+            #[cfg(windows)]
+            {
+                self.update.run(hosts, &mut keepers);
+                for host in hosts.iter_mut() {
+                    hang::probe(host, keepers.keeper);
+                }
             }
         }
+        #[cfg(windows)]
         update::retire(hosts, &mut keepers);
     }
 
-    /// Starts the Session's Keeper for a Host that recovers terminals, ending first the Keeper it
+    /// Starts the Session's Keeper for a Host that holds terminals there, ending first the Keeper it
     /// replaces, and has every Host attach it. A failed start leaves the terminals running unheld.
     fn start(&mut self, hosts: &mut [Cared<'_>], keepers: &mut Keepers<'_>) {
         let now = Instant::now();
-        // Only a Host that can take a kept program back gets a Keeper.
-        let Some(first) = hosts
-            .iter()
-            .position(|host| host.connection.keeper() && host.connection.recovery())
-        else {
+        // On Windows only a Host that can take a kept program back gets a Keeper. A macOS Host holds
+        // its terminals before recovery comes there with H5's M5, while the Keeper's switch stays
+        // off for macOS.
+        let Some(first) = hosts.iter().position(|host| {
+            host.connection.keeper() && (cfg!(target_os = "macos") || host.connection.recovery())
+        }) else {
             return;
         };
         if self.failed_starts >= START_ATTEMPTS || now < self.next_start {
@@ -263,132 +282,4 @@ fn offer(hosts: &mut [Cared<'_>], keeper: &mut Option<SessionKeeper>) {
             Err(error) => diagnostic_events::keeper_failed("attach", error.as_ref()),
         }
     }
-}
-
-/// Reads the Host's `dispatch-progress` and ends a Host hung for [`HANG_BOUND`] once the Keeper
-/// holds every terminal it runs.
-fn probe(host: &mut Cared<'_>, keeper: &mut Option<SessionKeeper>) {
-    if let Some((progress, terminals)) =
-        host.connection.query_progress(Instant::now() + PROBE_BOUND)
-    {
-        host.watch.terminals = Some(terminals);
-        if host.watch.progress != Some(progress) {
-            host.watch.progress = Some(progress);
-            host.watch.turned = Instant::now();
-            host.watch.recorded = false;
-        }
-    }
-    let stalled = host.watch.turned.elapsed();
-    if stalled < HANG_BOUND {
-        return;
-    }
-    end_hung(host, keeper, stalled);
-}
-
-/// Checks a Host once more as the Worker exits because the Host left one of its exchanges
-/// unanswered for the whole exchange bound, which counts as hung unless two `dispatch-progress`
-/// reads [`RECHECK_GAP`] apart show its dispatch still turning; a hung Host is then ended as the
-/// care ends one, and recovery follows the Worker's exit.
-pub(super) fn after_unanswered(host: &mut Cared<'_>, keeper: &mut Option<SessionKeeper>) {
-    if keeper.is_none() {
-        return;
-    }
-    let first = host.connection.query_progress(Instant::now() + PROBE_BOUND);
-    std::thread::sleep(RECHECK_GAP);
-    let second = host.connection.query_progress(Instant::now() + PROBE_BOUND);
-    if let (Some((before, _)), Some((after, _))) = (first, second)
-        && before != after
-    {
-        return;
-    }
-    if let Some((_, terminals)) = second.or(first) {
-        host.watch.terminals = Some(terminals);
-    }
-    let stalled = host.watch.turned.elapsed();
-    end_hung(host, keeper, stalled);
-}
-
-/// Ends a hung Host once the Keeper holds every terminal it runs; a Host left running is recorded
-/// once per stall.
-fn end_hung(host: &mut Cared<'_>, keeper: &mut Option<SessionKeeper>, stalled: Duration) {
-    let held = host
-        .watch
-        .terminals
-        .is_some_and(|terminals| holds_every_terminal(host.managed, keeper, terminals));
-    if held && host.managed.end_host(Instant::now() + END_BOUND).is_ok() {
-        diagnostic_events::host_hung(true, stalled);
-        // The Worker learns of the Host's end from its connection, as after a crash.
-        host.watch.turned = Instant::now();
-        host.watch.recorded = true;
-        return;
-    }
-    if !host.watch.recorded {
-        diagnostic_events::host_hung(false, stalled);
-        host.watch.recorded = true;
-    }
-}
-
-/// Whether `keeper` holds every terminal the Host of `managed` runs, which the Host's last answer
-/// counted as `terminals`: at least that many holdings are held for the Host, and every live child
-/// process of the Host is the program or OpenConsole of one. A recovered terminal's processes are
-/// children of the Host that ended, so the count stands for those.
-fn holds_every_terminal(
-    managed: &ManagedHost,
-    keeper: &mut Option<SessionKeeper>,
-    terminals: u32,
-) -> bool {
-    let Ok(host) = managed.host_identity() else {
-        return false;
-    };
-    let Some(Ok(status)) = keeper.as_mut().map(SessionKeeper::status) else {
-        return false;
-    };
-    let owner = KeeperProcess {
-        pid: host.0,
-        created: host.1,
-    };
-    let held = held_processes(&status, owner);
-    let count = status
-        .holdings
-        .iter()
-        .filter(|holding| holding.owner == owner && holding.state == HoldingState::Held)
-        .count();
-    u32::try_from(count).is_ok_and(|count| count >= terminals)
-        && matches!(every_child_held(host, &held), Ok(true))
-}
-
-/// The program and OpenConsole processes of each holding held for `owner`.
-fn held_processes(status: &KeeperStatus, owner: KeeperProcess) -> Vec<u32> {
-    status
-        .holdings
-        .iter()
-        .filter(|holding| holding.owner == owner && holding.state == HoldingState::Held)
-        .flat_map(|holding| [holding.program.pid, holding.console.pid])
-        .collect()
-}
-
-/// Whether every live child process of the Host `host` is one of `held`. A held process keeps its
-/// ID while the Keeper holds it, so its ID names it; a process whose parent ID is the Host's but
-/// that started before the Host is the child of an earlier process with that ID.
-fn every_child_held(host: (u32, u64), held: &[u32]) -> io::Result<bool> {
-    let mut snapshot = HPROCESSLIST::CreateToolhelp32Snapshot(co::TH32CS::SNAPPROCESS, None)
-        .map_err(io::Error::other)?;
-    for process in snapshot.iter_processes() {
-        let process = process.map_err(io::Error::other)?;
-        let pid = process.th32ProcessID;
-        if process.th32ParentProcessID != host.0 || pid == host.0 || held.contains(&pid) {
-            continue;
-        }
-        if started_before(pid, host.1) != Some(true) {
-            return Ok(false);
-        }
-    }
-    Ok(true)
-}
-
-/// Whether process `pid` started before `created`; `None` when it cannot be opened or queried.
-fn started_before(pid: u32, created: u64) -> Option<bool> {
-    let process = HPROCESS::OpenProcess(co::PROCESS::QUERY_LIMITED_INFORMATION, false, pid).ok()?;
-    let (creation, _, _, _) = process.GetProcessTimes().ok()?;
-    Some(u64::from(creation) < created)
 }

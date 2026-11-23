@@ -43,9 +43,9 @@ fn host(prompt_gated_input: bool) -> TestResult<(HostBrokerConnection, UnixStrea
             prompt_gated_input,
             screen_gated_send: prompt_gated_input,
             screen_gated_prompt: false,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             keeper: crate::host_connection::KeeperTerms::default(),
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             keeper_events: std::cell::Cell::default(),
             background_programs: false,
             program_exits: std::cell::RefCell::default(),

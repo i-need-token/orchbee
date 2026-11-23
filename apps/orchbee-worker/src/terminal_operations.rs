@@ -49,7 +49,7 @@ mod lazy;
 pub(crate) use lazy::run as run_lazy;
 #[cfg(windows)]
 mod handoff;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod keeper_care;
 #[cfg(windows)]
 mod moves;
@@ -158,8 +158,6 @@ fn run_admitted_with_handoff(
     aux: AdmittedAux<'_>,
     #[cfg(windows)] handoff: handoff::Handoff,
 ) -> Result<(), Box<dyn Error>> {
-    #[cfg(windows)]
-    let mut care = keeper_care::KeeperCare::new(Instant::now());
     let outcome = serve(
         server,
         &mut hosts,
@@ -168,7 +166,7 @@ fn run_admitted_with_handoff(
         kernel,
         aux,
         #[cfg(windows)]
-        (handoff, &mut care),
+        handoff,
     );
     let failed = hosts.failed();
     #[cfg(windows)]
@@ -187,8 +185,8 @@ fn run_admitted_with_handoff(
 ///
 /// A request that names a terminal goes to the Host that serves its epoch, one that names an
 /// attachment to the Host that holds it, a launch to the Worker's own Host, and a request that
-/// reads every Host to each that still serves. On Windows the loop also keeps, between requests,
-/// the explicit handoff and the Keeper's care.
+/// reads every Host to each that still serves. Between requests the loop also keeps the Keeper's
+/// care on Windows and macOS, and the explicit handoff on Windows.
 ///
 /// [`Pacing`]: crate::host_connection::Pacing
 fn serve(
@@ -198,7 +196,7 @@ fn serve(
     generation: NonZeroU64,
     mut kernel: AuthorizedHostOperationKernel,
     aux: AdmittedAux<'_>,
-    #[cfg(windows)] (mut handoff, care): (handoff::Handoff, &mut keeper_care::KeeperCare),
+    #[cfg(windows)] mut handoff: handoff::Handoff,
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
     let mut server = server;
@@ -214,16 +212,16 @@ fn serve(
             let (wake, cared) = if handoff.is_prepared() {
                 (handoff.deadline(), None)
             } else if hosts.is_managed() {
-                let cared = hosts.care(care, &server);
-                (Some(care.due()), cared)
+                let cared = hosts.care(&server);
+                (Some(hosts.care_due()), cared)
             } else {
                 (None, None)
             };
-            // A macOS Worker runs no Keeper; its care drains older Hosts.
+            // A macOS Worker takes no handoff.
             #[cfg(target_os = "macos")]
             let (wake, cared) = if hosts.is_managed() {
                 let cared: Option<Instant> = hosts.care(&server);
-                (hosts.care_due(), cared)
+                (Some(hosts.care_due()), cared)
             } else {
                 (None, None)
             };
@@ -288,7 +286,7 @@ fn serve(
             #[cfg(windows)]
             let outcome = {
                 hosts.set_site(Site::Move);
-                moving.turn(hosts, &mut kernel, care, &server, readable)?
+                moving.turn(hosts, &mut kernel, &server, readable)?
             };
             #[cfg(not(windows))]
             let outcome = orchbee_capability_node_protocol::TerminalMoveTurnOutcome::Done;

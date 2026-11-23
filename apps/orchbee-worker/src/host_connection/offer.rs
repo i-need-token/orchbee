@@ -44,7 +44,7 @@ pub(super) struct Answer {
     pub(super) screen_gated_prompt: bool,
     /// Whether the Host holds its running terminals in a Keeper this Worker attaches
     /// (`keeper`) and recovers a program the Keeper kept after its Host ended (`recovery`).
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) keeper: super::KeeperTerms,
     /// Whether the Host runs this Worker's background programs (`background-programs`).
     pub(super) background_programs: bool,
@@ -53,7 +53,8 @@ pub(super) struct Answer {
 /// This build's `worker-host` offer: the registry's generations and capabilities, the package
 /// version, the source commit release packaging compiled in, and the compiled environment. On
 /// Windows it adds `background-programs`, and where this build runs the Keeper also `keeper` and
-/// `recovery`; it never offers `handover` before moves turn on.
+/// `recovery`; it never offers `handover` before moves turn on. Where a macOS build runs the Keeper
+/// it offers `keeper` alone, since a macOS Worker recovers nothing before H5's M5.
 pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
     let mut offer = Offer::local(
         ConnectionKind::WorkerHost,
@@ -80,6 +81,15 @@ pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
                 .iter()
                 .cloned()
                 .chain([CapabilityName::new(KEEPER)?, CapabilityName::new(RECOVERY)?]),
+        )?;
+    }
+    if cfg!(target_os = "macos") && orchbee_local_runtime::keeper_live() {
+        offer.capabilities = CapabilitySet::new(
+            offer
+                .capabilities
+                .iter()
+                .cloned()
+                .chain([CapabilityName::new(KEEPER)?]),
         )?;
     }
     if cfg!(windows) && orchbee_local_runtime::moves_live() {
@@ -134,10 +144,11 @@ pub(super) fn exchange(
             prompt_gated_input: answer.capabilities.contains(PROMPT_GATED_INPUT),
             screen_gated_send: answer.capabilities.contains(SCREEN_GATED_SEND),
             screen_gated_prompt: answer.capabilities.contains(SCREEN_GATED_PROMPT),
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             keeper: super::KeeperTerms {
                 keeper: answer.capabilities.contains(KEEPER),
                 recovery: answer.capabilities.contains(RECOVERY),
+                #[cfg(windows)]
                 handover: answer.capabilities.contains(HANDOVER),
             },
             background_programs: answer.capabilities.contains(BACKGROUND_PROGRAMS),

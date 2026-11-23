@@ -14,7 +14,8 @@ pub use crate::rendezvous_types::{
     SessionScope,
 };
 use crate::rendezvous_types::{
-    SessionHolderObservation, SocketRole, endpoint_id, slot_endpoint_id, socket_leaf, socket_root,
+    HOST_SCOPE_NAME, SessionHolderObservation, SocketRole, endpoint_id, slot_endpoint_id,
+    socket_leaf, socket_root,
 };
 use crate::{AdmissionRefusal, HeldLock, RefusalReason};
 use std::{
@@ -34,8 +35,6 @@ use nix::{
 const ACTIVATION_LOCK_NAME: &str = "activation.lock";
 const ACTIVATION_MARKER_NAME: &str = "activation.started";
 const SESSION_LIFETIME_LOCK_NAME: &str = "session-lifetime.lock";
-/// The Session scope name whose runtime directory holds the Host's lock.
-pub const HOST_SCOPE_NAME: &str = "host";
 const RUNTIME_DIRECTORY_MODE: u32 = 0o700;
 const LOCK_FILE_MODE: u32 = 0o600;
 
@@ -178,6 +177,23 @@ impl ModeCheckedLocalSessionRendezvous {
     pub fn slot_endpoint_path(runtime_directory: &Path, slot: HostSlot) -> PathBuf {
         Self::socket_root_path().join(socket_leaf(
             &Self::slot_endpoint_id(runtime_directory, slot),
+            SocketRole::Host,
+        ))
+    }
+
+    /// The endpoint identity a Keeper slot receives, which names its socket and its lock. Pure path
+    /// math.
+    #[cfg(target_os = "macos")]
+    pub fn keeper_endpoint_id(runtime_directory: &Path, slot: crate::KeeperSlot) -> String {
+        crate::rendezvous_types::keeper_endpoint_id(&runtime_endpoint_id(runtime_directory), slot)
+    }
+
+    /// The socket a Keeper slot binds in the socket folder, the Host's endpoint folder, where each
+    /// Host derives it from the Keeper's endpoint identity. Pure path math.
+    #[cfg(target_os = "macos")]
+    pub fn keeper_endpoint_path(runtime_directory: &Path, slot: crate::KeeperSlot) -> PathBuf {
+        Self::socket_root_path().join(socket_leaf(
+            &Self::keeper_endpoint_id(runtime_directory, slot),
             SocketRole::Host,
         ))
     }

@@ -39,7 +39,7 @@ struct HeldHost {
     managed: Option<ManagedHost>,
     /// It runs this Worker's own cohort Terminal Host, so new terminals and programs go there.
     own: bool,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     watch: super::keeper_care::HostWatch,
     #[cfg(any(windows, target_os = "macos"))]
     drain: Drain,
@@ -91,12 +91,15 @@ pub(super) struct HostSet<'a> {
     failed_starts: u32,
     may_start: bool,
     /// The Session's Keeper this Worker answers for, which a stop ends once every Host is gone.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     keeper: Option<crate::session_keeper::SessionKeeper>,
     /// A Keeper an update replaced or rolled back, or an adoption found beside the current one,
     /// until every Host detached it and it ended.
     #[cfg(windows)]
     retiring: Option<crate::session_keeper::RetiringKeeper>,
+    /// The care of the Session's Keeper between requests.
+    #[cfg(any(windows, target_os = "macos"))]
+    care: super::keeper_care::KeeperCare,
 }
 
 impl<'a> HostSet<'a> {
@@ -125,10 +128,14 @@ impl<'a> HostSet<'a> {
             hosts: Vec::new(),
             failed_starts: 0,
             may_start: true,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             keeper: None,
             #[cfg(windows)]
             retiring: None,
+            // The first care is due at once, so a first Keeper starts right after the answer that
+            // came before it.
+            #[cfg(any(windows, target_os = "macos"))]
+            care: super::keeper_care::KeeperCare::new(Instant::now()),
         }
     }
 
@@ -153,7 +160,6 @@ impl<'a> HostSet<'a> {
         self.push(slot, connection, Some(managed), own, offered);
     }
 
-    #[cfg_attr(target_os = "macos", expect(unused_variables))]
     #[cfg_attr(
         not(any(windows, target_os = "macos")),
         expect(unused_mut, unused_variables)
@@ -175,17 +181,19 @@ impl<'a> HostSet<'a> {
             connection,
             managed,
             own,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             watch: super::keeper_care::HostWatch::new(Instant::now(), offered),
             #[cfg(any(windows, target_os = "macos"))]
             drain: Drain::Serving(Instant::now()),
         });
     }
 
-    /// Keeps `keeper`, the Session's Keeper this Worker started or adopted, and retires a live
-    /// Keeper its adoption found in the other slot.
-    #[cfg(windows)]
+    /// Keeps `keeper`, the Session's Keeper this Worker started or adopted, and on Windows retires a
+    /// live Keeper its adoption found in the other slot.
+    #[cfg(any(windows, target_os = "macos"))]
+    #[cfg_attr(target_os = "macos", expect(unused_mut))]
     pub(super) fn keep(&mut self, mut keeper: Option<crate::session_keeper::SessionKeeper>) {
+        #[cfg(windows)]
         if let Some(other) = keeper
             .as_mut()
             .and_then(crate::session_keeper::SessionKeeper::take_other)
@@ -197,11 +205,12 @@ impl<'a> HostSet<'a> {
         }
     }
 
-    /// Whether moves wait for the Session's Keeper, which `care` looks after: its replacement or
-    /// update is due or under way, or a Keeper still retires.
+    /// Whether moves wait for the Session's Keeper: its replacement or update is due or under way,
+    /// or a Keeper still retires.
     #[cfg(windows)]
-    pub(super) fn keeper_changing(&self, care: &super::keeper_care::KeeperCare) -> bool {
-        care.keeper_changing(self.keeper.as_ref(), self.retiring.is_some())
+    pub(super) fn keeper_changing(&self) -> bool {
+        self.care
+            .keeper_changing(self.keeper.as_ref(), self.retiring.is_some())
     }
 
     /// Whether this Worker owns its Hosts in a managed Session.
@@ -390,7 +399,7 @@ impl<'a> HostSet<'a> {
                 .filter_map(|held| Some((&held.connection, held.managed.as_mut()?)))
                 .collect(),
             epoch,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             keeper: &mut self.keeper,
             #[cfg(windows)]
             retiring: &mut self.retiring,
@@ -398,15 +407,11 @@ impl<'a> HostSet<'a> {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 impl HostSet<'_> {
-    /// The care between requests: the Session's Keeper and each Host's dispatch, then draining older
-    /// Hosts. Returns when it began if a Server request became readable while it ran.
-    pub(super) fn care(
-        &mut self,
-        care: &mut super::keeper_care::KeeperCare,
-        server: &UnixStream,
-    ) -> Option<Instant> {
+    /// The care between requests: the Session's Keeper and, on Windows, each Host's dispatch, then
+    /// draining older Hosts. Returns when it began if a Server request became readable while it ran.
+    pub(super) fn care(&mut self, server: &UnixStream) -> Option<Instant> {
         use super::keeper_care::{Cared, Keepers};
         let began = Instant::now();
         let program = self
@@ -428,15 +433,24 @@ impl HostSet<'_> {
             .collect();
         let keepers = Keepers {
             keeper: &mut self.keeper,
+            #[cfg(windows)]
             retiring: &mut self.retiring,
             program,
         };
-        let cared_began = care.run(&mut cared, keepers, server);
+        let cared_began = self.care.run(&mut cared, keepers, server);
         let checked = self.drain_empty();
         cared_began
             .or_else(|| (checked && super::server_transport::readable_now(server)).then_some(began))
     }
 
+    /// When the next care is due, so the wait for a request wakes for it.
+    pub(super) const fn care_due(&self) -> Instant {
+        self.care.due()
+    }
+}
+
+#[cfg(windows)]
+impl HostSet<'_> {
     /// The older Hosts that still serve, which a move empties into the own Host.
     pub(super) fn older(&self) -> Vec<usize> {
         self.hosts
@@ -476,31 +490,6 @@ impl HostSet<'_> {
             watch: &mut held.watch,
         };
         super::keeper_care::after_unanswered(&mut cared, &mut self.keeper);
-    }
-}
-
-/// The care between requests on macOS, which runs no Keeper: it drains older Hosts.
-#[cfg(target_os = "macos")]
-impl HostSet<'_> {
-    /// Drains each older Host found empty. Returns when it began if a Server request became
-    /// readable while it ran.
-    pub(super) fn care(&mut self, server: &UnixStream) -> Option<Instant> {
-        let began = Instant::now();
-        (self.drain_empty() && super::server_transport::readable_now(server)).then_some(began)
-    }
-
-    /// When an older Host is next due for its emptiness check, so the wait for a request wakes for
-    /// it; none while the Worker holds no own Host or no older Host serves.
-    pub(super) fn care_due(&self) -> Option<Instant> {
-        self.own()?;
-        self.hosts
-            .iter()
-            .filter(|held| !held.own)
-            .filter_map(|held| match held.drain {
-                Drain::Serving(due) => Some(due),
-                Drain::Drained => None,
-            })
-            .min()
     }
 }
 
