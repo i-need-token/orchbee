@@ -24,7 +24,10 @@ pub fn sampleProcesses(process: *Process, allocator: @import("std").mem.Allocato
             error.ProcessSampleUnavailable
         else
             @import("process_query_windows.zig").collect(allocator, process.job_handle, process.process_handle),
-        .linux, .macos => process.sampleProcesses(allocator),
+        .linux, .macos => if (process.inert)
+            error.ProcessSampleUnavailable
+        else
+            process.sampleProcesses(allocator),
         else => error.ProcessSampleUnsupported,
     };
 }
@@ -65,8 +68,8 @@ pub fn resumeRead(process: *Process) !void {
     return process.pty.resumeRead();
 }
 
-/// Whether terminals can move to and from this Host: only Windows Hosts move them yet.
-pub const moves_supported = builtin.os.tag == .windows;
+/// Whether terminals can move to and from this Host: Windows and macOS Hosts move them.
+pub const moves_supported = builtin.os.tag == .windows or builtin.os.tag == .macos;
 
 /// Whether this Host recovers a program the Keeper kept after its Host ended.
 pub const recovery_supported = moves_supported or builtin.os.tag == .macos;
@@ -98,7 +101,7 @@ pub fn waitStopped(err: anyerror) bool {
 
 /// Whether the writer may stop: the signal sender holds no resize the console has not taken.
 pub fn signalsIdle(process: *Process) bool {
-    if (comptime !moves_supported) return true;
+    if (comptime builtin.os.tag != .windows) return true;
     return process.signalsIdle();
 }
 

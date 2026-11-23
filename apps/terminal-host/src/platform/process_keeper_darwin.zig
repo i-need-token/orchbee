@@ -11,11 +11,19 @@
 const std = @import("std");
 const keeper_darwin = @import("keeper_darwin.zig");
 const monotonic = @import("monotonic.zig");
+const posix_compat = @import("posix_compat.zig");
 const thread_sync = @import("thread_sync.zig");
 const process_types = @import("process_types.zig");
 const Gate = @import("keeper_gate.zig").Gate;
 
 const ExitResult = process_types.ExitResult;
+
+extern "c" fn orchbee_observe_process_exit_until_stopped(
+    process_id: c_int,
+    stop_descriptor: c_int,
+    result_kind: *c_int,
+    result_value: *u32,
+) c_int;
 
 /// How often a leader no link parents any more is checked for its end.
 const end_poll_ns = 50 * std.time.ns_per_ms;
@@ -91,6 +99,8 @@ pub const Record = struct {
     reap: enum { idle, requested, done } = .idle,
     /// Set when the terminal leaves this Host: the wait for the leader's end returns.
     stopped: bool = false,
+    /// The write end of the pipe a wait for a forked leader watches, while one waits.
+    stop_signal: ?std.posix.fd_t = null,
     /// A recovered leader the Keeper parents, until the link that claims its holding becomes its
     /// parent: the Keeper keeps it once it ends.
     claims_parent: bool = false,
@@ -154,6 +164,47 @@ pub const Record = struct {
         defer self.mutex.unlock();
         self.stopped = true;
         self.condition.broadcast();
+        if (self.stop_signal) |descriptor| _ = posix_compat.write(descriptor, &.{1}) catch {};
+    }
+
+    /// The wait thread: the leader's exit, from its parent when a Keeper parents it or it is not
+    /// this Host's child, and otherwise from the kernel. Null once the terminal leaves this Host.
+    pub fn awaitLeader(self: *Record, leader: std.posix.pid_t, adopted: bool) !?ExitResult {
+        if (adopted or self.isParented()) return self.awaitExit(leader);
+        return self.awaitChildExit(leader);
+    }
+
+    /// The wait thread: the exit of a leader this Host forked, as the kernel reports it without
+    /// reaping it, or null once the terminal leaves this Host, which `stop` tells the wait through
+    /// a pipe it watches beside the leader.
+    fn awaitChildExit(self: *Record, leader: std.posix.pid_t) !?ExitResult {
+        const pipe = try posix_compat.pipe2(.{ .CLOEXEC = true });
+        defer posix_compat.close(pipe[0]);
+        {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            if (self.stopped) {
+                posix_compat.close(pipe[1]);
+                return null;
+            }
+            self.stop_signal = pipe[1];
+        }
+        defer {
+            self.mutex.lock();
+            self.stop_signal = null;
+            self.mutex.unlock();
+            posix_compat.close(pipe[1]);
+        }
+        var kind: c_int = 0;
+        var value: u32 = 0;
+        const failure = orchbee_observe_process_exit_until_stopped(leader, pipe[0], &kind, &value);
+        if (failure == @intFromEnum(std.posix.E.CANCELED)) return null;
+        if (failure != 0) return error.ProcessObservationFailed;
+        return switch (kind) {
+            1 => .{ .exit_code = value },
+            2 => .{ .signal = value },
+            else => .{ .unknown = value },
+        };
     }
 
     pub fn isParented(self: *Record) bool {

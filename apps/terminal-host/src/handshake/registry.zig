@@ -31,11 +31,13 @@ pub const worker_host = struct {
         &.{ "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
     else
         &.{ "prompt-gated-input", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" };
-    /// `capabilities` with `handover` and `recovery`, on Windows only: this Host moves running
+    /// `capabilities` with `handover` and `recovery`, on Windows and macOS: this Host moves running
     /// terminals to and from another Host through the Keeper, and recovers a program the Keeper
     /// kept after its Host ended. Each works without the other.
     pub const capabilities_with_handover: []const []const u8 = if (builtin.os.tag == .windows)
         &.{ "background-programs", "handover", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
+    else if (builtin.os.tag == .macos)
+        &.{ "handover", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
     else
         capabilities;
 

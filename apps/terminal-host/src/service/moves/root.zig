@@ -2,11 +2,9 @@
 //! answers they owe, and their part in the Host's teardown. Only the dispatch thread calls it. The
 //! dispatch thread never waits on the Keeper, a parking reader, or an export: each such request
 //! completes when its result is published, with its reply reserved up front, and goes out with the
-//! session's next events; an answer decided at once goes out with the request's own records. A
-//! macOS Host offers only `recovery`, so it makes the import alone and never exports or restores.
+//! session's next events; an answer decided at once goes out with the request's own records.
 
 const std = @import("std");
-const builtin = @import("builtin");
 const control = @import("terminal-host-control");
 const core_module = @import("terminal-host-core").state;
 const identifiers = @import("terminal-host-model").identifiers;
@@ -29,8 +27,8 @@ pub const Session = answers_module.Session;
 const Env = @import("env.zig").Env;
 const Aggregate = host_runtime_aggregate.HostRuntimeAggregate;
 const Attachments = keeper_link.Attachments;
-const is_windows = builtin.os.tag == .windows;
 const recovery_supported = platform.process.recovery_supported;
+const moves_supported = platform.process.moves_supported;
 
 pub const Moves = struct {
     allocator: std.mem.Allocator,
@@ -91,7 +89,7 @@ pub const Moves = struct {
         if (comptime !recovery_supported) return;
         if (self.stopped or (self.exporting == null and self.importing == null)) return;
         const current = self.env(aggregate, creations, attachments);
-        if (comptime is_windows) record_export.advance(current, &self.exporting);
+        if (comptime moves_supported) record_export.advance(current, &self.exporting);
         record_import.advance(current, &self.importing);
     }
 
@@ -114,7 +112,7 @@ pub const Moves = struct {
     /// waits for the move.
     pub fn holdsKeeper(self: *const Moves, keeper: keeper_link.Keeper) bool {
         if (comptime !recovery_supported) return false;
-        if (comptime is_windows) if (record_export.holdsMark(&self.exporting, keeper)) return true;
+        if (comptime moves_supported) if (record_export.holdsMark(&self.exporting, keeper)) return true;
         return record_import.heldBy(&self.importing, keeper);
     }
 
@@ -131,7 +129,7 @@ pub const Moves = struct {
         if (comptime !recovery_supported) return;
         if (self.stopped) return;
         const current = self.env(aggregate, creations, attachments);
-        if (comptime is_windows) export_teardown.teardown(current, &self.exporting);
+        if (comptime moves_supported) export_teardown.teardown(current, &self.exporting);
         record_import.teardown(current, &self.importing);
     }
 
@@ -171,7 +169,7 @@ pub const Access = struct {
         const moves = self.moves;
         try moves.answers.reserve();
         const current = moves.env(context.runtime_aggregate, context.creations, self.attachments);
-        if (comptime is_windows) record_export.advance(current, &moves.exporting);
+        if (comptime moves_supported) record_export.advance(current, &moves.exporting);
         record_import.advance(current, &moves.importing);
         const to: answers_module.Pending = .{ .connection_id = connection_id, .correlation_id = correlation_id };
         dispatch(moves, context, current, operation, to, envelope.payload) catch |err| {
@@ -192,40 +190,39 @@ fn dispatch(
 ) control.decode.DecodeError!void {
     const allocator = context.allocator;
     const handover = control.decode.handover;
-    // Only a session that negotiated `handover`, which a macOS Host never offers, exports or
-    // restores.
-    if (comptime !is_windows) switch (operation) {
+    // Only a session that negotiated `handover` exports or restores.
+    if (comptime !moves_supported) switch (operation) {
         .claim_terminal, .discard_import, .recover_terminal => {},
         else => unreachable,
     };
     switch (operation) {
-        .quiesce_terminal => if (comptime !is_windows) unreachable else {
+        .quiesce_terminal => if (comptime !moves_supported) unreachable else {
             var decoded = try handover.decodeQuiesce(allocator, payload);
             defer decoded.deinit();
             record_export.quiesce(current, &moves.exporting, to, decoded.value);
         },
-        .read_handover_record => if (comptime !is_windows) unreachable else {
+        .read_handover_record => if (comptime !moves_supported) unreachable else {
             var decoded = try handover.decodeReadRecord(allocator, payload);
             defer decoded.deinit();
             record_export.read(current, &moves.exporting, to, decoded.value);
         },
-        .resume_terminal => if (comptime !is_windows) unreachable else {
+        .resume_terminal => if (comptime !moves_supported) unreachable else {
             var decoded = try control.decode.decodeTerminalTarget(allocator, payload);
             defer decoded.deinit();
             record_export.resumeTerminal(current, &moves.exporting, to, decoded.value);
         },
-        .drop_terminal => if (comptime !is_windows) unreachable else {
+        .drop_terminal => if (comptime !moves_supported) unreachable else {
             var decoded = try control.decode.decodeTerminalTarget(allocator, payload);
             defer decoded.deinit();
             record_export.dropTerminal(current, &moves.exporting, to, decoded.value);
         },
-        .import_terminal => if (comptime !is_windows) unreachable else {
+        .import_terminal => if (comptime !moves_supported) unreachable else {
             var decoded = try handover.decodeImport(allocator, payload);
             defer decoded.deinit();
             record_import.importTerminal(current, &moves.importing, to, decoded.value, context.terminal_admission);
         },
-        .write_handover_record => if (comptime !is_windows) unreachable else record_import.writeRecord(current, &moves.importing, to, try handover.decodeRecordChunk(payload)),
-        .restore_terminal => if (comptime !is_windows) unreachable else {
+        .write_handover_record => if (comptime !moves_supported) unreachable else record_import.writeRecord(current, &moves.importing, to, try handover.decodeRecordChunk(payload)),
+        .restore_terminal => if (comptime !moves_supported) unreachable else {
             var decoded = try handover.decodeCreation(allocator, payload);
             defer decoded.deinit();
             record_import.restore(current, &moves.importing, to, decoded.value, context.terminal_admission);

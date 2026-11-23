@@ -1494,8 +1494,8 @@ return S_OK;
 
 ### Moves between Hosts
 
-A Windows Host that offers `keeper` also offers `handover`, and moves a terminal to another Host of
-the same Worker through the Keeper. The
+A Windows or macOS Host that offers `keeper` also offers `handover`, and moves a terminal to another
+Host of the same Worker through the Keeper. The
 [protocol reference](../../../schemas/terminal/references/protocol.md#host-handover) owns the
 requests, their answers, and their refusals, and the [handover record](handover-record.md) owns the
 record; this section owns how the Host meets them. Rules: at most one Host reads a terminal, and
@@ -1554,14 +1554,17 @@ of either Host ends a program the other Host serves or may serve (`TH-033`).
   empty engine at the request's size and profile, and continues as a restore, keeping the
   terminal's identity. `ClaimTerminal`, `DiscardImport`, and the deadline then apply unchanged.
   After its claim the Host resizes the console one row and back, so the console repaints its screen
-  and a full-screen program redraws; a failed resize leaves the terminal as it is. A macOS Host
-  offers `recovery` without `handover`, so it only imports: the Keeper's `inspect` reply carries the
-  PTY master, the build requires the facts to name the request's creation and terminal under this
-  Host's epoch, checks that the master is the holding's terminal device, and checks the leader's
-  start time unless the Keeper reports a parented leader that already ended. The claim makes the
-  Host's Keeper link the parent of a parented leader, whose exit then arrives as `exited`; a leader
-  the lost Host forked was reparented to launchd, which reaps it, so the Host watches it by its
-  start time and signals it only while that start time matches.
+  and a full-screen program redraws; a failed resize leaves the terminal as it is.
+- **macOS**: a terminal's record carries no `console` section, and the quiesce parks the reader by
+  aborting its read. The Keeper's `inspect` reply carries the PTY master in place of the seven
+  duplicates: a restore or recovery requires the facts to name the record's terminal, or for a
+  recovery the request's creation and terminal under this Host's epoch, checks that the master is
+  the holding's terminal device, and checks the leader's start time unless the Keeper reports a
+  parented leader that already ended. The claim makes the Host's Keeper link the parent of a
+  parented leader, whose exit then arrives as `exited`. A leader the old Host forked stays that
+  Host's child, which a drop does not reap, until that Host exits and launchd reaps it, so the new
+  Host watches it by its start time and signals it only while that start time matches. A drop
+  closes only the Host's own descriptors.
 - **Settled terminals**: a settled terminal's record carries no mark and needs no Keeper; its import
   ends settled with its outcome already published, so it sends no `TerminalExited` and refuses
   `ClaimTerminal` as `not-running`, and the Worker disposes either copy as any settled terminal.

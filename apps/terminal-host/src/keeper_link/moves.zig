@@ -1,7 +1,7 @@
 //! Move requests on a Keeper link: `mark`, `resume`, `inspect` with the pull of the seven
-//! duplicates or of a program's, `claim`, and `decline`. A macOS link makes only a recovery's:
-//! `inspect`, whose reply carries the master, `claim`, `decline`, and `forget`; a claimed holding
-//! whose leader the Keeper parents makes the link its parent. Their maker, the dispatch thread or a restore build, owns
+//! duplicates or of a program's, `claim`, and `decline`. A macOS link's `inspect` reply carries the
+//! master instead, it holds no programs, and a claimed holding whose leader the Keeper parents
+//! makes the link its parent. Their maker, the dispatch thread or a restore build, owns
 //! each request and keeps it until the link completes it; the link thread makes the request, one
 //! at a time with the holds and releases, and completes every request it has not made once the
 //! link ends. A completion wakes the service loop, which polls; a build waits.
@@ -194,12 +194,8 @@ fn next(link: *Link) ?*Request {
 
 fn make(link: *Link, body: Body) Result {
     switch (body) {
-        .mark => |mark| {
-            if (comptime !is_windows) unreachable;
-            return applied(callLink(link, .{ .mark = mark }));
-        },
+        .mark => |mark| return applied(callLink(link, .{ .mark = mark })),
         .@"resume" => |item| {
-            if (comptime !is_windows) unreachable;
             const result = answered(callLink(link, .{ .@"resume" = item.marked }));
             if (claimedOutcome(result)) forget(link, item.gate);
             return result;

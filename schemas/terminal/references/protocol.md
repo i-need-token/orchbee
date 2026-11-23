@@ -483,7 +483,7 @@ prompt first seen after the arrival is answered once the quiet time since the ar
 
 ## Host handover
 
-Kinds 90 to 106 move a running Windows terminal from one Terminal Host to another through the
+Kinds 90 to 106 move a running Windows or macOS terminal between Terminal Hosts through the
 Keeper, whose own connection is [`../../keeper/README.md`](../../keeper/README.md), and recover one
 whose Host ended. They belong to three `worker-host` capabilities: `keeper` covers `AttachKeeper`,
 `DetachKeeper`, and the events `KeeperLost`, `KeeperUnresponsive`, and `TerminalUnheld`; `recovery`

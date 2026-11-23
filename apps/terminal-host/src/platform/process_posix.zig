@@ -9,6 +9,7 @@ const process_session = @import("process_session.zig");
 const process_types = @import("process_types.zig");
 const pty_module = @import("pty.zig");
 const keeper_record = if (builtin.os.tag == .macos) @import("process_keeper_darwin.zig") else struct {};
+const handover = @import("process_posix_handover.zig");
 const is_macos = builtin.os.tag == .macos;
 
 const ExitResult = process_types.ExitResult;
@@ -40,6 +41,8 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     /// A recovered terminal's leader, which is not this Host's child: a Keeper parents it, or
     /// nobody here does.
     adopted: bool = false,
+    /// A settled terminal restored from a record: nothing here is open, watched, or ended.
+    inert: bool = false,
     interactive_shell: bool = false,
     launch_kind: process_types.LaunchKind = .other,
     exit_reaped: bool = false,
@@ -50,6 +53,13 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     // it is safe to pass to the session signaler only while the leader is
     // retained (see SessionIdentityState).
     identity: SessionIdentityState = .{},
+
+    /// A terminal that moves here or leaves; see `process_posix_handover.zig`.
+    pub const Held = handover.Held;
+    pub const adopt = handover.adopt;
+    pub const stopWait = handover.stopWait;
+    pub const drop = handover.drop;
+    pub const settled = handover.settled;
 
     pub fn spawn(allocator: std.mem.Allocator, launch: Launch) !Process {
         // FreeBSD must become and verify the process reaper before any terminal
@@ -124,49 +134,6 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         };
     }
 
-    /// A recovered terminal's PTY master and leader, as the claim checked them.
-    pub const Held = if (is_macos) keeper_record.Held else void;
-
-    /// The process record of a recovered terminal: its leader runs on, not this Host's child. On
-    /// error the caller still owns the master.
-    pub fn adopt(allocator: std.mem.Allocator, held: Held) !Process {
-        if (comptime !is_macos) unreachable;
-        var pty = try pty_module.Pty.adopt(held.master);
-        errdefer {
-            pty.master = -1;
-            pty.deinit();
-        }
-        const keeper = try keeper_record.Record.create(allocator, held.master);
-        keeper.leader_created = held.leader.created;
-        keeper.claims_parent = held.parented;
-        return .{
-            .child_id = held.leader.pid,
-            .allocator = allocator,
-            .keeper = keeper,
-            .adopted = true,
-            .pty = pty,
-            .interactive_shell = held.interactive_shell,
-            .launch_kind = held.launch_kind,
-        };
-    }
-
-    /// Wakes the wait for a recovered leader without its end, so a terminal that leaves this Host
-    /// joins it.
-    pub fn stopWait(self: *Process) void {
-        if (comptime !is_macos) unreachable;
-        std.debug.assert(self.adopted);
-        self.keeper.stop();
-    }
-
-    /// Frees a recovered terminal that leaves this Host, closing only its own descriptors: its
-    /// leader runs on, and nothing is reaped or signalled.
-    pub fn drop(self: *Process) void {
-        if (comptime !is_macos) unreachable;
-        self.keeper.destroy(self.allocator);
-        self.pty.deinit();
-        self.* = undefined;
-    }
-
     /// Whether the session identifier still names the leader's session: a process keeps the ended
     /// leader, or the leader runs with its recorded start time. A recovered leader nobody parents,
     /// and one whose parent released it or ended, is reaped by another process once it ends.
@@ -176,6 +143,10 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     }
 
     pub fn deinit(self: *Process) void {
+        if (self.inert) {
+            self.* = undefined;
+            return;
+        }
         // Reaping is a fallible ownership transition and must have completed in
         // TerminalRuntime.shutdown before this infallible resource destructor.
         std.debug.assert(self.exit_reaped);
@@ -273,11 +244,11 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     pub fn wait(self: *Process) !ExitResult {
         if (self.exit_result) |result| return result;
-        if (comptime builtin.os.tag == .macos) if (self.adopted or self.keeper.isParented()) {
-            const result = self.keeper.awaitExit(self.child_id) orelse return error.Stopped;
+        if (comptime builtin.os.tag == .macos) {
+            const result = try self.keeper.awaitLeader(self.child_id, self.adopted) orelse return error.Stopped;
             self.exit_result = result;
             return result;
-        };
+        }
         var result_kind: c_int = 0;
         var result_value: u32 = 0;
         const observe_error = orchbee_observe_process_exit(

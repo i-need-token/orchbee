@@ -6,7 +6,8 @@
 //! needs none of that. A recovery has no record: it inspects first, checks the duplicates against
 //! the Keeper's facts and the identity the Worker named, and builds a fresh engine; on macOS the
 //! `inspect` carries the PTY master, which must still be its slave's, and the leader must still run
-//! or be kept ended by the Keeper. Only Windows Hosts restore an import. The dispatch
+//! or be kept ended by the Keeper, and a macOS restore checks them as well, against the record's
+//! terminal. The dispatch
 //! thread commits what it built, abandons what failed, and at teardown discards a built terminal
 //! without a `decline`.
 //!
@@ -66,7 +67,7 @@ pub const Job = struct {
     keeper: ?Keeper = null,
     /// Why the dispatch thread could not hand the `inspect` to a Keeper.
     unsent: ?Details = null,
-    /// A macOS recovery's leader, which the claim names.
+    /// A macOS terminal's leader, recovered or moved, which the claim names.
     leader: ?@FieldType(Inspected, "program") = null,
     failed: ?Details = null,
     facts: ?Facts = null,
@@ -195,10 +196,11 @@ pub const Job = struct {
     /// duplicates pulled from the Keeper, and every fact of theirs matching the record's.
     fn claimCheck(self: *Job, facts: *const Facts) !platform.process.Held {
         if (comptime !platform.process.moves_supported) unreachable;
-        const console = facts.console orelse return self.fail(refusal.failed("invalid-record"), error.InvalidRecord);
         const inputs = facts.terminal.inputs;
         const holding = inputs.holding_id orelse return self.fail(refusal.failed("invalid-record"), error.InvalidRecord);
         const mark = inputs.mark_id orelse return self.fail(refusal.failed("invalid-record"), error.InvalidRecord);
+        if (comptime builtin.os.tag == .macos) return self.claimCheckPty(facts, holding, mark);
+        const console = facts.console orelse return self.fail(refusal.failed("invalid-record"), error.InvalidRecord);
         const build = builds.find(console.open_console_sha256) orelse
             return self.fail(refusal.ineligible("unknown-console-build"), error.UnknownConsoleBuild);
         if (build.signal_format != console.signal_format or build.signal_format != builds.own.signal_format)
@@ -218,6 +220,31 @@ pub const Job = struct {
         return .{
             .duplicates = duplicates,
             .console_pid = host.pid,
+            .launch_kind = facts.terminal.launch_kind,
+            .interactive_shell = facts.terminal.interactive_shell,
+        };
+    }
+
+    /// A macOS move's claim checks: the holding ran as the record's terminal, the master the
+    /// `inspect` carried is still its slave's, and the leader still runs with its start time or
+    /// ended under the Keeper that parents it.
+    fn claimCheckPty(self: *Job, facts: *const Facts, holding: [16]u8, mark: [16]u8) !platform.process.Held {
+        const inspected = try self.inspect(holding, mark);
+        const leader = inspected.program;
+        const darwin = platform.keeper.darwin;
+        const kept = inspected.parented and inspected.ended;
+        if (!namesTerminal(inspected.terminal, facts.terminal.inputs.identity) or
+            !darwin.masterOf(inspected.master, inspected.slaveName()) or
+            (!kept and darwin.processStart(leader.pid) != leader.created))
+        {
+            platform.posix_compat.close(inspected.master);
+            return self.fail(refusal.failed("claim-check"), error.ClaimCheckFailed);
+        }
+        self.leader = leader;
+        return .{
+            .master = inspected.master,
+            .leader = .{ .pid = @intCast(leader.pid), .created = leader.created },
+            .parented = inspected.parented,
             .launch_kind = facts.terminal.launch_kind,
             .interactive_shell = facts.terminal.interactive_shell,
         };

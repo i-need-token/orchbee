@@ -134,11 +134,13 @@ pub fn quiesce(env: Env, slot: *?*Export, to: Pending, request: control.decode.h
 }
 
 /// Step 1's checks and step 2: from here the terminal refuses input, resizes, terminal control,
-/// and termination, and nothing ends it. Returns the refusal, with nothing changed.
+/// and termination, and nothing ends it. Returns the refusal, with nothing changed. A macOS
+/// record carries no console: the Keeper's facts name the leader the new Host checks.
 fn prepareRunning(env: Env, created: *Export, console: *?ConsoleFacts) ?refusal.Details {
-    if (comptime builtin.os.tag != .windows) unreachable;
     const process = created.runtime.keeperSubject();
-    if (platform.keeper.hold.onSystemConsole(process)) return refusal.ineligible("system-console");
+    if (comptime builtin.os.tag == .windows) {
+        if (platform.keeper.hold.onSystemConsole(process)) return refusal.ineligible("system-console");
+    }
     switch (env.attachments.count()) {
         0 => return refusal.ineligible("unheld"),
         1 => {},
@@ -149,6 +151,10 @@ fn prepareRunning(env: Env, created: *Export, console: *?ConsoleFacts) ?refusal.
     created.holding = gate.heldId() orelse return refusal.ineligible("unheld");
     platform.thread_sync.io().random(&created.mark);
     created.runtime.beginMove() catch return refusal.ineligible("not-running");
+    if (comptime builtin.os.tag != .windows) {
+        env.aggregate.setHandover(created.terminal_id, .none, .quiesced);
+        return null;
+    }
     // The move holds the terminal, so its handles stay open while the facts are read.
     const facts = platform.keeper.hold.facts(process) catch |err| {
         created.runtime.endMove();

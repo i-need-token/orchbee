@@ -993,11 +993,30 @@ int orchbee_try_observe_process_exit_now(
 enum {
     darwin_wait_ready = 0,
     darwin_wait_audit_timeout = 1,
+    darwin_wait_stopped = 2,
 };
 
-static int darwin_wait_for_process_exit(pid_t process_id) {
+// A nonnegative stop_descriptor is watched beside the process: once it is readable the wait
+// returns darwin_wait_stopped. Its registration comes first, so the process registration keeps
+// its own ESRCH answer.
+static int darwin_wait_for_process_exit(pid_t process_id, int stop_descriptor) {
     const int queue = kqueue();
     if (queue < 0) return -1;
+
+    if (stop_descriptor >= 0) {
+        struct kevent stop;
+        EV_SET(&stop, (uintptr_t)stop_descriptor, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+        int stop_result;
+        do {
+            stop_result = kevent(queue, &stop, 1, NULL, 0, NULL);
+        } while (stop_result < 0 && errno == EINTR);
+        if (stop_result < 0) {
+            const int stop_error = errno;
+            (void)close(queue);
+            errno = stop_error == 0 ? EIO : stop_error;
+            return -1;
+        }
+    }
 
     struct kevent change;
     EV_SET(
@@ -1066,6 +1085,11 @@ static int darwin_wait_for_process_exit(pid_t process_id) {
             errno = event.data == 0 ? EIO : (int)event.data;
             return -1;
         }
+        if (event.filter == EVFILT_READ && stop_descriptor >= 0 &&
+            event.ident == (uintptr_t)stop_descriptor) {
+            (void)close(queue);
+            return darwin_wait_stopped;
+        }
         if ((event.fflags & NOTE_EXIT) == 0) {
             (void)close(queue);
             errno = EIO;
@@ -1114,8 +1138,26 @@ int orchbee_try_observe_process_exit_now(
     }
 }
 
+int orchbee_observe_process_exit_until_stopped(
+    int process_id,
+    int stop_descriptor,
+    int *result_kind,
+    uint32_t *result_value
+);
+
 int orchbee_observe_process_exit(
     int process_id,
+    int *result_kind,
+    uint32_t *result_value
+) {
+    return orchbee_observe_process_exit_until_stopped(process_id, -1, result_kind, result_value);
+}
+
+// As orchbee_observe_process_exit, and on macOS a nonnegative stop_descriptor that turns
+// readable ends the wait with ECANCELED before the process ends. Elsewhere it must be negative.
+int orchbee_observe_process_exit_until_stopped(
+    int process_id,
+    int stop_descriptor,
     int *result_kind,
     uint32_t *result_value
 ) {
@@ -1137,8 +1179,9 @@ int orchbee_observe_process_exit(
         .tv_nsec = 1000000,
     };
     for (;;) {
-        const int wait_result = darwin_wait_for_process_exit((pid_t)process_id);
+        const int wait_result = darwin_wait_for_process_exit((pid_t)process_id, stop_descriptor);
         if (wait_result < 0) return errno == 0 ? EIO : errno;
+        if (wait_result == darwin_wait_stopped) return ECANCELED;
         const size_t retry_limit = wait_result == darwin_wait_audit_timeout ?
             darwin_audit_retry_limit : darwin_waitid_retry_limit;
         for (size_t attempt = 0; attempt < retry_limit; ++attempt) {
@@ -1157,6 +1200,7 @@ int orchbee_observe_process_exit(
         if (wait_result != darwin_wait_audit_timeout) return EAGAIN;
     }
 #else
+    if (stop_descriptor >= 0) return ENOTSUP;
     siginfo_t information = {0};
     while (waitid(P_PID, (id_t)process_id, &information, WEXITED | WNOWAIT) != 0) {
         if (errno == EINTR) continue;

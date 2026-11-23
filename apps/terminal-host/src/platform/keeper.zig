@@ -27,6 +27,7 @@ pub const fork_launch = if (builtin.os.tag == .macos) @import("fork_launch_posix
 pub fn takesMoves() bool {
     return switch (builtin.os.tag) {
         .windows => @import("conpty_windows.zig").packs(),
+        .macos => true,
         else => false,
     };
 }
@@ -35,7 +36,8 @@ pub fn takesMoves() bool {
 pub fn gate(target: *process.Process) ?*Gate {
     return switch (builtin.os.tag) {
         .windows => &target.termination.keepers,
-        .macos => &target.keeper.gate,
+        // A settled terminal restored from a record has no record of its own.
+        .macos => if (target.inert) null else &target.keeper.gate,
         else => null,
     };
 }
