@@ -412,11 +412,13 @@ export class DesktopServerClientApplication {
 	}
 
 	/**
-	 * A document asks once it is listening, and its asking ends what the one it replaced held.
+	 * A document asks once it is listening, and its asking ends what the one it replaced held; a
+	 * request that does not parse is dropped, and the window's first such is recorded.
 	 * Returns what ends the current document's connection and folder picker.
 	 */
 	#serveDocuments(window: BrowserWindow): () => void {
 		const options = this.#options;
+		let dropRecorded = false;
 		let current: DocumentConnection | undefined;
 		let requests = 0;
 		let everConnected = false;
@@ -432,7 +434,13 @@ export class DesktopServerClientApplication {
 		};
 		const onRequest = (_event: unknown, value: unknown): void => {
 			const document = DesktopServerConnectionDocumentSchema.safeParse(value);
-			if (!document.success) return;
+			if (!document.success) {
+				if (!dropRecorded) {
+					dropRecorded = true;
+					options.recordEvent('warning', 'server-connection-request-dropped');
+				}
+				return;
+			}
 			end();
 			const request = requests;
 			this.#installedShells ??= detectInstalledShells(options.platform, options.clientEnvironment);
@@ -553,6 +561,7 @@ export class DesktopServerClientApplication {
 			backgroundStatusPort = serveDesktopBackgroundStatus(
 				backgroundStatus.port1,
 				containBackgroundSink(options.background, options.recordEvent),
+				options.recordEvent,
 			);
 			windowUpdatePort = options.windowUpdate.serve(windowUpdate.port1, windowFocus(window));
 			const pagePorts: Readonly<Record<DesktopServerConnectionPortRole, MessagePortMain>> = {

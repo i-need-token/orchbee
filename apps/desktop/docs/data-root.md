@@ -44,7 +44,9 @@ kind, listener site, error class and a named error code for a listener throw, or
 rejection nothing else handled, the window's `window-fault` with its site and
 `window-faults-dropped` with a count,
 `document-connection-failed`, `server-relay-ended` with reason `input-bound`, and
-`server-relay-message-dropped` with its reason, once per connection), and `exited` to the data root's
+`server-relay-message-dropped` with its reason, once per connection, and a page message that does
+not parse, `server-connection-request-dropped` once per window and
+`background-status-message-dropped` once per document), and `exited` to the data root's
 [daily diagnostic log](../../../crates/local-runtime/README.md#diagnostic-log), creating
 `logs/` with its first record. It writes the natives' records with role `desktop-main` under their
 retention, cap, and exclusive-open rules; its event names and text values are string literals in

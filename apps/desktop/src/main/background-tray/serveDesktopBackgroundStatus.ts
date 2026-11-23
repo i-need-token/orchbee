@@ -2,6 +2,7 @@ import { DesktopBackgroundStatusRendererMessageSchema } from '@orchbee/desktop-c
 import type { DesktopBackgroundStatusMainMessage } from '@orchbee/desktop-client-protocol';
 import type { MessagePortMain } from 'electron';
 
+import type { DesktopDiagnosticRecorder } from '../diagnostics';
 import type { DesktopBackgroundStatusSink } from './DesktopBackgroundRuntime';
 
 /** Main's end of one document's background-status port. */
@@ -13,22 +14,30 @@ export interface DesktopBackgroundStatusPort {
 
 /**
  * Serves one document's background-status port: each message is parsed before it reaches `sink`,
- * and one that does not parse is dropped. Without a sink, where no icon is kept, the port is closed
- * and the page's reports go nowhere.
+ * and one that does not parse is dropped; the first such of the port is recorded. Without a sink,
+ * where no icon is kept, the port is closed and the page's reports go nowhere.
  */
 export function serveDesktopBackgroundStatus(
 	port: MessagePortMain,
 	sink: DesktopBackgroundStatusSink | undefined,
+	recordEvent: DesktopDiagnosticRecorder,
 ): DesktopBackgroundStatusPort {
 	if (sink === undefined) {
 		port.close();
 		return { close: () => undefined, requestSessionStop: () => false };
 	}
 	let open = true;
+	let dropRecorded = false;
 	port.on('message', ({ data }) => {
 		if (!open) return;
 		const message = DesktopBackgroundStatusRendererMessageSchema.safeParse(data);
-		if (!message.success) return;
+		if (!message.success) {
+			if (!dropRecorded) {
+				dropRecorded = true;
+				recordEvent('warning', 'background-status-message-dropped');
+			}
+			return;
+		}
 		switch (message.data.type) {
 			case 'desktop-background-status-changed':
 				sink.summaryChanged(message.data.summary);
