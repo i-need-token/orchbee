@@ -270,7 +270,7 @@ impl SessionProcesses {
     }
 
     /// The Hosts these registrations name as identified, each with its slot and epoch.
-    #[cfg(any(windows, target_os = "macos"))]
+    #[cfg(windows)]
     pub(crate) fn identified_hosts(&self) -> Vec<KeptHost> {
         HostSlot::ALL
             .into_iter()

@@ -1043,7 +1043,7 @@ fn adoptable(
 ) -> Option<Vec<KeptHost>> {
     match verdict {
         RecoveryVerdict::Gone => Some(Vec::new()),
-        #[cfg(any(windows, target_os = "macos"))]
+        #[cfg(windows)]
         RecoveryVerdict::Live(crate::process_registration::ProcessRole::Host(_)) => {
             Some(snapshot.present_hosts(processes))
         }
@@ -1060,9 +1060,9 @@ fn names_kept_hosts(folder: &Path, kept: &[KeptHost]) -> bool {
     if kept.is_empty() {
         return true;
     }
-    #[cfg(any(windows, target_os = "macos"))]
+    #[cfg(windows)]
     return crate::session_store::bindings::names_hosts(folder, kept);
-    #[cfg(all(unix, not(target_os = "macos")))]
+    #[cfg(unix)]
     {
         let _ = folder;
         false
@@ -1072,7 +1072,7 @@ fn names_kept_hosts(folder: &Path, kept: &[KeptHost]) -> bool {
 /// The Hosts the crashed generation `previous` left running, which the next generation keeps
 /// registered: none after a stop, and none of a slot without a Host or whose Host is gone; a Host
 /// still spawning names an ended attempt, as recovery reads it. An unknown observation refuses.
-#[cfg(any(windows, target_os = "macos"))]
+#[cfg(windows)]
 fn kept_hosts(previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
     let Some(previous) = previous.filter(|record| record.lifecycle == Lifecycle::Crashed) else {
         return Ok(Vec::new());
@@ -1093,8 +1093,8 @@ fn kept_hosts(previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
     Ok(kept)
 }
 
-/// A Linux generation keeps no Host.
-#[cfg(all(unix, not(target_os = "macos")))]
+/// A macOS or Linux generation keeps no Host: a macOS Server does not adopt one yet.
+#[cfg(unix)]
 fn kept_hosts(_previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
     Ok(Vec::new())
 }
@@ -1104,7 +1104,7 @@ fn kept_hosts(_previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
 /// current one with the Hosts, which stay attached to it, instead of starting another, and a stop
 /// ends the Keepers that hold their programs. None without a kept Host, whose Worker would adopt no
 /// Keeper, and none that cannot be observed, which leaves it unrecorded as before.
-#[cfg(any(windows, target_os = "macos"))]
+#[cfg(windows)]
 fn kept_keepers(
     previous: Option<&Record>,
     kept: &[KeptHost],
@@ -1127,8 +1127,8 @@ fn kept_keepers(
     }
 }
 
-/// A Linux generation keeps no Keeper.
-#[cfg(all(unix, not(target_os = "macos")))]
+/// A macOS or Linux generation keeps no Keeper.
+#[cfg(unix)]
 fn kept_keepers(
     _previous: Option<&Record>,
     _kept: &[KeptHost],

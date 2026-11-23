@@ -9,8 +9,8 @@ use crate::{
     durable_sessions::RecordWriter,
     process_identity_native::{self as native, Started},
     process_registration::{
-        KeptHost, ProcessIdentity, ProcessObservation, ProcessRole, ROLES, RecoveryVerdict,
-        Registration, SessionProcesses,
+        ProcessIdentity, ProcessObservation, ProcessRole, ROLES, RecoveryVerdict, Registration,
+        SessionProcesses,
     },
 };
 use std::io;
@@ -53,20 +53,6 @@ impl ProcessSnapshot {
         _writer: &RecordWriter,
     ) -> RecoveryVerdict {
         processes.status(self.observations)
-    }
-    /// The identified Hosts of `processes` this snapshot found running with their exact identities.
-    pub(crate) fn present_hosts(&self, processes: &SessionProcesses) -> Vec<KeptHost> {
-        processes
-            .identified_hosts()
-            .into_iter()
-            .filter(|kept| {
-                ROLES
-                    .into_iter()
-                    .position(|role| role == ProcessRole::Host(kept.slot))
-                    .and_then(|index| self.observations.get(index))
-                    == Some(&ProcessObservation::Present(kept.identity))
-            })
-            .collect()
     }
 }
 
