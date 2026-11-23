@@ -16,6 +16,7 @@ extern "c" fn orchbee_observe_process_exit(
     result_kind: *c_int,
     result_value: *u32,
 ) c_int;
+extern "c" fn getpgid(pid: c_int) c_int;
 pub const SessionIdentityState = process_session.SessionIdentityState;
 
 pub fn foregroundCommandActive(
@@ -239,6 +240,11 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     pub fn hasActiveCommand(self: *const Process) !bool {
         if (!self.interactive_shell) return true;
         return foregroundCommandActive(self.child_id, try self.pty.foregroundProcessGroup());
+    }
+
+    pub fn isForeground(self: *const Process, pid: u32) !bool {
+        const group = getpgid(std.math.cast(c_int, pid) orelse return false);
+        return group > 0 and group == try self.pty.foregroundProcessGroup();
     }
 
     pub fn wait(self: *Process) !ExitResult {

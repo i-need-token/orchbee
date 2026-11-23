@@ -231,6 +231,7 @@ fn static_codex_refreshes_the_retained_frame_after_process_before() {
                 &target,
                 &stop,
                 &crate::agent_screen::ScreenDetector::bundled().unwrap(),
+                None,
             )
             .is_none(),
         "the exact Detach must settle before the sampler returns",
@@ -594,7 +595,8 @@ fn discovered_target_cannot_attach_a_new_worker_generation_or_run_after_cancel()
             .sample_process_target(
                 &target,
                 &stop,
-                &crate::agent_screen::ScreenDetector::bundled().unwrap()
+                &crate::agent_screen::ScreenDetector::bundled().unwrap(),
+                None,
             )
             .is_none()
     );
@@ -607,7 +609,8 @@ fn discovered_target_cannot_attach_a_new_worker_generation_or_run_after_cancel()
             .sample_process_target(
                 &target,
                 &stop,
-                &crate::agent_screen::ScreenDetector::bundled().unwrap()
+                &crate::agent_screen::ScreenDetector::bundled().unwrap(),
+                None,
             )
             .is_none()
     );

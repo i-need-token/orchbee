@@ -174,6 +174,9 @@ fn validateScreenGateLocked(self: *state.State, expected: ?ScreenGate) !void {
 
 /// Caller holds terminal_mutex, then input_mutex.
 pub fn checkScreenGateLocked(self: *state.State, gate: ScreenGate, own_entries: usize) screen_gate.Error!void {
+    if (gate.requires_bracketed_paste and !self.terminal.modes.get(.bracketed_paste)) {
+        return error.ScreenChanged;
+    }
     return screen_gate.check(gate, .{
         .generation = self.generation,
         .revision = self.revision.load(.monotonic),

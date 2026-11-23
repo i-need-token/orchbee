@@ -4,8 +4,8 @@
 //! idle-prompt send is the one exception to per-record exchanges: its whole prompt line is one
 //! Host `PromptLineInput`, typed only at a confirmed fresh prompt, and a Host refusal is returned
 //! as is; the Worker never waits for a settling prompt and never falls back to an ungated send.
-//! A screen-gated send is the other: its one Enter is one Host `ScreenGatedKeyInput`, typed
-//! only while the screen is still the frame the Server read, and a hold types nothing.
+//! A screen-gated send also uses one exchange. The Host `ScreenGatedKeyInput` names the frame
+//! and submits Enter or a whole prompt line. A hold records human input and queues no bytes.
 
 mod stroke;
 
@@ -143,22 +143,8 @@ pub(crate) fn execute(
         Some(SendRejection::StaleHostEpoch)
     } else if host.unavailable_terminal(request.target.terminal_id()) {
         Some(SendRejection::TerminalUnavailable)
-    } else if request.precondition == SendPrecondition::IdlePrompt
-        && request.records.prompt_line().is_none()
-    {
-        // The codec admits only a prompt line; a hand-built request is refused the same way.
-        Some(SendRejection::HostInputInvalid)
-    } else if request.precondition == SendPrecondition::IdlePrompt && !host.prompt_gated_input() {
-        // A Host that cannot confirm the prompt is too old for this send: it is refused before
-        // any attachment, never typed ungated.
-        Some(SendRejection::HostPromptGateUnsupported)
-    } else if screen_gated(&request) && !request.records.screen_key() {
-        // The codec admits only one unmodified Enter; a hand-built request is refused the same way.
-        Some(SendRejection::HostInputInvalid)
-    } else if screen_gated(&request) && !host.screen_gated_send() {
-        // A Host that cannot hold a screen-gated key is too old for it: it is refused before any
-        // attachment, never typed ungated.
-        Some(SendRejection::HostScreenGateUnsupported)
+    } else if let Some(reason) = gated_input_rejection(&request, host) {
+        Some(reason)
     } else if negotiated_excess(&request, host) {
         // The negotiated-bound check runs before the attachment exists, so
         // the honest frontier is zero: no record was ever submitted.
@@ -208,13 +194,33 @@ fn negotiated_excess(request: &TerminalSendRequest, host: &HostBrokerConnection)
     })
 }
 
-/// Whether the precondition is a screen-gated key or a hold, which the Host types under its screen
-/// gate.
-fn screen_gated(request: &TerminalSendRequest) -> bool {
-    matches!(
-        request.precondition,
-        SendPrecondition::Screen(_) | SendPrecondition::ScreenHold
-    )
+/// Check both the shape of a hand-built request and the Host capability before attaching.
+fn gated_input_rejection(
+    request: &TerminalSendRequest,
+    host: &HostBrokerConnection,
+) -> Option<SendRejection> {
+    use SendPrecondition as Gate;
+    let records = &request.records;
+    match request.precondition {
+        Gate::IdlePrompt if records.prompt_line().is_none() => {
+            Some(SendRejection::HostInputInvalid)
+        }
+        Gate::IdlePrompt if !host.prompt_gated_input() => {
+            Some(SendRejection::HostPromptGateUnsupported)
+        }
+        Gate::Screen(_) if !records.screen_key() => match records.prompt_line() {
+            None => Some(SendRejection::HostInputInvalid),
+            Some(_) if !host.screen_gated_prompt() => {
+                Some(SendRejection::HostScreenGateUnsupported)
+            }
+            Some(_) => None,
+        },
+        Gate::ScreenHold if !records.screen_key() => Some(SendRejection::HostInputInvalid),
+        Gate::Screen(_) | Gate::ScreenHold if !host.screen_gated_send() => {
+            Some(SendRejection::HostScreenGateUnsupported)
+        }
+        Gate::None | Gate::IdlePrompt | Gate::Screen(_) | Gate::ScreenHold => None,
+    }
 }
 
 fn apply(
@@ -359,7 +365,7 @@ fn apply(
             .map(Step::PromptLine)
             .into_iter()
             .collect::<Vec<_>>(),
-        SendPrecondition::Screen(gate) => vec![Step::ScreenKey(gate)],
+        SendPrecondition::Screen(gate) => vec![Step::Screen(gate, request.records.prompt_line())],
         SendPrecondition::ScreenHold => vec![Step::ScreenHold],
     };
     let mut index = 0;
@@ -689,12 +695,12 @@ fn detach(
 }
 
 /// One Host input exchange: a single record, an idle-prompt send's whole line, or a screen-gated
-/// send's one key or hold.
+/// send's key, prompt or hold.
 #[derive(Clone, Copy)]
 enum Step<'a> {
     Record(&'a SendRecord),
     PromptLine(SendPromptLine<'a>),
-    ScreenKey(SendScreenGate),
+    Screen(SendScreenGate, Option<SendPromptLine<'a>>),
     ScreenHold,
 }
 
@@ -712,7 +718,7 @@ impl Step<'_> {
     const fn records(self, record_count: usize) -> usize {
         match self {
             Self::Record(_) => 1,
-            Self::PromptLine(_) | Self::ScreenKey(_) | Self::ScreenHold => record_count,
+            Self::PromptLine(_) | Self::Screen(..) | Self::ScreenHold => record_count,
         }
     }
 
@@ -720,7 +726,7 @@ impl Step<'_> {
         match self {
             Self::Record(_) => StepKind::Record,
             Self::PromptLine(_) => StepKind::PromptLine,
-            Self::ScreenKey(_) | Self::ScreenHold => StepKind::Screen,
+            Self::Screen(..) | Self::ScreenHold => StepKind::Screen,
         }
     }
 }
@@ -749,21 +755,30 @@ fn step_command(
                 None,
             ));
         }
-        Step::ScreenKey(gate) => {
+        Step::Screen(gate, line) => {
+            let request = ScreenGatedKeyRequest {
+                key: ScreenGatedKey::Enter,
+                process: ScreenGatedProcess {
+                    pid: gate.pid,
+                    creation_time: gate.creation_time,
+                },
+                generation: gate.generation,
+                revision: gate.revision,
+                first_revision: gate.first_revision,
+            };
+            let action = match line {
+                None => ScreenGatedAction::Key(request),
+                Some(line) => ScreenGatedAction::Prompt {
+                    request,
+                    content: line.content.to_owned(),
+                    right_arrow: line.right_arrow,
+                },
+            };
             return Ok((
                 encode_input_message(&InputMessage::ScreenGatedKeyInput(ScreenGatedKeyInput {
                     attachment_id,
                     capability_revision,
-                    action: ScreenGatedAction::Key(ScreenGatedKeyRequest {
-                        key: ScreenGatedKey::Enter,
-                        process: ScreenGatedProcess {
-                            pid: gate.pid,
-                            creation_time: gate.creation_time,
-                        },
-                        generation: gate.generation,
-                        revision: gate.revision,
-                        first_revision: gate.first_revision,
-                    }),
+                    action,
                 }))?,
                 None,
             ));

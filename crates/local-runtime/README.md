@@ -1401,6 +1401,8 @@ every key's purpose, allowed values and default.
 | `agents.auto_allow.gemini`                                                                  | `false`                          | Agents / Confirmations               |
 | `agents.auto_allow.opencode`                                                                | `false`                          | Agents / Confirmations               |
 | `agents.auto_allow.offer`                                                                   | `true`                           | file only                            |
+| `agents.quota_resume.enabled`                                                               | `false`                          | Agents / Resume after quota reset    |
+| `agents.quota_resume.prompt`                                                                | `"continue"`                     | Agents / Resume after quota reset    |
 | `update.channel`                                                                            | `"stable"`                       | file only, not in the reference      |
 | `update.automatic`                                                                          | `true`                           | About / Updates                      |
 

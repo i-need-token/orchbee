@@ -28,6 +28,7 @@ fn host(row_window_bytes: u32) -> TestResult<(HostBrokerConnection, UnixStream)>
             host_epoch: HostEpoch::from_bytes([4; 16])?,
             prompt_gated_input: true,
             screen_gated_send: true,
+            screen_gated_prompt: false,
             #[cfg(windows)]
             keeper: crate::host_connection::KeeperTerms::default(),
             #[cfg(windows)]

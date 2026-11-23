@@ -104,6 +104,41 @@ again; process exit keeps its existing precedence. `agent_screen/tests.rs` cover
 context, separate OSC conflicts, transcript mentions and the ready-screen replacement. This is
 physical-screen fallback and never creates or changes a canonical Agent Session.
 
+## Quota resume
+
+The Session owns quota resume for live Codex CLI processes. GUI and TUI expose the same
+machine-scoped policy under Agents, using the [settings registry](../../../crates/local-runtime/README.md#published-key-file).
+The switch opts into a prompt on the running Agent after its reported retry time. The prompt is
+editable before enabling the switch and can be restored independently. A wait reads the current
+prompt at send admission. Disabling the switch pauses delivery while the Session continues to
+observe the same notice. Re-enabling can send within that notice's delivery window. Clients show
+the controls when the Server publishes both keys. Diagnostic settings exports redact the custom
+prompt.
+
+Codex prints the host-local time, abbreviating a retry on the current day to a clock time and
+truncating seconds. The sampler waits through the displayed minute. A notice must follow an
+observed clear composer, a visible active turn, or a process birth while the observer was running.
+A time-only notice needs that evidence on the same local day. An already running Agent's first
+notice after a Session restart stays unarmed. A local time with no unique instant supplies no deadline.
+[Codex's error formatter](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/error.rs)
+owns that format.
+
+The same process brackets every frame. A due prompt requires a current idle or completed
+screen status, the latest red usage-limit entry, an empty live composer, and a recognized footer.
+An incomplete or hidden notice preserves the original deadline and suspends delivery. A resize or
+Worker reconnect on the same Host terminal preserves the original input floor. A newly observed
+turn may produce a separate notice with the same retry time. A new Host epoch requires new evidence
+because it owns a different input record.
+
+The [Host screen gate](../../terminal-host/docs/runtime-model.md#screen-gated-input) checks human
+input since the first visible working frame or the first trusted notice. For an initial prompt
+launched with Codex, the gate uses revision zero and requires a terminal with no human input.
+Transient refusals that prove zero queued input can retry from a fresh frame every three seconds
+for up to five minutes from the first sample after the deadline, so a machine that slept through
+the deadline still resumes when it wakes. A human takeover or an outcome that may have queued
+input consumes the notice. On Windows, Right ends the Codex paste burst before Enter submits the
+composer.
+
 ## Program status precedence
 
 Programs that implement the [OSC 7501 Program Status protocol](https://www.superlogical.com/rex/docs/build/program-status)

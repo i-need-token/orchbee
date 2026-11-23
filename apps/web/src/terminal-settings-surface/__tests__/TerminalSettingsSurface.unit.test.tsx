@@ -145,6 +145,57 @@ describe('TerminalSettingsSurface', () => {
 		return { close, container, controller, keyboardShortcutController, openCategory };
 	}
 
+	it('hides quota resume on a Server that does not publish the setting keys', async () => {
+		const settings = memoryUserSettings();
+		const state = settings.getSnapshot();
+		if (state.snapshot === null) throw new Error('Missing fixture settings snapshot');
+		const values = { ...state.snapshot.values };
+		delete values['agents.quota_resume.enabled'];
+		delete values['agents.quota_resume.prompt'];
+		vi.spyOn(settings, 'getSnapshot').mockReturnValue({
+			...state,
+			snapshot: { ...state.snapshot, values },
+		});
+		const { container, openCategory } = await renderSurface({ settings });
+		await openCategory('agents');
+		expect(container.querySelector('[data-setting-id="agents.quota-resume.enabled"]')).toBeNull();
+		expect(container.querySelector('[data-setting-id="agents.quota-resume.prompt"]')).toBeNull();
+	});
+
+	it('restores the quota prompt without writing an uncommitted draft', async () => {
+		const key = 'agents.quota_resume.prompt';
+		const settings = memoryUserSettings({ values: { [key]: 'Keep working' } });
+		const set = vi.spyOn(settings, 'set');
+		const restore = vi.spyOn(settings, 'restore');
+		const { container, openCategory } = await renderSurface({ settings });
+		await openCategory('agents');
+		const input = requiredElement<HTMLInputElement>(
+			container.querySelector("input[aria-label='Resume prompt']"),
+		);
+		const reset = requiredElement<HTMLButtonElement>(
+			container.querySelector("button[aria-label='Restore default: Resume prompt']"),
+		);
+		await act(async () => input.focus());
+		await changeInput(input, 'A draft that must not be written');
+		await act(async () => {
+			reset.focus();
+			reset.click();
+		});
+		expect(set).not.toHaveBeenCalled();
+		expect(restore).toHaveBeenCalledExactlyOnceWith([key]);
+		expect(input.value).toBe('continue');
+
+		await changeInput(input, 'Resume the paused task');
+		await act(async () => {
+			input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }));
+		});
+		expect(set).toHaveBeenCalledExactlyOnceWith(key, 'Resume the paused task');
+
+		set.mockClear();
+		await commitInput(input, 'Saved when focus leaves');
+		expect(set).toHaveBeenCalledExactlyOnceWith(key, 'Saved when focus leaves');
+	});
+
 	it('groups search matches under their category, then Escape clears search before leaving', async () => {
 		const { close, container } = await renderSurface();
 		const search = requiredElement<HTMLInputElement>(

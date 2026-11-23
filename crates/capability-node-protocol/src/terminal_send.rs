@@ -258,8 +258,7 @@ impl SendRecords {
             right_arrow,
         })
     }
-    /// Whether these records are exactly one unmodified Enter stroke, the only shape a
-    /// screen-gated request admits.
+    /// Whether these records are exactly one unmodified Enter stroke.
     #[must_use]
     pub fn screen_key(&self) -> bool {
         matches!(self.0.as_slice(), [enter] if plain_key(enter, SendKey::Enter).is_some())
@@ -307,9 +306,8 @@ pub enum SendPrecondition {
     /// single exchange, and only while the terminal's root shell waits at a confirmed fresh,
     /// empty prompt. A Host that does not offer the gate refuses it; it never falls back.
     IdlePrompt,
-    /// The records are one unmodified Enter ([`SendRecords::screen_key`]) that the Host types in a
-    /// single exchange, and only while the screen is still the frame the gate names. A Host that
-    /// does not offer the gate refuses it; it never falls back.
+    /// The Host types either one unmodified Enter or a whole prompt line in a single exchange,
+    /// while the screen is still the frame the gate names.
     Screen(SendScreenGate),
     /// The records are one unmodified Enter ([`SendRecords::screen_key`]) that the Host does not
     /// type. It is a hold: the Host types nothing and refuses every screen-gated key decided
@@ -710,8 +708,8 @@ impl TerminalSendOutcome {
 /// Server-assigned temporary input-only attachment identity the Worker must
 /// use verbatim. `records` is the ordered sequence — one temporary
 /// attachment serves the whole ordered exchange, and the sequence is never
-/// atomic across records or across other Clients' input, except that an
-/// [`SendPrecondition::IdlePrompt`] line is one Host exchange.
+/// atomic across records or across other Clients' input, except that a
+/// gated prompt line is one Host exchange.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TerminalSendRequest {
     pub request_id: OperationId,
@@ -723,23 +721,19 @@ pub struct TerminalSendRequest {
     pub records: SendRecords,
 }
 impl TerminalSendRequest {
-    /// An idle-prompt precondition admits only one prompt line, and a screen precondition only one
-    /// unmodified Enter under a gate in order; both codec boundaries check it.
+    /// Both codec boundaries check the record shape admitted by the precondition.
     pub(crate) fn validate(&self) -> Result<(), ProtocolError> {
         if self.precondition == SendPrecondition::IdlePrompt && self.records.prompt_line().is_none()
         {
             return Err(ProtocolError::InvalidPayload);
         }
         if let SendPrecondition::Screen(gate) = self.precondition
-            && gate.first_revision > gate.revision
+            && (gate.first_revision > gate.revision
+                || (!self.records.screen_key() && self.records.prompt_line().is_none()))
         {
             return Err(ProtocolError::InvalidPayload);
         }
-        if matches!(
-            self.precondition,
-            SendPrecondition::Screen(_) | SendPrecondition::ScreenHold
-        ) && !self.records.screen_key()
-        {
+        if self.precondition == SendPrecondition::ScreenHold && !self.records.screen_key() {
             return Err(ProtocolError::InvalidPayload);
         }
         Ok(())

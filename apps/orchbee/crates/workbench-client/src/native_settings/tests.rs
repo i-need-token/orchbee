@@ -103,6 +103,55 @@ fn key(field: UserSettingsField) -> String {
 }
 
 #[test]
+fn quota_controls_follow_the_server_and_explain_an_invalid_prompt() {
+    use crate::localization::SettingsTextRequirement;
+
+    let mut settings = snapshot(1, &UserSettingsValues::default(), &[]);
+    let quota_rows = |editor: &Editor| {
+        page(editor)
+            .entries()
+            .iter()
+            .filter(|entry| {
+                matches!(
+                    entry,
+                    Entry::Setting(Row::QuotaResumeEnabled | Row::QuotaResumePrompt)
+                )
+            })
+            .count()
+    };
+    let agents_page = |settings: &SettingsSnapshot| {
+        let mut editor = open(settings);
+        let token = page(&editor).token();
+        editor.control(token, Control::Category(Category::Agents));
+        draw(&mut editor);
+        editor
+    };
+    assert_eq!(quota_rows(&agents_page(&settings)), 0);
+    settings.values.extend([
+        (
+            SettingPath::parse(&key(UserSettingsField::QuotaResumeEnabled)).unwrap(),
+            Some(SettingScalar::Boolean(false)),
+        ),
+        (
+            SettingPath::parse(&key(UserSettingsField::QuotaResumePrompt)).unwrap(),
+            Some(SettingScalar::Text("continue".into())),
+        ),
+    ]);
+    let mut editor = agents_page(&settings);
+    assert_eq!(quota_rows(&editor), 2);
+    select(&mut editor, Row::QuotaResumePrompt);
+    editor.edit(Edit::Activate);
+    editor.edit(Edit::Home);
+    editor.edit(Edit::Insert('/'));
+    assert!(editor.edit(Edit::Activate).is_none());
+    assert_eq!(
+        page(&editor).text_requirement(),
+        Some(SettingsTextRequirement::QuotaResumePrompt)
+    );
+    assert_eq!(page(&editor).values().quota_resume_prompt, "continue");
+}
+
+#[test]
 fn every_common_setting_has_one_row_with_one_place_on_the_page() {
     // A theme list shows its slot's setting once, however many themes it lists.
     let mut placed: Vec<Row> = Category::all()
@@ -126,7 +175,7 @@ fn every_common_setting_has_one_row_with_one_place_on_the_page() {
         let mut keys: Vec<_> = catalog::entries(
             Page::AgentLaunch(provider),
             Category::Agents,
-            catalog::Filter::of("", &defaults, false),
+            catalog::Filter::of("", &defaults, false, true),
             None,
         )
         .into_iter()

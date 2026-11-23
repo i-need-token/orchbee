@@ -149,8 +149,7 @@ pub const PromptLineInput = struct {
     right_arrow: bool,
 };
 
-/// The keys a screen-gated input may type. The list is closed so this path
-/// can never type anything else.
+/// The key a screen-gated input types, with or without a preceding paste.
 pub const ScreenGatedKey = enum(u8) {
     enter = 1,
 };
@@ -176,11 +175,11 @@ pub const ScreenGatedKeyRequest = struct {
     first_revision: u64,
 };
 
-/// A screen-gated request either types one key or is a hold. A hold types
-/// nothing and counts as a person's action on the current screen, so every
-/// key decided before it is refused.
+/// A screen-gated request may type a key or a bracketed prompt followed by
+/// Enter. A hold counts as a person's action on the current screen.
 pub const ScreenGatedKeyInput = union(enum) {
     key: ScreenGatedKeyRequest,
+    prompt: struct { gate: ScreenGatedKeyRequest, content: []const u8, right_arrow: bool = false },
     hold,
 };
 

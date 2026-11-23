@@ -63,6 +63,27 @@ impl Zone {
             Some(last) => self.transitions.get(last)?.1,
         })
     }
+
+    /// An instant whose local second is exactly `local`, if it is unique.
+    #[cfg(unix)]
+    pub(super) fn at_local(&self, local: i64) -> Option<i64> {
+        let mut offsets = vec![self.initial];
+        offsets.extend(self.transitions.iter().map(|&(_, offset)| offset));
+        if let Some(rule) = &self.rule {
+            offsets.push(rule.standard);
+            offsets.extend(rule.daylight.as_ref().map(|daylight| daylight.offset));
+        }
+        offsets.sort_unstable();
+        offsets.dedup();
+        let mut result = None;
+        for offset in offsets {
+            let candidate = local.checked_sub(i64::from(offset))?;
+            if self.offset_at(candidate)? == offset && result.replace(candidate).is_some() {
+                return None;
+            }
+        }
+        result
+    }
 }
 
 /// The counts a TZif header declares for the data block after it.

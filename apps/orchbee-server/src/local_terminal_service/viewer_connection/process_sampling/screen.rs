@@ -7,6 +7,7 @@ use crate::{
     agent_confirmation::StyledRow,
     agent_screen::{Detection, ScreenDetector, ScreenInput},
     local_terminal_service::agent_confirmation::ConfirmationScreen,
+    local_terminal_service::agent_quota_resume::QuotaResumes,
     local_terminal_service::tab_close::evidence::{CloseFacts, CloseSample, ShellReport},
     session_coordinator::{host_time_as_creation, identify_host_agent},
 };
@@ -588,6 +589,7 @@ pub(super) fn observe(
     template: WorkerRequest,
     stop: &AtomicBool,
     detector: &ScreenDetector,
+    quota_resumes: Option<&mut QuotaResumes>,
 ) {
     let started = Instant::now();
     // Bracket the same fresh projection used for lifecycle/directory observation. Sampling
@@ -658,14 +660,14 @@ pub(super) fn observe(
         let captured = (status.is_none()
             || viewer.service.reads_agent_confirmation(selected.provider))
         .then(|| {
-            projection.and_then(|frame| {
-                let mut captured = capture_frame(viewer, template, stop, &frame)?;
+            projection.as_ref().and_then(|frame| {
+                let mut captured = capture_frame(viewer, template, stop, frame)?;
                 // Only a screen that holds a dialog told apart by style costs the styled read.
                 if viewer
                     .service
                     .confirmation_needs_styles(selected.provider, &captured.text)
                 {
-                    captured.styles = capture_styles(viewer, template, stop, &frame);
+                    captured.styles = capture_styles(viewer, template, stop, frame);
                     captured.styles_refused = captured.styles.is_none();
                 }
                 Some(captured)
@@ -724,6 +726,19 @@ pub(super) fn observe(
             detection.state == orchbee_workbench_protocol::PanelAgentState::Blocked
         }),
     );
+    if !stop.load(Ordering::Acquire)
+        && let Some((resumes, agent)) = quota_resumes.zip(agent)
+        && let Some(frame) = &projection
+    {
+        resumes.observe(
+            viewer.service,
+            &viewer.handle,
+            viewer.target,
+            agent,
+            frame,
+            detection,
+        );
+    }
 }
 
 /// The program status report decides when the Host received it after the Agent process was

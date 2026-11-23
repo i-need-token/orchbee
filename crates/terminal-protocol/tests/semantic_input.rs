@@ -618,12 +618,11 @@ fn semantic_input_composes_with_the_transport_envelope() -> Result<(), Box<dyn E
     Ok(())
 }
 
-/// The message can only ever type Enter on one named frame for one named process, or hold.
+/// Key and prompt inputs name one frame and one process. A hold carries neither.
 #[test]
-fn screen_gated_key_input_admits_one_closed_key_request_or_an_empty_hold()
--> Result<(), Box<dyn Error>> {
+fn screen_gated_input_checks_each_admitted_shape() -> Result<(), Box<dyn Error>> {
     let mut unknown_flag = SCREEN_GATED_KEY_FIXTURE.to_vec();
-    unknown_flag[25] = 1 << 1;
+    unknown_flag[25] = 1 << 2;
     assert_payload_code(85, &unknown_flag, ProtocolErrorCode::UnknownRequiredFlag);
     for offset in 26..28 {
         let mut reserved = SCREEN_GATED_KEY_FIXTURE.to_vec();
@@ -694,6 +693,38 @@ fn screen_gated_key_input_admits_one_closed_key_request_or_an_empty_hold()
         named[offset] = 1;
         assert_payload_code(85, &named, ProtocolErrorCode::InvalidField);
     }
+    let prompt = |right_arrow| -> Result<_, io::Error> {
+        Ok(input(ScreenGatedAction::Prompt {
+            request: fixture_gated_key()?,
+            content: "继续".into(),
+            right_arrow,
+        }))
+    };
+    for (right_arrow, flag) in [(false, 2), (true, 6)] {
+        let prompt = prompt(right_arrow)?;
+        let encoded = encode_input_message(&prompt)?;
+        assert_eq!(encoded.payload[25], flag);
+        assert_eq!(&encoded.payload[64..], "继续".as_bytes());
+        assert_eq!(
+            decode_input_message(85, MessageRole::Request, &encoded.payload)?,
+            prompt
+        );
+    }
+    let mut invalid = encode_input_message(&prompt(false)?)?.payload;
+    invalid[25] |= 1;
+    assert_payload_code(85, &invalid, ProtocolErrorCode::UnknownRequiredFlag);
+    invalid[25] = 2;
+    invalid[64] = b'\n';
+    invalid.truncate(65);
+    assert_payload_code(85, &invalid, ProtocolErrorCode::InvalidField);
+    assert_payload_code(85, &invalid[..64], ProtocolErrorCode::InvalidField);
+    invalid.resize(
+        SCREEN_GATED_KEY_INPUT_BYTES
+            + orchbee_terminal_protocol::MAXIMUM_PASTE_AUTO_INPUT_BYTES
+            + 1,
+        b'x',
+    );
+    assert_payload_code(85, &invalid, ProtocolErrorCode::LimitExceeded);
     Ok(())
 }
 

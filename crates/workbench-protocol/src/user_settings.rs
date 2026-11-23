@@ -41,6 +41,21 @@ pub enum TerminalDisplayAppearance {
 /// The longest admitted color-theme id, in bytes.
 const MAXIMUM_COLOR_THEME_ID_BYTES: usize = 64;
 
+/// The default prompt Orchbee submits after a supported Agent's quota resets.
+pub const DEFAULT_QUOTA_RESUME_PROMPT: &str = "continue";
+pub const MAXIMUM_QUOTA_RESUME_PROMPT_BYTES: usize = 1024;
+
+/// A bounded line of prompt text. Codex treats leading / and ! as command prefixes.
+pub fn valid_quota_resume_prompt(value: &str) -> bool {
+    let text = value.trim();
+    !text.is_empty()
+        && !text.starts_with(['/', '!'])
+        && value.len() <= MAXIMUM_QUOTA_RESUME_PROMPT_BYTES
+        && !value
+            .chars()
+            .any(|character| character.is_control() || matches!(character, '\u{2028}' | '\u{2029}'))
+}
+
 /// Hidden means no attachment currently presents the Agent's terminal in a focused client.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -106,6 +121,11 @@ pub struct UserSettingsValues {
     /// Whether the Server answers OpenCode's routine confirmations for the person.
     #[serde(default)]
     pub auto_allow_opencode: bool,
+    /// Whether Orchbee submits a prompt when a supported Agent's quota resets.
+    #[serde(default)]
+    pub quota_resume_enabled: bool,
+    #[serde(default = "default_quota_resume_prompt")]
+    pub quota_resume_prompt: String,
     /// Per-provider preferences for new Agent starts made through Orchbee.
     #[serde(default)]
     pub agent_launch: UserAgentLaunchSettings,
@@ -133,6 +153,8 @@ impl Default for UserSettingsValues {
             auto_allow_codex: false,
             auto_allow_gemini: false,
             auto_allow_opencode: false,
+            quota_resume_enabled: false,
+            quota_resume_prompt: default_quota_resume_prompt(),
             agent_launch: UserAgentLaunchSettings::new(),
             launch_profiles: UserLaunchProfiles::default(),
         }
@@ -147,12 +169,17 @@ impl UserSettingsValues {
             && valid_color_theme_id(&self.dark_theme)
             && (1..=3600).contains(&self.completion_reminder_minimum_seconds)
             && self.scrollback_bytes <= 1_000_000_000
+            && valid_quota_resume_prompt(&self.quota_resume_prompt)
             && self.agent_launch.iter().all(|(provider, launch)| {
                 (!launch.yolo || provider.yolo_flag().is_some())
                     && parse_agent_arguments(&launch.arguments).is_ok()
             })
             && self.launch_profiles.is_valid()
     }
+}
+
+fn default_quota_resume_prompt() -> String {
+    DEFAULT_QUOTA_RESUME_PROMPT.into()
 }
 
 fn color_value<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {

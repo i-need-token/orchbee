@@ -13,7 +13,7 @@ fn hex(bytes: [u8; 16]) -> String {
 
 impl SessionCoordinator {
     /// The registered fact of the exact physical terminal `target` names, if it is still bound.
-    fn confirmation_physical(&self, target: BindingViewerTarget) -> Option<TerminalAgentBinding> {
+    fn agent_screen_binding(&self, target: BindingViewerTarget) -> Option<TerminalAgentBinding> {
         let worker = hex(target.worker.worker_id.as_bytes());
         let terminal = hex(target.terminal_id.as_bytes());
         self.terminal_agent_bindings()
@@ -35,7 +35,7 @@ impl SessionCoordinator {
         target: BindingViewerTarget,
         agent: Selected,
     ) -> Option<Option<WorkbenchDirectoryPath>> {
-        let physical = self.confirmation_physical(target)?;
+        let physical = self.agent_screen_binding(target)?;
         if self.published_run(&physical) != Some(agent) {
             return None;
         }
@@ -65,12 +65,13 @@ impl SessionCoordinator {
 
     /// Admits one Server-decided send to the exact physical terminal a sampler read: the binding is
     /// still exposed, started on the current Worker, unfenced and not closing.
-    pub(crate) fn prepare_confirmation_send(
+    pub(crate) fn prepare_agent_screen_send(
         &mut self,
         target: BindingViewerTarget,
         current_worker: Option<WorkerPlacement>,
+        agent: Option<Selected>,
     ) -> Option<SendOperationIdentities> {
-        let physical = self.confirmation_physical(target)?;
+        let physical = self.agent_screen_binding(target)?;
         let workbench = self.workbench.as_ref()?;
         if workbench.terminal_binding_exposure(workbench.session_id(), &physical.binding)
             != orchbee_server::WorkbenchBindingExposure::Exposed
@@ -81,6 +82,7 @@ impl SessionCoordinator {
             ) != Ok(target)
             || self.binding_has_close(&physical.binding)
             || self.target_lifecycle(target) != TargetLifecycle::Unfenced
+            || agent.is_some_and(|agent| self.published_run(&physical) != Some(agent))
         {
             return None;
         }

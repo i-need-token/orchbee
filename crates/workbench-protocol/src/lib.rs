@@ -17,9 +17,10 @@ pub use agent_view::{
     MAXIMUM_AGENT_VIEW_SPEC_BYTES, parse_agent_view_spec,
 };
 pub use user_settings::{
-    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
-    TerminalDisplayAppearance, UserLaunchCommand, UserLaunchField, UserLaunchProfile,
-    UserLaunchProfiles, UserSettingsValues,
+    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, DEFAULT_QUOTA_RESUME_PROMPT,
+    MAXIMUM_QUOTA_RESUME_PROMPT_BYTES, SettingsLocale, TerminalDisplayAppearance,
+    UserLaunchCommand, UserLaunchField, UserLaunchProfile, UserLaunchProfiles, UserSettingsValues,
+    valid_quota_resume_prompt,
 };
 mod carrier;
 mod multiplex;

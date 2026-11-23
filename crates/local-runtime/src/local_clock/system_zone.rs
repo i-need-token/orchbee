@@ -42,18 +42,26 @@ static ZONE: Mutex<Option<(Identity, Option<Zone>)>> = Mutex::new(None);
 
 /// The system zone's offset east of UTC at `seconds`, or `None` when no usable zone is installed.
 pub(super) fn offset_at(seconds: i64) -> Option<i32> {
+    with_zone(|zone| zone.offset_at(seconds))
+}
+
+pub(super) fn at_local(seconds: i64) -> Option<i64> {
+    with_zone(|zone| zone.at_local(seconds))
+}
+
+fn with_zone<T>(use_zone: impl FnOnce(&Zone) -> Option<T>) -> Option<T> {
     let identity = Identity::of(&fs::metadata(PATH).ok()?);
     // The cache holds no invariant a panicking holder could break, so a poisoned lock is reused.
     let mut held = ZONE.lock().unwrap_or_else(PoisonError::into_inner);
     if let Some((known, zone)) = held.as_ref()
         && *known == identity
     {
-        return zone.as_ref()?.offset_at(seconds);
+        return use_zone(zone.as_ref()?);
     }
     let (identity, zone) = read()?;
-    let offset = zone.as_ref().and_then(|zone| zone.offset_at(seconds));
+    let result = zone.as_ref().and_then(use_zone);
     *held = Some((identity, zone));
-    offset
+    result
 }
 
 /// Reads the file once through one handle, so its identity and content agree.

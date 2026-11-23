@@ -5,6 +5,7 @@ use super::{
     WorkerRequest, WorkerRequestError, WorkerRequestHandle,
 };
 use crate::agent_screen::ScreenDetector;
+use crate::local_terminal_service::agent_quota_resume::QuotaResumes;
 use crate::session_coordinator::ProcessObservationTarget;
 use std::sync::atomic::{AtomicBool, Ordering};
 pub(in crate::local_terminal_service) mod screen;
@@ -88,9 +89,10 @@ impl LocalTerminalService {
         target: &ProcessObservationTarget,
         stop: &AtomicBool,
         detector: &ScreenDetector,
+        quota_resumes: Option<&mut QuotaResumes>,
     ) -> Option<PendingCleanup> {
         self.with_observation_viewer(target, stop, |viewer, template| {
-            screen::observe(viewer, template, stop, detector);
+            screen::observe(viewer, template, stop, detector, quota_resumes);
         })
     }
 

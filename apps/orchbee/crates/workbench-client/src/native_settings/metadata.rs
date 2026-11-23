@@ -13,6 +13,9 @@ pub(crate) enum SettingControl {
     FiniteChoice,
     Boolean,
     Color,
+    SingleLine {
+        maximum_bytes: usize,
+    },
     BoundedInteger {
         minimum: u64,
         maximum: u64,
@@ -46,6 +49,8 @@ pub(crate) enum SettingEffect {
     /// Applies to the confirmations Agents show from now on; turning it off also stops an
     /// answer already decided.
     AgentConfirmations,
+    /// Applies to pending and future quota resumptions.
+    AgentQuotaResume,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -5,9 +5,9 @@
 use super::super::*;
 use orchbee_capability_node_protocol::{
     HostCreationId, HostTerminalId, HostTerminalIdentity, OperationId, SendCleanupStatus, SendKey,
-    SendKeyStroke, SendPrecondition, SendProgress, SendRecord, SendRecords, SendRejection,
-    SendScreenGate, SendScreenState, SendStrokeKey, TerminalSendOutcome, TerminalSendRequest,
-    WorkerGeneration, WorkerId,
+    SendKeyStroke, SendPasteContent, SendPrecondition, SendProgress, SendRecord, SendRecords,
+    SendRejection, SendScreenGate, SendScreenState, SendStrokeKey, TerminalSendOutcome,
+    TerminalSendRequest, WorkerGeneration, WorkerId,
 };
 use orchbee_terminal_protocol::{
     AttachmentCapabilities, AttachmentControl, AttachmentId, ConnectionControl, Envelope,
@@ -41,6 +41,7 @@ fn host(screen_gated_send: bool) -> TestResult<(HostBrokerConnection, UnixStream
             host_epoch: HostEpoch::from_bytes(EPOCH)?,
             prompt_gated_input: true,
             screen_gated_send,
+            screen_gated_prompt: false,
             #[cfg(windows)]
             keeper: crate::host_connection::KeeperTerms::default(),
             #[cfg(windows)]
@@ -359,5 +360,55 @@ fn screen_send_to_an_ungated_host_is_refused_before_any_record() -> TestResult {
     let mut written = Vec::new();
     peer.read_to_end(&mut written)?;
     assert!(written.is_empty(), "the ungated Host received {written:?}");
+    Ok(())
+}
+
+#[test]
+fn a_screen_prompt_is_one_host_exchange_and_requires_the_prompt_capability() -> TestResult {
+    let prompt = "继续";
+    let mut request = screen_request(71, SendPrecondition::Screen(gate()?))?;
+    request.records = SendRecords::new(vec![
+        SendRecord::Paste {
+            content: SendPasteContent::new(prompt.as_bytes().to_vec())?,
+        },
+        SendRecord::Stroke(SendKeyStroke::new(SendStrokeKey::Named(SendKey::Right), 0)?),
+        enter()?,
+    ])?;
+    {
+        let (old_host, mut peer) = host(true)?;
+        assert_eq!(
+            execute(request.clone(), &old_host)?,
+            TerminalSendOutcome::Rejected {
+                reason: SendRejection::HostScreenGateUnsupported,
+                progress: SendProgress::none(),
+                cleanup: SendCleanupStatus::NotNeeded,
+            }
+        );
+        drop(old_host);
+        let mut written = Vec::new();
+        peer.read_to_end(&mut written)?;
+        assert!(written.is_empty());
+    }
+
+    let (mut host, mut peer) = host(true)?;
+    host.screen_gated_prompt = true;
+    let served = thread::spawn(move || serve_one_send(&mut peer, |key| accept(key, 19)));
+    assert_eq!(
+        execute(request, &host)?,
+        TerminalSendOutcome::Accepted {
+            progress: SendProgress::complete(3, 19),
+            cleanup: SendCleanupStatus::Confirmed,
+        }
+    );
+    let input = served
+        .join()
+        .map_err(|_| "the scripted Host panicked")?
+        .map_err(|error| -> Box<dyn Error> { error })?;
+    assert!(matches!(
+        input,
+        InputMessage::ScreenGatedKeyInput(ScreenGatedKeyInput {
+            action: ScreenGatedAction::Prompt { content, right_arrow: true, .. }, ..
+        }) if content == prompt
+    ));
     Ok(())
 }

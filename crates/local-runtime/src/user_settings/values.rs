@@ -34,12 +34,14 @@ pub enum UserSettingsField {
     AutoAllowCodex,
     AutoAllowGemini,
     AutoAllowOpenCode,
+    QuotaResumeEnabled,
+    QuotaResumePrompt,
     LaunchProfiles,
 }
 
 impl UserSettingsField {
     /// Every fixed row, so a caller that walks the values cannot silently omit one.
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 22] = [
         Self::Locale,
         Self::ApplicationTheme,
         Self::LightTheme,
@@ -59,6 +61,8 @@ impl UserSettingsField {
         Self::AutoAllowCodex,
         Self::AutoAllowGemini,
         Self::AutoAllowOpenCode,
+        Self::QuotaResumeEnabled,
+        Self::QuotaResumePrompt,
         Self::LaunchProfiles,
     ];
 
@@ -84,6 +88,8 @@ impl UserSettingsField {
             Self::AutoAllowCodex => "agents.auto_allow.codex",
             Self::AutoAllowGemini => "agents.auto_allow.gemini",
             Self::AutoAllowOpenCode => "agents.auto_allow.opencode",
+            Self::QuotaResumeEnabled => "agents.quota_resume.enabled",
+            Self::QuotaResumePrompt => "agents.quota_resume.prompt",
             Self::LaunchProfiles => return None,
         })
     }
@@ -110,6 +116,8 @@ impl UserSettingsField {
             Self::AutoAllowCodex => "autoAllowCodex",
             Self::AutoAllowGemini => "autoAllowGemini",
             Self::AutoAllowOpenCode => "autoAllowOpencode",
+            Self::QuotaResumeEnabled => "quotaResumeEnabled",
+            Self::QuotaResumePrompt => "quotaResumePrompt",
             Self::LaunchProfiles => "launchProfiles",
         }
     }

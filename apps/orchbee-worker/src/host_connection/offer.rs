@@ -12,8 +12,8 @@ use std::{
 use orchbee_connection_handshake::{
     BACKGROUND_PROGRAMS, Build, CapabilityName, CapabilitySet, ConnectionKind, EnvironmentName,
     HANDOVER, InitiatorMessage, KEEPER, Offer, OfferFailure, PROMPT_GATED_INPUT, ProductVersion,
-    RECOVERY, ReadError, RejectionReason, SCREEN_GATED_SEND, SourceCommit, conclude_offer,
-    encode_initiator_frame, read_acceptor_message,
+    RECOVERY, ReadError, RejectionReason, SCREEN_GATED_PROMPT, SCREEN_GATED_SEND, SourceCommit,
+    conclude_offer, encode_initiator_frame, read_acceptor_message,
 };
 
 /// How long a Worker waits before it dials a busy Host again.
@@ -40,6 +40,8 @@ pub(super) struct Answer {
     /// Without it a gated key is refused, never sent ungated; `screen-gated-input` alone, the
     /// name of the first Hosts that served the key, is not enough.
     pub(super) screen_gated_send: bool,
+    /// The Host can queue a whole prompt with the screen gate (`screen-gated-prompt`).
+    pub(super) screen_gated_prompt: bool,
     /// Whether the Host holds its running terminals in a Keeper this Worker attaches
     /// (`keeper`) and recovers a program the Keeper kept after its Host ended (`recovery`).
     #[cfg(windows)]
@@ -131,6 +133,7 @@ pub(super) fn exchange(
         Ok(answer) => Ok(Outcome::Answered(Answer {
             prompt_gated_input: answer.capabilities.contains(PROMPT_GATED_INPUT),
             screen_gated_send: answer.capabilities.contains(SCREEN_GATED_SEND),
+            screen_gated_prompt: answer.capabilities.contains(SCREEN_GATED_PROMPT),
             #[cfg(windows)]
             keeper: super::KeeperTerms {
                 keeper: answer.capabilities.contains(KEEPER),

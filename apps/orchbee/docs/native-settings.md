@@ -262,6 +262,8 @@ name:
 | `autoAllowCodex`                   | No preview                                                                    | Confirmations Codex shows from now on; Off also stops an answer already decided                                                       |
 | `autoAllowGemini`                  | No preview                                                                    | Confirmations Gemini CLI shows from now on; Off also stops an answer already decided                                                  |
 | `autoAllowOpencode`                | No preview                                                                    | Confirmations OpenCode shows from now on; Off also stops an answer already decided                                                    |
+| `quotaResumeEnabled`               | No preview                                                                    | Pending and future Codex quota resumes on the Session's machine                                                                       |
+| `quotaResumePrompt`                | No preview                                                                    | Text used when the current Codex resume is admitted                                                                                   |
 | `launchProfiles`                   | Child-page edits apply as one edit on leaving                                 | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                                    |
 
 Native host configuration is a separate admitted surface, not extra shared-editor

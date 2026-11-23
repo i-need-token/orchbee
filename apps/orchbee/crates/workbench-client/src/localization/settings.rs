@@ -327,6 +327,12 @@ impl Locale {
                     "请输入 #RRGGBB 格式的颜色。",
                 )
                 .to_owned(),
+            (_, SettingsTextRequirement::QuotaResumePrompt) => self
+                .setting(
+                    "Enter a nonblank line of up to 1,024 UTF-8 bytes. Use no control characters and start with a character other than / or !.",
+                    "请输入一行非空提示词，最多 1,024 个 UTF-8 字节，不含控制字符，开头不能是 / 或 !。",
+                )
+                .to_owned(),
             (Self::EnUs, SettingsTextRequirement::WholeNumber { minimum, maximum }) => {
                 format!("Enter a whole number from {minimum} to {maximum}.")
             }

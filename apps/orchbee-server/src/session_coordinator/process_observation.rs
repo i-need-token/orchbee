@@ -11,7 +11,10 @@ use orchbee_terminal_protocol::{
     MAXIMUM_PROCESS_SAMPLE_ROWS, TerminalProcessConsole, TerminalProcessInfo,
 };
 use orchbee_workbench_protocol::PresentationBinding;
-use std::{collections::BTreeMap, time::Instant};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::Instant,
+};
 mod host_conventions;
 mod identity;
 mod script_operands;
@@ -34,6 +37,10 @@ impl Selected {
     pub(crate) fn created(self) -> u64 {
         self.created
     }
+
+    pub(crate) fn created_unix_milliseconds(self) -> Option<u64> {
+        Some(self.created.checked_sub(UNIX_EPOCH_FILETIME)? / 10_000)
+    }
 }
 pub(super) struct Sample {
     target: TerminalAgentBinding,
@@ -52,6 +59,12 @@ pub(super) struct Sample {
     command_line: Option<(Selected, Vec<String>)>,
 }
 pub(super) type Samples = BTreeMap<(String, String), Sample>;
+
+pub(crate) struct ProcessObservationScan {
+    pub(crate) targets: Vec<ProcessObservationTarget>,
+    pub(crate) retained: BTreeSet<[u8; 16]>,
+}
+
 pub(super) fn key(binding: &PresentationBinding) -> (String, String) {
     (
         binding.worker_id.as_str().into(),
@@ -684,18 +697,30 @@ impl SessionCoordinator {
         &mut self,
     ) -> Result<Vec<ProcessObservationTarget>, orchbee_server::WorkbenchTerminalInvariantError>
     {
+        self.process_observation_scan().map(|scan| scan.targets)
+    }
+
+    /// A temporarily fenced terminal still belongs to the committed session
+    /// and retains evidence owned by the periodic sampler.
+    pub(crate) fn process_observation_scan(
+        &mut self,
+    ) -> Result<ProcessObservationScan, orchbee_server::WorkbenchTerminalInvariantError> {
         use orchbee_server::WorkbenchTerminalInvariantError as Invalid;
         let Some(workbench) = self.workbench.as_ref() else {
             self.process_samples.clear();
             self.terminal_observations.clear();
             #[cfg(any(windows, target_os = "macos"))]
             self.carried_agent_sessions.clear();
-            return Ok(vec![]);
+            return Ok(ProcessObservationScan {
+                targets: vec![],
+                retained: BTreeSet::new(),
+            });
         };
         let session_id = workbench.session_id().clone();
         let facts = self.agent_registration_snapshot()?;
         let mut targets = BTreeMap::new();
         let mut retained = Vec::new();
+        let mut retained_ids = BTreeSet::new();
         for fact in facts {
             let binding = fact.binding().clone();
             retained.push(TerminalAgentBinding {
@@ -717,6 +742,7 @@ impl SessionCoordinator {
                     generation: fact.worker_generation(),
                 },
             };
+            retained_ids.insert(terminal_id.as_bytes());
             if self.target_lifecycle(target) != super::TargetLifecycle::Unfenced {
                 continue;
             }
@@ -737,6 +763,9 @@ impl SessionCoordinator {
             .retain(|_, s| retained.contains(&s.physical));
         #[cfg(any(windows, target_os = "macos"))]
         self.retain_carried_agent_sessions(&retained);
-        Ok(targets.into_values().collect())
+        Ok(ProcessObservationScan {
+            targets: targets.into_values().collect(),
+            retained: retained_ids,
+        })
     }
 }

@@ -40,6 +40,7 @@ mod agent_confirmation;
 mod agent_drain_read;
 mod agent_integration;
 mod agent_names;
+mod agent_quota_resume;
 #[cfg(any(windows, target_os = "macos"))]
 mod agent_resume;
 mod agent_start_delivery;

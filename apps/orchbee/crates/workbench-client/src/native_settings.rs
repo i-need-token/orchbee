@@ -115,6 +115,7 @@ pub(crate) struct Confirmed {
     file_path: Option<String>,
     set: Vec<String>,
     texts: Vec<(&'static str, Option<String>)>,
+    quota_resume_supported: bool,
 }
 impl Confirmed {
     pub(crate) fn of(snapshot: &SettingsSnapshot) -> Self {
@@ -140,6 +141,9 @@ impl Confirmed {
                 .map(|key| key.as_str().to_owned())
                 .collect(),
             texts: vec![text("keys.prefix")],
+            quota_resume_supported: ["agents.quota_resume.enabled", "agents.quota_resume.prompt"]
+                .iter()
+                .all(|key| snapshot.values.keys().any(|path| path.as_str() == *key)),
         }
     }
     fn sets(&self, key: &str) -> bool {

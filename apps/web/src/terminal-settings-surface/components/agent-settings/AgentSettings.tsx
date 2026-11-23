@@ -9,6 +9,7 @@ import { SettingsGroup } from '../settings-group/SettingsGroup';
 import styles from './AgentSettings.module.css';
 import { AgentConfirmationRow } from './components/agent-confirmation-row/AgentConfirmationRow';
 import { AgentLaunchSettings } from './components/agent-launch-settings/AgentLaunchSettings';
+import { QuotaResumeSettings } from './components/quota-resume-settings/QuotaResumeSettings';
 
 interface AgentSettingsProps {
 	readonly catalog?: AgentLaunchCatalogSource | undefined;
@@ -18,7 +19,7 @@ interface AgentSettingsProps {
 	readonly userSettings: UserSettingsControl;
 }
 
-/** For which Agent types Orchbee answers routine confirmations, and each Agent's launch options. */
+/** Agent confirmation, quota resume and launch settings. */
 export function AgentSettings({
 	catalog,
 	query,
@@ -83,6 +84,7 @@ export function AgentSettings({
 					userSettings={userSettings}
 				/>
 			</SettingsGroup>
+			<QuotaResumeSettings query={query} userSettings={userSettings} />
 			{/* Last, since it lists every Agent and would push the switches above out of view. */}
 			<AgentLaunchSettings catalog={catalog} query={query} userSettings={userSettings} />
 		</>

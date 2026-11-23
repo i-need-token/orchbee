@@ -167,6 +167,33 @@ const Fixture = struct {
     }
 };
 
+test "screen gate: a prompt queues bracketed paste, Right and Enter together and refuses a person's newer input" {
+    var fixture: Fixture = .{};
+    try fixture.init();
+    defer fixture.deinit();
+
+    const prompt = "继续";
+    try fixture.expectRefused(error.ScreenChanged, .{
+        .prompt = .{ .gate = fixture.freshKey().key, .content = prompt },
+    });
+    try fixture.output("\x1b[?2004h");
+    const first = fixture.revision();
+    const line: protocol.ScreenGatedKeyInput = .{
+        .prompt = .{ .gate = fixture.freshKey().key, .content = prompt, .right_arrow = true },
+    };
+    const bytes = try fixture.submit(line);
+    defer std.testing.allocator.free(bytes);
+    try std.testing.expectEqualSlices(u8, "\x1b[200~继续\x1b[201~\x1b[C\r", bytes);
+    try fixture.expectRefused(error.ScreenAlreadyTyped, line);
+
+    try fixture.output("\r\nA later frame");
+    try fixture.personTypes("human");
+    fixture.after(quiet);
+    try fixture.expectRefused(error.ScreenPersonInput, .{
+        .prompt = .{ .gate = fixture.key(first).key, .content = prompt },
+    });
+}
+
 test "screen gate: a key is typed once, on the frame it names, for a process in the terminal" {
     var fixture: Fixture = .{};
     try fixture.init();

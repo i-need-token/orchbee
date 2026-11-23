@@ -675,6 +675,29 @@
 			"page": false
 		},
 		{
+			"path": "agents.quota_resume.enabled",
+			"type": "boolean",
+			"default": false,
+			"scope": "server",
+			"clients": "both",
+			"effect": "immediate",
+			"category": "agents",
+			"group": "quota-resume",
+			"page": true
+		},
+		{
+			"path": "agents.quota_resume.prompt",
+			"type": "text",
+			"maximumBytes": 1024,
+			"default": "continue",
+			"scope": "server",
+			"clients": "both",
+			"effect": "immediate",
+			"category": "agents",
+			"group": "quota-resume",
+			"page": true
+		},
+		{
 			"path": "update.channel",
 			"type": "choice",
 			"choices": ["stable", "preview"],

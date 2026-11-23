@@ -42,6 +42,7 @@ fn host(prompt_gated_input: bool) -> TestResult<(HostBrokerConnection, UnixStrea
             host_epoch: HostEpoch::from_bytes(EPOCH)?,
             prompt_gated_input,
             screen_gated_send: prompt_gated_input,
+            screen_gated_prompt: false,
             #[cfg(windows)]
             keeper: crate::host_connection::KeeperTerms::default(),
             #[cfg(windows)]

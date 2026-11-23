@@ -26,6 +26,8 @@ const KEY_FLAGS_MASK: u8 = 0b11;
 const PASTE_FLAGS_MASK: u8 = 0b1;
 const PROMPT_LINE_FLAGS_MASK: u8 = 0b1;
 const SCREEN_GATED_HOLD_FLAG: u8 = 0b1;
+const SCREEN_GATED_PROMPT_FLAG: u8 = 0b10;
+const SCREEN_GATED_PROMPT_RIGHT_FLAGS: u8 = 0b110;
 const SCREEN_GATED_ENTER: u8 = 1;
 const MODIFIER_FLAGS_MASK: u16 = 0x03ff;
 const MOUSE_BUTTON_FLAGS_MASK: u16 = 0x07ff;
@@ -132,8 +134,7 @@ pub struct PromptLineInput {
     pub content: String,
 }
 
-/// The keys a screen-gated input may type. The list is closed, so this message can never type
-/// anything else.
+/// The key a screen-gated input may type, with or without a preceding paste.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScreenGatedKey {
     Enter,
@@ -163,13 +164,19 @@ pub struct ScreenGatedKeyRequest {
 
 /// What a screen-gated input asks for. A hold types nothing and counts as a person's action on
 /// the current screen, so the Host refuses every key decided before it.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ScreenGatedAction {
     Key(ScreenGatedKeyRequest),
+    /// A prompt paste, optional unmodified Right and Enter queued under the screen gate.
+    Prompt {
+        request: ScreenGatedKeyRequest,
+        content: String,
+        right_arrow: bool,
+    },
     Hold,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ScreenGatedKeyInput {
     pub attachment_id: AttachmentId,
     pub capability_revision: NonZeroU64,
@@ -497,9 +504,9 @@ pub(crate) fn decode_screen_gated_key_input(
     if payload.len() < SCREEN_GATED_KEY_INPUT_BYTES {
         return Err(truncated("ScreenGatedKeyInput payload is truncated"));
     }
-    if payload.len() != SCREEN_GATED_KEY_INPUT_BYTES {
-        return Err(length_mismatch(
-            "ScreenGatedKeyInput must be exactly 64 bytes",
+    if payload.len() > SCREEN_GATED_KEY_INPUT_BYTES + MAXIMUM_PASTE_AUTO_INPUT_BYTES {
+        return Err(limit_exceeded(
+            "ScreenGatedKeyInput payload exceeds its bound",
         ));
     }
     let authority = decode_input_authority(payload)?;
@@ -511,12 +518,22 @@ pub(crate) fn decode_screen_gated_key_input(
     let revision = read_u64(payload, 40)?;
     let first_revision = read_u64(payload, 48)?;
     let creation_time = read_u64(payload, 56)?;
-    if flags & !SCREEN_GATED_HOLD_FLAG != 0 || reserved != 0 {
+    let prompt = matches!(
+        flags,
+        SCREEN_GATED_PROMPT_FLAG | SCREEN_GATED_PROMPT_RIGHT_FLAGS
+    );
+    if (!prompt && !matches!(flags, 0 | SCREEN_GATED_HOLD_FLAG)) || reserved != 0 {
         return Err(unknown_required_flag(
             "ScreenGatedKeyInput has unknown flags or reserved bytes",
         ));
     }
-    let action = if flags & SCREEN_GATED_HOLD_FLAG != 0 {
+    let content = &payload[SCREEN_GATED_KEY_INPUT_BYTES..];
+    if !prompt && !content.is_empty() {
+        return Err(length_mismatch(
+            "ScreenGatedKeyInput key or hold must be 64 bytes",
+        ));
+    }
+    let action = if flags == SCREEN_GATED_HOLD_FLAG {
         if key != 0
             || pid != 0
             || generation != 0
@@ -540,13 +557,29 @@ pub(crate) fn decode_screen_gated_key_input(
             ));
         };
         validate_screen_gated_revisions(first_revision, revision)?;
-        ScreenGatedAction::Key(ScreenGatedKeyRequest {
+        let request = ScreenGatedKeyRequest {
             key: ScreenGatedKey::Enter,
             process: ScreenGatedProcess { pid, creation_time },
             generation,
             revision,
             first_revision,
-        })
+        };
+        if prompt {
+            let content = decode_utf8(content, "ScreenGatedKeyInput prompt needs UTF-8")?;
+            validate_prompt_line_content(&content)?;
+            if creation_time == 0 {
+                return Err(invalid_field(
+                    "ScreenGatedKeyInput prompt needs a process creation time",
+                ));
+            }
+            ScreenGatedAction::Prompt {
+                request,
+                content,
+                right_arrow: flags == SCREEN_GATED_PROMPT_RIGHT_FLAGS,
+            }
+        } else {
+            ScreenGatedAction::Key(request)
+        }
     };
     Ok(ScreenGatedKeyInput {
         attachment_id: authority.attachment_id,
@@ -556,28 +589,47 @@ pub(crate) fn decode_screen_gated_key_input(
 }
 
 pub(crate) fn encode_screen_gated_key_input(
-    value: ScreenGatedKeyInput,
+    value: &ScreenGatedKeyInput,
 ) -> Result<Vec<u8>, ProtocolError> {
     let mut payload = Vec::with_capacity(SCREEN_GATED_KEY_INPUT_BYTES);
     append_authority(&mut payload, value.attachment_id, value.capability_revision);
-    match value.action {
+    let (request, content, flags) = match &value.action {
         ScreenGatedAction::Hold => {
             payload.extend_from_slice(&[0, SCREEN_GATED_HOLD_FLAG]);
             payload.resize(SCREEN_GATED_KEY_INPUT_BYTES, 0);
+            return Ok(payload);
         }
-        ScreenGatedAction::Key(request) => {
-            validate_screen_gated_revisions(request.first_revision, request.revision)?;
-            let key = match request.key {
-                ScreenGatedKey::Enter => SCREEN_GATED_ENTER,
+        ScreenGatedAction::Key(request) => (request, "", 0),
+        ScreenGatedAction::Prompt {
+            request,
+            content,
+            right_arrow,
+        } => {
+            validate_prompt_line_content(content)?;
+            if request.process.creation_time == 0 {
+                return Err(invalid_field(
+                    "ScreenGatedKeyInput prompt needs a process creation time",
+                ));
+            }
+            let flags = if *right_arrow {
+                SCREEN_GATED_PROMPT_RIGHT_FLAGS
+            } else {
+                SCREEN_GATED_PROMPT_FLAG
             };
-            payload.extend_from_slice(&[key, 0, 0, 0]);
-            append_u32(&mut payload, request.process.pid.get());
-            append_u64(&mut payload, request.generation.get());
-            append_u64(&mut payload, request.revision);
-            append_u64(&mut payload, request.first_revision);
-            append_u64(&mut payload, request.process.creation_time);
+            (request, content.as_str(), flags)
         }
-    }
+    };
+    validate_screen_gated_revisions(request.first_revision, request.revision)?;
+    let key = match request.key {
+        ScreenGatedKey::Enter => SCREEN_GATED_ENTER,
+    };
+    payload.extend_from_slice(&[key, flags, 0, 0]);
+    append_u32(&mut payload, request.process.pid.get());
+    append_u64(&mut payload, request.generation.get());
+    append_u64(&mut payload, request.revision);
+    append_u64(&mut payload, request.first_revision);
+    append_u64(&mut payload, request.process.creation_time);
+    payload.extend_from_slice(content.as_bytes());
     Ok(payload)
 }
 

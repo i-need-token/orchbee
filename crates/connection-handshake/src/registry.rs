@@ -22,6 +22,9 @@ pub const SCREEN_GATED_INPUT: &str = "screen-gated-input";
 /// button leaves no person's input. A Host without it gets no gated key and no ungated fallback.
 pub const SCREEN_GATED_SEND: &str = "screen-gated-send";
 
+/// The additional `worker-host` capability for a screen-gated prompt line.
+pub const SCREEN_GATED_PROMPT: &str = "screen-gated-prompt";
+
 /// The `client-server` capability before a Client may ask physical Explain to place the Agent's
 /// input area. A Server without it never receives the flag.
 pub const AGENT_INPUT_AREA: &str = "agent-input-area";
@@ -184,7 +187,7 @@ impl ConnectionKind {
                 UPDATE_CHECK,
                 WORKSPACE_IDLE,
             ],
-            Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_SEND],
+            Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_PROMPT, SCREEN_GATED_SEND],
             Self::MachineHub | Self::MachineLink => &[CAPACITY],
             Self::Keeper => &[PROGRAMS, RECOVERY],
         };
@@ -217,6 +220,7 @@ impl ConnectionKind {
                 PROMPT_GATED_INPUT,
                 RECOVERY,
                 SCREEN_GATED_INPUT,
+                SCREEN_GATED_PROMPT,
                 SCREEN_GATED_SEND,
             ]),
             Self::Keeper => capability_set(&[PROGRAMS, RECOVERY]),

@@ -20,6 +20,8 @@ export interface SettingView<Key extends SettingKey> {
 	readonly modified: boolean;
 	/** The file cannot be edited now, so the row shows its value without a working control. */
 	readonly readOnly: boolean;
+	/** Whether the Server publishes this scalar key, including its effective default. */
+	readonly supported: boolean;
 	/** The file's value, or the key's default until the first snapshot arrives. */
 	readonly value: SettingValues[Key];
 	readonly restore: () => void;
@@ -39,6 +41,7 @@ export function useSetting<Key extends SettingKey>(
 		failureMessage: failure === null ? null : intl.formatMessage(settingsFailureMessage(failure)),
 		modified: isSettingSet(state.snapshot, key),
 		readOnly: isSettingsFileReadOnly(state.snapshot),
+		supported: state.snapshot !== null && Object.hasOwn(state.snapshot.values, key),
 		restore: (): void => {
 			void control.restore([key]);
 		},

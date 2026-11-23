@@ -395,26 +395,27 @@ A Host that serves `PromptLineInput` lists the capability `prompt-gated-input` i
 handshake answer. A Worker whose Host answer lacks it refuses an idle-prompt send before any
 attachment; it never types the line as ordinary input.
 
-`ScreenGatedKeyInput` (kind 85, raw-bytes request answered by `InputAccepted`) types one key from
-a closed list only while the screen is still the frame its sender decided on. Its sender read that
-frame earlier and concluded that the key answers what the frame shows; the Host makes the check and
-the write one step. It carries the 24-byte authority header and is exactly 64 bytes:
+`ScreenGatedKeyInput` (kind 85, raw-bytes request answered by `InputAccepted`) types Enter,
+optionally preceded by a bracketed prompt paste and an unmodified Right after the paste. The Host
+queues the input while the screen is still the frame the sender decided on. The 64-byte header
+starts with the 24-byte authority.
 
-| Bytes   | Field                                                                                                                    |
-| ------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `24`    | Key: `1` is Enter. No other key is defined.                                                                              |
-| `25`    | Flags: bit `0` is hold.                                                                                                  |
-| `26-27` | Reserved zero.                                                                                                           |
-| `28-31` | Process ID of the program the key answers.                                                                               |
-| `32-39` | Generation of the frame the sender decided on.                                                                           |
-| `40-47` | Content revision of that frame.                                                                                          |
-| `48-55` | First-seen revision: content revision of the frame where the sender first saw what it answers. Never after the revision. |
-| `56-63` | Creation time of that process, as the Host's process sample reports it.                                                  |
+| Bytes   | Field                                                                                                                       |
+| ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `24`    | Key: `1` is Enter. No other key is defined.                                                                                 |
+| `25`    | Flag `0` types Enter, `1` holds, `2` pastes the prompt then types Enter, and `6` inserts Right between the paste and Enter. |
+| `26-27` | Reserved zero.                                                                                                              |
+| `28-31` | Process ID of the program the key answers.                                                                                  |
+| `32-39` | Generation of the frame the sender decided on.                                                                              |
+| `40-47` | Content revision of that frame.                                                                                             |
+| `48-55` | First-seen revision: content revision of the frame where the sender first saw what it answers. Never after the revision.    |
+| `56-63` | Creation time of that process, as the Host's process sample reports it.                                                     |
+| `64+`   | For flags `2` and `6`, one nonempty UTF-8 prompt without C0 controls or DEL, within the raw payload bound.                  |
 
-Unknown flag bits or nonzero reserved bytes are rejected. A key request has a defined key, a
-nonzero process ID and generation, and a first-seen revision at or before its revision. A hold sets
-bit `0` and every byte after the flags to zero, and names no key. The Worker is the only intended
-sender; no TypeScript producer exists.
+Unknown flag values and nonzero reserved bytes are rejected. A key or prompt has a defined key,
+a nonzero process ID and generation, and a first-seen revision at or before its revision. The
+prompt also requires a nonzero process creation time. A hold sets flag `1` and zeroes the key and
+all later fields. Enter and hold end at byte 64. The Worker is the intended sender.
 
 A person's input is every client input except a focus report, pointer motion with no button held,
 a screen-gated key, and the cleanup of an attachment that goes away while it holds no key and no
@@ -432,7 +433,8 @@ The Host types the key only when all of these hold:
 
 1. The terminal runs and takes client input.
 2. A process sample taken for this request lists the named process ID with the named creation
-   time; a failed sample refuses.
+   time. For a prompt, the process must share the terminal's console on Windows or be in its
+   foreground process group on POSIX.
 3. The terminal's generation and content revision equal the named ones, and no reader batch is
    between its parse and its commit.
 4. No screen-gated key was typed on this revision.
@@ -445,11 +447,12 @@ The Host types the key only when all of these hold:
    a frame read before that is refused, and the sender reads a later frame and decides again; the
    motion never makes the prompt a person's.
 
-Rules 3 to 7 are checked at preparation and again at publication, under the terminal and input
+For a prompt, bracketed-paste mode must be active. Rules 3 to 7 and the mode are checked at
+preparation and again at publication, under the terminal and input
 locks that also order output commits and input writes, so no output and no input fits between the
 check and the write. The process sample is taken once, before those locks. An admitted key is
-queued as one client entry holding its press and release under the terminal's current keyboard
-mode; `acceptedBytes` reports its length. It is not a person's input.
+queued as one client entry holding any bracketed paste, optional Right and encoded Enter.
+`acceptedBytes` reports its length. The entry updates the last gated input revision.
 
 A hold types nothing and is accepted with `acceptedBytes` zero. It is recorded as a person's input
 on the current screen, so rule 6 refuses every key decided before it: a sender that must stop
@@ -464,7 +467,7 @@ again and decides again.
 
 A Host that serves `ScreenGatedKeyInput` as this section describes lists the capability
 `screen-gated-send` in its `worker-host` handshake answer. A Worker whose Host answer lacks it
-sends no gated key and never types the key as ordinary input.
+refuses the request before attachment. A prompt also requires `screen-gated-prompt` in the answer.
 
 `screen-gated-input` is the name the Hosts of 0.1.0-beta.22 list. They serve the same record under
 the same seven rules, but record the cleanup of every attachment that goes away as a person's
@@ -1225,7 +1228,7 @@ The handshake may select smaller transport payload bounds. It never raises these
 | `WriteInput` raw payload               |           1 MiB + 24 B |
 | `PasteAutoInput` raw payload           |         256 KiB + 32 B |
 | `PromptLineInput` raw payload          |         256 KiB + 32 B |
-| `ScreenGatedKeyInput` raw payload      |                   64 B |
+| `ScreenGatedKeyInput` raw payload      |         256 KiB + 64 B |
 | Largest semantic input payload         |           1 MiB + 32 B |
 | Pending ordered input per terminal     |                  4 MiB |
 | Scrollback configuration per terminal  |        1,000,000,000 B |

@@ -95,7 +95,9 @@ pub(crate) struct HostBrokerConnection {
     prompt_gated_input: bool,
     /// The Host's answer listed `screen-gated-send`.
     screen_gated_send: bool,
-    /// The Host's answer listed `keeper` and `recovery`.
+    /// The Host's answer listed `screen-gated-prompt`.
+    screen_gated_prompt: bool,
+    /// The Host's answer listed `keeper`, `recovery`, and `handover`.
     #[cfg(windows)]
     keeper: KeeperTerms,
     /// The Keeper events the Host sent since the Worker last took them.
@@ -251,6 +253,7 @@ impl HostBrokerConnection {
             negotiated_limits,
             prompt_gated_input: answer.prompt_gated_input,
             screen_gated_send: answer.screen_gated_send,
+            screen_gated_prompt: answer.screen_gated_prompt,
             #[cfg(windows)]
             keeper: answer.keeper,
             #[cfg(windows)]
@@ -306,6 +309,7 @@ impl HostBrokerConnection {
             negotiated_limits,
             prompt_gated_input: answer.prompt_gated_input,
             screen_gated_send: answer.screen_gated_send,
+            screen_gated_prompt: answer.screen_gated_prompt,
             #[cfg(windows)]
             keeper: answer.keeper,
             #[cfg(windows)]
@@ -361,6 +365,10 @@ impl HostBrokerConnection {
     /// sender read.
     pub(crate) const fn screen_gated_send(&self) -> bool {
         self.screen_gated_send
+    }
+
+    pub(crate) const fn screen_gated_prompt(&self) -> bool {
+        self.screen_gated_prompt && self.screen_gated_send
     }
 
     /// Whether this Host holds its running terminals in a Keeper the Worker attaches.

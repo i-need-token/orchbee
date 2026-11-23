@@ -40,6 +40,7 @@ fn host(pacing: Pacing) -> TestResult<(HostBrokerConnection, UnixStream)> {
             host_epoch: HostEpoch::from_bytes(EPOCH)?,
             prompt_gated_input: false,
             screen_gated_send: false,
+            screen_gated_prompt: false,
             #[cfg(windows)]
             keeper: crate::host_connection::KeeperTerms::default(),
             #[cfg(windows)]

@@ -110,16 +110,17 @@ type TerminalSettingsCategory = NonNullable<
 >;
 
 /** The Server catalog's names for Launch options on the Agents page: a few installed Agents. */
+const storyAgentSnapshot = {
+	agents: [
+		{ command: 'claude', productName: 'Claude Code', providerId: 'claude-code', state: 'found' },
+		{ command: 'codex', productName: 'Codex', providerId: 'codex', state: 'found' },
+		{ command: 'gemini', productName: 'Gemini CLI', providerId: 'gemini', state: 'found' },
+		{ command: 'opencode', productName: 'OpenCode', providerId: 'opencode', state: 'found' },
+		{ command: 'pi', productName: 'Pi', providerId: 'pi', state: 'found' },
+	],
+} as const;
 const storyAgentCatalog: React.ComponentProps<typeof TerminalSettingsSurface>['agentCatalog'] = {
-	getSnapshot: () => ({
-		agents: [
-			{ command: 'claude', productName: 'Claude Code', providerId: 'claude-code', state: 'found' },
-			{ command: 'codex', productName: 'Codex', providerId: 'codex', state: 'found' },
-			{ command: 'gemini', productName: 'Gemini CLI', providerId: 'gemini', state: 'found' },
-			{ command: 'opencode', productName: 'OpenCode', providerId: 'opencode', state: 'found' },
-			{ command: 'pi', productName: 'Pi', providerId: 'pi', state: 'found' },
-		],
-	}),
+	getSnapshot: () => storyAgentSnapshot,
 	subscribe: () => () => undefined,
 };
 

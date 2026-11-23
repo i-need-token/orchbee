@@ -56,6 +56,8 @@ fn redact(value: &mut Value, key: &str, path: &str, redactor: &DiagnosticRedacto
         *value = COMMAND_PLACEHOLDER.into();
     } else if ARGUMENT_KEYS.contains(&key) {
         replace_leaves(value, ARGUMENT_PLACEHOLDER);
+    } else if crate::user_settings::UserSettingsField::QuotaResumePrompt.key() == Some(path) {
+        *value = "<prompt>".into();
     } else {
         match value {
             Value::Object(map) => {

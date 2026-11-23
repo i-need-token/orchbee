@@ -2828,13 +2828,14 @@ the first one turns PSReadLine history saving off.
 
 ## Screen-gated input
 
-`ScreenGatedKeyInput` types one key only while the screen is still the frame its sender decided
-on; the [protocol reference](../../../schemas/terminal/references/protocol.md) owns its payload,
+`ScreenGatedKeyInput` types Enter or a bracketed paste with optional Right before Enter while the
+screen is still the frame its sender decided on. The [protocol reference](../../../schemas/terminal/references/protocol.md) owns its payload,
 its seven rules, and its refusal codes. `engine/runtime/screen_gate.zig` holds the rules as one
-pure check over the named frame, the terminal's facts and an input record. The Host lists two
+pure check over the named frame, the terminal's facts and an input record. The Host lists
 capability names for it: `screen-gated-input`, which the Hosts of 0.1.0-beta.22 listed, and
 `screen-gated-send`, which adds that an attachment's cleanup is not a person's input and is the
-only name a Worker sends the key under.
+name a Worker sends the key under. A prompt also requires the `screen-gated-prompt` capability,
+a process that still takes the terminal's input, and active bracketed-paste mode.
 
 The input mutex owns the input record: the revision and monotonic time of the latest person's
 input, the monotonic time of the latest pointer motion that reached the program, and the revision
@@ -2861,7 +2862,7 @@ Preparation samples the terminal's processes before it takes a lock, because a s
 slow to hold the terminal mutex for; a failed sample refuses like a missing process. It then
 takes the terminal mutex and the input mutex, checks the frame, the record, the queue and the
 quiet time (`protocol.Limits.screen_gate_quiet_milliseconds`, 3000 ms), and reserves one client
-FIFO position holding the encoded press and release. Publication takes both mutexes again and
+FIFO position holding the encoded key and any prompt paste. Publication takes both mutexes again and
 repeats every rule except the process sample, with the reservation counted as the only pending
 entry. Every committed reader batch advances the content revision under the terminal mutex, and
 the reader marks a batch between its parse and its commit, so output cannot arrive between the

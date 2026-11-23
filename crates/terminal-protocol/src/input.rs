@@ -167,7 +167,7 @@ pub fn encode_input_message(value: &InputMessage) -> Result<EncodedInputMessage,
         InputMessage::ScreenGatedKeyInput(key) => (
             SCREEN_GATED_KEY_INPUT_KIND,
             MessageRole::Request,
-            encode_screen_gated_key_input(*key)?,
+            encode_screen_gated_key_input(key)?,
         ),
     };
     Ok(EncodedInputMessage {

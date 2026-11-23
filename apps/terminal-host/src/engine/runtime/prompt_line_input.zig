@@ -65,7 +65,7 @@ pub fn prepare(
 }
 
 /// The paste follows the terminal's bracketed-paste mode; each key is a tap.
-fn encodeLocked(
+pub fn encodeLocked(
     self: *state.State,
     input: terminal_input.PromptLineInput,
     maximum_bytes: usize,

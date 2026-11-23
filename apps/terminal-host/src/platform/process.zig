@@ -28,6 +28,17 @@ pub fn sampleProcesses(process: *Process, allocator: @import("std").mem.Allocato
     };
 }
 
+/// The exact prompt recipient still shares the PTY, and is in its foreground
+/// group where the platform exposes one. Windows assigns input by console.
+pub fn acceptsScreenPrompt(process: *const Process, member: @import("process_sample.zig").Process) !bool {
+    if (member.console != .attached) return false;
+    return switch (builtin.os.tag) {
+        .windows => true,
+        .linux, .macos => process.isForeground(member.pid),
+        else => false,
+    };
+}
+
 /// Stable platform-process facade. Each operating-system implementation owns
 /// its launch, signaling, wait, containment, and resource-release details.
 pub const Process = switch (builtin.os.tag) {

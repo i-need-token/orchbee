@@ -689,6 +689,29 @@ export const SETTING_KEY_TABLE = {
 			page: false,
 		},
 		{
+			path: 'agents.quota_resume.enabled',
+			type: 'boolean',
+			default: false,
+			scope: 'server',
+			clients: 'both',
+			effect: 'immediate',
+			category: 'agents',
+			group: 'quota-resume',
+			page: true,
+		},
+		{
+			path: 'agents.quota_resume.prompt',
+			type: 'text',
+			maximumBytes: 1024,
+			default: 'continue',
+			scope: 'server',
+			clients: 'both',
+			effect: 'immediate',
+			category: 'agents',
+			group: 'quota-resume',
+			page: true,
+		},
+		{
 			path: 'update.channel',
 			type: 'choice',
 			choices: ['stable', 'preview'],
@@ -842,10 +865,21 @@ function isSettingValue<Key extends SettingKey>(
 		case 'theme':
 			return text(value, definition.maximumBytes) && THEME_ID.test(value);
 		case 'text':
-			return text(value, definition.maximumBytes);
+			if (!text(value, definition.maximumBytes)) return false;
+			return (
+				key !== 'agents.quota_resume.prompt' ||
+				(/\P{White_Space}/u.test(value) &&
+					!/^\p{White_Space}*[/!]/u.test(value) &&
+					!/[\p{Cc}\u2028\u2029]/u.test(value))
+			);
 		case 'path':
 			return text(value, MAXIMUM_PATH_BYTES);
 	}
+}
+
+/** Whether the quota resume prompt can be saved and typed as one line. */
+export function isQuotaResumePrompt(value: string): boolean {
+	return isSettingValue('agents.quota_resume.prompt', value);
 }
 
 /**

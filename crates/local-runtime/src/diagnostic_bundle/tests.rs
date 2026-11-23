@@ -27,6 +27,10 @@ window_title = "https://deploy:pa55@updates.example.com/manifest.json?token=abc1
 [worktrees]
 directory = 'D:\runtime-base\trees'
 
+[agents.quota_resume]
+enabled = true
+prompt = 'Continue the private research draft'
+
 [[keys.command]]
 type = "shell"
 key = "g"
@@ -51,6 +55,7 @@ fn settings_keep_their_keys_without_any_private_value() {
         ("home path", "users/person"),
         ("home path", r"Users\\Person"),
         ("environment value", "runtime-base"),
+        ("custom resume prompt", "private research draft"),
     ] {
         assert!(
             !redacted
@@ -61,6 +66,10 @@ fn settings_keep_their_keys_without_any_private_value() {
     }
     let parsed: toml::Table = redacted.parse().expect("the bundle's settings stay TOML");
     assert_eq!(parsed["api_key"].as_str(), Some("<unrecognized>"));
+    assert_eq!(
+        parsed["agents"]["quota_resume"]["prompt"].as_str(),
+        Some("<prompt>")
+    );
     assert_eq!(parsed["terminal"]["new_cwd"].as_str(), Some("<home>/work"));
     assert_eq!(
         parsed["appearance"]["window_title"].as_str(),

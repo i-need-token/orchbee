@@ -237,6 +237,7 @@ pub(super) fn add_profile(draft: &mut Draft, shell: Option<&InstalledShell>) {
 pub(super) fn text(draft: &Draft) -> Option<String> {
     let values = &draft.values;
     match draft.row {
+        Row::QuotaResumePrompt => Some(values.quota_resume_prompt.clone()),
         Row::AgentArguments(provider) => Some(
             values
                 .agent_launch
@@ -303,6 +304,7 @@ pub(super) fn edit_text(draft: &mut Draft, edit: Edit) {
 pub(super) fn requirement(row: Row) -> Option<SettingsTextRequirement> {
     Some(match row {
         Row::Foreground | Row::Background => SettingsTextRequirement::Color,
+        Row::QuotaResumePrompt => SettingsTextRequirement::QuotaResumePrompt,
         Row::CompletionThreshold => {
             let (minimum, maximum) = integer_bounds(Row::CompletionThreshold);
             SettingsTextRequirement::WholeNumber { minimum, maximum }
@@ -321,6 +323,12 @@ pub(super) fn requirement(row: Row) -> Option<SettingsTextRequirement> {
 /// Writes an accepted text into the page's values; false leaves them as they were.
 pub(super) fn accept_text(draft: &mut Draft, value: String) -> bool {
     match draft.row {
+        Row::QuotaResumePrompt => {
+            if !orchbee_workbench_protocol::valid_quota_resume_prompt(&value) {
+                return false;
+            }
+            draft.values.quota_resume_prompt = value;
+        }
         Row::AgentArguments(provider) => {
             let Ok(arguments) = orchbee_workbench_protocol::parse_agent_arguments(&value) else {
                 return false;

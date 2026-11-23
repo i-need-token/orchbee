@@ -91,7 +91,12 @@ impl PageState {
         catalog::entries(
             self.page,
             self.category,
-            Filter::of(self.filter.text(), &self.values, self.unlisted),
+            Filter::of(
+                self.filter.text(),
+                &self.values,
+                self.unlisted,
+                self.confirmed.quota_resume_supported,
+            ),
             self.picker
                 .map(|picker| (picker.row(), Choice::options(picker.row()))),
         )
@@ -135,7 +140,10 @@ impl PageState {
     /// A group whose heading carries a description line.
     pub(super) fn described(&self, group: Group) -> bool {
         match group {
-            Group::LaunchProfiles | Group::AgentConfirmations | Group::AgentLaunch => true,
+            Group::LaunchProfiles
+            | Group::AgentConfirmations
+            | Group::QuotaResume
+            | Group::AgentLaunch => true,
             Group::LightThemes => self.values.application_theme == ApplicationAppearance::Dark,
             Group::DarkThemes => self.values.application_theme == ApplicationAppearance::Light,
             _ => false,

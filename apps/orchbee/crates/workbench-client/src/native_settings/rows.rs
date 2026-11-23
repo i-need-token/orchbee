@@ -7,7 +7,8 @@ use crate::localization::{Locale, Words, words};
 use orchbee_color_themes::Polarity;
 use orchbee_local_runtime::UserSettingsField;
 use orchbee_workbench_protocol::{
-    AgentStartSelector, MAXIMUM_AGENT_ARGUMENT_INPUT_BYTES, UserSettingsValues,
+    AgentStartSelector, MAXIMUM_AGENT_ARGUMENT_INPUT_BYTES, MAXIMUM_QUOTA_RESUME_PROMPT_BYTES,
+    UserSettingsValues,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -43,6 +44,8 @@ pub enum Row {
     /// Whether the Server answers OpenCode's routine confirmations
     /// (`agents.auto_allow.opencode`).
     AutoAllowOpenCode,
+    QuotaResumeEnabled,
+    QuotaResumePrompt,
     /// Opens the settings for one provider, whose name is the row's label.
     AgentLaunchProvider(AgentStartSelector),
     AgentYolo(AgentStartSelector),
@@ -385,6 +388,23 @@ impl Row {
                     E::AgentConfirmations,
                     flag!(auto_allow_opencode),
                 ),
+            Self::QuotaResumeEnabled => row("Resume automatically", "自动继续").flag(
+                F::QuotaResumeEnabled,
+                E::AgentQuotaResume,
+                flag!(quota_resume_enabled),
+            ),
+            Self::QuotaResumePrompt => row("Resume prompt", "继续提示词")
+                .described(
+                    "Enter one line of text, without a leading / or !.",
+                    "输入一行提示词，开头不能是 / 或 !。",
+                )
+                .setting(
+                    F::QuotaResumePrompt,
+                    C::SingleLine {
+                        maximum_bytes: MAXIMUM_QUOTA_RESUME_PROMPT_BYTES,
+                    },
+                    E::AgentQuotaResume,
+                ),
             Self::LaunchProfiles => row("Default profile", "默认启动配置")
                 .described(
                     "Edit profiles and choose the one new terminals use.",
@@ -535,6 +555,7 @@ impl Row {
         if let Some(setting) = self.setting() {
             return match setting.control {
                 SettingControl::Color => Some(7),
+                SettingControl::SingleLine { maximum_bytes } => Some(maximum_bytes),
                 SettingControl::BoundedInteger { maximum, .. } => Some(maximum.to_string().len()),
                 _ => None,
             };

@@ -231,17 +231,16 @@ fence refusal with no Host bytes.
 
 ## Screen-gated refinement
 
-A screen-gated request (`SendPrecondition::Screen`, or `SendPrecondition::ScreenHold` for a hold)
-carries exactly one unmodified Enter record. The Worker sends it as one Host `ScreenGatedKeyInput`
-between the transient attach and detach: a key the Host types only while the screen is still the
-frame the Server read, or a hold that types nothing and is accepted with zero bytes. Either is one
-exchange and is never split into, or replaced by, an ordinary key record. A Host whose `worker-host`
+A screen-gated request carries one unmodified Enter or the prompt line shape above. A hold carries
+the Enter shape and queues zero bytes. The Worker sends the whole request
+as one Host `ScreenGatedKeyInput` between the transient attach and detach. The prompt form also
+requires `screen-gated-prompt` from the Host. A Host whose `worker-host`
 handshake lacked `screen-gated-send` is refused in the fence as `HostScreenGateUnsupported` with
 not-needed cleanup; `screen-gated-input` alone, which the Hosts of 0.1.0-beta.22 answer, is refused
 the same way, and the Worker's offer does not list it. The Host's `screen-*` refusals are `InputRefused`, mapped to
 `ScreenRefused(state)`: they type nothing, so the result has zero progress and the attachment is
 still detached. Evidence is the in-crate scripted Host (`host_connection::tests::screen_gated_send`):
-the one-exchange key, the six refusals, the hold, and the fence refusal with no Host bytes.
+the one-exchange key and prompt, the six refusals, the hold, and the fence refusals with no Host bytes.
 
 ## Semantic stroke refinement
 

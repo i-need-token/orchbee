@@ -222,6 +222,15 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.agentConfirmations.rowDescription':
 		'不检查命令内容，删除、上传等命令同样会执行。',
 	'terminal.settings.page.agentConfirmations.request': '可在 GitHub issue 中申请更多智能体。',
+	'terminal.settings.page.quotaResume.group': '额度恢复后继续',
+	'terminal.settings.page.quotaResume.description':
+		'在 Codex 报告的可重试时间向当前会话发送提示词。',
+	'terminal.settings.page.quotaResume.enabled': '自动继续',
+	'terminal.settings.page.quotaResume.prompt': '继续提示词',
+	'terminal.settings.page.quotaResume.promptDescription':
+		'输入一行提示词，开头不能是 / 或 !。按 Enter 保存。',
+	'terminal.settings.page.quotaResume.promptInvalid':
+		'请输入非空的提示词，最多 1,024 个 UTF-8 字节，开头不能是 / 或 !。',
 	'terminal.settings.page.agentLaunch.group': '启动选项',
 	'terminal.settings.page.agentLaunch.description': '应用于之后通过 Orchbee 新建的会话。',
 	'terminal.settings.page.agentLaunch.filter': '查找智能体',

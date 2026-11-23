@@ -278,8 +278,7 @@ pub fn validatePromptLineInput(bytes: []const u8) ProtocolError!DecodedSemanticI
     if (content_length != bytes.len - 32) return error.LengthMismatch;
     if (content_length == 0) return error.InvalidField;
     const content = try reader.readBytes(content_length);
-    if (!std.unicode.utf8ValidateSlice(content)) return error.InvalidUtf8;
-    for (content) |byte| if (byte < 0x20 or byte == 0x7f) return error.InvalidField;
+    try validateLineContent(content);
     return .{
         .attachment_id = attachment_id,
         .capability_revision = capability_revision,
@@ -287,11 +286,16 @@ pub fn validatePromptLineInput(bytes: []const u8) ProtocolError!DecodedSemanticI
     };
 }
 
-/// A fixed 64-byte record. Byte 24 is the key and byte 25 the flags, whose
-/// bit 0 marks a hold; a hold names no key, process or frame.
+fn validateLineContent(content: []const u8) ProtocolError!void {
+    if (content.len == 0) return error.InvalidField;
+    if (!std.unicode.utf8ValidateSlice(content)) return error.InvalidUtf8;
+    for (content) |byte| if (byte < 0x20 or byte == 0x7f) return error.InvalidField;
+}
+
+/// The 64-byte screen gate header followed by a UTF-8 line for the prompt flag.
 pub fn validateScreenGatedKeyInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
     if (bytes.len < 64) return error.Truncated;
-    if (bytes.len != 64) return error.LengthMismatch;
+    if (bytes.len > 64 + contract.Limits.paste_auto_input_bytes) return error.LimitExceeded;
     var reader = Reader.init(bytes, 0);
     const attachment_id = try copyIdentifier(try reader.readBytes(16));
     const capability_revision = try reader.readInt(u64);
@@ -304,8 +308,14 @@ pub fn validateScreenGatedKeyInput(bytes: []const u8) ProtocolError!DecodedSeman
     const revision = try reader.readInt(u64);
     const first_revision = try reader.readInt(u64);
     const creation_time = try reader.readInt(u64);
-    if (flags & ~@as(u8, 1) != 0 or reserved != 0) return error.UnknownRequiredFlag;
-    if (flags & 1 != 0) {
+    const is_prompt = switch (flags) {
+        0, 1 => false,
+        2, 6 => true,
+        else => return error.UnknownRequiredFlag,
+    };
+    if (reserved != 0) return error.UnknownRequiredFlag;
+    if (!is_prompt and bytes.len != 64) return error.LengthMismatch;
+    if (flags == 1) {
         if (key_code != 0 or pid != 0 or generation != 0 or revision != 0 or
             first_revision != 0 or creation_time != 0) return error.InvalidField;
         return .{
@@ -317,16 +327,23 @@ pub fn validateScreenGatedKeyInput(bytes: []const u8) ProtocolError!DecodedSeman
     const key = std.enums.fromInt(terminal_input.ScreenGatedKey, key_code) orelse
         return error.InvalidField;
     if (pid == 0 or generation == 0 or first_revision > revision) return error.InvalidField;
+    const gate: terminal_input.ScreenGatedKeyRequest = .{
+        .key = key,
+        .process = .{ .pid = pid, .creation_time = creation_time },
+        .generation = generation,
+        .revision = revision,
+        .first_revision = first_revision,
+    };
+    const input: terminal_input.ScreenGatedKeyInput = if (is_prompt) prompt: {
+        if (creation_time == 0) return error.InvalidField;
+        const content = bytes[64..];
+        try validateLineContent(content);
+        break :prompt .{ .prompt = .{ .gate = gate, .content = content, .right_arrow = flags == 6 } };
+    } else .{ .key = gate };
     return .{
         .attachment_id = attachment_id,
         .capability_revision = capability_revision,
-        .input = .{ .screen_gated_key = .{ .key = .{
-            .key = key,
-            .process = .{ .pid = pid, .creation_time = creation_time },
-            .generation = generation,
-            .revision = revision,
-            .first_revision = first_revision,
-        } } },
+        .input = .{ .screen_gated_key = input },
     };
 }
 

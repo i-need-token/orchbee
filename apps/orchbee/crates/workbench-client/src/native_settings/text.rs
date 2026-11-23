@@ -125,6 +125,7 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
             }
             Row::Foreground => Self::Text(&values.custom_foreground),
             Row::Background => Self::Text(&values.custom_background),
+            Row::QuotaResumePrompt => Self::Text(&values.quota_resume_prompt),
             Row::Reminders => Self::Choice(SettingsChoice::AgentReminders(
                 values.agent_notification_mode,
             )),

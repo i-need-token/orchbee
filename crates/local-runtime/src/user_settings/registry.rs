@@ -4,11 +4,13 @@
 //! derive their key knowledge from [`SETTING_KEYS`]; no second list of keys exists.
 use super::{keys::ACTIONS, notifications::MAXIMUM_NOTIFICATION_DELAY_SECONDS};
 use orchbee_workbench_protocol::{
-    AgentStartSelector, MAXIMUM_AGENT_ARGUMENT_INPUT_BYTES, parse_agent_arguments,
+    AgentStartSelector, DEFAULT_QUOTA_RESUME_PROMPT, MAXIMUM_AGENT_ARGUMENT_INPUT_BYTES,
+    MAXIMUM_QUOTA_RESUME_PROMPT_BYTES, parse_agent_arguments, valid_quota_resume_prompt,
 };
 
 pub(super) const AGENT_ARGUMENTS_PATH: &str = "agents.launch.<agent>.arguments";
 pub(super) const AGENT_YOLO_PATH: &str = "agents.launch.<yolo-agent>.yolo";
+const QUOTA_RESUME_PROMPT_PATH: &str = "agents.quota_resume.prompt";
 
 /// Longest color-theme id, the bound the typed values admit.
 const THEME_ID_BYTES: usize = 64;
@@ -50,6 +52,7 @@ pub enum SettingGroup {
     Basics,
     Restore,
     Confirmations,
+    QuotaResume,
     AgentLaunch,
     Updates,
     Theme,
@@ -75,6 +78,7 @@ impl SettingGroup {
             Self::Basics => "basics",
             Self::Restore => "restore",
             Self::Confirmations => "confirmations",
+            Self::QuotaResume => "quota-resume",
             Self::AgentLaunch => "agent-launch",
             Self::Updates => "updates",
             Self::Theme => "theme",
@@ -838,6 +842,27 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Offer to turn on automatic confirmation when a supported Agent waits on a routine confirmation.",
     ),
     key(
+        "agents.quota_resume.enabled",
+        V::Boolean,
+        D::Boolean(false),
+        (C::Agents, G::QuotaResume),
+        SERVER,
+        "Submit the resume prompt to a live Codex session after its reported usage limit resets.",
+    )
+    .page(),
+    key(
+        QUOTA_RESUME_PROMPT_PATH,
+        V::Text {
+            maximum_bytes: MAXIMUM_QUOTA_RESUME_PROMPT_BYTES,
+            shape: "One nonblank line of prompt text without control characters or a leading / or !.",
+        },
+        D::Text(DEFAULT_QUOTA_RESUME_PROMPT),
+        (C::Agents, G::QuotaResume),
+        SERVER,
+        "Prompt to submit when Orchbee resumes an Agent after a quota reset.",
+    )
+    .page(),
+    key(
         "update.channel",
         V::Choice(&["stable", "preview"]),
         D::Text("stable"),
@@ -980,11 +1005,13 @@ impl SettingKey {
                 if self.path == AGENT_ARGUMENTS_PATH {
                     parse_agent_arguments(value)?;
                 }
-                if value.len() <= maximum_bytes && !value.contains('\0') {
-                    Ok(Scalar::Text(value.to_owned()))
-                } else {
-                    Err("value-too-long")
+                if value.len() > maximum_bytes || value.contains('\0') {
+                    return Err("value-too-long");
                 }
+                if self.path == QUOTA_RESUME_PROMPT_PATH && !valid_quota_resume_prompt(value) {
+                    return Err("invalid-value");
+                }
+                Ok(Scalar::Text(value.to_owned()))
             }
             V::Color => {
                 let value = value.as_str().ok_or("wrong-type")?;

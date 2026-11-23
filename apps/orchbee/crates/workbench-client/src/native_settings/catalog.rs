@@ -71,7 +71,11 @@ impl Category {
             Self::Notifications => &[Group::WhenToNotify, Group::SoundDelivery],
             Self::Keyboard => &[Group::Prefix],
             // Launch options list every Agent, so they come last, as in the window's Settings.
-            Self::Agents => &[Group::AgentConfirmations, Group::AgentLaunch],
+            Self::Agents => &[
+                Group::AgentConfirmations,
+                Group::QuotaResume,
+                Group::AgentLaunch,
+            ],
             Self::Machines => &[Group::MachineList],
             Self::About => &[Group::About],
         }
@@ -121,6 +125,7 @@ pub enum Group {
     AgentLaunch,
     /// One row for each Agent whose routine confirmations Orchbee can answer.
     AgentConfirmations,
+    QuotaResume,
     /// About's version, update and Automatic updates rows; unnamed, since the category names it.
     About,
     /// Settings › Machines: this computer and one row per saved machine; unnamed, since the
@@ -198,6 +203,10 @@ impl Group {
                 "Applies to new conversations started by Orchbee.",
                 "应用于之后通过 Orchbee 新建的会话。",
             ),
+            Self::QuotaResume => titled("Resume after quota reset", "额度恢复后继续").described(
+                "Sends a prompt to a live Codex session at its reported retry time.",
+                "在 Codex 报告的可重试时间向当前会话发送提示词。",
+            ),
             Self::AgentConfirmations => titled("Allow routine confirmations", "自动允许常规确认")
                 .described(
                     "Presses the Agent's allow-once for you.",
@@ -267,6 +276,7 @@ impl Group {
                 Row::AutoAllowGemini,
                 Row::AutoAllowOpenCode,
             ],
+            Self::QuotaResume => vec![Row::QuotaResumeEnabled, Row::QuotaResumePrompt],
             Self::About => vec![Row::Version, Row::Updates, Row::AutomaticUpdates],
             // The saved machines' own rows come from the facts the TUI reports.
             Self::MachineList => vec![Row::AddMachine, Row::FindMachine, Row::ThisComputer],
@@ -320,6 +330,7 @@ pub(super) struct Filter<'a> {
     pub(super) query: &'a str,
     pub(super) custom_colors: bool,
     pub(super) completion_reminders: bool,
+    pub(super) quota_resume_supported: bool,
     /// Rows whose key the settings registry does not yet mark for the page show anyway.
     pub(super) unlisted: bool,
 }
@@ -329,11 +340,13 @@ impl Filter<'_> {
         query: &'a str,
         values: &orchbee_workbench_protocol::UserSettingsValues,
         unlisted: bool,
+        quota_resume_supported: bool,
     ) -> Filter<'a> {
         Filter {
             query,
             custom_colors: values.terminal_display_theme == TerminalDisplayAppearance::Custom,
             completion_reminders: values.completion_reminder_mode != CompletionReminderMode::Never,
+            quota_resume_supported,
             unlisted,
         }
     }
@@ -342,6 +355,7 @@ impl Filter<'_> {
         match row {
             Row::Foreground | Row::Background => self.custom_colors,
             Row::CompletionThreshold => self.completion_reminders,
+            Row::QuotaResumeEnabled | Row::QuotaResumePrompt => self.quota_resume_supported,
             Row::AutomaticUpdates => self.unlisted || on_page("update.automatic"),
             // A search lists settings; About's version and update control are information.
             Row::Version | Row::Updates => self.query.split_whitespace().next().is_none(),

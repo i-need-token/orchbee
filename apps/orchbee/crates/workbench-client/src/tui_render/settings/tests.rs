@@ -283,6 +283,17 @@ fn every_key_set() -> SettingsSnapshot {
             SettingChange::Restore { .. } => None,
         })
         .collect();
+    // A current Server publishes these keys at their defaults too.
+    snapshot.values.extend([
+        (
+            orchbee_workbench_protocol::SettingPath::parse("agents.quota_resume.enabled").unwrap(),
+            Some(SettingScalar::Boolean(false)),
+        ),
+        (
+            orchbee_workbench_protocol::SettingPath::parse("agents.quota_resume.prompt").unwrap(),
+            Some(SettingScalar::Text("continue".into())),
+        ),
+    ]);
     snapshot.set = restore_keys
         .filter_map(|change| match change {
             SettingChange::Restore { key } => Some(key),

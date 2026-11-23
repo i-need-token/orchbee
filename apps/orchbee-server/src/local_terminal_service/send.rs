@@ -7,7 +7,7 @@ use std::num::NonZeroU64;
 
 use orchbee_capability_node_protocol::{
     SendPrecondition as WorkerPrecondition, SendProgress as WorkerProgress,
-    SendPromptState as WorkerPromptState, SendRejection as WorkerRejection,
+    SendPromptState as WorkerPromptState, SendRecords, SendRejection as WorkerRejection,
     SendUnavailable as WorkerUnavailableReason, TerminalSendOutcome as WorkerOutcome,
     TerminalSendRequest as WorkerRequest,
 };
@@ -17,15 +17,53 @@ use orchbee_client_server_protocol::{
     ServerMessage, TerminalSendOutcome as Outcome, TerminalSendRequest, TerminalSendResult,
 };
 
-use crate::session_coordinator::{BindingViewerPreparationError, PreparedSendTarget};
+use crate::session_coordinator::{BindingViewerPreparationError, HostAgentRun, PreparedSendTarget};
 use crate::terminal_coordinator::BindingViewerTarget;
 use crate::worker_obcn_carrier::{
-    WorkerOperationRequest, WorkerOperationResult, WorkerRequestError,
+    WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
 };
 
 use super::{LocalTerminalService, placement};
 
 impl LocalTerminalService {
+    /// Dispatches one Server-owned input against the exact live target. The settings or decision
+    /// check runs while the Worker and coordinator fences are held. The Host owns screen admission.
+    pub(super) fn send_at_agent_screen(
+        &self,
+        handle: &WorkerRequestHandle,
+        target: BindingViewerTarget,
+        agent: Option<HostAgentRun>,
+        precondition: WorkerPrecondition,
+        records: SendRecords,
+        admit: impl FnOnce() -> bool,
+    ) -> Option<Result<WorkerOperationResult, WorkerRequestError>> {
+        let identities = {
+            let workers = self.workers.lock().ok()?;
+            let current = placement(workers.request_handle().as_ref());
+            if !handle.is_active()
+                || current != Some(target.worker)
+                || placement(Some(handle)) != current
+            {
+                return None;
+            }
+            let mut coordinator = self.coordinator.lock().ok()?;
+            let identities = coordinator.prepare_agent_screen_send(target, current, agent)?;
+            if !admit() {
+                return None;
+            }
+            identities
+        };
+        Some(handle.request(WorkerOperationRequest::Send(WorkerRequest {
+            request_id: identities.operation,
+            worker_id: target.worker.worker_id,
+            worker_generation: target.worker.generation,
+            target: target.identity,
+            attachment_id: identities.attachment,
+            precondition,
+            records,
+        })))
+    }
+
     /// One-shot orchestration input: admit the exact retained binding, dispatch
     /// the pinned record sequence on the serialized Worker carrier, and report
     /// the Worker verdict with the independent cleanup axis and the delivery

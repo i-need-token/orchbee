@@ -23,6 +23,7 @@ pub const Gate = struct {
     generation: u64,
     revision: u64,
     first_revision: u64,
+    requires_bracketed_paste: bool = false,
 };
 
 /// The content revision and the time at which a person last acted.

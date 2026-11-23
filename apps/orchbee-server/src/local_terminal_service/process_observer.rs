@@ -1,5 +1,7 @@
 //! Session-owned periodic process observations with one retained viewer cleanup responsibility.
-use super::{LocalTerminalService, viewer_connection::PendingCleanup};
+use super::{
+    LocalTerminalService, agent_quota_resume::QuotaResumes, viewer_connection::PendingCleanup,
+};
 use crate::agent_screen::{ScreenDetector, updating};
 use crate::session_coordinator::ProcessObservationTarget;
 use std::{
@@ -20,6 +22,7 @@ type Cursor = (String, String);
 pub(super) struct Schedule {
     agents: Option<Cursor>,
     discovery: Option<Cursor>,
+    quota_resumes: QuotaResumes,
 }
 mod agent_resume;
 mod close;
@@ -298,10 +301,11 @@ fn turn(
         let Ok(mut coordinator) = service.coordinator.lock() else {
             return DISCOVERY_INTERVAL;
         };
-        let Ok(targets) = coordinator.process_observation_targets() else {
+        let Ok(scan) = coordinator.process_observation_scan() else {
             return DISCOVERY_INTERVAL;
         };
-        targets
+        schedule.quota_resumes.retain(&scan.retained);
+        scan.targets
             .into_iter()
             .partition(|target| coordinator.process_observation_has_agent(target))
     };
@@ -343,7 +347,12 @@ fn turn(
         } else {
             schedule.discovery = Some(target.key());
         }
-        if let Some(pending) = service.sample_process_target(target, &wake.stop, detector) {
+        if let Some(pending) = service.sample_process_target(
+            target,
+            &wake.stop,
+            detector,
+            Some(&mut schedule.quota_resumes),
+        ) {
             *wake
                 .pending
                 .lock()

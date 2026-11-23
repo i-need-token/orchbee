@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use orchbee_agent_observation_protocol::AgentReportProvider;
 use orchbee_capability_node_protocol::{
     SendKey, SendKeyStroke, SendPrecondition, SendRecord, SendRecords, SendRejection,
-    SendScreenGate, SendScreenState, SendStrokeKey, TerminalSendOutcome, TerminalSendRequest,
+    SendScreenGate, SendScreenState, SendStrokeKey, TerminalSendOutcome,
 };
 use orchbee_server::{SessionChangeSignal, SessionChangeSource};
 use orchbee_terminal_protocol::TerminalProcessInfo;
@@ -31,9 +31,7 @@ use crate::agent_confirmation::{
 };
 use crate::session_coordinator::HostAgentRun;
 use crate::terminal_coordinator::BindingViewerTarget;
-use crate::worker_obcn_carrier::{
-    WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
-};
+use crate::worker_obcn_carrier::{WorkerOperationResult, WorkerRequestError, WorkerRequestHandle};
 
 /// The saved setting that turns answering on for every Claude Code run.
 const CLAUDE_KEY: &str = "agents.auto_allow.claude";
@@ -573,40 +571,8 @@ impl LocalTerminalService {
         let Some(records) = enter() else {
             return Outcome::NotSent;
         };
-        let identities = {
-            let Ok(workers) = self.workers.lock() else {
-                return Outcome::NotSent;
-            };
-            if !handle.is_active()
-                || placement(workers.request_handle().as_ref()) != Some(target.worker)
-                || placement(Some(handle)) != Some(target.worker)
-            {
-                return Outcome::NotSent;
-            }
-            let Ok(mut coordinator) = self.coordinator.lock() else {
-                return Outcome::NotSent;
-            };
-            let Some(identities) =
-                coordinator.prepare_confirmation_send(target, Some(target.worker))
-            else {
-                return Outcome::NotSent;
-            };
-            if !admit() {
-                return Outcome::NotSent;
-            }
-            identities
-        };
-        outcome(
-            handle.request(WorkerOperationRequest::Send(TerminalSendRequest {
-                request_id: identities.operation,
-                worker_id: target.worker.worker_id,
-                worker_generation: target.worker.generation,
-                target: target.identity,
-                attachment_id: identities.attachment,
-                precondition,
-                records,
-            })),
-        )
+        self.send_at_agent_screen(handle, target, None, precondition, records, admit)
+            .map_or(Outcome::NotSent, outcome)
     }
 
     /// Writes one saved setting through the settings file, as an edit from a Client does.

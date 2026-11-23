@@ -95,6 +95,7 @@ pub(crate) enum SettingsDetailKind {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsTextRequirement {
     Color,
+    QuotaResumePrompt,
     WholeNumber { minimum: u64, maximum: u64 },
     Number { minimum: String, maximum: String },
 }

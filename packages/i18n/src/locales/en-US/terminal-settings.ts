@@ -234,6 +234,15 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.agentConfirmations.rowDescription':
 		'Commands are not checked: one that deletes or uploads files runs too.',
 	'terminal.settings.page.agentConfirmations.request': 'Request more Agents in a GitHub issue.',
+	'terminal.settings.page.quotaResume.group': 'Resume after quota reset',
+	'terminal.settings.page.quotaResume.description':
+		'Sends a prompt to a live Codex session at its reported retry time.',
+	'terminal.settings.page.quotaResume.enabled': 'Resume automatically',
+	'terminal.settings.page.quotaResume.prompt': 'Resume prompt',
+	'terminal.settings.page.quotaResume.promptDescription':
+		'Enter one line of text, without a leading / or !. Press Enter to save.',
+	'terminal.settings.page.quotaResume.promptInvalid':
+		'Enter a nonblank prompt of up to 1,024 UTF-8 bytes without a leading / or !.',
 	'terminal.settings.page.agentLaunch.group': 'Launch options',
 	'terminal.settings.page.agentLaunch.description':
 		'Applies to new conversations started by Orchbee.',
