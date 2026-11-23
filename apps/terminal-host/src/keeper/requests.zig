@@ -1,12 +1,16 @@
 //! The Keeper's requests, each applied to the table with its lock held: the Worker's registrations,
 //! `status`, and recovery requests, and a registered Host's holding requests along the contract's
-//! state table. A program holding follows the same table as a terminal's; only its hold, its
-//! inspection, and its claim differ.
+//! state table. Every kind of holding follows the same table; only its hold, its inspection, its
+//! claim, and its release differ, and each platform's file applies those.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
-const handles = @import("handles_windows.zig");
 const state = @import("state.zig");
+
+const handles = state.handles;
+/// The requests that depend on what a holding holds.
+pub const held = if (builtin.os.tag == .windows) @import("requests_windows.zig") else @import("requests_darwin.zig");
 
 const message = keeper_protocol.message;
 const Process = message.Process;
@@ -29,28 +33,26 @@ pub fn apply(
         .worker => |worker| return switch (request) {
             .register_host => |process| registerHost(table, process),
             .unregister_host => |process| unregisterHost(table, process, effects),
-            .status => |after| status(table, arena, after, worker.programs),
+            .status => |after| status(table, arena, after, worker),
             .assign => |assign| assignRequest(table, assign),
             .discard => |holding| discardRequest(table, holding, effects),
             else => refused(.wrong_role),
         },
         .host => |requester| {
             switch (request) {
-                .hold, .hold_program, .mark, .@"resume", .inspect, .claim, .decline, .release => {},
-                else => return refused(.wrong_role),
+                .mark, .@"resume", .inspect, .claim, .decline, .release => {},
+                else => if (!held.hostRequest(request)) return refused(.wrong_role),
             }
             // A Host forgotten while its request was in flight sends nothing more.
             if (table.findHost(requester) == null) return refused(.not_registered);
             return switch (request) {
-                .hold => |hold| holdRequest(table, requester, hold),
-                .hold_program => |hold| holdProgramRequest(table, requester, hold),
                 .mark => |mark| markRequest(table, requester, mark),
                 .@"resume" => |marked| resumeRequest(table, requester, marked),
-                .inspect => |marked| try inspectRequest(table, arena, requester, marked),
+                .inspect => |marked| try inspectRequest(table, arena, requester, marked, effects),
                 .claim => |claim| claimRequest(table, requester, claim, effects),
                 .decline => |marked| declineRequest(table, requester, marked),
                 .release => |holding| releaseRequest(table, requester, holding, effects),
-                else => unreachable,
+                else => try held.apply(table, arena, requester, request, effects),
             };
         },
     }
@@ -69,7 +71,7 @@ fn registerHost(table: *Table, process: Process) Body {
     });
     const context = (@as(usize, table.host_generations[index]) << 16) | index;
     const wait = handles.watchEnd(handle, state.hostEnded, context) orelse {
-        handles.close(handle);
+        handles.closeHost(handle);
         return refused(.handle_failed);
     };
     table.hosts[index] = .{ .process = process, .handle = handle, .wait = wait };
@@ -83,6 +85,7 @@ fn unregisterHost(table: *Table, process: Process, effects: *Effects) Body {
         if (holding.owner.eql(process)) return refused(.holding_exists);
         if (holding.mark) |mark| if (mark.target.eql(process)) return refused(.holding_exists);
     }
+    if (table.extra.reserves(process)) return refused(.holding_exists);
     for (table.holdings[0..table.holding_count]) |*holding| {
         if (holding.claimed) |claimed| if (claimed.from.eql(process)) {
             holding.claimed = null;
@@ -98,9 +101,8 @@ fn unregisterHost(table: *Table, process: Process, effects: *Effects) Body {
     return .unregister_host;
 }
 
-/// One page of holdings after `after`; program holdings only for a Worker that negotiated
-/// `programs`, since another reads every entry as a terminal's.
-fn status(table: *Table, arena: std.mem.Allocator, after: ?RandomId, programs: bool) error{OutOfMemory}!Body {
+/// One page of holdings after `after`, of the kinds the Worker's connection negotiated.
+fn status(table: *Table, arena: std.mem.Allocator, after: ?RandomId, worker: state.Worker) error{OutOfMemory}!Body {
     var start: usize = 0;
     if (after) |last| {
         while (start < table.holding_count and
@@ -109,7 +111,7 @@ fn status(table: *Table, arena: std.mem.Allocator, after: ?RandomId, programs: b
     var listed: std.ArrayList(message.HoldingEntry) = try .initCapacity(arena, message.maximum_status_entries);
     var more = false;
     for (table.holdings[start..table.holding_count]) |*holding| {
-        if (!programs and holding.content == .program) continue;
+        if (!holding.content.listedTo(worker)) continue;
         if (listed.items.len == message.maximum_status_entries) {
             more = true;
             break;
@@ -137,66 +139,7 @@ fn status(table: *Table, arena: std.mem.Allocator, after: ?RandomId, programs: b
     return .{ .status = .{ .holdings = entries, .hosts = hosts, .next = next } };
 }
 
-fn holdRequest(table: *Table, requester: Process, hold: message.Hold) Body {
-    const position = table.search(hold.holding);
-    if (position.found) {
-        const holding = &table.holdings[position.index];
-        if (holding.owner.eql(requester) and holding.state() == .held) return .hold;
-        return refused(.holding_exists);
-    }
-    if (table.lifecycle != .ready) return refused(.draining);
-    if (table.holding_count >= message.maximum_holdings) return refused(.capacity);
-    const stored = state.StoredFacts.store(hold.facts) orelse return refused(.identity_mismatch);
-    const host = table.hosts[table.findHost(requester).?].?;
-    const duplicates = handles.pull(host.handle, hold.handles) catch return refused(.handle_failed);
-    // `inspect` names each duplicate by a value below 2^32, as the wire carries it.
-    for (duplicates) |duplicate| if (@intFromPtr(duplicate) > std.math.maxInt(u32)) {
-        handles.closeAll(&duplicates);
-        return refused(.handle_failed);
-    };
-    if (!handles.matches(duplicates, hold.facts)) {
-        handles.closeAll(&duplicates);
-        return refused(.identity_mismatch);
-    }
-    insert(table, position.index, .{
-        .id = hold.holding,
-        .owner = requester,
-        .content = .{ .terminal = .{ .duplicates = duplicates, .facts = stored } },
-    });
-    return .hold;
-}
-
-/// A Host's hold of a background program: the Keeper pulls its Job, its process, and the read end
-/// of each captured stream, and checks them as a terminal's hold checks its own.
-fn holdProgramRequest(table: *Table, requester: Process, hold: message.HoldProgram) Body {
-    const position = table.search(hold.holding);
-    if (position.found) {
-        const holding = &table.holdings[position.index];
-        if (holding.owner.eql(requester) and holding.state() == .held and holding.content == .program) return .hold_program;
-        return refused(.holding_exists);
-    }
-    if (table.lifecycle != .ready) return refused(.draining);
-    if (table.holding_count >= message.maximum_holdings) return refused(.capacity);
-    const host = table.hosts[table.findHost(requester).?].?;
-    const duplicates = handles.pullProgram(host.handle, hold.handles) catch return refused(.handle_failed);
-    // `inspect` names each duplicate by a value below 2^32, as the wire carries it.
-    if (duplicates.values() == null) {
-        duplicates.close();
-        return refused(.handle_failed);
-    }
-    if (!handles.programMatches(duplicates, hold.facts)) {
-        duplicates.close();
-        return refused(.identity_mismatch);
-    }
-    insert(table, position.index, .{
-        .id = hold.holding,
-        .owner = requester,
-        .content = .{ .program = .{ .duplicates = duplicates, .facts = .store(hold.facts) } },
-    });
-    return .hold_program;
-}
-
-fn insert(table: *Table, index: usize, holding: Holding) void {
+pub fn insert(table: *Table, index: usize, holding: Holding) void {
     std.mem.copyBackwards(
         Holding,
         table.holdings[index + 1 .. table.holding_count + 1],
@@ -238,41 +181,12 @@ fn inspectRequest(
     arena: std.mem.Allocator,
     requester: Process,
     marked: message.Marked,
+    effects: *Effects,
 ) error{OutOfMemory}!Body {
     const holding = table.find(marked.holding) orelse return refused(.unknown_holding);
     if (currentMark(holding, marked.mark) == null) return refused(.stale_mark);
     if (!holding.mark.?.target.eql(requester)) return refused(.not_target);
-    switch (holding.content) {
-        .terminal => |*terminal| {
-            var values: [message.Handles.roles.len]u32 = undefined;
-            for (terminal.duplicates, &values) |duplicate, *value| value.* = @intCast(@intFromPtr(duplicate));
-            return .{ .inspect = .{
-                .handles = .{
-                    .job = values[0],
-                    .program = values[1],
-                    .console = values[2],
-                    .signal = values[3],
-                    .reference = values[4],
-                    .input = values[5],
-                    .output = values[6],
-                },
-                .facts = try terminal.facts.view(arena),
-            } };
-        },
-        .program => |*program| {
-            // The hold checked that every value fits.
-            const values = program.duplicates.values().?;
-            return .{ .inspect_program = .{
-                .handles = .{
-                    .job = values.job,
-                    .process = values.process,
-                    .stdout = values.streams[0],
-                    .stderr = values.streams[1],
-                },
-                .facts = try program.facts.view(arena),
-            } };
-        },
-    }
+    return held.inspect(holding, arena, effects);
 }
 
 fn claimRequest(table: *Table, requester: Process, claim: message.Claim, effects: *Effects) Body {
@@ -280,17 +194,7 @@ fn claimRequest(table: *Table, requester: Process, claim: message.Claim, effects
     if (consumedBy(holding, claim.mark) != null and holding.owner.eql(requester)) return .claim;
     if (currentMark(holding, claim.mark) == null) return refused(.stale_mark);
     if (!holding.mark.?.target.eql(requester)) return refused(.not_target);
-    // A terminal's claim names the claimant's terminal; a program's names none.
-    switch (holding.content) {
-        .terminal => |*terminal| {
-            const identity = claim.terminal orelse return refused(.identity_mismatch);
-            if (!claim.program.eql(terminal.facts.program)) return refused(.identity_mismatch);
-            terminal.facts.terminal = identity;
-        },
-        .program => |*program| {
-            if (claim.terminal != null or !claim.program.eql(program.facts.process)) return refused(.identity_mismatch);
-        },
-    }
+    if (held.claim(holding, claim)) |reason| return refused(reason);
     const previous = holding.owner;
     holding.owner = requester;
     holding.claimed = .{ .from = previous, .mark = claim.mark };
@@ -320,6 +224,7 @@ fn releaseRequest(table: *Table, requester: Process, id: RandomId, effects: *Eff
     const holding = &table.holdings[position.index];
     if (!holding.owner.eql(requester)) return refused(.not_owner);
     if (holding.mark != null) return refused(.marked);
+    if (held.released(table, holding)) |reason| return refused(reason);
     effects.released = holding.content;
     std.mem.copyForwards(
         Holding,
@@ -352,6 +257,7 @@ fn discardRequest(table: *Table, id: RandomId, effects: *Effects) Body {
     const holding = &table.holdings[position.index];
     if (!holding.orphaned) return refused(.not_orphaned);
     if (holding.mark) |current| if (liveHost(table, current.target)) return refused(.marked);
+    if (held.released(table, holding)) |reason| return refused(reason);
     const owner = holding.owner;
     effects.released = holding.content;
     std.mem.copyForwards(
@@ -370,7 +276,7 @@ fn liveHost(table: *const Table, process: Process) bool {
     return !table.hosts[index].?.ended;
 }
 
-fn refused(reason: Reason) Body {
+pub fn refused(reason: Reason) Body {
     return .{ .refused = reason };
 }
 

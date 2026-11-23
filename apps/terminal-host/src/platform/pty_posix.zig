@@ -150,9 +150,14 @@ pub const PosixPty = if (builtin.os.tag == .windows) void else struct {
     pub fn childSetup(self: PosixPty) !void {
         const slave = self.slave orelse return error.MissingSlave;
         // openpty may reuse 0, 1, or 2 when the caller closed a standard
-        // descriptor. Drop the master before installing the slave, then keep
-        // any slave descriptor that is itself one of the resulting streams.
+        // descriptor. Drop the master before installing the slave.
         _ = posix.system.close(self.master);
+        return attachControllingTerminal(slave);
+    }
+
+    /// In a forked child: a new session with `slave` as its controlling terminal and standard
+    /// streams, keeping any slave descriptor that is itself one of the resulting streams.
+    pub fn attachControllingTerminal(slave: posix.fd_t) !void {
         if (c.setsid() < 0) return error.CreateSessionFailed;
         if (c.ioctl(slave, c.TIOCSCTTY, @as(c_ulong, 0)) < 0) {
             return error.SetControllingTerminalFailed;

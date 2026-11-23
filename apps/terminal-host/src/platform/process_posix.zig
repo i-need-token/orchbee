@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const fork_launch = @import("fork_launch_posix.zig");
 const process_common = @import("process_common.zig");
 const process_sample = @import("process_sample.zig");
 const posix_compat = @import("posix_compat.zig");
@@ -82,71 +83,21 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         errdefer if (child_stdin_fd) |fd| {
             _ = posix.system.close(fd);
         };
-        const error_pipe = try posix_compat.pipe2(.{ .CLOEXEC = true });
-        var error_read_open = true;
-        var error_write_open = true;
-        errdefer {
-            if (error_read_open) _ = posix.system.close(error_pipe[0]);
-            if (error_write_open) _ = posix.system.close(error_pipe[1]);
-        }
-
-        // macOS marks a new descriptor close-on-exec only after creating it, as a control lane
-        // does for each connection it accepts, so a shell forked meanwhile would keep that
-        // connection open. The child keeps only its standard streams and the exec-status channel,
-        // which closes on exec.
-        const descriptor_limit = if (comptime builtin.os.tag.isDarwin())
-            posix_compat.descriptorTableSize()
-        else
-            0;
-        const child_id = try posix_compat.fork();
-        if (child_id == 0) {
-            _ = posix.system.close(error_pipe[0]);
-            if (launch.current_directory) |directory| {
-                posix_compat.chdir(directory) catch reportChildFailure(error_pipe[1]);
-            }
-            pty.childSetup() catch reportChildFailure(error_pipe[1]);
-            if (child_stdin_fd) |fd| {
-                _ = posix_compat.dup2(fd, posix.STDIN_FILENO) catch
-                    reportChildFailure(error_pipe[1]);
-            }
-            if (comptime builtin.os.tag.isDarwin()) {
-                posix_compat.closeNonStandardDescriptors(descriptor_limit, error_pipe[1]);
-            }
-            const exec_error = execWithEffectivePath(
-                launch.executable,
-                argv,
-                environment_pointer,
-                executable_candidates,
-            );
-            reportExecFailure(error_pipe[1], exec_error);
-        }
-
-        _ = posix.system.close(error_pipe[1]);
-        error_write_open = false;
+        const child_id = try fork_launch.start(.{
+            .executable = launch.executable,
+            .argv = argv,
+            .environment = environment_pointer,
+            .candidates = executable_candidates,
+            .directory = launch.current_directory,
+            .master = pty.master,
+            .slave = pty.slave.?,
+            .input = child_stdin_fd,
+        });
         if (child_stdin_fd) |fd| {
             _ = posix.system.close(fd);
             child_stdin_fd = null;
         }
         pty.closeSlave();
-        var marker: [1]u8 = undefined;
-        const failure_bytes = posix.read(error_pipe[0], &marker) catch {
-            // Losing the exec-status channel makes launch outcome unknowable.
-            // Contain both a child that already created its session and one
-            // that failed before setsid, then reap it.
-            process_session.forceTerminateSession(
-                child_id,
-                process_session.NativeSessionSignaler{},
-            ) catch {};
-            posix.kill(child_id, posix.SIG.KILL) catch {};
-            _ = posix_compat.waitpid(child_id, 0);
-            return error.SpawnFailed;
-        };
-        _ = posix.system.close(error_pipe[0]);
-        error_read_open = false;
-        if (failure_bytes != 0) {
-            _ = posix_compat.waitpid(child_id, 0);
-            return error.SpawnFailed;
-        }
         return .{
             .child_id = child_id,
             .pty = pty,
@@ -313,25 +264,6 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         try self.pty.abortRead();
     }
 
-    fn reportChildFailure(error_fd: posix.fd_t) noreturn {
-        _ = posix_compat.write(error_fd, &.{1}) catch 0;
-        exitChildFailure();
-    }
-
-    fn reportExecFailure(error_fd: posix.fd_t, exec_error: anyerror) noreturn {
-        const marker = [_]u8{@truncate(@intFromError(exec_error))};
-        _ = posix_compat.write(error_fd, &marker) catch 0;
-        exitChildFailure();
-    }
-
-    fn exitChildFailure() noreturn {
-        if (builtin.link_libc) {
-            std.c._exit(127);
-        } else {
-            posix_compat.exit(127);
-        }
-    }
-
     fn duplicateCloexec(fd: posix.fd_t) !posix.fd_t {
         // Zig's std.c.F table does not expose Linux's platform-specific
         // F_DUPFD_CLOEXEC value on every cross target. Keep the operation
@@ -383,29 +315,6 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             candidate.* = @ptrCast(path_buffer.ptr);
         }
         return candidates;
-    }
-
-    fn execWithEffectivePath(
-        executable: []const u8,
-        argv: [*:null]const ?[*:0]const u8,
-        environment: [*:null]const ?[*:0]const u8,
-        candidates: []const [*:0]const u8,
-    ) posix_compat.ExecveError {
-        if (std.mem.indexOfScalar(u8, executable, '/') != null) {
-            return posix_compat.execveZ(argv[0].?, argv, environment);
-        }
-        var seen_access_denied = false;
-        var last_error: posix_compat.ExecveError = error.FileNotFound;
-        for (candidates) |candidate| {
-            last_error = posix_compat.execveZ(candidate, argv, environment);
-            switch (last_error) {
-                error.AccessDenied => seen_access_denied = true,
-                error.FileNotFound, error.NotDir => {},
-                else => |err| return err,
-            }
-        }
-        if (seen_access_denied) return error.AccessDenied;
-        return last_error;
     }
 
     pub fn forceTerminateSession(session_id: posix.pid_t, signaler: anytype) !void {

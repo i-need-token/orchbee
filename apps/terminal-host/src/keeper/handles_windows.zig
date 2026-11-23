@@ -11,6 +11,15 @@ const message = keeper_protocol.message;
 const windows = std.os.windows;
 
 pub const Handle = windows.HANDLE;
+/// A registered Host, by a handle to its process.
+pub const HostHandle = Handle;
+/// A Host's armed thread-pool wait.
+pub const Wait = Handle;
+/// A wait stays registered after its callback runs, until it is removed.
+pub const watch_spent_on_fire = false;
+/// Removing a wait waits for its running callback, which takes the table's lock, so the table
+/// removes it after the lock is released.
+pub const unwatch_under_lock = false;
 const BOOL = windows.BOOL;
 const DWORD = windows.DWORD;
 const ULONG = u32;
@@ -90,6 +99,10 @@ pub fn processIdentity(process: Handle) ?message.Process {
 
 pub fn close(handle: Handle) void {
     _ = CloseHandle(handle);
+}
+
+pub fn closeHost(host: HostHandle) void {
+    close(host);
 }
 
 pub fn closeAll(handles: []const Handle) void {

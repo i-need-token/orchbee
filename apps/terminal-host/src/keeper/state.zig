@@ -5,13 +5,16 @@
 //! lock is released, because unregistering its wait can wait for a callback that takes the lock.
 
 const std = @import("std");
-const handshake = @import("terminal-host-handshake");
+const builtin = @import("builtin");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
 const platform = @import("terminal-host-platform");
 const thread_sync = platform.thread_sync;
 const monotonic = platform.monotonic;
-const handles = @import("handles_windows.zig");
 const requests = @import("requests.zig");
+
+const windows = builtin.os.tag == .windows;
+pub const handles = if (windows) @import("handles_windows.zig") else @import("handles_darwin.zig");
+pub const content = if (windows) @import("content_windows.zig") else @import("content_darwin.zig");
 
 const message = keeper_protocol.message;
 const Process = message.Process;
@@ -26,7 +29,6 @@ pub const maximum_connections = maximum_host_connections + 1 + maximum_pending_c
 /// Twice the registration bound, so a slot is free whenever fewer than 256 Hosts are registered,
 /// even while forgotten Hosts' handles are still being released.
 const host_slots = 2 * message.maximum_hosts;
-const launch_capacity = handshake.message.maximum_name_bytes;
 
 pub const Lifecycle = enum { ready, draining, stopping };
 
@@ -39,29 +41,34 @@ pub const Peer = union(enum) {
 pub const Worker = struct {
     /// The Worker's connection negotiated `programs`, so `status` lists program holdings to it.
     programs: bool = false,
+    /// The Worker's connection negotiated `pty`, so `status` lists PTY holdings to it.
+    pty: bool = false,
 };
 
 /// What a request leaves for its caller to release after the lock: the duplicates of a released
-/// holding, and the handle and wait of a forgotten Host.
+/// holding, the handle and wait of a forgotten Host, and the descriptors the request carried that
+/// it did not keep.
 pub const Effects = struct {
     released: ?Content = null,
     host: ?HostRelease = null,
+    descriptors: content.Descriptors = .{},
 
-    pub fn release(self: *const Effects) void {
-        if (self.released) |*content| content.close();
+    pub fn release(self: *Effects) void {
+        if (self.released) |*released| released.close();
         if (self.host) |host| host.release(true);
+        self.descriptors.release();
     }
 };
 
 pub const HostRelease = struct {
-    handle: handles.Handle,
-    wait: ?handles.Handle,
+    handle: handles.HostHandle,
+    wait: ?handles.Wait,
 
     /// `blocking` waits for an end callback that already started; the callback itself passes
     /// false, since it cannot wait for itself.
     pub fn release(self: HostRelease, blocking: bool) void {
         if (self.wait) |wait| if (blocking) handles.unwatch(wait) else handles.unwatchFromCallback(wait);
-        handles.close(self.handle);
+        handles.closeHost(self.handle);
     }
 };
 
@@ -84,89 +91,9 @@ const ConnectionSlot = struct {
 pub const Mark = struct { id: RandomId, target: Process };
 pub const Claimed = struct { from: Process, mark: RandomId };
 
-pub const StoredFacts = struct {
-    terminal: message.Terminal,
-    program: Process,
-    console: Process,
-    console_build: [32]u8,
-    signal_format: u16,
-    launch: [launch_capacity]u8,
-    launch_length: u8,
-
-    pub fn store(facts: message.Facts) ?StoredFacts {
-        if (facts.launch.len > launch_capacity) return null;
-        var stored: StoredFacts = .{
-            .terminal = facts.terminal,
-            .program = facts.program,
-            .console = facts.console,
-            .console_build = facts.console_build,
-            .signal_format = facts.signal_format,
-            .launch = undefined,
-            .launch_length = @intCast(facts.launch.len),
-        };
-        @memcpy(stored.launch[0..facts.launch.len], facts.launch);
-        return stored;
-    }
-
-    pub fn view(self: *const StoredFacts, arena: std.mem.Allocator) error{OutOfMemory}!message.Facts {
-        return .{
-            .terminal = self.terminal,
-            .program = self.program,
-            .console = self.console,
-            .console_build = self.console_build,
-            .signal_format = self.signal_format,
-            .launch = try arena.dupe(u8, self.launch[0..self.launch_length]),
-        };
-    }
-};
-
-pub const StoredProgramFacts = struct {
-    process: Process,
-    program_id: [16]u8,
-    label: [message.maximum_label_bytes]u8,
-    label_length: u16,
-
-    /// Facts the decoder checked, so the label fits.
-    pub fn store(facts: message.ProgramFacts) StoredProgramFacts {
-        var stored: StoredProgramFacts = .{
-            .process = facts.process,
-            .program_id = facts.program_id,
-            .label = undefined,
-            .label_length = @intCast(facts.label.len),
-        };
-        @memcpy(stored.label[0..facts.label.len], facts.label);
-        return stored;
-    }
-
-    pub fn view(self: *const StoredProgramFacts, arena: std.mem.Allocator) error{OutOfMemory}!message.ProgramFacts {
-        return .{
-            .process = self.process,
-            .program_id = self.program_id,
-            .label = try arena.dupe(u8, self.label[0..self.label_length]),
-        };
-    }
-};
-
-/// What a holding holds, with the Keeper's duplicates of its handles: a terminal, or a
-/// background program a Host runs without one.
-pub const Content = union(enum) {
-    terminal: struct { duplicates: handles.Duplicates, facts: StoredFacts },
-    program: struct { duplicates: handles.ProgramDuplicates, facts: StoredProgramFacts },
-
-    pub fn close(self: *const Content) void {
-        switch (self.*) {
-            .terminal => |*terminal| handles.closeAll(&terminal.duplicates),
-            .program => |*program| program.duplicates.close(),
-        }
-    }
-
-    pub fn view(self: *const Content, arena: std.mem.Allocator) error{OutOfMemory}!message.HoldingFacts {
-        return switch (self.*) {
-            .terminal => |*terminal| .{ .terminal = try terminal.facts.view(arena) },
-            .program => |*program| .{ .program = try program.facts.view(arena) },
-        };
-    }
-};
+/// What a holding holds, with the Keeper's duplicates or descriptors: on Windows a terminal or a
+/// background program, on macOS a PTY.
+pub const Content = content.Content;
 
 pub const Holding = struct {
     id: RandomId,
@@ -186,8 +113,8 @@ pub const Holding = struct {
 
 pub const Host = struct {
     process: Process,
-    handle: handles.Handle,
-    wait: ?handles.Handle,
+    handle: handles.HostHandle,
+    wait: ?handles.Wait,
     ended: bool = false,
 };
 
@@ -202,6 +129,8 @@ pub const Table = struct {
     host_generations: [host_slots]u16 = @splat(0),
     registered_hosts: usize = 0,
     connections: [maximum_connections]ConnectionSlot = @splat(.{}),
+    /// What one platform's holdings keep beyond the holdings themselves.
+    extra: content.TableExtra = .{},
     pending_connections: usize = 0,
     host_connections: usize = 0,
     worker_connected: bool = false,
@@ -219,6 +148,12 @@ pub const Table = struct {
             slot.wake = handles.createWakeEvent() orelse return error.SystemResources;
         }
         self.settleIdle();
+    }
+
+    /// Starts what sees a Host end outside a request: on macOS the watcher thread. The Keeper
+    /// calls it once, after `activate`.
+    pub fn startWatch(_: *Table) error{SystemResources}!void {
+        if (!windows) try handles.startWatcher(endHost, pollLeaders);
     }
 
     pub fn deinit(self: *Table) void {
@@ -361,6 +296,7 @@ pub const Table = struct {
         const host = if (self.hosts[index]) |*host| host else return null;
         if (host.ended) return null;
         host.ended = true;
+        if (handles.watch_spent_on_fire) host.wait = null;
         for (self.holdings[0..self.holding_count]) |*holding| {
             if (holding.owner.eql(host.process)) holding.orphaned = true;
             if (holding.claimed) |claimed| if (claimed.from.eql(host.process)) {
@@ -377,6 +313,7 @@ pub const Table = struct {
         for (self.holdings[0..self.holding_count]) |*holding| {
             if (holding.owner.eql(process)) return null;
         }
+        if (self.extra.reserves(process)) return null;
         return self.forget(index);
     }
 
@@ -386,7 +323,19 @@ pub const Table = struct {
         self.host_generations[index] +%= 1;
         self.registered_hosts -= 1;
         self.settleIdle();
-        return .{ .handle = host.handle, .wait = host.wait };
+        var wait = host.wait;
+        if (handles.unwatch_under_lock) {
+            if (wait) |armed| handles.unwatch(armed);
+            wait = null;
+        }
+        return .{ .handle = host.handle, .wait = wait };
+    }
+
+    /// Wakes every connection of the Host with process id `pid`, so each sends what it owes.
+    pub fn wakeHostConnections(self: *Table, pid: u32) void {
+        for (&self.connections) |*slot| {
+            if (slot.in_use and slot.kind == .host and slot.pid == pid) handles.signal(slot.wake.?);
+        }
     }
 
     pub fn findHost(self: *const Table, process: Process) ?usize {
@@ -435,12 +384,26 @@ pub fn activate(table: *Table) void {
     active = table;
 }
 
-/// Runs on a thread-pool thread once a registered Host ends.
-pub fn hostEnded(context: ?*anyopaque, _: u8) callconv(.winapi) void {
+/// Runs once a registered Host ends: on a thread-pool thread on Windows, on the watcher thread on
+/// macOS.
+pub const hostEnded = if (windows) hostEndedOnPool else endHost;
+
+fn hostEndedOnPool(context: ?*anyopaque, _: u8) callconv(.winapi) void {
+    endHost(@intFromPtr(context));
+}
+
+fn endHost(context: usize) void {
     const table = active orelse return;
-    const value = @intFromPtr(context);
     table.lock();
-    const forgotten = table.hostEndedLocked(value & 0xffff, @truncate(value >> 16));
+    const forgotten = table.hostEndedLocked(context & 0xffff, @truncate(context >> 16));
     table.unlock();
     if (forgotten) |host| host.release(false);
+}
+
+/// Runs on the macOS watcher thread when a leader exits, and once a second.
+fn pollLeaders() void {
+    const table = active orelse return;
+    table.lock();
+    defer table.unlock();
+    content.pollLeaders(table);
 }

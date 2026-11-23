@@ -42,6 +42,7 @@ fn keep(allocator: std.mem.Allocator, options: launcher_arguments.KeepOptions) !
     terminal_host.keeper.service.run(allocator, .{
         .runtime_directory = options.runtime_directory,
         .endpoint_id = options.endpoint_id,
+        .endpoint_directory = options.endpoint_directory,
     }) catch |err| switch (err) {
         error.InsecureRuntimeDirectory => failed(.runtime_directory, err),
         error.AlreadyRunning => failed(.already_running, err),

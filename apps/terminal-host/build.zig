@@ -685,6 +685,10 @@ pub fn build(builder: *std.Build) void {
                 .optimize = optimize,
             });
             if (target.result.os.tag == .macos) {
+                platform_module.addCSourceFile(.{
+                    .file = builder.path("src/platform/keeper_darwin.c"),
+                    .flags = authored_c_flags,
+                });
                 platform_module.linkSystemLibrary("bsm", .{});
                 if (builtin.target.os.tag.isDarwin()) {
                     const libc = std.zig.LibCInstallation.findNative(builder.allocator, builder.graph.io, .{

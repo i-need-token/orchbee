@@ -1,16 +1,24 @@
 //! One Keeper connection on its own thread: the `OBHS` frame, `hello`, then one request at a time.
 //! Every read and write happens here, outside the table's lock, and a reply the peer does not take
 //! within the reply deadline ends only this connection, so a peer that stops reading stalls no
-//! other connection.
+//! other connection. On macOS a request's descriptors arrive with its frame and a reply's leave
+//! with it, and a Host's connection sends `exited` for its parented leaders between requests.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const build_options = @import("build-options");
 const handshake = @import("terminal-host-handshake");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
 const platform = @import("terminal-host-platform");
 const local_ipc = @import("terminal-host-transport");
-const handles = @import("handles_windows.zig");
+const requests_module = @import("requests.zig");
 const state = @import("state.zig");
+
+const handles = state.handles;
+const darwin = builtin.os.tag == .macos;
+/// One accepted connection: a pipe instance on Windows, a Unix socket that carries descriptors on
+/// macOS.
+pub const Transport = if (darwin) platform.keeper.darwin.Stream else local_ipc.LocalServer;
 
 const monotonic = platform.monotonic;
 const message = keeper_protocol.message;
@@ -27,7 +35,7 @@ const wait_slice_ms = 1000;
 pub const Context = struct {
     allocator: std.mem.Allocator,
     table: *state.Table,
-    transport: local_ipc.LocalServer,
+    transport: Transport,
     slot: usize,
 };
 
@@ -51,7 +59,7 @@ pub fn run(context: Context) void {
 const Connection = struct {
     allocator: std.mem.Allocator,
     table: *state.Table,
-    transport: local_ipc.LocalServer,
+    transport: Transport,
     slot: usize,
     wake: handles.Handle,
     /// The `answer` listed `recovery`, so this connection may send its requests.
@@ -59,6 +67,12 @@ const Connection = struct {
     /// The `answer` listed `programs`: a Host may hold background programs, and a Worker's
     /// `status` lists them.
     programs: bool = false,
+    /// The `answer` listed `pty`: a Host may hold PTY masters, and a Worker's `status` lists them.
+    pty: bool = false,
+    /// The `answer` listed `parent`: a Host may spawn and reap leaders, and is sent `exited`.
+    parent: bool = false,
+    /// The Host this connection admitted.
+    host: ?message.Process = null,
 
     fn serve(self: *Connection) !void {
         var arena_state = std.heap.ArenaAllocator.init(self.allocator);
@@ -93,6 +107,8 @@ const Connection = struct {
                 for (answer.capabilities) |capability| {
                     if (std.mem.eql(u8, capability, handshake.registry.keeper.recovery)) self.recovery = true;
                     if (std.mem.eql(u8, capability, handshake.registry.keeper.programs)) self.programs = true;
+                    if (std.mem.eql(u8, capability, handshake.registry.keeper.pty)) self.pty = true;
+                    if (std.mem.eql(u8, capability, handshake.registry.keeper.parent)) self.parent = true;
                 }
                 try self.write(try handshakeReply(arena, .{ .answer = answer }));
             },
@@ -169,8 +185,11 @@ const Connection = struct {
             .admitted => |admitted| {
                 var peer = admitted;
                 switch (peer) {
-                    .worker => |*worker| worker.programs = self.programs,
-                    .host => {},
+                    .worker => |*worker| {
+                        worker.programs = self.programs;
+                        worker.pty = self.pty;
+                    },
+                    .host => |process| self.host = process,
                 }
                 try self.write(try reply(arena, request.id, .hello));
                 var used: UsedIds = .{};
@@ -208,20 +227,84 @@ const Connection = struct {
                     const kind = std.meta.activeTag(request.body);
                     if (message.Request.needsRecovery(kind) and !self.recovery) break :applied .{ .unsupported = kind.name() };
                     if (message.Request.needsPrograms(kind) and !self.programs) break :applied .{ .unsupported = kind.name() };
+                    if (message.Request.needsPty(kind) and !self.pty) break :applied .{ .unsupported = kind.name() };
+                    if (message.Request.needsParent(kind) and !self.parent) break :applied .{ .unsupported = kind.name() };
+                    if (!requests_module.held.serves(kind)) break :applied .{ .unsupported = kind.name() };
+                    if (!self.takeDescriptors(request.body, &effects)) break :applied .{ .refused = .handle_failed };
+                    if (comptime darwin) if (request.body == .spawn) {
+                        // A spawn forks with the lock released, so it takes the lock itself.
+                        if (self.closingNow()) return;
+                        break :applied try requests_module.held.spawn(self.table, arena, peer, request.body.spawn, &effects.descriptors);
+                    };
                     self.table.lock();
                     defer self.table.unlock();
                     if (self.table.closing(self.slot)) return;
                     break :applied try self.table.apply(arena, peer, request.body, &effects);
                 },
             };
+            self.discardDescriptors();
             effects.release();
+            defer self.closeSent(&effects);
             const frame = try reply(arena, id, body);
             // Bytes that arrived before this reply are a second request while one is outstanding.
             if ((self.transport.pendingBytes() catch return) > 0) return;
-            self.transport.writeAllWithin(frame, message.reply_deadline_ns) catch |err| {
+            self.writeReply(frame, &effects) catch |err| {
                 if (err == error.WriteTimeout) platform.diagnostic_log.noteReplyNotTaken();
                 return;
             };
+        }
+    }
+
+    /// Moves the descriptors a request carries into `effects`; false when they did not all arrive.
+    fn takeDescriptors(self: *Connection, body: message.Request.Body, effects: *state.Effects) bool {
+        if (comptime !darwin) return true;
+        const count = message.Request.descriptorCount(body);
+        if (!self.transport.takeDescriptors(effects.descriptors.received[0..count])) return false;
+        effects.descriptors.count = count;
+        return true;
+    }
+
+    /// Closes descriptors that arrived with a request that does not carry them.
+    fn discardDescriptors(self: *Connection) void {
+        if (comptime darwin) self.transport.discardDescriptors();
+    }
+
+    fn writeReply(self: *Connection, frame: []const u8, effects: *const state.Effects) !void {
+        if (comptime darwin) {
+            if (effects.descriptors.send) |descriptor| {
+                return self.transport.writeWithDescriptors(frame, &.{descriptor}, message.reply_deadline_ns);
+            }
+        }
+        return self.transport.writeAllWithin(frame, message.reply_deadline_ns);
+    }
+
+    /// Closes the duplicate a reply carried, once the reply is written or abandoned.
+    fn closeSent(_: *Connection, effects: *state.Effects) void {
+        if (comptime darwin) if (effects.descriptors.send) |descriptor| {
+            platform.posix_compat.close(descriptor);
+            effects.descriptors.send = null;
+        };
+    }
+
+    /// Sends `exited` for each ended parented leader of this connection's Host it was not yet
+    /// sent, on a connection that negotiated `parent`.
+    fn sendExits(self: *Connection) !void {
+        if (comptime darwin) {
+            if (!self.parent) return;
+            const owner = self.host orelse return;
+            while (true) {
+                var exits: [8]message.pty.Exited = undefined;
+                self.table.lock();
+                const count = state.content.takeExits(self.table, owner, &exits);
+                self.table.unlock();
+                for (exits[0..count]) |exited| {
+                    var buffer: [512]u8 = undefined;
+                    var fixed = std.heap.FixedBufferAllocator.init(&buffer);
+                    const frame = try keeper_protocol.encode.acceptorFrame(fixed.allocator(), .{ .exited = exited });
+                    try self.transport.writeAllWithin(frame, message.reply_deadline_ns);
+                }
+                if (count < exits.len) return;
+            }
         }
     }
 
@@ -271,6 +354,7 @@ const Source = struct {
         if (self.deadline == .within_deadline and self.timer == null) self.startTimer() catch return error.ConnectionClosed;
         while (true) {
             if (self.connection.closingNow()) return error.ConnectionClosed;
+            self.connection.sendExits() catch return error.ConnectionClosed;
             var wait_ms: u32 = wait_slice_ms;
             if (self.timer) |*timer| {
                 const elapsed = timer.read();

@@ -1,12 +1,16 @@
-//! The Keeper's listener thread: it accepts each connection onto its own pipe instance and thread,
-//! closes at once any connection beyond the Keeper's bounds, and ends the process once it is empty
-//! for 30 seconds or drained.
+//! The Keeper's listener thread: it accepts each connection onto its own thread, on its own pipe
+//! instance on Windows, closes at once any connection beyond the Keeper's bounds, and ends the
+//! process once it is empty for 30 seconds or drained.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const platform = @import("terminal-host-platform");
 const local_ipc = @import("terminal-host-transport");
 const connection = @import("connection.zig");
 const state = @import("state.zig");
+
+const darwin = builtin.os.tag == .macos;
+const Server = if (darwin) @import("listener_darwin.zig").Server else local_ipc.LocalServer;
 
 const monotonic = platform.monotonic;
 const diagnostic_log = platform.diagnostic_log;
@@ -27,18 +31,18 @@ const connection_stack_bytes = 256 * 1024;
 pub const Options = struct {
     runtime_directory: []const u8,
     endpoint_id: []const u8,
+    /// Where a macOS Keeper binds its socket; the runtime directory when absent.
+    endpoint_directory: ?[]const u8 = null,
 };
 
 pub const StartError = error{ InsecureRuntimeDirectory, AlreadyRunning, Endpoint };
 
 /// Serves the Keeper's endpoint until the Keeper ends; returns only when it could not start.
 pub fn run(allocator: std.mem.Allocator, options: Options) (StartError || error{ OutOfMemory, SystemResources })!noreturn {
-    var server = local_ipc.LocalServer.initWithInstanceLimit(
-        allocator,
-        options.runtime_directory,
-        options.endpoint_id,
-        pipe_instance_limit,
-    ) catch |err| {
+    var server = (if (darwin)
+        Server.init(allocator, options.runtime_directory, options.endpoint_directory orelse options.runtime_directory, options.endpoint_id)
+    else
+        Server.initWithInstanceLimit(allocator, options.runtime_directory, options.endpoint_id, pipe_instance_limit)) catch |err| {
         const any_error: anyerror = err;
         return switch (any_error) {
             error.InsecureRuntimeDirectory => error.InsecureRuntimeDirectory,
@@ -50,9 +54,11 @@ pub fn run(allocator: std.mem.Allocator, options: Options) (StartError || error{
     fatal_record.armAs(.keeper, options.runtime_directory);
     diagnostic_log.armKeeper(options.runtime_directory);
     fatal_record.markThread(.@"keeper-listener");
+    if (darwin) platform.keeper.darwin.raiseDescriptorLimit();
     const table = try allocator.create(state.Table);
     try table.init();
     state.activate(table);
+    try table.startWatch();
     var listener: Listener = .{
         .allocator = allocator,
         .server = &server,
@@ -63,7 +69,7 @@ pub fn run(allocator: std.mem.Allocator, options: Options) (StartError || error{
 
 const Listener = struct {
     allocator: std.mem.Allocator,
-    server: *local_ipc.LocalServer,
+    server: *Server,
     table: *state.Table,
 
     fn run(self: *Listener) noreturn {

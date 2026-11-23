@@ -262,8 +262,8 @@ kernel truncated, fails the request as `handle-failed` and closes what arrived.
 | `launch`          | `{executable, arguments, environment, candidates, directory}`: the executable as named, the arguments after the first, `name=value` entries, the paths to try in order when the executable names no folder, and the optional directory; no text has a NUL, and each list has at most 4,096 entries |
 | Exit status       | `{code}`, from 0 to 255, or `{signal}`, from 1 to 255                                                                                                                                                                                                                                              |
 
-- `register-host` on macOS checks the process's start time with `proc_pidinfo` and watches its end
-  with a `kqueue` `EVFILT_PROC` filter; a process gone before the watch is armed gets
+- `register-host` on macOS checks the process's start time as the kernel's process record
+  (`KERN_PROC_PID`) holds it and watches its end with a `kqueue` `EVFILT_PROC` filter; a process gone before the watch is armed gets
   `handle-failed`.
 - `hold-pty` checks the master it received: a PTY master whose slave name equals `slave`, and a
   leader that runs with the recorded start time. A failed check gets `identity-mismatch` and closes
@@ -274,14 +274,17 @@ kernel truncated, fails the request as `handle-failed` and closes what arrived.
   candidate in order, with `execve`. A child that cannot start gets `spawn-failed`. The Keeper
   closes the slave and the standard input, keeps the master, and answers the leader's process; the
   holding is owned by that Host and parented.
-- The Keeper watches a parented leader from its fork with `EVFILT_PROC` and `NOTE_EXIT`, and with a
-  bounded `waitid` poll that never reaps. When the leader ends, the Keeper records the status that
-  `waitid(P_PID, …, WEXITED | WNOWAIT)` reads and sends its owner `exited`. A PTY holding's status
+- The Keeper watches a parented leader from its fork with `EVFILT_PROC` and `NOTE_EXIT`, and polls
+  it once a second with a `waitid` that never reaps. When the leader ends, the Keeper records the
+  status that `waitid(P_PID, …, WEXITED | WNOWAIT)` reads and sends `exited` once for that end on a
+  connection of its owner that negotiated `parent`; a claim makes it due again to the claimant. A PTY holding's status
   entry and `inspect-result` carry `parented` and, once a parented leader ended, `ended`.
 - `reap` by the owner reaps an ended parented leader; a running one gets `running`. A repeat, and a
   `reap` of a holding the Keeper does not parent, gets `reap-result`. `release` reaps an ended
-  leader, and the Keeper reaps a leader that ends after its release; it reaps nothing else, so a
-  leader's process id stays its session's until its owner contains it.
+  leader, and the Keeper reaps a leader that ends after its release or `discard`; it reaps nothing
+  else, so a leader's process id stays its session's until its owner contains it. A `release` or
+  `discard` that would leave more running released leaders than twice the holding bound gets
+  `capacity`.
 - `claim` of a PTY holding names the leader as `program`.
 
 ## Bounds

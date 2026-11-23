@@ -18,6 +18,7 @@ const serve_option_names = [_][]const u8{
     scrollback_bytes_option,
 };
 const keep_option_names = [_][]const u8{
+    endpoint_directory_option,
     endpoint_id_option,
     runtime_directory_option,
 };
@@ -30,6 +31,9 @@ pub const Command = union(enum) {
 };
 
 pub const KeepOptions = struct {
+    /// Where a macOS Keeper binds its socket; without it the socket goes in the runtime directory.
+    /// A Windows Keeper names a pipe instead and ignores it.
+    endpoint_directory: ?[]const u8 = null,
     endpoint_id: []const u8,
     runtime_directory: []const u8,
 };
@@ -63,9 +67,13 @@ fn parseKeepOptions(options: argument_options.Options) !KeepOptions {
     try options.ensureOnly(&keep_option_names);
     const runtime_directory = try options.requireOne(runtime_directory_option);
     const endpoint_id = try options.requireOne(endpoint_id_option);
+    const endpoint_directory = try options.optionalOne(endpoint_directory_option);
     if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
+    if (endpoint_directory) |directory| {
+        if (!std.fs.path.isAbsolute(directory)) return error.EndpointDirectoryNotAbsolute;
+    }
     if (!local_ipc.validEndpointId(endpoint_id)) return error.InvalidEndpointId;
-    return .{ .endpoint_id = endpoint_id, .runtime_directory = runtime_directory };
+    return .{ .endpoint_directory = endpoint_directory, .endpoint_id = endpoint_id, .runtime_directory = runtime_directory };
 }
 
 fn parseServeOptions(options: argument_options.Options) !ServeOptions {

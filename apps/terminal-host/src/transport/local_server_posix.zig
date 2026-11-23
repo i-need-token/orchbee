@@ -247,6 +247,20 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
         return self.socket_path;
     }
 
+    /// The listening socket, which a caller that accepts by itself polls.
+    pub fn listenerSocket(self: *const Server) std.posix.fd_t {
+        return self.listener.socket.handle;
+    }
+
+    /// Accepts one connection and hands its socket to the caller, as the Keeper does for each of
+    /// its connections; another user's connection is closed with `PeerIdentityMismatch`.
+    pub fn acceptSocket(self: *Server) !std.posix.fd_t {
+        const accepted = try self.listener.accept(self.io);
+        errdefer accepted.close(self.io);
+        try endpoint_security.requirePeerEffectiveUid(accepted.socket.handle, std.c.geteuid());
+        return accepted.socket.handle;
+    }
+
     pub fn serveUntilIdle(self: *Server, service: *host_service.HostService) !void {
         return serve_loop.serveUntilIdleLoop(self, service, struct {
             fn recoverable(err: anyerror) bool {
