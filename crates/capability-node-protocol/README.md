@@ -592,7 +592,7 @@ is still answered and never ends the Worker or its terminals. The body after the
 request's kind (`u8`: 1 Launch, 2 Start, 3 viewer, 4 control, 5 lifecycle, 6 cwd validation, 7 Send,
 8 Worktree Job, 9 Agent drain, 10 shutdown, 11 Worktree mutation, 12 titles, 13 handoff, 14 Agent
 integration job, 15 Agent probe job, 16 Host query, 17 title changes, 18 plugin job, 19 graphics
-decode, 20 AdoptHost) and its 16-byte identity: the request or operation ID it carries, the Launch
+decode, 20 AdoptHost, 21 move turn) and its 16-byte identity: the request or operation ID it carries, the Launch
 or Start authorization's operation ID, an AdoptHost page's adoption ID, or for an Agent drain its
 token and acknowledged sequence, each a big-endian `u64`. `WorkerRequestDeclined::of` names the decline of every Server request and of no
 Worker-sent message, by an exhaustive match, so a new request kind must name its decline to build.
@@ -641,10 +641,12 @@ bindings (the generation-local binding bound) and duplicates across pages are th
 
 A result echoes the adoption ID, Worker ID, generation, page index and last flag, then an outcome
 tag: 1 PageAccepted; 2 Adopted, with imported and quarantined counts (`u32` each), a missing count
-(`u16`, at most 1,024) and that many distinct missing Terminal IDs; or 3 Failed, with a failure tag:
+(`u16`, at most 1,024) and that many missing Terminal IDs, then a moved count (`u8`, at most 16) and
+that many moved bindings, each a Terminal ID and the Host creation, epoch and terminal IDs (16 each)
+it runs as now, no Terminal ID named twice across both lists; or 3 Failed, with a failure tag:
 1 `host-gone`, 2 `host-unreachable`, 3 `host-unverified`, 4 `host-mismatch`, 5 `host-refused`,
 6 `inventory-failed` or 7 `recovery-failed`. PageAccepted answers only a page before the last, and Adopted or Failed only
-the last. A result is at most 16,439 payload bytes.
+the last. A result is at most 17,464 payload bytes.
 
 The Worker's [adopt mode](../../apps/orchbee-worker/README.md#replacement-adoption) owns Host
 verification, the inventory and the import, and the Server owns
@@ -653,6 +655,20 @@ the bindings it sends and their rebinding, as
 golden bytes, the largest page and answer, construction contradictions and malformed bounds verify
 this representation. The pair follows this protocol's exact-cohort rule: frame version 1 stays, and
 older cohorts reject the new tags.
+
+## Move turn messages
+
+Kind 43 `TerminalMoveTurnRequest` and kind 44 `TerminalMoveTurnResult` carry one turn of the moves
+of terminals from older Terminal Hosts into the Worker's own, under frame version 1 with no
+capability name. A request's body after its kind is the request ID (16), Worker ID (16) and positive
+Worker generation (`u64`, big-endian). A result echoes them, then an outcome tag: 1 Moved, with the
+product Terminal ID (16), and the Host creation, epoch and terminal IDs (16 each) it ran as and runs
+as now, which name one creation under two epochs; 2 Waiting, when a later turn may move one; or 3
+Done, after which no turn moves any. A result is at most 154 payload bytes. The Worker owns the
+move ([several Hosts](../../apps/orchbee-worker/README.md#several-hosts)) and the Server its turns
+and the rebinding, as the [H3 design](../../proposals/platform/host-handover.md#h3-design) decides.
+Hand-derived golden bytes and malformed bounds verify this representation, and the pair follows
+this protocol's exact-cohort rule.
 
 ## Carrier and ownership boundaries
 

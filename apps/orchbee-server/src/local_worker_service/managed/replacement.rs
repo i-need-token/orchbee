@@ -593,6 +593,7 @@ pub(super) fn send_pages(
                 imported,
                 quarantined,
                 missing,
+                moved: _,
             } if last => {
                 return Adoption::Adopted {
                     sent: bindings.iter().map(|binding| binding.terminal_id).collect(),

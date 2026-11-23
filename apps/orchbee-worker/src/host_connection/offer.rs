@@ -11,8 +11,8 @@ use std::{
 
 use orchbee_connection_handshake::{
     BACKGROUND_PROGRAMS, Build, CapabilityName, CapabilitySet, ConnectionKind, EnvironmentName,
-    InitiatorMessage, KEEPER, Offer, OfferFailure, PROMPT_GATED_INPUT, ProductVersion, RECOVERY,
-    ReadError, RejectionReason, SCREEN_GATED_SEND, SourceCommit, conclude_offer,
+    HANDOVER, InitiatorMessage, KEEPER, Offer, OfferFailure, PROMPT_GATED_INPUT, ProductVersion,
+    RECOVERY, ReadError, RejectionReason, SCREEN_GATED_SEND, SourceCommit, conclude_offer,
     encode_initiator_frame, read_acceptor_message,
 };
 
@@ -80,6 +80,15 @@ pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
                 .chain([CapabilityName::new(KEEPER)?, CapabilityName::new(RECOVERY)?]),
         )?;
     }
+    if cfg!(windows) && orchbee_local_runtime::moves_live() {
+        offer.capabilities = CapabilitySet::new(
+            offer
+                .capabilities
+                .iter()
+                .cloned()
+                .chain([CapabilityName::new(HANDOVER)?]),
+        )?;
+    }
     Ok(offer)
 }
 
@@ -126,6 +135,7 @@ pub(super) fn exchange(
             keeper: super::KeeperTerms {
                 keeper: answer.capabilities.contains(KEEPER),
                 recovery: answer.capabilities.contains(RECOVERY),
+                handover: answer.capabilities.contains(HANDOVER),
             },
             background_programs: answer.capabilities.contains(BACKGROUND_PROGRAMS),
         })),

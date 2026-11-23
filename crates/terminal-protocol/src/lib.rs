@@ -88,8 +88,11 @@ pub use frame_route::{
 };
 pub use geometry::TerminalPixelGeometry;
 pub use handover::{
-    AttachKeeper, EncodedHandoverControl, HandoverControl, HandoverProcess, HandoverRefusal,
-    RecoverTerminal, decode_handover_control, decode_handover_refusal, encode_handover_control,
+    AttachKeeper, DiscardOutcome, DiscardTarget, EncodedHandoverControl, HandoverControl,
+    HandoverProcess, HandoverRecordChunk, HandoverRecordWritten, HandoverRefusal, ImportTerminal,
+    MAXIMUM_HANDOVER_RECORD_SIZE, QuiesceTerminal, ReadHandoverRecord, RecoverTerminal,
+    ResumeOutcome, TerminalQuiesced, TerminalResumed, decode_handover_control,
+    decode_handover_refusal, encode_handover_control,
 };
 pub use history::{
     EncodedHistoryControl, HistoryAnchorStatus, HistoryChanged, HistoryControl, HistoryDemand,

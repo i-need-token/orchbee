@@ -2179,8 +2179,12 @@ fn validate_response(
             Ok(WorkerOperationResult::Shutdown(actual))
         }
         (_, CapabilityNodeMessage::WorkerShutdownRequest(_))
-        | (_, CapabilityNodeMessage::AdoptHostRequest(_)) => {
+        | (_, CapabilityNodeMessage::AdoptHostRequest(_))
+        | (_, CapabilityNodeMessage::TerminalMoveTurnRequest(_)) => {
             Err(WorkerResponseFailure::WrongDirection)
+        }
+        (_, CapabilityNodeMessage::TerminalMoveTurnResult(_)) => {
+            Err(WorkerResponseFailure::WrongResultKind)
         }
         (
             WorkerOperationRequest::AdoptHost(expected),

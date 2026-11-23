@@ -448,6 +448,23 @@ pub(crate) fn exchange_between_requests(
     exchange.request(correlation, kind, payload, encoding)
 }
 
+/// [`exchange`] within `budget`, whose answer may come in any payload encoding: a handover record
+/// chunk comes back as raw bytes. It starts only if that budget ends within the current request.
+#[cfg(windows)]
+pub(crate) fn exchange_within(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    budget: Duration,
+    correlation: CorrelationId,
+    kind: u16,
+    payload: &[u8],
+    encoding: PayloadEncoding,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    let mut exchange = HostExchange::new(host, server, budget)?;
+    exchange.prepare().map_err(|class| exchange.error(class))?;
+    exchange.answer(correlation, kind, payload, encoding, true)
+}
+
 impl HostExchange<'_> {
     /// Writes one correlated request and returns its ControlJson answer. An answer whose envelope
     /// is out of contract arrived intact, so it is the request's [`UnexpectedAnswer`], which refuses
@@ -458,6 +475,18 @@ impl HostExchange<'_> {
         kind: u16,
         payload: &[u8],
         encoding: PayloadEncoding,
+    ) -> Result<Vec<u8>, Box<dyn Error>> {
+        self.answer(correlation, kind, payload, encoding, false)
+    }
+
+    /// [`Self::request`], whose answer may also be raw bytes when `raw_answer` allows it.
+    fn answer(
+        &mut self,
+        correlation: CorrelationId,
+        kind: u16,
+        payload: &[u8],
+        encoding: PayloadEncoding,
+        raw_answer: bool,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
         let host = self.host;
         let record = encode_transport_envelope(&Envelope {
@@ -473,7 +502,12 @@ impl HostExchange<'_> {
         let record = self
             .round_trip(&record)
             .map_err(|class| self.error(class))?;
-        if !answers(&record, correlation, host.host_epoch()) {
+        let answered = if raw_answer {
+            response_envelope(&record, correlation, host.host_epoch()).is_ok()
+        } else {
+            answers(&record, correlation, host.host_epoch())
+        };
+        if !answered {
             return Err(UnexpectedAnswer::of(&record).into());
         }
         Ok(record)

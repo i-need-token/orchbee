@@ -14,8 +14,8 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    CapabilityNodeMessage, DeclinedRequestKind, HostEpoch, LaunchPreferences, TerminalViewerAction,
-    WorkerRequestDeclined,
+    CapabilityNodeMessage, DeclinedRequestKind, HostEpoch, LaunchPreferences,
+    TerminalMoveTurnResult, TerminalViewerAction, WorkerRequestDeclined,
 };
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::CorrelationId;
@@ -51,6 +51,8 @@ pub(crate) use lazy::run as run_lazy;
 mod handoff;
 #[cfg(windows)]
 mod keeper_care;
+#[cfg(windows)]
+mod moves;
 #[cfg(windows)]
 mod recovery;
 mod server_transport;
@@ -200,6 +202,8 @@ fn serve(
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
     let mut server = server;
+    #[cfg(windows)]
+    let mut moving = moves::Moves::default();
     loop {
         hosts.end_request();
         let (request, readable) = loop {
@@ -252,6 +256,42 @@ fn serve(
                 Some(hosts.primary()),
                 &request,
                 DeclineCause::Handoff,
+            )?;
+            continue;
+        }
+        // A request the Server wrote before it recorded a move runs against the terminal as it
+        // runs now.
+        #[cfg(windows)]
+        let mut request = request;
+        #[cfg(windows)]
+        let named = moving.before(&mut request, hosts);
+        if let CapabilityNodeMessage::TerminalMoveTurnRequest(turn) = request {
+            if turn.worker_id.as_bytes() != worker_id.as_bytes()
+                || turn.worker_generation.get() != generation.get()
+            {
+                decline(
+                    &server,
+                    Some(hosts.primary()),
+                    &request,
+                    DeclineCause::Fence,
+                )?;
+                continue;
+            }
+            #[cfg(windows)]
+            let outcome = {
+                hosts.set_site(Site::Move);
+                moving.turn(hosts, &mut kernel, care, &server, readable)?
+            };
+            #[cfg(not(windows))]
+            let outcome = orchbee_capability_node_protocol::TerminalMoveTurnOutcome::Done;
+            let result = TerminalMoveTurnResult {
+                request: turn,
+                outcome,
+            };
+            clean_and_send(
+                &server,
+                hosts.primary(),
+                &CapabilityNodeMessage::TerminalMoveTurnResult(result),
             )?;
             continue;
         }
@@ -464,6 +504,8 @@ fn serve(
             let result = kernel
                 .take_lifecycle_result()
                 .ok_or_else(|| io::Error::other("Worker lifecycle result is missing"))?;
+            #[cfg(windows)]
+            let result = moves::lifecycle_answer(result, named.as_ref())?;
             // A retired terminal is never named again, so its cleanup cell frees for another Close.
             if result.outcome()
                 == orchbee_capability_node_protocol::TerminalLifecycleOutcome::Retired
@@ -515,9 +557,15 @@ fn serve(
             };
             let host = hosts.connection(index);
             host.pacing.set_site(Site::Viewer);
-            let result = crate::terminal_viewer_operation::execute(
+            #[cfg_attr(
+                not(windows),
+                expect(unused_mut, reason = "only moves rewrite an answer")
+            )]
+            let mut result = crate::terminal_viewer_operation::execute(
                 request, worker_id, generation, host, &server,
             )?;
+            #[cfg(windows)]
+            moves::viewer_answer(&mut result.outcome, named.as_ref());
             clean_and_send(
                 &server,
                 host,

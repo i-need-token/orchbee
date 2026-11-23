@@ -51,6 +51,10 @@ struct Viewer {
     events: VecDeque<QueuedEvent>,
     next_preference: PollSource,
     closed: bool,
+    /// Closed because its terminal moved to this Host from another: its Client learns of it by Poll
+    /// and attaches again, while its controller still relays input here, and no Host attachment of
+    /// this connection is the viewer's.
+    moved: bool,
     /// A hint went out and no Poll has answered it, which bounds hints to one per viewer.
     hinted: bool,
     flight: Option<Flight>,
@@ -116,6 +120,7 @@ impl HostViewers {
                 events: VecDeque::new(),
                 next_preference: PollSource::Record,
                 closed: false,
+                moved: false,
                 hinted: false,
                 flight: None,
                 last_sequence: 0,
@@ -136,6 +141,66 @@ impl HostViewers {
             .get(&id.as_bytes())
             .filter(|viewer| !viewer.closed)
             .map(|viewer| viewer.terminal_id)
+    }
+
+    /// The terminal of a viewer whose terminal moved here, which only its controller's input still
+    /// reaches.
+    pub(crate) fn moved_target(
+        &self,
+        id: OperationId,
+    ) -> Option<orchbee_capability_node_protocol::HostTerminalId> {
+        self.viewers
+            .get(&id.as_bytes())
+            .filter(|viewer| viewer.moved)
+            .map(|viewer| viewer.terminal_id)
+    }
+
+    /// Whether `id` is a viewer whose terminal moved here.
+    pub(crate) fn moved(&self, id: OperationId) -> bool {
+        self.viewers
+            .get(&id.as_bytes())
+            .is_some_and(|viewer| viewer.moved)
+    }
+
+    /// Takes in the viewer `id`, whose terminal moved here as `terminal_id`, closed: its next Poll
+    /// answers that it is gone, so its Client attaches again, and `demand` stays what its
+    /// controller follows until then.
+    #[cfg(windows)]
+    pub(crate) fn adopt_moved(
+        &mut self,
+        id: OperationId,
+        terminal_id: orchbee_capability_node_protocol::HostTerminalId,
+        demand: ProjectionDemand,
+    ) -> Result<(), ViewerRejection> {
+        let key = id.as_bytes();
+        if self.viewers.contains_key(&key) {
+            return Err(ViewerRejection::AttachmentAlreadyExists);
+        }
+        if self.viewers.len() == MAXIMUM_VIEWERS {
+            return Err(ViewerRejection::CapacityExceeded);
+        }
+        self.viewers.insert(
+            key,
+            Viewer {
+                terminal_id,
+                demand,
+                record: None,
+                lifecycle: None,
+                events: VecDeque::new(),
+                next_preference: PollSource::Record,
+                closed: true,
+                moved: true,
+                hinted: false,
+                flight: None,
+                last_sequence: 0,
+                last_bell_sequence: 0,
+                last_clipboard_write_sequence: 0,
+                needs_snapshot: true,
+                blocked_revision: None,
+            },
+        );
+        self.note_ready();
+        Ok(())
     }
 
     pub(crate) fn demand(&self, id: OperationId) -> Option<ProjectionDemand> {
@@ -184,7 +249,7 @@ impl HostViewers {
         self.retained_record_bytes
     }
 
-    pub(super) fn target_ids(
+    pub(crate) fn target_ids(
         &self,
         terminal: orchbee_capability_node_protocol::HostTerminalId,
     ) -> Result<
@@ -205,7 +270,7 @@ impl HostViewers {
     pub(crate) fn closed_ids(&self) -> Vec<[u8; 16]> {
         self.viewers
             .iter()
-            .filter_map(|(id, viewer)| viewer.closed.then_some(*id))
+            .filter_map(|(id, viewer)| (viewer.closed && !viewer.moved).then_some(*id))
             .collect()
     }
 

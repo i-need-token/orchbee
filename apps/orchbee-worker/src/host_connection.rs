@@ -49,6 +49,8 @@ mod viewers;
 
 #[cfg(test)]
 mod tests;
+#[cfg(windows)]
+pub(crate) use exchange::exchange_within;
 pub(crate) use exchange::{
     HostExchange, PeerFailure, UnexpectedAnswer, exchange, exchange_between_requests,
     response_envelope,
@@ -150,12 +152,13 @@ pub(crate) struct DialBounds {
     pub(crate) deadline: Instant,
 }
 
-/// Whether the Host's answer listed `keeper` and `recovery`.
+/// Whether the Host's answer listed `keeper`, `recovery`, and `handover`.
 #[cfg(windows)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct KeeperTerms {
     keeper: bool,
     recovery: bool,
+    handover: bool,
 }
 
 /// The Keeper events a Host sent: its Keeper ended (`KeeperLost`), missed a deadline
@@ -370,6 +373,20 @@ impl HostBrokerConnection {
     #[cfg(windows)]
     pub(crate) const fn recovery(&self) -> bool {
         self.keeper.recovery
+    }
+
+    /// Whether this Host exports and imports terminals that move between Hosts.
+    #[cfg(windows)]
+    pub(crate) const fn handover(&self) -> bool {
+        self.keeper.handover
+    }
+
+    /// Whether the Host reported its Keeper lost or unresponsive since the Keeper's care last took
+    /// its events, which this call leaves for that care.
+    #[cfg(windows)]
+    pub(crate) fn keeper_troubled(&self) -> bool {
+        let events = self.keeper_events.get();
+        events.lost || events.unresponsive
     }
 
     /// The Keeper events the Host sent since the last call, which this call clears.

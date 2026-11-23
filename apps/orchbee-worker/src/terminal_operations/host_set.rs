@@ -409,6 +409,32 @@ impl HostSet<'_> {
             .or_else(|| (checked && super::server_transport::readable_now(server)).then_some(began))
     }
 
+    /// The older Hosts that still serve, which a move empties into the own Host.
+    pub(super) fn older(&self) -> Vec<usize> {
+        self.hosts
+            .iter()
+            .enumerate()
+            .filter(|(_, held)| !held.own && !held.drained())
+            .map(|(index, _)| index)
+            .collect()
+    }
+
+    /// Whether the Host at `index` holds its running terminals in the Session's current Keeper,
+    /// which a move needs of both Hosts.
+    pub(super) fn keeper_attached(&self, index: usize) -> bool {
+        self.keeper.is_some() && self.hosts[index].watch.attached()
+    }
+
+    /// The process of the Host at `index`, which a quiesce names as the Host its mark is for.
+    pub(super) fn host_process(&self, index: usize) -> Option<(u32, u64)> {
+        self.hosts[index].managed.as_ref()?.host_identity().ok()
+    }
+
+    /// The Session record slot of the Host at `index`, for diagnostics.
+    pub(super) fn slot_index(&self, index: usize) -> u8 {
+        self.hosts[index].slot.index()
+    }
+
     /// Checks the Host left one of its exchanges unanswered once more as the Worker exits, as the
     /// Keeper's care does.
     pub(super) fn after_unanswered(&mut self, index: usize) {

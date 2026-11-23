@@ -32,6 +32,7 @@ mod cwd_validation;
 mod graphics_decode;
 mod host_query;
 mod lifecycle;
+mod move_turn;
 mod plugin_job;
 mod request_declined;
 mod seeded_launch;
@@ -82,6 +83,8 @@ pub enum CapabilityNodeMessage {
     WorktreeMutationResult(crate::WorktreeMutationResult),
     WorkerShutdownRequest(crate::WorkerShutdownRequest),
     WorkerShutdownResult(crate::WorkerShutdownResult),
+    TerminalMoveTurnRequest(crate::TerminalMoveTurnRequest),
+    TerminalMoveTurnResult(crate::TerminalMoveTurnResult),
     TerminalLifecycleRequest(crate::TerminalLifecycleRequest),
     TerminalLifecycleResult(crate::TerminalLifecycleResult),
     TerminalControlRequest(crate::TerminalControlRequest),
@@ -293,6 +296,8 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         }
         CapabilityNodeMessage::WorkerShutdownRequest(value) => shutdown::encode_request(*value),
         CapabilityNodeMessage::WorkerShutdownResult(value) => shutdown::encode_result(*value),
+        CapabilityNodeMessage::TerminalMoveTurnRequest(value) => move_turn::encode_request(*value),
+        CapabilityNodeMessage::TerminalMoveTurnResult(value) => move_turn::encode_result(*value),
         CapabilityNodeMessage::TerminalLifecycleRequest(value) => lifecycle::encode_request(*value),
         CapabilityNodeMessage::TerminalLifecycleResult(value) => lifecycle::encode_result(*value),
         CapabilityNodeMessage::TerminalControlRequest(value) => control::encode_request(value),
@@ -458,6 +463,12 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
         }
         Some(host_query::REQUEST_KIND) => {
             host_query::decode_request(payload).map(CapabilityNodeMessage::HostQueryRequest)
+        }
+        Some(move_turn::REQUEST_KIND) => {
+            move_turn::decode_request(payload).map(CapabilityNodeMessage::TerminalMoveTurnRequest)
+        }
+        Some(move_turn::RESULT_KIND) => {
+            move_turn::decode_result(payload).map(CapabilityNodeMessage::TerminalMoveTurnResult)
         }
         Some(adopt_host::REQUEST_KIND) => {
             adopt_host::decode_request(payload).map(CapabilityNodeMessage::AdoptHostRequest)

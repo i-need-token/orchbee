@@ -1,14 +1,23 @@
 //! Defines the Host handover requests a Worker sends a Windows Terminal Host to attach the
-//! Session's Keeper and to recover a program the Keeper kept after its Host ended, with their
-//! answers and the typed refusal that adds a `reason`. It transports the requests without
-//! deciding when a Keeper attaches or which holding a recovery takes.
+//! Session's Keeper, to recover a program the Keeper kept after its Host ended, and to move a
+//! terminal to another Host, with their answers and the typed refusal that adds a `reason`. It
+//! transports the requests without deciding when a Keeper attaches, which holding a recovery
+//! takes, or which terminal moves.
 
 use std::num::NonZeroU32;
+
+mod moves;
+pub use moves::{
+    DiscardOutcome, DiscardTarget, HandoverRecordChunk, HandoverRecordWritten, ImportTerminal,
+    MAXIMUM_HANDOVER_RECORD_SIZE, QuiesceTerminal, ReadHandoverRecord, ResumeOutcome,
+    TerminalQuiesced, TerminalResumed,
+};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CreationId, MessageRole, ProtocolError, ProtocolErrorCode, TerminalId, TerminalProfile,
+    CreationId, MessageRole, PayloadEncoding, ProtocolError, ProtocolErrorCode, TerminalId,
+    TerminalProfile,
     control::{SafeInteger, decode_wire, preflight_json, serialize_wire},
     creation::{TerminalProfileWire, terminal_profile_to_wire, validate_terminal_profile},
     geometry::{TerminalPixelGeometry, TerminalPixelGeometryWire, geometry_to_wire},
@@ -55,7 +64,8 @@ pub struct RecoverTerminal {
     pub deadline_seconds: u8,
 }
 
-/// A request a Worker sends, or the successful answer it reads.
+/// A request a Worker sends, or the successful answer it reads. The move requests, from
+/// `QuiesceTerminal` on, are only encoded and their answers only decoded.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HandoverControl {
     AttachKeeper(AttachKeeper),
@@ -64,6 +74,22 @@ pub enum HandoverControl {
     TerminalClaimed(TerminalId),
     RecoverTerminal(Box<RecoverTerminal>),
     TerminalRecovered(TerminalIdentity),
+    QuiesceTerminal(QuiesceTerminal),
+    TerminalQuiesced(TerminalQuiesced),
+    ReadHandoverRecord(ReadHandoverRecord),
+    HandoverRecordChunk(HandoverRecordChunk),
+    ResumeTerminal(TerminalId),
+    TerminalResumed(TerminalResumed),
+    DropTerminal(TerminalId),
+    TerminalDropped(TerminalId),
+    ImportTerminal(ImportTerminal),
+    TerminalImported(CreationId),
+    WriteHandoverRecord(HandoverRecordChunk),
+    HandoverRecordWritten(HandoverRecordWritten),
+    RestoreTerminal(CreationId),
+    TerminalRestored(TerminalIdentity),
+    DiscardImport(DiscardTarget),
+    ImportDiscarded(DiscardOutcome),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -71,6 +97,9 @@ pub struct EncodedHandoverControl {
     pub kind: u16,
     pub payload: Vec<u8>,
     pub role: MessageRole,
+    pub payload_encoding: PayloadEncoding,
+    /// The kind of the successful answer to this request.
+    pub answer_kind: u16,
 }
 
 /// A `TypedFailure` answering a handover request: its code, whether a retry may pass, and the
@@ -87,7 +116,16 @@ pub fn decode_handover_control(
     role: MessageRole,
     payload: &[u8],
 ) -> Result<HandoverControl, ProtocolError> {
+    if (kind, role) == (moves::HANDOVER_RECORD_CHUNK_KIND, MessageRole::Response) {
+        return moves::decode_answer(kind, payload)
+            .unwrap_or_else(|| Err(invalid_field("a record chunk is not a handover answer")));
+    }
     preflight_json(payload)?;
+    if role == MessageRole::Response
+        && let Some(answer) = moves::decode_answer(kind, payload)
+    {
+        return answer;
+    }
     match (kind, role) {
         (ATTACH_KEEPER_KIND, MessageRole::Response) => decode_wire::<KeeperAttachedWire>(payload)
             .and_then(|wire| process_from_wire(&wire.keeper))
@@ -110,6 +148,16 @@ pub fn decode_handover_control(
 pub fn encode_handover_control(
     value: &HandoverControl,
 ) -> Result<EncodedHandoverControl, ProtocolError> {
+    if let Some(request) = moves::encode_request(value) {
+        let (kind, payload_encoding, payload) = request?;
+        return Ok(EncodedHandoverControl {
+            kind,
+            payload,
+            role: MessageRole::Request,
+            payload_encoding,
+            answer_kind: moves::answer_kind(kind),
+        });
+    }
     let (kind, role, payload) = match value {
         HandoverControl::AttachKeeper(attach) => (
             ATTACH_KEEPER_KIND,
@@ -150,11 +198,18 @@ pub fn encode_handover_control(
             MessageRole::Response,
             serialize_wire(&identity_to_wire(*identity))?,
         ),
+        _ => {
+            return Err(invalid_field(
+                "a move answer is decoded only, and a move request encodes as one",
+            ));
+        }
     };
     Ok(EncodedHandoverControl {
         kind,
         payload,
         role,
+        payload_encoding: PayloadEncoding::ControlJson,
+        answer_kind: kind,
     })
 }
 

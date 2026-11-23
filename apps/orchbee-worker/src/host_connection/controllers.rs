@@ -60,6 +60,37 @@ impl HostControllers {
         );
         Ok(())
     }
+    /// Takes in `grant`, whose terminal moved here as `terminal_id` and whose controller this Host
+    /// attached under `revision`: its viewer, identities, and consumed sequence stay, so input the
+    /// Server held during the move still passes. Returns whether there was room.
+    #[cfg(windows)]
+    pub(crate) fn adopt_moved(
+        &mut self,
+        grant: ControlGrant,
+        terminal_id: HostTerminalId,
+        revision: NonZeroU64,
+    ) -> bool {
+        if self.grants.len() >= MAXIMUM_CONTROLLERS
+            || self.contains(grant.controller_id)
+            || self
+                .grants
+                .values()
+                .any(|held| held.terminal_id == terminal_id || held.viewer_id == grant.viewer_id)
+        {
+            return false;
+        }
+        self.grants.insert(
+            grant.controller_id.as_bytes(),
+            ControlGrant {
+                terminal_id,
+                capability_revision: Some(revision),
+                // A new Host attachment starts paused; cleanup brings it to its viewer's demand.
+                demand: ProjectionDemand::Paused,
+                ..grant
+            },
+        );
+        true
+    }
     pub(crate) fn commit(&mut self, id: OperationId, revision: NonZeroU64) {
         if let Some(grant) = self.grants.get_mut(&id.as_bytes()) {
             grant.capability_revision = Some(revision);

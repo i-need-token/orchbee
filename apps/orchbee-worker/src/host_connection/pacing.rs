@@ -155,6 +155,12 @@ impl Pacing {
         }
     }
 
+    /// The current request's deadline, when one runs.
+    #[cfg(windows)]
+    pub(crate) fn request_deadline(&self) -> Option<Instant> {
+        self.request_deadline.get()
+    }
+
     /// Starts the bound of the Server request whose first bytes became readable at `readable`.
     pub(crate) fn begin_request_at(&self, readable: Instant) {
         self.request_deadline

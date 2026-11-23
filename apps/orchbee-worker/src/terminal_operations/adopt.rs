@@ -519,6 +519,7 @@ impl Adoption<'_> {
                 imported: 0,
                 quarantined: 0,
                 missing,
+                moved: Vec::new(),
             },
         )?;
         crate::diagnostic_events::adoption(self.record("no-host", "adopted", 0));
@@ -580,6 +581,7 @@ impl Adoption<'_> {
                 imported: imported.imported,
                 quarantined,
                 missing: imported.missing,
+                moved: Vec::new(),
             },
         );
         match host_closed {

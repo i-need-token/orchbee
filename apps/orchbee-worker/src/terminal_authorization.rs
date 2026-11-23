@@ -24,6 +24,8 @@ pub(crate) const MAXIMUM_RETAINED_TERMINAL_BINDINGS: usize = 1_024;
 mod import;
 pub(crate) use import::InventoryTerminal;
 mod lifecycle;
+#[cfg(windows)]
+mod moves;
 pub(crate) use lifecycle::{LifecycleAdmission, LifecycleDispatch};
 
 #[derive(Clone, Debug, Eq, PartialEq)]

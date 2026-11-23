@@ -69,6 +69,21 @@ pub const fn keeper_live() -> bool {
     }
 }
 
+/// Whether release builds move terminals between Hosts: false until H4 turns moves on in updates
+/// (`proposals/platform/host-handover.md`, H3 design). Development builds follow it.
+const MOVES_IN_RELEASE_BUILDS: bool = false;
+
+/// Whether this build moves terminals from an older Host to its Worker's own. Test builds always
+/// do, so tests and acceptance runs drive moves; release and development builds do while
+/// `MOVES_IN_RELEASE_BUILDS` is set. Moves need the Keeper, so a build without it moves none.
+pub const fn moves_live() -> bool {
+    keeper_live()
+        && match environment_kind() {
+            EnvironmentKind::Release | EnvironmentKind::Development => MOVES_IN_RELEASE_BUILDS,
+            EnvironmentKind::Test => true,
+        }
+}
+
 /// Starts the Session's Keeper from `executable`, the Terminal Host's program, as the recorded
 /// Worker's registered child in the Host's folder of `runtime`, and waits until its endpoint
 /// listens or `deadline` passes, and answers it with its exact identity, its process ID and

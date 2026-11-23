@@ -23,7 +23,7 @@ use orchbee_local_runtime::{
     ModeCheckedLocalSessionRendezvous, RetainedChild,
 };
 use orchbee_terminal_protocol::{
-    AttachKeeper, HandoverControl, HandoverProcess, HandoverRefusal, MessageRole, PayloadEncoding,
+    AttachKeeper, HandoverControl, HandoverProcess, HandoverRefusal, MessageRole,
 };
 
 use crate::host_connection::HostBrokerConnection;
@@ -37,10 +37,12 @@ const END_BOUND: Duration = Duration::from_secs(2);
 const BETWEEN_REQUESTS_BUDGET: Duration = Duration::from_secs(3);
 
 /// Where a Host exchange runs: inside the Server request whose stream is named, which sends
-/// nothing until it is answered, or between requests.
+/// nothing until it is answered, with the connection's whole exchange bound or within a budget;
+/// or between requests.
 #[derive(Clone, Copy)]
 pub(crate) enum Serving<'a> {
     Request(&'a LocalStream),
+    Within(&'a LocalStream, Duration),
     BetweenRequests,
 }
 
@@ -270,19 +272,28 @@ pub(crate) fn request(
             correlation,
             encoded.kind,
             &encoded.payload,
-            PayloadEncoding::ControlJson,
+            encoded.payload_encoding,
+        )?,
+        Serving::Within(server, budget) => crate::host_connection::exchange_within(
+            host,
+            server,
+            budget,
+            correlation,
+            encoded.kind,
+            &encoded.payload,
+            encoded.payload_encoding,
         )?,
         Serving::BetweenRequests => crate::host_connection::exchange_between_requests(
             host,
             correlation,
             encoded.kind,
             &encoded.payload,
-            PayloadEncoding::ControlJson,
+            encoded.payload_encoding,
             BETWEEN_REQUESTS_BUDGET,
         )?,
     };
     let envelope = decode_transport_envelope(&record)?;
-    if envelope.kind == encoded.kind {
+    if envelope.kind == encoded.answer_kind {
         return Ok(decode_handover_control(
             envelope.kind,
             MessageRole::Response,

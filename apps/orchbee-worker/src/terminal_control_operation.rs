@@ -140,7 +140,23 @@ fn apply(
             Some(_) => Ok(Outcome::Rejected(Rejection::NotController)),
         };
     }
-    let Some(target) = host.viewers.borrow().target(request.viewer_id) else {
+    // Input that waited while its terminal moved here still reaches it through the moved
+    // controller; nothing else uses a viewer the move closed.
+    let relays = matches!(
+        request.action,
+        Action::Input { .. }
+            | Action::SemanticInput { .. }
+            | Action::Resize { .. }
+            | Action::Paste { .. }
+    );
+    let viewers = host.viewers.borrow();
+    let target = viewers.target(request.viewer_id).or_else(|| {
+        relays
+            .then(|| viewers.moved_target(request.viewer_id))
+            .flatten()
+    });
+    drop(viewers);
+    let Some(target) = target else {
         return Ok(Outcome::Rejected(Rejection::ViewerUnavailable));
     };
     // A Takeover naming the viewer's own grant as its replacement only confirms that grant: it

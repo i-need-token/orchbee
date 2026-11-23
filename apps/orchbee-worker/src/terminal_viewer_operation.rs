@@ -485,7 +485,12 @@ fn apply(
                 ));
             }
             crate::terminal_control_operation::release_viewer(host, server, request.attachment_id)?;
-            retire_viewer(host, server, correlation, request.attachment_id)?;
+            // A viewer whose terminal moved here holds no attachment of this Host.
+            if host.viewers.borrow().moved(request.attachment_id) {
+                host.forget_viewer(request.attachment_id);
+            } else {
+                retire_viewer(host, server, correlation, request.attachment_id)?;
+            }
             Ok(TerminalViewerOutcome::Detached)
         }
         TerminalViewerAction::SetProjectionDemand { demand } => {

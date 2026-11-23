@@ -1,11 +1,12 @@
 use orchbee_capability_node_protocol::{
     AdoptBinding, AdoptBindingState, AdoptCloseInFlight, AdoptHostFailure, AdoptHostKind,
     AdoptHostOutcome, AdoptHostPage, AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest,
-    AdoptHostResult, AdoptHostSlot, AdoptHostTarget, CapabilityNodeMessage as Message,
-    DeclinedRequestKind, HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity,
-    LifecycleStepOrdinal, MAXIMUM_ADOPT_HOST_BINDINGS, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS,
-    MAXIMUM_FRAME_PAYLOAD_BYTES, OperationId, TerminalFence, TerminalId, WorkerGeneration,
-    WorkerId, WorkerRequestDeclined, decode_message, encode_message, read_message,
+    AdoptHostResult, AdoptHostSlot, AdoptHostTarget, AdoptMovedBinding,
+    CapabilityNodeMessage as Message, DeclinedRequestKind, HostCreationId, HostEpoch,
+    HostTerminalId, HostTerminalIdentity, LifecycleStepOrdinal, MAXIMUM_ADOPT_HOST_BINDINGS,
+    MAXIMUM_ADOPT_HOST_PAGE_BINDINGS, MAXIMUM_FRAME_PAYLOAD_BYTES, OperationId, TerminalFence,
+    TerminalId, WorkerGeneration, WorkerId, WorkerRequestDeclined, decode_message, encode_message,
+    read_message,
 };
 use std::{
     io::Cursor,
@@ -206,16 +207,26 @@ fn pages_and_answers_match_hand_derived_bytes() {
                 imported: 5,
                 quarantined: 1,
                 missing: vec![TerminalId::from_bytes([0x48; 16]).unwrap()],
+                moved: vec![AdoptMovedBinding {
+                    terminal_id: TerminalId::from_bytes([0x49; 16]).unwrap(),
+                    identity: binding(2, None).identity,
+                }],
             },
         )
         .unwrap(),
     );
+    let seeded = |tag: u8| [&[tag; 14][..], &[0, 2]].concat();
     let expected = [
-        &b"OBCN\x00\x01\x00\x47"[..],
+        &b"OBCN\x00\x01\x00\x88"[..],
         &[41],
         &identity_bytes(),
         &[0, 1, 1, 2, 0, 0, 0, 5, 0, 0, 0, 1, 0, 1],
         &[0x48; 16],
+        &[1],
+        &[0x49; 16],
+        &seeded(0x55),
+        &epoch().as_bytes(),
+        &seeded(0x66),
     ]
     .concat();
     assert_eq!(roundtrip(&adopted), expected);
@@ -288,11 +299,12 @@ fn the_largest_page_and_answer_fit_one_frame() {
                 imported: u32::MAX,
                 quarantined: u32::MAX,
                 missing,
+                moved: Vec::new(),
             },
         )
         .unwrap(),
     );
-    assert_eq!(roundtrip(&answer).len(), 8 + 55 + 1_024 * 16);
+    assert_eq!(roundtrip(&answer).len(), 8 + 56 + 1_024 * 16);
 
     // A Host target may lack either recorded fact.
     for target in [
@@ -372,6 +384,7 @@ fn contradictory_pages_and_answers_are_refused() {
         imported: 0,
         quarantined: 0,
         missing,
+        moved: Vec::new(),
     };
     assert!(AdoptHostResult::new(key(0, true), AdoptHostOutcome::PageAccepted).is_err());
     assert!(AdoptHostResult::new(key(0, false), adopted(Vec::new())).is_err());
@@ -459,6 +472,7 @@ fn malformed_pages_and_answers_are_refused() {
                 imported: 1,
                 quarantined: 0,
                 missing: vec![binding(1, None).terminal_id],
+                moved: Vec::new(),
             },
         )
         .unwrap(),

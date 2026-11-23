@@ -34,11 +34,16 @@ and `keeper-failed` for a step that failed, with `error`, `osError` and `step` (
 Worker ended it. `host-epoch-unrecorded` records, with `error`, a Host epoch the Session record did
 not take. `host-draining` records the `slot` of an older Host the Worker told to drain, and
 `host-drained` its end: `slot`, and `released` once the Session record freed that slot.
+`terminal-moved` records a terminal [moved](#several-hosts) into the own Host: the `from` and `to`
+slots, `recordBytes`, `settled` when its program had ended, and `elapsedMs`; `terminal-move-failed`
+a move's step that did not pass: `step` (`quiesce`, `import`, `record`, `restore`, `claim`,
+`discard`, `resume`, `drop` or `host-start`), `class` (`ineligible`, `passing` or `failed`),
+`reason`, the Host's refusal reason or `unexpected` or `other`, and `stopped` when moves stopped.
 
 A failed `exited` also names where and why the Worker stopped: `site`, the step it was serving
 (`server-receive`, `server-send`, `viewer`, `process-read`, `lifecycle`, `graphics`, `control`,
-`send`, `launch`, `start`, `drain`, `titles`, `cleanup`, `handoff`, `host-start`, `shutdown` or
-`adopt`);
+`send`, `launch`, `start`, `drain`, `titles`, `cleanup`, `handoff`, `host-start`, `shutdown`,
+`adopt` or `move`);
 `reason`, one of `deadline` (a peer stayed silent past its bound), `host-closed`, `host-protocol`
 (the Host lost its record framing: a bad magic or a length that does not match, after which no
 later record can be found), `server-closed`,
@@ -61,7 +66,7 @@ which keeps the loop's own cause.
 `kind` (`launch`, `start`, `viewer`, `control`, `lifecycle`, `cwd-validation`, `send`,
 `worktree-job`, `agent-drain`, `shutdown`, `worktree-mutation`, `titles`, `handoff`,
 `agent-integration-job`, `agent-probe-job`, `host-query`, `title-changes`, `plugin-job`,
-`graphics-decode` or `adopt-host`) and its `cause`: `unserved` (a kind this Worker does not serve on its platform,
+`graphics-decode`, `adopt-host` or `move-turn`) and its `cause`: `unserved` (a kind this Worker does not serve on its platform,
 or a terminal request before the first Launch), `fence` (addressed to another Worker or
 generation), `watermark` (an Agent drain acknowledgement above what this Worker offered), `handoff`
 (an ordinary request while a Server handoff is prepared), `unavailable` (a request to a replacement
@@ -339,6 +344,21 @@ new and ends; its end is normal, the Worker drops it and, once its process exite
 in the Session record. A stop that disposes ends every Host in turn, counting the terminals of all;
 the first Host that does not stop answers the attempt, and a later attempt finds the stopped ones
 stopped. The outcome names the own Host's epoch, or the first Host's. `exit` releases every Host.
+
+While moves are live (`moves_live`), each move turn the Server sends moves at most one terminal of
+an older Host that offers `handover` into the own Host, starting one when none runs, as the
+[H3 design](../../proposals/platform/host-handover.md#h3-design) decides; elsewhere a turn answers
+Done. A terminal is due two seconds after the Worker last relayed it input, a paste, a resize or a
+send, or ten minutes after a turn first found it waiting, and only while both Hosts hold their
+terminals in the Keeper and no Keeper replacement runs. The move runs inside the turn: the old Host
+quiesces and exports the terminal, the record passes chunk by chunk, and the own Host restores and
+claims it; a step refused before the claim discards the import and resumes the terminal. A terminal
+an older Host refuses as ineligible stays there, a passing refusal waits for a later turn, and any
+other failure stops moves for the Worker's life. After the claim the kernel binds the terminal to
+its new identity and runs requests that name the old one against it, answering them in their own
+words; each controller attaches to the own Host under its identities and consumed sequence, and each
+viewer closes, so its Client attaches again. The next turn drops the old copy, or disposes it when
+the program had ended, and an older Host left with no terminal drains as above.
 
 ## The Session's Keeper
 

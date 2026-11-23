@@ -54,6 +54,7 @@ const fn kind_code(kind: DeclinedRequestKind) -> u8 {
         Kind::PluginJob => 18,
         Kind::GraphicsDecode => 19,
         Kind::AdoptHost => 20,
+        Kind::MoveTurn => 21,
     }
 }
 
@@ -80,6 +81,7 @@ const fn request_kind(code: u8) -> Result<DeclinedRequestKind, ProtocolError> {
         18 => Kind::PluginJob,
         19 => Kind::GraphicsDecode,
         20 => Kind::AdoptHost,
+        21 => Kind::MoveTurn,
         _ => return Err(ProtocolError::InvalidPayload),
     })
 }

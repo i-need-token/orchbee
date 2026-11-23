@@ -112,7 +112,7 @@ impl TerminalAuthorizationBinding {
         )
     }
 
-    fn lifecycle_identity(&self) -> Option<HostTerminalIdentity> {
+    pub(super) fn lifecycle_identity(&self) -> Option<HostTerminalIdentity> {
         let operation = match &self.authority {
             BindingAuthority::Imported { identity, .. } => return Some(*identity),
             BindingAuthority::Operation(operation) => &**operation,

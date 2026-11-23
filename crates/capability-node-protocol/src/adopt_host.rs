@@ -251,17 +251,30 @@ pub enum AdoptHostFailure {
     RecoveryFailed,
 }
 
+/// The most bindings one adoption finds moved: moves run one at a time, and a moved terminal's old
+/// copy is dropped at the next turn, so a crash leaves at most one, and the rest is slack.
+pub const MAXIMUM_ADOPT_HOST_MOVED: usize = 16;
+
+/// A binding whose terminal the adoption found moved to another adopted Host: the identity it runs
+/// as there, which the Server rebinds the binding to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AdoptMovedBinding {
+    pub terminal_id: TerminalId,
+    pub identity: HostTerminalIdentity,
+}
+
 /// A page's answer.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AdoptHostOutcome {
     /// A page before the last was kept for the import.
     PageAccepted,
-    /// The import took effect: the Host terminals imported and quarantined, and the bindings the
-    /// complete inventory lacks.
+    /// The import took effect: the Host terminals imported and quarantined, the bindings the
+    /// complete inventory lacks, and those whose terminal moved to another adopted Host.
     Adopted {
         imported: u32,
         quarantined: u32,
         missing: Vec<TerminalId>,
+        moved: Vec<AdoptMovedBinding>,
     },
     Failed(AdoptHostFailure),
 }
@@ -283,11 +296,13 @@ impl AdoptHostResult {
         let valid = match &outcome {
             AdoptHostOutcome::PageAccepted => !key.page.last,
             AdoptHostOutcome::Failed(_) => key.page.last,
-            AdoptHostOutcome::Adopted { missing, .. } => {
+            AdoptHostOutcome::Adopted { missing, moved, .. } => {
                 let mut seen = BTreeSet::new();
                 key.page.last
                     && missing.len() <= MAXIMUM_ADOPT_HOST_BINDINGS
+                    && moved.len() <= MAXIMUM_ADOPT_HOST_MOVED
                     && missing.iter().all(|terminal| seen.insert(*terminal))
+                    && moved.iter().all(|binding| seen.insert(binding.terminal_id))
             }
         };
         if !valid {

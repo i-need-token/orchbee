@@ -7,9 +7,10 @@ use super::{PayloadReader, decode_host_identity, encode_host_identity};
 use crate::{
     AdoptBinding, AdoptBindingState, AdoptCloseInFlight, AdoptHostFailure, AdoptHostKind,
     AdoptHostOutcome, AdoptHostPage, AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest,
-    AdoptHostResult, AdoptHostSlot, AdoptHostTarget, HostEpoch, LifecycleStepOrdinal,
-    MAXIMUM_ADOPT_HOST_BINDINGS, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS, MAXIMUM_ADOPT_HOST_SLOTS,
-    OperationId, ProtocolError, TerminalFence, TerminalId, WorkerGeneration, WorkerId,
+    AdoptHostResult, AdoptHostSlot, AdoptHostTarget, AdoptMovedBinding, HostEpoch,
+    LifecycleStepOrdinal, MAXIMUM_ADOPT_HOST_BINDINGS, MAXIMUM_ADOPT_HOST_MOVED,
+    MAXIMUM_ADOPT_HOST_PAGE_BINDINGS, MAXIMUM_ADOPT_HOST_SLOTS, OperationId, ProtocolError,
+    TerminalFence, TerminalId, WorkerGeneration, WorkerId,
 };
 
 pub(super) const REQUEST_KIND: u8 = 40;
@@ -165,6 +166,7 @@ pub(super) fn encode_result(result: &AdoptHostResult) -> Vec<u8> {
             imported,
             quarantined,
             missing,
+            moved,
         } => {
             bytes.push(2);
             bytes.extend(imported.to_be_bytes());
@@ -176,6 +178,11 @@ pub(super) fn encode_result(result: &AdoptHostResult) -> Vec<u8> {
             );
             for terminal in missing {
                 bytes.extend(terminal.as_bytes());
+            }
+            bytes.push(u8::try_from(moved.len()).expect("an adoption reports at most 16 moved"));
+            for binding in moved {
+                bytes.extend(binding.terminal_id.as_bytes());
+                encode_host_identity(&mut bytes, binding.identity);
             }
         }
         AdoptHostOutcome::Failed(failure) => {
@@ -210,10 +217,23 @@ pub(super) fn decode_result(payload: &[u8]) -> Result<AdoptHostResult, ProtocolE
             let missing = (0..count)
                 .map(|_| TerminalId::from_bytes(reader.read_array()?))
                 .collect::<Result<_, _>>()?;
+            let moved_count = usize::from(reader.read_u8()?);
+            if moved_count > MAXIMUM_ADOPT_HOST_MOVED {
+                return Err(ProtocolError::InvalidPayload);
+            }
+            let moved = (0..moved_count)
+                .map(|_| {
+                    Ok(AdoptMovedBinding {
+                        terminal_id: TerminalId::from_bytes(reader.read_array()?)?,
+                        identity: decode_host_identity(&mut reader)?,
+                    })
+                })
+                .collect::<Result<_, ProtocolError>>()?;
             AdoptHostOutcome::Adopted {
                 imported,
                 quarantined,
                 missing,
+                moved,
             }
         }
         3 => AdoptHostOutcome::Failed(match reader.read_u8()? {

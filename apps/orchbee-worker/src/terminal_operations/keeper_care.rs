@@ -60,6 +60,8 @@ pub(super) struct KeeperCare {
 pub(super) struct HostWatch {
     /// Whether the Session's current Keeper was offered to this Host.
     offered: bool,
+    /// Whether this Host attached the Session's current Keeper.
+    attached: bool,
     /// The last `dispatch-progress` the Host answered, and when it last changed.
     progress: Option<u64>,
     turned: Instant,
@@ -88,11 +90,19 @@ impl HostWatch {
     pub(super) const fn new(now: Instant, offered: bool) -> Self {
         Self {
             offered,
+            attached: offered,
             progress: None,
             turned: now,
             terminals: None,
             recorded: false,
         }
+    }
+}
+
+impl HostWatch {
+    /// Whether this Host holds its running terminals in the Session's current Keeper.
+    pub(super) const fn attached(&self) -> bool {
+        self.attached
     }
 }
 
@@ -106,6 +116,11 @@ impl KeeperCare {
             failed_starts: 0,
             replacing: false,
         }
+    }
+
+    /// Whether the Keeper ended or stopped answering and waits for its replacement.
+    pub(super) const fn replacing(&self) -> bool {
+        self.replacing
     }
 
     /// When the next care is due.
@@ -184,6 +199,7 @@ impl KeeperCare {
         }
         for host in hosts.iter_mut() {
             host.watch.offered = false;
+            host.watch.attached = false;
         }
         let host = &mut hosts[first];
         let started = host
@@ -201,6 +217,7 @@ impl KeeperCare {
                     diagnostic_events::keeper_started();
                 }
                 host.watch.offered = true;
+                host.watch.attached = true;
                 *keeper.keeper = Some(started);
                 offer(hosts, keeper.keeper);
             }
@@ -229,8 +246,9 @@ fn offer(hosts: &mut [Cared<'_>], keeper: &mut Option<SessionKeeper>) {
             .host_identity()
             .map_err(Into::into)
             .and_then(|process| keeper.attach(host.connection, Serving::BetweenRequests, process));
-        if let Err(error) = attached {
-            diagnostic_events::keeper_failed("attach", error.as_ref());
+        match attached {
+            Ok(()) => host.watch.attached = true,
+            Err(error) => diagnostic_events::keeper_failed("attach", error.as_ref()),
         }
     }
 }

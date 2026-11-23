@@ -85,7 +85,7 @@ fn malformed_declines_are_refused() {
     // The header is 8 bytes; the kind 39, the declined kind and the identity follow.
     type Corruption = fn(&mut Vec<u8>);
     let cases: [(&str, Corruption); 4] = [
-        ("unknown declined kind", |bad| bad[9] = 21),
+        ("unknown declined kind", |bad| bad[9] = 22),
         ("no declined kind", |bad| bad[9] = 0),
         ("short identity", |bad| {
             bad.pop();

@@ -47,7 +47,6 @@ pub use release_store::{
     record_event, release_store_root,
 };
 mod keeper;
-pub use keeper::keeper_live;
 #[cfg(windows)]
 pub use keeper::{
     HeldTerminal, Holding, HoldingState, KEEPER_REPLY_BOUND, KeeperClient, KeeperProcess,
@@ -55,6 +54,7 @@ pub use keeper::{
 };
 #[cfg(windows)]
 pub use keeper::{end_recorded_keeper, recorded_keeper};
+pub use keeper::{keeper_live, moves_live};
 mod automatic_updates;
 pub use automatic_updates::{
     AUTOMATIC_UPDATE_HELPER, CLIENT_FAILURE_HELPER, RELAUNCH_PROTOCOL_VARIABLE,

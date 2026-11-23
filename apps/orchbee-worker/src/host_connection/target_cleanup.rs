@@ -133,6 +133,16 @@ impl HostBrokerConnection {
         }
     }
 
+    /// Forgets what this connection kept of a terminal that moved to another Host and that this
+    /// Host dropped or disposed.
+    #[cfg(windows)]
+    pub(crate) fn forget_moved(&self, identity: HostTerminalIdentity) {
+        self.titles.borrow_mut().remove(identity);
+        self.host_colors
+            .borrow_mut()
+            .remove(identity.terminal_id().as_bytes());
+    }
+
     /// A newly admitted attachment no longer counts as detached, so its own events are delivered.
     pub(crate) fn note_attached(&self, id: OperationId) {
         self.retired_targets

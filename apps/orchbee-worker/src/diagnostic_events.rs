@@ -69,11 +69,16 @@ pub(crate) enum Site {
     Shutdown,
     /// A replacement Worker adopting the Host of the Worker it replaces.
     Adopt,
+    /// A move turn: a terminal's move from an older Host into the Worker's own.
+    #[cfg(windows)]
+    Move,
 }
 
 /// Each site keeps its own once-a-minute slot for `host-slow` and for `host-unexpected`.
-const SITE_SLOTS: usize = 17;
+const SITE_SLOTS: usize = 18;
 const _: () = assert!((Site::Adopt as usize) < SITE_SLOTS);
+#[cfg(windows)]
+const _: () = assert!((Site::Move as usize) < SITE_SLOTS);
 
 impl Site {
     const fn token(self) -> &'static str {
@@ -96,6 +101,8 @@ impl Site {
             Self::HostStart => "host-start",
             Self::Shutdown => "shutdown",
             Self::Adopt => "adopt",
+            #[cfg(windows)]
+            Self::Move => "move",
         }
     }
 }
@@ -293,6 +300,50 @@ pub(crate) fn host_drained(slot: u8, released: bool) {
         &[
             ("slot", LogValue::Count(u64::from(slot))),
             ("released", LogValue::Flag(released)),
+        ],
+    );
+}
+
+/// A terminal moved from the Host in slot `from` to the one in `to`: its record's size, whether it
+/// had settled, and the milliseconds from the quiesce to the claim.
+#[cfg(windows)]
+pub(crate) fn terminal_moved(
+    from: u8,
+    to: u8,
+    record_bytes: u32,
+    settled: bool,
+    milliseconds: u64,
+) {
+    log_event(
+        LogLevel::Info,
+        "terminal-moved",
+        &[
+            ("from", LogValue::Count(u64::from(from))),
+            ("to", LogValue::Count(u64::from(to))),
+            ("recordBytes", LogValue::Count(u64::from(record_bytes))),
+            ("settled", LogValue::Flag(settled)),
+            ("elapsedMs", LogValue::Count(milliseconds)),
+        ],
+    );
+}
+
+/// A move's `step` failed: the refusal's `class` and `reason`, and whether moves stopped for the
+/// rest of the Worker's life.
+#[cfg(windows)]
+pub(crate) fn terminal_move_failed(
+    step: &'static str,
+    class: &'static str,
+    reason: &'static str,
+    stopped: bool,
+) {
+    log_event(
+        LogLevel::Warning,
+        "terminal-move-failed",
+        &[
+            ("step", LogValue::Token(step)),
+            ("class", LogValue::Token(class)),
+            ("reason", LogValue::Token(reason)),
+            ("stopped", LogValue::Flag(stopped)),
         ],
     );
 }
@@ -612,6 +663,7 @@ fn declined_token(kind: orchbee_capability_node_protocol::DeclinedRequestKind) -
         Kind::PluginJob => "plugin-job",
         Kind::GraphicsDecode => "graphics-decode",
         Kind::AdoptHost => "adopt-host",
+        Kind::MoveTurn => "move-turn",
     }
 }
 

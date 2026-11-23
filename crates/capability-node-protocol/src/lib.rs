@@ -6,8 +6,9 @@ mod adopt_host;
 pub use adopt_host::{
     AdoptBinding, AdoptBindingState, AdoptCloseInFlight, AdoptHostFailure, AdoptHostKind,
     AdoptHostOutcome, AdoptHostPage, AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest,
-    AdoptHostResult, AdoptHostSlot, AdoptHostTarget, MAXIMUM_ADOPT_HOST_BINDINGS,
-    MAXIMUM_ADOPT_HOST_PAGE_BINDINGS, MAXIMUM_ADOPT_HOST_SLOTS,
+    AdoptHostResult, AdoptHostSlot, AdoptHostTarget, AdoptMovedBinding,
+    MAXIMUM_ADOPT_HOST_BINDINGS, MAXIMUM_ADOPT_HOST_MOVED, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS,
+    MAXIMUM_ADOPT_HOST_SLOTS,
 };
 mod agent_drain;
 mod agent_integration_job;
@@ -56,6 +57,8 @@ mod terminal_cwd_validation;
 mod terminal_graphics_decode;
 mod terminal_launch;
 mod terminal_lifecycle;
+mod terminal_move;
+pub use terminal_move::{TerminalMoveTurnOutcome, TerminalMoveTurnRequest, TerminalMoveTurnResult};
 mod terminal_send;
 mod terminal_titles;
 mod terminal_viewer;
