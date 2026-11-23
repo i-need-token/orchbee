@@ -102,7 +102,7 @@ pub const HostService = struct {
         // Moving terminals settle before any release, which would end a program the other Host
         // serves.
         self.moves.teardown(&self.runtime_aggregate, &self.creations, &self.keepers.attachments);
-        self.programs.teardown();
+        self.programs.teardown(&self.keepers.attachments);
         self.keepers.releaseAll(&self.runtime_aggregate);
         try self.runtime_aggregate.deinitChecked(first_attempt);
         try self.finishTeardown();
@@ -281,7 +281,7 @@ pub const HostService = struct {
         self.programs.deliver(self.runtime_aggregate.hostEpoch(), switch (connection.*) {
             .active => |active| .{ .connection_id = active.connection_id, .outgoing = &outgoing },
             .awaiting_hello, .closing => null,
-        });
+        }, &self.keepers.attachments);
         return outgoing;
     }
 

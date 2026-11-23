@@ -57,6 +57,14 @@ pub use attachment::{
     AttachmentTarget, EncodedAttachmentControl, ResizeLeaseChanged,
     UpdateAttachmentInputCapability, decode_attachment_control, encode_attachment_control,
 };
+pub use background_program::{
+    CANCEL_PROGRAM_KIND, DISPOSE_PROGRAM_KIND, EncodedProgramRequest, LIST_PROGRAMS_KIND,
+    MAXIMUM_PROGRAM_LABEL_BYTES, MAXIMUM_PROGRAM_OUTPUT_CHUNK_BYTES, MAXIMUM_PROGRAM_PAGE,
+    PROGRAM_EXITED_KIND, ProgramAnswer, ProgramExit, ProgramExited, ProgramId, ProgramRequest,
+    ProgramStream, ProgramStreamFacts, ProgramSummary, READ_PROGRAM_OUTPUT_KIND,
+    RECOVER_PROGRAM_KIND, START_PROGRAM_KIND, StartProgram, decode_program_answer,
+    decode_program_exited, encode_program_request,
+};
 pub use cell_color::{
     COLOR_DEFAULT, COLOR_NONE, COLOR_PALETTE, COLOR_RGB_MASK, terminal_palette_index,
 };
@@ -79,14 +87,6 @@ pub use frame_route::{
     TERMINAL_FRAME_HEADER_BYTES, TerminalFrameRoute, inspect_terminal_frame_route,
 };
 pub use geometry::TerminalPixelGeometry;
-pub use background_program::{
-    CANCEL_PROGRAM_KIND, DISPOSE_PROGRAM_KIND, EncodedProgramRequest, LIST_PROGRAMS_KIND,
-    MAXIMUM_PROGRAM_LABEL_BYTES, MAXIMUM_PROGRAM_OUTPUT_CHUNK_BYTES, MAXIMUM_PROGRAM_PAGE,
-    PROGRAM_EXITED_KIND, ProgramAnswer, ProgramExit, ProgramExited, ProgramId, ProgramRequest,
-    ProgramStream, ProgramStreamFacts, ProgramSummary, READ_PROGRAM_OUTPUT_KIND,
-    START_PROGRAM_KIND, StartProgram, decode_program_answer, decode_program_exited,
-    encode_program_request,
-};
 pub use handover::{
     AttachKeeper, EncodedHandoverControl, HandoverControl, HandoverProcess, HandoverRefusal,
     RecoverTerminal, decode_handover_control, decode_handover_refusal, encode_handover_control,

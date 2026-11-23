@@ -28,6 +28,7 @@ export const MessageKind = {
 	readProgramOutput: 113,
 	disposeProgram: 114,
 	listPrograms: 115,
+	recoverProgram: 116,
 	readProcessInfo: 79,
 	applyTerminalTheme: 77,
 	attachTerminal: 20,
@@ -312,6 +313,12 @@ export const MESSAGE_CONTRACTS = {
 		eventEncoding: null,
 		name: 'ListPrograms',
 		request: { payloadEncoding: control, successKind: MessageKind.listPrograms },
+		responseEncoding: control,
+	},
+	[MessageKind.recoverProgram]: {
+		eventEncoding: null,
+		name: 'RecoverProgram',
+		request: { payloadEncoding: control, successKind: MessageKind.recoverProgram },
 		responseEncoding: control,
 	},
 	[MessageKind.readProcessInfo]: {
@@ -760,6 +767,7 @@ const WORKER_ONLY_CONTROL_REQUEST_KINDS = [
 	MessageKind.readProgramOutput,
 	MessageKind.disposeProgram,
 	MessageKind.listPrograms,
+	MessageKind.recoverProgram,
 ] as const;
 const workerOnlyControlRequestKinds: ReadonlySet<MessageKind> = new Set(
 	WORKER_ONLY_CONTROL_REQUEST_KINDS,

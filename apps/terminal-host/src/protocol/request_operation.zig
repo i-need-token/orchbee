@@ -55,4 +55,5 @@ pub const RequestOperation = enum {
     read_program_output,
     dispose_program,
     list_programs,
+    recover_program,
 };

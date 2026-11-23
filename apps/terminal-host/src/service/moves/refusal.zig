@@ -117,6 +117,6 @@ pub fn keeper(result: Result) Details {
         .unanswered, .keeper_ended => failed("unanswered"),
         .failed => failed("no-keeper"),
         .pull_failed => failed("handle-failed"),
-        .done, .outcome, .inspected => failed("unanswered"),
+        .done, .outcome, .inspected, .inspected_program => failed("unanswered"),
     };
 }

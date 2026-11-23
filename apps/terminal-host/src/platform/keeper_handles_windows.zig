@@ -157,8 +157,96 @@ pub fn matches(duplicates: Duplicates, program: Identity, console: Identity) boo
 /// Whether the Job of pulled duplicates ends its members when its last handle closes, as every
 /// terminal's Job does; a claiming Host adopts no Job without it.
 pub fn jobKillsOnClose(duplicates: Duplicates) bool {
+    return killsOnClose(duplicates[@intFromEnum(Role.job)]);
+}
+
+/// A background program's handles, as the process that pulled them holds them: its Job, its
+/// process, and the read end of each stream its Host captures.
+pub const ProgramDuplicates = struct {
+    job: Handle,
+    process: Handle,
+    streams: [2]?Handle,
+
+    pub fn close(self: ProgramDuplicates) void {
+        _ = CloseHandle(self.job);
+        _ = CloseHandle(self.process);
+        for (self.streams) |stream| if (stream) |handle| {
+            _ = CloseHandle(handle);
+        };
+    }
+
+    /// The values a Keeper message names; null when one exceeds 2^32.
+    pub fn values(self: ProgramDuplicates) ?ProgramValues {
+        var streams: [2]?u32 = .{ null, null };
+        for (self.streams, &streams) |stream, *value| if (stream) |handle| {
+            value.* = std.math.cast(u32, @intFromPtr(handle)) orelse return null;
+        };
+        return .{
+            .job = std.math.cast(u32, @intFromPtr(self.job)) orelse return null,
+            .process = std.math.cast(u32, @intFromPtr(self.process)) orelse return null,
+            .streams = streams,
+        };
+    }
+};
+
+pub const ProgramValues = struct { job: u32, process: u32, streams: [2]?u32 };
+
+/// Duplicates a program's handles from `peer` into this process, each with its source's access
+/// and not inheritable. All or nothing.
+pub fn pullProgram(peer: Handle, source: ProgramValues) error{HandleFailed}!ProgramDuplicates {
+    const job = try duplicate(peer, source.job);
+    errdefer close(job);
+    const process_handle = try duplicate(peer, source.process);
+    errdefer close(process_handle);
+    var streams: [2]?Handle = .{ null, null };
+    errdefer for (streams) |stream| if (stream) |handle| close(handle);
+    for (source.streams, &streams) |value, *stream| if (value) |handle| {
+        stream.* = try duplicate(peer, handle);
+    };
+    return .{ .job = job, .process = process_handle, .streams = streams };
+}
+
+/// Duplicates one of this process's own handles, with its access and not inheritable.
+pub fn duplicateOwn(handle: Handle) error{HandleFailed}!Handle {
+    var target: Handle = undefined;
+    if (!DuplicateHandle(GetCurrentProcess(), handle, GetCurrentProcess(), &target, 0, .FALSE, DUPLICATE_SAME_ACCESS).toBool())
+        return error.HandleFailed;
+    return target;
+}
+
+fn duplicate(peer: Handle, value: u32) error{HandleFailed}!Handle {
+    var target: Handle = undefined;
+    if (!DuplicateHandle(peer, @ptrFromInt(value), GetCurrentProcess(), &target, 0, .FALSE, DUPLICATE_SAME_ACCESS).toBool())
+        return error.HandleFailed;
+    return target;
+}
+
+/// Whether pulled program duplicates match the program's identity: the Job may be queried, the
+/// process is `program` and a member of that Job, and each stream is a readable file.
+pub fn programMatches(duplicates: ProgramDuplicates, program: Identity) bool {
+    if (objectType(duplicates.job) != .job) return false;
+    const job_access = grantedAccess(duplicates.job) orelse return false;
+    if (job_access & JOB_OBJECT_QUERY == 0) return false;
+    if (objectType(duplicates.process) != .process) return false;
+    const process_access = grantedAccess(duplicates.process) orelse return false;
+    if (process_access & (PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION) == 0) return false;
+    if (process_access & SYNCHRONIZE == 0) return false;
+    for (duplicates.streams) |stream| if (stream) |handle| {
+        if (objectType(handle) != .file) return false;
+        const access = grantedAccess(handle) orelse return false;
+        if (access & FILE_READ_DATA == 0) return false;
+    };
+    const identity = processIdentity(duplicates.process) orelse return false;
+    if (!identity.eql(program)) return false;
+    var in_job: BOOL = .FALSE;
+    if (!IsProcessInJob(duplicates.process, duplicates.job, &in_job).toBool()) return false;
+    return in_job.toBool();
+}
+
+/// Whether a Job ends its members when its last handle closes, as every program's Job does.
+pub fn killsOnClose(job: Handle) bool {
     var kills: BOOL = .FALSE;
-    if (!ob_windows_terminal_job_kills_on_close(duplicates[@intFromEnum(Role.job)], &kills).toBool()) return false;
+    if (!ob_windows_terminal_job_kills_on_close(job, &kills).toBool()) return false;
     return kills.toBool();
 }
 

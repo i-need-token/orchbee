@@ -1,9 +1,10 @@
 //! One Keeper attachment and its link thread. The thread checks and connects to the Keeper, then
-//! holds each terminal the dispatch thread queues, releases each one whose terminal ends or that a
-//! detach gives back, and watches the Keeper process. Every request waits at most the Keeper's reply
-//! deadline; after one miss the link fails every later request at once, so release first never
-//! waits on this Keeper again. The thread settles every gate slot it touched before it reports the
-//! attachment gone, and keeps the duplicates of an unanswered `hold` until the Keeper ends.
+//! holds each terminal and background program the dispatch thread queues, releases each one that
+//! ends or that a detach gives back, and watches the Keeper process. Every request waits at most
+//! the Keeper's reply deadline; after one miss the link fails every later request at once, so
+//! release first never waits on this Keeper again. The thread settles every gate slot it touched
+//! before it reports the attachment gone, and keeps the duplicates of an unanswered hold until the
+//! Keeper ends.
 
 const std = @import("std");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
@@ -11,12 +12,13 @@ const platform = @import("terminal-host-platform");
 const connect = @import("connect_windows.zig");
 const notice = @import("notice.zig");
 const move_requests = @import("moves.zig");
+const holds = @import("hold_windows.zig");
 
 const message = keeper_protocol.message;
 const thread_sync = platform.thread_sync;
 const Gate = platform.keeper.Gate;
-const hold_snapshot = platform.keeper.hold;
 const Process = platform.process.Process;
+const Retained = holds.Retained;
 
 const windows = std.os.windows;
 const HANDLE = windows.HANDLE;
@@ -31,13 +33,8 @@ extern "kernel32" fn WaitForMultipleObjects(count: windows.DWORD, handles: [*]co
 const thread_stack_bytes = 256 * 1024;
 const hello_id: u32 = 1;
 
-/// A hold the dispatch thread queued; its gate slot keeps `process` open until the link settles it.
-pub const Queued = struct {
-    gate: *Gate,
-    process: *Process,
-    holding: [16]u8,
-    terminal: message.Terminal,
-};
+pub const Queued = holds.Queued;
+pub const Program = holds.Program;
 
 const Held = struct { gate: *Gate, holding: [16]u8 };
 
@@ -59,6 +56,8 @@ pub const Link = struct {
     queue: std.ArrayList(Queued) = .empty,
     /// Whether the dispatch thread may queue holds: only while attached and answering.
     accepting: bool = false,
+    /// The Keeper negotiated `programs`, so it takes background programs.
+    programs: bool = false,
     phase: Phase = .connecting,
     detach_requested: bool = false,
     stop_requested: bool = false,
@@ -74,7 +73,7 @@ pub const Link = struct {
     connection: ?connect.Connection = null,
     held: std.ArrayList(Held) = .empty,
     /// Duplicates an unanswered `hold` named, kept until the Keeper ends.
-    retained: std.ArrayList(hold_snapshot.Snapshot) = .empty,
+    retained: std.ArrayList(Retained) = .empty,
     failed: bool = false,
     woke: bool = false,
     next_request: u32 = hello_id + 1,
@@ -109,7 +108,22 @@ pub const Link = struct {
         // `pass` waits for a queued slot, so its entry must fit before the slot is taken.
         self.queue.ensureUnusedCapacity(self.allocator, 1) catch return;
         const holding = gate.queue(self.index, self.serial, self.wake) orelse return;
-        self.queue.appendAssumeCapacity(.{ .gate = gate, .process = process, .holding = holding, .terminal = terminal });
+        self.queue.appendAssumeCapacity(.{ .gate = gate, .holding = holding, .subject = .{ .terminal = .{
+            .process = process,
+            .terminal = terminal,
+        } } });
+        _ = SetEvent(self.wake);
+    }
+
+    /// Queues a background program's hold unless this attachment takes no holds, its Keeper takes
+    /// no programs, or it already tried this one.
+    pub fn offerProgram(self: *Link, gate: *Gate, program: Program) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (!self.accepting or !self.programs) return;
+        self.queue.ensureUnusedCapacity(self.allocator, 1) catch return;
+        const holding = gate.queue(self.index, self.serial, self.wake) orelse return;
+        self.queue.appendAssumeCapacity(.{ .gate = gate, .holding = holding, .subject = .{ .program = program } });
         _ = SetEvent(self.wake);
     }
 
@@ -158,8 +172,16 @@ pub const Link = struct {
         platform.output_wake.signal();
     }
 
+    /// Reports a terminal left unheld; the Worker hears of no program left unheld.
     fn postUnheld(self: *Link, item: Queued, reason: []const u8) void {
-        self.post(.{ .unheld = .{ .keeper = self.keeper, .terminal_id = item.terminal.terminal_id, .reason = reason } });
+        switch (item.subject) {
+            .terminal => |terminal| self.post(.{ .unheld = .{
+                .keeper = self.keeper,
+                .terminal_id = terminal.terminal.terminal_id,
+                .reason = reason,
+            } }),
+            .program => {},
+        }
     }
 
     fn setPhase(self: *Link, phase: Phase, accepting: bool) void {
@@ -212,6 +234,9 @@ pub const Link = struct {
             self.post(.{ .unavailable = self.keeper });
             return self.finish();
         }
+        self.mutex.lock();
+        self.programs = self.connection.?.programs;
+        self.mutex.unlock();
         self.setPhase(.attached, true);
         self.post(.{ .attached = self.keeper });
         while (true) {
@@ -272,46 +297,40 @@ pub const Link = struct {
         }
     }
 
+    /// Holds what `item` names under duplicates this link owns, so the values the request names stay
+    /// valid until the Keeper answered.
     fn hold(self: *Link, item: Queued, detaching: bool) void {
-        var snapshot = hold_snapshot.take(item.process) catch |err| {
+        var prepared = holds.prepare(item) catch |err| {
             item.gate.settle(self.index);
             return self.postUnheld(item, switch (err) {
                 error.SystemConsole => "system-console",
                 error.HoldFailed => "hold-failed",
             });
         };
-        const handles = handleValues(snapshot.handles) orelse {
-            snapshot.close();
-            item.gate.settle(self.index);
-            return self.postUnheld(item, "hold-failed");
-        };
         self.held.ensureUnusedCapacity(self.allocator, 1) catch {
-            snapshot.close();
+            prepared.retained.close();
             item.gate.settle(self.index);
             return self.postUnheld(item, "hold-failed");
         };
-        const own = platform.keeper.builds.own;
-        const outcome = self.call(.{ .hold = .{ .holding = item.holding, .handles = handles, .facts = .{
-            .terminal = item.terminal,
-            .program = .{ .pid = snapshot.program.pid, .created = snapshot.program.created },
-            .console = .{ .pid = snapshot.console.pid, .created = snapshot.console.created },
-            .console_build = own.console_sha256,
-            .signal_format = own.signal_format,
-            .launch = launchName(snapshot.launch_kind),
-        } } });
+        const outcome = self.call(prepared.body);
         if (outcome == .unanswered) {
             // The Keeper may still pull these values, so they stay open until it ends.
-            self.retained.append(self.allocator, snapshot) catch snapshot.close();
+            self.retained.append(self.allocator, prepared.retained) catch prepared.retained.close();
             item.gate.settle(self.index);
             return self.postUnheld(item, "unanswered");
         }
-        snapshot.close();
+        prepared.retained.close();
+        self.settleHold(item, outcome, detaching);
+    }
+
+    /// Records what the Keeper answered a hold; the room for a held entry is already taken.
+    fn settleHold(self: *Link, item: Queued, outcome: Outcome, detaching: bool) void {
         const reply = switch (outcome) {
             .reply => |body| body,
             else => return item.gate.settle(self.index),
         };
         switch (reply) {
-            .hold => if (item.gate.held(self.index, detaching)) {
+            .hold, .hold_program => if (item.gate.held(self.index, detaching)) {
                 self.release(item.gate, item.holding);
             } else {
                 self.held.appendAssumeCapacity(.{ .gate = item.gate, .holding = item.holding });
@@ -385,7 +404,7 @@ pub const Link = struct {
     }
 
     fn closeRetained(self: *Link) void {
-        for (self.retained.items) |*snapshot| snapshot.close();
+        for (self.retained.items) |*retained| retained.close();
         self.retained.clearRetainingCapacity();
     }
 
@@ -440,31 +459,3 @@ pub const Link = struct {
         platform.output_wake.signal();
     }
 };
-
-/// The wire values of the snapshot's duplicates; null when one exceeds 2^32, which the Keeper
-/// would refuse.
-fn handleValues(handles: [hold_snapshot.role_count]HANDLE) ?message.Handles {
-    var values: [hold_snapshot.role_count]u32 = undefined;
-    for (handles, &values) |handle, *value| value.* = std.math.cast(u32, @intFromPtr(handle)) orelse return null;
-    return .{
-        .job = values[0],
-        .program = values[1],
-        .console = values[2],
-        .signal = values[3],
-        .reference = values[4],
-        .input = values[5],
-        .output = values[6],
-    };
-}
-
-fn launchName(kind: platform.process.LaunchKind) []const u8 {
-    return switch (kind) {
-        inline else => |tag| comptime blk: {
-            const text = @tagName(tag);
-            var spelled: [text.len]u8 = undefined;
-            for (text, &spelled) |byte, *out| out.* = if (byte == '_') '-' else byte;
-            const final = spelled;
-            break :blk &final;
-        },
-    };
-}

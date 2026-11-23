@@ -1,6 +1,7 @@
 //! Defines the `background-programs` requests a Worker sends a Windows Terminal Host to run a
-//! program without a terminal, the answers it reads, and `ProgramExited`. It transports them
-//! without deciding which programs run in the Host or what a label records.
+//! program without a terminal, the answers it reads, and `ProgramExited`; `RecoverProgram` also
+//! needs `recovery`. It transports them without deciding which programs run in the Host or what a
+//! label records.
 
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
@@ -17,6 +18,7 @@ pub const CANCEL_PROGRAM_KIND: u16 = 112;
 pub const READ_PROGRAM_OUTPUT_KIND: u16 = 113;
 pub const DISPOSE_PROGRAM_KIND: u16 = 114;
 pub const LIST_PROGRAMS_KIND: u16 = 115;
+pub const RECOVER_PROGRAM_KIND: u16 = 116;
 /// A label's longest text, in characters of the base64 alphabet.
 pub const MAXIMUM_PROGRAM_LABEL_BYTES: usize = 2048;
 /// The most bytes of one stream a `ReadProgramOutput` answer carries.
@@ -62,6 +64,14 @@ pub enum ProgramRequest {
     /// The page after the program id, or the first.
     List {
         after: Option<ProgramId>,
+    },
+    /// A program a Keeper kept after its Host ended, from the holding the Keeper assigned to the
+    /// recovering Host under `mark`; `deadline_seconds` is from 1 to 30.
+    Recover {
+        program_id: ProgramId,
+        holding: [u8; 16],
+        mark: [u8; 16],
+        deadline_seconds: u8,
     },
 }
 
@@ -123,6 +133,11 @@ pub enum ProgramAnswer {
         programs: Vec<ProgramSummary>,
         next: Option<ProgramId>,
     },
+    /// The recovered program, which the Host now follows as one it started.
+    Recovered {
+        program_id: ProgramId,
+        process: HandoverProcess,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -158,6 +173,27 @@ pub fn encode_program_request(
                 after: after.as_ref().map(id_text).transpose()?,
             })?,
         ),
+        ProgramRequest::Recover {
+            program_id,
+            holding,
+            mark,
+            deadline_seconds,
+        } => {
+            if !(1..=30).contains(deadline_seconds) {
+                return Err(invalid_field(
+                    "a recovery's deadline is from 1 to 30 seconds",
+                ));
+            }
+            (
+                RECOVER_PROGRAM_KIND,
+                serialize_wire(&RecoverWire {
+                    deadline_seconds: SafeInteger::new(u64::from(*deadline_seconds)),
+                    holding: id_text(holding)?,
+                    mark: id_text(mark)?,
+                    program_id: id_text(program_id)?,
+                })?,
+            )
+        }
     };
     Ok(EncodedProgramRequest { kind, payload })
 }
@@ -236,6 +272,13 @@ pub fn decode_program_answer(
                 next: wire.next.as_deref().map(id_from_text).transpose()?,
             })
         }
+        RECOVER_PROGRAM_KIND => {
+            let wire = decode_wire::<RecoveredWire>(payload)?;
+            Ok(ProgramAnswer::Recovered {
+                program_id: id_from_text(&wire.program_id)?,
+                process: process_from_wire(&wire.process)?,
+            })
+        }
         _ => Err(invalid_field(
             "message kind does not select a program answer",
         )),
@@ -308,6 +351,22 @@ struct ReadOutputWire {
 struct ListWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     after: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecoverWire {
+    deadline_seconds: SafeInteger,
+    holding: String,
+    mark: String,
+    program_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecoveredWire {
+    process: ProcessWire,
+    program_id: String,
 }
 
 #[derive(Deserialize)]

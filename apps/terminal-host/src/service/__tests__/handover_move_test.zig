@@ -331,7 +331,7 @@ test "after KeeperLost the next Keeper holds no quiesced, restored, or moved ter
     try f.idle(300);
     const entries = try f.holdings();
     try std.testing.expectEqual(@as(usize, 1), entries.len);
-    try std.testing.expectEqualSlices(u8, &second_on_a.bytes, &entries[0].facts.terminal.terminal_id);
+    try std.testing.expectEqualSlices(u8, &second_on_a.bytes, &entries[0].facts.terminal.terminal.terminal_id);
 
     // The Worker settles the rest: the new Host discards, the old Host resumes without the
     // Keeper and is held again, and the moved copy drops.

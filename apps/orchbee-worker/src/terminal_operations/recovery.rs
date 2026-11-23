@@ -1,9 +1,9 @@
 //! A replacement Worker's recovery on Windows (`proposals/platform/host-handover.md`, H2 design):
 //! the Host ended while the Session's Keeper kept its programs. The replacement adopts that Keeper,
 //! starts a recovery Host in the Host's slot that serves the lost epoch, and recovers each bound
-//! terminal into it before the recovery Host's inventory is read as an adoption reads it. A Host
-//! adopted while a Keeper runs recovers the orphans of its own epoch the same way, which completes
-//! a recovery an earlier attempt left part done.
+//! terminal into it before the recovery Host's inventory is read as an adoption reads it, then each
+//! background program the Keeper kept. A Host adopted while a Keeper runs recovers the orphans of
+//! its own epoch the same way, which completes a recovery an earlier attempt left part done.
 //!
 //! Every step before a terminal's claim is undoable and leaves its program running in the Keeper.
 //! A step that fails fails the replacement, which the Server retries under its cap; a terminal
@@ -22,13 +22,16 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_local_runtime::{Cohort, HoldingState, KeeperProcess, KeeperStatus, RetainedChild};
 use orchbee_terminal_protocol::{
-    CreationId, HandoverControl, RecoverTerminal, TerminalId, TerminalPixelGeometry,
+    CreationId, HandoverControl, ProgramAnswer, ProgramRequest, RecoverTerminal, TerminalId,
+    TerminalPixelGeometry,
 };
 
 use super::lazy::{HostStart, start_host};
 use crate::{
     host_adoption as host,
     host_connection::HostBrokerConnection,
+    host_programs::HostPrograms,
+    plugin_jobs::{ProgramHost, ProgramReply},
     session_keeper::{self, Serving, SessionKeeper},
     terminal_authorization::InventoryTerminal,
 };
@@ -119,7 +122,8 @@ pub(super) fn recover(
 }
 
 /// Recovers into `host`, the Host process `target`, each orphaned holding of that Host's epoch
-/// that a binding names, and answers how many it recovered.
+/// that a binding names, then every orphaned program holding, and answers how many terminals it
+/// recovered.
 pub(super) fn recover_orphans(
     keeper: &mut SessionKeeper,
     host: &HostBrokerConnection,
@@ -178,7 +182,59 @@ pub(super) fn recover_orphans(
         }
         recovered += 1;
     }
+    recover_programs(keeper, &status, host, server, target)?;
     Ok(recovered)
+}
+
+/// Recovers into `host` each orphaned program holding. Only this Session's Hosts hold programs
+/// in its Keeper, so every orphan is a lost Host's. A program whose recovery fails keeps running
+/// in the Keeper and fails the replacement.
+fn recover_programs(
+    keeper: &mut SessionKeeper,
+    status: &KeeperStatus,
+    host: &HostBrokerConnection,
+    server: &orchbee_local_ipc::LocalStream,
+    target: KeeperProcess,
+) -> Result<(), Box<dyn Error>> {
+    let mut orphans = status
+        .programs
+        .iter()
+        .filter(|program| program.state == HoldingState::Orphaned)
+        .peekable();
+    if orphans.peek().is_none() {
+        return Ok(());
+    }
+    let programs = HostPrograms::serving(host, server)
+        .ok_or_else(|| refused("the recovery Host runs no background programs"))?;
+    for program in orphans {
+        let mark = derived_mark(program.holding, target);
+        keeper.assign(program.holding, target, mark)?;
+        let request = ProgramRequest::Recover {
+            program_id: program.program_id,
+            holding: program.holding,
+            mark,
+            deadline_seconds: RECOVERY_DEADLINE_SECONDS,
+        };
+        match programs.request(&request) {
+            Ok(ProgramReply::Answer(ProgramAnswer::Recovered { program_id, .. }))
+                if program_id == program.program_id => {}
+            Ok(ProgramReply::Refused { code, reason }) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "the recovery Host refused a program: {code} {}",
+                        reason.unwrap_or_default()
+                    ),
+                )
+                .into());
+            }
+            Ok(ProgramReply::Answer(_)) => {
+                return Err(refused("the recovery Host recovered another program"));
+            }
+            Err(()) => return Err(refused("a program recovery got no answer")),
+        }
+    }
+    Ok(())
 }
 
 /// Discards each orphan of `epoch` that no binding names, which ends its program: no person can
@@ -207,9 +263,9 @@ pub(super) fn discard_unbound(
     }
 }
 
-/// The Keeper's status once no holding of `epoch` is still owned by a Host other than `target`:
-/// the Keeper orphans a Host's holdings when it sees that Host end, which follows the end by at
-/// most moments.
+/// The Keeper's status once no holding of `epoch` and no program holding is still owned by a Host
+/// other than `target`: the Keeper orphans a Host's holdings when it sees that Host end, which
+/// follows the end by at most moments.
 fn settled_status(
     keeper: &mut SessionKeeper,
     target: KeeperProcess,
@@ -222,7 +278,10 @@ fn settled_status(
             holding.terminal.host_epoch == epoch
                 && holding.owner != target
                 && holding.state != HoldingState::Orphaned
-        });
+        }) || status
+            .programs
+            .iter()
+            .any(|program| program.owner != target && program.state != HoldingState::Orphaned);
         if !unsettled || Instant::now() >= until {
             return Ok(status);
         }

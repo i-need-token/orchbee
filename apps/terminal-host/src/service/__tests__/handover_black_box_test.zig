@@ -44,7 +44,7 @@ const Processes = struct { program: moves.message.Process, console: moves.messag
 
 fn processesOf(f: *Fixture, id: TerminalId, owner: Side) !Processes {
     const entry = try f.awaitHolding(id, f.identity(owner), 5000);
-    return .{ .program = entry.facts.program, .console = entry.facts.console };
+    return .{ .program = entry.facts.terminal.program, .console = entry.facts.terminal.console };
 }
 
 /// Requires that the Keeper holds the terminal for `owner` with the same program and OpenConsole.
@@ -555,7 +555,7 @@ test "ending the old Host right after the quiesce leaves the program running, he
     while (true) {
         const entry = (try f.holdingOf(id)) orelse return error.TerminalNotHeld;
         if (entry.state == .orphaned and entry.owner.eql(old_host)) {
-            try std.testing.expect(entry.facts.program.eql(processes.program) and entry.facts.console.eql(processes.console));
+            try std.testing.expect(entry.facts.terminal.program.eql(processes.program) and entry.facts.terminal.console.eql(processes.console));
             break;
         }
         if (f.timer.read() > deadline) {
@@ -598,7 +598,7 @@ test "a program whose Host ended runs on and comes back on a recovery Host of th
     f.io.random(&mark);
     try f.assign(orphan.holding, f.identity(.b), mark);
     const payload = try std.fmt.allocPrint(f.arena(), "{{\"creationId\":\"{s}\",\"deadlineSeconds\":30,\"geometry\":{{\"cellPixelHeight\":16,\"cellPixelWidth\":8,\"columns\":100,\"rows\":30}},\"holding\":\"{s}\",\"mark\":\"{s}\",\"terminalId\":\"{s}\",\"terminalProfile\":{s}}}", .{
-        &hex(orphan.facts.terminal.creation_id), &hex(orphan.holding), &hex(mark), &hex(id.bytes), recovery_profile,
+        &hex(orphan.facts.terminal.terminal.creation_id), &hex(orphan.holding), &hex(mark), &hex(id.bytes), recovery_profile,
     });
     const recovered = try f.call(.b, MessageKind.recover_terminal, .control_json, payload, 20_000);
     try expectKind(recovered, MessageKind.recover_terminal);

@@ -924,6 +924,16 @@
 				"success_kind": 115
 			},
 			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 116,
+			"name": "RecoverProgram",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 116
+			},
+			"response_encoding": "control-json"
 		}
 	],
 	"protocol_limits": {

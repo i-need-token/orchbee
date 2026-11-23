@@ -1,5 +1,5 @@
-//! The background-program kinds of the message registry, 110 to 115, which only a Worker that
-//! negotiated `background-programs` sends or receives. `contract.zig` owns every other kind.
+//! The background-program kinds of the message registry, 110 to 116, which only a Worker that
+//! negotiated `background-programs` sends or receives; `RecoverProgram` also needs `recovery`. `contract.zig` owns every other kind.
 
 const contract = @import("contract.zig");
 
@@ -15,6 +15,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
         M.read_program_output => controlRequest("ReadProgramOutput", .read_program_output, M.read_program_output),
         M.dispose_program => controlRequest("DisposeProgram", .dispose_program, M.dispose_program),
         M.list_programs => controlRequest("ListPrograms", .list_programs, M.list_programs),
+        M.recover_program => controlRequest("RecoverProgram", .recover_program, M.recover_program),
         else => null,
     };
 }

@@ -618,6 +618,7 @@ Host neither ends when idle nor finishes a drain, and a draining Host admits no 
 | `ReadProgramOutput` | `{offset, programId, stream: "stderr" or "stdout"}`                                                          | `{data, end, offset, programId, stream}`         |
 | `DisposeProgram`    | `{programId}`                                                                                                | `{programId}`                                    |
 | `ListPrograms`      | `{after?}`                                                                                                   | `{next?, programs}`                              |
+| `RecoverProgram`    | `{deadlineSeconds, holding, mark, programId}`                                                                | `{process, programId}`                           |
 
 `StartProgram` names an absolute `executable` and `directory`. The Host quotes `arguments` by the
 Windows command-line rules and appends `rawArgument` after them unquoted, for a command that hands
@@ -648,6 +649,24 @@ captured stream is `{bytes, truncated}`. The Host sends `ProgramExited` once for
 connection that negotiated the capability when the program exited or, failing one, to the next; a
 Worker reads a report it already has as known.
 
+While a Keeper whose answer listed `programs` is attached, the Host holds each running program
+there with `hold-program`, under a holding id it mints, and releases the program before it ends the
+Job's remaining members and records the exit, so no Keeper holds a program whose exit a Worker can
+read. A Keeper without `programs` holds none, and a program then ends with its Host.
+
+`RecoverProgram` also needs `recovery` and fails with `not-negotiated` without it. It takes back a
+program a Keeper kept after its Host ended, from the holding the Worker assigned to this Host
+under `mark`: through its one attached Keeper the Host inspects the holding, checks the handles it
+receives against the holding's facts and its Job's kill-on-close limit, claims the holding, and
+then runs the program as one it started, under the label the holding kept. Its captures restart
+at zero and report truncated. A check that fails, or a claim not made within `deadlineSeconds`,
+from 1 to 30, declines the holding, which keeps the program running in the Keeper, and fails with
+the retryable `move-failed` and a reason. A recovery of a program the Host lists under the same
+holding answers it again; under another holding it fails with the reason `identity-mismatch`, and
+while the same program is being recovered with the retryable `move-passing`. The limits and a
+draining Host fail as `StartProgram` does, and a Host without one attached Keeper fails with the
+reason `no-keeper`.
+
 No release Worker offers `background-programs` before the release that moves configured commands
 into the Host, and these kinds freeze with it.
 
@@ -664,7 +683,7 @@ into the Host, and these kinds freeze with it.
 | `70-78`   | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                            |
 | `79-85`   | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`, `PromptLineInput=84`, `ScreenGatedKeyInput=85`                                                                                                                                                                                                                                                        |
 | `90-106`  | Host handover                              | `AttachKeeper=90`, `DetachKeeper=91`, `KeeperLost=92`, `KeeperUnresponsive=93`, `TerminalUnheld=94`, `QuiesceTerminal=95`, `ReadHandoverRecord=96`, `HandoverRecordChunk=97`, `ResumeTerminal=98`, `DropTerminal=99`, `ImportTerminal=100`, `WriteHandoverRecord=101`, `HandoverRecordWritten=102`, `RestoreTerminal=103`, `ClaimTerminal=104`, `DiscardImport=105`, `RecoverTerminal=106`                                        |
-| `110-115` | Background programs                        | `StartProgram=110`, `ProgramExited=111`, `CancelProgram=112`, `ReadProgramOutput=113`, `DisposeProgram=114`, `ListPrograms=115`                                                                                                                                                                                                                                                                                                   |
+| `110-116` | Background programs                        | `StartProgram=110`, `ProgramExited=111`, `CancelProgram=112`, `ReadProgramOutput=113`, `DisposeProgram=114`, `ListPrograms=115`, `RecoverProgram=116`                                                                                                                                                                                                                                                                             |
 
 Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames and
 the identity-scoped metadata event. Initial resize-lease authority is returned by attachment

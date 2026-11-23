@@ -1517,9 +1517,9 @@ without `background-programs` never receives it.
 
 | Slice | Content                                                                                                                    | Status |
 | ----- | -------------------------------------------------------------------------------------------------------------------------- | ------ |
-| S1    | The program protocol, its fixtures, and the Host's program owner on Windows, witnessed with real processes                 |        |
-| S2    | The Worker's Host-owned records, adoption through `ListPrograms`, the Worker-owned fallback, and the Server's split counts |        |
-| S3    | The Keeper's `programs`, the Host's holds, `RecoverProgram`, and recovery in the replacement Worker                        |        |
+| S1    | The program protocol, its fixtures, and the Host's program owner on Windows, witnessed with real processes                 | Built  |
+| S2    | The Worker's Host-owned records, adoption through `ListPrograms`, the Worker-owned fallback, and the Server's split counts | Built  |
+| S3    | The Keeper's `programs`, the Host's holds, `RecoverProgram`, and recovery in the replacement Worker                        | Built  |
 | S4    | The [B1 acceptance](#acceptance) on real Windows                                                                           |        |
 
 ## Acceptance

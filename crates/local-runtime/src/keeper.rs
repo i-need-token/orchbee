@@ -10,7 +10,7 @@ mod client;
 #[cfg(windows)]
 pub use client::{
     HeldTerminal, Holding, HoldingState, KEEPER_REPLY_BOUND, KeeperClient, KeeperProcess,
-    KeeperRefusal, KeeperStatus,
+    KeeperRefusal, KeeperStatus, ProgramHolding,
 };
 
 /// The live Keeper the Active generation of the Session at `runtime` records, opened on its

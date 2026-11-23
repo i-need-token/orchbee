@@ -116,6 +116,29 @@ const Object = struct {
         try inner.end();
     }
 
+    fn programHandles(self: *Object, value: message.ProgramHandles) WriteError!void {
+        try self.key("handles");
+        var inner = try Object.begin(self.writer);
+        if (value.job == 0 or value.process == 0) return error.InvalidMessage;
+        try inner.hexInteger("job", value.job);
+        try inner.hexInteger("process", value.process);
+        inline for (.{ "stdout", "stderr" }) |role| if (@field(value, role)) |handle| {
+            if (handle == 0) return error.InvalidMessage;
+            try inner.hexInteger(role, handle);
+        };
+        try inner.end();
+    }
+
+    fn programFacts(self: *Object, value: message.ProgramFacts) WriteError!void {
+        if (!value.valid()) return error.InvalidMessage;
+        try self.key("facts");
+        var inner = try Object.begin(self.writer);
+        try inner.process("process", value.process);
+        try inner.hex("programId", &value.program_id);
+        try inner.text("label", value.label);
+        try inner.end();
+    }
+
     fn terminal(self: *Object, member_name: []const u8, value: message.Terminal) WriteError!void {
         try self.key(member_name);
         var inner = try Object.begin(self.writer);
@@ -179,9 +202,14 @@ fn writeInitiator(writer: *std.Io.Writer, value: message.InitiatorMessage) Write
                     try object.randomId("holding", claim.holding);
                     try object.randomId("mark", claim.mark);
                     try object.process("program", claim.program);
-                    try object.terminal("terminal", claim.terminal);
+                    if (claim.terminal) |terminal| try object.terminal("terminal", terminal);
                 },
                 .release, .discard => |holding| try object.randomId("holding", holding),
+                .hold_program => |hold| {
+                    try object.randomId("holding", hold.holding);
+                    try object.programHandles(hold.handles);
+                    try object.programFacts(hold.facts);
+                },
             }
             try object.extensions(request.extensions);
         },
@@ -228,7 +256,13 @@ fn writeAcceptor(writer: *std.Io.Writer, value: message.AcceptorMessage) WriteEr
                     try object.handles(inspection.handles);
                     try object.facts(inspection.facts);
                 },
-                inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard => |_, tag| {
+                .inspect_program => |inspection| {
+                    try object.text("type", message.RequestKind.inspect.resultName());
+                    try object.id(reply.id);
+                    try object.programHandles(inspection.handles);
+                    try object.programFacts(inspection.facts);
+                },
+                inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program => |_, tag| {
                     try object.text("type", @field(message.RequestKind, @tagName(tag)).resultName());
                     try object.id(reply.id);
                 },
@@ -249,7 +283,13 @@ fn writeStatus(object: *Object, page: message.StatusPage) WriteError!void {
         try inner.process("owner", entry.owner);
         try inner.text("state", entry.state.name());
         if (entry.target) |target| try inner.process("for", target);
-        try inner.facts(entry.facts);
+        switch (entry.facts) {
+            .terminal => |facts| try inner.facts(facts),
+            .program => |facts| {
+                try inner.text("kind", "program");
+                try inner.programFacts(facts);
+            },
+        }
         try inner.end();
     }
     try object.writer.writeByte(']');

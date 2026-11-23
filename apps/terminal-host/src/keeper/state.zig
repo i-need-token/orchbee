@@ -32,18 +32,23 @@ pub const Lifecycle = enum { ready, draining, stopping };
 
 /// Who sent a request: the Worker, or the registered Host whose connection it arrived on.
 pub const Peer = union(enum) {
-    worker,
+    worker: Worker,
     host: Process,
+};
+
+pub const Worker = struct {
+    /// The Worker's connection negotiated `programs`, so `status` lists program holdings to it.
+    programs: bool = false,
 };
 
 /// What a request leaves for its caller to release after the lock: the duplicates of a released
 /// holding, and the handle and wait of a forgotten Host.
 pub const Effects = struct {
-    duplicates: ?handles.Duplicates = null,
+    released: ?Content = null,
     host: ?HostRelease = null,
 
-    pub fn release(self: Effects) void {
-        if (self.duplicates) |duplicates| handles.closeAll(&duplicates);
+    pub fn release(self: *const Effects) void {
+        if (self.released) |*content| content.close();
         if (self.host) |host| host.release(true);
     }
 };
@@ -115,11 +120,58 @@ pub const StoredFacts = struct {
     }
 };
 
+pub const StoredProgramFacts = struct {
+    process: Process,
+    program_id: [16]u8,
+    label: [message.maximum_label_bytes]u8,
+    label_length: u16,
+
+    /// Facts the decoder checked, so the label fits.
+    pub fn store(facts: message.ProgramFacts) StoredProgramFacts {
+        var stored: StoredProgramFacts = .{
+            .process = facts.process,
+            .program_id = facts.program_id,
+            .label = undefined,
+            .label_length = @intCast(facts.label.len),
+        };
+        @memcpy(stored.label[0..facts.label.len], facts.label);
+        return stored;
+    }
+
+    pub fn view(self: *const StoredProgramFacts, arena: std.mem.Allocator) error{OutOfMemory}!message.ProgramFacts {
+        return .{
+            .process = self.process,
+            .program_id = self.program_id,
+            .label = try arena.dupe(u8, self.label[0..self.label_length]),
+        };
+    }
+};
+
+/// What a holding holds, with the Keeper's duplicates of its handles: a terminal, or a
+/// background program a Host runs without one.
+pub const Content = union(enum) {
+    terminal: struct { duplicates: handles.Duplicates, facts: StoredFacts },
+    program: struct { duplicates: handles.ProgramDuplicates, facts: StoredProgramFacts },
+
+    pub fn close(self: *const Content) void {
+        switch (self.*) {
+            .terminal => |*terminal| handles.closeAll(&terminal.duplicates),
+            .program => |*program| program.duplicates.close(),
+        }
+    }
+
+    pub fn view(self: *const Content, arena: std.mem.Allocator) error{OutOfMemory}!message.HoldingFacts {
+        return switch (self.*) {
+            .terminal => |*terminal| .{ .terminal = try terminal.facts.view(arena) },
+            .program => |*program| .{ .program = try program.facts.view(arena) },
+        };
+    }
+};
+
 pub const Holding = struct {
     id: RandomId,
     owner: Process,
-    duplicates: handles.Duplicates,
-    facts: StoredFacts,
+    content: Content,
     mark: ?Mark = null,
     /// The Host this holding was claimed from and the mark that claim consumed.
     claimed: ?Claimed = null,
@@ -215,7 +267,7 @@ pub const Table = struct {
                 self.settleIdle();
                 slot.kind = .worker;
                 self.pending_connections -= 1;
-                return .{ .admitted = .worker };
+                return .{ .admitted = .{ .worker = .{} } };
             },
             .host => {
                 const index = self.findHostByPid(slot.pid) orelse return .{ .refused = .not_registered };
@@ -277,7 +329,7 @@ pub const Table = struct {
     /// Closing the last handle of a kill-on-close Job ends its programs, as at a confirmed stop.
     pub fn stop(self: *Table) void {
         self.lifecycle = .stopping;
-        for (self.holdings[0..self.holding_count]) |*holding| handles.closeAll(&holding.duplicates);
+        for (self.holdings[0..self.holding_count]) |*holding| holding.content.close();
         self.holding_count = 0;
         for (&self.connections) |*slot| if (slot.in_use) {
             slot.closing = true;

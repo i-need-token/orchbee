@@ -14,6 +14,8 @@ const message = keeper_protocol.message;
 const maximum_attachments = platform.keeper.maximum_attachments;
 const is_windows = builtin.os.tag == .windows;
 const Link = if (is_windows) @import("link_windows.zig").Link else void;
+/// A background program offered for a hold.
+pub const Program = if (is_windows) @import("link_windows.zig").Program else void;
 
 pub const Attach = enum {
     /// The Keeper is already attached: the answer is due now, without effect.
@@ -114,6 +116,17 @@ pub const Attachments = struct {
         if (comptime !is_windows) return;
         const gate = platform.keeper.gate(process) orelse return;
         for (self.slots) |slot| if (slot) |link| link.offer(gate, process, terminal);
+    }
+
+    /// Offers a background program, whose gate is `gate`, to every attached Keeper that takes
+    /// programs.
+    pub fn offerProgram(self: *Attachments, gate: *platform.keeper.Gate, program: Program) void {
+        if (comptime !is_windows) return;
+        // No hold names facts the wire cannot carry, since a request that does not encode fails
+        // the link.
+        const facts = program.facts;
+        if (!facts.valid() or facts.process.pid == 0 or facts.process.created == 0) return;
+        for (self.slots) |slot| if (slot) |link| link.offerProgram(gate, program);
     }
 
     /// How many Keepers are attached, for the moves that need the Host's one Keeper.

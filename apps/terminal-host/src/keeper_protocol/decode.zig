@@ -81,7 +81,15 @@ pub fn initiatorPayload(arena: std.mem.Allocator, payload: []const u8) PayloadEr
                 .holding = try randomId(try object.required("holding")),
                 .mark = try randomId(try object.required("mark")),
                 .program = try processValue(try object.required("program")),
-                .terminal = try terminalValue(try object.required("terminal")),
+                .terminal = if (object.get("terminal")) |terminal| try terminalValue(terminal) else null,
+            } };
+        },
+        .hold_program => blk: {
+            try closed(object.members, &.{ "type", "id", "holding", "handles", "facts", "extensions" });
+            break :blk .{ .hold_program = .{
+                .holding = try randomId(try object.required("holding")),
+                .handles = try programHandlesValue(try object.required("handles")),
+                .facts = try programFactsValue(try object.required("facts")),
             } };
         },
         .release, .discard => blk: {
@@ -149,12 +157,18 @@ fn resultBody(arena: std.mem.Allocator, object: Object, kind: message.RequestKin
         },
         .inspect => {
             try closed(object.members, &.{ "type", "id", "handles", "facts", "extensions" });
+            const handles = try object.required("handles");
+            // A program holding's handles name its process where a terminal's name its program.
+            if (lookup(try objectMembers(handles), "process") != null) return .{ .inspect_program = .{
+                .handles = try programHandlesValue(handles),
+                .facts = try programFactsValue(try object.required("facts")),
+            } };
             return .{ .inspect = .{
-                .handles = try handlesValue(try object.required("handles")),
+                .handles = try handlesValue(handles),
                 .facts = try factsValue(try object.required("facts")),
             } };
         },
-        inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard => |empty| {
+        inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program => |empty| {
             try closed(object.members, &.{ "type", "id", "extensions" });
             return @unionInit(message.Reply.Body, @tagName(empty), {});
         },
@@ -187,14 +201,47 @@ fn messageObject(arena: std.mem.Allocator, payload: []const u8) PayloadError!Obj
 
 fn holdingEntry(value: json.Value) PayloadError!message.HoldingEntry {
     const members = try objectMembers(value);
-    try closed(members, &.{ "holding", "owner", "state", "for", "facts" });
+    try closed(members, &.{ "holding", "owner", "state", "for", "kind", "facts" });
+    const facts = try requiredMember(members, "facts");
     return .{
         .holding = try randomId(try requiredMember(members, "holding")),
         .owner = try processValue(try requiredMember(members, "owner")),
         .state = message.HoldingState.fromName(try name(try requiredMember(members, "state"))),
         .target = if (lookup(members, "for")) |target| try processValue(target) else null,
-        .facts = try factsValue(try requiredMember(members, "facts")),
+        .facts = if (lookup(members, "kind")) |kind| facts: {
+            if (!std.mem.eql(u8, try name(kind), "program")) return error.Message;
+            break :facts .{ .program = try programFactsValue(facts) };
+        } else .{ .terminal = try factsValue(facts) },
     };
+}
+
+fn programHandlesValue(value: json.Value) PayloadError!message.ProgramHandles {
+    const members = try objectMembers(value);
+    try closed(members, &.{ "job", "process", "stdout", "stderr" });
+    return .{
+        .job = try handleValue(try requiredMember(members, "job")),
+        .process = try handleValue(try requiredMember(members, "process")),
+        .stdout = if (lookup(members, "stdout")) |handle| try handleValue(handle) else null,
+        .stderr = if (lookup(members, "stderr")) |handle| try handleValue(handle) else null,
+    };
+}
+
+fn handleValue(value: json.Value) PayloadError!u32 {
+    const handle = try hexInteger(u64, value);
+    if (handle == 0 or handle > std.math.maxInt(u32)) return error.Message;
+    return @intCast(handle);
+}
+
+fn programFactsValue(value: json.Value) PayloadError!message.ProgramFacts {
+    const members = try objectMembers(value);
+    try closed(members, &.{ "process", "programId", "label" });
+    const facts: message.ProgramFacts = .{
+        .process = try processValue(try requiredMember(members, "process")),
+        .program_id = try hexBytes(16, try requiredMember(members, "programId")),
+        .label = try string(try requiredMember(members, "label")),
+    };
+    if (!facts.valid()) return error.Message;
+    return facts;
 }
 
 fn hostEntry(value: json.Value) PayloadError!message.HostEntry {

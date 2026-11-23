@@ -57,10 +57,23 @@ pub struct Holding {
     pub console: KeeperProcess,
 }
 
-/// What `status` reported: every holding, and every registered Host with whether it ended.
+/// One background program a Host holds in the Keeper, under `programs`: the program's process and
+/// the id its Worker gave it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProgramHolding {
+    pub holding: [u8; 16],
+    pub owner: KeeperProcess,
+    pub state: HoldingState,
+    pub process: KeeperProcess,
+    pub program_id: [u8; 16],
+}
+
+/// What `status` reported: every terminal holding, every program holding, and every registered
+/// Host with whether it ended.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct KeeperStatus {
     pub holdings: Vec<Holding>,
+    pub programs: Vec<ProgramHolding>,
     pub hosts: Vec<(KeeperProcess, bool)>,
 }
 
@@ -154,7 +167,11 @@ impl KeeperClient {
                 .and_then(Value::as_array)
                 .ok_or_else(|| invalid("a status page has no holdings"))?;
             for entry in holdings {
-                status.holdings.push(holding(entry)?);
+                match entry.get("kind").map(Value::as_str) {
+                    None => status.holdings.push(holding(entry)?),
+                    Some(Some("program")) => status.programs.push(program_holding(entry)?),
+                    Some(_) => return Err(invalid("a holding names an unknown kind")),
+                }
             }
             for entry in reply
                 .get("hosts")
@@ -332,14 +349,31 @@ fn process(value: Option<&Value>) -> io::Result<KeeperProcess> {
     Ok(KeeperProcess { pid, created })
 }
 
-fn holding(entry: &Value) -> io::Result<Holding> {
-    let state = match entry.get("state").and_then(Value::as_str) {
+fn holding_state(entry: &Value) -> io::Result<HoldingState> {
+    Ok(match entry.get("state").and_then(Value::as_str) {
         Some("held") => HoldingState::Held,
         Some("quiesced") => HoldingState::Quiesced,
         Some("orphaned") => HoldingState::Orphaned,
         Some(_) => HoldingState::Unknown,
         None => return Err(invalid("a holding has no state")),
-    };
+    })
+}
+
+fn program_holding(entry: &Value) -> io::Result<ProgramHolding> {
+    let facts = entry
+        .get("facts")
+        .ok_or_else(|| invalid("a holding has no facts"))?;
+    Ok(ProgramHolding {
+        holding: identity(entry.get("holding"))?,
+        owner: process(entry.get("owner"))?,
+        state: holding_state(entry)?,
+        process: process(facts.get("process"))?,
+        program_id: identity(facts.get("programId"))?,
+    })
+}
+
+fn holding(entry: &Value) -> io::Result<Holding> {
+    let state = holding_state(entry)?;
     let facts = entry
         .get("facts")
         .ok_or_else(|| invalid("a holding has no facts"))?;

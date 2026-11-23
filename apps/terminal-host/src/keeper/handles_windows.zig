@@ -63,6 +63,25 @@ pub fn matches(duplicates: Duplicates, facts: message.Facts) bool {
     );
 }
 
+/// The Keeper's duplicates of one program holding.
+pub const ProgramDuplicates = shared.ProgramDuplicates;
+
+/// Duplicates the handles of a program `handles` names from `host` into the Keeper, each with its
+/// source's access and not inheritable. All or nothing.
+pub fn pullProgram(host: Handle, handles: message.ProgramHandles) error{HandleFailed}!ProgramDuplicates {
+    return shared.pullProgram(host, .{
+        .job = handles.job,
+        .process = handles.process,
+        .streams = .{ handles.stdout, handles.stderr },
+    });
+}
+
+/// Whether the Keeper's own duplicates of a program match `facts`: each object's type and access,
+/// the process identity, and its membership in the Job.
+pub fn programMatches(duplicates: ProgramDuplicates, facts: message.ProgramFacts) bool {
+    return shared.programMatches(duplicates, .{ .pid = facts.process.pid, .created = facts.process.created });
+}
+
 /// A process's id and creation time, or null when the handle cannot be queried.
 pub fn processIdentity(process: Handle) ?message.Process {
     const identity = shared.processIdentity(process) orelse return null;

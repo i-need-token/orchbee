@@ -179,8 +179,11 @@ pub const Dispatcher = struct {
             .dispose_program,
             .list_programs,
             => if (self.context.programs) |programs| {
-                try programs.handle(&self.context, request_contract.operation, envelope, correlation_id, outgoing);
+                try programs.handle(&self.context, request_contract.operation, connection_id, envelope, correlation_id, outgoing);
             } else try self.notNegotiated(correlation_id, outgoing),
+            .recover_program => if (self.context.programs) |programs| if (self.context.moves) |moves| if (moves.recoveryNegotiated()) {
+                try programs.handle(&self.context, request_contract.operation, connection_id, envelope, correlation_id, outgoing);
+            } else try self.notNegotiated(correlation_id, outgoing) else try self.notNegotiated(correlation_id, outgoing) else try self.notNegotiated(correlation_id, outgoing),
         }
     }
 

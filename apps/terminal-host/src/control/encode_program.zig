@@ -41,6 +41,16 @@ pub fn started(allocator: std.mem.Allocator, program_id: [16]u8, pid: u32, creat
     );
 }
 
+/// `RecoverProgram`'s answer.
+pub fn recovered(allocator: std.mem.Allocator, program_id: [16]u8, pid: u32, created: u64) ![]u8 {
+    var id_text: [32]u8 = undefined;
+    return std.fmt.allocPrint(
+        allocator,
+        "{{\"process\":{{\"creationTime\":\"{d}\",\"pid\":{d}}},\"programId\":\"{s}\"}}",
+        .{ created, pid, hex(program_id, &id_text) },
+    );
+}
+
 /// `CancelProgram`'s answer; `outcome` is `cancelling` or `exited`.
 pub fn cancelled(allocator: std.mem.Allocator, program_id: [16]u8, outcome: []const u8) ![]u8 {
     var id_text: [32]u8 = undefined;

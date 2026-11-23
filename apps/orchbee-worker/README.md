@@ -273,8 +273,10 @@ Host in the Host's slot that serves the lost epoch, the one the target names or 
 bindings name, registers it with the Keeper and has it attach the Keeper. For each binding, the orphaned holding of that epoch with the binding's identity is
 assigned to the recovery Host under a mark derived from the holding and that Host, so a retry assigns
 it again without effect; `RecoverTerminal` restores it at 80 by 24 cells with the system's display
-mode and the default color themes, and `ClaimTerminal` completes it. The recovery Host's inventory
-is then read and imported as for a Host. A failed step is `recovery-failed`, recorded with reason
+mode and the default color themes, and `ClaimTerminal` completes it. Each orphaned program holding
+is then assigned the same way and recovered with `RecoverProgram`, which needs a recovery Host
+that negotiated `background-programs`. The recovery Host's inventory is then read and imported as
+for a Host, and its programs are adopted through `ListPrograms` with the other Host programs. A failed step is `recovery-failed`, recorded with reason
 `host-protocol`: the programs not yet recovered run on in the Keeper, a terminal already recovered
 stays recovered, and the next replacement adopts the recovery Host. Adopting a Host while the record
 names a live Keeper adopts the Keeper too and recovers the orphans of that Host's epoch the same way

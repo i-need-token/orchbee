@@ -1,12 +1,17 @@
 //! One background program the Host runs for its Worker: its process, Job, and captured streams,
 //! the threads that read them and wait for its exit, and the outcome they publish. The dispatch
 //! thread starts, cancels, reads, and ends it; the threads only fill its captures and its outcome.
+//! Its release-first gate keeps every Keeper that holds it from holding past its end: the waiter
+//! passes the gate before it ends the Job's members and publishes the exit.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const platform = @import("terminal-host-platform");
 const control = @import("terminal-host-control");
 
 const program = platform.program;
+const is_windows = builtin.os.tag == .windows;
+const Gate = platform.keeper.Gate;
 const thread_sync = platform.thread_sync;
 const Summary = control.encode.program.Summary;
 const Exit = control.encode.program.Exit;
@@ -36,6 +41,8 @@ pub const Entry = struct {
     cancelled: bool = false,
     /// Whether a session has received this program's `ProgramExited`.
     announced: bool = false,
+    /// Each attached Keeper's slot; a hold keeps the program's handles and label alive.
+    gate: Gate = if (is_windows) .{} else {},
 
     /// Starts `launch` and the threads that follow it. On failure nothing keeps running.
     pub fn start(allocator: std.mem.Allocator, id: [16]u8, label: []const u8, launch: program.Launch) !*Entry {
@@ -74,12 +81,60 @@ pub const Entry = struct {
         return entry;
     }
 
-    /// Spawns the readers and the waiter. A thread that cannot start ends the program first.
-    fn follow(self: *Entry) !void {
-        for (&self.captures) |*slot| if (slot.*) |*capture| {
+    /// A program a Keeper kept after its Host ended, from this Host's duplicates of its handles,
+    /// which it then owns. Its captures restart at zero and report truncated, since what the lost
+    /// Host read is gone. Its threads start with `follow` once its holding is claimed.
+    pub fn recovered(
+        allocator: std.mem.Allocator,
+        id: [16]u8,
+        label: []const u8,
+        pid: u32,
+        created: u64,
+        handles: Handles,
+    ) error{OutOfMemory}!*Entry {
+        if (comptime !is_windows) unreachable;
+        const entry = try allocator.create(Entry);
+        errdefer allocator.destroy(entry);
+        const owned_label = try allocator.dupe(u8, label);
+        errdefer allocator.free(owned_label);
+        var buffers: [2]?[]u8 = .{ null, null };
+        errdefer for (buffers) |buffer| if (buffer) |bytes| allocator.free(bytes);
+        for (handles.streams, &buffers) |stream, *buffer| {
+            if (stream != null) buffer.* = try allocator.alloc(u8, capture_bytes);
+        }
+        entry.* = .{
+            .allocator = allocator,
+            .id = id,
+            .label = owned_label,
+            .spawned = .{ .process = handles.process, .job = handles.job, .streams = handles.streams, .pid = pid, .created = created },
+            .captures = .{ null, null },
+        };
+        for (handles.streams, 0..) |stream, index| if (stream) |handle| {
+            entry.captures[index] = .{ .data = buffers[index].?, .stream = handle, .truncated = true };
+        };
+        return entry;
+    }
+
+    /// A recovered program's handles: its Job, its process, and each captured stream's read end.
+    pub const Handles = struct {
+        job: program.Handle,
+        process: program.Handle,
+        streams: [2]?program.Handle,
+    };
+
+    /// Spawns whichever reader and waiter has not started yet; a recovered program retries what
+    /// failed. The waiter starts last, so it joins every reader.
+    pub fn follow(self: *Entry) !void {
+        for (&self.captures) |*slot| if (slot.*) |*capture| if (capture.thread == null) {
             capture.thread = try std.Thread.spawn(.{ .stack_size = thread_stack_bytes }, readCapture, .{capture});
         };
-        self.waiter = try std.Thread.spawn(.{ .stack_size = thread_stack_bytes }, wait, .{self});
+        if (self.waiter == null) self.waiter = try std.Thread.spawn(.{ .stack_size = thread_stack_bytes }, wait, .{self});
+    }
+
+    /// Frees a recovered program no thread follows and no Keeper slot holds: its claim did not
+    /// apply, so the Keeper keeps it running.
+    pub fn discard(self: *Entry) void {
+        self.destroy();
     }
 
     /// Ends a program whose threads did not all start, joins those that did, and frees it.
@@ -134,10 +189,19 @@ pub const Entry = struct {
         return running;
     }
 
-    /// Ends the program if it still runs, joins its threads, closes its handles, and frees it.
+    /// Ends the program if it still runs, joins its threads, closes its handles, and frees it. A
+    /// recovered program whose waiter has not started releases first here and joins its readers.
     pub fn end(self: *Entry) void {
         _ = program.endMembers(self.spawned.job);
-        if (self.waiter) |thread| thread.join();
+        if (self.waiter) |thread| {
+            thread.join();
+        } else {
+            if (comptime is_windows) self.gate.pass();
+            for (&self.captures) |*slot| if (slot.*) |*capture| if (capture.thread) |thread| {
+                thread.join();
+                capture.thread = null;
+            };
+        }
         self.waiter = null;
         self.destroy();
     }
@@ -172,11 +236,13 @@ fn readCapture(capture: *Capture) void {
     }
 }
 
-/// Waits for the root's exit, ends the Job's remaining members as the Worker's own owner does, lets
-/// every capture reach its end, and publishes the outcome.
+/// Waits for the root's exit, releases the program from every Keeper, ends the Job's remaining
+/// members as the Worker's own owner does, lets every capture reach its end, and publishes the
+/// outcome, so no Keeper holds a program whose exit a Worker heard of.
 fn wait(self: *Entry) void {
     _ = program.waitExit(self.spawned.process, std.math.maxInt(u32));
     const code = program.exitCode(self.spawned.process) orelse 1;
+    if (comptime is_windows) self.gate.pass();
     _ = program.endMembers(self.spawned.job);
     for (&self.captures) |*slot| if (slot.*) |*capture| if (capture.thread) |thread| {
         thread.join();

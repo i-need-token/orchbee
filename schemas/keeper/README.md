@@ -34,8 +34,11 @@ side closes. The frame has no version field: the answer's generation selects thi
   runs.
 - **Capabilities.** A request, member, event, or enumerated value added later comes under a
   capability name and is sent only when the answer lists that name. `recovery` adds the Worker's
-  `assign` and `discard` and the reason `not-orphaned`; the Keeper answers either request with
-  `unsupported` on a connection whose answer did not list it.
+  `assign` and `discard` and the reason `not-orphaned`; `programs` adds the Host's `hold-program`,
+  the program holdings it makes, and their entries in a Worker's `status`. The Keeper answers
+  `assign`, `discard`, and `hold-program` with `unsupported` on a connection whose answer did not
+  list their capability, and lists program holdings only to a Worker whose answer listed
+  `programs`.
 - **Control requests.** The Keeper answers `OBHS` control requests on a control slot. `query`
   reports one process entry of role `keeper` whose `terminals` counts its holdings and whose one
   connection entry is `keeper`. After `drain` it answers `register-host` and `hold` with `draining`
@@ -75,18 +78,20 @@ whatever its `type`.
 
 ## Values
 
-| Value      | Rule                                                                                                                             |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Name       | 1–64 bytes of `a`–`z`, `0`–`9`, and `-`, as in the connection contract; reasons, roles, and outcomes are names                   |
-| `id`       | Integer from 1 to 4,294,967,295 that the connection has not used for an earlier request                                          |
-| Process    | `{pid, created}`: `pid` an integer from 1 to 4,294,967,295, `created` its creation time                                          |
-| Time       | 16 lowercase hexadecimal digits of a `FILETIME`, not all zero                                                                    |
-| Handle     | 16 lowercase hexadecimal digits of a handle value in the process that holds it, nonzero and below 2^32, so never a pseudo handle |
-| Holding id | 32 lowercase hexadecimal digits, not all zero, minted at random by a Host at a terminal's first `hold`                           |
-| Mark id    | 32 lowercase hexadecimal digits, not all zero, minted at random by the owner for one quiesce, or by the Worker for one `assign`  |
-| Terminal   | `{creationId, hostEpoch, terminalId}`: a Terminal Host's terminal identity, each 32 lowercase hexadecimal digits                 |
-| `handles`  | `{job, program, console, signal, reference, input, output}`, seven handles                                                       |
-| `facts`    | `{terminal, program, console, consoleBuild, signalFormat, launch}`                                                               |
+| Value             | Rule                                                                                                                             |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Name              | 1–64 bytes of `a`–`z`, `0`–`9`, and `-`, as in the connection contract; reasons, roles, and outcomes are names                   |
+| `id`              | Integer from 1 to 4,294,967,295 that the connection has not used for an earlier request                                          |
+| Process           | `{pid, created}`: `pid` an integer from 1 to 4,294,967,295, `created` its creation time                                          |
+| Time              | 16 lowercase hexadecimal digits of a `FILETIME`, not all zero                                                                    |
+| Handle            | 16 lowercase hexadecimal digits of a handle value in the process that holds it, nonzero and below 2^32, so never a pseudo handle |
+| Holding id        | 32 lowercase hexadecimal digits, not all zero, minted at random by a Host at a terminal's first `hold`                           |
+| Mark id           | 32 lowercase hexadecimal digits, not all zero, minted at random by the owner for one quiesce, or by the Worker for one `assign`  |
+| Terminal          | `{creationId, hostEpoch, terminalId}`: a Terminal Host's terminal identity, each 32 lowercase hexadecimal digits                 |
+| `handles`         | `{job, program, console, signal, reference, input, output}`, seven handles                                                       |
+| `facts`           | `{terminal, program, console, consoleBuild, signalFormat, launch}`                                                               |
+| Program `handles` | `{job, process, stdout, stderr}`: two handles, and the read end of each captured stream, both optional                           |
+| Program `facts`   | `{process, programId, label}`                                                                                                    |
 
 `handles` names, in the process that holds them, the terminal's Job, the program's process, the
 OpenConsole process, the pseudoconsole's signal and reference handles, the input pipe's write end,
@@ -94,6 +99,12 @@ and the output pipe's read end. In `facts`, `terminal` is the owner's terminal i
 and `console` are the program's and OpenConsole's processes, `consoleBuild` is OpenConsole's SHA-256
 as 64 lowercase hexadecimal digits, `signalFormat` is the console's signal format as an integer
 from 1 to 65,535, and `launch` is the launch kind a Host reports in `ReadProcessInfo`.
+
+A program holding, under `programs`, keeps a background program a Host runs without a terminal.
+Its `handles` name the program's Job, its process, and the read end of each stream the Host
+captures. In its `facts`, `process` is the program's process, `programId` the 32 lowercase
+hexadecimal digits of the id its Worker gave it, and `label` the Worker's record of it: 1 to 2,048
+characters of the base64 alphabet, which the Keeper returns unread.
 
 ## Messages
 
@@ -108,9 +119,10 @@ or `unsupported` with `request`, the requested type. One request is outstanding 
 | `unregister-host` | Worker      | `process`                                | None                                                                 |
 | `status`          | Worker      | `after`, an optional holding id          | `holdings`, `hosts` on the first page only, `next` while more remain |
 | `hold`            | Host        | `holding`, `handles`, `facts`            | None                                                                 |
+| `hold-program`    | Host        | `holding`, program `handles` and `facts` | None                                                                 |
 | `mark`            | Owner       | `holding`, `for` (a process), `mark`     | None                                                                 |
 | `resume`          | Owner       | `holding`, `mark`                        | `outcome`: `resumed` or `claimed`                                    |
-| `inspect`         | Mark target | `holding`, `mark`                        | `handles` in the Keeper, `facts`                                     |
+| `inspect`         | Mark target | `holding`, `mark`                        | `handles` in the Keeper, `facts`, of the holding's kind              |
 | `claim`           | Mark target | `holding`, `mark`, `program`, `terminal` | None                                                                 |
 | `decline`         | Mark target | `holding`, `mark`                        | `outcome`: `declined` or `claimed`                                   |
 | `release`         | Owner       | `holding`                                | None                                                                 |
@@ -125,7 +137,9 @@ or `unsupported` with `request`, the requested type. One request is outstanding 
 - `status-result` lists up to 256 holdings in ascending holding id order, each after `after` when
   it is present. Each entry has `holding`, `owner` (a process), `state` (`held`, `quiesced`, or
   `orphaned`), `for` (the current mark's target, present exactly while a mark is current), and
-  `facts`. The first page, requested without `after`, also lists every registered Host as
+  `facts`. A program holding's entry also has `kind`, which is `program`, and program `facts`; a
+  receiver reads an entry of another `kind` as a holding it does not know. The first page,
+  requested without `after`, also lists every registered Host as
   `{process, ended}`, where `ended` is a boolean. `next` is the last listed holding id, present
   exactly when more holdings follow.
 - A frame from the Keeper without `id` is an event. Generation 1 defines none; a receiver ignores an
@@ -169,7 +183,7 @@ that has not taken its reply within 2 seconds loses its connection.
 
 | Event                                                                                   | From                                          | To                                            |
 | --------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------- |
-| `hold` by registered Host H                                                             | Absent                                        | Held by H                                     |
+| `hold` or `hold-program` by registered Host H                                           | Absent                                        | Held by H                                     |
 | `mark` M by H for registered Host N                                                     | Held by H                                     | Quiesced, H for N under M                     |
 | `resume` of M by H, or `decline` of M by N                                              | Quiesced, H for N under M                     | Held by H                                     |
 | `inspect` of M by N                                                                     | Quiesced or orphaned, H for N under M         | Unchanged                                     |
@@ -192,10 +206,16 @@ that has not taken its reply within 2 seconds loses its connection.
   `handle-failed` and a failed check `identity-mismatch`. A 1,025th holding gets `capacity`, and a
   draining Keeper `draining`. A holding id that exists gets `holding-exists`, except a repeat by the
   owner of a held holding, which gets `hold-result` and duplicates nothing.
+- `hold-program` does the same with a program's handles: it checks that the Job is a Job, that the
+  process is a process the Keeper may query and wait on whose identity matches `facts` and which
+  runs in the Job, and that each stream is a file it may read. A program holding then moves through
+  the same states as a terminal's, and a request that applies to a holding applies to it.
 - `mark` needs the owner (`not-owner`) and a `for` that names another registered Host that has not
   ended (`not-registered`). A holding already quiesced under another mark gets `marked`.
-- `claim` needs `program` to equal the holding's program (`identity-mismatch`); `terminal` replaces
-  the owner's terminal identity in `facts`. `inspect`, `claim`, and `decline` from a Host other
+- `claim` needs `program` to equal the holding's program, its process for a program holding
+  (`identity-mismatch`). A terminal holding's claim names `terminal`, which replaces the owner's
+  terminal identity in `facts`; a program holding's claim names none. A claim that does not match
+  its holding's kind gets `identity-mismatch`. `inspect`, `claim`, and `decline` from a Host other
   than the current mark's target get `not-target`.
 - `release` of a quiesced holding gets `marked`, and from another Host `not-owner`.
 - Rows 14 and 15 come with `recovery`. `assign` and `discard` need an orphaned holding
@@ -276,6 +296,7 @@ first meet another version with H2's Keeper, and the Worker's requests with H2's
   naming the owner and the mark target by Host name.
 - A runner replaces each `hold`'s `handles` and `facts` with a real terminal's, and the `program`
   and `terminal` of a `claim` with that terminal's program and the claimant's identity; it compares
-  an `inspect-result` without its handle values.
+  an `inspect-result` without its handle values. The sequences hold no program, whose holding
+  follows the same rows.
 - Every binding consumes every fixture. The Rust binding, which comes with the Worker in H2, also
   checks [`v1/keeper.schema.json`](v1/keeper.schema.json) against each case.

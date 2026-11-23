@@ -49,6 +49,39 @@ pub const Terminal = struct {
     terminal_id: Identity,
 };
 
+/// A background program's handles in the process that holds them: its Job and process, and the
+/// read end of each stream the Host captures.
+pub const ProgramHandles = struct {
+    job: u32,
+    process: u32,
+    stdout: ?u32 = null,
+    stderr: ?u32 = null,
+};
+
+/// At most this many bytes in a program's label.
+pub const maximum_label_bytes = 2048;
+
+/// What a program holding records: the program's process, the id its Worker gave it, and the
+/// Worker's label, 1 to 2,048 characters of the base64 alphabet that the Keeper returns unread.
+pub const ProgramFacts = struct {
+    process: Process,
+    program_id: [16]u8,
+    label: []const u8,
+
+    pub fn valid(self: ProgramFacts) bool {
+        return !isZero(&self.program_id) and validLabel(self.label);
+    }
+};
+
+pub fn validLabel(label: []const u8) bool {
+    if (label.len == 0 or label.len > maximum_label_bytes) return false;
+    for (label) |byte| switch (byte) {
+        'A'...'Z', 'a'...'z', '0'...'9', '+', '/', '=' => {},
+        else => return false,
+    };
+    return true;
+}
+
 pub const Facts = struct {
     terminal: Terminal,
     program: Process,
@@ -149,6 +182,8 @@ pub const RequestKind = enum {
     /// The Worker's requests under `recovery`.
     assign,
     discard,
+    /// A Host's hold of a background program, under `programs`.
+    hold_program,
 
     pub fn name(self: RequestKind) []const u8 {
         return wireName(self);
@@ -184,6 +219,12 @@ pub const Hold = struct {
     facts: Facts,
 };
 
+pub const HoldProgram = struct {
+    holding: RandomId,
+    handles: ProgramHandles,
+    facts: ProgramFacts,
+};
+
 pub const Mark = struct {
     holding: RandomId,
     target: Process,
@@ -200,7 +241,8 @@ pub const Claim = struct {
     holding: RandomId,
     mark: RandomId,
     program: Process,
-    terminal: Terminal,
+    /// The claimant's identity for a terminal; absent for a background program.
+    terminal: ?Terminal = null,
 };
 
 pub const Request = struct {
@@ -224,11 +266,17 @@ pub const Request = struct {
         /// An orphaned holding's claim by `target` under `mark`, which the Worker mints.
         assign: Mark,
         discard: RandomId,
+        hold_program: HoldProgram,
     };
 
     /// Whether only a connection that negotiated `recovery` sends this request.
     pub fn needsRecovery(kind: RequestKind) bool {
         return kind == .assign or kind == .discard;
+    }
+
+    /// Whether only a connection that negotiated `programs` sends this request.
+    pub fn needsPrograms(kind: RequestKind) bool {
+        return kind == .hold_program;
     }
 };
 
@@ -238,13 +286,19 @@ pub const InitiatorMessage = union(enum) {
     unknown_request: struct { request: []const u8, id: u32 },
 };
 
+/// What a holding holds: a terminal, or under `programs` a background program.
+pub const HoldingFacts = union(enum) {
+    terminal: Facts,
+    program: ProgramFacts,
+};
+
 pub const HoldingEntry = struct {
     holding: RandomId,
     owner: Process,
     state: HoldingState,
     /// The current mark's target, present exactly while a mark is current.
     target: ?Process = null,
-    facts: Facts,
+    facts: HoldingFacts,
 };
 
 pub const HostEntry = struct {
@@ -280,6 +334,11 @@ pub const Inspection = struct {
     facts: Facts,
 };
 
+pub const ProgramInspection = struct {
+    handles: ProgramHandles,
+    facts: ProgramFacts,
+};
+
 pub const Reply = struct {
     id: u32,
     body: Body,
@@ -295,10 +354,13 @@ pub const Reply = struct {
         release,
         assign,
         discard,
+        hold_program,
         status: StatusPage,
         @"resume": Outcome,
         decline: Outcome,
         inspect: Inspection,
+        /// `inspect-result` for a program holding.
+        inspect_program: ProgramInspection,
         refused: Reason,
         /// The requested type, which the Keeper does not know.
         unsupported: []const u8,
@@ -316,10 +378,11 @@ pub const Reply = struct {
                 .release => kind == .release,
                 .assign => kind == .assign,
                 .discard => kind == .discard,
+                .hold_program => kind == .hold_program,
                 .status => kind == .status,
                 .@"resume" => kind == .@"resume",
                 .decline => kind == .decline,
-                .inspect => kind == .inspect,
+                .inspect, .inspect_program => kind == .inspect,
             };
         }
     };

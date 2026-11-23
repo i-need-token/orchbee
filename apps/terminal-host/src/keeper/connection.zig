@@ -56,6 +56,9 @@ const Connection = struct {
     wake: handles.Handle,
     /// The `answer` listed `recovery`, so this connection may send its requests.
     recovery: bool = false,
+    /// The `answer` listed `programs`: a Host may hold background programs, and a Worker's
+    /// `status` lists them.
+    programs: bool = false,
 
     fn serve(self: *Connection) !void {
         var arena_state = std.heap.ArenaAllocator.init(self.allocator);
@@ -89,6 +92,7 @@ const Connection = struct {
             .accept => |answer| {
                 for (answer.capabilities) |capability| {
                     if (std.mem.eql(u8, capability, handshake.registry.keeper.recovery)) self.recovery = true;
+                    if (std.mem.eql(u8, capability, handshake.registry.keeper.programs)) self.programs = true;
                 }
                 try self.write(try handshakeReply(arena, .{ .answer = answer }));
             },
@@ -162,7 +166,12 @@ const Connection = struct {
         self.table.unlock();
         switch (admission) {
             .refused => |reason| return self.finish(try reply(arena, request.id, .{ .refused = reason })),
-            .admitted => |peer| {
+            .admitted => |admitted| {
+                var peer = admitted;
+                switch (peer) {
+                    .worker => |*worker| worker.programs = self.programs,
+                    .host => {},
+                }
                 try self.write(try reply(arena, request.id, .hello));
                 var used: UsedIds = .{};
                 defer used.deinit(self.allocator);
@@ -198,6 +207,7 @@ const Connection = struct {
                     // A request added under a capability reads as unknown where it was not negotiated.
                     const kind = std.meta.activeTag(request.body);
                     if (message.Request.needsRecovery(kind) and !self.recovery) break :applied .{ .unsupported = kind.name() };
+                    if (message.Request.needsPrograms(kind) and !self.programs) break :applied .{ .unsupported = kind.name() };
                     self.table.lock();
                     defer self.table.unlock();
                     if (self.table.closing(self.slot)) return;

@@ -42,6 +42,8 @@ pub const Error = pipe_module.Error || error{ Unavailable, OutOfMemory };
 pub const Connection = struct {
     keeper_process: HANDLE,
     pipe: ?Pipe,
+    /// The Keeper's answer listed `programs`, so it takes `hold-program`.
+    programs: bool = false,
 
     pub fn close(self: *Connection) void {
         self.closePipe();
@@ -157,7 +159,9 @@ pub fn open(keeper: message.Process, endpoint_id: *const [32]u8, hello_id: u32, 
     const answer = connection.exchange(arena, offer, watch, &timer, deadline_ns, handshake.frame.readPayload) catch
         return error.Unavailable;
     switch (handshake.decode.acceptorPayload(arena, answer) catch return error.Unavailable) {
-        .answer => {},
+        .answer => |accepted| for (accepted.capabilities) |capability| {
+            if (std.mem.eql(u8, capability, handshake.registry.keeper.programs)) connection.programs = true;
+        },
         else => return error.Unavailable,
     }
     const hello: message.Request = .{ .id = hello_id, .body = .{ .hello = .host } };

@@ -21,6 +21,16 @@
 			"payload": "{\"type\":\"hold\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"managed-powershell\"}}"
 		},
 		{
+			"name": "hold-program",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-program\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"process\":\"00000000000001a8\",\"stdout\":\"00000000000001ac\",\"stderr\":\"00000000000001b0\"},\"facts\":{\"process\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"programId\":\"77777777777777777777777777777777\",\"label\":\"eyJjb21tYW5kIjoiZWNobyBkb25lIn0=\"}}"
+		},
+		{
+			"name": "hold-program-without-streams",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-program\",\"id\":3,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"process\":\"00000000000001a8\"},\"facts\":{\"process\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"programId\":\"77777777777777777777777777777777\",\"label\":\"eyJjb21tYW5kIjoiZWNobyBkb25lIn0=\"}}"
+		},
+		{
 			"name": "hold-with-extensions",
 			"direction": "initiator",
 			"payload": "{\"type\":\"hold\",\"id\":3,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\",\"console\":\"00000000000001ac\",\"signal\":\"00000000000001b0\",\"reference\":\"00000000000001b4\",\"input\":\"00000000000001b8\",\"output\":\"00000000000001bc\"},\"facts\":{\"terminal\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"program\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"console\":{\"pid\":5116,\"created\":\"01db3f0e5c7a2b38\"},\"consoleBuild\":\"3d66b23d0a71bb8eed2b77edc8b9df9bf54ce6c8fb74c863a30e760997f80586\",\"signalFormat\":1,\"launch\":\"other\"},\"extensions\":{\"trace-id\":\"abc\",\"nested-detail\":{\"list\":[1,2.5,null,true]}}}"
@@ -49,6 +59,11 @@
 			"name": "hello-result",
 			"direction": "acceptor",
 			"payload": "{\"type\":\"hello-result\",\"id\":1}"
+		},
+		{
+			"name": "hold-program-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"hold-program-result\",\"id\":2}"
 		},
 		{
 			"name": "hold-result",
@@ -365,6 +380,30 @@
 			"direction": "initiator",
 			"layer": "schema",
 			"payload": "{\"type\":\"release\",\"id\":6,\"holding\":\"f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "hold-program-label-not-base64",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold-program\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"process\":\"00000000000001a8\",\"stdout\":\"00000000000001ac\",\"stderr\":\"00000000000001b0\"},\"facts\":{\"process\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"programId\":\"77777777777777777777777777777777\",\"label\":\"echo done\"}}"
+		},
+		{
+			"name": "hold-program-label-too-long",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold-program\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"process\":\"00000000000001a8\",\"stdout\":\"00000000000001ac\",\"stderr\":\"00000000000001b0\"},\"facts\":{\"process\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"programId\":\"77777777777777777777777777777777\",\"label\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}}"
+		},
+		{
+			"name": "hold-program-missing-process-handle",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold-program\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"stdout\":\"00000000000001ac\"},\"facts\":{\"process\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"programId\":\"77777777777777777777777777777777\",\"label\":\"eyJjb21tYW5kIjoiZWNobyBkb25lIn0=\"}}"
+		},
+		{
+			"name": "hold-program-terminal-handles",
+			"direction": "initiator",
+			"layer": "schema",
+			"payload": "{\"type\":\"hold-program\",\"id\":2,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"handles\":{\"job\":\"00000000000001a4\",\"program\":\"00000000000001a8\"},\"facts\":{\"process\":{\"pid\":5120,\"created\":\"01db3f0e5c7a2b40\"},\"programId\":\"77777777777777777777777777777777\",\"label\":\"eyJjb21tYW5kIjoiZWNobyBkb25lIn0=\"}}"
 		},
 		{
 			"name": "hold-missing-handle",

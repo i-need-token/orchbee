@@ -98,4 +98,5 @@ pub const MessageKind = struct {
     pub const read_program_output: u16 = 113;
     pub const dispose_program: u16 = 114;
     pub const list_programs: u16 = 115;
+    pub const recover_program: u16 = 116;
 };

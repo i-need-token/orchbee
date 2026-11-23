@@ -8,6 +8,7 @@
 		{ "$ref": "#/$defs/hostRequest" },
 		{ "$ref": "#/$defs/status" },
 		{ "$ref": "#/$defs/hold" },
+		{ "$ref": "#/$defs/holdProgram" },
 		{ "$ref": "#/$defs/markRequest" },
 		{ "$ref": "#/$defs/markedRequest" },
 		{ "$ref": "#/$defs/claim" },
@@ -17,6 +18,7 @@
 		{ "$ref": "#/$defs/statusResult" },
 		{ "$ref": "#/$defs/outcomeResult" },
 		{ "$ref": "#/$defs/inspectResult" },
+		{ "$ref": "#/$defs/inspectProgramResult" },
 		{ "$ref": "#/$defs/refused" },
 		{ "$ref": "#/$defs/unsupported" },
 		{ "$ref": "#/$defs/event" }
@@ -97,6 +99,32 @@
 				"launch": { "$ref": "#/$defs/name" }
 			}
 		},
+		"programHandles": {
+			"description": "A background program's handles under programs: its Job, its process, and the read end of each captured stream.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["job", "process"],
+			"properties": {
+				"job": { "$ref": "#/$defs/handle" },
+				"process": { "$ref": "#/$defs/handle" },
+				"stdout": { "$ref": "#/$defs/handle" },
+				"stderr": { "$ref": "#/$defs/handle" }
+			}
+		},
+		"programFacts": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["process", "programId", "label"],
+			"properties": {
+				"process": { "$ref": "#/$defs/process" },
+				"programId": { "$ref": "#/$defs/identity" },
+				"label": {
+					"description": "The Worker's record of the program, returned unread.",
+					"type": "string",
+					"pattern": "^[A-Za-z0-9+/=]{1,2048}$"
+				}
+			}
+		},
 		"extensions": {
 			"type": "object",
 			"propertyNames": { "$ref": "#/$defs/name" }
@@ -150,6 +178,20 @@
 				"extensions": { "$ref": "#/$defs/extensions" }
 			}
 		},
+		"holdProgram": {
+			"description": "Under programs only; a Keeper that did not negotiate it answers unsupported.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "holding", "handles", "facts"],
+			"properties": {
+				"type": { "const": "hold-program" },
+				"id": { "$ref": "#/$defs/id" },
+				"holding": { "$ref": "#/$defs/randomId" },
+				"handles": { "$ref": "#/$defs/programHandles" },
+				"facts": { "$ref": "#/$defs/programFacts" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
 		"markRequest": {
 			"type": "object",
 			"additionalProperties": false,
@@ -176,9 +218,10 @@
 			}
 		},
 		"claim": {
+			"description": "A terminal holding's claim names its terminal; a program holding's claim names none.",
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["type", "id", "holding", "mark", "program", "terminal"],
+			"required": ["type", "id", "holding", "mark", "program"],
 			"properties": {
 				"type": { "const": "claim" },
 				"id": { "$ref": "#/$defs/id" },
@@ -216,6 +259,7 @@
 									"unregister-host",
 									"status",
 									"hold",
+									"hold-program",
 									"mark",
 									"resume",
 									"inspect",
@@ -246,6 +290,7 @@
 						"register-host-result",
 						"unregister-host-result",
 						"hold-result",
+						"hold-program-result",
 						"mark-result",
 						"claim-result",
 						"release-result",
@@ -258,19 +303,38 @@
 			}
 		},
 		"holdingEntry": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["holding", "owner", "state", "facts"],
-			"properties": {
-				"holding": { "$ref": "#/$defs/randomId" },
-				"owner": { "$ref": "#/$defs/process" },
-				"state": {
-					"description": "held, quiesced, or orphaned; a receiver reads any other name as unknown.",
-					"$ref": "#/$defs/name"
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["holding", "owner", "state", "facts"],
+					"properties": {
+						"holding": { "$ref": "#/$defs/randomId" },
+						"owner": { "$ref": "#/$defs/process" },
+						"state": { "$ref": "#/$defs/holdingState" },
+						"for": { "$ref": "#/$defs/process" },
+						"facts": { "$ref": "#/$defs/facts" }
+					}
 				},
-				"for": { "$ref": "#/$defs/process" },
-				"facts": { "$ref": "#/$defs/facts" }
-			}
+				{
+					"description": "A program holding, listed only to a Worker that negotiated programs.",
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["holding", "owner", "state", "kind", "facts"],
+					"properties": {
+						"holding": { "$ref": "#/$defs/randomId" },
+						"owner": { "$ref": "#/$defs/process" },
+						"state": { "$ref": "#/$defs/holdingState" },
+						"for": { "$ref": "#/$defs/process" },
+						"kind": { "const": "program" },
+						"facts": { "$ref": "#/$defs/programFacts" }
+					}
+				}
+			]
+		},
+		"holdingState": {
+			"description": "held, quiesced, or orphaned; a receiver reads any other name as unknown.",
+			"$ref": "#/$defs/name"
 		},
 		"hostEntry": {
 			"type": "object",
@@ -325,6 +389,19 @@
 				"id": { "$ref": "#/$defs/id" },
 				"handles": { "$ref": "#/$defs/handles" },
 				"facts": { "$ref": "#/$defs/facts" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"inspectProgramResult": {
+			"description": "inspect of a program holding: handles carries process where a terminal's carries program.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "handles", "facts"],
+			"properties": {
+				"type": { "const": "inspect-result" },
+				"id": { "$ref": "#/$defs/id" },
+				"handles": { "$ref": "#/$defs/programHandles" },
+				"facts": { "$ref": "#/$defs/programFacts" },
 				"extensions": { "$ref": "#/$defs/extensions" }
 			}
 		},

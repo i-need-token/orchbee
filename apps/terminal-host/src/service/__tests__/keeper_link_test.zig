@@ -556,7 +556,7 @@ fn consoleHandles(process: *platform.process.Process) *const [3]HANDLE {
 }
 
 fn holdingFor(entries: []const message.HoldingEntry, id: TerminalId) ?message.HoldingEntry {
-    for (entries) |entry| if (std.mem.eql(u8, &entry.facts.terminal.terminal_id, &id.bytes)) return entry;
+    for (entries) |entry| if (entry.facts == .terminal and std.mem.eql(u8, &entry.facts.terminal.terminal.terminal_id, &id.bytes)) return entry;
     return null;
 }
 
@@ -592,8 +592,8 @@ test "keeper link holds every running terminal and each duplicate is the Host's 
     for (ids) |id| {
         const entry = holdingFor(entries, id).?;
         const item = fixture.terminal(id);
-        try std.testing.expectEqual(support.GetProcessId(item.program), entry.facts.program.pid);
-        try std.testing.expectEqual(support.GetProcessId(item.console), entry.facts.console.pid);
+        try std.testing.expectEqual(support.GetProcessId(item.program), entry.facts.terminal.program.pid);
+        try std.testing.expectEqual(support.GetProcessId(item.console), entry.facts.terminal.console.pid);
         var field_buffer: [64]u8 = undefined;
         const field = try std.fmt.bufPrint(&field_buffer, "\"holdingId\":\"{s}\"", .{&std.fmt.bytesToHex(entry.holding, .lower)});
         try std.testing.expect(std.mem.indexOf(u8, listed, field) != null);

@@ -1,20 +1,26 @@
 //! The `background-programs` capability of the Worker session: the programs the Host runs without a
 //! terminal for its Worker, their requests, and `ProgramExited`. Programs outlive the session that
-//! started them, so a Worker that replaces it lists them and collects their outcomes. Only the
-//! dispatch thread calls it.
+//! started them, so a Worker that replaces it lists them and collects their outcomes. Each attached
+//! Keeper that takes programs holds every running one, so a program outlives its Host too, and a
+//! recovery Host takes it back with `RecoverProgram`. Only the dispatch thread calls it.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const control = @import("terminal-host-control");
 const core_module = @import("terminal-host-core").state;
 const platform = @import("terminal-host-platform");
 const protocol = @import("terminal-protocol");
+const keeper_link = @import("terminal-host-keeper-link");
 const host_outgoing = @import("../outgoing.zig");
 const host_request_context = @import("../request_context.zig");
 const host_response = @import("../response.zig");
+const refusal = @import("../moves/refusal.zig");
 const identifiers = @import("terminal-host-model").identifiers;
 const entry_module = @import("entry.zig");
+const recover_module = @import("recover.zig");
 
 const Entry = entry_module.Entry;
+const is_windows = builtin.os.tag == .windows;
 const MessageKind = protocol.MessageKind;
 const Outgoing = host_outgoing.Outgoing;
 const WireIdentifier = identifiers.IdentifierBytes;
@@ -26,23 +32,23 @@ pub const max_running = 32;
 /// Running and exited programs the Worker has not disposed.
 pub const max_listed = 64;
 
-pub const Session = struct {
-    connection_id: core_module.ConnectionId,
-    outgoing: *Outgoing,
-};
+pub const Session = recover_module.Session;
 
 pub const Programs = struct {
     allocator: std.mem.Allocator,
     /// In ascending program id order.
     entries: std.ArrayList(*Entry) = .empty,
+    recoveries: recover_module.Recoveries,
     negotiated: bool = false,
 
     pub fn init(allocator: std.mem.Allocator) Programs {
-        return .{ .allocator = allocator };
+        return .{ .allocator = allocator, .recoveries = .init(allocator) };
     }
 
-    /// Ends every program and frees the table; the Host's teardown calls it.
-    pub fn teardown(self: *Programs) void {
+    /// Ends every program, each released from its Keepers as it ends, and frees the table; the
+    /// Host's teardown calls it after its dispatch loop ended, while the Keeper links still run.
+    pub fn teardown(self: *Programs, attachments: *keeper_link.Attachments) void {
+        self.recoveries.teardown(attachments);
         for (self.entries.items) |entry| entry.end();
         self.entries.deinit(self.allocator);
         self.entries = .empty;
@@ -57,9 +63,10 @@ pub const Programs = struct {
         return if (self.negotiated) self else null;
     }
 
-    /// Programs still running, which keep the Host from ending when idle or drained.
+    /// Programs still running or being recovered, which keep the Host from ending when idle or
+    /// drained.
     pub fn running(self: *const Programs) usize {
-        var count: usize = 0;
+        var count: usize = self.recoveries.count();
         for (self.entries.items) |entry| count += @intFromBool(entry.outcome() == null);
         return count;
     }
@@ -68,6 +75,7 @@ pub const Programs = struct {
         self: *Programs,
         context: *host_request_context.Context,
         operation: protocol.RequestOperation,
+        connection_id: core_module.ConnectionId,
         envelope: protocol.EnvelopeSummary,
         correlation_id: WireIdentifier,
         outgoing: *Outgoing,
@@ -121,8 +129,52 @@ pub const Programs = struct {
                 defer decoded.deinit();
                 try self.list(allocator, decoded.value, outgoing, delivery);
             },
+            .recover_program => {
+                var decoded = decode.decodeRecover(allocator, envelope.payload) catch |err|
+                    return context.rejectControlDecode(outgoing, correlation_id, err, "RecoverProgram payload is invalid");
+                defer decoded.deinit();
+                try self.recover(context, connection_id, correlation_id, decoded.value, outgoing, delivery);
+            },
             else => unreachable,
         }
+    }
+
+    /// Starts the recovery of a program the Host's one Keeper kept; it answers once it ends. The
+    /// same recovery again answers the program it recovered.
+    fn recover(
+        self: *Programs,
+        context: *host_request_context.Context,
+        connection_id: core_module.ConnectionId,
+        correlation_id: WireIdentifier,
+        request: decode.Recover,
+        outgoing: *Outgoing,
+        delivery: host_outgoing.Delivery,
+    ) !void {
+        if (self.find(request.program_id)) |entry| {
+            if (comptime is_windows) if (entry.gate.knownId()) |known| if (std.mem.eql(u8, &known, &request.holding)) {
+                const payload = try encode.recovered(context.allocator, entry.id, entry.spawned.pid, entry.spawned.created);
+                defer context.allocator.free(payload);
+                _ = try host_response.appendControlSuccess(outgoing, .{ .kind = MessageKind.recover_program }, payload, delivery);
+                return;
+            };
+            return failure(context, outgoing, delivery, refusal.failed("identity-mismatch"));
+        }
+        if (self.recoveries.recovering(request.program_id)) return failure(context, outgoing, delivery, refusal.moving);
+        if (context.terminal_admission == .closed) return failure(context, outgoing, delivery, .{
+            .code = "host-draining",
+            .message = "The Host no longer admits programs",
+            .retryable = false,
+        });
+        if (self.running() >= max_running or self.entries.items.len + self.recoveries.count() >= max_listed)
+            return failure(context, outgoing, delivery, .{
+                .code = "program-limit",
+                .message = "The Host runs or lists as many programs as it may",
+                .retryable = true,
+            });
+        const keepers = context.keepers orelse return failure(context, outgoing, delivery, refusal.failed("no-keeper"));
+        const keeper = keepers.attachments.sole() orelse return failure(context, outgoing, delivery, refusal.failed("no-keeper"));
+        self.recoveries.begin(&keepers.attachments, keeper, connection_id, correlation_id, request) catch
+            return failure(context, outgoing, delivery, refusal.exhausted);
     }
 
     fn start(
@@ -223,9 +275,13 @@ pub const Programs = struct {
         _ = try host_response.appendControlSuccess(outgoing, .{ .kind = MessageKind.list_programs }, payload, delivery);
     }
 
-    /// Sends `ProgramExited` for each program that completed since a session last heard of it.
-    /// Infallible: an event that does not fit stays for the next pass.
-    pub fn deliver(self: *Programs, epoch: identifiers.HostEpoch, session: ?Session) void {
+    /// Offers every running program to the attached Keepers, advances the recoveries, answers
+    /// those that ended, and sends `ProgramExited` for each program that completed since a session
+    /// last heard of it. Infallible: what does not fit stays for the next pass.
+    pub fn deliver(self: *Programs, epoch: identifiers.HostEpoch, session: ?Session, attachments: *keeper_link.Attachments) void {
+        self.offer(attachments);
+        self.recoveries.advance(attachments, &self.entries);
+        self.recoveries.deliver(epoch, session);
         const current = session orelse return;
         if (!self.negotiated) return;
         for (self.entries.items) |entry| {
@@ -240,6 +296,25 @@ pub const Programs = struct {
                 host_response.eventDelivery(epoch),
             ) catch return;
             entry.announced = true;
+        }
+    }
+
+    /// Each attachment tries each program once; a Keeper without `programs` takes none.
+    fn offer(self: *Programs, attachments: *keeper_link.Attachments) void {
+        if (comptime !is_windows) return;
+        if (!attachments.any()) return;
+        for (self.entries.items) |entry| {
+            if (entry.outcome() != null) continue;
+            attachments.offerProgram(&entry.gate, .{
+                .job = entry.spawned.job,
+                .process = entry.spawned.process,
+                .streams = entry.spawned.streams,
+                .facts = .{
+                    .process = .{ .pid = entry.spawned.pid, .created = entry.spawned.created },
+                    .program_id = entry.id,
+                    .label = entry.label,
+                },
+            });
         }
     }
 

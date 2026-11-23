@@ -49,8 +49,11 @@ pub const keeper = struct {
     /// Before the Worker may ask the Keeper to `assign` an orphaned holding to a Host that claims
     /// it, or to `discard` one.
     pub const recovery = "recovery";
-    pub const declared_capabilities: []const []const u8 = &.{recovery};
-    pub const capabilities: []const []const u8 = &.{recovery};
+    /// Before a Host may hold a background program with `hold-program`, and the Worker's `status`
+    /// lists program holdings.
+    pub const programs = "programs";
+    pub const declared_capabilities: []const []const u8 = &.{ programs, recovery };
+    pub const capabilities: []const []const u8 = &.{ programs, recovery };
     pub const development_fingerprint: []const u8 = options.keeper_fingerprint;
 };
 

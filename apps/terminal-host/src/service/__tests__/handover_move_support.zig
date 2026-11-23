@@ -639,9 +639,9 @@ pub const Fixture = struct {
         }
         const id = try terminalIdOf(self.allocator, record.payload);
         const entry = try self.awaitHolding(id, self.identity(side), 10_000);
-        const program = try openProcess(entry.facts.program);
+        const program = try openProcess(entry.facts.terminal.program);
         errdefer _ = support.CloseHandle(program);
-        const console = try openProcess(entry.facts.console);
+        const console = try openProcess(entry.facts.terminal.console);
         try self.terminals.append(self.allocator, .{ .id = id, .program = program, .console = console, .holding = entry.holding });
         return id;
     }
@@ -902,7 +902,7 @@ pub const Fixture = struct {
     }
 
     pub fn holdingOf(self: *Fixture, id: TerminalId) !?message.HoldingEntry {
-        for (try self.holdings()) |entry| if (std.mem.eql(u8, &entry.facts.terminal.terminal_id, &id.bytes)) return entry;
+        for (try self.holdings()) |entry| if (entry.facts == .terminal and std.mem.eql(u8, &entry.facts.terminal.terminal.terminal_id, &id.bytes)) return entry;
         return null;
     }
 

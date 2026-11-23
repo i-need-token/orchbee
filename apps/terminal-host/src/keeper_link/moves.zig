@@ -1,5 +1,5 @@
 //! Move requests on a Keeper link: `mark`, `resume`, `inspect` with the pull of the seven
-//! duplicates, `claim`, and `decline`. Their maker, the dispatch thread or a restore build, owns
+//! duplicates or of a program's, `claim`, and `decline`. Their maker, the dispatch thread or a restore build, owns
 //! each request and keeps it until the link completes it; the link thread makes the request, one
 //! at a time with the holds and releases, and completes every request it has not made once the
 //! link ends. A completion wakes the service loop, which polls; a build waits.
@@ -25,8 +25,11 @@ pub const Body = union(enum) {
     mark: message.Mark,
     @"resume": struct { gate: *Gate, marked: message.Marked },
     inspect: message.Marked,
+    /// `inspect` of a program holding, with the pull of the program's handles.
+    inspect_program: message.Marked,
     claim: struct { gate: *Gate, claim: message.Claim },
-    decline: struct { gate: *Gate, marked: message.Marked },
+    /// A program's recovery declines before it claims, so no claim of it can have applied.
+    decline: struct { gate: ?*Gate, marked: message.Marked },
     /// Settles the terminal's slot without a release and sends nothing, for a terminal whose
     /// holding the Keeper gave to another Host or whose Keeper missed a deadline.
     forget: *Gate,
@@ -46,12 +49,23 @@ pub const Inspected = struct {
     duplicates: if (is_windows) handles.Duplicates else void,
 };
 
+/// What `inspect` answered for a program holding and the handles this Host pulled after it.
+pub const InspectedProgram = struct {
+    process: message.Process,
+    program_id: [16]u8,
+    /// Allocated with the link's allocator; the request's maker frees it.
+    label: []u8,
+    /// This Host's duplicates; the request's maker owns them.
+    duplicates: if (is_windows) handles.ProgramDuplicates else void,
+};
+
 pub const Result = union(enum) {
     /// `mark` or `claim` applied.
     done,
     /// `resume` or `decline` answered.
     outcome: message.Outcome,
     inspected: Inspected,
+    inspected_program: InspectedProgram,
     refused: message.Reason,
     /// The Keeper does not know the request, or answered another one.
     unsupported,
@@ -163,6 +177,7 @@ fn make(link: *Link, body: Body) Result {
             const inspection = switch (reply) {
                 .inspect => |inspection| inspection,
                 .refused => |reason| return .{ .refused = reason },
+                // A program holding answers a terminal's maker as a request it cannot serve.
                 else => return .unsupported,
             };
             // Only scalar facts are read: the reply's text borrows the call's arena.
@@ -182,6 +197,33 @@ fn make(link: *Link, body: Body) Result {
                 .duplicates = duplicates,
             } };
         },
+        .inspect_program => |marked| {
+            const reply = switch (link.call(.{ .inspect = marked })) {
+                .reply => |reply| reply,
+                else => |other| return unanswered(other),
+            };
+            const inspection = switch (reply) {
+                .inspect_program => |inspection| inspection,
+                .refused => |reason| return .{ .refused = reason },
+                else => return .unsupported,
+            };
+            // The label borrows the call's arena, so it is copied before the pull.
+            const label = link.allocator.dupe(u8, inspection.facts.label) catch return .pull_failed;
+            const duplicates = handles.pullProgram(link.connection.?.keeper_process, .{
+                .job = inspection.handles.job,
+                .process = inspection.handles.process,
+                .streams = .{ inspection.handles.stdout, inspection.handles.stderr },
+            }) catch {
+                link.allocator.free(label);
+                return .pull_failed;
+            };
+            return .{ .inspected_program = .{
+                .process = inspection.facts.process,
+                .program_id = inspection.facts.program_id,
+                .label = label,
+                .duplicates = duplicates,
+            } };
+        },
         .claim => |item| {
             // The adopted slot must be tracked, so the room is taken before the claim is sent.
             link.held.ensureUnusedCapacity(link.allocator, 1) catch return .failed;
@@ -196,7 +238,7 @@ fn make(link: *Link, body: Body) Result {
         .decline => |item| {
             link.held.ensureUnusedCapacity(link.allocator, 1) catch return .failed;
             const result = answered(link.call(.{ .decline = item.marked }));
-            if (claimedOutcome(result)) adopt(link, item.gate, item.marked.holding);
+            if (claimedOutcome(result)) if (item.gate) |gate| adopt(link, gate, item.marked.holding);
             return result;
         },
     }

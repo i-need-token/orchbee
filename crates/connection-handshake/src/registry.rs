@@ -101,6 +101,10 @@ pub const CAPACITY: &str = "capacity";
 /// which outlives the Worker, and the Host reports its exit with `ProgramExited`.
 pub const BACKGROUND_PROGRAMS: &str = "background-programs";
 
+/// The `keeper` capability before a Host may hold a background program in the Keeper with
+/// `hold-program`, and the Worker's `status` lists program holdings.
+pub const PROGRAMS: &str = "programs";
+
 /// A connection that starts with an `OBHS` offer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConnectionKind {
@@ -182,7 +186,7 @@ impl ConnectionKind {
             ],
             Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_SEND],
             Self::MachineHub | Self::MachineLink => &[CAPACITY],
-            Self::Keeper => &[RECOVERY],
+            Self::Keeper => &[PROGRAMS, RECOVERY],
         };
         capability_set(names)
     }
@@ -215,7 +219,7 @@ impl ConnectionKind {
                 SCREEN_GATED_INPUT,
                 SCREEN_GATED_SEND,
             ]),
-            Self::Keeper => capability_set(&[RECOVERY]),
+            Self::Keeper => capability_set(&[PROGRAMS, RECOVERY]),
             Self::MachineHub | Self::MachineLink => self.capabilities(),
         }
     }
