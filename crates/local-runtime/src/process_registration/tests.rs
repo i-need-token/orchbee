@@ -302,11 +302,14 @@ fn a_spawning_host_needs_an_identified_worker_and_an_identified_host_none() {
     assert!(serde_json::from_value::<SessionProcesses>(spawning).is_err());
     // A generation adopting its predecessor's Host starts with that Host alone, and has started
     // nothing of its own.
-    let adopting = SessionProcesses::adopting(&[KeptHost {
-        slot: crate::HostSlot::FIRST,
-        identity: identity(3, 30),
-        epoch: None,
-    }]);
+    let adopting = SessionProcesses::adopting(
+        &[KeptHost {
+            slot: crate::HostSlot::FIRST,
+            identity: identity(3, 30),
+            epoch: None,
+        }],
+        None,
+    );
     let read: SessionProcesses =
         serde_json::from_value(serde_json::to_value(&adopting).unwrap()).unwrap();
     assert_eq!(read, adopting);

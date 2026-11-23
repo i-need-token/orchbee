@@ -220,14 +220,20 @@ pub(crate) enum RecoveryVerdict {
 
 impl SessionProcesses {
     /// The registrations of a generation that adopts `hosts`, the Hosts its predecessor left
-    /// running, each in its slot with the epoch it recorded: its Server and Worker are not started
-    /// yet.
-    pub(crate) fn adopting(hosts: &[KeptHost]) -> Self {
+    /// running, each in its slot with the epoch it recorded, and `keeper`, the Keeper it left
+    /// running beside them: its Server and Worker are not started yet.
+    pub(crate) fn adopting(hosts: &[KeptHost], keeper: Option<ProcessIdentity>) -> Self {
         let mut processes = Self::default();
         for kept in hosts {
             *processes.registration_mut(ProcessRole::Host(kept.slot)) = Registration::Identified {
                 identity: kept.identity,
                 epoch: kept.epoch,
+            };
+        }
+        if let Some(keeper) = keeper {
+            processes.keeper = Registration::Identified {
+                identity: keeper,
+                epoch: None,
             };
         }
         processes

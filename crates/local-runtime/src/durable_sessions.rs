@@ -101,15 +101,16 @@ impl Record {
         })
     }
     /// The record of a new generation, which adopts `hosts`, the Hosts its predecessor left
-    /// running.
+    /// running, and `keeper`, the Keeper it left running beside them.
     pub(crate) fn registered(
         runtime: &Path,
         name: &SessionName,
         activation_id: [u8; 16],
         hosts: &[crate::process_registration::KeptHost],
+        keeper: Option<crate::process_registration::ProcessIdentity>,
     ) -> io::Result<Self> {
         let mut record = Self::new(runtime, name, Some(activation_id), Lifecycle::Active)?;
-        record.processes = SessionProcesses::adopting(hosts);
+        record.processes = SessionProcesses::adopting(hosts, keeper);
         Ok(record)
     }
     /// The runtime folder this record's generation uses.

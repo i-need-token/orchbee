@@ -364,8 +364,10 @@ On Windows a Server can start for a generation that kept its predecessor's runni
 the Server and Worker ended, by a crash or an `exit`, while its Hosts kept their terminals. Crash
 recovery admits that generation only when the Session's
 [binding record](docs/workbench-checkpoint.md#binding-record) names each running Host, and
-publishes it with those Hosts' registrations and no Server or Worker
-([cold recovery](../../crates/local-runtime/docs/windows-crash-recovery.md#cold-recovery-transitions)).
+publishes it with those Hosts' registrations, the Session's Keeper's while it runs, and no Server or
+Worker
+([cold recovery](../../crates/local-runtime/docs/windows-crash-recovery.md#cold-recovery-transitions)),
+so the adopting Worker adopts that Keeper instead of starting a second one.
 The Server learns it at startup from that record: each registered Host it observes running is
 adopted, and one gone, still spawning or not observable fails the start, so the next activation
 decides again.

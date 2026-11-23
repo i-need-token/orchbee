@@ -328,6 +328,7 @@ impl SessionCatalog {
             return Err(io::ErrorKind::InvalidData.into());
         }
         let kept = kept_hosts(previous.as_ref())?;
+        let keeper = kept_keeper(previous.as_ref(), &kept);
         free_endpoints(runtime, &kept)?;
         let checkpoint = self.durable.folder(scope);
         idle_storage(&checkpoint)?;
@@ -352,7 +353,7 @@ impl SessionCatalog {
             Some(previous) => SessionName::parse(&previous.name)?,
             None => SessionName::parse(scope)?,
         };
-        let active = Record::registered(runtime, &name, activation_id, &kept)?;
+        let active = Record::registered(runtime, &name, activation_id, &kept, keeper)?;
         self.durable.publish(scope, &active)
     }
 
@@ -1047,6 +1048,36 @@ fn kept_hosts(previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
 #[cfg(unix)]
 fn kept_hosts(_previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
     Ok(Vec::new())
+}
+
+/// The Keeper the crashed generation `previous` left running beside `kept`, the Hosts the next
+/// generation keeps, which keeps it registered too: its Worker then adopts that Keeper with the
+/// Hosts, which stay attached to it, instead of starting a second one, and a stop ends the Keeper
+/// that holds their programs. None without a kept Host, whose Worker would adopt no Keeper, and
+/// none that cannot be observed, which leaves it unrecorded as before.
+#[cfg(windows)]
+fn kept_keeper(
+    previous: Option<&Record>,
+    kept: &[KeptHost],
+) -> Option<crate::process_registration::ProcessIdentity> {
+    let previous = previous.filter(|_| !kept.is_empty())?;
+    let role = crate::process_registration::ProcessRole::Keeper;
+    match crate::process_observation::presence(&previous.processes, role) {
+        crate::HostPresence::Running(_) => previous.processes.registration(role).identity(),
+        crate::HostPresence::NotStarted
+        | crate::HostPresence::Spawning
+        | crate::HostPresence::Gone
+        | crate::HostPresence::Unknown => None,
+    }
+}
+
+/// A POSIX generation keeps no Keeper.
+#[cfg(unix)]
+fn kept_keeper(
+    _previous: Option<&Record>,
+    _kept: &[KeptHost],
+) -> Option<crate::process_registration::ProcessIdentity> {
+    None
 }
 
 /// The evidence a clean stop leaves beside its matching receipt. A Windows Server publishes its

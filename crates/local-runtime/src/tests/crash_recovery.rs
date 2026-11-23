@@ -395,10 +395,27 @@ fn an_id_now_held_by_a_process_this_account_may_not_open_or_end_never_blocks_rec
 
 #[test]
 fn a_live_host_is_kept_for_adoption_only_when_the_binding_record_names_it() {
-    // The Server and Worker are gone; this test process stands in for the running Host.
+    // The Server and Worker are gone; this test process stands in for the running Host, and a
+    // child it starts for the Session's Keeper.
     let server = ProcessIdentity::new(u32::MAX - 7, 1).unwrap();
     let worker = ProcessIdentity::new(u32::MAX - 11, 2).unwrap();
     let host = crate::process_observation::current_identity().unwrap();
+    let mut stand_in = std::process::Command::new(
+        std::path::Path::new(&std::env::var_os("SystemRoot").unwrap()).join("System32\\PING.EXE"),
+    )
+    .args(["-n", "120", "127.0.0.1"])
+    .stdout(std::process::Stdio::null())
+    .spawn()
+    .unwrap();
+    let keeper = crate::process_observation::identity(
+        &winsafe::HPROCESS::OpenProcess(
+            winsafe::co::PROCESS::QUERY_LIMITED_INFORMATION,
+            false,
+            stand_in.id(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
     let another_host = ProcessIdentity::new(host.pid(), host.creation_time() + 1).unwrap();
     for case in ["another-host", "this-host"] {
         let base = Fixture::new();
@@ -425,6 +442,8 @@ fn a_live_host_is_kept_for_adoption_only_when_the_binding_record_names_it() {
             processes
                 .identify(ProcessRole::Host(crate::HostSlot::FIRST), host)
                 .unwrap();
+            processes.reserve_keeper(Creator::Process(worker)).unwrap();
+            processes.identify(ProcessRole::Keeper, keeper).unwrap();
         }
         directory.publish(&scope, &record).unwrap();
         let named = if case == "this-host" {
@@ -460,7 +479,8 @@ fn a_live_host_is_kept_for_adoption_only_when_the_binding_record_names_it() {
             assert_eq!(directory.read(&scope).unwrap().unwrap(), record);
             continue;
         }
-        // The ended generation counts as a crash, and the next one starts with that Host alone.
+        // The ended generation counts as a crash, and the next one starts with that Host and the
+        // Keeper still running beside it, so its Worker adopts that Keeper.
         assert_eq!(recovered.unwrap(), Some([1; 16]));
         catalog.begin_activation(&session, [2; 16]).unwrap();
         session.commit_activation().unwrap();
@@ -468,15 +488,18 @@ fn a_live_host_is_kept_for_adoption_only_when_the_binding_record_names_it() {
         assert_eq!(next.activation_id, Some([2; 16]));
         assert_eq!(
             next.processes,
-            crate::process_registration::SessionProcesses::adopting(&[
-                crate::process_registration::KeptHost {
+            crate::process_registration::SessionProcesses::adopting(
+                &[crate::process_registration::KeptHost {
                     slot: crate::HostSlot::FIRST,
                     identity: host,
                     epoch: None,
-                }
-            ])
+                }],
+                Some(keeper),
+            )
         );
     }
+    stand_in.kill().unwrap();
+    stand_in.wait().unwrap();
 }
 
 #[test]
