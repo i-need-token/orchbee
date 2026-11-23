@@ -3,6 +3,7 @@
 
 const std = @import("std");
 pub const pty = @import("message_pty.zig");
+const programs = @import("message_program.zig");
 
 const handshake = @import("terminal-host-handshake");
 
@@ -52,38 +53,10 @@ pub const Terminal = struct {
     terminal_id: Identity,
 };
 
-/// A background program's handles in the process that holds them: its Job and process, and the
-/// read end of each stream the Host captures.
-pub const ProgramHandles = struct {
-    job: u32,
-    process: u32,
-    stdout: ?u32 = null,
-    stderr: ?u32 = null,
-};
-
-/// At most this many bytes in a program's label.
-pub const maximum_label_bytes = 2048;
-
-/// What a program holding records: the program's process, the id its Worker gave it, and the
-/// Worker's label, 1 to 2,048 characters of the base64 alphabet that the Keeper returns unread.
-pub const ProgramFacts = struct {
-    process: Process,
-    program_id: [16]u8,
-    label: []const u8,
-
-    pub fn valid(self: ProgramFacts) bool {
-        return !isZero(&self.program_id) and validLabel(self.label);
-    }
-};
-
-pub fn validLabel(label: []const u8) bool {
-    if (label.len == 0 or label.len > maximum_label_bytes) return false;
-    for (label) |byte| switch (byte) {
-        'A'...'Z', 'a'...'z', '0'...'9', '+', '/', '=' => {},
-        else => return false,
-    };
-    return true;
-}
+pub const ProgramHandles = programs.ProgramHandles;
+pub const maximum_label_bytes = programs.maximum_label_bytes;
+pub const ProgramFacts = programs.ProgramFacts;
+pub const validLabel = programs.validLabel;
 
 pub const Facts = struct {
     terminal: Terminal,
@@ -127,7 +100,7 @@ pub const Reason = enum {
     handle_failed,
     /// The holding's owner still runs; only `recovery`'s requests answer it.
     not_orphaned,
-    /// Under `parent`: the Keeper could not start the program a `spawn` named.
+    /// Under `parent`: the Keeper could not start the program a `spawn` or `spawn-program` named.
     spawn_failed,
     /// Under `parent`: a `reap` of a parented leader that has not ended.
     running,
@@ -209,6 +182,10 @@ pub const RequestKind = enum {
     reap,
     /// The Worker's request, under `reexec`, that the Keeper execute another program in place.
     reexec,
+    /// A Host's hold of a background program's pipes, and its request that the Keeper start and
+    /// parent one, under `programs` (`spawn-program` also under `parent`).
+    hold_pipes,
+    spawn_program,
 
     pub fn name(self: RequestKind) []const u8 {
         return wireName(self);
@@ -244,11 +221,7 @@ pub const Hold = struct {
     facts: Facts,
 };
 
-pub const HoldProgram = struct {
-    holding: RandomId,
-    handles: ProgramHandles,
-    facts: ProgramFacts,
-};
+pub const HoldProgram = programs.HoldProgram;
 
 pub const Mark = struct {
     holding: RandomId,
@@ -297,6 +270,8 @@ pub const Request = struct {
         reap: RandomId,
         /// The Terminal Host program to re-execute from: an absolute path.
         reexec: []const u8,
+        hold_pipes: pty.HoldPipes,
+        spawn_program: pty.SpawnProgram,
     };
 
     /// Whether only a connection that negotiated `recovery` sends this request.
@@ -306,7 +281,7 @@ pub const Request = struct {
 
     /// Whether only a connection that negotiated `programs` sends this request.
     pub fn needsPrograms(kind: RequestKind) bool {
-        return kind == .hold_program;
+        return kind == .hold_program or kind == .hold_pipes or kind == .spawn_program;
     }
 
     /// Whether only a connection that negotiated `pty` sends this request.
@@ -316,7 +291,7 @@ pub const Request = struct {
 
     /// Whether only a connection that negotiated `parent` sends this request.
     pub fn needsParent(kind: RequestKind) bool {
-        return kind == .spawn or kind == .reap;
+        return kind == .spawn or kind == .reap or kind == .spawn_program;
     }
 
     /// Whether only a connection that negotiated `reexec` sends this request.
@@ -329,6 +304,8 @@ pub const Request = struct {
         return switch (body) {
             .hold_pty => 1,
             .spawn => |spawn| spawn.descriptorCount(),
+            .hold_pipes => |hold| hold.capture.count(),
+            .spawn_program => |spawn| 2 * spawn.capture.count(),
             else => 0,
         };
     }
@@ -390,10 +367,7 @@ pub const Inspection = struct {
     facts: Facts,
 };
 
-pub const ProgramInspection = struct {
-    handles: ProgramHandles,
-    facts: ProgramFacts,
-};
+pub const ProgramInspection = programs.ProgramInspection;
 
 pub const Reply = struct {
     id: u32,
@@ -414,8 +388,11 @@ pub const Reply = struct {
         hold_pty,
         reap,
         reexec,
+        hold_pipes,
         /// `spawn-result`: the leader the Keeper started.
         spawn: Process,
+        /// `spawn-program-result`: the program the Keeper started.
+        spawn_program: Process,
         status: StatusPage,
         @"resume": Outcome,
         decline: Outcome,
@@ -424,6 +401,8 @@ pub const Reply = struct {
         inspect_program: ProgramInspection,
         /// `inspect-result` for a PTY holding, sent with its master.
         inspect_pty: pty.PtyHolding,
+        /// `inspect-result` for a pipes holding, sent with each captured stream's read end.
+        inspect_pipes: pty.PipesHolding,
         refused: Reason,
         /// The requested type, which the Keeper does not know.
         unsupported: []const u8,
@@ -446,16 +425,22 @@ pub const Reply = struct {
                 .reap => kind == .reap,
                 .reexec => kind == .reexec,
                 .spawn => kind == .spawn,
+                .hold_pipes => kind == .hold_pipes,
+                .spawn_program => kind == .spawn_program,
                 .status => kind == .status,
                 .@"resume" => kind == .@"resume",
                 .decline => kind == .decline,
-                .inspect, .inspect_program, .inspect_pty => kind == .inspect,
+                .inspect, .inspect_program, .inspect_pty, .inspect_pipes => kind == .inspect,
             };
         }
 
         /// How many descriptors leave with this reply by `SCM_RIGHTS`.
         pub fn descriptorCount(self: Body) u8 {
-            return if (self == .inspect_pty) 1 else 0;
+            return switch (self) {
+                .inspect_pty => 1,
+                .inspect_pipes => |holding| holding.capture.count(),
+                else => 0,
+            };
         }
     };
 };

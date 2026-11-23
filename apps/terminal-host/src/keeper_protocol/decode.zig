@@ -104,6 +104,8 @@ pub fn initiatorPayload(arena: std.mem.Allocator, payload: []const u8) PayloadEr
         },
         .hold_pty => .{ .hold_pty = try decode_pty.holdPty(object) },
         .spawn => .{ .spawn = try decode_pty.spawn(arena, object) },
+        .hold_pipes => .{ .hold_pipes = try decode_pty.holdPipes(object) },
+        .spawn_program => .{ .spawn_program = try decode_pty.spawnProgram(arena, object) },
         .reexec => blk: {
             try closed(object.members, &.{ "type", "id", "program", "extensions" });
             const program = try string(try object.required("program"));
@@ -172,7 +174,9 @@ fn resultBody(arena: std.mem.Allocator, object: Object, kind: message.RequestKin
             return if (kind == .@"resume") .{ .@"resume" = outcome } else .{ .decline = outcome };
         },
         .inspect => {
-            // A PTY holding's master arrives beside the message, so its result names no handles.
+            // A POSIX holding's descriptors arrive beside the message, so its result names no handles;
+            // a pipes holding's names what it captures.
+            if (object.get("capture") != null) return .{ .inspect_pipes = try decode_pty.pipesInspection(object) };
             if (object.get("handles") == null) return .{ .inspect_pty = try decode_pty.inspection(object) };
             try closed(object.members, &.{ "type", "id", "handles", "facts", "extensions" });
             const handles = try object.required("handles");
@@ -190,7 +194,11 @@ fn resultBody(arena: std.mem.Allocator, object: Object, kind: message.RequestKin
             try closed(object.members, &.{ "type", "id", "leader", "extensions" });
             return .{ .spawn = try processValue(try object.required("leader")) };
         },
-        inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program, .hold_pty, .reap, .reexec => |empty| {
+        .spawn_program => {
+            try closed(object.members, &.{ "type", "id", "process", "extensions" });
+            return .{ .spawn_program = try processValue(try object.required("process")) };
+        },
+        inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program, .hold_pty, .reap, .reexec, .hold_pipes => |empty| {
             try closed(object.members, &.{ "type", "id", "extensions" });
             return @unionInit(message.Reply.Body, @tagName(empty), {});
         },
@@ -261,7 +269,7 @@ fn handleValue(value: json.Value) PayloadError!u32 {
     return @intCast(handle);
 }
 
-fn programFactsValue(value: json.Value) PayloadError!message.ProgramFacts {
+pub fn programFactsValue(value: json.Value) PayloadError!message.ProgramFacts {
     const members = try objectMembers(value);
     try closed(members, &.{ "process", "programId", "label" });
     const facts: message.ProgramFacts = .{
@@ -385,7 +393,7 @@ pub fn name(value: json.Value) PayloadError![]const u8 {
 }
 
 /// Exactly `length * 2` lowercase hexadecimal digits.
-fn hexBytes(comptime length: usize, value: json.Value) PayloadError![length]u8 {
+pub fn hexBytes(comptime length: usize, value: json.Value) PayloadError![length]u8 {
     const text = try string(value);
     if (!grammar.isLowercaseHex(text, length * 2)) return error.Message;
     var bytes: [length]u8 = undefined;

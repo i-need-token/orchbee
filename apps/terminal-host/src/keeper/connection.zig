@@ -297,10 +297,17 @@ const Connection = struct {
                     if (message.Request.needsReexec(kind) and !self.reexec) break :applied .{ .unsupported = kind.name() };
                     if (!requests_module.held.serves(kind)) break :applied .{ .unsupported = kind.name() };
                     if (!self.takeDescriptors(request.body, &effects)) break :applied .{ .refused = .handle_failed };
-                    if (comptime darwin) if (request.body == .spawn) {
+                    if (comptime darwin) switch (request.body) {
                         // A spawn forks with the lock released, so it takes the lock itself.
-                        if (self.closingNow()) return;
-                        break :applied try requests_module.held.spawn(self.table, arena, peer, request.body.spawn, &effects.descriptors);
+                        .spawn => |spawn| {
+                            if (self.closingNow()) return;
+                            break :applied try requests_module.held.spawn(self.table, arena, peer, spawn, &effects.descriptors);
+                        },
+                        .spawn_program => |spawn| {
+                            if (self.closingNow()) return;
+                            break :applied try requests_module.held.spawnProgram(self.table, arena, peer, spawn, &effects.descriptors);
+                        },
+                        else => {},
                     };
                     if (comptime darwin) if (request.body == .reexec) {
                         // An update stops every other connection and replaces this image; it
@@ -344,19 +351,15 @@ const Connection = struct {
 
     fn writeReply(self: *Connection, frame: []const u8, effects: *const state.Effects) !void {
         if (comptime darwin) {
-            if (effects.descriptors.send) |descriptor| {
-                return self.transport.writeWithDescriptors(frame, &.{descriptor}, message.reply_deadline_ns);
-            }
+            const sent = effects.descriptors.sent();
+            if (sent.len > 0) return self.transport.writeWithDescriptors(frame, sent, message.reply_deadline_ns);
         }
         return self.transport.writeAllWithin(frame, message.reply_deadline_ns);
     }
 
-    /// Closes the duplicate a reply carried, once the reply is written or abandoned.
+    /// Closes the duplicates a reply carried, once the reply is written or abandoned.
     fn closeSent(_: *Connection, effects: *state.Effects) void {
-        if (comptime darwin) if (effects.descriptors.send) |descriptor| {
-            platform.posix_compat.close(descriptor);
-            effects.descriptors.send = null;
-        };
+        if (comptime darwin) effects.descriptors.closeSent();
     }
 
     /// Sends `exited` for each ended parented leader of this connection's Host it was not yet

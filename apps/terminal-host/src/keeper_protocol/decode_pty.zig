@@ -35,6 +35,52 @@ pub fn spawn(arena: std.mem.Allocator, object: Object) PayloadError!pty.Spawn {
     };
 }
 
+pub fn holdPipes(object: Object) PayloadError!pty.HoldPipes {
+    try decode.closed(object.members, &.{ "type", "id", "holding", "facts", "capture", "extensions" });
+    return .{
+        .holding = try decode.randomId(try object.required("holding")),
+        .facts = try decode.programFactsValue(try object.required("facts")),
+        .capture = try capture(try object.required("capture")),
+    };
+}
+
+pub fn spawnProgram(arena: std.mem.Allocator, object: Object) PayloadError!pty.SpawnProgram {
+    try decode.closed(object.members, &.{ "type", "id", "holding", "launch", "facts", "capture", "extensions" });
+    const facts_members = try decode.objectMembers(try object.required("facts"));
+    try decode.closed(facts_members, &.{ "programId", "label" });
+    const facts: pty.SpawnProgramFacts = .{
+        .program_id = try decode.hexBytes(16, try decode.requiredMember(facts_members, "programId")),
+        .label = try decode.string(try decode.requiredMember(facts_members, "label")),
+    };
+    if (message.isZero(&facts.program_id) or !message.validLabel(facts.label)) return error.Message;
+    return .{
+        .holding = try decode.randomId(try object.required("holding")),
+        .launch = try launch(arena, try object.required("launch")),
+        .facts = facts,
+        .capture = try capture(try object.required("capture")),
+    };
+}
+
+/// A pipes holding's `inspect-result`.
+pub fn pipesInspection(object: Object) PayloadError!pty.PipesHolding {
+    try decode.closed(object.members, &.{ "type", "id", "facts", "capture", "parented", "ended", "extensions" });
+    return .{
+        .facts = try decode.programFactsValue(try object.required("facts")),
+        .capture = try capture(try object.required("capture")),
+        .parented = try boolean(try object.required("parented")),
+        .ended = if (object.get("ended")) |ended| try exitStatus(ended) else null,
+    };
+}
+
+fn capture(value: json.Value) PayloadError!pty.Capture {
+    const members = try decode.objectMembers(value);
+    try decode.closed(members, &.{ "stdout", "stderr" });
+    return .{
+        .stdout = try boolean(try decode.requiredMember(members, "stdout")),
+        .stderr = try boolean(try decode.requiredMember(members, "stderr")),
+    };
+}
+
 pub fn ptyFacts(value: json.Value) PayloadError!pty.PtyFacts {
     const members = try decode.objectMembers(value);
     try decode.closed(members, &.{ "terminal", "leader", "slave", "launch" });

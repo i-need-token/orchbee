@@ -16,7 +16,7 @@ pub const worker_host = struct {
     /// Every capability the registry declares for `worker-host`, in its order.
     pub const declared_capabilities: []const []const u8 = &.{ "background-programs", "handover", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" };
     /// The declared capabilities this Host implements and offers. `background-programs`, on Windows
-    /// only: this Host runs programs without a terminal for its Worker. `keeper`, on Windows and
+    /// and macOS: this Host runs programs without a terminal for its Worker. `keeper`, on Windows and
     /// macOS: this Host attaches Keepers, holds its running terminals there, and releases them first.
     /// `prompt-gated-input`: this Host types a `PromptLineInput` only at a confirmed idle prompt.
     /// `screen-gated-input`: this Host types a `ScreenGatedKeyInput` only on the frame it names.
@@ -24,11 +24,12 @@ pub const worker_host = struct {
     /// leaves no person's input, which the Hosts of 0.1.0-beta.22 recorded; a Worker sends a gated
     /// key only under this name.
     /// `screen-gated-prompt`: applies the screen gate to a bracketed paste and Enter together.
-    /// `recovery`, on macOS: this Host recovers a terminal the Keeper kept after its Host ended.
+    /// `recovery`, on macOS: this Host recovers a terminal or a program the Keeper kept after its
+    /// Host ended.
     pub const capabilities: []const []const u8 = if (builtin.os.tag == .windows)
         &.{ "background-programs", "keeper", "prompt-gated-input", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
     else if (builtin.os.tag == .macos)
-        &.{ "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
+        &.{ "background-programs", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
     else
         &.{ "prompt-gated-input", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" };
     /// `capabilities` with `handover` and `recovery`, on Windows and macOS: this Host moves running
@@ -37,7 +38,7 @@ pub const worker_host = struct {
     pub const capabilities_with_handover: []const []const u8 = if (builtin.os.tag == .windows)
         &.{ "background-programs", "handover", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
     else if (builtin.os.tag == .macos)
-        &.{ "handover", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
+        &.{ "background-programs", "handover", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
     else
         capabilities;
 
@@ -68,9 +69,10 @@ pub const keeper = struct {
     pub const reexec = "reexec";
     pub const declared_capabilities: []const []const u8 = &.{ parent, programs, pty, recovery, reexec };
     /// What this build's Keeper serves and its Hosts offer: Windows holds handles and programs;
-    /// macOS holds PTY masters, parents leaders, and re-executes in place.
+    /// macOS holds PTY masters and program pipes, parents leaders and programs, and re-executes in
+    /// place.
     pub const capabilities: []const []const u8 = if (builtin.os.tag.isDarwin())
-        &.{ parent, pty, recovery, reexec }
+        &.{ parent, programs, pty, recovery, reexec }
     else
         &.{ programs, recovery };
     pub const development_fingerprint: []const u8 = options.keeper_fingerprint;

@@ -19,6 +19,7 @@ const entry_module = @import("entry.zig");
 
 const Entry = entry_module.Entry;
 const is_windows = builtin.os.tag == .windows;
+const is_macos = builtin.os.tag == .macos;
 const MessageKind = protocol.MessageKind;
 const Outgoing = host_outgoing.Outgoing;
 const WireIdentifier = identifiers.IdentifierBytes;
@@ -141,16 +142,14 @@ pub const Recoveries = struct {
         attachments: *keeper_link.Attachments,
         entries: *std.ArrayList(*Entry),
     ) void {
-        if (comptime !is_windows) unreachable;
-        const handles = platform.keeper.handles;
+        if (comptime !is_windows and !is_macos) unreachable;
         const duplicates = inspected_program.duplicates;
         defer attachments.allocator.free(inspected_program.label);
-        const identity: handles.Identity = .{ .pid = inspected_program.process.pid, .created = inspected_program.process.created };
         const failed: ?host_response.FailureDetails = if (!std.mem.eql(u8, &inspected_program.program_id, &recovery.value.program_id))
             refusal.failed("identity-mismatch")
         else if (listed(entries, recovery.value.program_id))
             refusal.failed("identity-mismatch")
-        else if (!handles.programMatches(duplicates, identity) or !handles.killsOnClose(duplicates.job))
+        else if (!handlesMatch(duplicates, inspected_program.process))
             refusal.failed("identity-mismatch")
         else if (self.expired(recovery))
             refusal.failed("deadline")
@@ -166,19 +165,37 @@ pub const Recoveries = struct {
             inspected_program.label,
             inspected_program.process.pid,
             inspected_program.process.created,
-            .{ .job = duplicates.job, .process = duplicates.process, .streams = duplicates.streams },
+            if (comptime is_windows)
+                .{ .job = duplicates.job, .process = duplicates.process, .streams = duplicates.streams }
+            else
+                .{ .streams = duplicates.streams, .parented = duplicates.parented },
         ) catch {
             duplicates.close();
             return decline(recovery, refusal.exhausted, attachments);
         };
         recovery.entry = entry;
         recovery.stage = .claiming;
-        recovery.request = .init(.{ .claim = .{ .gate = &entry.gate, .claim = .{
+        recovery.request = .init(.{ .claim = .{ .gate = entry.gateOf(), .claim = .{
             .holding = recovery.value.holding,
             .mark = recovery.value.mark,
             .program = inspected_program.process,
         } } });
         attachments.submit(recovery.keeper, &recovery.request);
+    }
+
+    /// Whether what the Host received is the program the Keeper holds: on Windows, its process and
+    /// a kill-on-close Job; on macOS, each captured stream's pipe read end and a program that runs
+    /// with its start time or ended under the Keeper that parents it, which keeps it until its
+    /// release.
+    fn handlesMatch(duplicates: keeper_link.moves.InspectedProgram.Duplicates, process: keeper_link.moves.Process) bool {
+        if (comptime is_windows) {
+            const handles = platform.keeper.handles;
+            return handles.programMatches(duplicates, .{ .pid = process.pid, .created = process.created }) and
+                handles.killsOnClose(duplicates.job);
+        }
+        const darwin = platform.keeper.darwin;
+        for (duplicates.streams) |stream| if (stream) |descriptor| if (!darwin.pipeEnd(descriptor, false)) return false;
+        return (duplicates.parented and duplicates.ended) or darwin.processStart(process.pid) == process.created;
     }
 
     /// Starts the claimed program's threads and lists it; what cannot start yet retries on the
@@ -239,7 +256,7 @@ pub const Recoveries = struct {
             switch (recovery.stage) {
                 .inspecting => switch (recovery.request.wait()) {
                     .inspected_program => |inspected_program| {
-                        if (comptime is_windows) inspected_program.duplicates.close();
+                        inspected_program.duplicates.close();
                         attachments.allocator.free(inspected_program.label);
                     },
                     else => {},

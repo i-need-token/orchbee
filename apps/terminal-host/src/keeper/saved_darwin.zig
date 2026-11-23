@@ -21,6 +21,9 @@ pub const maximum_bytes = 16 * 1024 * 1024;
 pub const Process = struct { pid: u32, created: []const u8 };
 pub const Terminal = struct { creationId: []const u8, hostEpoch: []const u8, terminalId: []const u8 };
 pub const Facts = struct { terminal: Terminal, leader: Process, slave: []const u8, launch: []const u8 };
+pub const ProgramFacts = struct { process: Process, programId: []const u8, label: []const u8 };
+/// A background program's facts and the read end of each stream its Host captures.
+pub const Pipes = struct { facts: ProgramFacts, stdout: ?i32 = null, stderr: ?i32 = null };
 pub const Exit = struct { code: ?u8 = null, signal: ?u8 = null };
 pub const Claimed = struct { from: Process, mark: []const u8 };
 
@@ -28,8 +31,10 @@ pub const Holding = struct {
     holding: []const u8,
     owner: Process,
     claimed: ?Claimed = null,
-    master: i32,
-    facts: Facts,
+    /// A terminal's PTY master and facts, or else a background program's pipes.
+    master: ?i32 = null,
+    facts: ?Facts = null,
+    pipes: ?Pipes = null,
     parented: bool,
     ended: ?Exit = null,
     reaped: bool,
@@ -78,9 +83,15 @@ pub fn decode(arena: std.mem.Allocator, bytes: []const u8) error{InvalidState}!S
 /// Whether every descriptor `value` names is open in this process.
 pub fn descriptorsOpen(value: State) bool {
     if (!open(value.listener) or !open(value.lock)) return false;
-    for (value.holdings) |holding| if (!open(holding.master)) return false;
+    for (value.holdings) |holding| for (descriptorsOf(holding)) |named| if (named) |descriptor| if (!open(descriptor)) return false;
     for (value.connections) |connection| if (!open(connection.socket)) return false;
     return true;
+}
+
+/// The descriptors a holding names: its master, or each captured stream's read end.
+pub fn descriptorsOf(holding: Holding) [2]?i32 {
+    if (holding.pipes) |pipes| return .{ pipes.stdout, pipes.stderr };
+    return .{ holding.master, null };
 }
 
 fn open(descriptor: i32) bool {
@@ -108,7 +119,10 @@ fn valid(value: State) bool {
             _ = toProcess(claimed.from) catch return false;
             _ = toId(claimed.mark) catch return false;
         }
-        _ = toFacts(holding.facts) catch return false;
+        if ((holding.master == null) != (holding.facts == null)) return false;
+        if ((holding.master == null) == (holding.pipes == null)) return false;
+        if (holding.facts) |facts| _ = toFacts(facts) catch return false;
+        if (holding.pipes) |pipes| _ = toProgramFacts(pipes.facts) catch return false;
         if (holding.ended) |ended| _ = toExit(ended) catch return false;
         if (holding.ended != null and !holding.parented) return false;
         if (holding.reaped and holding.ended == null) return false;
@@ -177,7 +191,7 @@ fn distinctDescriptors(value: State) bool {
         }
     }.add;
     if (!add(&seen, allocator, value.listener) or !add(&seen, allocator, value.lock)) return false;
-    for (value.holdings) |holding| if (!add(&seen, allocator, holding.master)) return false;
+    for (value.holdings) |holding| for (descriptorsOf(holding)) |named| if (named) |descriptor| if (!add(&seen, allocator, descriptor)) return false;
     for (value.connections) |connection| if (!add(&seen, allocator, connection.socket)) return false;
     return true;
 }
@@ -232,6 +246,16 @@ pub fn toFacts(text: Facts) error{InvalidState}!pty.PtyFacts {
         .slave = text.slave,
         .launch = text.launch,
     };
+}
+
+pub fn programFactsText(arena: std.mem.Allocator, facts: message.ProgramFacts) error{OutOfMemory}!ProgramFacts {
+    return .{ .process = try processText(arena, facts.process), .programId = try idText(arena, facts.program_id), .label = facts.label };
+}
+
+pub fn toProgramFacts(text: ProgramFacts) error{InvalidState}!message.ProgramFacts {
+    const facts: message.ProgramFacts = .{ .process = try toProcess(text.process), .program_id = try toId(text.programId), .label = text.label };
+    if (!facts.valid()) return error.InvalidState;
+    return facts;
 }
 
 pub fn exitText(status: pty.ExitStatus) Exit {

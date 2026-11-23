@@ -11,6 +11,8 @@
 		{ "$ref": "#/$defs/holdProgram" },
 		{ "$ref": "#/$defs/holdPty" },
 		{ "$ref": "#/$defs/spawn" },
+		{ "$ref": "#/$defs/holdPipes" },
+		{ "$ref": "#/$defs/spawnProgram" },
 		{ "$ref": "#/$defs/reexec" },
 		{ "$ref": "#/$defs/markRequest" },
 		{ "$ref": "#/$defs/markedRequest" },
@@ -20,10 +22,12 @@
 		{ "$ref": "#/$defs/emptyResult" },
 		{ "$ref": "#/$defs/statusResult" },
 		{ "$ref": "#/$defs/spawnResult" },
+		{ "$ref": "#/$defs/spawnProgramResult" },
 		{ "$ref": "#/$defs/outcomeResult" },
 		{ "$ref": "#/$defs/inspectResult" },
 		{ "$ref": "#/$defs/inspectProgramResult" },
 		{ "$ref": "#/$defs/inspectPtyResult" },
+		{ "$ref": "#/$defs/inspectPipesResult" },
 		{ "$ref": "#/$defs/refused" },
 		{ "$ref": "#/$defs/unsupported" },
 		{ "$ref": "#/$defs/exited" },
@@ -297,6 +301,53 @@
 				"extensions": { "$ref": "#/$defs/extensions" }
 			}
 		},
+		"capture": {
+			"description": "Whether each of the program's standard output and error reaches a pipe; the message carries a descriptor per captured stream, standard output first.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["stdout", "stderr"],
+			"properties": {
+				"stdout": { "type": "boolean" },
+				"stderr": { "type": "boolean" }
+			}
+		},
+		"holdPipes": {
+			"description": "Under programs only, on macOS: a background program the Host started; the message carries the read end of each captured stream.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "holding", "facts", "capture"],
+			"properties": {
+				"type": { "const": "hold-pipes" },
+				"id": { "$ref": "#/$defs/id" },
+				"holding": { "$ref": "#/$defs/randomId" },
+				"facts": { "$ref": "#/$defs/programFacts" },
+				"capture": { "$ref": "#/$defs/capture" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"spawnProgram": {
+			"description": "Under parent and programs only: the message carries, per captured stream, its read end and then its write end; the program's standard input is the null device.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "holding", "launch", "facts", "capture"],
+			"properties": {
+				"type": { "const": "spawn-program" },
+				"id": { "$ref": "#/$defs/id" },
+				"holding": { "$ref": "#/$defs/randomId" },
+				"launch": { "$ref": "#/$defs/launch" },
+				"facts": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["programId", "label"],
+					"properties": {
+						"programId": { "$ref": "#/$defs/identity" },
+						"label": { "$ref": "#/$defs/programFacts/properties/label" }
+					}
+				},
+				"capture": { "$ref": "#/$defs/capture" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
 		"reexec": {
 			"description": "Under reexec only; the Worker's request that the Keeper re-execute itself in place from program, a Terminal Host executable.",
 			"type": "object",
@@ -387,6 +438,8 @@
 									"discard",
 									"hold-pty",
 									"spawn",
+									"hold-pipes",
+									"spawn-program",
 									"reap",
 									"reexec",
 									"refused",
@@ -418,6 +471,7 @@
 						"assign-result",
 						"discard-result",
 						"hold-pty-result",
+						"hold-pipes-result",
 						"reap-result",
 						"reexec-result"
 					]
@@ -559,6 +613,32 @@
 				"extensions": { "$ref": "#/$defs/extensions" }
 			}
 		},
+		"inspectPipesResult": {
+			"description": "A macOS program holding's inspect-result; the message carries the read end of each captured stream, standard output first.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "facts", "capture", "parented"],
+			"properties": {
+				"type": { "const": "inspect-result" },
+				"id": { "$ref": "#/$defs/id" },
+				"facts": { "$ref": "#/$defs/programFacts" },
+				"capture": { "$ref": "#/$defs/capture" },
+				"parented": { "type": "boolean" },
+				"ended": { "$ref": "#/$defs/exitStatus" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"spawnProgramResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "process"],
+			"properties": {
+				"type": { "const": "spawn-program-result" },
+				"id": { "$ref": "#/$defs/id" },
+				"process": { "$ref": "#/$defs/process" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
 		"spawnResult": {
 			"type": "object",
 			"additionalProperties": false,
@@ -605,7 +685,7 @@
 			}
 		},
 		"exited": {
-			"description": "Under parent only: the parented leader of holding ended, and the Keeper keeps it unreaped until its owner's reap.",
+			"description": "Under parent only: the parented leader or program of holding ended, and the Keeper keeps it unreaped until its owner's reap or release.",
 			"type": "object",
 			"additionalProperties": false,
 			"required": ["type", "holding", "status"],

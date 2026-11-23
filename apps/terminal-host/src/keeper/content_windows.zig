@@ -5,10 +5,12 @@ const std = @import("std");
 const handshake = @import("terminal-host-handshake");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
 const handles = @import("handles_windows.zig");
+const program_facts = @import("program_facts.zig");
 
 const message = keeper_protocol.message;
 const Process = message.Process;
 const launch_capacity = handshake.message.maximum_name_bytes;
+const StoredProgramFacts = program_facts.StoredProgramFacts;
 
 pub const StoredFacts = struct {
     terminal: message.Terminal,
@@ -42,33 +44,6 @@ pub const StoredFacts = struct {
             .console_build = self.console_build,
             .signal_format = self.signal_format,
             .launch = try arena.dupe(u8, self.launch[0..self.launch_length]),
-        };
-    }
-};
-
-pub const StoredProgramFacts = struct {
-    process: Process,
-    program_id: [16]u8,
-    label: [message.maximum_label_bytes]u8,
-    label_length: u16,
-
-    /// Facts the decoder checked, so the label fits.
-    pub fn store(facts: message.ProgramFacts) StoredProgramFacts {
-        var stored: StoredProgramFacts = .{
-            .process = facts.process,
-            .program_id = facts.program_id,
-            .label = undefined,
-            .label_length = @intCast(facts.label.len),
-        };
-        @memcpy(stored.label[0..facts.label.len], facts.label);
-        return stored;
-    }
-
-    pub fn view(self: *const StoredProgramFacts, arena: std.mem.Allocator) error{OutOfMemory}!message.ProgramFacts {
-        return .{
-            .process = self.process,
-            .program_id = self.program_id,
-            .label = try arena.dupe(u8, self.label[0..self.label_length]),
         };
     }
 };

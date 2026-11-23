@@ -1,8 +1,8 @@
-//! One background program the Host runs for its Worker: its process, Job, and captured streams,
-//! the threads that read them and wait for its exit, and the outcome they publish. The dispatch
-//! thread starts, cancels, reads, and ends it; the threads only fill its captures and its outcome.
-//! Its release-first gate keeps every Keeper that holds it from holding past its end: the waiter
-//! passes the gate before it ends the Job's members and publishes the exit.
+//! One background program the Host runs for its Worker: its process, its Job on Windows or its
+//! Keeper record on macOS, and its captured streams, the threads that read them and wait for its
+//! exit, and the outcome they publish. The dispatch thread starts, cancels, reads, and ends it; the
+//! threads only fill its captures and its outcome. Its release-first gate keeps every Keeper that
+//! holds it from holding past its end: the waiter passes the gate before it publishes the exit.
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -11,6 +11,7 @@ const control = @import("terminal-host-control");
 
 const program = platform.program;
 const is_windows = builtin.os.tag == .windows;
+const is_macos = builtin.os.tag == .macos;
 const Gate = platform.keeper.Gate;
 const thread_sync = platform.thread_sync;
 const Summary = control.encode.program.Summary;
@@ -25,7 +26,7 @@ const Capture = struct {
     len: u32 = 0,
     truncated: bool = false,
     thread: ?std.Thread = null,
-    stream: program.Handle,
+    stream: program.Pipe,
 };
 
 pub const Entry = struct {
@@ -36,13 +37,17 @@ pub const Entry = struct {
     captures: [2]?Capture,
     waiter: ?std.Thread = null,
     mutex: thread_sync.Mutex = .{},
-    /// Set by the waiter once the root exited, the Job is empty, and every capture ended.
+    /// Set by the waiter once the root exited, the remaining members ended, and every capture
+    /// ended.
     exit: ?Exit = null,
     cancelled: bool = false,
     /// Whether a session has received this program's `ProgramExited`.
     announced: bool = false,
-    /// Each attached Keeper's slot; a hold keeps the program's handles and label alive.
-    gate: Gate = if (Gate == void) {} else .{},
+    /// A recovered program, which is not this Host's child.
+    adopted: bool = false,
+    /// Each attached Keeper's slot on Windows; a hold keeps the program's handles and label alive.
+    /// A macOS program's gate is its Keeper record's.
+    gate: if (is_windows) Gate else void = if (is_windows) .{} else {},
 
     /// Starts `launch` and the threads that follow it. On failure nothing keeps running.
     pub fn start(allocator: std.mem.Allocator, id: [16]u8, label: []const u8, launch: program.Launch) !*Entry {
@@ -81,9 +86,9 @@ pub const Entry = struct {
         return entry;
     }
 
-    /// A program a Keeper kept after its Host ended, from this Host's duplicates of its handles,
-    /// which it then owns. Its captures restart at zero and report truncated, since what the lost
-    /// Host read is gone. Its threads start with `follow` once its holding is claimed.
+    /// A program a Keeper kept after its Host ended, from what this Host received of it, which it
+    /// then owns. Its captures restart at zero and report truncated, since what the lost Host read
+    /// is gone. Its threads start with `follow` once its holding is claimed.
     pub fn recovered(
         allocator: std.mem.Allocator,
         id: [16]u8,
@@ -92,7 +97,7 @@ pub const Entry = struct {
         created: u64,
         handles: Handles,
     ) error{OutOfMemory}!*Entry {
-        if (comptime !is_windows) unreachable;
+        if (comptime !is_windows and !is_macos) unreachable;
         const entry = try allocator.create(Entry);
         errdefer allocator.destroy(entry);
         const owned_label = try allocator.dupe(u8, label);
@@ -102,12 +107,17 @@ pub const Entry = struct {
         for (handles.streams, &buffers) |stream, *buffer| {
             if (stream != null) buffer.* = try allocator.alloc(u8, capture_bytes);
         }
+        const spawned: program.Spawned = if (comptime is_windows)
+            .{ .process = handles.process, .job = handles.job, .streams = handles.streams, .pid = pid, .created = created }
+        else
+            .{ .process = {}, .job = {}, .streams = handles.streams, .pid = pid, .created = created, .record = try program.darwin.recoveredRecord(allocator, created, handles.parented) };
         entry.* = .{
             .allocator = allocator,
             .id = id,
             .label = owned_label,
-            .spawned = .{ .process = handles.process, .job = handles.job, .streams = handles.streams, .pid = pid, .created = created },
+            .spawned = spawned,
             .captures = .{ null, null },
+            .adopted = true,
         };
         for (handles.streams, 0..) |stream, index| if (stream) |handle| {
             entry.captures[index] = .{ .data = buffers[index].?, .stream = handle, .truncated = true };
@@ -115,12 +125,23 @@ pub const Entry = struct {
         return entry;
     }
 
-    /// A recovered program's handles: its Job, its process, and each captured stream's read end.
-    pub const Handles = struct {
+    /// What a recovered program arrives with: on Windows its Job, its process, and each captured
+    /// stream's read end; on macOS each captured stream's read end, and whether the Keeper parents
+    /// it.
+    pub const Handles = if (is_windows) struct {
         job: program.Handle,
         process: program.Handle,
-        streams: [2]?program.Handle,
+        streams: [2]?program.Pipe,
+    } else struct {
+        streams: [2]?program.Pipe,
+        parented: bool,
     };
+
+    /// The release-first gate that each attached Keeper's slot holds the program through.
+    pub fn gateOf(self: *Entry) *Gate {
+        if (comptime is_macos) return &self.spawned.record.gate;
+        return &self.gate;
+    }
 
     /// Spawns whichever reader and waiter has not started yet; a recovered program retries what
     /// failed. The waiter starts last, so it joins every reader.
@@ -139,12 +160,14 @@ pub const Entry = struct {
 
     /// Ends a program whose threads did not all start, joins those that did, and frees it.
     fn abandon(self: *Entry) void {
-        _ = program.endMembers(self.spawned.job);
-        _ = program.waitExit(self.spawned.process, std.math.maxInt(u32));
-        for (&self.captures) |*slot| if (slot.*) |*capture| if (capture.thread) |thread| {
-            thread.join();
-            capture.thread = null;
-        };
+        self.endMembers();
+        if (comptime is_windows) {
+            _ = program.waitExit(self.spawned.process, std.math.maxInt(u32));
+        } else if (comptime is_macos) {
+            self.gateOf().pass();
+            program.darwin.reapOwn(self.spawned, self.adopted);
+        }
+        self.joinReaders();
         self.destroy();
     }
 
@@ -179,41 +202,51 @@ pub const Entry = struct {
         return capture.data[0..capture.len];
     }
 
-    /// Ends the program's Job; the waiter then reports it as cancelled. False once it exited.
+    /// Ends the program's members; the waiter then reports it as cancelled. False once it exited.
     pub fn cancel(self: *Entry) bool {
         self.mutex.lock();
         const running = self.exit == null;
         if (running) self.cancelled = true;
         self.mutex.unlock();
-        if (running) _ = program.endMembers(self.spawned.job);
+        if (running) self.endMembers();
         return running;
     }
 
     /// Ends the program if it still runs, joins its threads, closes its handles, and frees it. A
     /// recovered program whose waiter has not started releases first here and joins its readers.
     pub fn end(self: *Entry) void {
-        _ = program.endMembers(self.spawned.job);
+        self.endMembers();
         if (self.waiter) |thread| {
             thread.join();
         } else {
-            if (comptime is_windows) self.gate.pass();
-            for (&self.captures) |*slot| if (slot.*) |*capture| if (capture.thread) |thread| {
-                thread.join();
-                capture.thread = null;
-            };
+            if (comptime is_windows or is_macos) self.gateOf().pass();
+            self.joinReaders();
         }
         self.waiter = null;
         self.destroy();
     }
 
+    fn endMembers(self: *Entry) void {
+        if (comptime is_windows) _ = program.endMembers(self.spawned.job);
+        if (comptime is_macos) program.darwin.endMembers(self.spawned, self.adopted);
+    }
+
+    fn joinReaders(self: *Entry) void {
+        for (&self.captures) |*slot| if (slot.*) |*capture| if (capture.thread) |thread| {
+            thread.join();
+            capture.thread = null;
+        };
+    }
+
     fn destroy(self: *Entry) void {
         const allocator = self.allocator;
         for (self.captures) |slot| if (slot) |capture| {
-            program.close(capture.stream);
+            program.closeStream(capture.stream);
             allocator.free(capture.data);
         };
         program.close(self.spawned.process);
         program.close(self.spawned.job);
+        if (comptime is_macos) self.spawned.record.destroy(allocator);
         allocator.free(self.label);
         allocator.destroy(self);
     }
@@ -236,18 +269,26 @@ fn readCapture(capture: *Capture) void {
     }
 }
 
-/// Waits for the root's exit, releases the program from every Keeper, ends the Job's remaining
-/// members as the Worker's own owner does, lets every capture reach its end, and publishes the
-/// outcome, so no Keeper holds a program whose exit a Worker heard of.
+/// Waits for the root's exit, ends the remaining members, releases the program from every Keeper,
+/// lets every capture reach its end, and publishes the outcome, so no Keeper holds a program whose
+/// exit a Worker heard of. Windows releases before it ends the Job's members; macOS ends the
+/// session's members first, while the ended root still keeps the session id the program's own,
+/// and its release then lets a parenting Keeper reap the root.
 fn wait(self: *Entry) void {
-    _ = program.waitExit(self.spawned.process, std.math.maxInt(u32));
-    const code = program.exitCode(self.spawned.process) orelse 1;
-    if (comptime is_windows) self.gate.pass();
-    _ = program.endMembers(self.spawned.job);
-    for (&self.captures) |*slot| if (slot.*) |*capture| if (capture.thread) |thread| {
-        thread.join();
-        capture.thread = null;
+    const code: u32 = if (comptime is_macos) code: {
+        const code = program.darwin.awaitExit(self.spawned, self.adopted);
+        self.endMembers();
+        self.gateOf().pass();
+        program.darwin.reapOwn(self.spawned, self.adopted);
+        break :code code orelse 1;
+    } else code: {
+        _ = program.waitExit(self.spawned.process, std.math.maxInt(u32));
+        const code = program.exitCode(self.spawned.process) orelse 1;
+        if (comptime is_windows) self.gate.pass();
+        self.endMembers();
+        break :code code;
     };
+    self.joinReaders();
     self.mutex.lock();
     defer self.mutex.unlock();
     self.exit = if (self.cancelled) .cancelled else .{ .code = code };

@@ -137,6 +137,7 @@ pub fn Link(comptime P: type) type {
         pub const pin = P.pin;
         pub const unpin = P.unpin;
         pub const spawnLeader = P.spawnLeader;
+        pub const spawnProgram = P.spawnProgram;
 
         pub fn requestDetach(self: *Self) void {
             self.request(&self.detach_requested);
@@ -308,7 +309,7 @@ pub fn Link(comptime P: type) type {
                 else => return item.gate.settle(self.index),
             };
             switch (reply) {
-                .hold, .hold_program, .hold_pty => if (item.gate.held(self.index, detaching)) {
+                .hold, .hold_program, .hold_pty, .hold_pipes => if (item.gate.held(self.index, detaching)) {
                     self.release(item.gate, item.holding);
                 } else {
                     self.held.appendAssumeCapacity(.{ .gate = item.gate, .holding = item.holding });

@@ -1,8 +1,10 @@
-//! A terminal leader's start, shared by a POSIX Host and the macOS Keeper: fork, then in the child
-//! the launch directory, a new session with the PTY slave as controlling terminal and standard
-//! streams, the standard input in place of the slave's when given, no other descriptor, and
-//! `execve` of the executable or of each candidate in order. The parent learns whether the exec
-//! happened from a close-on-exec status pipe, and reaps a child that did not start.
+//! A terminal leader's or background program's start, shared by a POSIX Host and the macOS Keeper:
+//! fork, then in the child the launch directory, a new session, for a terminal with the PTY slave
+//! as controlling terminal and standard streams and the standard input in place of the slave's when
+//! given, for a program without a controlling terminal and with the streams the plan names, no
+//! other descriptor, and `execve` of the executable or of each candidate in order. The parent
+//! learns whether the exec happened from a close-on-exec status pipe, and reaps a child that did
+//! not start.
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -19,14 +21,20 @@ pub const Plan = struct {
     environment: [*:null]const ?[*:0]const u8,
     candidates: []const [*:0]const u8,
     directory: ?[]const u8 = null,
-    /// The PTY master, which the child closes before it installs the slave.
-    master: posix.fd_t,
-    slave: posix.fd_t,
-    input: ?posix.fd_t = null,
+    streams: Streams,
 };
 
-/// Starts the leader and returns its process id once it has exec'd. The caller still owns the
-/// master, the slave, and the input.
+pub const Streams = union(enum) {
+    /// A terminal: the PTY master, which the child closes before it installs the slave, the
+    /// slave, and the standard input to use in place of the slave's.
+    pty: struct { master: posix.fd_t, slave: posix.fd_t, input: ?posix.fd_t = null },
+    /// A background program: its standard input, output, and error, such as the null device or a
+    /// pipe's write end.
+    pipes: struct { input: posix.fd_t, output: posix.fd_t, errors: posix.fd_t },
+};
+
+/// Starts the leader and returns its process id once it has exec'd. The caller still owns every
+/// descriptor the plan names.
 pub fn start(plan: Plan) error{ SpawnFailed, SystemResources }!posix.pid_t {
     const error_pipe = posix_compat.pipe2(.{ .CLOEXEC = true }) catch return error.SystemResources;
     // macOS marks a new descriptor close-on-exec only after creating it, as a control lane does
@@ -46,10 +54,20 @@ pub fn start(plan: Plan) error{ SpawnFailed, SystemResources }!posix.pid_t {
         if (plan.directory) |directory| {
             posix_compat.chdir(directory) catch reportChildFailure(error_pipe[1]);
         }
-        posix_compat.close(plan.master);
-        PosixPty.attachControllingTerminal(plan.slave) catch reportChildFailure(error_pipe[1]);
-        if (plan.input) |input| {
-            _ = posix_compat.dup2(input, posix.STDIN_FILENO) catch reportChildFailure(error_pipe[1]);
+        switch (plan.streams) {
+            .pty => |terminal| {
+                posix_compat.close(terminal.master);
+                PosixPty.attachControllingTerminal(terminal.slave) catch reportChildFailure(error_pipe[1]);
+                if (terminal.input) |input| {
+                    _ = posix_compat.dup2(input, posix.STDIN_FILENO) catch reportChildFailure(error_pipe[1]);
+                }
+            },
+            .pipes => |pipes| {
+                if (std.c.setsid() < 0) reportChildFailure(error_pipe[1]);
+                inline for (.{ pipes.input, pipes.output, pipes.errors }, .{ posix.STDIN_FILENO, posix.STDOUT_FILENO, posix.STDERR_FILENO }) |source, target| {
+                    _ = posix_compat.dup2(source, target) catch reportChildFailure(error_pipe[1]);
+                }
+            },
         }
         if (comptime builtin.os.tag.isDarwin()) {
             posix_compat.closeNonStandardDescriptors(descriptor_limit, error_pipe[1]);

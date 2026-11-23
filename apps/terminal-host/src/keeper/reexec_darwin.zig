@@ -212,7 +212,9 @@ fn snapshot(arena: std.mem.Allocator, table: *const state.Table, armed: Endpoint
     };
     const holdings = try arena.alloc(saved.Holding, table.holding_count);
     for (table.holdings[0..table.holding_count], holdings) |*holding, *out| {
-        const held = &holding.content.pty;
+        const parent = switch (holding.content) {
+            inline else => |*held| held.parent,
+        };
         out.* = .{
             .holding = try saved.idText(arena, holding.id),
             .owner = try saved.processText(arena, holding.owner),
@@ -220,13 +222,22 @@ fn snapshot(arena: std.mem.Allocator, table: *const state.Table, armed: Endpoint
                 .from = try saved.processText(arena, claimed.from),
                 .mark = try saved.idText(arena, claimed.mark),
             } else null,
-            .master = held.master,
-            .facts = try saved.factsText(arena, try held.facts.view(arena)),
-            .parented = held.parented,
-            .ended = if (held.ended) |status| saved.exitText(status) else null,
-            .reaped = held.reaped,
-            .exitSent = held.exit_sent,
+            .parented = parent.parented,
+            .ended = if (parent.ended) |status| saved.exitText(status) else null,
+            .reaped = parent.reaped,
+            .exitSent = parent.exit_sent,
         };
+        switch (holding.content) {
+            .pty => |*held| {
+                out.master = held.master;
+                out.facts = try saved.factsText(arena, try held.facts.view(arena));
+            },
+            .pipes => |*held| out.pipes = .{
+                .facts = try saved.programFactsText(arena, try held.facts.view(arena)),
+                .stdout = held.streams[0],
+                .stderr = held.streams[1],
+            },
+        }
     }
     var connections: std.ArrayList(saved.Connection) = .empty;
     for (table.extra.freeze.parked, 0..) |entry, index| if (entry) |parked| {
@@ -301,7 +312,10 @@ fn inheritAll(table: *const state.Table, armed: Endpoint, descriptor: posix.fd_t
     inherit(descriptor, on);
     inherit(armed.listener, on);
     inherit(armed.lock, on);
-    for (table.holdings[0..table.holding_count]) |*holding| inherit(holding.content.pty.master, on);
+    for (table.holdings[0..table.holding_count]) |*holding| switch (holding.content) {
+        .pty => |held| inherit(held.master, on),
+        .pipes => |held| for (held.streams) |stream| if (stream) |read_end| inherit(read_end, on),
+    };
     for (table.extra.freeze.parked) |entry| if (entry) |parked| inherit(parked.socket, on);
 }
 

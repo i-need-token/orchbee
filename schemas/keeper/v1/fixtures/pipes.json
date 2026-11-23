@@ -1,0 +1,78 @@
+{
+	"valid": [
+		{
+			"name": "hold-pipes",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-pipes\",\"id\":7,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"facts\":{\"process\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"programId\":\"00112233445566778899aabbccddeeff\",\"label\":\"eyJraW5kIjoiY29uZmlndXJlZCJ9\"},\"capture\":{\"stdout\":true,\"stderr\":false}}"
+		},
+		{
+			"name": "hold-pipes-uncaptured",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-pipes\",\"id\":7,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"facts\":{\"process\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"programId\":\"00112233445566778899aabbccddeeff\",\"label\":\"eyJraW5kIjoiY29uZmlndXJlZCJ9\"},\"capture\":{\"stdout\":false,\"stderr\":false}}"
+		},
+		{
+			"name": "spawn-program",
+			"direction": "initiator",
+			"payload": "{\"type\":\"spawn-program\",\"id\":8,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"launch\":{\"executable\":\"/bin/zsh\",\"arguments\":[\"-l\",\"-c\"],\"environment\":[\"HOME=/Users/someone\",\"PATH=/usr/bin:/bin\"],\"candidates\":[],\"directory\":\"/Users/someone/project\"},\"facts\":{\"programId\":\"00112233445566778899aabbccddeeff\",\"label\":\"eyJraW5kIjoiY29uZmlndXJlZCJ9\"},\"capture\":{\"stdout\":true,\"stderr\":true}}"
+		},
+		{
+			"name": "hold-pipes-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"hold-pipes-result\",\"id\":7}"
+		},
+		{
+			"name": "spawn-program-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"spawn-program-result\",\"id\":8,\"process\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"}}"
+		},
+		{
+			"name": "inspect-result-pipes-parented-ended",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"inspect-result\",\"id\":12,\"facts\":{\"process\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"programId\":\"00112233445566778899aabbccddeeff\",\"label\":\"eyJraW5kIjoiY29uZmlndXJlZCJ9\"},\"capture\":{\"stdout\":true,\"stderr\":true},\"parented\":true,\"ended\":{\"signal\":9}}"
+		},
+		{
+			"name": "inspect-result-pipes-unparented",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"inspect-result\",\"id\":12,\"facts\":{\"process\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"programId\":\"00112233445566778899aabbccddeeff\",\"label\":\"eyJraW5kIjoiY29uZmlndXJlZCJ9\"},\"capture\":{\"stdout\":false,\"stderr\":true},\"parented\":false}"
+		}
+	],
+	"boundary": [],
+	"invalid": [
+		{
+			"name": "hold-pipes-missing-capture",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-pipes\",\"id\":7,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"facts\":{\"process\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"programId\":\"00112233445566778899aabbccddeeff\",\"label\":\"eyJraW5kIjoiY29uZmlndXJlZCJ9\"}}",
+			"layer": "schema"
+		},
+		{
+			"name": "spawn-program-facts-with-process",
+			"direction": "initiator",
+			"payload": "{\"type\":\"spawn-program\",\"id\":8,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"launch\":{\"executable\":\"/bin/zsh\",\"arguments\":[\"-l\",\"-c\"],\"environment\":[\"HOME=/Users/someone\",\"PATH=/usr/bin:/bin\"],\"candidates\":[],\"directory\":\"/Users/someone/project\"},\"facts\":{\"process\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"programId\":\"00112233445566778899aabbccddeeff\",\"label\":\"eyJraW5kIjoiY29uZmlndXJlZCJ9\"},\"capture\":{\"stdout\":true,\"stderr\":true}}",
+			"layer": "schema"
+		},
+		{
+			"name": "spawn-program-empty-label",
+			"direction": "initiator",
+			"payload": "{\"type\":\"spawn-program\",\"id\":8,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"launch\":{\"executable\":\"/bin/zsh\",\"arguments\":[\"-l\",\"-c\"],\"environment\":[\"HOME=/Users/someone\",\"PATH=/usr/bin:/bin\"],\"candidates\":[],\"directory\":\"/Users/someone/project\"},\"facts\":{\"programId\":\"00112233445566778899aabbccddeeff\",\"label\":\"\"},\"capture\":{\"stdout\":true,\"stderr\":true}}",
+			"layer": "schema"
+		},
+		{
+			"name": "spawn-program-result-missing-process",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"spawn-program-result\",\"id\":8}",
+			"layer": "schema"
+		},
+		{
+			"name": "inspect-result-pipes-missing-parented",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"inspect-result\",\"id\":12,\"facts\":{\"process\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"programId\":\"00112233445566778899aabbccddeeff\",\"label\":\"eyJraW5kIjoiY29uZmlndXJlZCJ9\"},\"capture\":{\"stdout\":true,\"stderr\":true}}",
+			"layer": "schema"
+		},
+		{
+			"name": "spawn-program-zero-program-id",
+			"direction": "initiator",
+			"payload": "{\"type\":\"spawn-program\",\"id\":8,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"launch\":{\"executable\":\"/bin/zsh\",\"arguments\":[\"-l\",\"-c\"],\"environment\":[\"HOME=/Users/someone\",\"PATH=/usr/bin:/bin\"],\"candidates\":[],\"directory\":\"/Users/someone/project\"},\"facts\":{\"programId\":\"00000000000000000000000000000000\",\"label\":\"eyJraW5kIjoiY29uZmlndXJlZCJ9\"},\"capture\":{\"stdout\":true,\"stderr\":true}}",
+			"layer": "decoder"
+		}
+	]
+}

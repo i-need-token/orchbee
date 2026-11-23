@@ -59,6 +59,26 @@ pub const Plan = struct {
     launch_kind: process_types.LaunchKind,
 };
 
+/// A Keeper that starts a background program for the Host and parents it.
+pub const ProgramSpawn = struct {
+    context: *anyopaque,
+    spawn: *const fn (context: *anyopaque, plan: *const ProgramPlan) Outcome,
+};
+
+/// The program as the Host prepared it, with the null device as its input.
+pub const ProgramPlan = struct {
+    record: *Record,
+    /// An absolute path.
+    executable: []const u8,
+    argv: [*:null]const ?[*:0]const u8,
+    environment: [*:null]const ?[*:0]const u8,
+    directory: []const u8,
+    /// Each captured stream's read end and write end, stdout first.
+    pipes: [2]?[2]std.posix.fd_t,
+    program_id: [16]u8,
+    label: []const u8,
+};
+
 pub const Outcome = union(enum) {
     /// The Keeper started and parents this leader; the record is parented and held.
     started: std.posix.pid_t,

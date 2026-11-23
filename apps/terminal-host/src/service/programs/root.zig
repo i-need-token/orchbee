@@ -21,6 +21,7 @@ const recover_module = @import("recover.zig");
 
 const Entry = entry_module.Entry;
 const is_windows = builtin.os.tag == .windows;
+const is_macos = builtin.os.tag == .macos;
 const MessageKind = protocol.MessageKind;
 const Outgoing = host_outgoing.Outgoing;
 const WireIdentifier = identifiers.IdentifierBytes;
@@ -151,7 +152,7 @@ pub const Programs = struct {
         delivery: host_outgoing.Delivery,
     ) !void {
         if (self.find(request.program_id)) |entry| {
-            if (comptime is_windows) if (entry.gate.knownId()) |known| if (std.mem.eql(u8, &known, &request.holding)) {
+            if (comptime is_windows or is_macos) if (entry.gateOf().knownId()) |known| if (std.mem.eql(u8, &known, &request.holding)) {
                 const payload = try encode.recovered(context.allocator, entry.id, entry.spawned.pid, entry.spawned.created);
                 defer context.allocator.free(payload);
                 _ = try host_response.appendControlSuccess(outgoing, .{ .kind = MessageKind.recover_program }, payload, delivery);
@@ -201,6 +202,9 @@ pub const Programs = struct {
         const environment = try allocator.alloc(platform.process.EnvironmentDelta, request.environment.len);
         defer allocator.free(environment);
         for (environment, request.environment) |*target, source| target.* = .{ .name = source.name, .value = source.value };
+        // A macOS program starts through the newest attached Keeper that parents programs.
+        var spawner = if (comptime is_macos) if (context.keepers) |keepers| keepers.attachments.programSpawner() else null else {};
+        defer if (comptime is_macos) if (spawner) |*pinned| pinned.unpin();
         const entry = Entry.start(self.allocator, request.program_id, request.label, .{
             .executable = request.executable,
             .arguments = request.arguments,
@@ -208,6 +212,9 @@ pub const Programs = struct {
             .directory = request.directory,
             .environment = environment,
             .capture = request.capture,
+            .keeper = if (comptime is_macos) if (spawner) |*pinned| pinned.hook() else null else {},
+            .program_id = request.program_id,
+            .label = request.label,
         }) catch |err| return failure(context, outgoing, delivery, switch (err) {
             error.OutOfMemory, error.SystemResources, error.ThreadQuotaExceeded, error.LockedMemoryLimitExceeded => .{
                 .code = "resource-exhausted",
@@ -301,20 +308,21 @@ pub const Programs = struct {
 
     /// Each attachment tries each program once; a Keeper without `programs` takes none.
     fn offer(self: *Programs, attachments: *keeper_link.Attachments) void {
-        if (comptime !is_windows) return;
+        if (comptime !is_windows and !is_macos) return;
         if (!attachments.any()) return;
         for (self.entries.items) |entry| {
             if (entry.outcome() != null) continue;
-            attachments.offerProgram(&entry.gate, .{
+            const facts: @FieldType(keeper_link.Program, "facts") = .{
+                .process = .{ .pid = entry.spawned.pid, .created = entry.spawned.created },
+                .program_id = entry.id,
+                .label = entry.label,
+            };
+            attachments.offerProgram(entry.gateOf(), if (comptime is_windows) .{
                 .job = entry.spawned.job,
                 .process = entry.spawned.process,
                 .streams = entry.spawned.streams,
-                .facts = .{
-                    .process = .{ .pid = entry.spawned.pid, .created = entry.spawned.created },
-                    .program_id = entry.id,
-                    .label = entry.label,
-                },
-            });
+                .facts = facts,
+            } else .{ .streams = entry.spawned.streams, .facts = facts });
         }
     }
 

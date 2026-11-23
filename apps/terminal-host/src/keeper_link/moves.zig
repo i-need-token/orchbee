@@ -1,7 +1,7 @@
 //! Move requests on a Keeper link: `mark`, `resume`, `inspect` with the pull of the seven
 //! duplicates or of a program's, `claim`, and `decline`. A macOS link's `inspect` reply carries the
-//! master instead, it holds no programs, and a claimed holding whose leader the Keeper parents
-//! makes the link its parent. Their maker, the dispatch thread or a restore build, owns
+//! master or a program's captured streams instead, and a claimed holding whose leader the Keeper
+//! parents makes the link its parent. Their maker, the dispatch thread or a restore build, owns
 //! each request and keeps it until the link completes it; the link thread makes the request, one
 //! at a time with the holds and releases, and completes every request it has not made once the
 //! link ends. A completion wakes the service loop, which polls; a build waits.
@@ -88,7 +88,25 @@ pub const InspectedProgram = struct {
     /// Allocated with the link's allocator; the request's maker frees it.
     label: []u8,
     /// This Host's duplicates; the request's maker owns them.
-    duplicates: if (is_windows) handles.ProgramDuplicates else void,
+    duplicates: Duplicates,
+
+    pub const Duplicates = if (is_windows) handles.ProgramDuplicates else PipesInspected;
+};
+
+pub const Process = message.Process;
+
+/// A macOS program holding: the duplicate of each captured stream's read end, which the request's
+/// maker owns, and the Keeper's parent state.
+pub const PipesInspected = struct {
+    streams: [2]?std.posix.fd_t,
+    /// The Keeper parents the program.
+    parented: bool,
+    /// The parented program ended; the Keeper keeps it until its release.
+    ended: bool,
+
+    pub fn close(self: PipesInspected) void {
+        for (self.streams) |stream| if (stream) |descriptor| platform.posix_compat.close(descriptor);
+    }
 };
 
 pub const Result = union(enum) {
@@ -231,6 +249,7 @@ fn make(link: *Link, body: Body) Result {
             } };
         },
         .inspect_program => |marked| {
+            if (comptime is_macos) return inspectPipes(link, marked);
             if (comptime !is_windows) unreachable;
             const reply = switch (callLink(link, .{ .inspect = marked })) {
                 .reply => |reply| reply,
@@ -289,12 +308,14 @@ fn inspectPty(link: *Link, marked: message.Marked) Result {
         .reply => |reply| reply,
         else => |other| return unanswered(other),
     };
-    const master = link.connection.?.takeReceived();
+    const received = link.connection.?.takeReceived();
+    const master = received[0];
     const inspection = switch (reply) {
         .inspect_pty => |inspection| inspection,
         .refused => |reason| return .{ .refused = reason },
+        // A program holding answers a terminal's maker as a request it cannot serve.
         else => {
-            if (master) |descriptor| platform.posix_compat.close(descriptor);
+            closeReceived(received);
             return .unsupported;
         },
     };
@@ -317,6 +338,50 @@ fn inspectPty(link: *Link, marked: message.Marked) Result {
     };
     @memcpy(inspected.slave[0..facts.slave.len], facts.slave);
     return .{ .inspected = inspected };
+}
+
+/// `inspect` of a program holding on macOS: the reply's facts, and the read end of each captured
+/// stream it carried, stdout first.
+fn inspectPipes(link: *Link, marked: message.Marked) Result {
+    const reply = switch (callLink(link, .{ .inspect = marked })) {
+        .reply => |reply| reply,
+        else => |other| return unanswered(other),
+    };
+    const received = link.connection.?.takeReceived();
+    const inspection = switch (reply) {
+        .inspect_pipes => |inspection| inspection,
+        .refused => |reason| return .{ .refused = reason },
+        else => {
+            closeReceived(received);
+            return .unsupported;
+        },
+    };
+    // Each captured stream's read end must have arrived; a reply whose descriptors were lost
+    // carries none.
+    const captures = [_]bool{ inspection.capture.stdout, inspection.capture.stderr };
+    const count = @as(usize, @intFromBool(captures[0])) + @intFromBool(captures[1]);
+    if (count > 0 and received[count - 1] == null) return .pull_failed;
+    var pipes: PipesInspected = .{ .streams = .{ null, null }, .parented = inspection.parented, .ended = inspection.ended != null };
+    var at: usize = 0;
+    for (captures, &pipes.streams) |captured, *stream| if (captured) {
+        stream.* = received[at];
+        at += 1;
+    };
+    // The label borrows the call's arena, so it is copied.
+    const label = link.allocator.dupe(u8, inspection.facts.label) catch {
+        pipes.close();
+        return .pull_failed;
+    };
+    return .{ .inspected_program = .{
+        .process = inspection.facts.process,
+        .program_id = inspection.facts.program_id,
+        .label = label,
+        .duplicates = pipes,
+    } };
+}
+
+fn closeReceived(received: [2]?std.posix.fd_t) void {
+    for (received) |named| if (named) |descriptor| platform.posix_compat.close(descriptor);
 }
 
 /// The launch name `hold` reported, such as `managed-powershell`, as this Host's kind.

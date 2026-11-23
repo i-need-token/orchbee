@@ -599,16 +599,18 @@ freezes with them.
 
 ## Background programs
 
-Kinds 110 to 115 let a Worker run a program without a terminal in its Windows Terminal Host, so the
-program outlives the Worker that started it. They belong to the `worker-host` capability
+Kinds 110 to 115 let a Worker run a program without a terminal in its Windows or macOS Terminal
+Host, so the program outlives the Worker that started it. They belong to the `worker-host` capability
 `background-programs`. A request on a connection that did not negotiate it fails with the
 non-retryable `TypedFailure` `not-negotiated` before any effect, and a Host sends `ProgramExited`
 only on a connection that negotiated it. The Worker is the only sender of these requests; the
 TypeScript control-request encoder refuses them.
 
-A program id is 32 lowercase hexadecimal digits, not all zero, and the Worker chooses it. The Host
-keeps each program in its own kill-on-close Job. When the program's first process exits, the Host
-ends the Job's remaining members, reads both captured streams to their end, and records the exit. A
+A program id is 32 lowercase hexadecimal digits, not all zero, and the Worker chooses it. On Windows
+the Host keeps each program in its own kill-on-close Job; on macOS each program runs in a session of
+its own without a controlling terminal. When the program's first process exits, the Host ends the
+remaining members of its Job or session, reads both captured streams to their end, and records the
+exit. A
 program stays listed, running or exited, until the Worker disposes of it, and it outlives the
 connection that started it: a replacement Worker lists the Host's programs to collect their
 outcomes. A Host runs at most 32 programs at once and lists at most 64. While a program runs, the
@@ -623,10 +625,11 @@ Host neither ends when idle nor finishes a drain, and a draining Host admits no 
 | `ListPrograms`      | `{after?}`                                                                                                   | `{next?, programs}`                              |
 | `RecoverProgram`    | `{deadlineSeconds, holding, mark, programId}`                                                                | `{process, programId}`                           |
 
-`StartProgram` names an absolute `executable` and `directory`. The Host quotes `arguments` by the
-Windows command-line rules and appends `rawArgument` after them unquoted, for a command that hands
-its own text to a shell; a batch script runs through the system command processor and refuses
-`rawArgument`. `environment` changes the Host's own environment: `{name, value}` sets a variable and
+`StartProgram` names an absolute `executable` and `directory`. On Windows the Host quotes
+`arguments` by the Windows command-line rules and appends `rawArgument` after them unquoted, for a
+command that hands its own text to a shell; a batch script runs through the system command
+processor and refuses `rawArgument`. On macOS each of `arguments`, and then `rawArgument`, reaches
+the program as one argument. `environment` changes the Host's own environment: `{name, value}` sets a variable and
 `{name, value: null}` removes one, and names are unique ignoring ASCII case. Each stream that
 `capture` selects reaches the Host, which keeps its first 64 KiB; the other stream and standard input
 use the null device. `label`, at most 2,048 characters of the base64 alphabet, is the Worker's own
@@ -636,7 +639,7 @@ A start fails with the retryable `program-limit` at either limit, with `host-dra
 retryable `resource-exhausted`, or with `spawn-failed`, whose `reason` is `not-found`,
 `invalid-command`, or `failed`.
 
-`CancelProgram` ends a running program's Job, and `ProgramExited` then reports the program as
+`CancelProgram` ends a running program's Job or session, and `ProgramExited` then reports the program as
 cancelled; for a program that already exited it answers `exited` and changes nothing.
 `ReadProgramOutput` returns at most 24 KiB of an exited program's stream from `offset`, base64 in
 `data`, and `end` is true when the stream ends there; an uncaptured stream is empty.
@@ -653,16 +656,22 @@ connection that negotiated the capability when the program exited or, failing on
 Worker reads a report it already has as known.
 
 While a Keeper whose answer listed `programs` is attached, the Host holds each running program
-there with `hold-program`, under a holding id it mints, and releases the program before it ends the
-Job's remaining members and records the exit, so no Keeper holds a program whose exit a Worker can
-read. A Keeper without `programs` holds none, and a program then ends with its Host.
+there, under a holding id it mints, and releases the program before it records the exit, so no
+Keeper holds a program whose exit a Worker can read. On Windows it holds a program with
+`hold-program` and releases it before it ends the Job's remaining members. On macOS it holds one
+with `hold-pipes`, starts a new program through the newest attached Keeper that also listed
+`parent` with `spawn-program`, so that Keeper parents it, and releases a program once it ended the
+session's remaining members, which lets a parenting Keeper reap it. A Keeper without `programs`
+holds none; a program then ends with its Host on Windows, and on macOS runs on, unheld, after its
+Host ends abruptly.
 
 `RecoverProgram` also needs `recovery` and fails with `not-negotiated` without it. It takes back a
 program a Keeper kept after its Host ended, from the holding the Worker assigned to this Host
-under `mark`: through its one attached Keeper the Host inspects the holding, checks the handles it
-receives against the holding's facts and its Job's kill-on-close limit, claims the holding, and
-then runs the program as one it started, under the label the holding kept. Its captures restart
-at zero and report truncated. A check that fails, or a claim not made within `deadlineSeconds`,
+under `mark`: through its one attached Keeper the Host inspects the holding, checks what it
+receives, claims the holding, and then runs the program as one it started, under the label the holding kept. On Windows it checks
+the handles it receives against the holding's facts and its Job's kill-on-close limit; on macOS,
+that each stream it receives is a pipe's read end and that the program runs with its start time
+or ended under the Keeper that parents it. Its captures restart at zero and report truncated. A check that fails, or a claim not made within `deadlineSeconds`,
 from 1 to 30, declines the holding, which keeps the program running in the Keeper, and fails with
 the retryable `move-failed` and a reason. A recovery of a program the Host lists under the same
 holding answers it again; under another holding it fails with the reason `identity-mismatch`, and

@@ -1,9 +1,10 @@
 //! A Keeper link's macOS side (`link.zig`): it connects over the Keeper's socket, holds each
-//! terminal by sending its PTY master with `hold-pty`, starts the leader of each new terminal a
-//! creation hands it with `spawn`, reaps each parented leader its terminal asks for, reads the
-//! `exited` events the Keeper sends between requests, and ends the parent of every leader it
-//! parents before it reports the attachment gone. A master moves with its request, so an
-//! unanswered hold leaves nothing to keep.
+//! terminal by sending its PTY master with `hold-pty` and each background program by sending its
+//! captured streams' read ends with `hold-pipes`, starts the leader of each new terminal a creation
+//! hands it with `spawn` and each new program with `spawn-program`, reaps each parented leader its
+//! terminal asks for, reads the `exited` events the Keeper sends between requests, and ends the
+//! parent of every leader it parents before it reports the attachment gone. A descriptor moves
+//! with its request, so an unanswered hold leaves nothing to keep.
 
 const std = @import("std");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
@@ -28,8 +29,7 @@ pub const Link = core.Link(@This());
 pub const Phase = core.Phase;
 pub const Held = core.Held;
 pub const Queued = holds.Queued;
-/// macOS Hosts hold no background programs.
-pub const Program = void;
+pub const Program = holds.Program;
 const SpawnCall = parenting.SpawnCall;
 const recordOf = parenting.recordOf;
 
@@ -48,6 +48,8 @@ pub const Own = struct {
     // Guarded by `mutex`.
     /// The Keeper negotiated `parent`, so it starts leaders.
     parent: bool = false,
+    /// The Keeper negotiated `programs`, so it holds and starts background programs.
+    programs: bool = false,
     /// Creations waiting for their `spawn`, in order.
     spawns: std.ArrayList(*SpawnCall) = .empty,
     /// Creations that may still hand this link a `spawn`; the link is freed only once none does.
@@ -76,19 +78,32 @@ pub fn closeWake(wake: Wake) void {
 }
 
 pub fn queuedTerminal(process: *Process, terminal: message.Terminal) Queued {
-    return .{ .gate = undefined, .holding = undefined, .process = process, .terminal = terminal };
+    return .{ .gate = undefined, .holding = undefined, .subject = .{ .terminal = .{ .process = process, .terminal = terminal } } };
 }
 
+/// The Worker hears of no background program left unheld.
 pub fn unheldTerminal(item: Queued) ?[16]u8 {
-    return item.terminal.terminal_id;
+    return switch (item.subject) {
+        .terminal => |terminal| terminal.terminal.terminal_id,
+        .program => null,
+    };
+}
+
+/// Queues a background program's hold unless this attachment takes no holds, its Keeper takes
+/// no programs, or it already tried this one.
+pub fn offerProgram(link: *Link, gate: *Gate, program: Program) void {
+    link.mutex.lock();
+    defer link.mutex.unlock();
+    if (!link.accepting or !link.own.programs) return;
+    link.queueLocked(gate, .{ .gate = undefined, .holding = undefined, .subject = .{ .program = program } });
 }
 
 /// Takes a creation's claim on this link, which keeps it from being freed; false when the link
-/// starts no leaders.
-pub fn pin(link: *Link) bool {
+/// starts no leaders, or no programs when `programs`.
+pub fn pin(link: *Link, programs: bool) bool {
     link.mutex.lock();
     defer link.mutex.unlock();
-    if (!link.accepting or !link.own.parent) return false;
+    if (!link.accepting or !link.own.parent or (programs and !link.own.programs)) return false;
     link.own.users += 1;
     return true;
 }
@@ -103,7 +118,17 @@ pub fn unpin(link: *Link) void {
 /// The creation thread: starts a new terminal's leader through this Keeper, within its reply
 /// deadline once the link takes it.
 pub fn spawnLeader(link: *Link, plan: *const parent_module.Plan, terminal: message.Terminal) parent_module.Outcome {
-    var waiting: SpawnCall = .{ .plan = plan, .terminal = terminal };
+    return awaitSpawn(link, .{ .subject = .{ .terminal = .{ .plan = plan, .terminal = terminal } } });
+}
+
+/// The dispatch thread: starts a background program through this Keeper, within its reply
+/// deadline once the link takes it.
+pub fn spawnProgram(link: *Link, plan: *const parent_module.ProgramPlan) parent_module.Outcome {
+    return awaitSpawn(link, .{ .subject = .{ .program = plan } });
+}
+
+fn awaitSpawn(link: *Link, call: SpawnCall) parent_module.Outcome {
+    var waiting = call;
     {
         link.mutex.lock();
         defer link.mutex.unlock();
@@ -121,6 +146,7 @@ pub fn open(link: *Link) bool {
     link.mutex.lock();
     defer link.mutex.unlock();
     link.own.parent = link.connection.?.parent;
+    link.own.programs = link.connection.?.programs;
     return true;
 }
 
@@ -170,7 +196,7 @@ pub fn hold(link: *Link, item: Queued, detaching: bool) void {
         item.gate.settle(link.index);
         return link.postUnheld(item, "hold-failed");
     };
-    link.settleHold(item, link.callSending(prepared.body, &.{prepared.master}), detaching);
+    link.settleHold(item, link.callSending(prepared.body, prepared.sent()), detaching);
 }
 
 pub fn exchange(connection: *Connection, arena: std.mem.Allocator, request: message.Request, sent: Sent, watch: Watch) core.Exchanged {

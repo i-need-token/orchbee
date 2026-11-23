@@ -35,16 +35,18 @@ side closes. The frame has no version field: the answer's generation selects thi
   runs.
 - **Capabilities.** A request, member, event, or enumerated value added later comes under a
   capability name and is sent only when the answer lists that name. `recovery` adds the Worker's
-  `assign` and `discard` and the reason `not-orphaned`; `programs` adds the Host's `hold-program`,
-  the program holdings it makes, and their entries in a Worker's `status`. `pty` adds the Host's `hold-pty`, the PTY holdings it
-  makes, and their entries in a Worker's `status`; `parent` adds the Host's `spawn` and `reap`, the
-  event `exited`, and the reasons `spawn-failed` and `running` (see [PTY holdings](#pty-holdings));
-  `reexec` adds the Worker's `reexec` and the reasons `orphaned`, `busy`, `check-failed`, and
-  `exec-failed` (see [Re-execution](#re-execution)). The Keeper answers `assign`, `discard`,
-  `hold-program`, `hold-pty`, `spawn`, `reap`, and `reexec` with `unsupported` on a connection whose
-  answer did not list their capability, and lists program and PTY holdings only to a Worker whose
-  answer listed `programs` or `pty`. A Windows Keeper serves `programs` and `recovery`; a macOS
-  Keeper serves `pty`, `parent`, `recovery`, and `reexec`.
+  `assign` and `discard` and the reason `not-orphaned`; `programs` adds the Host's `hold-program`
+  and, on macOS, `hold-pipes`, the program holdings it makes, and their entries in a Worker's
+  `status`. `pty` adds the Host's `hold-pty`, the PTY holdings it makes, and their entries in a
+  Worker's `status`; `parent` adds the Host's `spawn` and `reap`, the event `exited`, and the
+  reasons `spawn-failed` and `running` (see [PTY holdings](#pty-holdings)), and with `programs` the
+  Host's `spawn-program` (see [Program pipes](#program-pipes)); `reexec` adds the Worker's `reexec`
+  and the reasons `orphaned`, `busy`, `check-failed`, and `exec-failed` (see
+  [Re-execution](#re-execution)). The Keeper answers `assign`, `discard`, `hold-program`,
+  `hold-pipes`, `hold-pty`, `spawn`, `spawn-program`, `reap`, and `reexec` with `unsupported` on a
+  connection whose answer did not list their capabilities, and lists program and PTY holdings only
+  to a Worker whose answer listed `programs` or `pty`. A Windows Keeper serves `programs` and
+  `recovery`; a macOS Keeper serves `parent`, `programs`, `pty`, `recovery`, and `reexec`.
 - **Control requests.** The Keeper answers `OBHS` control requests on a control slot. `query`
   reports one process entry of role `keeper` whose `terminals` counts its holdings and whose one
   connection entry is `keeper`. After `drain` it answers `register-host` and `hold` with `draining`
@@ -107,8 +109,9 @@ as 64 lowercase hexadecimal digits, `signalFormat` is the console's signal forma
 from 1 to 65,535, and `launch` is the launch kind a Host reports in `ReadProcessInfo`.
 
 A program holding, under `programs`, keeps a background program a Host runs without a terminal.
-Its `handles` name the program's Job, its process, and the read end of each stream the Host
-captures. In its `facts`, `process` is the program's process, `programId` the 32 lowercase
+On Windows its `handles` name the program's Job, its process, and the read end of each stream the
+Host captures; on macOS the holding keeps each captured stream's read end instead (see
+[Program pipes](#program-pipes)). In its `facts`, `process` is the program's process, `programId` the 32 lowercase
 hexadecimal digits of the id its Worker gave it, and `label` the Worker's record of it: 1 to 2,048
 characters of the base64 alphabet, which the Keeper returns unread.
 
@@ -136,6 +139,8 @@ or `unsupported` with `request`, the requested type. One request is outstanding 
 | `discard`         | Worker      | `holding`                                | None                                                                 |
 | `hold-pty`        | Host        | `holding`, PTY `facts`                   | None                                                                 |
 | `spawn`           | Host        | `holding`, `input`, `launch`, `facts`    | `leader`, a process                                                  |
+| `hold-pipes`      | Host        | `holding`, program `facts`, `capture`    | None                                                                 |
+| `spawn-program`   | Host        | `holding`, `launch`, `facts`, `capture`  | `process`                                                            |
 | `reap`            | Owner       | `holding`                                | None                                                                 |
 | `reexec`          | Worker      | `program`, an absolute path              | None                                                                 |
 
@@ -290,6 +295,30 @@ kernel truncated, fails the request as `handle-failed` and closes what arrived.
   `capacity`.
 - `claim` of a PTY holding names the leader as `program`.
 
+## Program pipes
+
+On macOS a program holding keeps the read end of each stream its Host captures, carried by
+`SCM_RIGHTS` as a PTY master is. Its status entry is a program holding's.
+
+| Value                     | Rule                                                                                                                                                                       |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `capture`                 | `{stdout, stderr}`: whether each of the program's standard output and error reaches a pipe; a message carries a descriptor for each captured stream, standard output first |
+| `spawn-program`'s `facts` | `{programId, label}`, program `facts` without the process                                                                                                                  |
+
+- `hold-pipes` carries each captured stream's read end. The Keeper checks that each is a pipe's read
+  end and that the program runs with the recorded start time; a failed check gets
+  `identity-mismatch`. The holding is not parented.
+- `spawn-program` carries, for each captured stream, its read end and then its write end. The Keeper
+  checks each and starts the program as a Host does: in the directory, in a new session without a
+  controlling terminal, with the null device as its standard input, each captured stream's write
+  end as that stream, the null device for a stream not captured, and no other descriptor. A child
+  that cannot start gets `spawn-failed`. The Keeper closes the write ends, keeps the read ends, and
+  answers the program's process as `process`; the holding is owned by that Host and parented.
+- A parented program is watched, reported with `exited`, and reaped as a parented leader is.
+- A program holding's `inspect-result` carries its program `facts`, `capture`, `parented`, and, once
+  a parented program ended, `ended`, and carries each captured stream's read end.
+- `claim` of a program holding names the program as `program` and no `terminal`.
+
 ## Re-execution
 
 A macOS Keeper is updated in place, as the [Host handover](../../proposals/platform/host-handover.md#the-keeper-update-on-macos)
@@ -299,8 +328,8 @@ close-on-exec, so its registration, its parented leaders, and its connections st
 - `reexec` names `program`, the Terminal Host executable to run: 1 to 1,024 bytes, starting with
   `/`, without a NUL. A Host's `reexec` gets `wrong-role`. The Keeper refuses it while it drains
   (`draining`), while a holding is quiesced (`marked`), while a holding's owner is not a registered
-  Host that runs (`orphaned`), and while a `spawn` starts a leader or another `reexec` is under way
-  (`busy`).
+  Host that runs (`orphaned`), and while a `spawn` or `spawn-program` starts a leader or another
+  `reexec` is under way (`busy`).
 - It runs `program keep --check` as a child, with a copy of the state on its standard input.
   Anything but exit status 0 within 5 seconds gets `check-failed`, and a child still running then
   is ended.
@@ -319,16 +348,16 @@ close-on-exec, so its registration, its parented leaders, and its connections st
 
 The state is one JSON object under the [payload rules](#payload), with these members:
 
-| Member        | Content                                                                                                                                                                                                                                      |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format`      | `1`                                                                                                                                                                                                                                          |
-| `previous`    | The program the old image ran                                                                                                                                                                                                                |
-| `listener`    | The listening socket's descriptor                                                                                                                                                                                                            |
-| `lock`        | The endpoint's lifetime lock's descriptor                                                                                                                                                                                                    |
-| `hosts`       | Each registered Host as `{process, ended}`                                                                                                                                                                                                   |
-| `holdings`    | Each holding in ascending id order as `{holding, owner, claimed, master, facts, parented, ended, reaped, exitSent}`: `claimed` as `{from, mark}` when present, `master` its descriptor, PTY `facts`, and `ended` an exit status when present |
-| `released`    | The process ids of released parented leaders that still run                                                                                                                                                                                  |
-| `connections` | Each admitted connection as `{socket, role, pid, host, capabilities, usedIds, pending}`: `host` the process for a Host, `usedIds` ascending `[first, last]` ranges, and `pending` the id of the `reexec` it waits on, when present           |
+| Member        | Content                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`      | `1`                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `previous`    | The program the old image ran                                                                                                                                                                                                                                                                                                                                                                               |
+| `listener`    | The listening socket's descriptor                                                                                                                                                                                                                                                                                                                                                                           |
+| `lock`        | The endpoint's lifetime lock's descriptor                                                                                                                                                                                                                                                                                                                                                                   |
+| `hosts`       | Each registered Host as `{process, ended}`                                                                                                                                                                                                                                                                                                                                                                  |
+| `holdings`    | Each holding in ascending id order as `{holding, owner, claimed, master, facts, pipes, parented, ended, reaped, exitSent}`: `claimed` as `{from, mark}` when present; a PTY holding's `master`, its descriptor, and PTY `facts`, or a program holding's `pipes` as `{facts, stdout, stderr}`, its program `facts` and each captured stream's read end when present; and `ended` an exit status when present |
+| `released`    | The process ids of released parented leaders that still run                                                                                                                                                                                                                                                                                                                                                 |
+| `connections` | Each admitted connection as `{socket, role, pid, host, capabilities, usedIds, pending}`: `host` the process for a Host, `usedIds` ascending `[first, last]` ranges, and `pending` the id of the `reexec` it waits on, when present                                                                                                                                                                          |
 
 - A reader refuses a `format` it does not know, a member it does not know, a descriptor that is not
   open, and a table these rules do not allow.
@@ -351,14 +380,15 @@ Worker offer `keeper` and send that group, and the next release seals them; they
 afterwards. A release that only carries this contract, while no Host or Worker offers `keeper`,
 seals none of them, so no bytes are sealed before a real Keeper and Host exercise them.
 
-| Group    | Messages                                                                                             | Joins the frozen fixtures with                      |
-| -------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Owner    | The frame, `hello`, `hold`, `mark`, `resume`, `release`, their results, `refused`, and `unsupported` | The change that makes a Host offer `keeper`         |
-| Claimant | `inspect`, `claim`, `decline`, and their results                                                     | The H2 change that makes a release Worker offer it  |
-| Worker   | `register-host`, `unregister-host`, `status`, and their results                                      | The H2 change that makes a release Worker offer it  |
-| Recovery | `assign`, `discard`, their results, and `not-orphaned`                                               | The H2 change that makes a release Worker offer it  |
-| PTY      | `hold-pty`, `spawn`, `reap`, their results, `exited`, and PTY status entries and inspect results     | The change that makes a macOS Host offer `keeper`   |
-| Update   | `reexec`, its result, and the reasons `orphaned`, `busy`, `check-failed`, and `exec-failed`          | The change that makes a macOS Worker offer `reexec` |
+| Group    | Messages                                                                                             | Joins the frozen fixtures with                                   |
+| -------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Owner    | The frame, `hello`, `hold`, `mark`, `resume`, `release`, their results, `refused`, and `unsupported` | The change that makes a Host offer `keeper`                      |
+| Claimant | `inspect`, `claim`, `decline`, and their results                                                     | The H2 change that makes a release Worker offer it               |
+| Worker   | `register-host`, `unregister-host`, `status`, and their results                                      | The H2 change that makes a release Worker offer it               |
+| Recovery | `assign`, `discard`, their results, and `not-orphaned`                                               | The H2 change that makes a release Worker offer it               |
+| PTY      | `hold-pty`, `spawn`, `reap`, their results, `exited`, and PTY status entries and inspect results     | The change that makes a macOS Host offer `keeper`                |
+| Update   | `reexec`, its result, and the reasons `orphaned`, `busy`, `check-failed`, and `exec-failed`          | The change that makes a macOS Worker offer `reexec`              |
+| Pipes    | `hold-pipes`, `spawn-program`, their results, and program inspect results with `capture`             | The change that makes a macOS Worker offer `background-programs` |
 
 A later Keeper answers an owner's `resume` of its current mark only with `resumed` or `claimed`.
 No release Session moves a terminal into a Host of the first release, so the claimant's requests
@@ -377,6 +407,7 @@ first meet another version with H2's Keeper, and the Worker's requests with H2's
 | [`recovery-sequences.json`](v1/fixtures/recovery-sequences.json) | The state-table rows that the Worker's requests drive    |
 | [`pty.json`](v1/fixtures/pty.json)                               | Valid, boundary, and invalid cases of the PTY group      |
 | [`update.json`](v1/fixtures/update.json)                         | Valid, boundary, and invalid cases of the update group   |
+| [`pipes.json`](v1/fixtures/pipes.json)                           | Valid and invalid cases of the pipes group               |
 
 - A message file holds `valid`, `boundary`, and `invalid` arrays. Message cases hold `name`,
   `direction` (`initiator`, or `acceptor` for the Keeper), and `payload`, the exact JSON text. A

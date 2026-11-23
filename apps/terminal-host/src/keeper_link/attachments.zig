@@ -19,8 +19,12 @@ const Link = switch (builtin.os.tag) {
     .macos => @import("link_darwin.zig").Link,
     else => void,
 };
-/// A background program offered for a hold; only a Windows Host holds them.
-pub const Program = if (is_windows) @import("link_windows.zig").Program else void;
+/// A background program offered for a hold; only Windows and macOS Hosts hold them.
+pub const Program = switch (builtin.os.tag) {
+    .windows => @import("link_windows.zig").Program,
+    .macos => @import("link_darwin.zig").Program,
+    else => void,
+};
 
 /// A link pinned for one creation, which may start that terminal's leader through its Keeper; the
 /// creation unpins it once its build returned.
@@ -39,6 +43,26 @@ pub const Spawner = if (builtin.os.tag == .macos) struct {
     }
 
     pub fn unpin(self: *Spawner) void {
+        self.link.unpin();
+    }
+} else void;
+
+/// A link pinned for one background program's start, which may start it through its Keeper; the
+/// start unpins it once it returned.
+pub const ProgramSpawner = if (builtin.os.tag == .macos) struct {
+    link: *Link,
+
+    /// The hook a launch carries; valid while this spawner stays where it is.
+    pub fn hook(self: *ProgramSpawner) platform.keeper.parent.ProgramSpawn {
+        return .{ .context = self, .spawn = spawn };
+    }
+
+    fn spawn(context: *anyopaque, plan: *const platform.keeper.parent.ProgramPlan) platform.keeper.parent.Outcome {
+        const self: *ProgramSpawner = @ptrCast(@alignCast(context));
+        return self.link.spawnProgram(plan);
+    }
+
+    pub fn unpin(self: *ProgramSpawner) void {
         self.link.unpin();
     }
 } else void;
@@ -150,7 +174,7 @@ pub const Attachments = struct {
     /// Offers a background program, whose gate is `gate`, to every attached Keeper that takes
     /// programs.
     pub fn offerProgram(self: *Attachments, gate: *platform.keeper.Gate, program: Program) void {
-        if (comptime !is_windows) return;
+        if (comptime !supported) return;
         // No hold names facts the wire cannot carry, since a request that does not encode fails
         // the link.
         const facts = program.facts;
@@ -162,6 +186,19 @@ pub const Attachments = struct {
     /// of `terminal`; null when none does, and the creation forks its leader itself.
     pub fn spawner(self: *Attachments, terminal: message.Terminal) ?Spawner {
         if (comptime builtin.os.tag != .macos) return null;
+        const link = self.pinNewest(false) orelse return null;
+        return .{ .link = link, .terminal = terminal };
+    }
+
+    /// The dispatch thread: pins the newest attachment whose Keeper starts background programs for
+    /// one start; null when none does, and the Host starts the program itself.
+    pub fn programSpawner(self: *Attachments) ?ProgramSpawner {
+        if (comptime builtin.os.tag != .macos) return null;
+        const link = self.pinNewest(true) orelse return null;
+        return .{ .link = link };
+    }
+
+    fn pinNewest(self: *Attachments, programs: bool) ?*Link {
         var tried: [maximum_attachments]bool = @splat(false);
         while (true) {
             var newest: ?usize = null;
@@ -172,7 +209,7 @@ pub const Attachments = struct {
             const index = newest orelse return null;
             tried[index] = true;
             const link = self.slots[index].?;
-            if (link.pin()) return .{ .link = link, .terminal = terminal };
+            if (link.pin(programs)) return link;
         }
     }
 

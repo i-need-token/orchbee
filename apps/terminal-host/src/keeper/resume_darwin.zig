@@ -132,7 +132,7 @@ fn goBack(arena: std.mem.Allocator, options: service.Options, handover: Handover
 fn named(arena: std.mem.Allocator, value: saved.State) error{OutOfMemory}![]posix.fd_t {
     var list: std.ArrayList(posix.fd_t) = .empty;
     try list.appendSlice(arena, &.{ value.listener, value.lock });
-    for (value.holdings) |holding| try list.append(arena, holding.master);
+    for (value.holdings) |holding| for (saved.descriptorsOf(holding)) |kept| if (kept) |descriptor| try list.append(arena, descriptor);
     for (value.connections) |entry| try list.append(arena, entry.socket);
     return list.items;
 }
@@ -150,23 +150,29 @@ fn rebuild(table: *state.Table, value: saved.State) error{InvalidState}!void {
         table.registered_hosts += 1;
     }
     for (value.holdings, 0..) |entry, index| {
-        const facts = content.StoredPtyFacts.store(try saved.toFacts(entry.facts)) orelse return error.InvalidState;
         const owner = try saved.toProcess(entry.owner);
         if (table.findHost(owner) == null) return error.InvalidState;
+        const parent: content.Parent = .{
+            .parented = entry.parented,
+            .ended = if (entry.ended) |ended| try saved.toExit(ended) else null,
+            .reaped = entry.reaped,
+            .exit_sent = entry.exitSent,
+        };
         table.holdings[index] = .{
             .id = try saved.toId(entry.holding),
             .owner = owner,
-            .content = .{ .pty = .{
-                .master = entry.master,
-                .facts = facts,
-                .parented = entry.parented,
-                .ended = if (entry.ended) |ended| try saved.toExit(ended) else null,
-                .reaped = entry.reaped,
-                .exit_sent = entry.exitSent,
+            .content = if (entry.pipes) |pipes| .{ .pipes = .{
+                .streams = .{ pipes.stdout, pipes.stderr },
+                .facts = .store(try saved.toProgramFacts(pipes.facts)),
+                .parent = parent,
+            } } else .{ .pty = .{
+                .master = entry.master.?,
+                .facts = content.StoredPtyFacts.store(try saved.toFacts(entry.facts.?)) orelse return error.InvalidState,
+                .parent = parent,
             } },
             .claimed = if (entry.claimed) |claimed| .{ .from = try saved.toProcess(claimed.from), .mark = try saved.toId(claimed.mark) } else null,
         };
-        if (entry.parented and entry.ended == null) handles.watchLeader(facts.leader.pid);
+        if (entry.parented and entry.ended == null) handles.watchLeader(table.holdings[index].content.leader().pid);
     }
     table.holding_count = value.holdings.len;
     for (value.released, 0..) |leader, index| {

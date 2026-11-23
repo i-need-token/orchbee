@@ -1,6 +1,8 @@
-//! The POSIX messages of `keeper`: a PTY holding under `pty`, and the Keeper as the parent of a
-//! terminal's leader under `parent`. A PTY holding keeps the terminal's master descriptor, which
-//! moves by `SCM_RIGHTS` with the message that names it, never as a value in the payload.
+//! The POSIX messages of `keeper`: a PTY holding under `pty`, the Keeper as the parent of a
+//! terminal's leader under `parent`, and a background program's pipes holding under `programs`. A
+//! PTY holding keeps the terminal's master descriptor, and a pipes holding the read end of each
+//! stream its Host captures; each moves by `SCM_RIGHTS` with the message that names it, never as a
+//! value in the payload.
 
 const std = @import("std");
 const message = @import("message.zig");
@@ -57,6 +59,49 @@ pub const Spawn = struct {
     pub fn descriptorCount(self: Spawn) u8 {
         return if (self.input) 3 else 2;
     }
+};
+
+/// Which of a program's stdout and stderr reach a pipe its Host reads; the others go to the null
+/// device. A message carries the descriptors of captured streams in this order.
+pub const Capture = struct {
+    stdout: bool,
+    stderr: bool,
+
+    pub fn count(self: Capture) u8 {
+        return @as(u8, @intFromBool(self.stdout)) + @intFromBool(self.stderr);
+    }
+};
+
+/// A Host's hold of a background program it started itself; the message carries the read end of
+/// each captured stream.
+pub const HoldPipes = struct {
+    holding: RandomId,
+    facts: message.ProgramFacts,
+    capture: Capture,
+};
+
+/// What a `spawn-program` names before the program exists: its facts without the process.
+pub const SpawnProgramFacts = struct {
+    program_id: [16]u8,
+    label: []const u8,
+};
+
+/// A background program the Keeper starts and parents, with the null device as standard input.
+/// The message carries, for each captured stream, its read end and then its write end; the Keeper
+/// keeps the read ends and gives the program the write ends.
+pub const SpawnProgram = struct {
+    holding: RandomId,
+    launch: Launch,
+    facts: SpawnProgramFacts,
+    capture: Capture,
+};
+
+/// A pipes holding as `inspect` shows it, sent with each captured stream's read end.
+pub const PipesHolding = struct {
+    facts: message.ProgramFacts,
+    capture: Capture,
+    parented: bool,
+    ended: ?ExitStatus = null,
 };
 
 /// How a parented leader ended, as `waitid` read it.

@@ -1,7 +1,8 @@
 // The Keeper's macOS system calls, shared with the Host's Keeper link: descriptor passing over a
 // Unix stream socket, where one frame's bytes leave with the descriptors its message carries by
 // SCM_RIGHTS and a read returns the descriptors that arrived with its bytes; the peer's process id;
-// a process's start time; a PTY master's slave name; and the descriptor limit.
+// a process's start time; a PTY master's slave name; a pipe end's direction; and the descriptor
+// limit.
 
 #include <errno.h>
 #include <fcntl.h>
@@ -12,6 +13,7 @@
 #include <sys/ioctl.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <sys/ttycom.h>
 #include <sys/types.h>
@@ -168,6 +170,16 @@ int orchbee_pty_slave_name(int master, char *name) {
 
 // Connects a close-on-exec Unix stream socket to `path`, which writes never turn into SIGPIPE.
 // Answers 0 with the socket in `socket_out`, or an errno.
+// Answers 1 when `descriptor` is a pipe end open only for writing when `write` is not zero, or only
+// for reading when it is zero, and 0 otherwise.
+int orchbee_pipe_end(int descriptor, int write) {
+    struct stat info;
+    if (fstat(descriptor, &info) != 0 || !S_ISFIFO(info.st_mode)) return 0;
+    int flags = fcntl(descriptor, F_GETFL);
+    if (flags < 0) return 0;
+    return (flags & O_ACCMODE) == (write ? O_WRONLY : O_RDONLY);
+}
+
 int orchbee_connect_local(const char *path, int *socket_out) {
     struct sockaddr_un address;
     memset(&address, 0, sizeof(address));

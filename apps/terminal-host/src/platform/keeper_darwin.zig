@@ -22,6 +22,7 @@ extern "c" fn orchbee_process_start_microseconds(pid: i32, start: *u64) c_int;
 extern "c" fn orchbee_pty_slave_name(master: c_int, name: *[maximum_slave_bytes]u8) c_int;
 extern "c" fn orchbee_raise_descriptor_limit() void;
 extern "c" fn orchbee_connect_local(path: [*:0]const u8, socket: *c_int) c_int;
+extern "c" fn orchbee_pipe_end(descriptor: c_int, write: c_int) c_int;
 extern "c" fn ioctl(fd: c_int, request: c_ulong, ...) c_int;
 
 const FIONREAD: c_ulong = 0x4004667f;
@@ -49,6 +50,11 @@ pub fn masterOf(master: posix.fd_t, slave: []const u8) bool {
     if (orchbee_pty_slave_name(master, &name) != 0) return false;
     const length = std.mem.indexOfScalar(u8, &name, 0) orelse return false;
     return std.mem.eql(u8, name[0..length], slave);
+}
+
+/// Whether `descriptor` is a pipe's write end when `write`, or its read end otherwise.
+pub fn pipeEnd(descriptor: posix.fd_t, write: bool) bool {
+    return orchbee_pipe_end(descriptor, @intFromBool(write)) == 1;
 }
 
 /// The name of the slave of the PTY master `master`, in `into`; null when `master` is no PTY

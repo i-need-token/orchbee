@@ -123,6 +123,17 @@ pub fn close(descriptor: std.posix.fd_t) void {
     _ = std.posix.system.close(descriptor);
 }
 
+/// The null device, open close-on-exec for reading and writing.
+pub fn openNullDevice() !std.posix.fd_t {
+    const result = std.c.open("/dev/null", .{ .ACCMODE = .RDWR, .CLOEXEC = true });
+    if (result >= 0) return result;
+    return switch (std.posix.errno(result)) {
+        .MFILE => error.ProcessFdQuotaExceeded,
+        .NFILE => error.SystemFdQuotaExceeded,
+        else => |err| std.posix.unexpectedErrno(err),
+    };
+}
+
 pub fn dup2(source: std.posix.fd_t, target: std.posix.fd_t) !std.posix.fd_t {
     const result = std.c.dup2(source, target);
     if (result >= 0) return result;

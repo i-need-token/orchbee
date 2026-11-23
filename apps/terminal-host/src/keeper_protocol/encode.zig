@@ -208,23 +208,48 @@ const Object = struct {
     }
 
     fn spawn(self: *Object, value: message.pty.Spawn) WriteError!void {
-        if (!message.pty.validLaunch(value.launch) or !message.pty.validSlave(value.facts.slave)) return error.InvalidMessage;
+        if (!message.pty.validSlave(value.facts.slave)) return error.InvalidMessage;
         try self.randomId("holding", value.holding);
         try self.boolean("input", value.input);
-        try self.key("launch");
-        var launch = try Object.begin(self.writer);
-        try launch.text("executable", value.launch.executable);
-        try launch.strings("arguments", value.launch.arguments);
-        try launch.strings("environment", value.launch.environment);
-        try launch.strings("candidates", value.launch.candidates);
-        if (value.launch.directory) |directory| try launch.text("directory", directory);
-        try launch.end();
+        try self.launch(value.launch);
         try self.key("facts");
         var facts_object = try Object.begin(self.writer);
         try facts_object.terminal("terminal", value.facts.terminal);
         try facts_object.text("slave", value.facts.slave);
         try facts_object.name("launch", value.facts.launch);
         try facts_object.end();
+    }
+
+    fn launch(self: *Object, value: message.pty.Launch) WriteError!void {
+        if (!message.pty.validLaunch(value)) return error.InvalidMessage;
+        try self.key("launch");
+        var inner = try Object.begin(self.writer);
+        try inner.text("executable", value.executable);
+        try inner.strings("arguments", value.arguments);
+        try inner.strings("environment", value.environment);
+        try inner.strings("candidates", value.candidates);
+        if (value.directory) |directory| try inner.text("directory", directory);
+        try inner.end();
+    }
+
+    fn spawnProgram(self: *Object, value: message.pty.SpawnProgram) WriteError!void {
+        if (message.isZero(&value.facts.program_id) or !message.validLabel(value.facts.label)) return error.InvalidMessage;
+        try self.randomId("holding", value.holding);
+        try self.launch(value.launch);
+        try self.key("facts");
+        var facts_object = try Object.begin(self.writer);
+        try facts_object.hex("programId", &value.facts.program_id);
+        try facts_object.text("label", value.facts.label);
+        try facts_object.end();
+        try self.capture(value.capture);
+    }
+
+    fn capture(self: *Object, value: message.pty.Capture) WriteError!void {
+        try self.key("capture");
+        var inner = try Object.begin(self.writer);
+        try inner.boolean("stdout", value.stdout);
+        try inner.boolean("stderr", value.stderr);
+        try inner.end();
     }
 
     fn extensions(self: *Object, members: message.Extensions) WriteError!void {
@@ -285,6 +310,12 @@ fn writeInitiator(writer: *std.Io.Writer, value: message.InitiatorMessage) Write
                     try object.programHandles(hold.handles);
                     try object.programFacts(hold.facts);
                 },
+                .hold_pipes => |hold| {
+                    try object.randomId("holding", hold.holding);
+                    try object.programFacts(hold.facts);
+                    try object.capture(hold.capture);
+                },
+                .spawn_program => |spawn| try object.spawnProgram(spawn),
             }
             try object.extensions(request.extensions);
         },
@@ -347,12 +378,25 @@ fn writeAcceptor(writer: *std.Io.Writer, value: message.AcceptorMessage) WriteEr
                     try object.id(reply.id);
                     try object.ptyHolding(holding);
                 },
+                .inspect_pipes => |holding| {
+                    try object.text("type", message.RequestKind.inspect.resultName());
+                    try object.id(reply.id);
+                    try object.programFacts(holding.facts);
+                    try object.capture(holding.capture);
+                    try object.boolean("parented", holding.parented);
+                    if (holding.ended) |status| try object.exitStatus("ended", status);
+                },
                 .spawn => |leader| {
                     try object.text("type", message.RequestKind.spawn.resultName());
                     try object.id(reply.id);
                     try object.process("leader", leader);
                 },
-                inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program, .hold_pty, .reap, .reexec => |_, tag| {
+                .spawn_program => |process| {
+                    try object.text("type", message.RequestKind.spawn_program.resultName());
+                    try object.id(reply.id);
+                    try object.process("process", process);
+                },
+                inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program, .hold_pty, .reap, .reexec, .hold_pipes => |_, tag| {
                     try object.text("type", @field(message.RequestKind, @tagName(tag)).resultName());
                     try object.id(reply.id);
                 },

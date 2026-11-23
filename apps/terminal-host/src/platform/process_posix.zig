@@ -109,9 +109,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             .environment = environment_pointer,
             .candidates = executable_candidates,
             .directory = launch.current_directory,
-            .master = pty.master,
-            .slave = pty.slave.?,
-            .input = child_stdin_fd,
+            .streams = .{ .pty = .{ .master = pty.master, .slave = pty.slave.?, .input = child_stdin_fd } },
         };
         const child_id = if (comptime builtin.os.tag == .macos)
             try startThroughKeeper(launch, keeper, plan, integration.launch_kind)
@@ -336,9 +334,9 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         const spawner = launch.keeper orelse return fork_launch.start(plan);
         const outcome = spawner.spawn(spawner.context, &.{
             .record = record,
-            .master = plan.master,
-            .slave = plan.slave,
-            .input = plan.input,
+            .master = plan.streams.pty.master,
+            .slave = plan.streams.pty.slave,
+            .input = plan.streams.pty.input,
             .executable = plan.executable,
             .argv = plan.argv,
             .environment = plan.environment,

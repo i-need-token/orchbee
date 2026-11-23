@@ -42,20 +42,23 @@ pub const Connection = struct {
     pty: bool = false,
     /// The Keeper's answer listed `parent`, so it takes `spawn` and `reap` and sends `exited`.
     parent: bool = false,
-    /// The master an `inspect` reply carried, until the request's maker takes it.
-    received: ?posix.fd_t = null,
+    /// The Keeper's answer listed `programs`, so it takes `hold-pipes` and `spawn-program`.
+    programs: bool = false,
+    /// The descriptors an `inspect` reply carried, in order, until the request's maker takes them:
+    /// a PTY holding's master, or each captured stream's read end.
+    received: [2]?posix.fd_t = .{ null, null },
 
     pub fn close(self: *Connection) void {
         self.closeStream();
-        if (self.takeReceived()) |descriptor| platform.posix_compat.close(descriptor);
+        closeAll(self.takeReceived());
         self.* = undefined;
     }
 
-    /// The descriptor the last reply carried, which the caller then owns.
-    pub fn takeReceived(self: *Connection) ?posix.fd_t {
-        const descriptor = self.received;
-        self.received = null;
-        return descriptor;
+    /// The descriptors the last reply carried, which the caller then owns.
+    pub fn takeReceived(self: *Connection) [2]?posix.fd_t {
+        const descriptors = self.received;
+        self.received = .{ null, null };
+        return descriptors;
     }
 
     pub fn closeStream(self: *Connection) void {
@@ -98,12 +101,13 @@ pub const Connection = struct {
             const payload = try self.readFrame(arena, watch, timer, keeper_protocol.frame.readPayload);
             switch (keeper_protocol.decode.acceptorPayload(arena, payload) catch return error.Closed) {
                 .reply => |reply| {
-                    // Only an `inspect` of a PTY holding carries one, its master; a reply whose
-                    // descriptor did not arrive leaves none to take.
+                    // Only an `inspect` carries descriptors; a reply whose descriptors did not all
+                    // arrive leaves none to take.
                     if (self.stream) |*stream| {
-                        var one: [1]posix.fd_t = undefined;
-                        if (reply.body.descriptorCount() == 1 and stream.takeDescriptors(&one)) {
-                            self.received = one[0];
+                        var arrived: [2]posix.fd_t = undefined;
+                        const count = reply.body.descriptorCount();
+                        if (count > 0 and count <= arrived.len and stream.takeDescriptors(arrived[0..count])) {
+                            for (arrived[0..count], 0..) |descriptor, index| self.received[index] = descriptor;
                         } else stream.discardDescriptors();
                     }
                     return reply;
@@ -252,6 +256,7 @@ pub fn open(
         .answer => |accepted| for (accepted.capabilities) |capability| {
             if (std.mem.eql(u8, capability, handshake.registry.keeper.pty)) connection.pty = true;
             if (std.mem.eql(u8, capability, handshake.registry.keeper.parent)) connection.parent = true;
+            if (std.mem.eql(u8, capability, handshake.registry.keeper.programs)) connection.programs = true;
         },
         else => return error.Unavailable,
     }
@@ -259,4 +264,9 @@ pub fn open(
     const reply = connection.requestBefore(arena, hello, &.{}, watch, &timer) catch return error.Unavailable;
     if (reply.id != hello_id or reply.body != .hello) return error.Unavailable;
     return connection;
+}
+
+/// Closes each descriptor a reply carried.
+pub fn closeAll(descriptors: [2]?posix.fd_t) void {
+    for (descriptors) |named| if (named) |descriptor| platform.posix_compat.close(descriptor);
 }
