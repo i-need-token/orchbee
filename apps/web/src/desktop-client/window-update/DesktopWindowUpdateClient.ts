@@ -15,7 +15,7 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 	#disposed = false;
 	#offer: string | null = null;
 	readonly #failedListeners = new Set<() => void>();
-	readonly #hostReplacementListeners = new Set<() => void>();
+	readonly #hostReplacementListeners = new Set<(terminals: number | null) => void>();
 	readonly #listeners = new Set<() => void>();
 	readonly #port: MessagePort;
 	readonly #readPlace: () => DesktopRelaunchPlace | null;
@@ -65,7 +65,9 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 		this.#port.postMessage(message);
 	};
 
-	readonly subscribeHostReplacement = (listener: () => void): (() => void) => {
+	readonly subscribeHostReplacement = (
+		listener: (terminals: number | null) => void,
+	): (() => void) => {
 		this.#hostReplacementListeners.add(listener);
 		return () => this.#hostReplacementListeners.delete(listener);
 	};
@@ -112,7 +114,7 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 			return;
 		}
 		if (message.data.type === 'desktop-window-update-host-replacement') {
-			for (const listener of this.#hostReplacementListeners) listener();
+			for (const listener of this.#hostReplacementListeners) listener(message.data.terminals);
 			return;
 		}
 		if (message.data.type === 'desktop-window-update-waiting') {

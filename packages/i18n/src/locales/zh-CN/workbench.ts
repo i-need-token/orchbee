@@ -75,6 +75,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.update.hostReplacement.title': '重启终端以完成更新？',
 	'workbench.update.hostReplacement.description':
 		'此更新无法让终端继续运行。每个终端会在原来的文件夹中重新启动，其中运行的程序会结束。',
+	'workbench.update.hostReplacement.staying':
+		'有 {count} 个终端无法转移到此更新。重启会话会让每个终端在原来的文件夹中重新启动，其中运行的程序会结束。取消则让这些终端继续在旧版本上运行。',
 	'workbench.update.hostReplacement.confirm': '重启',
 	'workbench.actions.unavailable': '此操作现在不可用。',
 	'workbench.tabs.rename.notApplied': '没能重命名标签页。',

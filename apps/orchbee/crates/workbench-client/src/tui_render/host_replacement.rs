@@ -44,7 +44,10 @@ pub(super) fn render(
         class: DialogClass::Narrow,
         // What restarts is read whole before Restart acts.
         rows: vec![DialogRow::Whole {
-            text: locale.host_replacement_sentence().into(),
+            text: question.staying.map_or_else(
+                || locale.host_replacement_sentence().into(),
+                |count| locale.host_replacement_staying(count).into(),
+            ),
             role: Role::TextPrimary,
             widen: false,
         }],

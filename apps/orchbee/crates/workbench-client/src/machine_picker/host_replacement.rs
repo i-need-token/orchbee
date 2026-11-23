@@ -1,9 +1,10 @@
-//! The question a click on Update asks when the active version needs a new Terminal Host: replacing
-//! it restarts every terminal on it, so nothing happens until the person confirms. It appears once
-//! the active version's tier read answers, not under the person's key, so like a move's question its
-//! Enter and Restart button act only once frames have shown it whole for a second in which no key or
-//! paste was dropped; Esc and Cancel act at once and leave the update waiting. The updater runs the
-//! replacement; this module keeps what is shown.
+//! The question a click on Update asks when the active version needs a new Terminal Host: before
+//! the restart when that version's Worker cannot adopt the Host, or once the Session runs that
+//! version and terminals that could not move stay on the Host. Replacing it restarts every terminal,
+//! so nothing happens until the person confirms. It appears once a background read answers, not
+//! under the person's key, so like a move's question its Enter and Restart button act only once
+//! frames have shown it whole for a second in which no key or paste was dropped; Esc and Cancel act
+//! at once. The updater runs the replacement; this module keeps what is shown.
 
 use super::Picker;
 use crate::client_view::{Binding, KeyCode, KeyEvent, KeyKind, Modifiers};
@@ -19,6 +20,9 @@ const CANCEL: Binding = Binding::new(KeyCode::Esc, Modifiers::NONE);
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct HostReplacementQuestion {
     pub(crate) token: u64,
+    /// The terminals that could not move, once the Session runs the new version; `None` before
+    /// the restart.
+    pub(crate) staying: Option<u32>,
     /// The last frame showed the whole question.
     drawn: bool,
     /// The first tick that found it drawn, since it last was not or last dropped a key or paste.
@@ -43,13 +47,15 @@ pub(super) struct HostReplacement {
 }
 
 impl Picker {
-    /// Shows the question over everything but a login or a move's question.
-    pub fn ask_host_replacement(&mut self) {
+    /// Shows the question over everything but a login or a move's question, naming the
+    /// terminals `staying` once the Session runs the new version.
+    pub fn ask_host_replacement(&mut self, staying: Option<u32>) {
         let token = self.host_replacement.tokens.wrapping_add(1);
         self.host_replacement.tokens = token;
         self.host_replacement.answer = None;
         self.host_replacement.question = Some(HostReplacementQuestion {
             token,
+            staying,
             drawn: false,
             since: None,
             armed: false,

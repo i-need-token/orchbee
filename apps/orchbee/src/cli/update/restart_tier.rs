@@ -31,15 +31,35 @@ impl Tier {
 #[derive(Debug, Eq, PartialEq)]
 pub(in crate::cli) struct Restart {
     pub(in crate::cli) tier: Tier,
-    pub(in crate::cli) hosts: Vec<(NonZeroU32, Tier)>,
+    pub(in crate::cli) hosts: Vec<HostRestart>,
+}
+
+/// One Terminal Host's own tier, the terminals it runs, and whether the active version's Worker
+/// moves them to its own Host: that version moves terminals, and its Worker shares a `worker-host`
+/// generation with the Host, so it adopts it.
+#[derive(Debug, Eq, PartialEq)]
+pub(in crate::cli) struct HostRestart {
+    pub(in crate::cli) pid: NonZeroU32,
+    pub(in crate::cli) tier: Tier,
+    pub(in crate::cli) terminals: u32,
+    pub(in crate::cli) moves: bool,
 }
 
 impl Restart {
     pub(in crate::cli) fn json(&self) -> Value {
-        json!({
-            "tier": self.tier.token(),
-            "hosts": self.hosts.iter().map(|(pid, tier)| json!({"processId": pid, "tier": tier.token()})).collect::<Vec<_>>(),
-        })
+        let hosts = self
+            .hosts
+            .iter()
+            .map(|host| {
+                json!({
+                    "processId": host.pid,
+                    "tier": host.tier.token(),
+                    "terminals": host.terminals,
+                    "moves": host.moves,
+                })
+            })
+            .collect::<Vec<_>>();
+        json!({"tier": self.tier.token(), "hosts": hosts})
     }
 }
 
@@ -93,23 +113,28 @@ pub(super) fn evaluate(components: &[Component], query: &QueryResult) -> Restart
     }
     let mut hosts = Vec::new();
     for entry in of(ProcessRole::TerminalHost) {
+        let connects = shares(
+            listed(entry, ConnectionKind::WorkerHost),
+            worker.and_then(|worker| worker.connections.worker_host),
+        );
         let own = host
             .filter(|host| older(entry, host))
             .map_or(Tier::None, |host| {
                 if below(entry, host.recommended_floor.as_deref()) {
                     tier = tier.max(Tier::Recommended);
                 }
-                let connects = shares(
-                    listed(entry, ConnectionKind::WorkerHost),
-                    worker.and_then(|worker| worker.connections.worker_host),
-                );
                 if !connects || below(entry, host.security_floor.as_deref()) {
                     Tier::Required
                 } else {
                     Tier::None
                 }
             });
-        hosts.push((entry.pid, own));
+        hosts.push(HostRestart {
+            pid: entry.pid,
+            tier: own,
+            terminals: entry.terminals,
+            moves: connects && orchbee_local_runtime::moves_live(),
+        });
     }
     Restart { tier, hosts }
 }

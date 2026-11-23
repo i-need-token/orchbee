@@ -18,10 +18,14 @@ export interface WorkbenchClientUpdate {
 	/** Calls back each time a requested switch waits until no terminal runs. */
 	readonly subscribeWaiting: (listener: () => void) => () => void;
 	/**
-	 * Calls back when a requested switch needs a new Terminal Host, which restarts every terminal;
-	 * the window asks the person and answers with {@link answerHostReplacement}.
+	 * Calls back when a requested switch needs a new Terminal Host, which restarts every terminal,
+	 * with the terminals that could not move off it once the Session runs the newer version, or null
+	 * before the Session restarts; the window asks the person and answers with
+	 * {@link answerHostReplacement}.
 	 */
-	readonly subscribeHostReplacement?: ((listener: () => void) => () => void) | undefined;
+	readonly subscribeHostReplacement?:
+		| ((listener: (terminals: number | null) => void) => () => void)
+		| undefined;
 	readonly answerHostReplacement?: ((confirmed: boolean) => void) | undefined;
 }
 

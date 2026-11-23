@@ -1597,7 +1597,9 @@ marked Chosen, which the owner may veto, or Rule.
   seconds until that count has not changed for 6 seconds, since each turn moves one idle terminal,
   and asks the question for the terminals left, naming their count. Confirmed, it stops and starts
   the Session as S11 does; declined, those terminals stay on their Host as in P1c, and the TUI
-  switches.
+  switches. The Desktop window does the same.
+- Chosen: the moves get at most 3 minutes; then the question names the terminals still left, and a
+  read that fails changes nothing.
 
 ### The release gate
 
@@ -1611,7 +1613,7 @@ marked Chosen, which the owner may veto, or Rule.
 | Slice | Content                                                                                                              | Status |
 | ----- | -------------------------------------------------------------------------------------------------------------------- | ------ |
 | S1    | The Keeper update: the second slot, the steps, rollback and retries, adoption and stop with two Keepers, diagnostics | Built  |
-| S2    | The confirmation reduced to terminals that cannot move, and `status server`'s `terminals` and `moves`                | Open   |
+| S2    | The confirmation reduced to terminals that cannot move, and `status server`'s `terminals` and `moves`                | Built  |
 | S3    | The release gate's H4 checks                                                                                         | Open   |
 | S4    | The [H3 and H4 acceptance](#acceptance) on real Windows, and `moves_live` turned on in release builds                | Open   |
 

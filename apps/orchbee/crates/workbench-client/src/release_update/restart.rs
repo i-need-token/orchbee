@@ -5,7 +5,8 @@
 //! child without a window, bounded in time. A Terminal Host that version's Worker cannot adopt rules
 //! out a restart that keeps terminals: the person confirms first, and the confirmed replacement stops
 //! the Session through this TUI's own connection, so the active version starts it again with every
-//! terminal restarted from the Session's final capture.
+//! terminal restarted from the Session's final capture. A Host that version must replace but whose
+//! terminals its Worker moves asks only once the moves settle, about the terminals left on it.
 use crate::background_thread::BackgroundThread;
 use orchbee_local_client_protocol::{
     SessionStopRequest, SessionStopStatus, StopAction, StopId, exchange_session_stop_before,
@@ -34,6 +35,14 @@ const STOP_REQUEST_BUDGET: Duration = Duration::from_secs(10);
 /// How long a replacement waits for the stop to end: the Server spends at most 60 seconds on one
 /// attempt, then writes its record.
 const STOP_BUDGET: Duration = Duration::from_secs(75);
+/// How often the moves off a Host the active version must replace are read: the Worker moves one
+/// idle terminal per two-second turn.
+const SETTLE_PERIOD: Duration = Duration::from_secs(2);
+/// How long the count of terminals left on such Hosts stays unchanged before the rest count as
+/// unable to move.
+const SETTLE_STEADY: Duration = Duration::from_secs(6);
+/// How long the moves may take before the terminals left are asked about.
+const SETTLE_BUDGET: Duration = Duration::from_secs(180);
 
 /// What the job reports, in order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,8 +54,10 @@ pub(super) enum Progress {
     /// Nothing changed; the update waits for the Session to move.
     Waiting,
     /// A Terminal Host of the Session must be replaced, which restarts its terminals: the person
-    /// confirms first.
-    HostRequired,
+    /// confirms first. `None` before the restart, when the active version's Worker cannot adopt
+    /// it; `Some` counts the terminals that could not move from it once the Session runs that
+    /// version.
+    HostRequired(Option<u32>),
 }
 
 pub(super) struct Job {
@@ -81,6 +92,12 @@ impl Job {
         })
     }
 
+    /// Reports [`Progress::Leave`] at once: the person kept the terminals that could not move on
+    /// their Host, and the TUI leaves for the version the Session runs.
+    pub(super) fn leave() -> Option<Self> {
+        Self::spawn(|report| report(Progress::Leave))
+    }
+
     /// Runs `steps` on the job's thread; each report reaches the TUI as it is made, so Restarting
     /// shows while the restart or stop runs. A TUI that dropped the job hears nothing more.
     fn spawn(steps: impl FnOnce(&dyn Fn(Progress)) + Send + 'static) -> Option<Self> {
@@ -107,10 +124,12 @@ impl Job {
     }
 }
 
-/// Reports one job's steps. A Host whose own tier is `required` asks the person first, since the
-/// restart's successor could not adopt it. A Session the active version joins without a tier, or
-/// whose tier does not read, switches as before; a restart that does not answer `restarted` changes
-/// nothing the TUI can use, so the update waits.
+/// Reports one job's steps. A Host whose own tier is `required` and whose terminals the active
+/// version's Worker does not move asks the person first, since the restart's successor could not
+/// adopt it. A Session the active version joins without a tier, or whose tier does not read,
+/// switches as before; a restart that does not answer `restarted` changes nothing the TUI can use,
+/// so the update waits. Once the Session runs that version, a `required` Host whose terminals move
+/// is watched until the moves settle, and the terminals left on it are asked about.
 fn run(executable: &Path, session: &str, joins: bool, report: &dyn Fn(Progress)) {
     let status = command_json(
         executable,
@@ -121,19 +140,26 @@ fn run(executable: &Path, session: &str, joins: bool, report: &dyn Fn(Progress))
     let restart = status
         .as_ref()
         .map(|document| &document["result"]["server"]["restart"]);
-    if restart
-        .and_then(|restart| restart["hosts"].as_array())
-        .is_some_and(|hosts| hosts.iter().any(|host| host["tier"] == "required"))
-    {
-        report(Progress::HostRequired);
+    let hosts = restart.and_then(|restart| restart["hosts"].as_array());
+    if hosts.is_some_and(|hosts| {
+        hosts
+            .iter()
+            .any(|host| host["tier"] == "required" && host["moves"] != true)
+    }) {
+        report(Progress::HostRequired(None));
         return;
     }
+    let moving = restart.is_some_and(|restart| staying(restart) > 0);
     if joins {
         let needed = restart
             .and_then(|restart| restart["tier"].as_str())
             .is_some_and(|tier| matches!(tier, "recommended" | "required"));
         if !needed {
-            report(Progress::Leave);
+            report(if moving {
+                settle(executable, session)
+            } else {
+                Progress::Leave
+            });
             return;
         }
     }
@@ -145,11 +171,61 @@ fn run(executable: &Path, session: &str, joins: bool, report: &dyn Fn(Progress))
         RESTART_BUDGET,
     )
     .is_some_and(|document| document["result"]["outcome"] == "restarted");
-    report(if restarted {
-        Progress::Leave
-    } else {
-        Progress::Waiting
+    report(match (restarted, moving) {
+        (false, _) => Progress::Waiting,
+        (true, false) => Progress::Leave,
+        (true, true) => settle(executable, session),
     });
+}
+
+/// Watches the Session's Worker move terminals off the Hosts the active version must replace:
+/// reads `status server` every [`SETTLE_PERIOD`] until those Hosts run no terminal, which leaves,
+/// or their count has not changed for [`SETTLE_STEADY`], or [`SETTLE_BUDGET`] passed, which asks
+/// about the terminals left. A read that fails changes nothing.
+fn settle(executable: &Path, session: &str) -> Progress {
+    let began = Instant::now();
+    let mut last: Option<(u32, Instant)> = None;
+    loop {
+        let read = command_json(
+            executable,
+            session,
+            &["status", "server", "--format", "json"],
+            STATUS_BUDGET,
+        )
+        .and_then(|document| {
+            let restart = &document["result"]["server"]["restart"];
+            restart.is_object().then(|| staying(restart))
+        });
+        let now = Instant::now();
+        match (read, last) {
+            (Some(0), _) => return Progress::Leave,
+            (Some(count), Some((previous, since))) if count == previous => {
+                if now.saturating_duration_since(since) >= SETTLE_STEADY {
+                    return Progress::HostRequired(Some(count));
+                }
+            }
+            (Some(count), _) => last = Some((count, now)),
+            (None, _) => {}
+        }
+        if now.saturating_duration_since(began) >= SETTLE_BUDGET {
+            return last.map_or(Progress::Leave, |(count, _)| {
+                Progress::HostRequired(Some(count))
+            });
+        }
+        thread::sleep(SETTLE_PERIOD);
+    }
+}
+
+/// The terminals the Hosts `restart` names `required` run.
+fn staying(restart: &serde_json::Value) -> u32 {
+    restart["hosts"].as_array().map_or(0, |hosts| {
+        hosts
+            .iter()
+            .filter(|host| host["tier"] == "required")
+            .filter_map(|host| host["terminals"].as_u64())
+            .map(|count| u32::try_from(count).unwrap_or(u32::MAX))
+            .fold(0, u32::saturating_add)
+    })
 }
 
 /// Stops the Session whose runtime folder is `runtime` as a TUI's stop does, under a fresh

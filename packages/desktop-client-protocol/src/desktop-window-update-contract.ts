@@ -24,8 +24,10 @@ export const DesktopRelaunchPlaceSchema = z.discriminatedUnion('kind', [
  * to switch to, or null while it offers none, whenever that changes and once when the port opens;
  * after a request it could not carry out, either that the update waits until no terminal runs or
  * that launching the newer window failed; after a request whose Terminal Host must be replaced, the
- * question the page asks before every terminal restarts; or a request for the place the window
- * shows, which the page answers with a reply naming the same `requestId`.
+ * question the page asks before every terminal restarts, with the `terminals` that could not move
+ * off it once the Session runs the newer version, or null when it asks before the Session restarts;
+ * or a request for the place the window shows, which the page answers with a reply naming the same
+ * `requestId`.
  */
 export const DesktopWindowUpdateMainMessageSchema = z.discriminatedUnion('type', [
 	z.strictObject({
@@ -34,7 +36,10 @@ export const DesktopWindowUpdateMainMessageSchema = z.discriminatedUnion('type',
 	}),
 	z.strictObject({ type: z.literal('desktop-window-update-waiting') }),
 	z.strictObject({ type: z.literal('desktop-window-update-failed') }),
-	z.strictObject({ type: z.literal('desktop-window-update-host-replacement') }),
+	z.strictObject({
+		terminals: z.number().int().nonnegative().nullable(),
+		type: z.literal('desktop-window-update-host-replacement'),
+	}),
 	z.strictObject({
 		requestId: DesktopWindowRequestIdSchema,
 		type: z.literal('desktop-window-update-place-requested'),

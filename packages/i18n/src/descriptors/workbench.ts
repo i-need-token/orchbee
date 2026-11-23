@@ -1241,6 +1241,12 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Body of that confirmation: every terminal restarts in its folder and the programs in them end.',
 	},
+	updateHostReplacementStaying: {
+		id: 'workbench.update.hostReplacement.staying',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.hostReplacement.staying'],
+		description:
+			'Body of that confirmation once the Session runs the new version and {count} terminals could not move to it: restarting the Session restarts every terminal, and Cancel keeps those terminals on the previous version.',
+	},
 	updateHostReplacementConfirm: {
 		id: 'workbench.update.hostReplacement.confirm',
 		defaultMessage: enUSWorkbenchMessages['workbench.update.hostReplacement.confirm'],

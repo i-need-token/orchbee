@@ -7,7 +7,7 @@ import {
 } from '@orchbee/desktop-client-protocol';
 
 import type { DesktopDiagnosticRecorder } from '../diagnostics';
-import type { ServerStartAnswer, UpdateRestart } from '../server-connection';
+import type { ServerStartAnswer, TerminalsStaying, UpdateRestart } from '../server-connection';
 import { resolveWindowUpdateOffer } from './window-update-offer';
 
 /**
@@ -106,10 +106,14 @@ export class DesktopWindowUpdate {
 	readonly #options: DesktopWindowUpdateOptions;
 	readonly #ports = new Set<ServedPort>();
 	#reading: Promise<void> | null = null;
-	/** The Host replacement a document was asked about, until its answer. */
+	/**
+	 * The Host replacement a document was asked about, until its answer, and whether the Session
+	 * already runs the version it switches to.
+	 */
 	#replacing:
 		| {
 				readonly place: DesktopRelaunchPlace | null;
+				readonly restarted: boolean;
 				readonly served: ServedPort;
 				readonly version: string;
 		  }
@@ -349,19 +353,26 @@ export class DesktopWindowUpdate {
 	/**
 	 * Whether version `version` can serve this window after its start `answer`: `ready` when it joins
 	 * the Session, and restarts it first when it asks for that, or it cannot join and restarted it;
-	 * `host-required` when a Terminal Host must be replaced first. Otherwise the diagnostic log
-	 * records why the update waits.
+	 * `host-required` when a Terminal Host must be replaced first; terminals staying once the
+	 * Session runs that version and terminals could not move off a Host it must replace. Otherwise
+	 * the diagnostic log records why the update waits.
 	 */
 	async #prepare(
 		root: string,
 		version: string,
 		answer: ServerStartAnswer | null,
-	): Promise<'host-required' | 'ready' | 'waiting'> {
+	): Promise<'host-required' | 'ready' | 'waiting' | TerminalsStaying> {
 		const joins = answer?.negotiatedCapabilities.includes(COMPATIBILITY_WINDOW) === true;
 		const restart = await this.#options
 			.restartForVersion(root, version, joins)
 			.catch((): UpdateRestart => 'failed');
 		if (this.#disposed) return 'waiting';
+		if (typeof restart === 'object') {
+			this.#options.recordEvent('info', 'window-update-host-replacement', {
+				terminals: restart.terminals,
+			});
+			return restart;
+		}
 		if (restart === 'restarted') {
 			this.#options.recordEvent('info', 'window-update-restarted');
 			return 'ready';
@@ -412,7 +423,16 @@ export class DesktopWindowUpdate {
 			const answer = await this.#options.startVersionClient(root, version).catch(() => null);
 			if (this.#disposed) return;
 			const prepared = await this.#prepare(root, version, answer);
-			if (prepared === 'ready') {
+			if (typeof prepared === 'object' && served.open) {
+				this.#replacing = { place, restarted: true, served, version };
+				served.port.postMessage({
+					terminals: prepared.terminals,
+					type: 'desktop-window-update-host-replacement',
+				});
+				return;
+			}
+			// With no document left to ask, the terminals that could not move stay where they run.
+			if (prepared === 'ready' || typeof prepared === 'object') {
 				const started = await this.#options.onJoinable(version, place).catch(() => false);
 				if (started === false && served.open) {
 					served.port.postMessage({ type: 'desktop-window-update-failed' });
@@ -420,8 +440,11 @@ export class DesktopWindowUpdate {
 				return;
 			}
 			if (prepared === 'host-required' && served.open) {
-				this.#replacing = { place, served, version };
-				served.port.postMessage({ type: 'desktop-window-update-host-replacement' });
+				this.#replacing = { place, restarted: false, served, version };
+				served.port.postMessage({
+					terminals: null,
+					type: 'desktop-window-update-host-replacement',
+				});
 				return;
 			}
 			if (served.open) served.port.postMessage({ type: 'desktop-window-update-waiting' });
@@ -433,12 +456,24 @@ export class DesktopWindowUpdate {
 	/**
 	 * The person's answer to the Host replacement the document `served` asked about. Confirmed for
 	 * the current offer, it stops the Session and then switches, so the newer version starts it again
-	 * with every terminal restarted; declined, or once the stop fails, the update waits.
+	 * with every terminal restarted. Declined once the Session runs the newer version, it switches and
+	 * the terminals that could not move stay on their Host; declined before, or once the stop fails,
+	 * the update waits.
 	 */
 	async #replaceHost(served: ServedPort, confirmed: boolean): Promise<void> {
 		const replacing = this.#replacing;
 		if (replacing?.served !== served || this.#checking) return;
 		this.#replacing = undefined;
+		if (!confirmed && replacing.restarted) {
+			this.#options.recordEvent('info', 'window-update-terminals-kept');
+			const started = await this.#options
+				.onJoinable(replacing.version, replacing.place)
+				.catch(() => false);
+			if (started === false && served.open) {
+				served.port.postMessage({ type: 'desktop-window-update-failed' });
+			}
+			return;
+		}
 		if (!confirmed || replacing.version !== this.#offer) {
 			if (served.open) served.port.postMessage({ type: 'desktop-window-update-waiting' });
 			return;

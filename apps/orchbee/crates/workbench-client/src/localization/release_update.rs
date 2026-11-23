@@ -100,6 +100,20 @@ impl Locale {
         }
     }
 
+    /// The question's sentence once the Session runs the new version and `count` terminals could
+    /// not move from a Host it must replace: a restart of the Session restarts every terminal.
+    pub(crate) fn host_replacement_staying(self, count: u32) -> String {
+        match (self, count) {
+            (Self::EnUs, 1) => "1 terminal couldn't move to this update. Restarting the Session restarts every terminal in its folder, and the programs running in them end. Cancel keeps that terminal running on the previous version.".to_owned(),
+            (Self::EnUs, _) => format!(
+                "{count} terminals couldn't move to this update. Restarting the Session restarts every terminal in its folder, and the programs running in them end. Cancel keeps those terminals running on the previous version."
+            ),
+            (Self::ZhCn, _) => format!(
+                "有 {count} 个终端无法转移到此更新。重启会话会让每个终端在原来的文件夹中重新启动，其中运行的程序会结束。取消则让这些终端继续在旧版本上运行。"
+            ),
+        }
+    }
+
     pub(crate) const fn host_replacement_confirm(self) -> &'static str {
         match self {
             Self::EnUs => "Restart",

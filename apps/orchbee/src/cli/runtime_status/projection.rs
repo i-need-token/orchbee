@@ -243,6 +243,14 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
                     .collect(),
                 _ => Vec::new(),
             };
+            // Each Host the active version must replace and whose terminals it does not move.
+            let staying = value["server"]["restart"]["hosts"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|host| host["tier"] == "required" && host["moves"] == false)
+                .map(|host| json!({"processId": host["processId"], "terminals": host["terminals"]}))
+                .collect::<Vec<_>>();
             let entries = match &report {
                 Report::Client { .. } => vec![
                     ("client", &value["version"]),
@@ -280,6 +288,7 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
                     if value["server"]["restart"].is_object() {
                         entries.push(("restart", &value["server"]["restart"]["tier"]));
                     }
+                    entries.extend(staying.iter().map(|host| ("restartStaying", host)));
                     entries.push(("client", &value["clientVersion"]));
                     entries
                 }

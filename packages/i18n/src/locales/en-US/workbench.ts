@@ -76,6 +76,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.update.hostReplacement.title': 'Restart terminals to update?',
 	'workbench.update.hostReplacement.description':
 		"This update can't keep the terminals running. Each terminal restarts in its folder, and the programs running in them end.",
+	'workbench.update.hostReplacement.staying':
+		"{count, plural, one {# terminal couldn't move to this update. Restarting the Session restarts every terminal in its folder, and the programs running in them end. Cancel keeps that terminal running on the previous version.} other {# terminals couldn't move to this update. Restarting the Session restarts every terminal in its folder, and the programs running in them end. Cancel keeps those terminals running on the previous version.}}",
 	'workbench.update.hostReplacement.confirm': 'Restart',
 	'workbench.actions.unavailable': "This isn't available right now.",
 	'workbench.tabs.rename.notApplied': "Couldn't rename the Tab.",
