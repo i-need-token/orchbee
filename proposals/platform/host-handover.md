@@ -1622,6 +1622,135 @@ server` lists no Keeper, and gives the move and the exits 120 seconds.
 | S3    | The release gate's H4 checks                                                                                         | Built  |
 | S4    | The [H3 and H4 acceptance](#acceptance) on real Windows, and `moves_live` turned on in release builds                | Built  |
 
+## H5 design
+
+The main session decided this design on 2026-11-23. H5's acceptance is H3's and H4's on macOS, and
+both start with a restart into another installation. macOS has none yet: it registers no process
+identities, because a Session's liveness there is its lifetime lock and its Host lock; it starts no
+successor Server; it runs one Host; and it starts no Keeper. So H5 brings those to macOS first, then
+the Keeper and what stands on it. Each slice ships dark behind the switches, and Linux keeps
+today's paths until it becomes a release platform, so every rule below is macOS's unless it says
+POSIX. Rows 81 to 92 of the [decision record](#decision-record) list the picks.
+
+### Process identities on macOS
+
+- Chosen: a registration names a process by its id and its start time, which `proc_pidinfo` reports
+  with `PROC_PIDTBSDINFO` in microseconds. Observation also compares the program's file name, read
+  with `proc_pidpath`. A start time stays fixed for the life of a process and differs for a later
+  process that reuses the id, as a creation time does on Windows.
+- Chosen: a registered child starts with `posix_spawn` under `POSIX_SPAWN_START_SUSPENDED` and
+  `POSIX_SPAWN_CLOEXEC_DEFAULT`. Its creator publishes the identity and then sends `SIGCONT`, so a
+  child runs only once identified, as on Windows. A creator that cannot publish ends the suspended
+  child with `SIGKILL` and reaps it.
+- Rule: no handle holds a POSIX process id. A process named by its registration is checked by start
+  time right before each signal, and a parent that may still have to signal its child keeps it
+  unreaped.
+- Presence comes from the registrations, as on Windows. The Host lock stays each Host's guard of its
+  endpoint name, and no longer tells whether the Session has a Host.
+
+### Restart and Host set on macOS
+
+- Chosen: `orchbee server restart`, the Update click's restart, the cold adoption at activation, the
+  required Host replacement, and the Host set run on macOS through the Windows code paths. Their
+  platform parts become macOS adapters: a process is opened by its registration and watched with a
+  kqueue `EVFILT_PROC` filter in place of a process handle, and a Session child is placed as
+  `spawn_retained` places it today.
+- The [restart's acceptance](versioning-and-upgrade.md#delivery-phases) and P1c's run on the real
+  Mac before the Keeper work starts.
+
+### The Keeper on macOS
+
+- **Endpoint.** `orchbee-terminal-host keep` serves a Unix socket in the Host's runtime folder,
+  through the Host's Local IPC and its endpoint protections. The Keeper reads the peer's process id
+  with `LOCAL_PEERPID` before it decodes any frame, and checks a registered Host by start time. It
+  watches each registered Host's end with `EVFILT_PROC` and `NOTE_EXIT`.
+- **Holding.** A POSIX holding keeps the master descriptor and these facts: the owner's terminal
+  identity, the leader's process id and start time, the slave's name from `ptsname`, the launch
+  kind, and whether the Keeper parents the leader.
+- **`spawn`.** A new request, behind the Keeper capability `parent`. The Host opens the PTY and
+  prepares the launch as it does today: the executable and its candidates, the arguments, the
+  environment block, the directory, and the size. It sends the launch with the master, the slave,
+  and an optional standard input descriptor. The Keeper forks and runs the child steps the Host runs
+  today, reporting an exec failure through the same error pipe. It then closes the slave, keeps the
+  master, and answers with the leader's identity or `spawn-failed`. The holding is created as `hold`
+  creates it, owned by that Host and parented. A Host forks a program itself only when no Keeper is
+  attached.
+- **`hold` on POSIX.** The Host sends its master with the facts. The Keeper checks that the
+  descriptor is a PTY master whose `ptsname` matches and that the leader runs with the recorded start
+  time. This holds a program a Host forked before a Keeper was attached, and holds again after
+  `KeeperLost`. Such a holding is not parented.
+- **Exit.** The Keeper registers `EVFILT_PROC` with `NOTE_EXIT` when it forks, and runs the bounded
+  non-reaping `waitid` poll after `ESRCH` and while it waits, as
+  [prototype 4](#prototype-4-result) requires. When a parented leader ends, the Keeper sends its
+  owner the event `exited` with the status that `waitid(P_PID, …, WEXITED | WNOWAIT)` reads, and
+  keeps the zombie, so the leader's id stays its session's while the Host contains it. Rule: the
+  Keeper reaps only at the owner's new `reap`, at `release`, or when it ends. A holding's status
+  rides along `inspect`, so a claimant learns an end that happened while the holding was orphaned.
+- **Transfer.** Rule: descriptors move by push with `SCM_RIGHTS`. The Host sends its master with
+  `hold` and `spawn`, and the Keeper sends the master with its `inspect` answer to the mark's
+  target. A descriptor in a message nobody receives closes with the socket, so a lost message leaves
+  no process holding a descriptor it does not know of. A receiver counts the descriptors it got
+  against what the message names: a short count fails the request and closes what arrived. A Host
+  receives only with a free slot for every descriptor of the message, and a message carries at most 64.
+- **Signals.** A Host signals a parented program through its session, as today, until the Keeper
+  reaps it. It signals a program that nobody parents, after a Keeper was replaced, only once its
+  start time still matches.
+- **Quiesce.** The POSIX quiesce is the undoable stop of
+  [prototype 3](#prototype-3-result): abort the read, and resume by draining the abort pipe and
+  clearing `read_aborted`. Windows' signal pipe and console packing have no POSIX counterpart.
+
+### Recovery on macOS
+
+H2's recovery runs on macOS unchanged. The recovery Host claims each orphan, its master arriving by
+`SCM_RIGHTS`. A parented program's exit status still reaches its terminal, because the Keeper keeps
+the zombie until the new owner's `reap`.
+
+### The Keeper update on macOS
+
+The Keeper re-executes in place, as [updating the Keeper](#updating-the-keeper) describes.
+
+- The Worker sends the new request `reexec`, naming its own Host program. Rule: the Keeper refuses
+  while any holding is marked or while a holding's owner is not a live registered Host, and only
+  then runs the check mode.
+- **Check mode.** The Keeper runs the new program as a child, `keep --check`, with a copy of the
+  state on a pipe. Anything but exit status 0 within 5 seconds keeps the old image.
+- **State.** The Keeper writes an unlinked file in its runtime folder. It names every holding with
+  its master's descriptor number, every registered Host, every open connection with its role, peer,
+  and unread bytes, the listening socket, the pending `reexec`, and the old program's path. It then
+  clears close-on-exec on that file and on each descriptor the state names.
+- Chosen: connections survive the re-execution. A peer sees a pause, not a lost Keeper. The new image
+  answers the pending `reexec` once it has read the state and found every leader.
+- **The way back.** An `execve` that returns leaves the old image answering `reexec` with `refused`.
+  A new image that cannot read the state executes the old program with the same state, and that
+  image answers `refused`.
+- The Session record keeps one Keeper slot on macOS. The registration's start time stays, since the
+  process stays, and observation accepts any Terminal Host program by file name.
+
+### Background programs on macOS
+
+Chosen: B1's Host owner starts a background program through `spawn`, with its standard streams on
+pipes in place of a PTY, so the Keeper parents it as it parents a terminal's leader.
+
+### The gate on macOS
+
+The macOS release smoke gains the checks of the Windows gate: the probe goes on across the restart,
+the terminal moves, the old Host exits, and the Keeper keeps its process id while its image moves to
+the new release.
+
+### H5 slices
+
+| Slice | Content                                                                                                                                                         | Status |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| M1    | Process identities on macOS: registrations with start times, suspended registered starts, observation, and presence by registration                             | Open   |
+| M2    | Cold adoption at activation and `server restart` on macOS, with the Update click's restart and the required Host replacement; the restart acceptance on the Mac | Open   |
+| M3    | The Host set on macOS: new terminals on the Worker's own Host, and drained older Hosts                                                                          | Open   |
+| M4    | The Keeper on macOS: keep mode, admission, `spawn`, POSIX `hold`, `exited` and `reap`, the Host's side, and the Worker's start and adoption of it               | Open   |
+| M5    | Recovery on macOS                                                                                                                                               | Open   |
+| M6    | Moves across versions on macOS                                                                                                                                  | Open   |
+| M7    | The Keeper update by re-execution, its check mode, and its way back                                                                                             | Open   |
+| M8    | Background programs in the Host on macOS                                                                                                                        | Open   |
+| M9    | The gate on macOS, the H5 acceptance on the real Mac, and the switches turned on for macOS                                                                      | Open   |
+
 ## B1 design
 
 The main session settled this design on 2026-11-22 from
@@ -1852,5 +1981,17 @@ without `background-programs` never receives it.
 | 78  | A moved terminal keeps its creation id; its controllers move to the new Host, and its read-only viewers close for their Clients to attach again                                                                                                                                                                                                                                                                                                                              | An adoption pairs the two copies; held input arrives; a Client checks the Host epoch of every projection record                                                                                                                                 | Chosen (H3)                                                        |
 | 79  | The Server rebinds on `Moved` and records it before the next turn; the Worker drops the old copy at that turn                                                                                                                                                                                                                                                                                                                                                                | The binding record names the new Host before the old one can exit                                                                                                                                                                               | Chosen (H3)                                                        |
 | 80  | The image section carries still images and plain placements; animations, virtual, relative, and Unicode-placeholder placements, and transmissions in progress keep their terminal on its Host                                                                                                                                                                                                                                                                                | The common case moves; the rest keeps the P1c behavior                                                                                                                                                                                          | Chosen (H3)                                                        |
+| 81  | H5 first brings process identities, the restart, and the Host set to macOS, then the Keeper, recovery, moves, the Keeper update, background programs, and the gate                                                                                                                                                                                                                                                                                                           | H5's acceptance starts with a restart into another installation, which macOS lacks                                                                                                                                                              | Chosen                                                             |
+| 82  | Linux keeps today's paths until it becomes a release platform                                                                                                                                                                                                                                                                                                                                                                                                                | No release and no host to accept it on                                                                                                                                                                                                          | Chosen                                                             |
+| 83  | A macOS registration names a process by its id and `proc_pidinfo` start time, and a registered child starts suspended through `posix_spawn` and runs once identified                                                                                                                                                                                                                                                                                                         | Windows' creation-time rule, with the same guarantee that no unidentified child runs                                                                                                                                                            | Chosen                                                             |
+| 84  | A POSIX process named by its registration is checked by start time right before each signal                                                                                                                                                                                                                                                                                                                                                                                  | No handle holds a POSIX process id                                                                                                                                                                                                              | Rule                                                               |
+| 85  | macOS runs the restart, the activation adoption, the required Host replacement, and the Host set through the Windows code paths with platform adapters                                                                                                                                                                                                                                                                                                                       | One behavior and one model for both platforms                                                                                                                                                                                                   | Chosen                                                             |
+| 86  | The Keeper parents a macOS program through `spawn`; a Host forks only with no Keeper attached and holds such a program with POSIX `hold`, unparented                                                                                                                                                                                                                                                                                                                         | Parenthood cannot move, and exit codes must survive a Host's replacement                                                                                                                                                                        | Chosen                                                             |
+| 87  | The Keeper reports a parented leader's end as `exited` and reaps only at the owner's `reap`, at `release`, or when it ends                                                                                                                                                                                                                                                                                                                                                   | The Host's identity fence needs the zombie kept while it contains the session                                                                                                                                                                   | Rule                                                               |
+| 88  | Descriptors move by push with `SCM_RIGHTS`, counted against the message, with a free slot for each and at most 64 per message                                                                                                                                                                                                                                                                                                                                                | POSIX has no pull; an unreceived descriptor closes with its socket; prototype 4 lost descriptors to `EMFILE`                                                                                                                                    | Rule                                                               |
+| 89  | The Keeper's connections survive its re-execution, carrying unread bytes and the pending `reexec` in the state                                                                                                                                                                                                                                                                                                                                                               | Peers see a pause instead of a lost Keeper                                                                                                                                                                                                      | Chosen                                                             |
+| 90  | The macOS Keeper update runs only with no mark and every holding's owner live, after the new program passes the check mode                                                                                                                                                                                                                                                                                                                                                   | A crash past `execve` must leave every master in a Host                                                                                                                                                                                         | Rule                                                               |
+| 91  | Background programs on macOS start through `spawn`, with pipes in place of a PTY                                                                                                                                                                                                                                                                                                                                                                                             | One owner model for terminals and background programs                                                                                                                                                                                           | Chosen                                                             |
+| 92  | `keeper_live` and `moves_live` turn on for macOS separately from Windows, once the H5 acceptance passes on the real Mac                                                                                                                                                                                                                                                                                                                                                      | Windows is on already                                                                                                                                                                                                                           | Chosen                                                             |
 
 Nothing waits on the owner; each Chosen row stays open to a veto.
