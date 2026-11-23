@@ -227,9 +227,36 @@ impl Fixture {
         assert_eq!(reloaded.code, Some(0), "{reloaded}");
     }
 
+    /// Copies the staged cohort into `folder`: a second installation of the same build, whose
+    /// programs run from other paths, for a CLI started there with [`Self::run_from`].
+    pub fn install_again(&self, folder: &str) {
+        fn copy(from: &Path, to: &Path) {
+            fs::create_dir_all(to).unwrap();
+            for entry in fs::read_dir(from).unwrap() {
+                let entry = entry.unwrap();
+                let target = to.join(entry.file_name());
+                if entry.file_type().unwrap().is_dir() {
+                    copy(&entry.path(), &target);
+                } else {
+                    fs::copy(entry.path(), target).unwrap();
+                }
+            }
+        }
+        copy(&self.root.join("cohort"), &self.root.join(folder));
+    }
+
     /// The CLI under test in this fixture's isolated environment.
     pub fn command(&self, words: &[&str]) -> Command {
-        let mut command = inherited_environment::orchbee_command(self.staged_client());
+        self.command_from("cohort", words)
+    }
+
+    /// The CLI of the cohort in `folder` in this fixture's isolated environment.
+    pub fn command_from(&self, folder: &str, words: &[&str]) -> Command {
+        let client = self
+            .root
+            .join(folder)
+            .join(CohortArtifact::Client.file_name());
+        let mut command = inherited_environment::orchbee_command(client);
         command
             .args(words)
             .env("ORCHBEE_RUNTIME_BASE", self.root.join("runtime"))
@@ -245,8 +272,17 @@ impl Fixture {
 
     /// Runs one CLI verb with machine output.
     pub fn run(&self, words: &[&str]) -> Run {
+        self.run_from("cohort", words)
+    }
+
+    /// Runs one CLI verb of the cohort in `folder` with machine output.
+    pub fn run_from(&self, folder: &str, words: &[&str]) -> Run {
         let started = Instant::now();
-        let output = self.command(words).arg("--format=json").output().unwrap();
+        let output = self
+            .command_from(folder, words)
+            .arg("--format=json")
+            .output()
+            .unwrap();
         Run {
             words: words.join(" "),
             code: output.status.code(),

@@ -4,8 +4,11 @@
 //! Host that takes the terminal back from the Session's Keeper with its program still running.
 //! Past the cap the Server gives up and the program runs on in the Keeper; the confirmed stop then
 //! ends it. A configured `shell` command the Host runs keeps running through a Server and Worker
-//! restart and through its Host's end, and completes. The oracle is what the CLI reads and lists
-//! and the programs' own processes; nothing imports Server internals.
+//! restart and through its Host's end, and completes. A restart from a second installation
+//! (`proposals/platform/versioning-and-upgrade.md`, P1c acceptance) starts new terminals and new
+//! programs on that installation's own Host while the old terminal goes on, and the old Host ends
+//! once it runs nothing. The oracle is what the CLI reads and lists, the diagnostic log and the
+//! programs' own processes; nothing imports Server internals.
 //!
 //! A Host offers `recovery`, and so starts a Keeper, only on the product's ConPTY, so these
 //! witnesses run only when asked for, with `ORCHBEE_TEST_CONPTY_DIR` naming a verified bundle.
@@ -25,6 +28,14 @@ use std::{
 use winsafe::{HPROCESS, HPROCESSLIST, co, guard::CloseHandleGuard};
 
 const LABEL: &str = "ticker";
+/// The folder of the second installation a rollover restarts into.
+const SECOND: &str = "cohort-next";
+/// How long an older Host may take to end once it runs nothing: a drain check every two seconds,
+/// the Host's own end, and the Worker's wait for its exit.
+const DRAINED: Duration = Duration::from_secs(20);
+/// Longer than the Worker's two-second drain check, so an older Host still holding a terminal
+/// would have been drained by mistake.
+const NOT_DRAINED: Duration = Duration::from_secs(3);
 /// Bounds a recovery from the Host's end until a new Worker serves: the lost Worker's exit, up to
 /// 7 s proving it gone, 20 s admission and one 20 s response window, though a healthy one takes a
 /// few seconds.
@@ -206,6 +217,93 @@ fn a_configured_shell_command_runs_through_a_restart_and_its_hosts_end_and_compl
     );
 }
 
+#[test]
+fn a_restart_into_another_installation_runs_new_work_on_its_host_and_drains_the_old_one() {
+    let fixture = Fixture::new("orchbee-host-rollover-", &[]);
+    let _logs = Logs(&fixture);
+    let (terminal, panel, shown) = labeled_ticker(&fixture, LABEL);
+    let first = worker(&fixture).expect("a Worker serves");
+    let old = host_of(first);
+    fixture.install_again(SECOND);
+
+    let restarted = fixture.run_from(SECOND, &["server", "restart", "--session", "default"]);
+    assert_eq!(restarted.code, Some(0), "{restarted}");
+    let second = until("a new Worker serves after the restart", RECOVERED, || {
+        worker(&fixture).filter(|serving| *serving != first)
+    });
+    assert!(
+        !signaled(&old, Duration::ZERO),
+        "the old Host ended with the restart"
+    );
+
+    // A new terminal starts the second installation's own Host beside the adopted one.
+    let (fresh, _, fresh_shown) = labeled_ticker(&fixture, "fresh");
+    let new = host_of(second);
+    let image = new
+        .QueryFullProcessImageName(co::PROCESS_NAME::WIN32)
+        .unwrap();
+    assert!(
+        fs::canonicalize(&image)
+            .unwrap()
+            .starts_with(fs::canonicalize(fixture.path(SECOND)).unwrap()),
+        "the new terminal's Host runs {image}, not the second installation's Host"
+    );
+    drop(program_of(&new));
+    drop(program_of(&old));
+
+    // A new program starts on the new Host too.
+    let release = fixture.path("work\\release.txt");
+    let done = fixture.path("work\\done.txt");
+    let id = configure_waiting_command(&fixture, &release, &done);
+    let invoked = fixture.run(&["command", "invoke", &id, "--session", "default"]);
+    assert_eq!(invoked.code, Some(0), "{invoked}");
+    let command = until("the new Host starts the command", COMMAND, || {
+        let mut programs = children(&new, "cmd.exe");
+        (programs.len() >= 2).then(|| programs.pop()).flatten()
+    });
+    assert_eq!(
+        children(&old, "cmd.exe").len(),
+        1,
+        "the old Host started the command"
+    );
+
+    // The old terminal goes on, and its Host is kept while it holds that terminal.
+    until("the old terminal counts on", RETURNED, || {
+        last_tick(&read_terminal(&fixture, &terminal)).filter(|tick| *tick > shown)
+    });
+    assert!(
+        !signaled(&old, NOT_DRAINED),
+        "the old Host ended while it held a terminal"
+    );
+
+    let closed = fixture.run(&["panel", "close", &panel, "--confirm"]);
+    assert_eq!(closed.code, Some(0), "{closed}");
+    assert!(
+        signaled(&old, DRAINED),
+        "the old Host did not end once it ran nothing"
+    );
+    let drained = until("the Worker records the drained Host", RETURNED, || {
+        logged(&fixture, "host-drained")
+    });
+    assert_eq!(drained["fields"]["released"], true, "{drained}");
+
+    assert!(
+        !signaled(&new, Duration::ZERO),
+        "the new Host ended with the old one"
+    );
+    until("the new terminal counts on", RETURNED, || {
+        last_tick(&read_terminal(&fixture, &fresh)).filter(|tick| *tick > fresh_shown)
+    });
+    fs::write(&release, "go").unwrap();
+    until("the command completes", COMMAND, || {
+        fs::metadata(&done).is_ok().then_some(())
+    });
+    assert!(
+        signaled(&command, COMMAND),
+        "the command's process did not end after it completed"
+    );
+}
+
 /// Adds a `shell` command that waits until `release` exists, then writes `done` and exits, has the
 /// default Session reload, and answers the command's catalog ID.
 fn configure_waiting_command(fixture: &Fixture, release: &str, done: &str) -> String {
@@ -251,24 +349,42 @@ impl Drop for Logs<'_> {
         if !thread::panicking() {
             return;
         }
-        // The data root, and with it `logs/`, sits in the fixture's home folder.
-        let mut folders = vec![std::path::PathBuf::from(self.0.path("home"))];
-        while let Some(folder) = folders.pop() {
-            for entry in fs::read_dir(&folder).into_iter().flatten().flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    folders.push(path);
-                } else if path
-                    .extension()
-                    .is_some_and(|extension| extension == "jsonl")
-                    && path.parent().and_then(|parent| parent.file_name()) == Some("logs".as_ref())
-                    && let Ok(text) = fs::read_to_string(&path)
-                {
-                    eprintln!("log {}:\n{text}", path.display());
-                }
+        for (path, text) in logs(self.0) {
+            eprintln!("log {}:\n{text}", path.display());
+        }
+    }
+}
+
+/// The fixture's diagnostic log files and their text. The data root, and with it `logs/`, sits in
+/// the fixture's home folder.
+fn logs(fixture: &Fixture) -> Vec<(std::path::PathBuf, String)> {
+    let mut found = Vec::new();
+    let mut folders = vec![std::path::PathBuf::from(fixture.path("home"))];
+    while let Some(folder) = folders.pop() {
+        for entry in fs::read_dir(&folder).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                folders.push(path);
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "jsonl")
+                && path.parent().and_then(|parent| parent.file_name()) == Some("logs".as_ref())
+                && let Ok(text) = fs::read_to_string(&path)
+            {
+                found.push((path, text));
             }
         }
     }
+    found
+}
+
+/// The first diagnostic record of `event` any process of the fixture wrote.
+fn logged(fixture: &Fixture, event: &str) -> Option<serde_json::Value> {
+    logs(fixture).into_iter().find_map(|(_, text)| {
+        text.lines()
+            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .find(|record| record["event"] == event)
+    })
 }
 
 /// The system ConHost's terminals stay unheld, so without the product's ConPTY nothing recovers.
@@ -282,6 +398,14 @@ fn require_product_conpty() {
 /// Opens the only Workspace of the default Session, running a script that counts once a second
 /// through cmd, and returns its terminal and a count it showed once the Keeper holds it.
 fn ticker(fixture: &Fixture) -> (String, u64) {
+    let (terminal, _, shown) = labeled_ticker(fixture, LABEL);
+    (terminal, shown)
+}
+
+/// Opens a Workspace labeled `label` in the default Session, running a script that counts once a
+/// second through cmd, and returns its terminal, its Panel and a count it showed once the Keeper
+/// holds it.
+fn labeled_ticker(fixture: &Fixture, label: &str) -> (String, String, u64) {
     let script = fixture.path("ticker.cmd");
     fs::write(
         &script,
@@ -294,7 +418,7 @@ fn ticker(fixture: &Fixture) -> (String, u64) {
         "workspace",
         "create",
         "--label",
-        LABEL,
+        label,
         "--cwd",
         &work,
         "--no-focus",
@@ -330,7 +454,7 @@ fn ticker(fixture: &Fixture) -> (String, u64) {
     let shown = until("the terminal counts", RETURNED, || {
         last_tick(&read_terminal(fixture, &terminal)).filter(|tick| *tick >= 3)
     });
-    (terminal, shown)
+    (terminal, panel, shown)
 }
 
 /// The default Session's serving Worker, by process ID, as `status server` lists it.
