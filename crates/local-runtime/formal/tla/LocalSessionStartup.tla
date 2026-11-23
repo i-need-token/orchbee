@@ -146,8 +146,8 @@ Handoff ==
 \* the creation. The Launch is answered and a start in progress has failed. The Worker keeps
 \* serving unless the failed start leaves no further one: a Host still running at the start
 \* deadline, an endpoint left behind, or its last start. Then it answers and exits, so no later
-\* StartHost can meet that Host, and the Session's stop cleans up. A Windows registration that
-\* outlives its process is this action followed by WorkerLoss.
+\* StartHost can meet that Host, and the Session's stop cleans up. A Windows or macOS registration
+\* that outlives its process is this action followed by WorkerLoss.
 StartFailed == host \in {"starting", "dead"}
 StartLeft == host = "dead" /\ endpoint = "absent" /\ workerStarts < MaxHostStarts
 ExpireDispatch ==
