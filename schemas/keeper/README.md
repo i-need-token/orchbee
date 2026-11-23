@@ -25,7 +25,8 @@ this directory, the connection contract, both `OBHS` bindings, and each binding 
 The Keeper runs as `orchbee-terminal-host keep` and serves its own runtime directory and endpoint
 through the Terminal Host's Local IPC, with every protection a Host endpoint has: the same-user
 check at the first byte, the pipe's DACL and integrity label, and no write from a lower integrity
-level. Each connection starts with one [`OBHS`](../connection/README.md#frame) exchange whose
+level on Windows, and the private folder, the same-user check, and the lifetime lock of a Host's
+Unix socket on macOS. Each connection starts with one [`OBHS`](../connection/README.md#frame) exchange whose
 `connection` is `keeper`. After the `answer`, both directions carry only `OBKP` frames until either
 side closes. The frame has no version field: the answer's generation selects this contract.
 
@@ -35,10 +36,13 @@ side closes. The frame has no version field: the answer's generation selects thi
 - **Capabilities.** A request, member, event, or enumerated value added later comes under a
   capability name and is sent only when the answer lists that name. `recovery` adds the Worker's
   `assign` and `discard` and the reason `not-orphaned`; `programs` adds the Host's `hold-program`,
-  the program holdings it makes, and their entries in a Worker's `status`. The Keeper answers
-  `assign`, `discard`, and `hold-program` with `unsupported` on a connection whose answer did not
-  list their capability, and lists program holdings only to a Worker whose answer listed
-  `programs`.
+  the program holdings it makes, and their entries in a Worker's `status`. `pty` adds the Host's `hold-pty`, the PTY holdings it
+  makes, and their entries in a Worker's `status`; `parent` adds the Host's `spawn` and `reap`, the
+  event `exited`, and the reasons `spawn-failed` and `running` (see [PTY holdings](#pty-holdings)).
+  The Keeper answers `assign`, `discard`, `hold-program`, `hold-pty`, `spawn`, and `reap` with
+  `unsupported` on a connection whose answer did not list their capability, and lists program and
+  PTY holdings only to a Worker whose answer listed `programs` or `pty`. A Windows Keeper serves
+  `programs` and `recovery`; a macOS Keeper serves `pty`, `parent`, and `recovery`.
 - **Control requests.** The Keeper answers `OBHS` control requests on a control slot. `query`
   reports one process entry of role `keeper` whose `terminals` counts its holdings and whose one
   connection entry is `keeper`. After `drain` it answers `register-host` and `hold` with `draining`
@@ -83,7 +87,7 @@ whatever its `type`.
 | Name              | 1–64 bytes of `a`–`z`, `0`–`9`, and `-`, as in the connection contract; reasons, roles, and outcomes are names                   |
 | `id`              | Integer from 1 to 4,294,967,295 that the connection has not used for an earlier request                                          |
 | Process           | `{pid, created}`: `pid` an integer from 1 to 4,294,967,295, `created` its creation time                                          |
-| Time              | 16 lowercase hexadecimal digits of a `FILETIME`, not all zero                                                                    |
+| Time              | 16 lowercase hexadecimal digits, not all zero: a `FILETIME` on Windows, the start time in microseconds since 1970 on macOS       |
 | Handle            | 16 lowercase hexadecimal digits of a handle value in the process that holds it, nonzero and below 2^32, so never a pseudo handle |
 | Holding id        | 32 lowercase hexadecimal digits, not all zero, minted at random by a Host at a terminal's first `hold`                           |
 | Mark id           | 32 lowercase hexadecimal digits, not all zero, minted at random by the owner for one quiesce, or by the Worker for one `assign`  |
@@ -128,6 +132,9 @@ or `unsupported` with `request`, the requested type. One request is outstanding 
 | `release`         | Owner       | `holding`                                | None                                                                 |
 | `assign`          | Worker      | `holding`, `for` (a process), `mark`     | None                                                                 |
 | `discard`         | Worker      | `holding`                                | None                                                                 |
+| `hold-pty`        | Host        | `holding`, PTY `facts`                   | None                                                                 |
+| `spawn`           | Host        | `holding`, `input`, `launch`, `facts`    | `leader`, a process                                                  |
+| `reap`            | Owner       | `holding`                                | None                                                                 |
 
 | Reply         | Members besides `type`                              |
 | ------------- | --------------------------------------------------- |
@@ -142,17 +149,18 @@ or `unsupported` with `request`, the requested type. One request is outstanding 
   requested without `after`, also lists every registered Host as
   `{process, ended}`, where `ended` is a boolean. `next` is the last listed holding id, present
   exactly when more holdings follow.
-- A frame from the Keeper without `id` is an event. Generation 1 defines none; a receiver ignores an
-  event it does not know.
+- A frame from the Keeper without `id` is an event. `parent` defines `exited`, `{holding, status}`;
+  a receiver ignores an event it does not know.
 - `reason`, `role`, `state`, and `outcome` grow: a receiver reads an unknown name as `unknown`, and
   a Host reads every `resume` answer but `resumed` and `claimed` as no answer. Reasons are
   `not-registered`, `wrong-role`, `not-owner`, `not-target`, `unknown-holding`, `holding-exists`,
-  `marked`, `stale-mark`, `identity-mismatch`, `capacity`, `draining`, `handle-failed`, and, under
-  `recovery`, `not-orphaned`.
+  `marked`, `stale-mark`, `identity-mismatch`, `capacity`, `draining`, `handle-failed`, under
+  `recovery`, `not-orphaned`, and, under `parent`, `spawn-failed` and `running`.
 
 ## Admission and roles
 
-- The Keeper takes the peer's process id from the pipe before it decodes any frame.
+- The Keeper takes the peer's process id from the pipe, or on macOS from the socket with
+  `LOCAL_PEERPID`, before it decodes any frame.
 - The initiator's first `OBKP` frame is `hello`. Any other first request, a frame that does not
   decode, an `id` the connection already used, a second request while one is outstanding, and a
   message in the wrong direction close the connection without a reply.
@@ -238,6 +246,44 @@ that has not taken its reply within 2 seconds loses its connection.
 - The Keeper closes a holding's duplicates only at `release`, at `discard`, and when it ends, so a
   handle value that `inspect` answered stays valid while its mark is current.
 
+## PTY holdings
+
+On macOS a holding keeps a terminal's PTY master. A descriptor never appears in a payload: it moves
+by `SCM_RIGHTS` with the frame of the message that carries it, at most 64 per message. `hold-pty`
+carries the master; `spawn` carries the master, the slave, and the standard input when `input` is
+true, in that order; a PTY holding's `inspect-result` carries the master. A receiver counts the
+descriptors that arrived against what the message carries: a short count, or control data the
+kernel truncated, fails the request as `handle-failed` and closes what arrived.
+
+| Value             | Rule                                                                                                                                                                                                                                                                                               |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PTY `facts`       | `{terminal, leader, slave, launch}`: the owner's terminal identity, the leader's process, the slave's name as `ptsname` reads it (`/dev/`, at most 128 bytes), and the launch kind                                                                                                                 |
+| `spawn`'s `facts` | `{terminal, slave, launch}`, PTY `facts` without the leader                                                                                                                                                                                                                                        |
+| `launch`          | `{executable, arguments, environment, candidates, directory}`: the executable as named, the arguments after the first, `name=value` entries, the paths to try in order when the executable names no folder, and the optional directory; no text has a NUL, and each list has at most 4,096 entries |
+| Exit status       | `{code}`, from 0 to 255, or `{signal}`, from 1 to 255                                                                                                                                                                                                                                              |
+
+- `register-host` on macOS checks the process's start time with `proc_pidinfo` and watches its end
+  with a `kqueue` `EVFILT_PROC` filter; a process gone before the watch is armed gets
+  `handle-failed`.
+- `hold-pty` checks the master it received: a PTY master whose slave name equals `slave`, and a
+  leader that runs with the recorded start time. A failed check gets `identity-mismatch` and closes
+  the descriptor. The holding is not parented.
+- `spawn` starts the leader as a Host does: in the directory, in a new session with the slave as
+  its controlling terminal and standard streams, the standard input in place of the slave's when
+  sent, default signal dispositions, and no other descriptor; it runs the executable, or each
+  candidate in order, with `execve`. A child that cannot start gets `spawn-failed`. The Keeper
+  closes the slave and the standard input, keeps the master, and answers the leader's process; the
+  holding is owned by that Host and parented.
+- The Keeper watches a parented leader from its fork with `EVFILT_PROC` and `NOTE_EXIT`, and with a
+  bounded `waitid` poll that never reaps. When the leader ends, the Keeper records the status that
+  `waitid(P_PID, …, WEXITED | WNOWAIT)` reads and sends its owner `exited`. A PTY holding's status
+  entry and `inspect-result` carry `parented` and, once a parented leader ended, `ended`.
+- `reap` by the owner reaps an ended parented leader; a running one gets `running`. A repeat, and a
+  `reap` of a holding the Keeper does not parent, gets `reap-result`. `release` reaps an ended
+  leader, and the Keeper reaps a leader that ends after its release; it reaps nothing else, so a
+  leader's process id stays its session's until its owner contains it.
+- `claim` of a PTY holding names the leader as `program`.
+
 ## Bounds
 
 - At most 1,024 holdings and 256 registered Hosts; a request beyond either gets `capacity`.
@@ -260,6 +306,7 @@ seals none of them, so no bytes are sealed before a real Keeper and Host exercis
 | Claimant | `inspect`, `claim`, `decline`, and their results                                                     | The H2 change that makes a release Worker offer it |
 | Worker   | `register-host`, `unregister-host`, `status`, and their results                                      | The H2 change that makes a release Worker offer it |
 | Recovery | `assign`, `discard`, their results, and `not-orphaned`                                               | The H2 change that makes a release Worker offer it |
+| PTY      | `hold-pty`, `spawn`, `reap`, their results, `exited`, and PTY status entries and inspect results     | The change that makes a macOS Host offer `keeper`  |
 
 A later Keeper answers an owner's `resume` of its current mark only with `resumed` or `claimed`.
 No release Session moves a terminal into a Host of the first release, so the claimant's requests
@@ -276,6 +323,7 @@ first meet another version with H2's Keeper, and the Worker's requests with H2's
 | [`worker.json`](v1/fixtures/worker.json)                         | Valid, boundary, and invalid cases of the worker group   |
 | [`recovery.json`](v1/fixtures/recovery.json)                     | Valid, boundary, and invalid cases of the recovery group |
 | [`recovery-sequences.json`](v1/fixtures/recovery-sequences.json) | The state-table rows that the Worker's requests drive    |
+| [`pty.json`](v1/fixtures/pty.json)                               | Valid, boundary, and invalid cases of the PTY group      |
 
 - A message file holds `valid`, `boundary`, and `invalid` arrays. Message cases hold `name`,
   `direction` (`initiator`, or `acceptor` for the Keeper), and `payload`, the exact JSON text. A

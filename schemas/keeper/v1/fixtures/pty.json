@@ -1,0 +1,205 @@
+{
+	"valid": [
+		{
+			"name": "hold-pty",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-pty\",\"id\":7,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"}}"
+		},
+		{
+			"name": "spawn",
+			"direction": "initiator",
+			"payload": "{\"type\":\"spawn\",\"id\":8,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"input\":false,\"launch\":{\"executable\":\"zsh\",\"arguments\":[\"-l\"],\"environment\":[\"HOME=/Users/someone\",\"TERM=xterm-256color\"],\"candidates\":[\"/usr/local/bin/zsh\",\"/bin/zsh\"],\"directory\":\"/Users/someone/project\"},\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"}}"
+		},
+		{
+			"name": "spawn-with-input",
+			"direction": "initiator",
+			"payload": "{\"type\":\"spawn\",\"id\":9,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"input\":true,\"launch\":{\"executable\":\"/bin/sh\",\"arguments\":[],\"environment\":[],\"candidates\":[]},\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"}}"
+		},
+		{
+			"name": "reap",
+			"direction": "initiator",
+			"payload": "{\"type\":\"reap\",\"id\":10,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}"
+		},
+		{
+			"name": "hold-pty-with-extensions",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-pty\",\"id\":11,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"},\"extensions\":{\"x-note\":\"a later member\"}}"
+		},
+		{
+			"name": "hold-pty-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"hold-pty-result\",\"id\":7}"
+		},
+		{
+			"name": "spawn-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"spawn-result\",\"id\":8,\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"}}"
+		},
+		{
+			"name": "reap-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"reap-result\",\"id\":10}"
+		},
+		{
+			"name": "inspect-result-pty-parented-ended",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"inspect-result\",\"id\":12,\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"},\"parented\":true,\"ended\":{\"code\":0}}"
+		},
+		{
+			"name": "inspect-result-pty-unparented",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"inspect-result\",\"id\":13,\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"},\"parented\":false}"
+		},
+		{
+			"name": "status-result-pty",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"status-result\",\"id\":14,\"holdings\":[{\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"owner\":{\"pid\":4200,\"created\":\"00062f1d3c400000\"},\"state\":\"quiesced\",\"for\":{\"pid\":4300,\"created\":\"00062f1d3c410000\"},\"kind\":\"pty\",\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"},\"parented\":true,\"ended\":{\"signal\":9}}],\"hosts\":[{\"process\":{\"pid\":4200,\"created\":\"00062f1d3c400000\"},\"ended\":false}]}"
+		},
+		{
+			"name": "exited-code",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"exited\",\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"status\":{\"code\":3}}"
+		},
+		{
+			"name": "exited-signal",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"exited\",\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"status\":{\"signal\":15}}"
+		},
+		{
+			"name": "refused-spawn-failed",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":8,\"reason\":\"spawn-failed\"}"
+		},
+		{
+			"name": "refused-running",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":10,\"reason\":\"running\"}"
+		}
+	],
+	"boundary": [
+		{
+			"name": "hold-pty-longest-slave",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-pty\",\"id\":7,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"slave\":\"/dev/ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\",\"launch\":\"interactive-shell\"}}"
+		},
+		{
+			"name": "exited-largest-code",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"exited\",\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"status\":{\"code\":255}}"
+		},
+		{
+			"name": "exited-smallest-signal",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"exited\",\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"status\":{\"signal\":1}}"
+		},
+		{
+			"name": "spawn-result-largest-values",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"spawn-result\",\"id\":4294967295,\"leader\":{\"pid\":4294967295,\"created\":\"ffffffffffffffff\"}}"
+		}
+	],
+	"invalid": [
+		{
+			"name": "hold-pty-missing-facts",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-pty\",\"id\":7,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\"}",
+			"layer": "schema"
+		},
+		{
+			"name": "hold-pty-relative-slave",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-pty\",\"id\":7,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"slave\":\"ttys004\",\"launch\":\"interactive-shell\"}}",
+			"layer": "schema"
+		},
+		{
+			"name": "hold-pty-slave-too-long",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-pty\",\"id\":7,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"slave\":\"/dev/tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\",\"launch\":\"interactive-shell\"}}",
+			"layer": "schema"
+		},
+		{
+			"name": "hold-pty-with-handles",
+			"direction": "initiator",
+			"payload": "{\"type\":\"hold-pty\",\"id\":7,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"},\"handles\":{}}",
+			"layer": "schema"
+		},
+		{
+			"name": "spawn-missing-input",
+			"direction": "initiator",
+			"payload": "{\"type\":\"spawn\",\"id\":8,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"launch\":{\"executable\":\"zsh\",\"arguments\":[\"-l\"],\"environment\":[\"HOME=/Users/someone\",\"TERM=xterm-256color\"],\"candidates\":[\"/usr/local/bin/zsh\",\"/bin/zsh\"],\"directory\":\"/Users/someone/project\"},\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"}}",
+			"layer": "schema"
+		},
+		{
+			"name": "spawn-facts-with-leader",
+			"direction": "initiator",
+			"payload": "{\"type\":\"spawn\",\"id\":8,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"input\":false,\"launch\":{\"executable\":\"zsh\",\"arguments\":[\"-l\"],\"environment\":[\"HOME=/Users/someone\",\"TERM=xterm-256color\"],\"candidates\":[\"/usr/local/bin/zsh\",\"/bin/zsh\"],\"directory\":\"/Users/someone/project\"},\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\",\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"}}}",
+			"layer": "schema"
+		},
+		{
+			"name": "spawn-environment-without-equals",
+			"direction": "initiator",
+			"payload": "{\"type\":\"spawn\",\"id\":8,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"input\":false,\"launch\":{\"executable\":\"zsh\",\"arguments\":[\"-l\"],\"environment\":[\"HOME\"],\"candidates\":[\"/usr/local/bin/zsh\",\"/bin/zsh\"],\"directory\":\"/Users/someone/project\"},\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"}}",
+			"layer": "schema"
+		},
+		{
+			"name": "spawn-executable-with-nul",
+			"direction": "initiator",
+			"payload": "{\"type\":\"spawn\",\"id\":8,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"input\":false,\"launch\":{\"executable\":\"zs\\u0000h\",\"arguments\":[\"-l\"],\"environment\":[\"HOME=/Users/someone\",\"TERM=xterm-256color\"],\"candidates\":[\"/usr/local/bin/zsh\",\"/bin/zsh\"],\"directory\":\"/Users/someone/project\"},\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"}}",
+			"layer": "schema"
+		},
+		{
+			"name": "spawn-empty-executable",
+			"direction": "initiator",
+			"payload": "{\"type\":\"spawn\",\"id\":8,\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"input\":false,\"launch\":{\"executable\":\"\",\"arguments\":[\"-l\"],\"environment\":[\"HOME=/Users/someone\",\"TERM=xterm-256color\"],\"candidates\":[\"/usr/local/bin/zsh\",\"/bin/zsh\"],\"directory\":\"/Users/someone/project\"},\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"}}",
+			"layer": "schema"
+		},
+		{
+			"name": "reap-missing-holding",
+			"direction": "initiator",
+			"payload": "{\"type\":\"reap\",\"id\":10}",
+			"layer": "schema"
+		},
+		{
+			"name": "spawn-result-missing-leader",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"spawn-result\",\"id\":8}",
+			"layer": "schema"
+		},
+		{
+			"name": "inspect-result-pty-missing-parented",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"inspect-result\",\"id\":12,\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"}}",
+			"layer": "schema"
+		},
+		{
+			"name": "status-result-pty-missing-parented",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"status-result\",\"id\":14,\"holdings\":[{\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"owner\":{\"pid\":4200,\"created\":\"00062f1d3c400000\"},\"state\":\"quiesced\",\"for\":{\"pid\":4300,\"created\":\"00062f1d3c410000\"},\"kind\":\"pty\",\"facts\":{\"terminal\":{\"creationId\":\"0123456789abcdef0123456789abcdef\",\"hostEpoch\":\"fedcba9876543210fedcba9876543210\",\"terminalId\":\"00112233445566778899aabbccddeeff\"},\"leader\":{\"pid\":5120,\"created\":\"00062f1d3c4b5a69\"},\"slave\":\"/dev/ttys004\",\"launch\":\"interactive-shell\"},\"ended\":{\"signal\":9}}]}",
+			"layer": "schema"
+		},
+		{
+			"name": "exited-code-and-signal",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"exited\",\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"status\":{\"code\":1,\"signal\":9}}",
+			"layer": "schema"
+		},
+		{
+			"name": "exited-signal-zero",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"exited\",\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"status\":{\"signal\":0}}",
+			"layer": "schema"
+		},
+		{
+			"name": "exited-code-too-large",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"exited\",\"holding\":\"5f0c2d6e8a9b4c3d2e1f0a9b8c7d6e5f\",\"status\":{\"code\":256}}",
+			"layer": "schema"
+		},
+		{
+			"name": "exited-zero-holding",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"exited\",\"holding\":\"00000000000000000000000000000000\",\"status\":{\"code\":0}}",
+			"layer": "decoder"
+		}
+	]
+}

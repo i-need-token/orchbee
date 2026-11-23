@@ -7,6 +7,7 @@ const std = @import("std");
 const handshake = @import("terminal-host-handshake");
 const frame = @import("frame.zig");
 const message = @import("message.zig");
+const decode_pty = @import("decode_pty.zig");
 
 const json = handshake.json;
 const grammar = handshake.message;
@@ -92,11 +93,17 @@ pub fn initiatorPayload(arena: std.mem.Allocator, payload: []const u8) PayloadEr
                 .facts = try programFactsValue(try object.required("facts")),
             } };
         },
-        .release, .discard => blk: {
+        .release, .discard, .reap => blk: {
             try closed(object.members, &.{ "type", "id", "holding", "extensions" });
             const holding = try randomId(try object.required("holding"));
-            break :blk if (kind == .release) .{ .release = holding } else .{ .discard = holding };
+            break :blk switch (kind) {
+                .release => .{ .release = holding },
+                .discard => .{ .discard = holding },
+                else => .{ .reap = holding },
+            };
         },
+        .hold_pty => .{ .hold_pty = try decode_pty.holdPty(object) },
+        .spawn => .{ .spawn = try decode_pty.spawn(arena, object) },
     };
     return .{ .request = .{
         .id = id,
@@ -107,8 +114,11 @@ pub fn initiatorPayload(arena: std.mem.Allocator, payload: []const u8) PayloadEr
 
 pub fn acceptorPayload(arena: std.mem.Allocator, payload: []const u8) PayloadError!message.AcceptorMessage {
     const object = try messageObject(arena, payload);
-    // A frame without an id is an event; generation 1 defines none, so its members are unread.
-    const id_value = object.get("id") orelse return .{ .event = object.type_name };
+    // A frame without an id is an event; the members of one this build does not know are unread.
+    const id_value = object.get("id") orelse {
+        if (std.mem.eql(u8, object.type_name, "exited")) return .{ .exited = try decode_pty.exited(object) };
+        return .{ .event = object.type_name };
+    };
     const id = try requestId(id_value);
     const body: message.Reply.Body = if (std.mem.eql(u8, object.type_name, "refused")) blk: {
         try closed(object.members, &.{ "type", "id", "reason", "extensions" });
@@ -156,6 +166,8 @@ fn resultBody(arena: std.mem.Allocator, object: Object, kind: message.RequestKin
             return if (kind == .@"resume") .{ .@"resume" = outcome } else .{ .decline = outcome };
         },
         .inspect => {
+            // A PTY holding's master arrives beside the message, so its result names no handles.
+            if (object.get("handles") == null) return .{ .inspect_pty = try decode_pty.inspection(object) };
             try closed(object.members, &.{ "type", "id", "handles", "facts", "extensions" });
             const handles = try object.required("handles");
             // A program holding's handles name its process where a terminal's name its program.
@@ -168,7 +180,11 @@ fn resultBody(arena: std.mem.Allocator, object: Object, kind: message.RequestKin
                 .facts = try factsValue(try object.required("facts")),
             } };
         },
-        inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program => |empty| {
+        .spawn => {
+            try closed(object.members, &.{ "type", "id", "leader", "extensions" });
+            return .{ .spawn = try processValue(try object.required("leader")) };
+        },
+        inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program, .hold_pty, .reap => |empty| {
             try closed(object.members, &.{ "type", "id", "extensions" });
             return @unionInit(message.Reply.Body, @tagName(empty), {});
         },
@@ -180,15 +196,15 @@ fn isReplyName(text: []const u8) bool {
         message.RequestKind.fromResultName(text) != null;
 }
 
-const Object = struct {
+pub const Object = struct {
     members: []const json.Member,
     type_name: []const u8,
 
-    fn get(self: Object, member_name: []const u8) ?json.Value {
+    pub fn get(self: Object, member_name: []const u8) ?json.Value {
         return lookup(self.members, member_name);
     }
 
-    fn required(self: Object, member_name: []const u8) PayloadError!json.Value {
+    pub fn required(self: Object, member_name: []const u8) PayloadError!json.Value {
         return self.get(member_name) orelse error.Message;
     }
 };
@@ -201,15 +217,22 @@ fn messageObject(arena: std.mem.Allocator, payload: []const u8) PayloadError!Obj
 
 fn holdingEntry(value: json.Value) PayloadError!message.HoldingEntry {
     const members = try objectMembers(value);
-    try closed(members, &.{ "holding", "owner", "state", "for", "kind", "facts" });
+    const kind: ?[]const u8 = if (lookup(members, "kind")) |kind| try name(kind) else null;
+    const is_pty = if (kind) |text| std.mem.eql(u8, text, "pty") else false;
+    if (is_pty) {
+        try closed(members, &.{ "holding", "owner", "state", "for", "kind", "facts", "parented", "ended" });
+    } else {
+        try closed(members, &.{ "holding", "owner", "state", "for", "kind", "facts" });
+    }
     const facts = try requiredMember(members, "facts");
     return .{
         .holding = try randomId(try requiredMember(members, "holding")),
         .owner = try processValue(try requiredMember(members, "owner")),
         .state = message.HoldingState.fromName(try name(try requiredMember(members, "state"))),
         .target = if (lookup(members, "for")) |target| try processValue(target) else null,
-        .facts = if (lookup(members, "kind")) |kind| facts: {
-            if (!std.mem.eql(u8, try name(kind), "program")) return error.Message;
+        .facts = if (kind) |text| facts: {
+            if (is_pty) break :facts .{ .pty = try decode_pty.ptyHolding(members) };
+            if (!std.mem.eql(u8, text, "program")) return error.Message;
             break :facts .{ .program = try programFactsValue(facts) };
         } else .{ .terminal = try factsValue(facts) },
     };
@@ -256,7 +279,7 @@ fn hostEntry(value: json.Value) PayloadError!message.HostEntry {
     };
 }
 
-fn processValue(value: json.Value) PayloadError!message.Process {
+pub fn processValue(value: json.Value) PayloadError!message.Process {
     const members = try objectMembers(value);
     try closed(members, &.{ "pid", "created" });
     const created = try hexInteger(u64, try requiredMember(members, "created"));
@@ -276,7 +299,7 @@ fn handlesValue(value: json.Value) PayloadError!message.Handles {
     return handles;
 }
 
-fn terminalValue(value: json.Value) PayloadError!message.Terminal {
+pub fn terminalValue(value: json.Value) PayloadError!message.Terminal {
     const members = try objectMembers(value);
     try closed(members, &.{ "creationId", "hostEpoch", "terminalId" });
     return .{
@@ -299,7 +322,7 @@ fn factsValue(value: json.Value) PayloadError!message.Facts {
     };
 }
 
-fn randomId(value: json.Value) PayloadError!message.RandomId {
+pub fn randomId(value: json.Value) PayloadError!message.RandomId {
     const bytes = try hexBytes(16, value);
     if (message.isZero(&bytes)) return error.Message;
     return bytes;
@@ -309,17 +332,17 @@ fn requestId(value: json.Value) PayloadError!u32 {
     return integer(u32, value, 1);
 }
 
-fn lookup(members: []const json.Member, member_name: []const u8) ?json.Value {
+pub fn lookup(members: []const json.Member, member_name: []const u8) ?json.Value {
     for (members) |member| if (std.mem.eql(u8, member.name, member_name)) return member.value;
     return null;
 }
 
-fn requiredMember(members: []const json.Member, member_name: []const u8) PayloadError!json.Value {
+pub fn requiredMember(members: []const json.Member, member_name: []const u8) PayloadError!json.Value {
     return lookup(members, member_name) orelse error.Message;
 }
 
 /// Refuses a member outside `allowed`; strict JSON already refused repeats.
-fn closed(members: []const json.Member, comptime allowed: []const []const u8) PayloadError!void {
+pub fn closed(members: []const json.Member, comptime allowed: []const []const u8) PayloadError!void {
     for (members) |member| if (!contains(allowed, member.name)) return error.Message;
 }
 
@@ -328,28 +351,28 @@ fn contains(comptime allowed: []const []const u8, member_name: []const u8) bool 
     return false;
 }
 
-fn objectMembers(value: json.Value) PayloadError![]const json.Member {
+pub fn objectMembers(value: json.Value) PayloadError![]const json.Member {
     return switch (value) {
         .object => |members| members,
         else => error.Message,
     };
 }
 
-fn array(value: json.Value) PayloadError![]const json.Value {
+pub fn array(value: json.Value) PayloadError![]const json.Value {
     return switch (value) {
         .array => |items| items,
         else => error.Message,
     };
 }
 
-fn string(value: json.Value) PayloadError![]const u8 {
+pub fn string(value: json.Value) PayloadError![]const u8 {
     return switch (value) {
         .string => |text| text,
         else => error.Message,
     };
 }
 
-fn name(value: json.Value) PayloadError![]const u8 {
+pub fn name(value: json.Value) PayloadError![]const u8 {
     const text = try string(value);
     if (!grammar.isName(text)) return error.Message;
     return text;
@@ -371,7 +394,7 @@ fn hexInteger(comptime Int: type, value: json.Value) PayloadError!Int {
 }
 
 /// A plain integer token, without fraction, exponent, or sign, from `minimum` to `Int`'s maximum.
-fn integer(comptime Int: type, value: json.Value, minimum: Int) PayloadError!Int {
+pub fn integer(comptime Int: type, value: json.Value, minimum: Int) PayloadError!Int {
     const text = switch (value) {
         .number => |token| token,
         else => return error.Message,

@@ -35,7 +35,9 @@
 			"generations": { "lowest": 1, "highest": 1 },
 			"superseded": [],
 			"capabilities": [
+				{ "name": "parent", "addedIn": "0.1.0-beta.23" },
 				{ "name": "programs", "addedIn": "0.1.0-beta.23" },
+				{ "name": "pty", "addedIn": "0.1.0-beta.23" },
 				{ "name": "recovery", "addedIn": "0.1.0-beta.23" }
 			],
 			"fingerprintInputs": [

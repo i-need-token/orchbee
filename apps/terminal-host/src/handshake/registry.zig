@@ -53,8 +53,19 @@ pub const keeper = struct {
     /// Before a Host may hold a background program with `hold-program`, and the Worker's `status`
     /// lists program holdings.
     pub const programs = "programs";
-    pub const declared_capabilities: []const []const u8 = &.{ programs, recovery };
-    pub const capabilities: []const []const u8 = &.{ programs, recovery };
+    /// Before a Host may hold a terminal's PTY master with `hold-pty`, and the Worker's `status`
+    /// lists PTY holdings.
+    pub const pty = "pty";
+    /// Before a Host may ask the Keeper to start and parent a terminal's leader with `spawn` and
+    /// reap it with `reap`, and the Keeper sends `exited`.
+    pub const parent = "parent";
+    pub const declared_capabilities: []const []const u8 = &.{ parent, programs, pty, recovery };
+    /// What this build's Keeper serves and its Hosts offer: Windows holds handles and programs;
+    /// macOS holds PTY masters and parents leaders.
+    pub const capabilities: []const []const u8 = if (builtin.os.tag.isDarwin())
+        &.{ parent, pty, recovery }
+    else
+        &.{ programs, recovery };
     pub const development_fingerprint: []const u8 = options.keeper_fingerprint;
 };
 

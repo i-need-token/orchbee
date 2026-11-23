@@ -161,6 +161,72 @@ const Object = struct {
         try inner.end();
     }
 
+    fn ptyFacts(self: *Object, value: message.pty.PtyFacts) WriteError!void {
+        if (!message.pty.validSlave(value.slave)) return error.InvalidMessage;
+        try self.key("facts");
+        var inner = try Object.begin(self.writer);
+        try inner.terminal("terminal", value.terminal);
+        try inner.process("leader", value.leader);
+        try inner.text("slave", value.slave);
+        try inner.name("launch", value.launch);
+        try inner.end();
+    }
+
+    /// A PTY holding's `facts`, `parented`, and `ended` when the leader ended.
+    fn ptyHolding(self: *Object, value: message.pty.PtyHolding) WriteError!void {
+        try self.ptyFacts(value.facts);
+        try self.boolean("parented", value.parented);
+        if (value.ended) |status| try self.exitStatus("ended", status);
+    }
+
+    fn exitStatus(self: *Object, member_name: []const u8, value: message.pty.ExitStatus) WriteError!void {
+        try self.key(member_name);
+        var inner = try Object.begin(self.writer);
+        switch (value) {
+            .code => |code| try inner.integer("code", code),
+            .signal => |signal| {
+                if (signal == 0) return error.InvalidMessage;
+                try inner.integer("signal", signal);
+            },
+        }
+        try inner.end();
+    }
+
+    fn boolean(self: *Object, member_name: []const u8, value: bool) WriteError!void {
+        try self.key(member_name);
+        try self.writer.writeAll(if (value) "true" else "false");
+    }
+
+    fn strings(self: *Object, member_name: []const u8, values: []const []const u8) WriteError!void {
+        try self.key(member_name);
+        try self.writer.writeByte('[');
+        for (values, 0..) |value, index| {
+            if (index > 0) try self.writer.writeByte(',');
+            try writeString(self.writer, value);
+        }
+        try self.writer.writeByte(']');
+    }
+
+    fn spawn(self: *Object, value: message.pty.Spawn) WriteError!void {
+        if (!message.pty.validLaunch(value.launch) or !message.pty.validSlave(value.facts.slave)) return error.InvalidMessage;
+        try self.randomId("holding", value.holding);
+        try self.boolean("input", value.input);
+        try self.key("launch");
+        var launch = try Object.begin(self.writer);
+        try launch.text("executable", value.launch.executable);
+        try launch.strings("arguments", value.launch.arguments);
+        try launch.strings("environment", value.launch.environment);
+        try launch.strings("candidates", value.launch.candidates);
+        if (value.launch.directory) |directory| try launch.text("directory", directory);
+        try launch.end();
+        try self.key("facts");
+        var facts_object = try Object.begin(self.writer);
+        try facts_object.terminal("terminal", value.facts.terminal);
+        try facts_object.text("slave", value.facts.slave);
+        try facts_object.name("launch", value.facts.launch);
+        try facts_object.end();
+    }
+
     fn extensions(self: *Object, members: message.Extensions) WriteError!void {
         if (members.len == 0) return;
         try self.key("extensions");
@@ -204,7 +270,12 @@ fn writeInitiator(writer: *std.Io.Writer, value: message.InitiatorMessage) Write
                     try object.process("program", claim.program);
                     if (claim.terminal) |terminal| try object.terminal("terminal", terminal);
                 },
-                .release, .discard => |holding| try object.randomId("holding", holding),
+                .release, .discard, .reap => |holding| try object.randomId("holding", holding),
+                .hold_pty => |hold| {
+                    try object.randomId("holding", hold.holding);
+                    try object.ptyFacts(hold.facts);
+                },
+                .spawn => |spawn| try object.spawn(spawn),
                 .hold_program => |hold| {
                     try object.randomId("holding", hold.holding);
                     try object.programHandles(hold.handles);
@@ -226,6 +297,11 @@ fn writeAcceptor(writer: *std.Io.Writer, value: message.AcceptorMessage) WriteEr
     var object = try Object.begin(writer);
     switch (value) {
         .event => |event| try object.name("type", event),
+        .exited => |exited| {
+            try object.text("type", "exited");
+            try object.randomId("holding", exited.holding);
+            try object.exitStatus("status", exited.status);
+        },
         .reply => |reply| {
             switch (reply.body) {
                 .refused => |reason| {
@@ -262,7 +338,17 @@ fn writeAcceptor(writer: *std.Io.Writer, value: message.AcceptorMessage) WriteEr
                     try object.programHandles(inspection.handles);
                     try object.programFacts(inspection.facts);
                 },
-                inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program => |_, tag| {
+                .inspect_pty => |holding| {
+                    try object.text("type", message.RequestKind.inspect.resultName());
+                    try object.id(reply.id);
+                    try object.ptyHolding(holding);
+                },
+                .spawn => |leader| {
+                    try object.text("type", message.RequestKind.spawn.resultName());
+                    try object.id(reply.id);
+                    try object.process("leader", leader);
+                },
+                inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program, .hold_pty, .reap => |_, tag| {
                     try object.text("type", @field(message.RequestKind, @tagName(tag)).resultName());
                     try object.id(reply.id);
                 },
@@ -288,6 +374,10 @@ fn writeStatus(object: *Object, page: message.StatusPage) WriteError!void {
             .program => |facts| {
                 try inner.text("kind", "program");
                 try inner.programFacts(facts);
+            },
+            .pty => |holding| {
+                try inner.text("kind", "pty");
+                try inner.ptyHolding(holding);
             },
         }
         try inner.end();

@@ -108,6 +108,14 @@ pub const BACKGROUND_PROGRAMS: &str = "background-programs";
 /// `hold-program`, and the Worker's `status` lists program holdings.
 pub const PROGRAMS: &str = "programs";
 
+/// The `keeper` capability before a Host may hold a terminal's PTY master in the Keeper with
+/// `hold-pty`, and the Worker's `status` lists PTY holdings.
+pub const PTY: &str = "pty";
+
+/// The `keeper` capability before a Host may ask the Keeper to start and parent a terminal's leader
+/// with `spawn` and reap it with `reap`, and the Keeper reports the leader's end with `exited`.
+pub const PARENT: &str = "parent";
+
 /// A connection that starts with an `OBHS` offer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConnectionKind {
@@ -223,7 +231,7 @@ impl ConnectionKind {
                 SCREEN_GATED_PROMPT,
                 SCREEN_GATED_SEND,
             ]),
-            Self::Keeper => capability_set(&[PROGRAMS, RECOVERY]),
+            Self::Keeper => capability_set(&[PARENT, PROGRAMS, PTY, RECOVERY]),
             Self::MachineHub | Self::MachineLink => self.capabilities(),
         }
     }

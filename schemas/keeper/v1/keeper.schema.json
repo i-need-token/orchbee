@@ -9,6 +9,8 @@
 		{ "$ref": "#/$defs/status" },
 		{ "$ref": "#/$defs/hold" },
 		{ "$ref": "#/$defs/holdProgram" },
+		{ "$ref": "#/$defs/holdPty" },
+		{ "$ref": "#/$defs/spawn" },
 		{ "$ref": "#/$defs/markRequest" },
 		{ "$ref": "#/$defs/markedRequest" },
 		{ "$ref": "#/$defs/claim" },
@@ -16,11 +18,14 @@
 		{ "$ref": "#/$defs/unknownRequest" },
 		{ "$ref": "#/$defs/emptyResult" },
 		{ "$ref": "#/$defs/statusResult" },
+		{ "$ref": "#/$defs/spawnResult" },
 		{ "$ref": "#/$defs/outcomeResult" },
 		{ "$ref": "#/$defs/inspectResult" },
 		{ "$ref": "#/$defs/inspectProgramResult" },
+		{ "$ref": "#/$defs/inspectPtyResult" },
 		{ "$ref": "#/$defs/refused" },
 		{ "$ref": "#/$defs/unsupported" },
+		{ "$ref": "#/$defs/exited" },
 		{ "$ref": "#/$defs/event" }
 	],
 	"$defs": {
@@ -35,7 +40,7 @@
 			"maximum": 4294967295
 		},
 		"time": {
-			"description": "A FILETIME as 16 lowercase hexadecimal digits, not all zero.",
+			"description": "A FILETIME on Windows, or the start time in microseconds since the Unix epoch on macOS, as 16 lowercase hexadecimal digits, not all zero.",
 			"type": "string",
 			"pattern": "^[0-9a-f]{16}$"
 		},
@@ -192,6 +197,105 @@
 				"extensions": { "$ref": "#/$defs/extensions" }
 			}
 		},
+		"slave": {
+			"description": "A PTY slave's device path as ptsname reads it.",
+			"type": "string",
+			"pattern": "^/dev/[^\\u0000]+$",
+			"maxLength": 128
+		},
+		"launchText": {
+			"description": "Text that becomes a C string: nonempty and without a \\u0000.",
+			"type": "string",
+			"pattern": "^[^\\u0000]+$"
+		},
+		"ptyFacts": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["terminal", "leader", "slave", "launch"],
+			"properties": {
+				"terminal": { "$ref": "#/$defs/terminal" },
+				"leader": { "$ref": "#/$defs/process" },
+				"slave": { "$ref": "#/$defs/slave" },
+				"launch": { "$ref": "#/$defs/name" }
+			}
+		},
+		"launch": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["executable", "arguments", "environment", "candidates"],
+			"properties": {
+				"executable": { "$ref": "#/$defs/launchText" },
+				"arguments": {
+					"type": "array",
+					"maxItems": 4096,
+					"items": { "type": "string", "pattern": "^[^\\u0000]*$" }
+				},
+				"environment": {
+					"type": "array",
+					"maxItems": 4096,
+					"items": { "type": "string", "pattern": "^[^\\u0000=]*=[^\\u0000]*$" }
+				},
+				"candidates": {
+					"type": "array",
+					"maxItems": 4096,
+					"items": { "$ref": "#/$defs/launchText" }
+				},
+				"directory": { "$ref": "#/$defs/launchText" }
+			}
+		},
+		"exitStatus": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["code"],
+					"properties": { "code": { "type": "integer", "minimum": 0, "maximum": 255 } }
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["signal"],
+					"properties": { "signal": { "type": "integer", "minimum": 1, "maximum": 255 } }
+				}
+			]
+		},
+		"holdPty": {
+			"description": "Under pty only; the message carries the master by SCM_RIGHTS.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "holding", "facts"],
+			"properties": {
+				"type": { "const": "hold-pty" },
+				"id": { "$ref": "#/$defs/id" },
+				"holding": { "$ref": "#/$defs/randomId" },
+				"facts": { "$ref": "#/$defs/ptyFacts" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"spawn": {
+			"description": "Under parent only; the message carries the master, the slave, and the standard input when input is true.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "holding", "input", "launch", "facts"],
+			"properties": {
+				"type": { "const": "spawn" },
+				"id": { "$ref": "#/$defs/id" },
+				"holding": { "$ref": "#/$defs/randomId" },
+				"input": { "type": "boolean" },
+				"launch": { "$ref": "#/$defs/launch" },
+				"facts": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["terminal", "slave", "launch"],
+					"properties": {
+						"terminal": { "$ref": "#/$defs/terminal" },
+						"slave": { "$ref": "#/$defs/slave" },
+						"launch": { "$ref": "#/$defs/name" }
+					}
+				},
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
 		"markRequest": {
 			"type": "object",
 			"additionalProperties": false,
@@ -237,7 +341,7 @@
 			"additionalProperties": false,
 			"required": ["type", "id", "holding"],
 			"properties": {
-				"type": { "enum": ["release", "discard"] },
+				"type": { "enum": ["release", "discard", "reap"] },
 				"id": { "$ref": "#/$defs/id" },
 				"holding": { "$ref": "#/$defs/randomId" },
 				"extensions": { "$ref": "#/$defs/extensions" }
@@ -268,6 +372,9 @@
 									"release",
 									"assign",
 									"discard",
+									"hold-pty",
+									"spawn",
+									"reap",
 									"refused",
 									"unsupported"
 								]
@@ -295,7 +402,9 @@
 						"claim-result",
 						"release-result",
 						"assign-result",
-						"discard-result"
+						"discard-result",
+						"hold-pty-result",
+						"reap-result"
 					]
 				},
 				"id": { "$ref": "#/$defs/id" },
@@ -328,6 +437,22 @@
 						"for": { "$ref": "#/$defs/process" },
 						"kind": { "const": "program" },
 						"facts": { "$ref": "#/$defs/programFacts" }
+					}
+				},
+				{
+					"description": "A PTY holding, listed only to a Worker that negotiated pty.",
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["holding", "owner", "state", "kind", "facts", "parented"],
+					"properties": {
+						"holding": { "$ref": "#/$defs/randomId" },
+						"owner": { "$ref": "#/$defs/process" },
+						"state": { "$ref": "#/$defs/holdingState" },
+						"for": { "$ref": "#/$defs/process" },
+						"kind": { "const": "pty" },
+						"facts": { "$ref": "#/$defs/ptyFacts" },
+						"parented": { "type": "boolean" },
+						"ended": { "$ref": "#/$defs/exitStatus" }
 					}
 				}
 			]
@@ -405,6 +530,31 @@
 				"extensions": { "$ref": "#/$defs/extensions" }
 			}
 		},
+		"inspectPtyResult": {
+			"description": "A PTY holding's inspect-result; the message carries the master by SCM_RIGHTS.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "facts", "parented"],
+			"properties": {
+				"type": { "const": "inspect-result" },
+				"id": { "$ref": "#/$defs/id" },
+				"facts": { "$ref": "#/$defs/ptyFacts" },
+				"parented": { "type": "boolean" },
+				"ended": { "$ref": "#/$defs/exitStatus" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"spawnResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "leader"],
+			"properties": {
+				"type": { "const": "spawn-result" },
+				"id": { "$ref": "#/$defs/id" },
+				"leader": { "$ref": "#/$defs/process" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
 		"refused": {
 			"type": "object",
 			"additionalProperties": false,
@@ -413,7 +563,7 @@
 				"type": { "const": "refused" },
 				"id": { "$ref": "#/$defs/id" },
 				"reason": {
-					"description": "not-registered, wrong-role, not-owner, not-target, unknown-holding, holding-exists, marked, stale-mark, identity-mismatch, capacity, draining, handle-failed, or not-orphaned; a receiver reads any other name as unknown.",
+					"description": "not-registered, wrong-role, not-owner, not-target, unknown-holding, holding-exists, marked, stale-mark, identity-mismatch, capacity, draining, handle-failed, not-orphaned, spawn-failed, or running; a receiver reads any other name as unknown.",
 					"$ref": "#/$defs/name"
 				},
 				"extensions": { "$ref": "#/$defs/extensions" }
@@ -431,12 +581,24 @@
 			}
 		},
 		"event": {
-			"description": "A frame from the Keeper without an id. Generation 1 defines none; a receiver ignores one it does not know.",
+			"description": "Another frame from the Keeper without an id; a receiver ignores one it does not know.",
 			"type": "object",
 			"required": ["type"],
 			"not": { "required": ["id"] },
 			"properties": {
-				"type": { "$ref": "#/$defs/name" }
+				"type": { "allOf": [{ "$ref": "#/$defs/name" }, { "not": { "const": "exited" } }] }
+			}
+		},
+		"exited": {
+			"description": "Under parent only: the parented leader of holding ended, and the Keeper keeps it unreaped until its owner's reap.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "holding", "status"],
+			"properties": {
+				"type": { "const": "exited" },
+				"holding": { "$ref": "#/$defs/randomId" },
+				"status": { "$ref": "#/$defs/exitStatus" },
+				"extensions": { "$ref": "#/$defs/extensions" }
 			}
 		}
 	}

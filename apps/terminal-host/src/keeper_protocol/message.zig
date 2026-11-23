@@ -2,6 +2,7 @@
 //! Ids, times, and handles are numbers here and hexadecimal text on the wire.
 
 const std = @import("std");
+pub const pty = @import("message_pty.zig");
 
 const handshake = @import("terminal-host-handshake");
 
@@ -124,6 +125,10 @@ pub const Reason = enum {
     handle_failed,
     /// The holding's owner still runs; only `recovery`'s requests answer it.
     not_orphaned,
+    /// Under `parent`: the Keeper could not start the program a `spawn` named.
+    spawn_failed,
+    /// Under `parent`: a `reap` of a parented leader that has not ended.
+    running,
     unknown,
 
     pub fn name(self: Reason) []const u8 {
@@ -184,6 +189,12 @@ pub const RequestKind = enum {
     discard,
     /// A Host's hold of a background program, under `programs`.
     hold_program,
+    /// A Host's hold of a terminal's PTY master, under `pty`.
+    hold_pty,
+    /// A Host's request that the Keeper start and parent a terminal's leader, and its later
+    /// request that the Keeper reap it, under `parent`.
+    spawn,
+    reap,
 
     pub fn name(self: RequestKind) []const u8 {
         return wireName(self);
@@ -267,6 +278,9 @@ pub const Request = struct {
         assign: Mark,
         discard: RandomId,
         hold_program: HoldProgram,
+        hold_pty: pty.HoldPty,
+        spawn: pty.Spawn,
+        reap: RandomId,
     };
 
     /// Whether only a connection that negotiated `recovery` sends this request.
@@ -277,6 +291,25 @@ pub const Request = struct {
     /// Whether only a connection that negotiated `programs` sends this request.
     pub fn needsPrograms(kind: RequestKind) bool {
         return kind == .hold_program;
+    }
+
+    /// Whether only a connection that negotiated `pty` sends this request.
+    pub fn needsPty(kind: RequestKind) bool {
+        return kind == .hold_pty;
+    }
+
+    /// Whether only a connection that negotiated `parent` sends this request.
+    pub fn needsParent(kind: RequestKind) bool {
+        return kind == .spawn or kind == .reap;
+    }
+
+    /// How many descriptors arrive with this request by `SCM_RIGHTS`.
+    pub fn descriptorCount(body: Body) u8 {
+        return switch (body) {
+            .hold_pty => 1,
+            .spawn => |spawn| spawn.descriptorCount(),
+            else => 0,
+        };
     }
 };
 
@@ -290,6 +323,8 @@ pub const InitiatorMessage = union(enum) {
 pub const HoldingFacts = union(enum) {
     terminal: Facts,
     program: ProgramFacts,
+    /// Under `pty`: a terminal whose PTY master the Keeper holds.
+    pty: pty.PtyHolding,
 };
 
 pub const HoldingEntry = struct {
@@ -355,12 +390,18 @@ pub const Reply = struct {
         assign,
         discard,
         hold_program,
+        hold_pty,
+        reap,
+        /// `spawn-result`: the leader the Keeper started.
+        spawn: Process,
         status: StatusPage,
         @"resume": Outcome,
         decline: Outcome,
         inspect: Inspection,
         /// `inspect-result` for a program holding.
         inspect_program: ProgramInspection,
+        /// `inspect-result` for a PTY holding, sent with its master.
+        inspect_pty: pty.PtyHolding,
         refused: Reason,
         /// The requested type, which the Keeper does not know.
         unsupported: []const u8,
@@ -379,18 +420,28 @@ pub const Reply = struct {
                 .assign => kind == .assign,
                 .discard => kind == .discard,
                 .hold_program => kind == .hold_program,
+                .hold_pty => kind == .hold_pty,
+                .reap => kind == .reap,
+                .spawn => kind == .spawn,
                 .status => kind == .status,
                 .@"resume" => kind == .@"resume",
                 .decline => kind == .decline,
-                .inspect, .inspect_program => kind == .inspect,
+                .inspect, .inspect_program, .inspect_pty => kind == .inspect,
             };
+        }
+
+        /// How many descriptors leave with this reply by `SCM_RIGHTS`.
+        pub fn descriptorCount(self: Body) u8 {
+            return if (self == .inspect_pty) 1 else 0;
         }
     };
 };
 
 pub const AcceptorMessage = union(enum) {
     reply: Reply,
-    /// A frame without `id`. Generation 1 defines no event, so its other members are unread.
+    /// Under `parent`: the event `exited`.
+    exited: pty.Exited,
+    /// Another frame without `id`, which a receiver ignores; its other members are unread.
     event: []const u8,
 };
 
