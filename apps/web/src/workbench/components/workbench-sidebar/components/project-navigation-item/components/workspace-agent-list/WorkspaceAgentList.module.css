@@ -137,6 +137,11 @@
 	gap: var(--ob-ref-space-1-5);
 }
 
+/* The title leads the row; the product is a quieter cue beside it. */
+.mark {
+	opacity: var(--ob-sys-opacity-muted);
+}
+
 /* The dot's cell reaches 4 px past it on each side, so the pointer finds its tooltip. */
 .unread {
 	margin-inline: calc(var(--ob-ref-space-1) * -1);
