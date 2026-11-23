@@ -134,9 +134,9 @@ pub(super) fn finish_hosted(inner: &mut Inner, program: orchbee_terminal_protoco
     }
 }
 
-/// The absolute path of the command processor a configured command runs in, on Windows, where a
-/// Terminal Host runs background programs.
-pub(super) fn command_processor() -> Option<String> {
+/// The absolute path of the command processor a configured command runs in, and its arguments
+/// before the command text, on Windows and macOS, where a Terminal Host runs background programs.
+pub(super) fn command_processor() -> Option<(String, Vec<String>)> {
     shell::processor()
 }
 

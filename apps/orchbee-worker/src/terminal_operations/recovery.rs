@@ -179,7 +179,7 @@ pub(super) fn recover_orphans(
 }
 
 /// Recovers into `host` each orphaned program holding. Only this Session's Hosts hold programs
-/// in its Keeper, so every orphan is a lost Host's; a macOS Keeper holds none. A program whose recovery fails keeps running
+/// in its Keeper, so every orphan is a lost Host's. A program whose recovery fails keeps running
 /// in the Keeper and fails the replacement.
 fn recover_programs(
     keeper: &mut SessionKeeper,

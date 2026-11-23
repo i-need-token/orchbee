@@ -356,7 +356,7 @@ pub(crate) fn keeper_replaced() {
 
 /// The Worker updated the Session's Keeper to its own program: on Windows a new Keeper held
 /// `terminals` terminal holdings and `programs` program holdings, and on macOS the Keeper carried
-/// `terminals` holdings into the program it executed; the update took `elapsed` up to its commit.
+/// as many of each into the program it executed; the update took `elapsed` up to its commit.
 #[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn keeper_updated(terminals: usize, programs: usize, elapsed: Duration) {
     log_event(

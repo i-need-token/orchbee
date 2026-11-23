@@ -132,7 +132,11 @@ impl KeeperUpdate {
         match keeper.reexec(executable) {
             Ok(Ok(())) => {
                 self.judged = Some((keeper.identity(), false));
-                diagnostic_events::keeper_updated(status.holdings.len(), 0, began.elapsed());
+                diagnostic_events::keeper_updated(
+                    status.holdings.len(),
+                    status.programs.len(),
+                    began.elapsed(),
+                );
                 false
             }
             Ok(Err(refusal)) => {

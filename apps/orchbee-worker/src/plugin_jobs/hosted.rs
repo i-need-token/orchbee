@@ -46,13 +46,13 @@ pub(super) fn start_configured(
     fingerprint: u64,
     host: &dyn ProgramHost,
 ) -> Outcome {
-    let Some(executable) = configured::command_processor() else {
+    let Some((executable, arguments)) = configured::command_processor() else {
         return Outcome::Refused(Refusal::Unavailable);
     };
     let request = ProgramRequest::Start(Box::new(StartProgram {
         program_id: id.as_bytes(),
         executable,
-        arguments: vec!["/d".into(), "/c".into()],
+        arguments,
         raw_argument: Some(intent.command.clone()),
         directory: intent.directory.clone(),
         environment: environment(&intent.environment),

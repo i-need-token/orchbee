@@ -51,9 +51,10 @@ pub(super) struct Answer {
 }
 
 /// This build's `worker-host` offer: the registry's generations and capabilities, the package
-/// version, the source commit release packaging compiled in, and the compiled environment. On
-/// Windows it adds `background-programs`. Where a Windows or macOS build runs the Keeper it also
-/// offers `keeper` and `recovery`, and `handover` while moves are live there.
+/// version, the source commit release packaging compiled in, and the compiled environment. It adds
+/// `background-programs` on Windows, and on macOS where it runs the Keeper. Where a Windows or
+/// macOS build runs the Keeper it also offers `keeper` and `recovery`, and `handover` while moves
+/// are live there.
 pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
     let mut offer = Offer::local(
         ConnectionKind::WorkerHost,
@@ -64,7 +65,7 @@ pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
         },
         EnvironmentName::new(orchbee_local_runtime::environment_stem())?,
     );
-    if cfg!(windows) {
+    if cfg!(windows) || (cfg!(target_os = "macos") && orchbee_local_runtime::keeper_live()) {
         offer.capabilities = CapabilitySet::new(
             offer
                 .capabilities

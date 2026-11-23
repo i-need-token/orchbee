@@ -201,12 +201,13 @@ impl ConnectionKind {
             ],
             Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_PROMPT, SCREEN_GATED_SEND],
             Self::MachineHub | Self::MachineLink => &[CAPACITY],
-            // The Worker reads the holdings its platform's Hosts make: program holdings on Windows,
-            // PTY holdings elsewhere, where it updates the Keeper by re-execution.
+            // The Worker reads the holdings its platform's Hosts make: program holdings everywhere,
+            // and PTY holdings beside them elsewhere than Windows, where it updates the Keeper by
+            // re-execution.
             #[cfg(windows)]
             Self::Keeper => &[PROGRAMS, RECOVERY],
             #[cfg(not(windows))]
-            Self::Keeper => &[PTY, RECOVERY, REEXEC],
+            Self::Keeper => &[PROGRAMS, PTY, RECOVERY, REEXEC],
         };
         capability_set(names)
     }
